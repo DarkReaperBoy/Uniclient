@@ -429,12 +429,7 @@
 ## §9 — Context Menus & Actions
 
 ### §9.1 Context Menu Chrome
-<!-- File: dart/lib/ui/chat_view.dart (showMenu calls) — NOT spec-compliant yet -->
-- [ ] Custom popup menu widget: 8px corner radius, 200ms sineInOut open / 150ms fade close; min 156px / max 300px width; shadow blurRadius 5, offset(0,1), opacity 0.25 — spec §9.1
-- [ ] PanelAnimation reveal: width 0.5→1.0 over 0.6 duration, height 0.3→1.0 over 0.9, opacity 0.2→1.0 over 0.3 — spec §9.1
-- [ ] Item layout (no icon): margins(17,8,17,7), height ~28px, normalFont 13px — spec §9.1
-- [ ] Item layout (with icon): margins(54,8,17,8), height ~29px; icon at pos(15,5) size 20x20; submenu arrow tinted windowBoldFg — spec §9.1
-- [ ] Separator: 1px height, slot 11px, margins(0,5,0,5), color menuSeparatorFg — spec §9.1
+<!-- File: dart/lib/ui/popup_menu.dart (custom TelegramPopupMenu), all showMenu calls migrated -->
 - [ ] Ripple: 650ms show / 200ms hide, color windowBgRipple — spec §9.1
 - [ ] Top fade: fadeHeight 0.2, fadeBg menuBg — spec §9.1
 - [ ] Theme tokens: bg windowBg, hover windowBgOver, text windowFg, icon menuIconFg / menuIconFgOver — spec §9.1

@@ -19,6 +19,7 @@ import '../theme/theme.dart';
 import '../data/emoji_data.dart';
 import 'chat_list_row.dart' show ForwardDragData;
 import 'message_bubble.dart';
+import 'popup_menu.dart';
 import 'send_files_box.dart';
 
 /// Chat column: top bar + message list + compose area.
@@ -535,38 +536,26 @@ class _ChatViewState extends State<ChatView>
     final msg = chatState.messages.where((m) => m.msgId == msgId).firstOrNull;
     if (msg == null) return;
 
-    final theme = Theme.of(context);
-    showMenu<String>(
+    showTelegramMenu<String>(
       context: context,
-      position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx + 1, position.dy + 1),
-      color: theme.colorScheme.surface,
+      position: position,
       items: [
-        const PopupMenuItem(value: 'reply', child: ListTile(dense: true, leading: Icon(Icons.reply, size: 20), title: Text('Reply'))),
+        const TelegramMenuItem(value: 'reply', icon: Icon(Icons.reply), label: 'Reply'),
         if (msg.contentText.isNotEmpty)
-          const PopupMenuItem(value: 'copy', child: ListTile(dense: true, leading: Icon(Icons.copy, size: 20), title: Text('Copy Text'))),
-        const PopupMenuItem(value: 'forward', child: ListTile(dense: true, leading: Icon(Icons.forward, size: 20), title: Text('Forward'))),
-        const PopupMenuItem(value: 'select', child: ListTile(dense: true, leading: Icon(Icons.check_circle_outline, size: 20), title: Text('Select'))),
-        PopupMenuItem(
+          const TelegramMenuItem(value: 'copy', icon: Icon(Icons.copy), label: 'Copy Text'),
+        const TelegramMenuItem(value: 'forward', icon: Icon(Icons.forward), label: 'Forward'),
+        const TelegramMenuItem(value: 'select', icon: Icon(Icons.check_circle_outline), label: 'Select'),
+        TelegramMenuItem(
           value: 'pin',
-          child: ListTile(
-            dense: true,
-            leading: Icon(msg.isPinned ? Icons.push_pin : Icons.push_pin_outlined, size: 20),
-            title: Text(msg.isPinned ? 'Unpin Message' : 'Pin Message'),
-          ),
+          icon: Icon(msg.isPinned ? Icons.push_pin : Icons.push_pin_outlined),
+          label: msg.isPinned ? 'Unpin Message' : 'Pin Message',
         ),
         if (msg.isOutgoing)
-          const PopupMenuItem(value: 'edit', child: ListTile(dense: true, leading: Icon(Icons.edit, size: 20), title: Text('Edit'))),
-        PopupMenuItem(value: 'delete', child: ListTile(dense: true, leading: Icon(Icons.delete_outline, size: 20, color: theme.colorScheme.error), title: Text('Delete', style: TextStyle(color: theme.colorScheme.error)))),
-        const PopupMenuDivider(),
-        PopupMenuItem(
-          value: 'copy_info',
-          child: ListTile(
-            dense: true,
-            leading: const Icon(Icons.info_outline, size: 20),
-            title: const Text('Copy Info'),
-            trailing: const Icon(Icons.chevron_right, size: 16),
-          ),
-        ),
+          const TelegramMenuItem(value: 'edit', icon: Icon(Icons.edit), label: 'Edit'),
+        const TelegramMenuItem.separator(),
+        const TelegramMenuItem(value: 'delete', icon: Icon(Icons.delete_outline), label: 'Delete', isAttention: true),
+        const TelegramMenuItem.separator(),
+        const TelegramMenuItem(value: 'copy_info', icon: Icon(Icons.info_outline), label: 'Copy Info'),
       ],
     ).then((action) {
       if (action == null) return;
@@ -585,7 +574,7 @@ class _ChatViewState extends State<ChatView>
           setState(() {
             _editingMsgId = msgId;
             _editOriginalText = msg.contentText;
-            _replyToId = null; // edit and reply are mutually exclusive
+            _replyToId = null;
             _composeController.text = msg.contentText;
             _composeController.selection = TextSelection.fromPosition(
               TextPosition(offset: _composeController.text.length),
@@ -600,16 +589,14 @@ class _ChatViewState extends State<ChatView>
   }
 
   void _showCopyInfoMenu(CachedMessage msg, Offset position) {
-    final theme = Theme.of(context);
-    showMenu<String>(
+    showTelegramMenu<String>(
       context: context,
-      position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx + 1, position.dy + 1),
-      color: theme.colorScheme.surface,
+      position: position,
       items: [
-        PopupMenuItem(value: 'msg_id', child: Text('Message ID: ${msg.msgId}')),
-        PopupMenuItem(value: 'sender_id', child: Text('Sender ID: ${msg.senderId}')),
-        PopupMenuItem(value: 'chat_id', child: Text('Chat ID: ${msg.chatId}')),
-        PopupMenuItem(value: 'timestamp', child: Text('Timestamp: ${msg.timestamp}')),
+        TelegramMenuItem(value: 'msg_id', label: 'Message ID: ${msg.msgId}'),
+        TelegramMenuItem(value: 'sender_id', label: 'Sender ID: ${msg.senderId}'),
+        TelegramMenuItem(value: 'chat_id', label: 'Chat ID: ${msg.chatId}'),
+        TelegramMenuItem(value: 'timestamp', label: 'Timestamp: ${msg.timestamp}'),
       ],
     ).then((value) {
       if (value == null) return;
@@ -2037,36 +2024,31 @@ class _ChatTopBar extends StatelessWidget {
   /// Clear History, Delete Chat, Leave Channel.
   static void _showTopBarMenu(BuildContext btnCtx, ChatInfo chat, {VoidCallback? onToggleInfo}) {
     final chatState = btnCtx.read<ChatState>();
-    final overlay = Overlay.of(btnCtx).context.findRenderObject() as RenderBox;
     final button = btnCtx.findRenderObject() as RenderBox;
-    final origin = button.localToGlobal(Offset.zero, ancestor: overlay);
-    final position = RelativeRect.fromRect(
-      origin & button.size,
-      Offset.zero & overlay.size,
-    );
+    final buttonPos = button.localToGlobal(Offset(0, button.size.height));
     final isGroupy = chat.type == ChatType.group ||
         chat.type == ChatType.channel ||
         chat.type == ChatType.topic;
     final isDm = chat.type == ChatType.dm;
-    showMenu<String>(
+    showTelegramMenu<String>(
       context: btnCtx,
-      position: position,
+      position: buttonPos,
       items: [
         if (onToggleInfo != null)
-          const PopupMenuItem(value: 'view_profile', child: Text('View Profile')),
-        PopupMenuItem(value: 'mute', child: Text(chat.isMuted ? 'Unmute' : 'Mute')),
-        PopupMenuItem(
+          const TelegramMenuItem(value: 'view_profile', label: 'View Profile'),
+        TelegramMenuItem(value: 'mute', label: chat.isMuted ? 'Unmute' : 'Mute'),
+        TelegramMenuItem(
           value: 'read',
-          child: Text(chat.unreadCount > 0 ? 'Mark as Read' : 'Mark as Unread'),
+          label: chat.unreadCount > 0 ? 'Mark as Read' : 'Mark as Unread',
         ),
-        PopupMenuItem(value: 'pin', child: Text(chat.isPinned ? 'Unpin' : 'Pin')),
-        PopupMenuItem(value: 'archive', child: Text(chat.isArchived ? 'Unarchive' : 'Archive')),
-        const PopupMenuDivider(),
-        const PopupMenuItem(value: 'clear_history', child: Text('Clear History')),
+        TelegramMenuItem(value: 'pin', label: chat.isPinned ? 'Unpin' : 'Pin'),
+        TelegramMenuItem(value: 'archive', label: chat.isArchived ? 'Unarchive' : 'Archive'),
+        const TelegramMenuItem.separator(),
+        const TelegramMenuItem(value: 'clear_history', label: 'Clear History'),
         if (isDm)
-          const PopupMenuItem(value: 'delete_chat', child: Text('Delete Chat')),
+          const TelegramMenuItem(value: 'delete_chat', label: 'Delete Chat', isAttention: true),
         if (isGroupy)
-          PopupMenuItem(value: 'leave', child: Text(chat.type == ChatType.channel ? 'Leave Channel' : 'Leave Chat')),
+          TelegramMenuItem(value: 'leave', label: chat.type == ChatType.channel ? 'Leave Channel' : 'Leave Chat', isAttention: true),
       ],
     ).then((value) {
       if (value == null) return;
@@ -2095,62 +2077,24 @@ class _ChatTopBar extends StatelessWidget {
 
   /// Spec §4.3: right-click on call button opens audio/video call submenu.
   static void _showCallMenu(BuildContext context, Offset globalPos) {
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-    final position = RelativeRect.fromRect(
-      globalPos & const Size(1, 1),
-      Offset.zero & overlay.size,
-    );
-    showMenu<String>(
+    showTelegramMenu<String>(
       context: context,
-      position: position,
+      position: globalPos,
       items: const [
-        PopupMenuItem(
-          value: 'audio_call',
-          child: ListTile(
-            dense: true,
-            leading: Icon(Icons.call, size: 20),
-            title: Text('Audio Call'),
-          ),
-        ),
-        PopupMenuItem(
-          value: 'video_call',
-          child: ListTile(
-            dense: true,
-            leading: Icon(Icons.videocam, size: 20),
-            title: Text('Video Call'),
-          ),
-        ),
+        TelegramMenuItem(value: 'audio_call', icon: Icon(Icons.call), label: 'Audio Call'),
+        TelegramMenuItem(value: 'video_call', icon: Icon(Icons.videocam), label: 'Video Call'),
       ],
     );
   }
 
   /// Spec §4.2: right-click on back button opens a call-type menu.
   static void _showBackButtonCallMenu(BuildContext context, Offset globalPos) {
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-    final position = RelativeRect.fromRect(
-      globalPos & const Size(1, 1),
-      Offset.zero & overlay.size,
-    );
-    showMenu<String>(
+    showTelegramMenu<String>(
       context: context,
-      position: position,
+      position: globalPos,
       items: const [
-        PopupMenuItem(
-          value: 'audio_call',
-          child: ListTile(
-            dense: true,
-            leading: Icon(Icons.call, size: 20),
-            title: Text('Audio Call'),
-          ),
-        ),
-        PopupMenuItem(
-          value: 'video_call',
-          child: ListTile(
-            dense: true,
-            leading: Icon(Icons.videocam, size: 20),
-            title: Text('Video Call'),
-          ),
-        ),
+        TelegramMenuItem(value: 'audio_call', icon: Icon(Icons.call), label: 'Audio Call'),
+        TelegramMenuItem(value: 'video_call', icon: Icon(Icons.videocam), label: 'Video Call'),
       ],
     );
   }
@@ -5760,32 +5704,16 @@ class _ComposeAreaState extends State<_ComposeArea>
       _pickFiles();
       return;
     }
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-    final position = RelativeRect.fromRect(
-      Rect.fromPoints(
-        button.localToGlobal(Offset.zero, ancestor: overlay),
-        button.localToGlobal(button.size.bottomRight(Offset.zero), ancestor: overlay),
-      ),
-      Offset.zero & overlay.size,
-    );
+    final buttonPos = button.localToGlobal(Offset(0, button.size.height));
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final menuBg = isDark ? const Color(0xFF17212B) : Colors.white;
-    final menuFg = isDark ? Colors.white : Colors.black87;
-
-    final selected = await showMenu<int>(
+    final selected = await showTelegramMenu<int>(
       context: context,
-      position: position,
-      color: menuBg,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+      position: buttonPos,
       items: [
-        PopupMenuItem<int>(
-          value: -1,
-          child: Text('Default', style: TextStyle(color: menuFg, fontWeight: FontWeight.w500)),
-        ),
-        ...bots.asMap().entries.map((e) => PopupMenuItem<int>(
+        const TelegramMenuItem<int>(value: -1, label: 'Default'),
+        ...bots.asMap().entries.map((e) => TelegramMenuItem<int>(
           value: e.key,
-          child: Text(e.value.shortName, style: TextStyle(color: menuFg)),
+          label: e.value.shortName,
         )),
       ],
     );
@@ -6767,24 +6695,18 @@ class _SendButtonState extends State<_SendButton>
 
   void _showSendMenu() {
     final box = context.findRenderObject() as RenderBox;
-    final buttonTopLeft = box.localToGlobal(Offset.zero);
-    final buttonSize = box.size;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final pos = box.localToGlobal(Offset(0, -4));
 
-    final position = RelativeRect.fromLTRB(
-      buttonTopLeft.dx,
-      buttonTopLeft.dy - 4,
-      buttonTopLeft.dx + buttonSize.width,
-      buttonTopLeft.dy + buttonSize.height,
-    );
-
-    showMenu<String>(
+    showTelegramMenu<String>(
       context: context,
-      position: position,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      color: isDark ? const Color(0xFF1e2c3a) : const Color(0xFFffffff),
-      elevation: 8,
-      items: _buildSendMenuItems(isDark),
+      position: pos,
+      items: [
+        if (!widget.isSelfChat)
+          const TelegramMenuItem(value: 'silent', icon: Icon(Icons.volume_off_outlined), label: 'Send without Sound'),
+        TelegramMenuItem(value: 'schedule', icon: const Icon(Icons.schedule_outlined), label: widget.isSelfChat ? 'Set Reminder' : 'Schedule Message'),
+        if (widget.chatType == ChatType.dm && !widget.isSelfChat)
+          const TelegramMenuItem(value: 'when_online', icon: Icon(Icons.person_outline), label: 'Send When Online'),
+      ],
     ).then((value) {
       if (value == null) return;
       switch (value) {
@@ -6796,51 +6718,6 @@ class _SendButtonState extends State<_SendButton>
           widget.onSendWhenOnline?.call();
       }
     });
-  }
-
-  List<PopupMenuEntry<String>> _buildSendMenuItems(bool isDark) {
-    final iconColor = isDark ? const Color(0xFFaaaaaa) : const Color(0xFF707579);
-    final textColor = isDark ? const Color(0xFFffffff) : const Color(0xFF222222);
-    return [
-      if (!widget.isSelfChat)
-        PopupMenuItem<String>(
-          value: 'silent',
-          height: 40,
-          child: Row(
-            children: [
-              Icon(Icons.volume_off_outlined, size: 20, color: iconColor),
-              const SizedBox(width: 14),
-              Text('Send without Sound',
-                  style: TextStyle(fontSize: 14, color: textColor)),
-            ],
-          ),
-        ),
-      PopupMenuItem<String>(
-        value: 'schedule',
-        height: 40,
-        child: Row(
-          children: [
-            Icon(Icons.schedule_outlined, size: 20, color: iconColor),
-            const SizedBox(width: 14),
-            Text(widget.isSelfChat ? 'Set Reminder' : 'Schedule Message',
-                style: TextStyle(fontSize: 14, color: textColor)),
-          ],
-        ),
-      ),
-      if (widget.chatType == ChatType.dm && !widget.isSelfChat)
-        PopupMenuItem<String>(
-          value: 'when_online',
-          height: 40,
-          child: Row(
-            children: [
-              Icon(Icons.person_outline, size: 20, color: iconColor),
-              const SizedBox(width: 14),
-              Text('Send When Online',
-                  style: TextStyle(fontSize: 14, color: textColor)),
-            ],
-          ),
-        ),
-    ];
   }
 
   Future<void> _pickScheduleDate() async {

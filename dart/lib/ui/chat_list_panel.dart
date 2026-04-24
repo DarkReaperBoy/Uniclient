@@ -11,6 +11,7 @@ import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import 'chat_list_row.dart';
+import 'popup_menu.dart';
 
 /// The entire left panel: search bar + chat list.
 /// When [collapsed] is true, renders in avatar-only narrow mode (spec §1:
@@ -978,28 +979,24 @@ class _ChatListPanelState extends State<ChatListPanel>
 
   void _showChatContextMenu(BuildContext context, ChatInfo chat, Offset globalPosition) {
     final chatState = context.read<ChatState>();
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
     final isGroupy = chat.type == ChatType.group ||
         chat.type == ChatType.channel ||
         chat.type == ChatType.topic;
 
-    showMenu<String>(
+    showTelegramMenu<String>(
       context: context,
-      position: RelativeRect.fromRect(
-        globalPosition & const Size(40, 40),
-        Offset.zero & overlay.size,
-      ),
+      position: globalPosition,
       items: [
-        PopupMenuItem(value: 'pin', child: Text(chat.isPinned ? 'Unpin' : 'Pin')),
-        PopupMenuItem(value: 'mute', child: Text(chat.isMuted ? 'Unmute' : 'Mute')),
-        PopupMenuItem(
+        TelegramMenuItem(value: 'pin', label: chat.isPinned ? 'Unpin' : 'Pin'),
+        TelegramMenuItem(value: 'mute', label: chat.isMuted ? 'Unmute' : 'Mute'),
+        TelegramMenuItem(
           value: 'read',
-          child: Text(chat.unreadCount > 0 ? 'Mark as Read' : 'Mark as Unread'),
+          label: chat.unreadCount > 0 ? 'Mark as Read' : 'Mark as Unread',
         ),
-        PopupMenuItem(value: 'archive', child: Text(chat.isArchived ? 'Unarchive' : 'Archive')),
+        TelegramMenuItem(value: 'archive', label: chat.isArchived ? 'Unarchive' : 'Archive'),
         if (isGroupy) ...[
-          const PopupMenuDivider(),
-          const PopupMenuItem(value: 'leave', child: Text('Leave Chat')),
+          const TelegramMenuItem.separator(),
+          const TelegramMenuItem(value: 'leave', label: 'Leave Chat', isAttention: true),
         ],
       ],
     ).then((value) {
@@ -1529,35 +1526,29 @@ class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
   /// Spec §2: right-click context menu on folder tabs.
   void _showTabContextMenu(
       BuildContext context, Offset globalPosition, FolderInfo? folder) {
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
     final appState = context.read<AppState>();
 
-    showMenu<String>(
+    showTelegramMenu<String>(
       context: context,
-      position: RelativeRect.fromRect(
-        globalPosition & const Size(40, 40),
-        Offset.zero & overlay.size,
-      ),
+      position: globalPosition,
       items: [
         if (folder != null) ...[
-          const PopupMenuItem(value: 'edit', child: Text('Edit Folder')),
-          const PopupMenuItem(value: 'delete', child: Text('Delete Folder')),
-          const PopupMenuDivider(),
+          const TelegramMenuItem(value: 'edit', label: 'Edit Folder'),
+          const TelegramMenuItem(value: 'delete', label: 'Delete Folder', isAttention: true),
+          const TelegramMenuItem.separator(),
         ],
-        const PopupMenuItem(value: 'setup', child: Text('Edit Folders')),
+        const TelegramMenuItem(value: 'setup', label: 'Edit Folders'),
       ],
     ).then((value) {
       if (value == null) return;
       switch (value) {
         case 'edit':
-          // TODO: open folder editor when folder settings UI is built
           break;
         case 'delete':
           if (folder != null) {
             widget.chatState.deleteFolder(appState.activeAccountId, folder.id);
           }
         case 'setup':
-          // TODO: open folder settings page when settings UI is built
           break;
       }
     });
@@ -2377,28 +2368,17 @@ class _SearchSubFilterRow extends StatelessWidget {
 
   void _showFilterMenu(BuildContext context) {
     final RenderBox button = context.findRenderObject() as RenderBox;
-    final overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox;
-    final position = RelativeRect.fromRect(
-      button.localToGlobal(Offset(0, button.size.height)) &
-          Size(button.size.width, 0),
-      Offset.zero & overlay.size,
-    );
+    final buttonPos = button.localToGlobal(Offset(0, button.size.height));
 
-    showMenu<_MyMsgSubFilter>(
+    showTelegramMenu<_MyMsgSubFilter>(
       context: context,
-      position: position,
+      position: buttonPos,
       items: [
         for (final entry in _filters)
-          PopupMenuItem<_MyMsgSubFilter>(
+          TelegramMenuItem<_MyMsgSubFilter>(
             value: entry.filter,
-            child: Row(
-              children: [
-                Icon(entry.icon, size: 20),
-                const SizedBox(width: 12),
-                Text(entry.label),
-              ],
-            ),
+            icon: Icon(entry.icon),
+            label: entry.label,
           ),
       ],
     ).then((value) {

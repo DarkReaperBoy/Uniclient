@@ -12,6 +12,7 @@ import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/chat_state.dart';
 import 'chat_view.dart' show formatChatLastSeen;
+import 'popup_menu.dart';
 
 enum InfoWrapMode { side, narrow, layer }
 
@@ -766,38 +767,14 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
 
   void _showMuteMenu(BuildContext context, Offset position,
       _ActionBtnData data) {
-    final isDark = theme.brightness == Brightness.dark;
-    showMenu<String>(
+    showTelegramMenu<String>(
       context: context,
-      position: RelativeRect.fromLTRB(
-          position.dx, position.dy, position.dx, position.dy),
+      position: position,
       items: [
         if (data.isMuted)
-          PopupMenuItem<String>(
-            value: 'unmute',
-            child: Row(
-              children: [
-                Icon(Icons.notifications, size: 20,
-                    color: const Color(0xFF4dc920)),
-                const SizedBox(width: 12),
-                const Text('Unmute'),
-              ],
-            ),
-          )
+          const TelegramMenuItem(value: 'unmute', icon: Icon(Icons.notifications), label: 'Unmute')
         else
-          PopupMenuItem<String>(
-            value: 'mute_forever',
-            child: Row(
-              children: [
-                Icon(Icons.notifications_off, size: 20,
-                    color: isDark
-                        ? const Color(0xFFe85050)
-                        : const Color(0xFFdd4b39)),
-                const SizedBox(width: 12),
-                const Text('Mute forever'),
-              ],
-            ),
-          ),
+          const TelegramMenuItem(value: 'mute_forever', icon: Icon(Icons.notifications_off), label: 'Mute forever', isAttention: true),
       ],
     ).then((value) {
       if (value == 'unmute' || value == 'mute_forever') {
@@ -3994,88 +3971,23 @@ class _MemberRow extends StatelessWidget {
     final attentionColor = isDark ? const Color(0xFFe85050) : const Color(0xFFdd4b39);
     final iconColor = isDark ? const Color(0xFF8b9fad) : const Color(0xFF999999);
 
-    showMenu<String>(
+    showTelegramMenu<String>(
       context: context,
-      position: RelativeRect.fromLTRB(
-        position.dx, position.dy, position.dx, position.dy,
-      ),
+      position: position,
       items: [
-        PopupMenuItem<String>(
-          value: 'view_profile',
-          child: Row(children: [
-            Icon(Icons.person_outline, size: 20, color: iconColor),
-            const SizedBox(width: 12),
-            const Text('View Profile'),
-          ]),
-        ),
-        PopupMenuItem<String>(
-          value: 'send_message',
-          child: Row(children: [
-            Icon(Icons.chat_bubble_outline, size: 20, color: iconColor),
-            const SizedBox(width: 12),
-            const Text('Send Message'),
-          ]),
-        ),
+        const TelegramMenuItem(value: 'view_profile', icon: Icon(Icons.person_outline), label: 'View Profile'),
+        const TelegramMenuItem(value: 'send_message', icon: Icon(Icons.chat_bubble_outline), label: 'Send Message'),
         if (member.username.isNotEmpty)
-          PopupMenuItem<String>(
-            value: 'copy_username',
-            child: Row(children: [
-              Icon(Icons.alternate_email, size: 20, color: iconColor),
-              const SizedBox(width: 12),
-              const Text('Copy Username'),
-            ]),
-          ),
-        PopupMenuItem<String>(
-          value: 'copy_id',
-          child: Row(children: [
-            Icon(Icons.tag, size: 20, color: iconColor),
-            const SizedBox(width: 12),
-            const Text('Copy ID'),
-          ]),
-        ),
+          const TelegramMenuItem(value: 'copy_username', icon: Icon(Icons.alternate_email), label: 'Copy Username'),
+        const TelegramMenuItem(value: 'copy_id', icon: Icon(Icons.tag), label: 'Copy ID'),
         if (!isAdmin && !isOwnerOrCreator)
-          PopupMenuItem<String>(
-            value: 'promote',
-            child: Row(children: [
-              Icon(Icons.arrow_upward, size: 20, color: iconColor),
-              const SizedBox(width: 12),
-              const Text('Promote'),
-            ]),
-          ),
+          const TelegramMenuItem(value: 'promote', icon: Icon(Icons.arrow_upward), label: 'Promote'),
         if (isAdmin && !isOwnerOrCreator)
-          PopupMenuItem<String>(
-            value: 'demote',
-            child: Row(children: [
-              Icon(Icons.arrow_downward, size: 20, color: iconColor),
-              const SizedBox(width: 12),
-              const Text('Demote'),
-            ]),
-          ),
+          const TelegramMenuItem(value: 'demote', icon: Icon(Icons.arrow_downward), label: 'Demote'),
         if (!isOwnerOrCreator) ...[
-          PopupMenuItem<String>(
-            value: 'restrict',
-            child: Row(children: [
-              Icon(Icons.voice_over_off, size: 20, color: iconColor),
-              const SizedBox(width: 12),
-              const Text('Restrict'),
-            ]),
-          ),
-          PopupMenuItem<String>(
-            value: 'remove',
-            child: Row(children: [
-              Icon(Icons.person_remove_outlined, size: 20, color: attentionColor),
-              const SizedBox(width: 12),
-              Text('Remove', style: TextStyle(color: attentionColor)),
-            ]),
-          ),
-          PopupMenuItem<String>(
-            value: 'ban',
-            child: Row(children: [
-              Icon(Icons.block, size: 20, color: attentionColor),
-              const SizedBox(width: 12),
-              Text('Ban', style: TextStyle(color: attentionColor)),
-            ]),
-          ),
+          const TelegramMenuItem(value: 'restrict', icon: Icon(Icons.voice_over_off), label: 'Restrict'),
+          const TelegramMenuItem(value: 'remove', icon: Icon(Icons.person_remove_outlined), label: 'Remove', isAttention: true),
+          const TelegramMenuItem(value: 'ban', icon: Icon(Icons.block), label: 'Ban', isAttention: true),
         ],
       ],
     ).then((value) {

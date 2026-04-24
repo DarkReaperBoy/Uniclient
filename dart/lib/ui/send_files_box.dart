@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../models/engine_models.dart' show ChatType;
+import 'popup_menu.dart';
 
 const double _previewWidth = 308;
 const double _previewHeightMax = 1280;
@@ -185,36 +186,14 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
   }
 
   void _showTopMenu(Offset position) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final iconColor = isDark ? const Color(0xFFAAAAAA) : const Color(0xFF707579);
-    final textColor = isDark ? const Color(0xFFFFFFFF) : const Color(0xFF222222);
-    final menuBg = isDark ? const Color(0xFF1E2C3A) : Colors.white;
-    final checkColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
-
-    showMenu<String>(
+    showTelegramMenu<String>(
       context: context,
-      position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx + 1, position.dy + 1),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      color: menuBg,
-      elevation: 8,
+      position: position,
       items: [
-        PopupMenuItem<String>(
+        TelegramMenuItem(
           value: 'spoiler',
-          height: 40,
-          child: Row(
-            children: [
-              Icon(
-                _allSpoilered ? Icons.check : Icons.blur_on,
-                size: 20,
-                color: _allSpoilered ? checkColor : iconColor,
-              ),
-              const SizedBox(width: 14),
-              Text(
-                _anySpoilered ? 'Remove spoiler' : 'Hide with spoiler',
-                style: TextStyle(fontSize: 14, color: textColor),
-              ),
-            ],
-          ),
+          icon: Icon(_allSpoilered ? Icons.check : Icons.blur_on),
+          label: _anySpoilered ? 'Remove spoiler' : 'Hide with spoiler',
         ),
       ],
     ).then((value) {
@@ -233,56 +212,15 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
   }
 
   void _showSendMenu(BuildContext ctx, Offset position) {
-    final isDark = Theme.of(ctx).brightness == Brightness.dark;
-    final iconColor = isDark ? const Color(0xFFAAAAAA) : const Color(0xFF707579);
-    final textColor = isDark ? const Color(0xFFFFFFFF) : const Color(0xFF222222);
-    final menuBg = isDark ? const Color(0xFF1E2C3A) : Colors.white;
-
-    showMenu<String>(
+    showTelegramMenu<String>(
       context: ctx,
-      position: RelativeRect.fromLTRB(position.dx, position.dy - 120, position.dx + 1, position.dy),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      color: menuBg,
-      elevation: 8,
+      position: Offset(position.dx, position.dy - 120),
       items: [
         if (!widget.isSelfChat)
-          PopupMenuItem<String>(
-            value: 'silent',
-            height: 40,
-            child: Row(
-              children: [
-                Icon(Icons.volume_off_outlined, size: 20, color: iconColor),
-                const SizedBox(width: 14),
-                Text('Send without Sound',
-                    style: TextStyle(fontSize: 14, color: textColor)),
-              ],
-            ),
-          ),
-        PopupMenuItem<String>(
-          value: 'schedule',
-          height: 40,
-          child: Row(
-            children: [
-              Icon(Icons.schedule_outlined, size: 20, color: iconColor),
-              const SizedBox(width: 14),
-              Text(widget.isSelfChat ? 'Set Reminder' : 'Schedule Message',
-                  style: TextStyle(fontSize: 14, color: textColor)),
-            ],
-          ),
-        ),
+          const TelegramMenuItem(value: 'silent', icon: Icon(Icons.volume_off_outlined), label: 'Send without Sound'),
+        TelegramMenuItem(value: 'schedule', icon: const Icon(Icons.schedule_outlined), label: widget.isSelfChat ? 'Set Reminder' : 'Schedule Message'),
         if (widget.chatType == ChatType.dm && !widget.isSelfChat)
-          PopupMenuItem<String>(
-            value: 'when_online',
-            height: 40,
-            child: Row(
-              children: [
-                Icon(Icons.person_outline, size: 20, color: iconColor),
-                const SizedBox(width: 14),
-                Text('Send When Online',
-                    style: TextStyle(fontSize: 14, color: textColor)),
-              ],
-            ),
-          ),
+          const TelegramMenuItem(value: 'when_online', icon: Icon(Icons.person_outline), label: 'Send When Online'),
       ],
     ).then((value) {
       if (value == null) return;
@@ -620,33 +558,14 @@ class _SingleMediaPreview extends StatelessWidget {
   }
 
   void _showThumbContextMenu(BuildContext context, Offset position) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final iconColor = isDark ? const Color(0xFFAAAAAA) : const Color(0xFF707579);
-    final textColor = isDark ? const Color(0xFFFFFFFF) : const Color(0xFF222222);
-    final menuBg = isDark ? const Color(0xFF1E2C3A) : Colors.white;
-    final checkColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
-
-    showMenu<String>(
+    showTelegramMenu<String>(
       context: context,
-      position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx + 1, position.dy + 1),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      color: menuBg,
-      elevation: 8,
+      position: position,
       items: [
-        PopupMenuItem<String>(
+        TelegramMenuItem(
           value: 'spoiler',
-          height: 40,
-          child: Row(
-            children: [
-              Icon(
-                file.spoiler ? Icons.check : Icons.blur_on,
-                size: 20,
-                color: file.spoiler ? checkColor : iconColor,
-              ),
-              const SizedBox(width: 14),
-              Text('Spoiler effect', style: TextStyle(fontSize: 14, color: textColor)),
-            ],
-          ),
+          icon: Icon(file.spoiler ? Icons.check : Icons.blur_on),
+          label: 'Spoiler effect',
         ),
       ],
     ).then((value) {
@@ -860,33 +779,14 @@ class _AlbumThumb extends StatelessWidget {
   }
 
   void _showThumbContextMenu(BuildContext context, Offset position) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final iconColor = isDark ? const Color(0xFFAAAAAA) : const Color(0xFF707579);
-    final textColor = isDark ? const Color(0xFFFFFFFF) : const Color(0xFF222222);
-    final menuBg = isDark ? const Color(0xFF1E2C3A) : Colors.white;
-    final checkColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
-
-    showMenu<String>(
+    showTelegramMenu<String>(
       context: context,
-      position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx + 1, position.dy + 1),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      color: menuBg,
-      elevation: 8,
+      position: position,
       items: [
-        PopupMenuItem<String>(
+        TelegramMenuItem(
           value: 'spoiler',
-          height: 40,
-          child: Row(
-            children: [
-              Icon(
-                file.spoiler ? Icons.check : Icons.blur_on,
-                size: 20,
-                color: file.spoiler ? checkColor : iconColor,
-              ),
-              const SizedBox(width: 14),
-              Text('Spoiler effect', style: TextStyle(fontSize: 14, color: textColor)),
-            ],
-          ),
+          icon: Icon(file.spoiler ? Icons.check : Icons.blur_on),
+          label: 'Spoiler effect',
         ),
       ],
     ).then((value) {

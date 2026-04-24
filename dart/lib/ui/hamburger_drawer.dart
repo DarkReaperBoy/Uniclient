@@ -18,6 +18,7 @@ import 'calls_screen.dart';
 import 'contacts_screen.dart';
 import 'create_channel_screen.dart';
 import 'my_profile_page.dart';
+import 'popup_menu.dart';
 import 'settings_screen.dart';
 
 /// Hamburger menu drawer. Spec §3: 274px wide, 134px cover.
@@ -398,32 +399,16 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
   /// §3.4: Right-click context menu for Night Mode row — toggle system dark mode.
   void _showNightModeContextMenu(
       BuildContext context, Offset position, bool isDark, AppState appState) {
-    final menuBg = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
-    final hoverColor =
-        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
-    final textColor =
-        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final iconColor =
-        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-
-    showMenu<String>(
+    showTelegramMenu<String>(
       context: context,
-      position: RelativeRect.fromLTRB(
-        position.dx, position.dy, position.dx, position.dy,
-      ),
-      color: menuBg,
-      elevation: 5,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      position: position,
       items: [
-        _ContextMenuItem(
+        TelegramMenuItem(
           value: 'system_theme',
-          icon: appState.systemDarkModeEnabled
+          icon: Icon(appState.systemDarkModeEnabled
               ? Icons.check_box
-              : Icons.check_box_outline_blank,
+              : Icons.check_box_outline_blank),
           label: 'Use System Theme',
-          textColor: textColor,
-          iconColor: iconColor,
-          hoverColor: hoverColor,
         ),
       ],
     ).then((value) {
@@ -794,42 +779,12 @@ class _AccountList extends StatelessWidget {
   /// Production vs Test server (settings_information.cpp:1023-1050).
   void _showAddAccountContextMenu(
       BuildContext context, Offset position, bool isDark) {
-    final menuBg = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
-    final hoverColor =
-        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
-    final textColor =
-        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final iconColor =
-        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-
-    showMenu<String>(
+    showTelegramMenu<String>(
       context: context,
-      position: RelativeRect.fromLTRB(
-        position.dx,
-        position.dy,
-        position.dx,
-        position.dy,
-      ),
-      color: menuBg,
-      elevation: 5,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      items: [
-        _ContextMenuItem(
-          value: 'production',
-          icon: Icons.person_add,
-          label: 'Add Account',
-          textColor: textColor,
-          iconColor: iconColor,
-          hoverColor: hoverColor,
-        ),
-        _ContextMenuItem(
-          value: 'test',
-          icon: Icons.science,
-          label: 'Add Test Account',
-          textColor: textColor,
-          iconColor: iconColor,
-          hoverColor: hoverColor,
-        ),
+      position: position,
+      items: const [
+        TelegramMenuItem(value: 'production', icon: Icon(Icons.person_add), label: 'Add Account'),
+        TelegramMenuItem(value: 'test', icon: Icon(Icons.science), label: 'Add Test Account'),
       ],
     ).then((value) {
       if (value == null) return;
@@ -993,86 +948,31 @@ class _AccountRow extends StatelessWidget {
   });
 
   void _showContextMenu(BuildContext context, Offset position) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    // Spec §9.1: menuBg, windowBgOver, windowFg, menuSeparatorFg.
-    final menuBg = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
-    final hoverColor = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
-    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final iconColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final attentionColor = isDark ? const Color(0xFFEC3942) : const Color(0xFFD14E4E);
+    final items = <TelegramMenuItem<String>>[];
 
-    final items = <PopupMenuEntry<String>>[];
-
-    // Spec §3.2: "New Window" — only if inactive.
     if (!isActive) {
-      items.add(_ContextMenuItem(
-        value: 'new_window',
-        icon: Icons.open_in_new,
-        label: 'New Window',
-        textColor: textColor,
-        iconColor: iconColor,
-        hoverColor: hoverColor,
-      ));
+      items.add(const TelegramMenuItem(value: 'new_window', icon: Icon(Icons.open_in_new), label: 'New Window'));
     }
 
-    // Spec §3.2: "Copy Phone" — always shown.
     if (account.phone.isNotEmpty) {
-      items.add(_ContextMenuItem(
-        value: 'copy_phone',
-        icon: Icons.copy,
-        label: 'Copy Phone',
-        textColor: textColor,
-        iconColor: iconColor,
-        hoverColor: hoverColor,
-      ));
+      items.add(const TelegramMenuItem(value: 'copy_phone', icon: Icon(Icons.copy), label: 'Copy Phone'));
     }
 
-    // Spec §3.2: "Activate" — only if inactive.
     if (!isActive) {
-      items.add(_ContextMenuItem(
-        value: 'activate',
-        icon: Icons.check_circle_outline,
-        label: 'Activate',
-        textColor: textColor,
-        iconColor: iconColor,
-        hoverColor: hoverColor,
-      ));
+      items.add(const TelegramMenuItem(value: 'activate', icon: Icon(Icons.check_circle_outline), label: 'Activate'));
     }
 
-    // Spec §3.2: "Mark as Read" — always shown.
-    items.add(_ContextMenuItem(
-      value: 'mark_read',
-      icon: Icons.done_all,
-      label: 'Mark as Read',
-      textColor: textColor,
-      iconColor: iconColor,
-      hoverColor: hoverColor,
-    ));
+    items.add(const TelegramMenuItem(value: 'mark_read', icon: Icon(Icons.done_all), label: 'Mark as Read'));
+    items.add(const TelegramMenuItem(value: 'log_out', icon: Icon(Icons.logout), label: 'Log Out', isAttention: true));
 
-    // Spec §3.2: "Log Out" — always shown, attention (red) style.
-    items.add(_ContextMenuItem(
-      value: 'log_out',
-      icon: Icons.logout,
-      label: 'Log Out',
-      textColor: attentionColor,
-      iconColor: attentionColor,
-      hoverColor: hoverColor,
-    ));
-
-    showMenu<String>(
+    showTelegramMenu<String>(
       context: context,
-      position: RelativeRect.fromLTRB(
-        position.dx, position.dy, position.dx, position.dy,
-      ),
-      color: menuBg,
-      elevation: 5,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      position: position,
       items: items,
     ).then((value) {
       if (value == null) return;
       switch (value) {
         case 'new_window':
-          // Spec §3.2: launch new app window for this account.
           Process.start(
             Platform.resolvedExecutable,
             [],
@@ -1181,65 +1081,6 @@ class _AccountRow extends StatelessWidget {
           ],
         ),
       ),
-      ),
-    );
-  }
-}
-
-/// Spec §9.1-styled context menu item with icon.
-class _ContextMenuItem extends PopupMenuItem<String> {
-  _ContextMenuItem({
-    required String value,
-    required IconData icon,
-    required String label,
-    required Color textColor,
-    required Color iconColor,
-    required Color hoverColor,
-  }) : super(
-    value: value,
-    // Spec §9.1: item padding with icon margins(54, 8, 17, 8), height ~29px.
-    height: 29,
-    padding: EdgeInsets.zero,
-    child: _ContextMenuItemBody(
-      icon: icon,
-      label: label,
-      textColor: textColor,
-      iconColor: iconColor,
-    ),
-  );
-}
-
-class _ContextMenuItemBody extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color textColor;
-  final Color iconColor;
-
-  const _ContextMenuItemBody({
-    required this.icon,
-    required this.label,
-    required this.textColor,
-    required this.iconColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      // Spec §9.1: item padding with icon margins(54, 8, 17, 8).
-      padding: const EdgeInsets.only(left: 15, top: 8, right: 17, bottom: 8),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 20, color: iconColor),
-          const SizedBox(width: 17),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              color: textColor,
-            ),
-          ),
-        ],
       ),
     );
   }

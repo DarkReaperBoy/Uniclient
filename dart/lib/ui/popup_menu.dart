@@ -1,0 +1,447 @@
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+
+const double _kMenuMinWidth = 156.0;
+const double _kMenuMaxWidth = 300.0;
+const double _kCornerRadius = 8.0;
+const double _kShadowBlurRadius = 5.0;
+const Offset _kShadowOffset = Offset(0, 1);
+const double _kShadowOpacity = 0.25;
+const Duration _kOpenDuration = Duration(milliseconds: 200);
+const Duration _kCloseDuration = Duration(milliseconds: 150);
+const double _kScrollPaddingVertical = 8.0;
+
+Color _menuBg(Brightness b) =>
+    b == Brightness.dark ? const Color(0xFF17212b) : const Color(0xFFffffff);
+
+Color _shadowColor(Brightness b) =>
+    b == Brightness.dark
+        ? const Color(0xFF17212b)
+        : const Color(0xFF000000);
+
+Future<T?> showTelegramMenu<T>({
+  required BuildContext context,
+  required Offset position,
+  required List<TelegramMenuItem<T>> items,
+}) {
+  final overlay = Overlay.of(context);
+  final brightness = Theme.of(context).brightness;
+  final mediaQuery = MediaQuery.of(context);
+  final screenSize = mediaQuery.size;
+  final screenPadding = mediaQuery.padding;
+
+  return Navigator.of(context).push<T>(
+    _TelegramMenuRoute<T>(
+      position: position,
+      items: items,
+      brightness: brightness,
+      screenSize: screenSize,
+      screenPadding: screenPadding,
+      barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+    ),
+  );
+}
+
+class TelegramMenuItem<T> {
+  final T? value;
+  final Widget? icon;
+  final String label;
+  final Color? labelColor;
+  final Color? iconColor;
+  final bool isSeparator;
+  final bool isAttention;
+
+  const TelegramMenuItem({
+    this.value,
+    this.icon,
+    required this.label,
+    this.labelColor,
+    this.iconColor,
+    this.isSeparator = false,
+    this.isAttention = false,
+  });
+
+  const TelegramMenuItem.separator()
+      : value = null,
+        icon = null,
+        label = '',
+        labelColor = null,
+        iconColor = null,
+        isSeparator = true,
+        isAttention = false;
+}
+
+class _TelegramMenuRoute<T> extends PopupRoute<T> {
+  final Offset position;
+  final List<TelegramMenuItem<T>> items;
+  final Brightness brightness;
+  final Size screenSize;
+  final EdgeInsets screenPadding;
+
+  _TelegramMenuRoute({
+    required this.position,
+    required this.items,
+    required this.brightness,
+    required this.screenSize,
+    required this.screenPadding,
+    required String barrierLabel,
+  }) : _barrierLabel = barrierLabel;
+
+  final String _barrierLabel;
+
+  @override
+  String get barrierLabel => _barrierLabel;
+
+  @override
+  bool get barrierDismissible => true;
+
+  @override
+  Color? get barrierColor => null;
+
+  @override
+  Duration get transitionDuration => _kOpenDuration;
+
+  @override
+  Duration get reverseTransitionDuration => _kCloseDuration;
+
+  @override
+  Animation<double> createAnimation() {
+    return CurvedAnimation(
+      parent: super.createAnimation(),
+      curve: const _SineInOutCurve(),
+      reverseCurve: Curves.linear,
+    );
+  }
+
+  @override
+  Widget buildPage(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+  ) {
+    return const SizedBox.shrink();
+  }
+
+  @override
+  Widget buildTransitions(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    return _TelegramMenuOverlay<T>(
+      animation: animation,
+      position: position,
+      items: items,
+      brightness: brightness,
+      screenSize: screenSize,
+      screenPadding: screenPadding,
+      onSelected: (T? value) {
+        if (value != null) {
+          navigator?.pop(value);
+        } else {
+          navigator?.pop();
+        }
+      },
+    );
+  }
+}
+
+class _SineInOutCurve extends Curve {
+  const _SineInOutCurve();
+
+  @override
+  double transformInternal(double t) {
+    return 0.5 * (1.0 - math.cos(math.pi * t));
+  }
+}
+
+class _TelegramMenuOverlay<T> extends StatelessWidget {
+  final Animation<double> animation;
+  final Offset position;
+  final List<TelegramMenuItem<T>> items;
+  final Brightness brightness;
+  final Size screenSize;
+  final EdgeInsets screenPadding;
+  final ValueChanged<T?> onSelected;
+
+  const _TelegramMenuOverlay({
+    required this.animation,
+    required this.position,
+    required this.items,
+    required this.brightness,
+    required this.screenSize,
+    required this.screenPadding,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = _menuBg(brightness);
+    final shadow = _shadowColor(brightness);
+    final bool isDark = brightness == Brightness.dark;
+
+    final menuContent = _TelegramMenuContent<T>(
+      items: items,
+      brightness: brightness,
+      onSelected: onSelected,
+    );
+
+    return LayoutBuilder(builder: (context, constraints) {
+      final menuChild = IntrinsicWidth(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            minWidth: _kMenuMinWidth,
+            maxWidth: _kMenuMaxWidth,
+          ),
+          child: menuContent,
+        ),
+      );
+
+      double left = position.dx;
+      double top = position.dy;
+      const margin = 8.0;
+
+      return Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onSelected(null),
+              child: const SizedBox.expand(),
+            ),
+          ),
+          _AnimatedMenuPositioner(
+            animation: animation,
+            position: position,
+            screenSize: screenSize,
+            margin: margin,
+            child: AnimatedBuilder(
+              animation: animation,
+              builder: (context, child) {
+                final widthFactor =
+                    0.5 + 0.5 * _panelCurve(animation.value, 0.6);
+                final heightFactor =
+                    0.3 + 0.7 * _panelCurve(animation.value, 0.9);
+                final opacity =
+                    (0.2 + 0.8 * _panelCurve(animation.value, 0.3))
+                        .clamp(0.0, 1.0);
+
+                return Opacity(
+                  opacity: opacity,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(_kCornerRadius),
+                    child: Align(
+                      alignment: AlignmentDirectional.topStart,
+                      widthFactor: widthFactor.clamp(0.0, 1.0),
+                      heightFactor: heightFactor.clamp(0.0, 1.0),
+                      child: child,
+                    ),
+                  ),
+                );
+              },
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: bg,
+                  borderRadius: BorderRadius.circular(_kCornerRadius),
+                  boxShadow: [
+                    BoxShadow(
+                      color: shadow.withOpacity(_kShadowOpacity),
+                      blurRadius: _kShadowBlurRadius,
+                      offset: _kShadowOffset,
+                    ),
+                  ],
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        vertical: _kScrollPaddingVertical),
+                    child: menuChild,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    });
+  }
+
+  static double _panelCurve(double t, double portion) {
+    if (t >= portion) return 1.0;
+    return t / portion;
+  }
+}
+
+class _AnimatedMenuPositioner extends StatelessWidget {
+  final Animation<double> animation;
+  final Offset position;
+  final Size screenSize;
+  final double margin;
+  final Widget child;
+
+  const _AnimatedMenuPositioner({
+    required this.animation,
+    required this.position,
+    required this.screenSize,
+    required this.margin,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomSingleChildLayout(
+      delegate: _MenuPositionDelegate(
+        position: position,
+        screenSize: screenSize,
+        margin: margin,
+      ),
+      child: child,
+    );
+  }
+}
+
+class _MenuPositionDelegate extends SingleChildLayoutDelegate {
+  final Offset position;
+  final Size screenSize;
+  final double margin;
+
+  _MenuPositionDelegate({
+    required this.position,
+    required this.screenSize,
+    required this.margin,
+  });
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
+    return BoxConstraints.loose(Size(
+      _kMenuMaxWidth,
+      screenSize.height - margin * 2,
+    ));
+  }
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) {
+    double x = position.dx;
+    double y = position.dy;
+
+    if (x + childSize.width > screenSize.width - margin) {
+      x = screenSize.width - childSize.width - margin;
+    }
+    if (x < margin) x = margin;
+
+    if (y + childSize.height > screenSize.height - margin) {
+      y = screenSize.height - childSize.height - margin;
+    }
+    if (y < margin) y = margin;
+
+    return Offset(x, y);
+  }
+
+  @override
+  bool shouldRelayout(_MenuPositionDelegate oldDelegate) =>
+      position != oldDelegate.position ||
+      screenSize != oldDelegate.screenSize;
+}
+
+class _TelegramMenuContent<T> extends StatelessWidget {
+  final List<TelegramMenuItem<T>> items;
+  final Brightness brightness;
+  final ValueChanged<T?> onSelected;
+
+  const _TelegramMenuContent({
+    required this.items,
+    required this.brightness,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isDark = brightness == Brightness.dark;
+    final separatorColor = isDark
+        ? const Color(0xFF232f39)
+        : const Color(0xFFf1f1f1);
+    final hoverColor = isDark
+        ? const Color(0xFF232e3c)
+        : const Color(0xFFf1f1f1);
+    final textColor = isDark
+        ? const Color(0xFFf5f5f5)
+        : const Color(0xFF000000);
+    final iconColorResting = isDark
+        ? const Color(0xFF6c7883)
+        : const Color(0xFF999999);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: items.map((item) {
+        if (item.isSeparator) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 5),
+            child: Container(
+              height: 1,
+              color: separatorColor,
+            ),
+          );
+        }
+
+        final hasIcon = item.icon != null;
+        final effectiveTextColor =
+            item.labelColor ?? (item.isAttention
+                ? (isDark ? const Color(0xFFec3942) : const Color(0xFFd14e4e))
+                : textColor);
+        final effectiveIconColor =
+            item.iconColor ?? (item.isAttention
+                ? (isDark ? const Color(0xFFec3942) : const Color(0xFFd14e4e))
+                : iconColorResting);
+
+        return InkWell(
+          onTap: () => onSelected(item.value),
+          hoverColor: hoverColor,
+          splashColor: isDark
+              ? const Color(0xFF24303d)
+              : const Color(0xFFe5e5e5),
+          child: Container(
+            height: hasIcon ? 29 : 28,
+            padding: hasIcon
+                ? const EdgeInsets.only(left: 54, top: 8, right: 17, bottom: 8)
+                : const EdgeInsets.only(
+                    left: 17, top: 8, right: 17, bottom: 7),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                if (hasIcon)
+                  Positioned(
+                    left: -54 + 15,
+                    top: -8 + 5,
+                    child: IconTheme(
+                      data: IconThemeData(
+                        color: effectiveIconColor,
+                        size: 20,
+                      ),
+                      child: item.icon!,
+                    ),
+                  ),
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Text(
+                    item.label,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.normal,
+                      color: effectiveTextColor,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
