@@ -451,7 +451,6 @@
 
 ### §9.6 Reaction Picker
 <!-- File: dart/lib/ui/message_bubble.dart (_ReactionStrip) -->
-- [ ] Per-icon hover scale 1.24x over 200ms; reaction fly-up 50px on pick; inline reaction counter dimensions — spec §9.3
 - [ ] Expand chevron opens full emoji-grid panel with category tabs, search, sticker effects — spec §9.3
 
 ### §9.7 Forward Dialog (ShareBox)

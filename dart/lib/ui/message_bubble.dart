@@ -826,23 +826,26 @@ class _ReactionStrip extends StatefulWidget {
 }
 
 class _ReactionStripState extends State<_ReactionStrip>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _controller;
   late final Animation<double> _fadeScale;
   int _hoveredIndex = -1;
   int _pressedIndex = -1;
+  int _flyingIndex = -1;
+  AnimationController? _flyController;
 
   static const _reactions = ['👍', '❤️', '🔥', '🥰', '👏', '😱', '😢', '🎉'];
   static const _stripHeight = 40.0;
   static const _slotSize = 32.0;
   static const _emojiSize = 26.0;
   static const _skip = 7.0;
-  // Spec §9.3 animation constants
   static const _kToggleDuration = Duration(milliseconds: 120);
   static const _kActivateDuration = Duration(milliseconds: 150);
   static const _kHoverScaleDuration = Duration(milliseconds: 200);
   static const _kHoverScale = 1.24;
   static const _kActivateScale = 0.85;
+  static const _kFlyUpDistance = 50.0;
+  static const _kFlyUpDuration = Duration(milliseconds: 300);
 
   @override
   void initState() {
@@ -857,8 +860,23 @@ class _ReactionStripState extends State<_ReactionStrip>
 
   @override
   void dispose() {
+    _flyController?.dispose();
     _controller.dispose();
     super.dispose();
+  }
+
+  void _triggerFlyUp(int index) {
+    _flyController?.dispose();
+    _flyController = AnimationController(
+      vsync: this,
+      duration: _kFlyUpDuration,
+    );
+    setState(() => _flyingIndex = index);
+    _flyController!.forward().then((_) {
+      if (mounted) {
+        widget.onReactionTap(_reactions[index]);
+      }
+    });
   }
 
   double _scaleFor(int i) {
@@ -905,21 +923,50 @@ class _ReactionStripState extends State<_ReactionStrip>
                     onTapDown: (_) => setState(() => _pressedIndex = i),
                     onTapUp: (_) {
                       setState(() => _pressedIndex = -1);
-                      widget.onReactionTap(_reactions[i]);
+                      _triggerFlyUp(i);
                     },
                     onTapCancel: () => setState(() => _pressedIndex = -1),
-                    child: AnimatedScale(
-                      scale: _scaleFor(i),
-                      duration: _scaleDurationFor(i),
-                      child: SizedBox(
-                        width: _slotSize,
-                        height: _slotSize,
-                        child: Center(
-                          child: Text(
-                            _reactions[i],
-                            style: const TextStyle(fontSize: _emojiSize),
+                    child: SizedBox(
+                      width: _slotSize,
+                      height: _slotSize,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Center(
+                            child: AnimatedScale(
+                              scale: _scaleFor(i),
+                              duration: _scaleDurationFor(i),
+                              child: Text(
+                                _reactions[i],
+                                style: const TextStyle(fontSize: _emojiSize),
+                              ),
+                            ),
                           ),
-                        ),
+                          if (_flyingIndex == i && _flyController != null)
+                            AnimatedBuilder(
+                              animation: _flyController!,
+                              builder: (_, __) {
+                                final t = _flyController!.value;
+                                return Positioned(
+                                  left: 0,
+                                  right: 0,
+                                  top: -t * _kFlyUpDistance,
+                                  child: Opacity(
+                                    opacity: (1.0 - t).clamp(0.0, 1.0),
+                                    child: Center(
+                                      child: Transform.scale(
+                                        scale: 1.0 + t * 0.5,
+                                        child: Text(
+                                          _reactions[i],
+                                          style: const TextStyle(fontSize: _emojiSize),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                        ],
                       ),
                     ),
                   ),
@@ -954,12 +1001,13 @@ class _ReactionList extends StatelessWidget {
     final inactiveLabel = theme.textTheme.bodyMedium?.color ?? Colors.white;
 
     return Wrap(
-      spacing: 4,
-      runSpacing: 4,
+      spacing: 3,
+      runSpacing: 3,
       children: [
         for (final r in reactions)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            height: 20,
+            padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 0),
             decoration: BoxDecoration(
               color: r.byMe ? activeBg : inactiveBg,
               borderRadius: BorderRadius.circular(10),
@@ -970,8 +1018,8 @@ class _ReactionList extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(r.emoji, style: const TextStyle(fontSize: 13)),
-                const SizedBox(width: 3),
+                Text(r.emoji, style: const TextStyle(fontSize: 15)),
+                const SizedBox(width: 6),
                 Text(
                   _formatCount(r.count),
                   style: TextStyle(
