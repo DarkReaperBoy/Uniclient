@@ -160,6 +160,7 @@ class _ChatViewState extends State<ChatView>
   int _searchResultIndex = -1;
   /// Currently active search query (for highlight in message list).
   String _activeSearchQuery = '';
+  final Set<String> _hiddenMsgIds = {};
   List<String> _forwardingMsgIds = [];
   bool _forwardHideSender = false;
   bool get _isForwarding => _forwardingMsgIds.isNotEmpty;
@@ -351,6 +352,7 @@ class _ChatViewState extends State<ChatView>
             _searchResultIndex = -1;
             _activeSearchQuery = '';
             _pinnedBarDismissed = false;
+            _hiddenMsgIds.clear();
             _acQuery = null;
             _acFilteredMembers = [];
             _acMembersLoaded = false;
@@ -541,6 +543,9 @@ class _ChatViewState extends State<ChatView>
     if (msg == null) return;
 
     final isScheduled = widget.isScheduledView || chatState.isScheduledView;
+    final chat = chatState.activeChat;
+    final isGroupOrChannel = chat != null && (chat.type == ChatType.group || chat.type == ChatType.channel || chat.type == ChatType.topic);
+    final isSavedMessages = chat != null && chat.title == 'Saved Messages';
     final hasPhoto = msg.mediaType == 1 && msg.mediaLocalPath.isNotEmpty;
     final hasVideo = msg.mediaType == 2 && msg.mediaLocalPath.isNotEmpty;
     final hasFile = msg.hasMedia && msg.mediaLocalPath.isNotEmpty && msg.mediaType == 8;
@@ -555,7 +560,6 @@ class _ChatViewState extends State<ChatView>
     final canStopPoll = isPoll && msg.isOutgoing && !msg.pollClosed;
     final hasStickerSet = isSticker && msg.hasStickerSet;
     final hasDocId = msg.mediaRemoteRef.isNotEmpty;
-    final chat = chatState.activeChat;
     final hasLocalFile = msg.mediaLocalPath.isNotEmpty;
     final urls = _urlRegExp.allMatches(msg.contentText).map((m) => m.group(0)!).toSet().toList();
 
@@ -607,6 +611,15 @@ class _ChatViewState extends State<ChatView>
         ),
         if (chat != null)
           const TelegramMenuItem(value: 'copy_link', icon: Icon(Icons.link), label: 'Copy Message Link'),
+        // AyuGram additions (spec §9.6 items 8-12)
+        if (msg.editedAt > 0)
+          const TelegramMenuItem(value: 'edits_history', icon: Icon(Icons.history), label: 'Edits History'),
+        if (!isSavedMessages)
+          const TelegramMenuItem(value: 'hide_message', icon: Icon(Icons.visibility_off), label: 'Hide Message'),
+        if (isGroupOrChannel && msg.senderId.isNotEmpty)
+          TelegramMenuItem(value: 'user_messages', icon: const Icon(Icons.person_search), label: "${msg.senderName.split(' ').first}'s Messages"),
+        const TelegramMenuItem(value: 'repeat_message', icon: Icon(Icons.repeat), label: 'Repeat Message'),
+        const TelegramMenuItem(value: 'message_details', icon: Icon(Icons.info_outline), label: 'Message Details'),
         const TelegramMenuItem.separator(),
         // Pass 3: post-actions
         const TelegramMenuItem(value: 'forward', icon: Icon(Icons.forward), label: 'Forward'),
@@ -633,12 +646,12 @@ class _ChatViewState extends State<ChatView>
         if (canStopPoll)
           const TelegramMenuItem(value: 'stop_poll', icon: Icon(Icons.poll), label: 'Stop Poll'),
         const TelegramMenuItem(value: 'select', icon: Icon(Icons.check_circle_outline), label: 'Select'),
+        // AyuGram additions (spec §9.6 items 21-22)
+        const TelegramMenuItem(value: 'read_until', icon: Icon(Icons.done_all), label: 'Read Until Here'),
         if (!msg.isOutgoing)
           const TelegramMenuItem(value: 'report', icon: Icon(Icons.flag_outlined), label: 'Report', isAttention: true),
         const TelegramMenuItem.separator(),
         const TelegramMenuItem(value: 'delete', icon: Icon(Icons.delete_outline), label: 'Delete', isAttention: true),
-        const TelegramMenuItem.separator(),
-        const TelegramMenuItem(value: 'copy_info', icon: Icon(Icons.info_outline), label: 'Copy Info'),
       ],
     ).then((action) {
       if (action == null) return;
@@ -703,8 +716,18 @@ class _ChatViewState extends State<ChatView>
           _reportMessage(msg);
         case 'delete':
           chatState.deleteMessage(msgId);
-        case 'copy_info':
-          _showCopyInfoMenu(msg, position);
+        case 'edits_history':
+          _showEditsHistory(msg);
+        case 'hide_message':
+          _hideMessage(msgId);
+        case 'user_messages':
+          _showUserMessages(chatState, msg);
+        case 'repeat_message':
+          _repeatMessage(chatState, msg);
+        case 'message_details':
+          _showMessageDetails(msg, position);
+        case 'read_until':
+          _readUntilHere(chatState, msg);
         default:
           if (action.startsWith('copy_url:')) {
             final url = action.substring('copy_url:'.length);
@@ -1154,27 +1177,226 @@ class _ChatViewState extends State<ChatView>
     }
   }
 
-  void _showCopyInfoMenu(CachedMessage msg, Offset position) {
+  // AyuGram §9.6: Edits History — show edit timestamp info.
+  void _showEditsHistory(CachedMessage msg) {
+    final editDate = DateTime.fromMillisecondsSinceEpoch(msg.editedAt);
+    final origDate = DateTime.fromMillisecondsSinceEpoch(msg.timestamp);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edits History'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _detailRow('Original', _formatFullDate(origDate)),
+            const SizedBox(height: 8),
+            _detailRow('Last edited', _formatFullDate(editDate)),
+            if (msg.contentText.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Divider(),
+              const SizedBox(height: 8),
+              Text('Current text:', style: Theme.of(ctx).textTheme.labelSmall),
+              const SizedBox(height: 4),
+              Text(msg.contentText, maxLines: 8, overflow: TextOverflow.ellipsis),
+            ],
+          ],
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close'))],
+      ),
+    );
+  }
+
+  // AyuGram §9.6: Hide Message — locally remove from view.
+  void _hideMessage(String msgId) {
+    setState(() => _hiddenMsgIds.add(msgId));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Message hidden'),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+        action: SnackBarAction(
+          label: 'Undo',
+          onPressed: () => setState(() => _hiddenMsgIds.remove(msgId)),
+        ),
+      ),
+    );
+  }
+
+  // AyuGram §9.6: User's Messages — search messages by this sender in the current chat.
+  void _showUserMessages(ChatState chatState, CachedMessage msg) {
+    final senderMsgs = chatState.messages
+        .where((m) => m.senderId == msg.senderId && !m.isService)
+        .toList()
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    if (senderMsgs.isEmpty) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400, maxHeight: 500),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Text("${msg.senderName}'s Messages (${senderMsgs.length})",
+                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+                ),
+                const Divider(height: 1),
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: senderMsgs.length,
+                    itemBuilder: (_, i) {
+                      final m = senderMsgs[i];
+                      final dt = DateTime.fromMillisecondsSinceEpoch(m.timestamp);
+                      return ListTile(
+                        dense: true,
+                        title: Text(
+                          m.contentText.isNotEmpty ? m.contentText : (m.hasMedia ? '[Media]' : '[Empty]'),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall,
+                        ),
+                        subtitle: Text(_formatFullDate(dt), style: theme.textTheme.labelSmall),
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          chatState.jumpToMessage(m.timestamp);
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // AyuGram §9.6: Repeat Message — re-send the message content.
+  void _repeatMessage(ChatState chatState, CachedMessage msg) {
+    if (msg.contentText.isNotEmpty) {
+      chatState.sendMessage(msg.contentText);
+    } else if (msg.hasMedia && msg.forwardFrom.isNotEmpty) {
+      _forwardSingle(context, chatState, msg.msgId);
+    } else if (msg.contentText.isNotEmpty || msg.hasMedia) {
+      chatState.sendMessage(msg.contentText.isNotEmpty ? msg.contentText : '[Repeated message]');
+    }
+  }
+
+  // AyuGram §9.6: Message Details — submenu with metadata (views, shares, ID, dates, media info).
+  void _showMessageDetails(CachedMessage msg, Offset position) {
+    final origDate = DateTime.fromMillisecondsSinceEpoch(msg.timestamp);
+    final editDate = msg.editedAt > 0 ? DateTime.fromMillisecondsSinceEpoch(msg.editedAt) : null;
+
+    final items = <TelegramMenuItem<String>>[
+      if (msg.views > 0)
+        TelegramMenuItem(value: 'views', icon: const Icon(Icons.visibility), label: 'Views: ${msg.views}'),
+      if (msg.forwards > 0)
+        TelegramMenuItem(value: 'forwards', icon: const Icon(Icons.forward), label: 'Shares: ${msg.forwards}'),
+      TelegramMenuItem(value: 'msg_id', icon: const Icon(Icons.tag), label: 'ID: ${msg.msgId}'),
+      TelegramMenuItem(value: 'date', icon: const Icon(Icons.calendar_today), label: 'Date: ${_formatFullDate(origDate)}'),
+      if (editDate != null)
+        TelegramMenuItem(value: 'edit_date', icon: const Icon(Icons.edit_calendar), label: 'Edited: ${_formatFullDate(editDate)}'),
+      if (msg.forwardFrom.isNotEmpty)
+        TelegramMenuItem(value: 'fwd_from', icon: const Icon(Icons.shortcut), label: 'From: ${msg.forwardFrom}'),
+      if (msg.senderId.isNotEmpty)
+        TelegramMenuItem(value: 'sender_id', icon: const Icon(Icons.person), label: 'Sender ID: ${msg.senderId}'),
+      TelegramMenuItem(value: 'chat_id', icon: const Icon(Icons.chat), label: 'Chat ID: ${msg.chatId}'),
+      if (msg.hasMedia) ...[
+        const TelegramMenuItem.separator(),
+        if (msg.mediaMimeType.isNotEmpty)
+          TelegramMenuItem(value: 'mime', icon: const Icon(Icons.description), label: 'Type: ${msg.mediaMimeType}'),
+        if (msg.mediaFileSize > 0)
+          TelegramMenuItem(value: 'size', icon: const Icon(Icons.storage), label: 'Size: ${_formatFileSize(msg.mediaFileSize)}'),
+        if (msg.mediaFileName.isNotEmpty)
+          TelegramMenuItem(value: 'filename', icon: const Icon(Icons.insert_drive_file), label: 'File: ${msg.mediaFileName}'),
+        if (msg.mediaWidth > 0 && msg.mediaHeight > 0)
+          TelegramMenuItem(value: 'resolution', icon: const Icon(Icons.aspect_ratio), label: 'Resolution: ${msg.mediaWidth}×${msg.mediaHeight}'),
+        if (msg.mediaDuration > 0)
+          TelegramMenuItem(value: 'duration', icon: const Icon(Icons.timer), label: 'Duration: ${_formatDuration(msg.mediaDuration)}'),
+      ],
+    ];
+
     showTelegramMenu<String>(
       context: context,
       position: position,
-      items: [
-        TelegramMenuItem(value: 'msg_id', label: 'Message ID: ${msg.msgId}'),
-        TelegramMenuItem(value: 'sender_id', label: 'Sender ID: ${msg.senderId}'),
-        TelegramMenuItem(value: 'chat_id', label: 'Chat ID: ${msg.chatId}'),
-        TelegramMenuItem(value: 'timestamp', label: 'Timestamp: ${msg.timestamp}'),
-      ],
+      items: items,
     ).then((value) {
       if (value == null) return;
-      final text = switch (value) {
+      final copyText = switch (value) {
+        'views' => msg.views.toString(),
+        'forwards' => msg.forwards.toString(),
         'msg_id' => msg.msgId,
+        'date' => _formatFullDate(origDate),
+        'edit_date' => editDate != null ? _formatFullDate(editDate) : '',
+        'fwd_from' => msg.forwardFrom,
         'sender_id' => msg.senderId,
         'chat_id' => msg.chatId,
-        'timestamp' => msg.timestamp.toString(),
+        'mime' => msg.mediaMimeType,
+        'size' => msg.mediaFileSize.toString(),
+        'filename' => msg.mediaFileName,
+        'resolution' => '${msg.mediaWidth}×${msg.mediaHeight}',
+        'duration' => _formatDuration(msg.mediaDuration),
         _ => '',
       };
-      if (text.isNotEmpty) Clipboard.setData(ClipboardData(text: text));
+      if (copyText.isNotEmpty) {
+        Clipboard.setData(ClipboardData(text: copyText));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Copied'), behavior: SnackBarBehavior.floating, duration: Duration(seconds: 1)),
+          );
+        }
+      }
     });
+  }
+
+  // AyuGram §9.6: Read Until Here — mark messages read up to this point.
+  void _readUntilHere(ChatState chatState, CachedMessage msg) {
+    final chat = chatState.activeChat;
+    if (chat == null) return;
+    final engine = context.read<EngineService>();
+    engine.markChatRead(chat.accountId, chat.chatId, msg.msgId);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Marked as read'), behavior: SnackBarBehavior.floating, duration: Duration(seconds: 2)),
+    );
+  }
+
+  static String _formatFullDate(DateTime dt) {
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    final s = dt.second.toString().padLeft(2, '0');
+    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} $h:$m:$s';
+  }
+
+  static String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+  }
+
+  static String _formatDuration(int seconds) {
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(width: 100, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13))),
+        Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
+      ],
+    );
   }
 
   void _showSenderProfile(BuildContext context, ChatState chatState, String senderId) {
@@ -2143,7 +2365,9 @@ class _ChatViewState extends State<ChatView>
             child: Stack(
               children: [
                 _MessageList(
-                  messages: chatState.messages,
+                  messages: _hiddenMsgIds.isEmpty
+                      ? chatState.messages
+                      : chatState.messages.where((m) => !_hiddenMsgIds.contains(m.msgId)).toList(),
                   loading: chatState.loadingMessages,
                   isGroupChat: chat.type == ChatType.group || chat.type == ChatType.channel || chat.type == ChatType.topic,
                   senderAvatars: chatState,
