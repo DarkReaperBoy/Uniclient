@@ -578,3 +578,14 @@ type Core interface {
 	// SendLocation sends a geographic location as a message.
 	SendLocation(chatID string, lat float64, lon float64) (*Message, error)
 }
+
+type ForwardOptions struct {
+	DropAuthor   bool
+	DropCaptions bool
+	Silent       bool
+	ScheduleDate int64
+}
+
+type ForwardWithOptionsSupporter interface {
+	ForwardMessageWithOptions(fromChatID, msgID, toChatID string, opts ForwardOptions) (*Message, error)
+}

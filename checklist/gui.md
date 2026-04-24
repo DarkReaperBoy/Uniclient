@@ -454,7 +454,6 @@
 
 ### §9.7 Forward Dialog (ShareBox)
 <!-- File: dart/lib/ui/chat_view.dart (_ShareBox, _ShareBoxItem) -->
-- [ ] 3-dot menu: Show sender's name, Show caption checkmarks; Schedule, Send silent/without-sound/whenOnline; menu opens upward; Send button right-click opens same menu — spec §9.4
 - [ ] Folder-based filter tabs in recipient list — spec §9.4
 
 ### §9.8 Delete Confirmation Box

@@ -52,8 +52,12 @@ type reactPayload struct {
 
 // forwardPayload is the serialized payload for a "forward" action.
 type forwardPayload struct {
-	MsgID    string `json:"msg_id"`
-	ToChatID string `json:"to_chat_id"`
+	MsgID        string `json:"msg_id"`
+	ToChatID     string `json:"to_chat_id"`
+	DropAuthor   bool   `json:"drop_author,omitempty"`
+	DropCaptions bool   `json:"drop_captions,omitempty"`
+	Silent       bool   `json:"silent,omitempty"`
+	ScheduleDate int64  `json:"schedule_date,omitempty"`
 }
 
 // pendingItem represents a row in the pending table.
@@ -298,11 +302,15 @@ func (e *Engine) DeleteMessage(accountID, chatID, msgID string) error {
 }
 
 // ForwardMessage queues a message forward to another chat.
-func (e *Engine) ForwardMessage(accountID, chatID, msgID, toChatID string) error {
+func (e *Engine) ForwardMessage(accountID, chatID, msgID, toChatID string, dropAuthor, dropCaptions, silent bool, scheduleDate int64) error {
 	localID := generateLocalID()
 	now := time.Now().UnixMilli()
 
-	payload, _ := json.Marshal(forwardPayload{MsgID: msgID, ToChatID: toChatID})
+	payload, _ := json.Marshal(forwardPayload{
+		MsgID: msgID, ToChatID: toChatID,
+		DropAuthor: dropAuthor, DropCaptions: dropCaptions,
+		Silent: silent, ScheduleDate: scheduleDate,
+	})
 
 	_, err := e.db.Exec(
 		`INSERT INTO pending (account_id, chat_id, local_id, action, payload, status, created_at)
@@ -507,6 +515,13 @@ func (e *Engine) executePending(acc *Account, chatID, localID, action string, pa
 	case ActionForward:
 		var p forwardPayload
 		json.Unmarshal(payload, &p)
+		if fwd, ok := acc.Core.(cores.ForwardWithOptionsSupporter); ok && (p.DropAuthor || p.DropCaptions || p.Silent || p.ScheduleDate > 0) {
+			_, err := fwd.ForwardMessageWithOptions(chatID, p.MsgID, p.ToChatID, cores.ForwardOptions{
+				DropAuthor: p.DropAuthor, DropCaptions: p.DropCaptions,
+				Silent: p.Silent, ScheduleDate: p.ScheduleDate,
+			})
+			return err
+		}
 		_, err := acc.Core.ForwardMessage(chatID, p.MsgID, p.ToChatID)
 		return err
 

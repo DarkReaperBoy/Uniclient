@@ -788,12 +788,23 @@ class EngineService {
     return resp.chat;
   }
 
-  Future<void> forwardMessage(String accountId, String chatId, String msgId, String toChatId) async {
+  Future<void> forwardMessage(String accountId, String chatId, String msgId, String toChatId, {
+    bool dropAuthor = false,
+    bool dropCaptions = false,
+    bool silent = false,
+    int scheduleDate = 0,
+  }) async {
     final req = epb.EngineForwardMessageRequest()
       ..accountId = accountId
       ..chatId = chatId
       ..msgId = msgId
-      ..toChatId = toChatId;
+      ..toChatId = toChatId
+      ..dropAuthor = dropAuthor
+      ..dropCaptions = dropCaptions
+      ..silent = silent;
+    if (scheduleDate > 0) {
+      req.scheduleDate = Int64(scheduleDate);
+    }
     await _callAsync('__engine', 'ForwardMessage', req.writeToBuffer());
   }
 

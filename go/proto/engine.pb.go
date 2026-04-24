@@ -2875,6 +2875,10 @@ type EngineForwardMessageRequest struct {
 	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
 	MsgId         string                 `protobuf:"bytes,3,opt,name=msg_id,json=msgId,proto3" json:"msg_id,omitempty"`
 	ToChatId      string                 `protobuf:"bytes,4,opt,name=to_chat_id,json=toChatId,proto3" json:"to_chat_id,omitempty"`
+	DropAuthor    bool                   `protobuf:"varint,5,opt,name=drop_author,json=dropAuthor,proto3" json:"drop_author,omitempty"`
+	DropCaptions  bool                   `protobuf:"varint,6,opt,name=drop_captions,json=dropCaptions,proto3" json:"drop_captions,omitempty"`
+	Silent        bool                   `protobuf:"varint,7,opt,name=silent,proto3" json:"silent,omitempty"`
+	ScheduleDate  int64                  `protobuf:"varint,8,opt,name=schedule_date,json=scheduleDate,proto3" json:"schedule_date,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2935,6 +2939,34 @@ func (x *EngineForwardMessageRequest) GetToChatId() string {
 		return x.ToChatId
 	}
 	return ""
+}
+
+func (x *EngineForwardMessageRequest) GetDropAuthor() bool {
+	if x != nil {
+		return x.DropAuthor
+	}
+	return false
+}
+
+func (x *EngineForwardMessageRequest) GetDropCaptions() bool {
+	if x != nil {
+		return x.DropCaptions
+	}
+	return false
+}
+
+func (x *EngineForwardMessageRequest) GetSilent() bool {
+	if x != nil {
+		return x.Silent
+	}
+	return false
+}
+
+func (x *EngineForwardMessageRequest) GetScheduleDate() int64 {
+	if x != nil {
+		return x.ScheduleDate
+	}
+	return 0
 }
 
 type EngineReactToMessageRequest struct {
@@ -8315,12 +8347,13 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
 	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x12\n" +
-	"\x04text\x18\x03 \x01(\tR\x04text\"e\n" +
+	"\x04text\x18\x03 \x01(\tR\x04text\"\x90\x01\n" +
 	"\x15EngineMuteChatRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
 	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x14\n" +
-	"\x05muted\x18\x03 \x01(\bR\x05muted\"f\n" +
+	"\x05muted\x18\x03 \x01(\bR\x05muted\x12)\n" +
+	"\x10duration_seconds\x18\x04 \x01(\x05R\x0fdurationSeconds\"f\n" +
 	"\x14EnginePinChatRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
@@ -8443,14 +8476,19 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x16EngineLeaveChatRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
-	"\achat_id\x18\x02 \x01(\tR\x06chatId\"\x8a\x01\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\"\x8d\x02\n" +
 	"\x1bEngineForwardMessageRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
 	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x15\n" +
 	"\x06msg_id\x18\x03 \x01(\tR\x05msgId\x12\x1c\n" +
 	"\n" +
-	"to_chat_id\x18\x04 \x01(\tR\btoChatId\"\x82\x01\n" +
+	"to_chat_id\x18\x04 \x01(\tR\btoChatId\x12\x1f\n" +
+	"\vdrop_author\x18\x05 \x01(\bR\n" +
+	"dropAuthor\x12#\n" +
+	"\rdrop_captions\x18\x06 \x01(\bR\fdropCaptions\x12\x16\n" +
+	"\x06silent\x18\a \x01(\bR\x06silent\x12#\n" +
+	"\rschedule_date\x18\b \x01(\x03R\fscheduleDate\"\x82\x01\n" +
 	"\x1bEngineReactToMessageRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +

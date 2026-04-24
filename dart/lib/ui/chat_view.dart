@@ -1820,10 +1820,17 @@ class _ChatViewState extends State<ChatView>
       context: context,
       builder: (ctx) => _ShareBox(
         chats: chatState.chats,
-        onSend: (chatIds) async {
+        hasSenders: true,
+        hasCaptions: msgIds.length > 0,
+        onSend: (opts) async {
           Navigator.of(ctx).pop();
-          for (final toChatId in chatIds) {
-            await chatState.forwardMessages(msgIds, toChatId);
+          for (final toChatId in opts.chatIds) {
+            await chatState.forwardMessages(msgIds, toChatId,
+              dropAuthor: opts.dropAuthor,
+              dropCaptions: opts.dropCaptions,
+              silent: opts.silent,
+              scheduleDate: opts.scheduleDate,
+            );
           }
           setState(() {
             _forwardingMsgIds = [];
@@ -8495,11 +8502,34 @@ class _RecordLockWidget extends StatelessWidget {
 /// ShareBox — spec §9.4 forward dialog.
 /// Grid of recipients (108px rows), multi-select with blue ring + avatar shrink,
 /// search field, self-chat first, comment field slides in on selection.
+class _ForwardSendOptions {
+  final List<String> chatIds;
+  final bool dropAuthor;
+  final bool dropCaptions;
+  final bool silent;
+  final int scheduleDate;
+
+  const _ForwardSendOptions({
+    required this.chatIds,
+    this.dropAuthor = false,
+    this.dropCaptions = false,
+    this.silent = false,
+    this.scheduleDate = 0,
+  });
+}
+
 class _ShareBox extends StatefulWidget {
   final List<ChatInfo> chats;
-  final ValueChanged<List<String>> onSend;
+  final ValueChanged<_ForwardSendOptions> onSend;
+  final bool hasSenders;
+  final bool hasCaptions;
 
-  const _ShareBox({required this.chats, required this.onSend});
+  const _ShareBox({
+    required this.chats,
+    required this.onSend,
+    this.hasSenders = true,
+    this.hasCaptions = false,
+  });
 
   @override
   State<_ShareBox> createState() => _ShareBoxState();
@@ -8526,6 +8556,10 @@ class _ShareBoxState extends State<_ShareBox> {
   String _query = '';
   final Set<String> _selected = {};
   final _commentController = TextEditingController();
+  bool _showSenderName = true;
+  bool _showCaption = true;
+  bool _silent = false;
+  int _scheduleDate = 0;
 
   List<ChatInfo> get _sortedChats {
     final chats = List<ChatInfo>.from(widget.chats);
@@ -8650,21 +8684,26 @@ class _ShareBoxState extends State<_ShareBox> {
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
+                  if (widget.hasSenders || widget.hasCaptions)
+                    _buildMenuButton(context, theme, isDark),
+                  const Spacer(),
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
                     child: Text('Cancel', style: TextStyle(color: theme.hintColor)),
                   ),
                   const SizedBox(width: 8),
-                  FilledButton(
-                    onPressed: _selected.isEmpty
-                        ? null
-                        : () => widget.onSend(_selected.toList()),
-                    child: Text(
-                      _selected.length <= 1
-                          ? 'Send'
-                          : 'Send (${_selected.length})',
+                  GestureDetector(
+                    onSecondaryTapUp: _selected.isEmpty ? null : (details) {
+                      _showSendMenu(context, theme, isDark, details.globalPosition);
+                    },
+                    child: FilledButton(
+                      onPressed: _selected.isEmpty ? null : _doSend,
+                      child: Text(
+                        _selected.length <= 1
+                            ? 'Send'
+                            : 'Send (${_selected.length})',
+                      ),
                     ),
                   ),
                 ],
@@ -8684,6 +8723,204 @@ class _ShareBoxState extends State<_ShareBox> {
         _selected.add(chatId);
       }
     });
+  }
+
+  void _doSend() {
+    widget.onSend(_ForwardSendOptions(
+      chatIds: _selected.toList(),
+      dropAuthor: !_showSenderName,
+      dropCaptions: !_showCaption,
+      silent: _silent,
+      scheduleDate: _scheduleDate,
+    ));
+  }
+
+  Widget _buildMenuButton(BuildContext context, ThemeData theme, bool isDark) {
+    final accentColor = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF40a7e3);
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert, size: 20),
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+      position: PopupMenuPosition.over,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      onSelected: (value) {
+        switch (value) {
+          case 'sender':
+            setState(() => _showSenderName = !_showSenderName);
+            break;
+          case 'caption':
+            setState(() => _showCaption = !_showCaption);
+            break;
+          case 'silent':
+            setState(() => _silent = !_silent);
+            break;
+          case 'schedule':
+            _showSchedulePicker(context);
+            break;
+        }
+      },
+      itemBuilder: (ctx) => [
+        if (widget.hasSenders)
+          PopupMenuItem<String>(
+            value: 'sender',
+            child: Row(
+              children: [
+                SizedBox(width: 24, child: _showSenderName ? Icon(Icons.check, size: 20, color: accentColor) : null),
+                const SizedBox(width: 12),
+                const Text("Show sender's name"),
+              ],
+            ),
+          ),
+        if (widget.hasCaptions)
+          PopupMenuItem<String>(
+            value: 'caption',
+            child: Row(
+              children: [
+                SizedBox(width: 24, child: _showCaption ? Icon(Icons.check, size: 20, color: accentColor) : null),
+                const SizedBox(width: 12),
+                const Text('Show caption'),
+              ],
+            ),
+          ),
+        if (widget.hasSenders || widget.hasCaptions)
+          const PopupMenuDivider(),
+        PopupMenuItem<String>(
+          value: 'schedule',
+          child: Row(
+            children: [
+              Icon(Icons.schedule, size: 20, color: theme.iconTheme.color),
+              const SizedBox(width: 12),
+              const Text('Schedule'),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'silent',
+          child: Row(
+            children: [
+              Icon(
+                _silent ? Icons.check : Icons.notifications_off_outlined,
+                size: 20,
+                color: _silent ? accentColor : theme.iconTheme.color,
+              ),
+              const SizedBox(width: 12),
+              const Text('Send without sound'),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showSendMenu(BuildContext context, ThemeData theme, bool isDark, Offset position) {
+    final accentColor = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF40a7e3);
+    final screenSize = MediaQuery.of(context).size;
+    final menuItems = <PopupMenuEntry<String>>[];
+
+    if (widget.hasSenders) {
+      menuItems.add(PopupMenuItem<String>(
+        value: 'sender',
+        child: Row(
+          children: [
+            SizedBox(width: 24, child: _showSenderName ? Icon(Icons.check, size: 20, color: accentColor) : null),
+            const SizedBox(width: 12),
+            const Text("Show sender's name"),
+          ],
+        ),
+      ));
+    }
+
+    if (widget.hasCaptions) {
+      menuItems.add(PopupMenuItem<String>(
+        value: 'caption',
+        child: Row(
+          children: [
+            SizedBox(width: 24, child: _showCaption ? Icon(Icons.check, size: 20, color: accentColor) : null),
+            const SizedBox(width: 12),
+            const Text('Show caption'),
+          ],
+        ),
+      ));
+    }
+
+    if (widget.hasSenders || widget.hasCaptions) {
+      menuItems.add(const PopupMenuDivider());
+    }
+
+    menuItems.addAll([
+      PopupMenuItem<String>(
+        value: 'schedule',
+        child: Row(
+          children: [
+            Icon(Icons.schedule, size: 20, color: theme.iconTheme.color),
+            const SizedBox(width: 12),
+            const Text('Schedule'),
+          ],
+        ),
+      ),
+      PopupMenuItem<String>(
+        value: 'silent',
+        child: Row(
+          children: [
+            Icon(
+              _silent ? Icons.check : Icons.notifications_off_outlined,
+              size: 20,
+              color: _silent ? accentColor : theme.iconTheme.color,
+            ),
+            const SizedBox(width: 12),
+            const Text('Send without sound'),
+          ],
+        ),
+      ),
+    ]);
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx - 220,
+        0,
+        screenSize.width - position.dx,
+        screenSize.height - position.dy,
+      ),
+      items: menuItems,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+    ).then((value) {
+      if (value == null) return;
+      switch (value) {
+        case 'sender':
+          setState(() => _showSenderName = !_showSenderName);
+          break;
+        case 'caption':
+          setState(() => _showCaption = !_showCaption);
+          break;
+        case 'silent':
+          setState(() => _silent = !_silent);
+          break;
+        case 'schedule':
+          _showSchedulePicker(context);
+          break;
+      }
+    });
+  }
+
+  void _showSchedulePicker(BuildContext context) async {
+    final now = DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: now.add(const Duration(hours: 1)),
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(now.add(const Duration(hours: 1))),
+    );
+    if (time == null || !mounted) return;
+    final scheduled = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    if (scheduled.isBefore(DateTime.now())) return;
+    setState(() => _scheduleDate = scheduled.millisecondsSinceEpoch ~/ 1000);
+    _doSend();
   }
 
   int _columnsForWidth(double screenWidth) {

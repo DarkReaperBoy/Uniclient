@@ -3850,6 +3850,10 @@ class EngineForwardMessageRequest extends $pb.GeneratedMessage {
     $core.String? chatId,
     $core.String? msgId,
     $core.String? toChatId,
+    $core.bool? dropAuthor,
+    $core.bool? dropCaptions,
+    $core.bool? silent,
+    $fixnum.Int64? scheduleDate,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -3864,6 +3868,18 @@ class EngineForwardMessageRequest extends $pb.GeneratedMessage {
     if (toChatId != null) {
       $result.toChatId = toChatId;
     }
+    if (dropAuthor != null) {
+      $result.dropAuthor = dropAuthor;
+    }
+    if (dropCaptions != null) {
+      $result.dropCaptions = dropCaptions;
+    }
+    if (silent != null) {
+      $result.silent = silent;
+    }
+    if (scheduleDate != null) {
+      $result.scheduleDate = scheduleDate;
+    }
     return $result;
   }
   EngineForwardMessageRequest._() : super();
@@ -3875,6 +3891,10 @@ class EngineForwardMessageRequest extends $pb.GeneratedMessage {
     ..aOS(2, _omitFieldNames ? '' : 'chatId')
     ..aOS(3, _omitFieldNames ? '' : 'msgId')
     ..aOS(4, _omitFieldNames ? '' : 'toChatId')
+    ..aOB(5, _omitFieldNames ? '' : 'dropAuthor')
+    ..aOB(6, _omitFieldNames ? '' : 'dropCaptions')
+    ..aOB(7, _omitFieldNames ? '' : 'silent')
+    ..aInt64(8, _omitFieldNames ? '' : 'scheduleDate')
     ..hasRequiredFields = false
   ;
 
@@ -3934,6 +3954,42 @@ class EngineForwardMessageRequest extends $pb.GeneratedMessage {
   $core.bool hasToChatId() => $_has(3);
   @$pb.TagNumber(4)
   void clearToChatId() => clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.bool get dropAuthor => $_getBF(4);
+  @$pb.TagNumber(5)
+  set dropAuthor($core.bool v) { $_setBool(4, v); }
+  @$pb.TagNumber(5)
+  $core.bool hasDropAuthor() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearDropAuthor() => clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.bool get dropCaptions => $_getBF(5);
+  @$pb.TagNumber(6)
+  set dropCaptions($core.bool v) { $_setBool(5, v); }
+  @$pb.TagNumber(6)
+  $core.bool hasDropCaptions() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearDropCaptions() => clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.bool get silent => $_getBF(6);
+  @$pb.TagNumber(7)
+  set silent($core.bool v) { $_setBool(6, v); }
+  @$pb.TagNumber(7)
+  $core.bool hasSilent() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearSilent() => clearField(7);
+
+  @$pb.TagNumber(8)
+  $fixnum.Int64 get scheduleDate => $_getI64(7);
+  @$pb.TagNumber(8)
+  set scheduleDate($fixnum.Int64 v) { $_setInt64(7, v); }
+  @$pb.TagNumber(8)
+  $core.bool hasScheduleDate() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearScheduleDate() => clearField(8);
 }
 
 class EngineReactToMessageRequest extends $pb.GeneratedMessage {

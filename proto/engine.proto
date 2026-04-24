@@ -343,10 +343,14 @@ message EngineLeaveChatRequest {
 }
 
 message EngineForwardMessageRequest {
-  string account_id  = 1;
-  string chat_id     = 2;
-  string msg_id      = 3;
-  string to_chat_id  = 4;
+  string account_id    = 1;
+  string chat_id       = 2;
+  string msg_id        = 3;
+  string to_chat_id    = 4;
+  bool   drop_author   = 5;
+  bool   drop_captions = 6;
+  bool   silent        = 7;
+  int64  schedule_date = 8;
 }
 
 message EngineReactToMessageRequest {

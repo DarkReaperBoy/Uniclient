@@ -538,11 +538,18 @@ class ChatState extends ChangeNotifier {
     _loadMessages();
   }
 
-  Future<void> forwardMessages(List<String> msgIds, String toChatId) async {
+  Future<void> forwardMessages(List<String> msgIds, String toChatId, {
+    bool dropAuthor = false,
+    bool dropCaptions = false,
+    bool silent = false,
+    int scheduleDate = 0,
+  }) async {
     final chat = _activeChat;
     if (chat == null) return;
     for (final id in msgIds) {
-      await _engine.forwardMessage(chat.accountId, chat.chatId, id, toChatId);
+      await _engine.forwardMessage(chat.accountId, chat.chatId, id, toChatId,
+        dropAuthor: dropAuthor, dropCaptions: dropCaptions,
+        silent: silent, scheduleDate: scheduleDate);
     }
     // If forwarding to the active chat, refresh messages immediately.
     if (toChatId == chat.chatId) {

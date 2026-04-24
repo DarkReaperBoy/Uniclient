@@ -1176,6 +1176,10 @@ func (t *TelegramCore) ReplyToMessage(chatID string, replyToMsgID string, msg Ou
 
 // ForwardMessage forwards a message from one chat to another.
 func (t *TelegramCore) ForwardMessage(fromChatID string, msgID string, toChatID string) (*Message, error) {
+	return t.ForwardMessageWithOptions(fromChatID, msgID, toChatID, ForwardOptions{})
+}
+
+func (t *TelegramCore) ForwardMessageWithOptions(fromChatID, msgID, toChatID string, opts ForwardOptions) (*Message, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed || t.api == nil {
@@ -1198,12 +1202,21 @@ func (t *TelegramCore) ForwardMessage(fromChatID string, msgID string, toChatID 
 	if err != nil {
 		return nil, err
 	}
-	result, err := t.api.MessagesForwardMessages(t.ctx, &tg.MessagesForwardMessagesRequest{
+
+	req := &tg.MessagesForwardMessagesRequest{
 		FromPeer: fromInput,
 		ToPeer:   toInput,
 		ID:       []int{id},
 		RandomID: []int64{time.Now().UnixNano()},
-	})
+	}
+	req.SetDropAuthor(opts.DropAuthor)
+	req.SetDropMediaCaptions(opts.DropCaptions)
+	req.SetSilent(opts.Silent)
+	if opts.ScheduleDate > 0 {
+		req.SetScheduleDate(int(opts.ScheduleDate))
+	}
+
+	result, err := t.api.MessagesForwardMessages(t.ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("forward message: %w", err)
 	}

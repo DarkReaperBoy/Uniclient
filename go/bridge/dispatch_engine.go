@@ -441,7 +441,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
-		return nil, e.ForwardMessage(req.AccountId, req.ChatId, req.MsgId, req.ToChatId)
+		return nil, e.ForwardMessage(req.AccountId, req.ChatId, req.MsgId, req.ToChatId, req.DropAuthor, req.DropCaptions, req.Silent, req.ScheduleDate)
 
 	case "SendScheduledNow":
 		var req pb.EngineSendScheduledNowRequest
