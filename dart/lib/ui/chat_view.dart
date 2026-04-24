@@ -9499,16 +9499,19 @@ class _EmojiSuggestionPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF17212b) : Colors.white;
-    final hoverColor = isDark ? const Color(0xFF202b36) : const Color(0xFFf1f1f1);
-    final borderColor = theme.dividerColor;
+    final bgColor = isDark ? const Color(0xFF1e2c3a) : const Color(0xFFf7f7f7);
+    final hoverColor = isDark ? const Color(0xFF2b3d4f) : const Color(0xFFe8e8e8);
+    final borderColor = isDark ? const Color(0xFF101a23) : const Color(0xFFdadada);
 
     return TextFieldTapRegion(
       child: Container(
         height: 44,
         decoration: BoxDecoration(
           color: bgColor,
-          border: Border(top: BorderSide(color: borderColor, width: 1)),
+          border: Border(
+            top: BorderSide(color: borderColor, width: 1),
+            bottom: BorderSide(color: borderColor, width: 1),
+          ),
         ),
         child: ShaderMask(
           shaderCallback: (bounds) => LinearGradient(
