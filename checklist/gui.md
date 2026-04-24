@@ -444,7 +444,7 @@
 ### §9.4 Chat List Context Menu
 <!-- File: dart/lib/ui/chat_view.dart — _showChatContextMenu -->
 - [x] Pin/Unpin, Mute/Unmute, Mark as Read/Unread, Archive/Unarchive, Leave — spec §9 — DONE in chat_view.dart
-- [ ] New Window action; Folder actions (expand/collapse, settings, mark read); Clear History — spec §9
+- [x] Clear History with confirmation dialog, Delete Chat (DM) with confirmation, Leave Chat/Channel with confirmation, folder tab right-click context menu (Mark All as Read, Edit Folder) — spec §9 — DONE in chat_list_panel.dart + filter_column.dart
 
 ### §9.5 User Context Menu
 <!-- File: not yet implemented -->

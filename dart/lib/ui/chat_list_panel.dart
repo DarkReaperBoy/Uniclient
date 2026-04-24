@@ -983,6 +983,8 @@ class _ChatListPanelState extends State<ChatListPanel>
         chat.type == ChatType.channel ||
         chat.type == ChatType.topic;
 
+    final isDm = chat.type == ChatType.dm;
+
     showTelegramMenu<String>(
       context: context,
       position: globalPosition,
@@ -998,10 +1000,16 @@ class _ChatListPanelState extends State<ChatListPanel>
           label: chat.unreadCount > 0 ? 'Mark as Read' : 'Mark as Unread',
         ),
         TelegramMenuItem(value: 'archive', label: chat.isArchived ? 'Unarchive' : 'Archive'),
-        if (isGroupy) ...[
-          const TelegramMenuItem.separator(),
-          const TelegramMenuItem(value: 'leave', label: 'Leave Chat', isAttention: true),
-        ],
+        const TelegramMenuItem.separator(),
+        const TelegramMenuItem(value: 'clear_history', label: 'Clear History'),
+        if (isDm)
+          const TelegramMenuItem(value: 'delete_chat', label: 'Delete Chat', isAttention: true),
+        if (isGroupy)
+          TelegramMenuItem(
+            value: 'leave',
+            label: chat.type == ChatType.channel ? 'Leave Channel' : 'Leave Chat',
+            isAttention: true,
+          ),
       ],
     ).then((value) {
       if (value == null) return;
@@ -1024,8 +1032,18 @@ class _ChatListPanelState extends State<ChatListPanel>
           }
         case 'archive':
           chatState.archiveChat(chat.accountId, chat.chatId, !chat.isArchived);
+        case 'clear_history':
+          if (context.mounted) {
+            _showClearHistoryConfirmation(context, chat);
+          }
+        case 'delete_chat':
+          if (context.mounted) {
+            _showDeleteChatConfirmation(context, chat);
+          }
         case 'leave':
-          chatState.leaveChat(chat.accountId, chat.chatId);
+          if (context.mounted) {
+            _showLeaveChatConfirmation(context, chat);
+          }
       }
     });
   }
@@ -1173,6 +1191,138 @@ class _ChatListPanelState extends State<ChatListPanel>
     ).then((seconds) {
       if (seconds != null) {
         chatState.muteChat(chat.accountId, chat.chatId, true, durationSeconds: seconds);
+      }
+    });
+  }
+
+  void _showClearHistoryConfirmation(BuildContext context, ChatInfo chat) {
+    final chatState = context.read<ChatState>();
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1e2c3a) : null,
+        title: Text(
+          'Clear History',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            color: isDark ? Colors.white : null,
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to clear the message history in "${chat.title}"?',
+          style: TextStyle(
+            fontSize: 14,
+            color: isDark ? const Color(0xFFaaaaaa) : null,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text('Cancel', style: TextStyle(color: isDark ? const Color(0xFF6c7883) : null)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFFd14e4e)),
+            child: const Text('Clear'),
+          ),
+        ],
+      ),
+    ).then((confirmed) {
+      if (confirmed == true) {
+        chatState.clearHistory(chat.accountId, chat.chatId);
+      }
+    });
+  }
+
+  void _showDeleteChatConfirmation(BuildContext context, ChatInfo chat) {
+    final chatState = context.read<ChatState>();
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1e2c3a) : null,
+        title: Text(
+          'Delete Chat',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            color: isDark ? Colors.white : null,
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to delete the chat with "${chat.title}"?',
+          style: TextStyle(
+            fontSize: 14,
+            color: isDark ? const Color(0xFFaaaaaa) : null,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text('Cancel', style: TextStyle(color: isDark ? const Color(0xFF6c7883) : null)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFFd14e4e)),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    ).then((confirmed) {
+      if (confirmed == true) {
+        chatState.deleteChat(chat.accountId, chat.chatId);
+      }
+    });
+  }
+
+  void _showLeaveChatConfirmation(BuildContext context, ChatInfo chat) {
+    final chatState = context.read<ChatState>();
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final isChannel = chat.type == ChatType.channel;
+
+    showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1e2c3a) : null,
+        title: Text(
+          isChannel ? 'Leave Channel' : 'Leave Chat',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            color: isDark ? Colors.white : null,
+          ),
+        ),
+        content: Text(
+          isChannel
+              ? 'Are you sure you want to leave "${chat.title}"?'
+              : 'Are you sure you want to leave the group "${chat.title}"?',
+          style: TextStyle(
+            fontSize: 14,
+            color: isDark ? const Color(0xFFaaaaaa) : null,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text('Cancel', style: TextStyle(color: isDark ? const Color(0xFF6c7883) : null)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFFd14e4e)),
+            child: const Text('Leave'),
+          ),
+        ],
+      ),
+    ).then((confirmed) {
+      if (confirmed == true) {
+        chatState.leaveChat(chat.accountId, chat.chatId);
       }
     });
   }

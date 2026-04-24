@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
+import 'popup_menu.dart';
 
 /// Spec §1/§2: Vertical folder sidebar, 72px wide.
 /// Hamburger menu icon at top, vertical folder buttons (scrollable),
@@ -232,6 +233,43 @@ class _FilterColumnState extends State<FilterColumn> {
     return 0;
   }
 
+  void _showFolderContextMenu(
+      BuildContext context, FolderInfo folder, Offset globalPosition) {
+    final chatState = context.read<ChatState>();
+    final unread = chatState.unreadCountForFolder(folder.id);
+
+    showTelegramMenu<String>(
+      context: context,
+      position: globalPosition,
+      items: [
+        if (unread > 0)
+          const TelegramMenuItem(
+            value: 'mark_read',
+            icon: Icon(Icons.done_all),
+            label: 'Mark All as Read',
+          ),
+        const TelegramMenuItem(
+          value: 'edit',
+          icon: Icon(Icons.settings),
+          label: 'Edit Folder',
+        ),
+      ],
+    ).then((value) {
+      if (value == null) return;
+      switch (value) {
+        case 'mark_read':
+          final chats = chatState.chatsForFolder(folder.id);
+          for (final chat in chats) {
+            if (chat.unreadCount > 0) {
+              chatState.markChatRead(chat.accountId, chat.chatId);
+            }
+          }
+        case 'edit':
+          break;
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -305,19 +343,25 @@ class _FilterColumnState extends State<FilterColumn> {
                       ),
                       child: Opacity(
                         opacity: isDragged ? 0.8 : 1.0,
-                        child: _SideBarButton(
-                          icon: FilterColumn.folderIcon(folder.name),
-                          label: folder.name,
-                          isActive: activeFolderId == folder.id,
-                          unreadCount: unread,
-                          unreadAllMuted: allMuted,
-                          onTap: _dragActive
-                              ? () {}
-                              : () => chatState.setActiveFolder(
-                                    activeFolderId == folder.id
-                                        ? null
-                                        : folder.id,
-                                  ),
+                        child: GestureDetector(
+                          onSecondaryTapUp: _dragActive
+                              ? null
+                              : (details) => _showFolderContextMenu(
+                                    context, folder, details.globalPosition),
+                          child: _SideBarButton(
+                            icon: FilterColumn.folderIcon(folder.name),
+                            label: folder.name,
+                            isActive: activeFolderId == folder.id,
+                            unreadCount: unread,
+                            unreadAllMuted: allMuted,
+                            onTap: _dragActive
+                                ? () {}
+                                : () => chatState.setActiveFolder(
+                                      activeFolderId == folder.id
+                                          ? null
+                                          : folder.id,
+                                    ),
+                          ),
                         ),
                       ),
                     );
