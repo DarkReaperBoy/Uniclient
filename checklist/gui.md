@@ -451,7 +451,6 @@
 
 ### §9.6 Reaction Picker
 <!-- File: dart/lib/ui/message_bubble.dart (_ReactionStrip) -->
-- [ ] Expand chevron opens full emoji-grid panel with category tabs, search, sticker effects — spec §9.3
 
 ### §9.7 Forward Dialog (ShareBox)
 <!-- File: not yet implemented -->

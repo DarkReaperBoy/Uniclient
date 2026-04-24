@@ -105,6 +105,33 @@ class _MessageBubbleState extends State<MessageBubble> {
     engine.reactToMessage(accountId, chatId, widget.message.msgId, emoji);
   }
 
+  final GlobalKey _stripKey = GlobalKey();
+
+  void _onExpandReactions() {
+    final renderBox =
+        _stripKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+    final stripPos = renderBox.localToGlobal(Offset.zero);
+    final stripSize = renderBox.size;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final overlay = Overlay.of(context);
+    late OverlayEntry entry;
+    entry = OverlayEntry(builder: (ctx) {
+      return _ReactionEmojiOverlay(
+        stripOffset: stripPos,
+        stripSize: stripSize,
+        isDark: isDark,
+        onPick: (emoji) {
+          entry.remove();
+          _onReactionTap(emoji);
+        },
+        onDismiss: () => entry.remove(),
+      );
+    });
+    overlay.insert(entry);
+  }
+
   static const _maxWidth = 430.0;
   static const _radiusLarge = 16.0;
   static const _radiusSmall = 6.0;
@@ -241,6 +268,21 @@ class _MessageBubbleState extends State<MessageBubble> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
                 children: [
+              if (_hovered && !inSelectionMode)
+                Align(
+                  alignment: isOutgoing ? Alignment.centerRight : Alignment.centerLeft,
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      right: isOutgoing ? 20 : 0,
+                    ),
+                    child: _ReactionStrip(
+                      key: _stripKey,
+                      onReactionTap: _onReactionTap,
+                      onExpandTap: _onExpandReactions,
+                      isDark: isDark,
+                    ),
+                  ),
+                ),
               Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -487,16 +529,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                     isDark: isDark,
                   ),
                 ),
-              if (_hovered && !inSelectionMode) ...[
-                Positioned(
-                  top: -24,
-                  right: isOutgoing ? 20 : null,
-                  left: isOutgoing ? null : 0,
-                  child: _ReactionStrip(
-                    onReactionTap: _onReactionTap,
-                    isDark: isDark,
-                  ),
-                ),
+              if (_hovered && !inSelectionMode)
                 Positioned(
                   top: 0,
                   right: isOutgoing ? null : 0,
@@ -506,7 +539,6 @@ class _MessageBubbleState extends State<MessageBubble> {
                     onTap: () => _onReactionTap('❤️'),
                   ),
                 ),
-              ],
               ],
               ),
               if (message.hasInlineKeyboard)
@@ -814,10 +846,13 @@ class _ReactionCornerButtonState extends State<_ReactionCornerButton>
 /// Spec §9.3: Floating reaction strip — 40px height, 32px slot, 26px emoji, 7px skip.
 class _ReactionStrip extends StatefulWidget {
   final ValueChanged<String> onReactionTap;
+  final VoidCallback onExpandTap;
   final bool isDark;
 
   const _ReactionStrip({
+    super.key,
     required this.onReactionTap,
+    required this.onExpandTap,
     required this.isDark,
   });
 
@@ -894,7 +929,9 @@ class _ReactionStripState extends State<_ReactionStrip>
   Widget build(BuildContext context) {
     final bg = widget.isDark ? const Color(0xFF2B3640) : Colors.white;
     final shadow = widget.isDark ? Colors.black26 : Colors.black12;
-    final totalWidth = _skip + _reactions.length * (_slotSize + _skip);
+    final expandBtnSize = _slotSize;
+    final totalWidth =
+        _skip + _reactions.length * (_slotSize + _skip) + expandBtnSize + _skip;
 
     return FadeTransition(
       opacity: _fadeScale,
@@ -908,7 +945,8 @@ class _ReactionStripState extends State<_ReactionStrip>
             color: bg,
             borderRadius: BorderRadius.circular(_stripHeight / 2),
             boxShadow: [
-              BoxShadow(color: shadow, blurRadius: 8, offset: const Offset(0, 2)),
+              BoxShadow(
+                  color: shadow, blurRadius: 8, offset: const Offset(0, 2)),
             ],
           ),
           child: Row(
@@ -958,7 +996,8 @@ class _ReactionStripState extends State<_ReactionStrip>
                                         scale: 1.0 + t * 0.5,
                                         child: Text(
                                           _reactions[i],
-                                          style: const TextStyle(fontSize: _emojiSize),
+                                          style: const TextStyle(
+                                              fontSize: _emojiSize),
                                         ),
                                       ),
                                     ),
@@ -971,10 +1010,401 @@ class _ReactionStripState extends State<_ReactionStrip>
                     ),
                   ),
                 ),
+              MouseRegion(
+                onEnter: (_) => setState(() => _hoveredIndex = 99),
+                onExit: (_) => setState(() => _hoveredIndex = -1),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTapUp: (_) => widget.onExpandTap(),
+                  child: AnimatedScale(
+                    scale: _hoveredIndex == 99 ? _kHoverScale : 1.0,
+                    duration: _kHoverScaleDuration,
+                    child: SizedBox(
+                      width: expandBtnSize,
+                      height: _slotSize,
+                      child: Center(
+                        child: Icon(
+                          Icons.add,
+                          size: 20,
+                          color: widget.isDark
+                              ? const Color(0xFF8B9AAB)
+                              : const Color(0xFF999999),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ReactionEmojiOverlay extends StatefulWidget {
+  final Offset stripOffset;
+  final Size stripSize;
+  final bool isDark;
+  final ValueChanged<String> onPick;
+  final VoidCallback onDismiss;
+
+  const _ReactionEmojiOverlay({
+    required this.stripOffset,
+    required this.stripSize,
+    required this.isDark,
+    required this.onPick,
+    required this.onDismiss,
+  });
+
+  @override
+  State<_ReactionEmojiOverlay> createState() => _ReactionEmojiOverlayState();
+}
+
+class _ReactionEmojiOverlayState extends State<_ReactionEmojiOverlay>
+    with SingleTickerProviderStateMixin {
+  int _activeCategory = 0;
+  String _search = '';
+  final _searchController = TextEditingController();
+  final _scrollController = ScrollController();
+  late final AnimationController _animController;
+  late final CurvedAnimation _anim;
+
+  static const _panelWidth = 345.0;
+  static const _panelMaxHeight = 360.0;
+  static const _cellSize = 40.0;
+  static const _gridPadding = 8.0;
+
+  static const _categories = [
+    ('Recent', '🕐'),
+    ('Smileys', '😊'),
+    ('People', '👋'),
+    ('Nature', '🐻'),
+    ('Food', '🍔'),
+    ('Activities', '⚽'),
+    ('Travel', '🏠'),
+    ('Objects', '💡'),
+    ('Symbols', '❤️'),
+    ('Flags', '🏳️'),
+  ];
+
+  static const _recentEmoji = [
+    '👍', '❤️', '🔥', '🥰', '👏', '😱', '😢', '🎉',
+    '🤔', '🥳', '😍', '💯', '🙏', '😂', '❤️‍🔥', '🤣',
+  ];
+
+  static const _emojiByCategory = <List<String>>[
+    _recentEmoji,
+    ['😀', '😃', '😄', '😁', '😆', '🥹', '😅', '🤣',
+     '😂', '🙂', '🙃', '😉', '😊', '😇', '🥰', '😍',
+     '🤩', '😘', '😗', '☺️', '😚', '😙', '🥲', '😋',
+     '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫',
+     '🤔', '🫡', '🤐', '🤨', '😐', '😑', '😶', '🫥',
+     '😏', '😒', '🙄', '😬', '🤥', '😌', '😔', '😪',
+     '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮', '🥴',
+     '😵', '🤯', '🥱', '😤', '😡', '🤬', '😈', '👿',
+     '💀', '☠️', '💩', '🤡', '👹', '👺', '👻', '👽',
+     '🤖', '😺', '😸', '😹', '😻', '😼', '😽', '🙀',
+     '😿', '😾'],
+    ['👋', '🤚', '🖐️', '✋', '🖖', '🫱', '🫲', '🫳',
+     '🫴', '🫷', '🫸', '👌', '🤌', '🤏', '✌️', '🤞',
+     '🫰', '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕',
+     '👇', '☝️', '🫵', '👍', '👎', '✊', '👊', '🤛',
+     '🤜', '👏', '🙌', '🫶', '👐', '🤲', '🤝', '🙏',
+     '✍️', '💅', '🤳', '💪', '🦾', '🦿', '🦵', '🦶',
+     '👂', '🦻', '👃', '🧠', '🫀', '🫁', '🦷', '🦴',
+     '👀', '👁️', '👅', '👄'],
+    ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼',
+     '🐻‍❄️', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵',
+     '🙈', '🙉', '🙊', '🐔', '🐧', '🐦', '🐤', '🦆',
+     '🦅', '🦉', '🦇', '🐺', '🐗', '🐴', '🦄', '🐝',
+     '🪱', '🐛', '🦋', '🐌', '🐞', '🐜', '🪰', '🪲',
+     '🪳', '🦟', '🦗', '🕷️', '🌸', '💐', '🌷', '🌹',
+     '🥀', '🌺', '🌻', '🌼', '🌱', '🪴', '🌲', '🌳',
+     '🌴', '🌵', '🍀', '☘️', '🍃', '🍂', '🍁', '🌾'],
+    ['🍏', '🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇',
+     '🍓', '🫐', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥',
+     '🥝', '🍅', '🍆', '🥑', '🥦', '🥬', '🥒', '🌶️',
+     '🫑', '🌽', '🥕', '🧄', '🧅', '🥔', '🍠', '🫘',
+     '🥐', '🍞', '🥖', '🫓', '🥨', '🧀', '🥚', '🍳',
+     '🧈', '🥞', '🧇', '🥓', '🥩', '🍗', '🍖', '🌭',
+     '🍔', '🍟', '🍕', '🫔', '🌮', '🌯', '🫕', '🥗',
+     '🥣', '🍝', '🍜', '🍲', '🍛', '🍣', '🍱', '🥟'],
+    ['⚽', '🏀', '🏈', '⚾', '🥎', '🎾', '🏐', '🏉',
+     '🥏', '🎱', '🪀', '🏓', '🏸', '🏒', '🏑', '🥍',
+     '🏏', '🪃', '🥅', '⛳', '🪁', '🏹', '🎣', '🤿',
+     '🥊', '🥋', '🎽', '🛹', '🛼', '🛷', '⛸️', '🥌',
+     '🎿', '⛷️', '🏂', '🪂', '🏆', '🥇', '🥈', '🥉',
+     '🏅', '🎖️', '🏵️', '🎗️', '🎪', '🎭', '🩰', '🎨',
+     '🎬', '🎤', '🎧', '🎼', '🎹', '🥁', '🪘', '🎷',
+     '🎺', '🪗', '🎸', '🎻', '🎲', '♟️', '🎯', '🎳'],
+    ['🏠', '🏡', '🏢', '🏣', '🏤', '🏥', '🏦', '🏨',
+     '🏩', '🏪', '🏫', '🏬', '🏭', '🏯', '🏰', '💒',
+     '🗼', '🗽', '⛪', '🕌', '🛕', '🕍', '⛩️', '🕋',
+     '⛲', '⛺', '🌁', '🌃', '🏙️', '🌄', '🌅', '🌆',
+     '🌇', '🌉', '🗾', '🏔️', '⛰️', '🌋', '🗻', '🏕️',
+     '🏖️', '🏜️', '🏝️', '🏞️', '🚗', '🚕', '🚙', '🚌',
+     '🚎', '🏎️', '🚓', '🚑', '🚒', '🚐', '🛻', '🚚',
+     '🚛', '🚜', '✈️', '🚀', '🛸', '🚁', '🛶', '⛵'],
+    ['💡', '🔦', '🕯️', '💎', '🔑', '🗝️', '🔒', '🔓',
+     '📱', '📲', '💻', '⌨️', '🖥️', '🖨️', '🖱️', '🖲️',
+     '🕹️', '🗜️', '💽', '💾', '💿', '📀', '📼', '📷',
+     '📸', '📹', '🎥', '📽️', '🎞️', '📞', '☎️', '📟',
+     '📠', '📺', '📻', '🎙️', '🎚️', '🎛️', '🧭', '⏱️',
+     '⏲️', '⏰', '🕰️', '⌛', '📡', '🔋', '🪫', '🔌',
+     '💰', '🪙', '💴', '💵', '💶', '💷', '💸', '💳',
+     '🧾', '📦', '📫', '📪', '📬', '📭', '📮', '🗳️'],
+    ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍',
+     '🤎', '❤️‍🔥', '❤️‍🩹', '💔', '❣️', '💕', '💞', '💓',
+     '💗', '💖', '💘', '💝', '💟', '☮️', '✝️', '☪️',
+     '🕉️', '☸️', '✡️', '🔯', '🕎', '☯️', '☦️', '🛐',
+     '⛎', '♈', '♉', '♊', '♋', '♌', '♍', '♎',
+     '♏', '♐', '♑', '♒', '♓', '🆔', '⚛️', '🉑',
+     '☢️', '☣️', '📴', '📳', '🈶', '🈚', '🈸', '🈺',
+     '🈷️', '✴️', '🆚', '💮', '🉐', '㊙️', '㊗️', '🈴'],
+    ['🏳️', '🏴', '🏴‍☠️', '🏁', '🚩', '🏳️‍🌈', '🏳️‍⚧️', '🇺🇳',
+     '🇺🇸', '🇬🇧', '🇫🇷', '🇩🇪', '🇮🇹', '🇪🇸', '🇧🇷', '🇯🇵',
+     '🇰🇷', '🇨🇳', '🇷🇺', '🇮🇳', '🇨🇦', '🇦🇺', '🇲🇽', '🇹🇷',
+     '🇦🇷', '🇸🇦', '🇿🇦', '🇳🇬', '🇪🇬', '🇰🇪', '🇮🇱', '🇵🇸'],
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 420),
+    );
+    _anim = CurvedAnimation(
+      parent: _animController,
+      curve: Curves.easeOutCirc,
+    );
+    _animController.forward();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _scrollController.dispose();
+    _animController.dispose();
+    super.dispose();
+  }
+
+  List<String> _filteredEmoji() {
+    if (_search.isEmpty) {
+      return _emojiByCategory[_activeCategory];
+    }
+    final all = <String>{};
+    for (final cat in _emojiByCategory) {
+      all.addAll(cat);
+    }
+    return all.toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = widget.isDark ? const Color(0xFF2B3640) : Colors.white;
+    final shadow = widget.isDark ? Colors.black26 : Colors.black12;
+    final tabBg =
+        widget.isDark ? const Color(0xFF1E2A35) : const Color(0xFFF5F5F5);
+    final tabActive =
+        widget.isDark ? const Color(0xFF3A4E5C) : const Color(0xFFE0E0E0);
+    final searchBg =
+        widget.isDark ? const Color(0xFF1E2A35) : const Color(0xFFF0F0F0);
+    final textColor = widget.isDark ? Colors.white70 : Colors.black87;
+    final emojis = _filteredEmoji();
+    final cols = ((_panelWidth - _gridPadding * 2) / _cellSize).floor();
+
+    final screenSize = MediaQuery.of(context).size;
+    var panelLeft = widget.stripOffset.dx;
+    var panelTop = widget.stripOffset.dy - _panelMaxHeight - 4;
+    if (panelLeft + _panelWidth > screenSize.width - 8) {
+      panelLeft = screenSize.width - _panelWidth - 8;
+    }
+    if (panelLeft < 8) panelLeft = 8;
+    if (panelTop < 8) panelTop = 8;
+
+    return Stack(
+      children: [
+        GestureDetector(
+          onTap: widget.onDismiss,
+          behavior: HitTestBehavior.translucent,
+          child: const SizedBox.expand(),
+        ),
+        Positioned(
+          left: panelLeft,
+          top: panelTop,
+          child: AnimatedBuilder(
+            animation: _anim,
+            builder: (context, child) {
+              return Opacity(
+                opacity: _anim.value.clamp(0.0, 1.0),
+                child: Transform.scale(
+                  scale: 0.85 + 0.15 * _anim.value,
+                  alignment: Alignment.bottomLeft,
+                  child: child,
+                ),
+              );
+            },
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                width: _panelWidth,
+                constraints:
+                    const BoxConstraints(maxHeight: _panelMaxHeight),
+                decoration: BoxDecoration(
+                  color: bg,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                        color: shadow,
+                        blurRadius: 12,
+                        offset: const Offset(0, 4)),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
+                      child: Container(
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: searchBg,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(
+                          children: [
+                            const SizedBox(width: 10),
+                            Icon(Icons.search,
+                                size: 18,
+                                color: widget.isDark
+                                    ? const Color(0xFF6C7883)
+                                    : const Color(0xFF999999)),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: TextField(
+                                controller: _searchController,
+                                style: TextStyle(
+                                    fontSize: 13, color: textColor),
+                                decoration: InputDecoration(
+                                  hintText: 'Search emoji',
+                                  hintStyle: TextStyle(
+                                    fontSize: 13,
+                                    color: widget.isDark
+                                        ? const Color(0xFF6C7883)
+                                        : const Color(0xFF999999),
+                                  ),
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding:
+                                      const EdgeInsets.symmetric(
+                                          vertical: 8),
+                                ),
+                                onChanged: (v) =>
+                                    setState(() => _search = v),
+                              ),
+                            ),
+                            if (_search.isNotEmpty)
+                              GestureDetector(
+                                onTap: () {
+                                  _searchController.clear();
+                                  setState(() => _search = '');
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8),
+                                  child: Icon(Icons.close,
+                                      size: 16,
+                                      color: widget.isDark
+                                          ? const Color(0xFF6C7883)
+                                          : const Color(0xFF999999)),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (_search.isEmpty)
+                      SizedBox(
+                        height: 32,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 6),
+                          itemCount: _categories.length,
+                          itemBuilder: (context, i) {
+                            final isActive = _activeCategory == i;
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 2),
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(
+                                      () => _activeCategory = i);
+                                  _scrollController.jumpTo(0);
+                                },
+                                child: Container(
+                                  padding:
+                                      const EdgeInsets.symmetric(
+                                          horizontal: 8),
+                                  decoration: BoxDecoration(
+                                    color: isActive
+                                        ? tabActive
+                                        : tabBg,
+                                    borderRadius:
+                                        BorderRadius.circular(16),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    _categories[i].$2,
+                                    style: const TextStyle(
+                                        fontSize: 18),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    if (_search.isEmpty) const SizedBox(height: 4),
+                    Flexible(
+                      child: GridView.builder(
+                        controller: _scrollController,
+                        padding:
+                            const EdgeInsets.all(_gridPadding),
+                        gridDelegate:
+                            SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: cols,
+                          childAspectRatio: 1,
+                        ),
+                        itemCount: emojis.length,
+                        itemBuilder: (context, i) {
+                          return GestureDetector(
+                            onTap: () =>
+                                widget.onPick(emojis[i]),
+                            child: MouseRegion(
+                              cursor: SystemMouseCursors.click,
+                              child: Center(
+                                child: Text(
+                                  emojis[i],
+                                  style: const TextStyle(
+                                      fontSize: 28),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
