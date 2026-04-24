@@ -120,6 +120,7 @@ class ChatView extends StatefulWidget {
 
 class _ChatViewState extends State<ChatView>
     with TickerProviderStateMixin {
+  static final _urlRegExp = RegExp(r'https?://[^\s<>"{}|\\^`\[\]]+', caseSensitive: false);
   final _composeController = RichTextEditingController();
   final _scrollController = ScrollController();
   String? _replyToId;
@@ -547,6 +548,8 @@ class _ChatViewState extends State<ChatView>
     final hasStickerSet = isSticker && msg.hasStickerSet;
     final hasDocId = msg.mediaRemoteRef.isNotEmpty;
     final chat = chatState.activeChat;
+    final hasLocalFile = msg.mediaLocalPath.isNotEmpty;
+    final urls = _urlRegExp.allMatches(msg.contentText).map((m) => m.group(0)!).toSet().toList();
 
     showTelegramMenu<String>(
       context: context,
@@ -591,6 +594,10 @@ class _ChatViewState extends State<ChatView>
           const TelegramMenuItem(value: 'view_sticker_set', icon: Icon(Icons.emoji_emotions), label: 'View Sticker Set'),
         if (isSticker && hasDocId)
           const TelegramMenuItem(value: 'fave_sticker', icon: Icon(Icons.star_outline), label: 'Add to Favorites'),
+        if (hasLocalFile)
+          const TelegramMenuItem(value: 'show_in_folder', icon: Icon(Icons.folder_open), label: 'Show in Folder'),
+        for (final url in urls.take(3))
+          TelegramMenuItem(value: 'copy_url:$url', icon: const Icon(Icons.link), label: urls.length == 1 ? 'Copy Link' : 'Copy Link: ${Uri.tryParse(url)?.host ?? url}'),
         const TelegramMenuItem(value: 'select', icon: Icon(Icons.check_circle_outline), label: 'Select'),
         const TelegramMenuItem.separator(),
         const TelegramMenuItem(value: 'delete', icon: Icon(Icons.delete_outline), label: 'Delete', isAttention: true),
@@ -640,10 +647,22 @@ class _ChatViewState extends State<ChatView>
           _faveSticker(msg);
         case 'copy_link':
           _copyMessageLink(msg, chat);
+        case 'show_in_folder':
+          _showInFolder(msg);
         case 'delete':
           chatState.deleteMessage(msgId);
         case 'copy_info':
           _showCopyInfoMenu(msg, position);
+        default:
+          if (action.startsWith('copy_url:')) {
+            final url = action.substring('copy_url:'.length);
+            Clipboard.setData(ClipboardData(text: url));
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Link copied'), behavior: SnackBarBehavior.floating, duration: Duration(seconds: 2)),
+              );
+            }
+          }
       }
     });
   }
@@ -757,6 +776,26 @@ class _ChatViewState extends State<ChatView>
         duration: Duration(seconds: 2),
       ),
     );
+  }
+
+  void _showInFolder(CachedMessage msg) async {
+    if (msg.mediaLocalPath.isEmpty) return;
+    final file = File(msg.mediaLocalPath);
+    if (!await file.exists()) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('File not found'), behavior: SnackBarBehavior.floating),
+      );
+      return;
+    }
+    final dir = file.parent.path;
+    if (Platform.isLinux) {
+      await Process.run('xdg-open', [dir]);
+    } else if (Platform.isMacOS) {
+      await Process.run('open', ['-R', msg.mediaLocalPath]);
+    } else if (Platform.isWindows) {
+      await Process.run('explorer', ['/select,', msg.mediaLocalPath]);
+    }
   }
 
   Future<void> _showReschedulePicker(String msgId) async {
