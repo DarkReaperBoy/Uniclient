@@ -463,14 +463,10 @@
 ## §10 — Emoji / Sticker / GIF Panels
 
 ### §10.1 Panel Chrome
-<!-- File: dart/lib/ui/emoji_panel.dart — DOES NOT EXIST YET -->
-- [ ] TabbedPanel widget: 345px wide, min 278px / max 640px height; margins(10,10,10,10); 8px corner radius; anchored bottom-right of compose area; shadow via BoxShadow — spec §10.1
-- [ ] Show/hide: 200ms PanelAnimation with reveal (width 0.5→1.0, height 0.3→1.0, opacity 0.2→1.0); auto-hide 300ms on mouse-leave; delayed 3000ms when context menu open — spec §10.1
-- [ ] Height = emojiPanHeightRatio × window height, clamped [278px, 640px] — spec §10.1
+<!-- File: dart/lib/ui/emoji_panel.dart -->
 
 ### §10.2 Tab Bar
 <!-- File: dart/lib/ui/emoji_panel.dart -->
-- [ ] Three-tab bar: Emoji / Stickers / GIFs; SettingsSlider subclass with semibold labels, active underline (activeLineFg); slide 200ms linear horizontal translate + alpha crossfade — spec §10.2
 
 ### §10.3 Emoji Tab
 <!-- File: dart/lib/ui/emoji_panel.dart -->

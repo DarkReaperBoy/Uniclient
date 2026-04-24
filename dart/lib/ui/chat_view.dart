@@ -25,6 +25,7 @@ import 'message_bubble.dart';
 import 'popup_menu.dart';
 import 'send_files_box.dart';
 import 'confirm_box.dart';
+import 'emoji_panel.dart';
 
 /// Chat column: top bar + message list + compose area.
 /// Spec §4 (top bar 54px), §5 (messages), §7 (compose).
@@ -199,6 +200,8 @@ class _ChatViewState extends State<ChatView>
   String _inlineBotQuery = '';
   Timer? _inlineBotDebounce;
   bool _inlineBotLoading = false;
+
+  bool _emojiPanelVisible = false;
 
   @override
   void initState() {
@@ -2955,6 +2958,8 @@ class _ChatViewState extends State<ChatView>
                 chatState.setHistoryTTL(chat.accountId, chat.chatId, period);
               },
               isBot: chat.isBot,
+              emojiPanelVisible: _emojiPanelVisible,
+              onEmojiToggle: () => setState(() => _emojiPanelVisible = !_emojiPanelVisible),
             ),
           if (chatState.visibleReplyKeyboard != null)
             _BotReplyKeyboard(
@@ -2974,6 +2979,14 @@ class _ChatViewState extends State<ChatView>
             ),
         ],
       ),
+      ),
+      Positioned(
+        right: 0,
+        bottom: 64,
+        child: EmojiTabbedPanel(
+          visible: _emojiPanelVisible,
+          onHide: () => setState(() => _emojiPanelVisible = false),
+        ),
       ),
       Positioned.fill(
         child: AnimatedBuilder(
@@ -6401,6 +6414,8 @@ class _ComposeArea extends StatefulWidget {
   final int ttlPeriod;
   final ValueChanged<int>? onTtlChanged;
   final bool isBot;
+  final VoidCallback? onEmojiToggle;
+  final bool emojiPanelVisible;
 
   const _ComposeArea({
     required this.controller,
@@ -6435,6 +6450,8 @@ class _ComposeArea extends StatefulWidget {
     this.ttlPeriod = 0,
     this.onTtlChanged,
     this.isBot = false,
+    this.onEmojiToggle,
+    this.emojiPanelVisible = false,
   });
 
   @override
@@ -7246,10 +7263,12 @@ class _ComposeAreaState extends State<_ComposeArea>
           _ComposeSlotButton(
             icon: Icons.emoji_emotions_outlined,
             tooltip: 'Emoji',
-            iconColor: iconFg,
+            iconColor: widget.emojiPanelVisible
+                ? theme.colorScheme.primary
+                : iconFg,
             hoverColor: iconFgOver,
             isEmojiToggle: true,
-            onPressed: () {},
+            onPressed: () => widget.onEmojiToggle?.call(),
           ),
           Builder(builder: (context) {
             final type = _computeSendButtonType();

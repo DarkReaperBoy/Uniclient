@@ -111,7 +111,7 @@ class AppColors {
 class AppSizes {
   static const double railWidth = 68;
   static const double sidebarWidth = 272;
-  static const double emojiPanelWidth = 320;
+  static const double emojiPanelWidth = 345;
   static const double rightPanelWidth = 260;
   static const double bubbleRadius = 18;
   static const double bubbleTailRadius = 6;
