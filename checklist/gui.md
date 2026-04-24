@@ -453,9 +453,7 @@
 <!-- File: dart/lib/ui/message_bubble.dart (_ReactionStrip) -->
 
 ### §9.7 Forward Dialog (ShareBox)
-<!-- File: not yet implemented -->
-- [ ] ShareBox modal: recipient rows 108px height (6px photo top, 6px name top, 6px column skip); search field at top; self-chat first — spec §9.4
-- [ ] Selected state: blue ring, avatar shrinks 28→24px; comment field slides in (min 36px / max 72px) — spec §9.4
+<!-- File: dart/lib/ui/chat_view.dart (_ShareBox, _ShareBoxItem) -->
 - [ ] 3-dot menu: Show sender's name, Show caption checkmarks; Schedule, Send silent/without-sound/whenOnline; menu opens upward; Send button right-click opens same menu — spec §9.4
 - [ ] Folder-based filter tabs in recipient list — spec §9.4
 

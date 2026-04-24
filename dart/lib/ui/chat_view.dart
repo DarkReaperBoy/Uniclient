@@ -1818,11 +1818,13 @@ class _ChatViewState extends State<ChatView>
     final msgIds = _forwardingMsgIds.toList();
     showDialog(
       context: context,
-      builder: (ctx) => _ForwardDialog(
+      builder: (ctx) => _ShareBox(
         chats: chatState.chats,
-        onSelect: (toChatId) async {
+        onSend: (chatIds) async {
           Navigator.of(ctx).pop();
-          await chatState.forwardMessages(msgIds, toChatId);
+          for (final toChatId in chatIds) {
+            await chatState.forwardMessages(msgIds, toChatId);
+          }
           setState(() {
             _forwardingMsgIds = [];
             _forwardHideSender = false;
@@ -2176,8 +2178,12 @@ class _ChatViewState extends State<ChatView>
   /// Returns true iff the send (or edit) fired.
   bool _requestSendCompose() {
     if (!mounted) return false;
-    if (_composeController.text.trim().isEmpty) return false;
     if (context.read<ChatState>().activeChat == null) return false;
+    if (_isForwarding) {
+      _sendMessage();
+      return true;
+    }
+    if (_composeController.text.trim().isEmpty) return false;
     _sendMessage();
     return true;
   }
@@ -8486,81 +8492,30 @@ class _RecordLockWidget extends StatelessWidget {
 }
 
 /// Forward dialog — shows a searchable chat list to pick a destination.
-class _ForwardDialog extends StatefulWidget {
+/// ShareBox — spec §9.4 forward dialog.
+/// Grid of recipients (108px rows), multi-select with blue ring + avatar shrink,
+/// search field, self-chat first, comment field slides in on selection.
+class _ShareBox extends StatefulWidget {
   final List<ChatInfo> chats;
-  final ValueChanged<String> onSelect;
+  final ValueChanged<List<String>> onSend;
 
-  const _ForwardDialog({required this.chats, required this.onSelect});
+  const _ShareBox({required this.chats, required this.onSend});
 
   @override
-  State<_ForwardDialog> createState() => _ForwardDialogState();
+  State<_ShareBox> createState() => _ShareBoxState();
 }
 
-class _ForwardDialogState extends State<_ForwardDialog> {
-  String _query = '';
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final filtered = _query.isEmpty
-        ? widget.chats
-        : widget.chats
-            .where((c) => c.title.toLowerCase().contains(_query.toLowerCase()))
-            .toList();
-
-    return Dialog(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 400, maxHeight: 500),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text('Forward to...',
-                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: TextField(
-                autofocus: true,
-                decoration: const InputDecoration(
-                  hintText: 'Search chats...',
-                  prefixIcon: Icon(Icons.search, size: 20),
-                  isDense: true,
-                  border: OutlineInputBorder(),
-                ),
-                onChanged: (v) => setState(() => _query = v),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Flexible(
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: filtered.length,
-                itemBuilder: (context, index) {
-                  final chat = filtered[index];
-                  return ListTile(
-                    dense: true,
-                    leading: CircleAvatar(
-                      radius: 18,
-                      backgroundColor: _avatarColor(chat.chatId),
-                      child: Text(
-                        chat.title.isNotEmpty ? chat.title[0].toUpperCase() : '?',
-                        style: const TextStyle(color: Colors.white, fontSize: 14),
-                      ),
-                    ),
-                    title: Text(chat.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                    onTap: () => widget.onSelect(chat.chatId),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  }
+class _ShareBoxState extends State<_ShareBox> {
+  static const _rowHeight = 108.0;
+  static const _photoTop = 6.0;
+  static const _nameTop = 6.0;
+  static const _columnSkip = 6.0;
+  static const _imageRadius = 28.0;
+  static const _imageSmallRadius = 24.0;
+  static const _activateDuration = Duration(milliseconds: 150);
+  static const _commentHeightMin = 36.0;
+  static const _commentHeightMax = 72.0;
+  static const _commentPadding = EdgeInsets.all(5);
 
   static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
   static const _userpicPalette = [
@@ -8568,9 +8523,284 @@ class _ForwardDialogState extends State<_ForwardDialog> {
     Color(0xFFa695e7), Color(0xFFee7aae), Color(0xFF6ec9cb), Color(0xFFe8a64e),
   ];
 
-  static Color _avatarColor(String id) {
+  String _query = '';
+  final Set<String> _selected = {};
+  final _commentController = TextEditingController();
+
+  List<ChatInfo> get _sortedChats {
+    final chats = List<ChatInfo>.from(widget.chats);
+    final selfIdx = chats.indexWhere(
+      (c) => c.title == 'Saved Messages' && c.type == ChatType.dm,
+    );
+    if (selfIdx > 0) {
+      final self = chats.removeAt(selfIdx);
+      chats.insert(0, self);
+    }
+    return chats;
+  }
+
+  List<ChatInfo> get _filteredChats {
+    final sorted = _sortedChats;
+    if (_query.isEmpty) return sorted;
+    final q = _query.toLowerCase();
+    return sorted.where((c) => c.title.toLowerCase().contains(q)).toList();
+  }
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final boxBg = isDark ? const Color(0xFF17212b) : Colors.white;
+    final filtered = _filteredChats;
+    final colCount = _columnsForWidth(MediaQuery.of(context).size.width);
+
+    return Dialog(
+      backgroundColor: boxBg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420, maxHeight: 560),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+              child: Text(
+                'Forward to...',
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: TextField(
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Search',
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                  isDense: true,
+                  filled: true,
+                  fillColor: isDark ? const Color(0xFF242f3d) : const Color(0xFFf1f1f1),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                ),
+                onChanged: (v) => setState(() => _query = v),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Flexible(
+              child: GridView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: colCount,
+                  childAspectRatio: (_rowHeight - _photoTop) / _rowHeight,
+                  mainAxisExtent: _rowHeight,
+                  crossAxisSpacing: _columnSkip,
+                ),
+                itemCount: filtered.length,
+                itemBuilder: (context, index) {
+                  final chat = filtered[index];
+                  final isSelected = _selected.contains(chat.chatId);
+                  return _ShareBoxItem(
+                    chat: chat,
+                    isSelected: isSelected,
+                    onTap: () => _toggleSelection(chat.chatId),
+                  );
+                },
+              ),
+            ),
+            AnimatedSize(
+              duration: _activateDuration,
+              curve: Curves.easeOutCubic,
+              child: _selected.isNotEmpty
+                  ? Padding(
+                      padding: _commentPadding,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          minHeight: _commentHeightMin,
+                          maxHeight: _commentHeightMax,
+                        ),
+                        child: TextField(
+                          controller: _commentController,
+                          maxLines: null,
+                          decoration: InputDecoration(
+                            hintText: 'Add a comment...',
+                            isDense: true,
+                            filled: true,
+                            fillColor: isDark ? const Color(0xFF242f3d) : const Color(0xFFf1f1f1),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(18),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
+                          ),
+                        ),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('Cancel', style: TextStyle(color: theme.hintColor)),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: _selected.isEmpty
+                        ? null
+                        : () => widget.onSend(_selected.toList()),
+                    child: Text(
+                      _selected.length <= 1
+                          ? 'Send'
+                          : 'Send (${_selected.length})',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _toggleSelection(String chatId) {
+    setState(() {
+      if (_selected.contains(chatId)) {
+        _selected.remove(chatId);
+      } else {
+        _selected.add(chatId);
+      }
+    });
+  }
+
+  int _columnsForWidth(double screenWidth) {
+    final dialogWidth = screenWidth.clamp(280.0, 420.0);
+    return (dialogWidth / 90).floor().clamp(3, 5);
+  }
+
+  static Color avatarColor(String id) {
     final numId = int.tryParse(id) ?? id.hashCode.abs();
     return _userpicPalette[_colorRemap[numId.abs() % 7]];
+  }
+}
+
+class _ShareBoxItem extends StatelessWidget {
+  final ChatInfo chat;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _ShareBoxItem({
+    required this.chat,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  static const _imageRadius = 28.0;
+  static const _imageSmallRadius = 24.0;
+  static const _photoTop = 6.0;
+  static const _nameTop = 6.0;
+
+  bool get _isSavedMessages =>
+      chat.title == 'Saved Messages' && chat.type == ChatType.dm;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final radius = isSelected ? _imageSmallRadius : _imageRadius;
+    final accentColor = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF40a7e3);
+
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(height: _photoTop),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: (isSelected ? _imageSmallRadius : _imageRadius) * 2 + (isSelected ? 4 : 0),
+            height: (isSelected ? _imageSmallRadius : _imageRadius) * 2 + (isSelected ? 4 : 0),
+            decoration: isSelected
+                ? BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: accentColor, width: 2),
+                  )
+                : null,
+            child: Center(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: radius * 2,
+                height: radius * 2,
+                child: _buildAvatar(radius, isDark),
+              ),
+            ),
+          ),
+          SizedBox(height: _nameTop),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Text(
+              _isSavedMessages ? 'Saved Messages' : chat.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                color: isSelected ? (isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd)) : null,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAvatar(double radius, bool isDark) {
+    if (_isSavedMessages) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor: isDark ? const Color(0xFF5288c1) : const Color(0xFF40a7e3),
+        child: Icon(Icons.bookmark, color: Colors.white, size: radius),
+      );
+    }
+    if (chat.avatarPath.isNotEmpty) {
+      return ClipOval(
+        child: Image.file(
+          File(chat.avatarPath),
+          width: radius * 2,
+          height: radius * 2,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _fallbackAvatar(radius),
+        ),
+      );
+    }
+    return _fallbackAvatar(radius);
+  }
+
+  Widget _fallbackAvatar(double radius) {
+    final color = _ShareBoxState.avatarColor(chat.chatId);
+    final initials = chat.title.isNotEmpty ? chat.title[0].toUpperCase() : '?';
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: color,
+      child: Text(
+        initials,
+        style: TextStyle(color: Colors.white, fontSize: radius * 0.65),
+      ),
+    );
   }
 }
 
