@@ -1867,6 +1867,44 @@ class _ChatViewState extends State<ChatView>
     _modifySelection(() => _selectedMsgIds.clear());
   }
 
+  void _downloadSelectedFiles(ChatState chatState) async {
+    final msgs = chatState.messages
+        .where((m) => _selectedMsgIds.contains(m.msgId) && m.hasMedia && m.mediaLocalPath.isNotEmpty)
+        .toList();
+    if (msgs.isEmpty) return;
+    final downloadsDir = Directory('${Platform.environment['HOME'] ?? '/tmp'}/Downloads');
+    if (!await downloadsDir.exists()) {
+      await downloadsDir.create(recursive: true);
+    }
+    int saved = 0;
+    for (final msg in msgs) {
+      final sourceFile = File(msg.mediaLocalPath);
+      if (!await sourceFile.exists()) continue;
+      final fileName = msg.mediaFileName.isNotEmpty
+          ? msg.mediaFileName
+          : sourceFile.uri.pathSegments.last;
+      var destPath = '${downloadsDir.path}/$fileName';
+      var counter = 1;
+      while (await File(destPath).exists()) {
+        final ext = fileName.contains('.') ? '.${fileName.split('.').last}' : '';
+        final base = fileName.contains('.') ? fileName.substring(0, fileName.lastIndexOf('.')) : fileName;
+        destPath = '${downloadsDir.path}/${base}_($counter)$ext';
+        counter++;
+      }
+      await sourceFile.copy(destPath);
+      saved++;
+    }
+    _modifySelection(() => _selectedMsgIds.clear());
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Saved $saved file${saved != 1 ? 's' : ''} to Downloads'),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
   /// Harness entry point for spec §24.4 line 2978 "Ctrl+Shift+Enter always
   /// sends". Gates on the same preconditions as the FocusNode-level Enter
   /// handler: compose text must be non-empty and a chat must be active.
@@ -2304,6 +2342,7 @@ class _ChatViewState extends State<ChatView>
                             onDelete: () => _deleteSelected(chatState),
                             onCopy: () => _copySelected(chatState),
                             onForward: () => _forwardSelected(context, chatState),
+                            onDownloadFiles: () => _downloadSelectedFiles(chatState),
                             isScheduledView: widget.isScheduledView || chatState.isScheduledView,
                             onSendNow: (widget.isScheduledView || chatState.isScheduledView)
                                 ? () => _sendNowSelected(chatState)
@@ -2314,6 +2353,9 @@ class _ChatViewState extends State<ChatView>
                               messageIds: _selectedMsgIds.toList(),
                             ),
                             hideDivider: widget.hideTopBarDivider,
+                            hasDownloadableMedia: chatState.messages
+                                .where((m) => _selectedMsgIds.contains(m.msgId) && m.hasMedia && m.mediaLocalPath.isNotEmpty)
+                                .isNotEmpty,
                           ),
                         ),
                     ],
@@ -4650,16 +4692,14 @@ class _SelectionBar extends StatelessWidget {
   final VoidCallback onDelete;
   final VoidCallback onCopy;
   final VoidCallback onForward;
+  final VoidCallback? onDownloadFiles;
 
-  /// Spec §4.7: when true, shows "SEND NOW" replacing "FORWARD" and hides "COPY".
   final bool isScheduledView;
-  /// Spec §4.7: callback for "Send Now" in scheduled section.
   final VoidCallback? onSendNow;
 
-  /// Spec §2.7: Drag data for forward drag-and-drop.
   final ForwardDragData? forwardDragData;
-  /// Spec §4.1: hide the bottom divider during one-column slide transitions.
   final bool hideDivider;
+  final bool hasDownloadableMedia;
 
   const _SelectionBar({
     required this.count,
@@ -4667,10 +4707,12 @@ class _SelectionBar extends StatelessWidget {
     required this.onDelete,
     required this.onCopy,
     required this.onForward,
+    this.onDownloadFiles,
     this.isScheduledView = false,
     this.onSendNow,
     this.forwardDragData,
     this.hideDivider = false,
+    this.hasDownloadableMedia = false,
   });
 
   @override
@@ -4717,11 +4759,9 @@ class _SelectionBar extends StatelessWidget {
     );
 
     // Spec §4.7: In scheduled view, show "SEND NOW" + "DELETE" only.
-    // In normal view, show "FORWARD" + "COPY" + "DELETE".
     final List<Widget> actionButtons;
 
     if (isScheduledView) {
-      // Scheduled section: SEND NOW (first) + DELETE (last) — two buttons only.
       actionButtons = [
         Expanded(
           child: TextButton(
@@ -4754,7 +4794,6 @@ class _SelectionBar extends StatelessWidget {
         ),
       ];
     } else {
-      // Normal selection: FORWARD + COPY + DELETE — three buttons.
       Widget forwardButton = TextButton(
         onPressed: onForward,
         style: firstPillStyle,
@@ -4768,7 +4807,6 @@ class _SelectionBar extends StatelessWidget {
         ),
       );
 
-      // Wrap forward button in Draggable if drag data is available.
       if (forwardDragData != null) {
         forwardButton = Draggable<ForwardDragData>(
           data: forwardDragData,
@@ -4806,21 +4844,6 @@ class _SelectionBar extends StatelessWidget {
 
       actionButtons = [
         Expanded(child: forwardButton),
-        const SizedBox(width: 10), // topBarActionSkip
-        Expanded(
-          child: TextButton(
-            onPressed: onCopy,
-            style: middlePillStyle,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Flexible(child: Text('COPY', overflow: TextOverflow.ellipsis)),
-                const SizedBox(width: 4),
-                _AnimatedCountBadge(count: count),
-              ],
-            ),
-          ),
-        ),
         const SizedBox(width: 10),
         Expanded(
           child: TextButton(
@@ -4852,19 +4875,21 @@ class _SelectionBar extends StatelessWidget {
       child: Row(
         children: [
           const SizedBox(width: 8),
-          // Spec §4.7: action buttons share equal width via setFullWidth.
           ...actionButtons,
-          const SizedBox(width: 10),
-          // Spec §4.7: Cancel/clear button — RoundButton(defaultLightButton),
-          // width: -18px (auto-width with 18px horizontal padding),
-          // right-aligned 10px from edge. Label: "CLEAR" uppercase.
+          const SizedBox(width: 6),
+          _SelectionOverflowMenu(
+            isDark: isDark,
+            onCopy: onCopy,
+            onDownloadFiles: hasDownloadableMedia ? onDownloadFiles : null,
+          ),
+          const Spacer(),
           TextButton(
             onPressed: onCancel,
             style: TextButton.styleFrom(
               backgroundColor: Colors.transparent,
               foregroundColor: isDark
-                  ? const Color(0xFF6AB2F2) // windowActiveTextFg night
-                  : const Color(0xFF168ACD), // windowActiveTextFg day
+                  ? const Color(0xFF6AB2F2)
+                  : const Color(0xFF168ACD),
               padding: const EdgeInsets.symmetric(horizontal: 18),
               textStyle: const TextStyle(
                 fontSize: 13,
@@ -4912,8 +4937,99 @@ class _AnimatedCountBadge extends StatelessWidget {
   }
 }
 
-/// Group call bar (§4.6) — shown when there's an active group call in a group/channel.
-/// Displays overlapping participant userpics with green speaking-indicator rings and a "Join" button.
+class _SelectionOverflowMenu extends StatelessWidget {
+  final bool isDark;
+  final VoidCallback onCopy;
+  final VoidCallback? onDownloadFiles;
+
+  const _SelectionOverflowMenu({
+    required this.isDark,
+    required this.onCopy,
+    this.onDownloadFiles,
+  });
+
+  static void _showOverflowMenu(BuildContext btnCtx, {
+    required VoidCallback onCopy,
+    VoidCallback? onDownloadFiles,
+  }) {
+    final RenderBox button = btnCtx.findRenderObject() as RenderBox;
+    final RenderBox overlay = Navigator.of(btnCtx).overlay!.context.findRenderObject() as RenderBox;
+    final Offset pos = button.localToGlobal(Offset.zero, ancestor: overlay);
+    final items = <PopupMenuEntry<String>>[
+      const PopupMenuItem(
+        value: 'copy',
+        child: Row(
+          children: [
+            Icon(Icons.copy, size: 20),
+            SizedBox(width: 12),
+            Text('Copy Selected Text'),
+          ],
+        ),
+      ),
+      if (onDownloadFiles != null)
+        const PopupMenuItem(
+          value: 'download',
+          child: Row(
+            children: [
+              Icon(Icons.download, size: 20),
+              SizedBox(width: 12),
+              Text('Download Files'),
+            ],
+          ),
+        ),
+    ];
+    showMenu<String>(
+      context: btnCtx,
+      position: RelativeRect.fromLTRB(
+        pos.dx, pos.dy + button.size.height,
+        pos.dx + button.size.width, pos.dy + button.size.height,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      items: items,
+    ).then((value) {
+      if (value == 'copy') onCopy();
+      if (value == 'download') onDownloadFiles?.call();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final iconColor = isDark
+        ? const Color(0xFF6AB2F2)
+        : const Color(0xFF168ACD);
+    final windowBgOver = isDark
+        ? const Color(0xFF202b36)
+        : const Color(0xFFf1f1f1);
+
+    return SizedBox(
+      width: 44,
+      height: 54,
+      child: Center(
+        child: Builder(
+          builder: (btnCtx) => IconButton(
+            icon: Icon(Icons.more_vert, size: 20),
+            onPressed: () => _showOverflowMenu(btnCtx,
+              onCopy: onCopy,
+              onDownloadFiles: onDownloadFiles,
+            ),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            style: ButtonStyle(
+              fixedSize: const WidgetStatePropertyAll(Size(40, 40)),
+              minimumSize: const WidgetStatePropertyAll(Size(40, 40)),
+              maximumSize: const WidgetStatePropertyAll(Size(40, 40)),
+              shape: const WidgetStatePropertyAll(CircleBorder()),
+              iconColor: WidgetStatePropertyAll(iconColor),
+              overlayColor: WidgetStatePropertyAll(windowBgOver),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _GroupCallBar extends StatelessWidget {
   final GroupCallInfo groupCall;
   final VoidCallback? onJoin;

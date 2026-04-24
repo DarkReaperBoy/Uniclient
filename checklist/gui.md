@@ -440,7 +440,6 @@
 - [x] Reply, Copy Text, Forward, Select, Edit (own messages), Delete — spec §9 — DONE in chat_view.dart
 - [x] Pin/Unpin toggle — spec §9 — DONE in chat_view.dart
 - [x] Voice Timecode on playing voice messages, Translate message, Translate Selected — spec §9 — DONE in chat_view.dart (TranslateText engine pipeline: Go→bridge→Dart→dialog)
-- [ ] Selection-mode top-bar menu: Forward Selected, Send Now Selected, Delete Selected, Download Files, Clear Selection — spec §9.6
 
 ### §9.4 Chat List Context Menu
 <!-- File: dart/lib/ui/chat_view.dart — _showChatContextMenu -->
