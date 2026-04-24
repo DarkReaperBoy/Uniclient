@@ -2023,6 +2023,7 @@ class EngineMuteChatRequest extends $pb.GeneratedMessage {
     $core.String? accountId,
     $core.String? chatId,
     $core.bool? muted,
+    $core.int? durationSeconds,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -2034,6 +2035,9 @@ class EngineMuteChatRequest extends $pb.GeneratedMessage {
     if (muted != null) {
       $result.muted = muted;
     }
+    if (durationSeconds != null) {
+      $result.durationSeconds = durationSeconds;
+    }
     return $result;
   }
   EngineMuteChatRequest._() : super();
@@ -2044,6 +2048,7 @@ class EngineMuteChatRequest extends $pb.GeneratedMessage {
     ..aOS(1, _omitFieldNames ? '' : 'accountId')
     ..aOS(2, _omitFieldNames ? '' : 'chatId')
     ..aOB(3, _omitFieldNames ? '' : 'muted')
+    ..a<$core.int>(4, _omitFieldNames ? '' : 'durationSeconds', $pb.PbFieldType.O3)
     ..hasRequiredFields = false
   ;
 
@@ -2094,6 +2099,15 @@ class EngineMuteChatRequest extends $pb.GeneratedMessage {
   $core.bool hasMuted() => $_has(2);
   @$pb.TagNumber(3)
   void clearMuted() => clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.int get durationSeconds => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set durationSeconds($core.int v) { $_setSignedInt32(3, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasDurationSeconds() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearDurationSeconds() => clearField(4);
 }
 
 class EnginePinChatRequest extends $pb.GeneratedMessage {

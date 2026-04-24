@@ -444,7 +444,6 @@
 ### §9.4 Chat List Context Menu
 <!-- File: dart/lib/ui/chat_view.dart — _showChatContextMenu -->
 - [x] Pin/Unpin, Mute/Unmute, Mark as Read/Unread, Archive/Unarchive, Leave — spec §9 — DONE in chat_view.dart
-- [ ] Mute submenu: ringtone, toggle sound, preset durations (1h/8h/2d), custom, mute forever/unmute — spec §9
 - [ ] New Window action; Folder actions (expand/collapse, settings, mark read); Clear History — spec §9
 
 ### §9.5 User Context Menu

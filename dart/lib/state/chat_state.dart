@@ -609,9 +609,9 @@ class ChatState extends ChangeNotifier {
 
   // ── Chat operations ──
 
-  void muteChat(String accountId, String chatId, bool muted) {
-    _engine.muteChat(accountId, chatId, muted);
-    loadChats(); // refresh to reflect change
+  void muteChat(String accountId, String chatId, bool muted, {int durationSeconds = 0}) {
+    _engine.muteChat(accountId, chatId, muted, durationSeconds: durationSeconds);
+    loadChats();
   }
 
   void setHistoryTTL(String accountId, String chatId, int period) {

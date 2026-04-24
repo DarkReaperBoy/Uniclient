@@ -196,7 +196,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
-		return nil, e.MuteChat(req.AccountId, req.ChatId, req.Muted)
+		return nil, e.MuteChat(req.AccountId, req.ChatId, req.Muted, req.DurationSeconds)
 
 	case "PinChat":
 		var req pb.EnginePinChatRequest

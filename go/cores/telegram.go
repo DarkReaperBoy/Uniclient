@@ -18269,6 +18269,24 @@ func (t *TelegramCore) MuteChat(chatID string, muted bool) error {
 	return err
 }
 
+// MuteChatFor mutes a chat for a specific duration in seconds.
+func (t *TelegramCore) MuteChatFor(chatID string, durationSeconds int32) error {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
+	settings := tg.InputPeerNotifySettings{}
+	settings.SetMuteUntil(int(time.Now().Unix()) + int(durationSeconds))
+
+	_, err = t.api.AccountUpdateNotifySettings(t.ctx, &tg.AccountUpdateNotifySettingsRequest{
+		Peer:     &tg.InputNotifyPeer{Peer: inputPeer},
+		Settings: settings,
+	})
+	return err
+}
+
 // MarkUnread marks a dialog as unread.
 func (t *TelegramCore) MarkUnread(chatID string, unread bool) error {
 	return t.MarkDialogUnread(chatID, unread)

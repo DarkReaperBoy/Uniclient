@@ -988,7 +988,11 @@ class _ChatListPanelState extends State<ChatListPanel>
       position: globalPosition,
       items: [
         TelegramMenuItem(value: 'pin', label: chat.isPinned ? 'Unpin' : 'Pin'),
-        TelegramMenuItem(value: 'mute', label: chat.isMuted ? 'Unmute' : 'Mute'),
+        TelegramMenuItem(
+          value: 'mute_submenu',
+          label: chat.isMuted ? 'Unmute' : 'Mute',
+          icon: Icon(chat.isMuted ? Icons.notifications : Icons.notifications_off),
+        ),
         TelegramMenuItem(
           value: 'read',
           label: chat.unreadCount > 0 ? 'Mark as Read' : 'Mark as Unread',
@@ -1004,8 +1008,16 @@ class _ChatListPanelState extends State<ChatListPanel>
       switch (value) {
         case 'pin':
           chatState.pinChat(chat.accountId, chat.chatId, !chat.isPinned);
-        case 'mute':
-          chatState.muteChat(chat.accountId, chat.chatId, !chat.isMuted);
+        case 'mute_submenu':
+          if (chat.isMuted) {
+            chatState.muteChat(chat.accountId, chat.chatId, false);
+          } else {
+            Future.delayed(const Duration(milliseconds: 200), () {
+              if (context.mounted) {
+                _showMuteSubmenu(context, chat, globalPosition);
+              }
+            });
+          }
         case 'read':
           if (chat.unreadCount > 0) {
             chatState.markChatRead(chat.accountId, chat.chatId);
@@ -1014,6 +1026,153 @@ class _ChatListPanelState extends State<ChatListPanel>
           chatState.archiveChat(chat.accountId, chat.chatId, !chat.isArchived);
         case 'leave':
           chatState.leaveChat(chat.accountId, chat.chatId);
+      }
+    });
+  }
+
+  void _showMuteSubmenu(BuildContext context, ChatInfo chat, Offset globalPosition) {
+    final chatState = context.read<ChatState>();
+
+    showTelegramMenu<String>(
+      context: context,
+      position: globalPosition,
+      items: [
+        if (!chat.isMuted) ...[
+          const TelegramMenuItem(
+            value: 'mute_1h',
+            icon: Icon(Icons.access_time),
+            label: 'Mute for 1 hour',
+          ),
+          const TelegramMenuItem(
+            value: 'mute_8h',
+            icon: Icon(Icons.access_time),
+            label: 'Mute for 8 hours',
+          ),
+          const TelegramMenuItem(
+            value: 'mute_2d',
+            icon: Icon(Icons.access_time),
+            label: 'Mute for 2 days',
+          ),
+          const TelegramMenuItem(
+            value: 'mute_custom',
+            icon: Icon(Icons.timer),
+            label: 'Mute for...',
+          ),
+          const TelegramMenuItem.separator(),
+          const TelegramMenuItem(
+            value: 'mute_forever',
+            icon: Icon(Icons.notifications_off),
+            label: 'Mute forever',
+            isAttention: true,
+          ),
+        ] else ...[
+          const TelegramMenuItem(
+            value: 'unmute',
+            icon: Icon(Icons.notifications),
+            label: 'Unmute',
+          ),
+        ],
+      ],
+    ).then((value) {
+      if (value == null) return;
+      switch (value) {
+        case 'mute_1h':
+          chatState.muteChat(chat.accountId, chat.chatId, true, durationSeconds: 3600);
+        case 'mute_8h':
+          chatState.muteChat(chat.accountId, chat.chatId, true, durationSeconds: 28800);
+        case 'mute_2d':
+          chatState.muteChat(chat.accountId, chat.chatId, true, durationSeconds: 172800);
+        case 'mute_custom':
+          _showMuteDurationPicker(context, chat);
+        case 'mute_forever':
+          chatState.muteChat(chat.accountId, chat.chatId, true);
+        case 'unmute':
+          chatState.muteChat(chat.accountId, chat.chatId, false);
+      }
+    });
+  }
+
+  void _showMuteDurationPicker(BuildContext context, ChatInfo chat) {
+    final chatState = context.read<ChatState>();
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    showDialog<int>(
+      context: context,
+      builder: (ctx) {
+        int selectedIndex = 6; // default: 8h
+        final durations = <(String, int)>[
+          ('15 minutes', 900),
+          ('30 minutes', 1800),
+          ('1 hour', 3600),
+          ('2 hours', 7200),
+          ('3 hours', 10800),
+          ('4 hours', 14400),
+          ('8 hours', 28800),
+          ('12 hours', 43200),
+          ('1 day', 86400),
+          ('2 days', 172800),
+          ('3 days', 259200),
+          ('1 week', 604800),
+          ('2 weeks', 1209600),
+          ('1 month', 2592000),
+        ];
+
+        return StatefulBuilder(
+          builder: (ctx, setState) {
+            return AlertDialog(
+              backgroundColor: isDark ? const Color(0xFF1e2c3a) : null,
+              title: Text(
+                'Mute for...',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white : null,
+                ),
+              ),
+              content: SizedBox(
+                width: 280,
+                height: 320,
+                child: ListView.builder(
+                  itemCount: durations.length,
+                  itemBuilder: (ctx, i) {
+                    final (label, _) = durations[i];
+                    final isSelected = i == selectedIndex;
+                    return RadioListTile<int>(
+                      value: i,
+                      groupValue: selectedIndex,
+                      onChanged: (v) => setState(() => selectedIndex = v!),
+                      title: Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: isDark ? Colors.white : null,
+                        ),
+                      ),
+                      activeColor: const Color(0xFF40a7e3),
+                      dense: true,
+                      visualDensity: VisualDensity.compact,
+                    );
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: Text('Cancel', style: TextStyle(color: isDark ? const Color(0xFF6c7883) : null)),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(durations[selectedIndex].$2),
+                  child: const Text('Mute', style: TextStyle(color: Color(0xFF40a7e3))),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    ).then((seconds) {
+      if (seconds != null) {
+        chatState.muteChat(chat.accountId, chat.chatId, true, durationSeconds: seconds);
       }
     });
   }

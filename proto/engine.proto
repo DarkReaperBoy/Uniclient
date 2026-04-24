@@ -195,9 +195,10 @@ message EngineSaveDraftRequest {
 }
 
 message EngineMuteChatRequest {
-  string account_id = 1;
-  string chat_id    = 2;
-  bool   muted      = 3;
+  string account_id        = 1;
+  string chat_id           = 2;
+  bool   muted             = 3;
+  int32  duration_seconds  = 4;
 }
 
 message EnginePinChatRequest {

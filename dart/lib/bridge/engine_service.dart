@@ -169,11 +169,12 @@ class EngineService {
     _callRaw('__engine', 'SaveDraft', req.writeToBuffer());
   }
 
-  void muteChat(String accountId, String chatId, bool muted) {
+  void muteChat(String accountId, String chatId, bool muted, {int durationSeconds = 0}) {
     final req = epb.EngineMuteChatRequest()
       ..accountId = accountId
       ..chatId = chatId
-      ..muted = muted;
+      ..muted = muted
+      ..durationSeconds = durationSeconds;
     _callRaw('__engine', 'MuteChat', req.writeToBuffer());
   }
 

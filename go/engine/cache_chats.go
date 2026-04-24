@@ -392,7 +392,10 @@ func (e *Engine) SaveDraft(accountID, chatID, text string) error {
 }
 
 // MuteChat sets the muted state for a chat.
-func (e *Engine) MuteChat(accountID, chatID string, muted bool) error {
+// If durationSeconds > 0, mutes for that duration (only supported on some platforms).
+// If durationSeconds == 0 and muted == true, mutes forever.
+// If muted == false, unmutes regardless of durationSeconds.
+func (e *Engine) MuteChat(accountID, chatID string, muted bool, durationSeconds int32) error {
 	_, err := e.db.Exec(
 		"UPDATE chats SET is_muted = ? WHERE account_id = ? AND chat_id = ?",
 		boolToInt(muted), accountID, chatID)
@@ -400,9 +403,19 @@ func (e *Engine) MuteChat(accountID, chatID string, muted bool) error {
 		return err
 	}
 
-	// Also call core.
 	if acc, ok := e.getAccount(accountID); ok && acc.Core != nil {
-		acc.Core.MuteChat(chatID, muted)
+		if durationSeconds > 0 {
+			type timedMuter interface {
+				MuteChatFor(chatID string, durationSeconds int32) error
+			}
+			if tm, ok := acc.Core.(timedMuter); ok {
+				tm.MuteChatFor(chatID, durationSeconds)
+			} else {
+				acc.Core.MuteChat(chatID, muted)
+			}
+		} else {
+			acc.Core.MuteChat(chatID, muted)
+		}
 	}
 
 	e.emitChatUpdate(accountID, chatID)
