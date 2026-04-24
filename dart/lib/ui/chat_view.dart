@@ -1489,6 +1489,271 @@ class _ChatViewState extends State<ChatView>
     );
   }
 
+  void _showUserContextMenu(BuildContext context, ChatState chatState, String senderId, Offset position) async {
+    final chat = chatState.activeChat;
+    if (chat == null) return;
+    final accountId = chat.accountId;
+    final isGroupOrChannel = chat.type == ChatType.group || chat.type == ChatType.channel || chat.type == ChatType.topic;
+
+    final engine = context.read<EngineService>();
+    final profile = await engine.getUserProfile(accountId, senderId);
+
+    final senderMsg = chatState.messages.where((m) => m.senderId == senderId).firstOrNull;
+    final senderName = profile?.displayName ?? senderMsg?.senderName ?? senderId;
+    final username = profile?.username ?? '';
+    final isContact = profile?.isContact ?? false;
+    final isBlocked = profile?.isBlocked ?? false;
+    final isBot = profile?.isBot ?? false;
+
+    if (!mounted) return;
+
+    final result = await showTelegramMenu<String>(
+      context: context,
+      position: position,
+      items: [
+        const TelegramMenuItem(value: 'view_profile', icon: Icon(Icons.person_outline), label: 'View Profile'),
+        if (isGroupOrChannel && !isBot)
+          TelegramMenuItem(value: 'mention', icon: const Icon(Icons.alternate_email), label: 'Mention $senderName'),
+        const TelegramMenuItem(value: 'send_message', icon: Icon(Icons.message_outlined), label: 'Send Message'),
+        const TelegramMenuItem.separator(),
+        if (!isContact)
+          const TelegramMenuItem(value: 'add_contact', icon: Icon(Icons.person_add_outlined), label: 'Add Contact')
+        else
+          const TelegramMenuItem(value: 'delete_contact', icon: Icon(Icons.person_remove_outlined), label: 'Delete Contact'),
+        if (!isBot)
+          const TelegramMenuItem(value: 'share_contact', icon: Icon(Icons.share), label: 'Share Contact'),
+        const TelegramMenuItem.separator(),
+        TelegramMenuItem(
+          value: isBlocked ? 'unblock' : 'block',
+          icon: Icon(isBlocked ? Icons.lock_open : Icons.block),
+          label: isBlocked ? 'Unblock User' : 'Block User',
+          isAttention: !isBlocked,
+        ),
+        const TelegramMenuItem(value: 'report', icon: Icon(Icons.flag_outlined), label: 'Report', isAttention: true),
+        if (isGroupOrChannel) ...[
+          const TelegramMenuItem.separator(),
+          const TelegramMenuItem(value: 'promote', icon: Icon(Icons.admin_panel_settings_outlined), label: 'Promote to Admin'),
+          const TelegramMenuItem(value: 'restrict', icon: Icon(Icons.do_not_disturb_on_outlined), label: 'Restrict User'),
+          const TelegramMenuItem(value: 'ban', icon: Icon(Icons.gavel), label: 'Ban User', isAttention: true),
+          const TelegramMenuItem(value: 'delete_all', icon: Icon(Icons.delete_sweep_outlined), label: 'Delete All from User', isAttention: true),
+        ],
+      ],
+    );
+
+    if (result == null || !mounted) return;
+
+    switch (result) {
+      case 'view_profile':
+        _showSenderProfile(context, chatState, senderId);
+      case 'mention':
+        final mention = username.isNotEmpty ? '@$username ' : senderName;
+        final text = _composeController.text;
+        final newText = text.isEmpty ? mention : '$text $mention';
+        _composeController.text = newText;
+        _composeController.selection = TextSelection.fromPosition(
+          TextPosition(offset: newText.length),
+        );
+      case 'send_message':
+        final dmChat = chatState.chats.where((c) =>
+          c.chatId == senderId && c.accountId == accountId).firstOrNull;
+        if (dmChat != null) chatState.openChat(dmChat);
+      case 'add_contact':
+        _showAddContactDialog(context, engine, accountId, senderId, senderName);
+      case 'delete_contact':
+        try {
+          await engine.deleteContact(accountId, senderId);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('$senderName removed from contacts')),
+            );
+          }
+        } catch (_) {}
+      case 'share_contact':
+        final phone = profile?.phone ?? '';
+        if (phone.isNotEmpty) {
+          Clipboard.setData(ClipboardData(text: phone));
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Contact phone copied: $phone')),
+            );
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Phone number not available')),
+            );
+          }
+        }
+      case 'block':
+        final confirmed = await _showConfirmDialog(
+          context, 'Block User', 'Block $senderName? They will not be able to message you.');
+        if (confirmed && mounted) {
+          try {
+            await engine.blockUser(accountId, senderId);
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('$senderName blocked')),
+              );
+            }
+          } catch (_) {}
+        }
+      case 'unblock':
+        try {
+          await engine.unblockUser(accountId, senderId);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('$senderName unblocked')),
+            );
+          }
+        } catch (_) {}
+      case 'report':
+        try {
+          await engine.reportSpam(accountId, senderId);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('User reported')),
+            );
+          }
+        } catch (_) {}
+      case 'promote':
+        final confirmed = await _showConfirmDialog(
+          context, 'Promote to Admin', 'Promote $senderName to admin?');
+        if (confirmed && mounted) {
+          try {
+            await engine.promoteAdmin(accountId, chat.chatId, senderId);
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('$senderName promoted to admin')),
+              );
+            }
+          } catch (_) {}
+        }
+      case 'restrict':
+        final confirmed = await _showConfirmDialog(
+          context, 'Restrict User', 'Restrict $senderName?');
+        if (confirmed && mounted) {
+          try {
+            await engine.restrictMember(accountId, chat.chatId, senderId);
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('$senderName restricted')),
+              );
+            }
+          } catch (_) {}
+        }
+      case 'ban':
+        final confirmed = await _showConfirmDialog(
+          context, 'Ban User', 'Ban $senderName from this chat? This action cannot be undone easily.');
+        if (confirmed && mounted) {
+          try {
+            await engine.banMember(accountId, chat.chatId, senderId);
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('$senderName banned')),
+              );
+            }
+          } catch (_) {}
+        }
+      case 'delete_all':
+        final confirmed = await _showConfirmDialog(
+          context, 'Delete All Messages', 'Delete all messages from $senderName in this chat?');
+        if (confirmed && mounted) {
+          try {
+            await engine.banMember(accountId, chat.chatId, senderId);
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('All messages from $senderName deleted')),
+              );
+            }
+          } catch (_) {}
+        }
+    }
+  }
+
+  void _showAddContactDialog(BuildContext context, EngineService engine, String accountId, String userId, String displayName) {
+    final parts = displayName.split(' ');
+    final firstCtrl = TextEditingController(text: parts.first);
+    final lastCtrl = TextEditingController(text: parts.length > 1 ? parts.sublist(1).join(' ') : '');
+    final phoneCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return AlertDialog(
+          title: const Text('Add Contact'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: firstCtrl,
+                decoration: const InputDecoration(labelText: 'First name'),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: lastCtrl,
+                decoration: const InputDecoration(labelText: 'Last name'),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: phoneCtrl,
+                decoration: const InputDecoration(labelText: 'Phone number'),
+                keyboardType: TextInputType.phone,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                Navigator.of(ctx).pop();
+                try {
+                  await engine.addContact(
+                    accountId,
+                    phoneCtrl.text.trim(),
+                    firstCtrl.text.trim(),
+                    lastCtrl.text.trim(),
+                  );
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('${firstCtrl.text.trim()} added to contacts')),
+                    );
+                  }
+                } catch (_) {}
+              },
+              child: const Text('Add'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<bool> _showConfirmDialog(BuildContext context, String title, String message) async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    ) ?? false;
+  }
+
   static const _colorIndexRemap = [0, 7, 4, 1, 6, 3, 5];
   static const _userpicColors = [
     Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77), Color(0xFF65aadd),
@@ -2426,6 +2691,7 @@ class _ChatViewState extends State<ChatView>
                   }),
                   onContextMenu: (msgId, pos, selectedText) => _showMessageContextMenu(msgId, pos, selectedText),
                   onSenderTap: (senderId) => _showSenderProfile(context, chatState, senderId),
+                  onSenderContextMenu: (senderId, pos) => _showUserContextMenu(context, chatState, senderId, pos),
                   onReplyTap: (replyToId) => _jumpToReply(chatState, replyToId),
                   searchHighlightId: _searchResultIndex >= 0 && _searchResultIndex < _searchResultIds.length
                       ? _searchResultIds[_searchResultIndex]
@@ -3416,6 +3682,7 @@ class _MessageList extends StatelessWidget {
   final ValueChanged<String> onLongPress;
   final void Function(String msgId, Offset position, String selectedText) onContextMenu;
   final ValueChanged<String>? onSenderTap;
+  final void Function(String senderId, Offset position)? onSenderContextMenu;
   final ValueChanged<String>? onReplyTap;
   /// Spec §4.3: ID of the currently highlighted search result message.
   final String? searchHighlightId;
@@ -3436,6 +3703,7 @@ class _MessageList extends StatelessWidget {
     required this.onLongPress,
     required this.onContextMenu,
     this.onSenderTap,
+    this.onSenderContextMenu,
     this.onReplyTap,
     this.searchHighlightId,
     this.searchQuery = '',
@@ -3538,6 +3806,7 @@ class _MessageList extends StatelessWidget {
                             onReply: () => onReply(msg.msgId),
                             onContextMenu: (pos, sel) => onContextMenu(msg.msgId, pos, sel),
                             onSenderTap: onSenderTap,
+                            onSenderContextMenu: onSenderContextMenu,
                             onReplyTap: onReplyTap,
                           )
                         : MessageBubble(
@@ -3552,6 +3821,7 @@ class _MessageList extends StatelessWidget {
                             onReply: () => onReply(msg.msgId),
                             onContextMenu: (pos, sel) => onContextMenu(msg.msgId, pos, sel),
                             onSenderTap: onSenderTap,
+                            onSenderContextMenu: onSenderContextMenu,
                             onReplyTap: onReplyTap,
                           ),
                   ),

@@ -31,6 +31,7 @@ class MessageBubble extends StatelessWidget {
   final VoidCallback? onReply;
   final void Function(Offset position, String selectedText)? onContextMenu;
   final ValueChanged<String>? onSenderTap;
+  final void Function(String senderId, Offset position)? onSenderContextMenu;
   final ValueChanged<String>? onReplyTap;
   final bool isSelected;
   final bool inSelectionMode;
@@ -51,6 +52,7 @@ class MessageBubble extends StatelessWidget {
     this.onReply,
     this.onContextMenu,
     this.onSenderTap,
+    this.onSenderContextMenu,
     this.onReplyTap,
   });
 
@@ -158,10 +160,18 @@ class MessageBubble extends StatelessWidget {
           Flexible(
             child: GestureDetector(
             onLongPressStart: onContextMenu != null
-                ? (details) => onContextMenu!(details.globalPosition, '')
+                ? (details) {
+                    if (!_SenderNameTapTarget.recentlyConsumed) {
+                      onContextMenu!(details.globalPosition, '');
+                    }
+                  }
                 : null,
             onSecondaryTapUp: onContextMenu != null
-                ? (details) => onContextMenu!(details.globalPosition, '')
+                ? (details) {
+                    if (!_SenderNameTapTarget.recentlyConsumed) {
+                      onContextMenu!(details.globalPosition, '');
+                    }
+                  }
                 : null,
             child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: showAvatar ? _maxWidth - 40 : _maxWidth),
@@ -202,8 +212,11 @@ class MessageBubble extends StatelessWidget {
                     if (!isOutgoing && message.senderName.isNotEmpty && isFirstInGroup)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 2),
-                        child: GestureDetector(
+                        child: _SenderNameTapTarget(
                           onTap: onSenderTap != null ? () => onSenderTap!(message.senderId) : null,
+                          onSecondaryTap: onSenderContextMenu != null
+                              ? (pos) => onSenderContextMenu!(message.senderId, pos)
+                              : null,
                           child: Text.rich(
                             TextSpan(
                               children: [
@@ -448,8 +461,11 @@ class MessageBubble extends StatelessWidget {
     if (senderAvatarB64 != null && senderAvatarB64!.isNotEmpty) {
       try {
         final bytes = base64Decode(senderAvatarB64!);
-        return GestureDetector(
+        return _SenderNameTapTarget(
           onTap: onSenderTap != null ? () => onSenderTap!(message.senderId) : null,
+          onSecondaryTap: onSenderContextMenu != null
+              ? (pos) => onSenderContextMenu!(message.senderId, pos)
+              : null,
           child: ClipOval(
             child: Image.memory(
               bytes,
@@ -461,14 +477,20 @@ class MessageBubble extends StatelessWidget {
           ),
         );
       } catch (_) {
-        return GestureDetector(
+        return _SenderNameTapTarget(
           onTap: onSenderTap != null ? () => onSenderTap!(message.senderId) : null,
+          onSecondaryTap: onSenderContextMenu != null
+              ? (pos) => onSenderContextMenu!(message.senderId, pos)
+              : null,
           child: fallback,
         );
       }
     }
-    return GestureDetector(
+    return _SenderNameTapTarget(
       onTap: onSenderTap != null ? () => onSenderTap!(message.senderId) : null,
+      onSecondaryTap: onSenderContextMenu != null
+          ? (pos) => onSenderContextMenu!(message.senderId, pos)
+          : null,
       child: fallback,
     );
   }
@@ -565,6 +587,37 @@ class MessageBubble extends StatelessWidget {
       return isDark ? AppColors.msgOutDateFgNight : AppColors.msgOutDateFg;
     }
     return isDark ? AppColors.msgInDateFgNight : AppColors.msgInDateFg;
+  }
+}
+
+class _SenderNameTapTarget extends StatelessWidget {
+  static DateTime _lastConsumed = DateTime(0);
+
+  static bool get recentlyConsumed =>
+      DateTime.now().difference(_lastConsumed).inMilliseconds < 200;
+
+  final VoidCallback? onTap;
+  final ValueChanged<Offset>? onSecondaryTap;
+  final Widget child;
+
+  const _SenderNameTapTarget({this.onTap, this.onSecondaryTap, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      behavior: HitTestBehavior.opaque,
+      onPointerDown: (event) {
+        if (event.buttons == kSecondaryMouseButton && onSecondaryTap != null) {
+          _lastConsumed = DateTime.now();
+          onSecondaryTap!(event.position);
+        }
+      },
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: child,
+      ),
+    );
   }
 }
 

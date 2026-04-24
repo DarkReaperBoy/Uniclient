@@ -447,8 +447,7 @@
 - [x] Clear History with confirmation dialog, Delete Chat (DM) with confirmation, Leave Chat/Channel with confirmation, folder tab right-click context menu (Mark All as Read, Edit Folder) — spec §9 — DONE in chat_list_panel.dart + filter_column.dart
 
 ### §9.5 User Context Menu
-<!-- File: not yet implemented -->
-- [ ] User context menu: View Profile, Mention, Send Message, Add/Edit/Delete Contact, Share Contact, Block/Unblock, Report; admin actions: Promote, Restrict, Ban, Delete All from User — spec §9
+<!-- File: dart/lib/ui/chat_view.dart (_showUserContextMenu), dart/lib/ui/message_bubble.dart (_SenderNameTapTarget) -->
 
 ### §9.6 Reaction Picker
 <!-- File: not yet implemented -->
