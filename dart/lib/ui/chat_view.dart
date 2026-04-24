@@ -2221,7 +2221,7 @@ class _ChatViewState extends State<ChatView>
   void _debounceInlineQuery() {
     _inlineBotDebounce?.cancel();
     setState(() => _inlineBotLoading = true);
-    _inlineBotDebounce = Timer(const Duration(milliseconds: 350), _fetchInlineResults);
+    _inlineBotDebounce = Timer(const Duration(milliseconds: 400), _fetchInlineResults);
   }
 
   void _fetchInlineResults() {
@@ -9878,19 +9878,89 @@ class _InlineBotResultsPanel extends StatelessWidget {
   }
 
   Widget _buildGalleryGrid(bool isDark) {
-    return GridView.builder(
-      padding: const EdgeInsets.all(3),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 120,
-        mainAxisSpacing: 3,
-        crossAxisSpacing: 3,
-      ),
-      itemCount: results.results.length,
-      itemBuilder: (context, index) {
-        final item = results.results[index];
-        return _GalleryResultItem(item: item, onTap: () => onPick(item), isDark: isDark);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availW = constraints.maxWidth - 6; // 3px padding each side
+        final rows = _packMosaicRows(results.results, availW);
+        return ListView.builder(
+          padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 3),
+          itemCount: rows.length,
+          itemBuilder: (context, rowIndex) {
+            final row = rows[rowIndex];
+            return Padding(
+              padding: EdgeInsets.only(top: rowIndex > 0 ? 3 : 0),
+              child: SizedBox(
+                height: row.height,
+                child: Row(
+                  children: [
+                    for (int i = 0; i < row.items.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 3),
+                      SizedBox(
+                        width: row.widths[i],
+                        height: row.height,
+                        child: _GalleryResultItem(
+                          item: row.items[i],
+                          onTap: () => onPick(row.items[i]),
+                          isDark: isDark,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          },
+        );
       },
     );
+  }
+
+  static const double _mosaicRowHeight = 96.0;
+  static const double _mosaicSkip = 3.0;
+  static const double _mosaicMinWidth = 48.0;
+
+  List<_MosaicRow> _packMosaicRows(List<InlineBotResult> items, double availW) {
+    final rows = <_MosaicRow>[];
+    int i = 0;
+    while (i < items.length) {
+      final rowItems = <InlineBotResult>[];
+      final intrinsicWidths = <double>[];
+      double usedW = 0;
+      while (i < items.length) {
+        final item = items[i];
+        double iw;
+        if (item.thumbW > 0 && item.thumbH > 0) {
+          iw = (item.thumbW / item.thumbH) * _mosaicRowHeight;
+        } else {
+          iw = _mosaicRowHeight;
+        }
+        if (iw < _mosaicMinWidth) iw = _mosaicMinWidth;
+        final skipW = rowItems.isEmpty ? 0.0 : _mosaicSkip;
+        if (rowItems.isNotEmpty && usedW + skipW + iw > availW) break;
+        rowItems.add(item);
+        intrinsicWidths.add(iw);
+        usedW += skipW + iw;
+        i++;
+      }
+      if (rowItems.isEmpty) break;
+      final totalSkip = (rowItems.length - 1) * _mosaicSkip;
+      final totalIntrinsic = intrinsicWidths.fold(0.0, (s, w) => s + w);
+      final scale = (availW - totalSkip) / totalIntrinsic;
+      final scaledWidths = <double>[];
+      double remaining = availW - totalSkip;
+      for (int j = 0; j < intrinsicWidths.length; j++) {
+        if (j == intrinsicWidths.length - 1) {
+          scaledWidths.add(remaining);
+        } else {
+          final sw = (intrinsicWidths[j] * scale).floorToDouble();
+          scaledWidths.add(sw);
+          remaining -= sw;
+        }
+      }
+      final rowH = _mosaicRowHeight * scale;
+      rows.add(_MosaicRow(items: rowItems, widths: scaledWidths, height: rowH.clamp(48.0, 200.0)));
+    }
+    return rows;
   }
 
   Widget _buildListView(bool isDark) {
@@ -9908,6 +9978,13 @@ class _InlineBotResultsPanel extends StatelessWidget {
       },
     );
   }
+}
+
+class _MosaicRow {
+  final List<InlineBotResult> items;
+  final List<double> widths;
+  final double height;
+  const _MosaicRow({required this.items, required this.widths, required this.height});
 }
 
 class _SwitchPMButton extends StatefulWidget {

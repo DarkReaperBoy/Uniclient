@@ -479,7 +479,6 @@
 
 ### §10.6 Inline Suggestions (Field Autocomplete)
 <!-- File: dart/lib/ui/emoji_panel.dart or separate widget -->
-- [ ] Inline bot results: 400ms debounce, mosaic row-packing layout — spec §10.6
 
 ### §10.7 Power-save & Edge Cases
 <!-- File: dart/lib/ui/emoji_panel.dart -->
