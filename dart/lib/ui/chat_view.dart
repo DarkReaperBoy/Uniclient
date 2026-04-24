@@ -567,7 +567,7 @@ class _ChatViewState extends State<ChatView>
       context: context,
       position: position,
       items: [
-        // Pass 1: top actions
+        // Pass 1: top actions (FillContextMenuItems inline)
         const TelegramMenuItem(value: 'reply', icon: Icon(Icons.reply), label: 'Reply'),
         if (msg.contentText.isNotEmpty)
           const TelegramMenuItem(value: 'quote_reply', icon: Icon(Icons.format_quote), label: 'Quote and Reply'),
@@ -575,21 +575,26 @@ class _ChatViewState extends State<ChatView>
           TelegramMenuItem(value: 'voice_timecode', icon: const Icon(Icons.access_time), label: 'at ${_formatTimecode(audioService.position)}'),
         if (selectedText.isNotEmpty)
           const TelegramMenuItem(value: 'copy_selected', icon: Icon(Icons.copy), label: 'Copy Selected Text'),
-        if (selectedText.isNotEmpty)
-          const TelegramMenuItem(value: 'translate_selected', icon: Icon(Icons.translate), label: 'Translate Selected'),
-        // Pass 2: message actions
         if (msg.contentText.isNotEmpty)
           const TelegramMenuItem(value: 'copy', icon: Icon(Icons.copy), label: 'Copy Text'),
         if (msg.contentText.isNotEmpty && !isPoll)
           const TelegramMenuItem(value: 'translate', icon: Icon(Icons.translate), label: 'Translate'),
+        if (selectedText.isNotEmpty)
+          const TelegramMenuItem(value: 'translate_selected', icon: Icon(Icons.translate), label: 'Translate Selected'),
         if (isPoll && msg.pollQuestion.isNotEmpty)
           const TelegramMenuItem(value: 'translate_poll', icon: Icon(Icons.translate), label: 'Translate Poll'),
-        if (hasVoted && !msg.pollClosed)
-          const TelegramMenuItem(value: 'retract_vote', icon: Icon(Icons.undo), label: 'Retract Vote'),
-        if (isPoll && !msg.pollClosed)
-          for (int i = 0; i < msg.pollOptions.length; i++)
-            if (!msg.pollOptions[i].chosen)
-              TelegramMenuItem(value: 'vote_option:$i', icon: const Icon(Icons.how_to_vote), label: 'Vote: ${msg.pollOptions[i].text}'),
+        for (final url in urls.take(3))
+          TelegramMenuItem(value: 'copy_url:$url', icon: const Icon(Icons.link), label: urls.length == 1 ? 'Copy Link' : 'Copy Link: ${Uri.tryParse(url)?.host ?? url}'),
+        // Pass 2: message actions (AddMessageActions)
+        const TelegramMenuItem.separator(),
+        if (msg.editedAt > 0)
+          const TelegramMenuItem(value: 'edits_history', icon: Icon(Icons.history), label: 'Edits History'),
+        if (!isSavedMessages)
+          const TelegramMenuItem(value: 'hide_message', icon: Icon(Icons.visibility_off), label: 'Hide Message'),
+        if (isGroupOrChannel && msg.senderId.isNotEmpty)
+          TelegramMenuItem(value: 'user_messages', icon: const Icon(Icons.person_search), label: "${msg.senderName.split(' ').first}'s Messages"),
+        const TelegramMenuItem(value: 'repeat_message', icon: Icon(Icons.repeat), label: 'Repeat Message'),
+        const TelegramMenuItem(value: 'message_details', icon: Icon(Icons.info_outline), label: 'Message Details'),
         if (hasForwardOrigin)
           const TelegramMenuItem(value: 'go_to_message', icon: Icon(Icons.shortcut), label: 'Go to Message'),
         if (msg.hasThread)
@@ -611,22 +616,10 @@ class _ChatViewState extends State<ChatView>
         ),
         if (chat != null)
           const TelegramMenuItem(value: 'copy_link', icon: Icon(Icons.link), label: 'Copy Message Link'),
-        // AyuGram additions (spec §9.6 items 8-12)
-        if (msg.editedAt > 0)
-          const TelegramMenuItem(value: 'edits_history', icon: Icon(Icons.history), label: 'Edits History'),
-        if (!isSavedMessages)
-          const TelegramMenuItem(value: 'hide_message', icon: Icon(Icons.visibility_off), label: 'Hide Message'),
-        if (isGroupOrChannel && msg.senderId.isNotEmpty)
-          TelegramMenuItem(value: 'user_messages', icon: const Icon(Icons.person_search), label: "${msg.senderName.split(' ').first}'s Messages"),
-        const TelegramMenuItem(value: 'repeat_message', icon: Icon(Icons.repeat), label: 'Repeat Message'),
-        const TelegramMenuItem(value: 'message_details', icon: Icon(Icons.info_outline), label: 'Message Details'),
-        const TelegramMenuItem.separator(),
-        // Pass 3: post-actions
         const TelegramMenuItem(value: 'forward', icon: Icon(Icons.forward), label: 'Forward'),
         if (isScheduled)
           const TelegramMenuItem(value: 'send_now', icon: Icon(Icons.send), label: 'Send Now'),
-        if (isScheduled)
-          const TelegramMenuItem(value: 'reschedule', icon: Icon(Icons.schedule_send), label: 'Reschedule'),
+        const TelegramMenuItem(value: 'delete', icon: Icon(Icons.delete_outline), label: 'Delete', isAttention: true),
         if (hasPhoto)
           const TelegramMenuItem(value: 'save_image', icon: Icon(Icons.save_alt), label: 'Save Image'),
         if (hasVideo)
@@ -635,23 +628,28 @@ class _ChatViewState extends State<ChatView>
           const TelegramMenuItem(value: 'save_image', icon: Icon(Icons.save_alt), label: 'Save File'),
         if (isGif && hasDocId)
           const TelegramMenuItem(value: 'save_gif', icon: Icon(Icons.gif_box), label: 'Save GIF'),
+        if (hasVoted && !msg.pollClosed)
+          const TelegramMenuItem(value: 'retract_vote', icon: Icon(Icons.undo), label: 'Retract Vote'),
+        if (isPoll && !msg.pollClosed)
+          for (int i = 0; i < msg.pollOptions.length; i++)
+            if (!msg.pollOptions[i].chosen)
+              TelegramMenuItem(value: 'vote_option:$i', icon: const Icon(Icons.how_to_vote), label: 'Vote: ${msg.pollOptions[i].text}'),
+        if (canStopPoll)
+          const TelegramMenuItem(value: 'stop_poll', icon: Icon(Icons.poll), label: 'Stop Poll'),
+        if (!msg.isOutgoing)
+          const TelegramMenuItem(value: 'report', icon: Icon(Icons.flag_outlined), label: 'Report', isAttention: true),
+        const TelegramMenuItem(value: 'select', icon: Icon(Icons.check_circle_outline), label: 'Select'),
+        if (isScheduled)
+          const TelegramMenuItem(value: 'reschedule', icon: Icon(Icons.schedule_send), label: 'Reschedule'),
+        const TelegramMenuItem(value: 'read_until', icon: Icon(Icons.done_all), label: 'Read Until Here'),
+        // Pass 3: post-actions
+        const TelegramMenuItem.separator(),
         if (hasStickerSet)
           const TelegramMenuItem(value: 'view_sticker_set', icon: Icon(Icons.emoji_emotions), label: 'View Sticker Set'),
         if (isSticker && hasDocId)
           const TelegramMenuItem(value: 'fave_sticker', icon: Icon(Icons.star_outline), label: 'Add to Favorites'),
         if (hasLocalFile)
           const TelegramMenuItem(value: 'show_in_folder', icon: Icon(Icons.folder_open), label: 'Show in Folder'),
-        for (final url in urls.take(3))
-          TelegramMenuItem(value: 'copy_url:$url', icon: const Icon(Icons.link), label: urls.length == 1 ? 'Copy Link' : 'Copy Link: ${Uri.tryParse(url)?.host ?? url}'),
-        if (canStopPoll)
-          const TelegramMenuItem(value: 'stop_poll', icon: Icon(Icons.poll), label: 'Stop Poll'),
-        const TelegramMenuItem(value: 'select', icon: Icon(Icons.check_circle_outline), label: 'Select'),
-        // AyuGram additions (spec §9.6 items 21-22)
-        const TelegramMenuItem(value: 'read_until', icon: Icon(Icons.done_all), label: 'Read Until Here'),
-        if (!msg.isOutgoing)
-          const TelegramMenuItem(value: 'report', icon: Icon(Icons.flag_outlined), label: 'Report', isAttention: true),
-        const TelegramMenuItem.separator(),
-        const TelegramMenuItem(value: 'delete', icon: Icon(Icons.delete_outline), label: 'Delete', isAttention: true),
       ],
     ).then((action) {
       if (action == null) return;
