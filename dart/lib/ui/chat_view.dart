@@ -6378,7 +6378,7 @@ final _kEmoticonsSorted = () {
 /// Up arrow with empty field → edit last outgoing message (spec §24.7).
 enum SendButtonType { send, schedule, save, record, round, cancel, slowmode, editPrice }
 
-enum AutocompleteType { mention, hashtag, command, emoji }
+enum AutocompleteType { mention, hashtag, command, emoji, stickerSuggestion }
 
 class AutocompleteQuery {
   final AutocompleteType type;
@@ -6844,6 +6844,11 @@ class _ComposeAreaState extends State<_ComposeArea>
 
   AutocompleteQuery? _lastAcQuery;
 
+  static final _unicodeEmojiRe = RegExp(
+    r'(?:[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{FE00}-\u{FE0F}]|[\u{1F900}-\u{1F9FF}]|[\u{1FA00}-\u{1FA6F}]|[\u{1FA70}-\u{1FAFF}]|[\u{200D}]|[\u{20E3}]|[\u{E0020}-\u{E007F}])+$',
+    unicode: true,
+  );
+
   void _checkAutocomplete() {
     final sel = widget.controller.selection;
     if (!sel.isValid || !sel.isCollapsed) {
@@ -6871,27 +6876,37 @@ class _ComposeAreaState extends State<_ComposeArea>
     }
 
     final match = RegExp(r'(?:^|(?<=\s))([@#/])(\S*)$').firstMatch(before);
-    if (match == null) {
-      _dismissAutocomplete();
+    if (match != null) {
+      final trigger = match.group(1)!;
+      final query = match.group(2)!;
+      final type = switch (trigger) {
+        '@' => AutocompleteType.mention,
+        '#' => AutocompleteType.hashtag,
+        '/' => AutocompleteType.command,
+        _ => null,
+      };
+      if (type != null) {
+        final acQ = AutocompleteQuery(type, query, match.start + (match.group(0)!.indexOf(trigger)));
+        if (_lastAcQuery?.type != acQ.type || _lastAcQuery?.query != acQ.query) {
+          _lastAcQuery = acQ;
+          widget.onAutocompleteQuery?.call(acQ);
+        }
+        return;
+      }
+    }
+
+    final stickerMatch = _unicodeEmojiRe.firstMatch(before);
+    if (stickerMatch != null) {
+      final emoji = stickerMatch.group(0)!;
+      final acQ = AutocompleteQuery(AutocompleteType.stickerSuggestion, emoji, stickerMatch.start);
+      if (_lastAcQuery?.type != acQ.type || _lastAcQuery?.query != acQ.query) {
+        _lastAcQuery = acQ;
+        widget.onAutocompleteQuery?.call(acQ);
+      }
       return;
     }
-    final trigger = match.group(1)!;
-    final query = match.group(2)!;
-    final type = switch (trigger) {
-      '@' => AutocompleteType.mention,
-      '#' => AutocompleteType.hashtag,
-      '/' => AutocompleteType.command,
-      _ => null,
-    };
-    if (type == null) {
-      _dismissAutocomplete();
-      return;
-    }
-    final acQ = AutocompleteQuery(type, query, match.start + (match.group(0)!.indexOf(trigger)));
-    if (_lastAcQuery?.type != acQ.type || _lastAcQuery?.query != acQ.query) {
-      _lastAcQuery = acQ;
-      widget.onAutocompleteQuery?.call(acQ);
-    }
+
+    _dismissAutocomplete();
   }
 
   void _dismissAutocomplete() {

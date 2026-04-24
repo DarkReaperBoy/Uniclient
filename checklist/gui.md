@@ -479,7 +479,6 @@
 
 ### §10.6 Inline Suggestions (Field Autocomplete)
 <!-- File: dart/lib/ui/emoji_panel.dart or separate widget -->
-- [ ] Inline autocomplete widget (separate from TabbedPanel): anchored above compose field; triggered by @, /, :text, #hashtag, emoji sequence; max 4.5 visible rows (~180px cap) — spec §10.6
 - [ ] Emoji suggestions: horizontal row ~40px cells, 8px fade at ends; replaces :text token in-place — spec §10.6
 - [ ] Sticker suggestions: half-width cells, server query, click sends; arrow keys / Tab navigate, Enter picks — spec §10.6
 - [ ] Mention/hashtag/command rows: 40px height, 40px avatar + name + subtitle; no debounce, client-side filter; @-mentions and /commands — spec §10.6

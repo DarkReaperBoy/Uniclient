@@ -376,6 +376,11 @@ class _UniClientAppState extends State<UniClientApp>
           final text = cmd['text'] as String? ?? '';
           _dispatchTextInput(text);
 
+        case 'setText':
+          // Replace focused field text: {"action":"setText","text":"@foo"}
+          final text = cmd['text'] as String? ?? '';
+          _dispatchSetText(text);
+
         case 'key':
           // Send a key event: {"action":"key","key":"enter"} or {"action":"key","key":"backspace"}
           final key = cmd['key'] as String? ?? '';
@@ -542,6 +547,28 @@ class _UniClientAppState extends State<UniClientApp>
         final widget = element.widget;
         if (widget is TextField) {
           widget.onChanged?.call(newText);
+          return false;
+        }
+        return true;
+      });
+    }
+  }
+
+  void _dispatchSetText(String text) {
+    final focusNode = FocusManager.instance.primaryFocus;
+    if (focusNode == null) return;
+    final ctx = focusNode.context;
+    if (ctx == null) return;
+    final editableState = ctx.findAncestorStateOfType<EditableTextState>();
+    if (editableState != null) {
+      final newValue = TextEditingValue(
+        text: text,
+        selection: TextSelection.collapsed(offset: text.length),
+      );
+      editableState.updateEditingValue(newValue);
+      ctx.visitAncestorElements((element) {
+        if (element.widget is TextField) {
+          (element.widget as TextField).onChanged?.call(text);
           return false;
         }
         return true;
@@ -765,6 +792,42 @@ class _UniClientAppState extends State<UniClientApp>
         final editableState = ctx.findAncestorStateOfType<EditableTextState>();
         if (editableState != null) {
           editableState.performAction(TextInputAction.newline);
+        }
+      case 'backspace':
+        final focusNode = FocusManager.instance.primaryFocus;
+        if (focusNode == null) return;
+        final ctx = focusNode.context;
+        if (ctx == null) return;
+        final editableState = ctx.findAncestorStateOfType<EditableTextState>();
+        if (editableState != null) {
+          final current = editableState.textEditingValue;
+          if (current.text.isNotEmpty) {
+            final sel = current.selection;
+            String newText;
+            int newOffset;
+            if (sel.isValid && !sel.isCollapsed) {
+              newText = current.text.substring(0, sel.start) + current.text.substring(sel.end);
+              newOffset = sel.start;
+            } else if (sel.isValid && sel.baseOffset > 0) {
+              newText = current.text.substring(0, sel.baseOffset - 1) + current.text.substring(sel.baseOffset);
+              newOffset = sel.baseOffset - 1;
+            } else {
+              newText = current.text.substring(0, current.text.length - 1);
+              newOffset = newText.length;
+            }
+            final newValue = TextEditingValue(
+              text: newText,
+              selection: TextSelection.collapsed(offset: newOffset),
+            );
+            editableState.updateEditingValue(newValue);
+            ctx.visitAncestorElements((element) {
+              if (element.widget is TextField) {
+                (element.widget as TextField).onChanged?.call(newText);
+                return false;
+              }
+              return true;
+            });
+          }
         }
       case 'escape':
         // Chat list search takes priority: if the user is actively searching

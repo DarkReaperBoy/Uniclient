@@ -93,6 +93,9 @@ case "$ACTION" in
   type)
     send_cmd "{\"action\":\"type\",\"text\":$(python3 -c "import json; print(json.dumps('''$1'''))")}"
     ;;
+  settext|set-text|st)
+    send_cmd "{\"action\":\"setText\",\"text\":$(python3 -c "import json; print(json.dumps('''$1'''))")}"
+    ;;
   key)
     send_cmd "{\"action\":\"key\",\"key\":\"${1:-enter}\"}"
     ;;
