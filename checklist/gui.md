@@ -450,8 +450,7 @@
 <!-- File: dart/lib/ui/chat_view.dart (_showUserContextMenu), dart/lib/ui/message_bubble.dart (_SenderNameTapTarget) -->
 
 ### §9.6 Reaction Picker
-<!-- File: not yet implemented -->
-- [ ] Reaction strip: 40px height, 32px slot, 26px emoji render, 7px skip; floating strip appears after 300ms hover delay — spec §9.3
+<!-- File: dart/lib/ui/message_bubble.dart (_ReactionStrip) -->
 - [ ] Per-message corner reaction button: pill 36x32, anchor point(7,-9); 22px corner reaction image — spec §9.3
 - [ ] Toggle/activate/expand/collapse animation durations (120ms/150ms/300ms/250ms); 8 quick-reaction slots — spec §9.3
 - [ ] Per-icon hover scale 1.24x over 200ms; reaction fly-up 50px on pick; inline reaction counter dimensions — spec §9.3

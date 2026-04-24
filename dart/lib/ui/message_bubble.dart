@@ -16,13 +16,14 @@ import 'package:provider/provider.dart';
 import '../models/engine_models.dart';
 import '../bridge/engine_service.dart';
 import '../state/audio_service.dart';
+import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/theme.dart';
 import 'media_viewer.dart';
 import 'sticker_pack_viewer.dart';
 
 /// Single message bubble. Spec §5: max 430px, 16/6px radius, sender colors.
-class MessageBubble extends StatelessWidget {
+class MessageBubble extends StatefulWidget {
   final CachedMessage message;
   final bool isFirstInGroup;
   final bool isLastInGroup;
@@ -56,16 +57,70 @@ class MessageBubble extends StatelessWidget {
     this.onReplyTap,
   });
 
-  // Spec: max bubble width 430px.
+  static void loadPeerColors(List<PeerColorEntry> entries) {
+    _MessageBubbleState.loadPeerColors(entries);
+  }
+
+  @override
+  State<MessageBubble> createState() => _MessageBubbleState();
+}
+
+class _MessageBubbleState extends State<MessageBubble> {
+  bool _hovered = false;
+  Timer? _hoverTimer;
+
+  @override
+  void dispose() {
+    _hoverTimer?.cancel();
+    super.dispose();
+  }
+
+  void _onHoverEnter() {
+    if (widget.inSelectionMode) return;
+    _hoverTimer?.cancel();
+    _hoverTimer = Timer(const Duration(milliseconds: 300), () {
+      if (mounted) setState(() => _hovered = true);
+    });
+  }
+
+  void _onHoverExit() {
+    _hoverTimer?.cancel();
+    if (_hovered && mounted) setState(() => _hovered = false);
+  }
+
+  void _onReactionTap(String emoji) {
+    setState(() => _hovered = false);
+    final appState = context.read<AppState>();
+    final chatState = context.read<ChatState>();
+    final engine = context.read<EngineService>();
+    final accountId = appState.activeAccountId;
+    final chatId = chatState.activeChat?.chatId ?? '';
+    if (accountId.isEmpty || chatId.isEmpty) return;
+    engine.reactToMessage(accountId, chatId, widget.message.msgId, emoji);
+  }
+
   static const _maxWidth = 430.0;
   static const _radiusLarge = 16.0;
   static const _radiusSmall = 6.0;
 
   @override
   Widget build(BuildContext context) {
+    final message = widget.message;
+    final isFirstInGroup = widget.isFirstInGroup;
+    final isLastInGroup = widget.isLastInGroup;
+    final isGroupChat = widget.isGroupChat;
+    final isSelected = widget.isSelected;
+    final inSelectionMode = widget.inSelectionMode;
+    final allMessages = widget.allMessages;
+    final albumItems = widget.albumItems;
+    final onContextMenu = widget.onContextMenu;
+    final onReply = widget.onReply;
+    final onSenderTap = widget.onSenderTap;
+    final onSenderContextMenu = widget.onSenderContextMenu;
+    final onReplyTap = widget.onReplyTap;
+
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    // Determine if this is an outgoing message (set by Go engine per-platform).
     final isOutgoing = message.isOutgoing;
 
     // AyuGram spec: sticker-only messages render without a bubble background.
@@ -133,9 +188,10 @@ class MessageBubble extends StatelessWidget {
     // Show sender avatar for incoming messages in group chats.
     final showAvatar = isGroupChat && !isOutgoing;
 
-    // Spec §5: Bubble margins — left 16px, top 6px, right 56px, bottom 2px.
-    // Attached-to-previous collapses top to 0px.
-    return Padding(
+    return MouseRegion(
+      onEnter: (_) => _onHoverEnter(),
+      onExit: (_) => _onHoverExit(),
+      child: Padding(
       padding: EdgeInsets.only(
         left: 16.0,
         top: isFirstInGroup ? 6.0 : 0.0,
@@ -425,6 +481,16 @@ class MessageBubble extends StatelessWidget {
                     isDark: isDark,
                   ),
                 ),
+              if (_hovered && !inSelectionMode)
+                Positioned(
+                  top: -24,
+                  right: isOutgoing ? 20 : null,
+                  left: isOutgoing ? null : 0,
+                  child: _ReactionStrip(
+                    onReactionTap: _onReactionTap,
+                    isDark: isDark,
+                  ),
+                ),
               ],
               ),
               if (message.hasInlineKeyboard)
@@ -443,12 +509,16 @@ class MessageBubble extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 
   Widget _buildSenderAvatar(bool isDark) {
-    // Spec §5: sender avatar 33px diameter, bottom-left of last message in group.
     const double avatarSize = 33;
+    final message = widget.message;
+    final senderAvatarB64 = widget.senderAvatarB64;
+    final onSenderTap = widget.onSenderTap;
+    final onSenderContextMenu = widget.onSenderContextMenu;
     final fallback = CircleAvatar(
       radius: avatarSize / 2,
       backgroundColor: _senderColor(message.senderId, isDark: isDark, colorId: message.senderColorId),
@@ -458,13 +528,13 @@ class MessageBubble extends StatelessWidget {
       ),
     );
 
-    if (senderAvatarB64 != null && senderAvatarB64!.isNotEmpty) {
+    if (senderAvatarB64 != null && senderAvatarB64.isNotEmpty) {
       try {
-        final bytes = base64Decode(senderAvatarB64!);
+        final bytes = base64Decode(senderAvatarB64);
         return _SenderNameTapTarget(
-          onTap: onSenderTap != null ? () => onSenderTap!(message.senderId) : null,
+          onTap: onSenderTap != null ? () => onSenderTap(message.senderId) : null,
           onSecondaryTap: onSenderContextMenu != null
-              ? (pos) => onSenderContextMenu!(message.senderId, pos)
+              ? (pos) => onSenderContextMenu(message.senderId, pos)
               : null,
           child: ClipOval(
             child: Image.memory(
@@ -478,18 +548,18 @@ class MessageBubble extends StatelessWidget {
         );
       } catch (_) {
         return _SenderNameTapTarget(
-          onTap: onSenderTap != null ? () => onSenderTap!(message.senderId) : null,
+          onTap: onSenderTap != null ? () => onSenderTap(message.senderId) : null,
           onSecondaryTap: onSenderContextMenu != null
-              ? (pos) => onSenderContextMenu!(message.senderId, pos)
+              ? (pos) => onSenderContextMenu(message.senderId, pos)
               : null,
           child: fallback,
         );
       }
     }
     return _SenderNameTapTarget(
-      onTap: onSenderTap != null ? () => onSenderTap!(message.senderId) : null,
+      onTap: onSenderTap != null ? () => onSenderTap(message.senderId) : null,
       onSecondaryTap: onSenderContextMenu != null
-          ? (pos) => onSenderContextMenu!(message.senderId, pos)
+          ? (pos) => onSenderContextMenu(message.senderId, pos)
           : null,
       child: fallback,
     );
@@ -621,9 +691,105 @@ class _SenderNameTapTarget extends StatelessWidget {
   }
 }
 
-/// Row of pill-shaped reaction badges shown below a message's content.
-/// Matches AyuGram/Telegram Desktop: rounded capsule, emoji + count,
-/// tinted primary when the current user is among the reactors.
+/// Spec §9.3: Floating reaction strip — 40px height, 32px slot, 26px emoji, 7px skip.
+class _ReactionStrip extends StatefulWidget {
+  final ValueChanged<String> onReactionTap;
+  final bool isDark;
+
+  const _ReactionStrip({
+    required this.onReactionTap,
+    required this.isDark,
+  });
+
+  @override
+  State<_ReactionStrip> createState() => _ReactionStripState();
+}
+
+class _ReactionStripState extends State<_ReactionStrip>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _fadeScale;
+  int _hoveredIndex = -1;
+
+  static const _reactions = ['👍', '❤️', '🔥', '🥰', '👏', '😱', '😢', '🎉'];
+  static const _stripHeight = 40.0;
+  static const _slotSize = 32.0;
+  static const _emojiSize = 26.0;
+  static const _skip = 7.0;
+  static const _hoverScale = 1.24;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+    );
+    _fadeScale = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = widget.isDark ? const Color(0xFF2B3640) : Colors.white;
+    final shadow = widget.isDark ? Colors.black26 : Colors.black12;
+    final totalWidth = _skip + _reactions.length * (_slotSize + _skip);
+
+    return FadeTransition(
+      opacity: _fadeScale,
+      child: ScaleTransition(
+        scale: _fadeScale,
+        alignment: Alignment.bottomCenter,
+        child: Container(
+          height: _stripHeight,
+          width: totalWidth,
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(_stripHeight / 2),
+            boxShadow: [
+              BoxShadow(color: shadow, blurRadius: 8, offset: const Offset(0, 2)),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(width: _skip),
+              for (int i = 0; i < _reactions.length; i++)
+                MouseRegion(
+                  onEnter: (_) => setState(() => _hoveredIndex = i),
+                  onExit: (_) => setState(() => _hoveredIndex = -1),
+                  child: GestureDetector(
+                    onTap: () => widget.onReactionTap(_reactions[i]),
+                    child: AnimatedScale(
+                      scale: _hoveredIndex == i ? _hoverScale : 1.0,
+                      duration: const Duration(milliseconds: 200),
+                      child: SizedBox(
+                        width: _slotSize,
+                        height: _slotSize,
+                        child: Center(
+                          child: Text(
+                            _reactions[i],
+                            style: const TextStyle(fontSize: _emojiSize),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ReactionList extends StatelessWidget {
   final List<MessageReaction> reactions;
   final bool isOutgoing;
@@ -1826,7 +1992,7 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
                           const SizedBox(width: 2),
                           Padding(
                             padding: const EdgeInsets.only(right: 8),
-                            child: Text(MessageBubble._formatCount(message.views),
+                            child: Text(_MessageBubbleState._formatCount(message.views),
                                 style: const TextStyle(fontSize: 13, color: AppColors.historyIconFgInverted)),
                           ),
                         ],
@@ -1836,7 +2002,7 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
                           const SizedBox(width: 2),
                           Padding(
                             padding: const EdgeInsets.only(right: 8),
-                            child: Text(MessageBubble._formatCount(message.forwards),
+                            child: Text(_MessageBubbleState._formatCount(message.forwards),
                                 style: const TextStyle(fontSize: 13, color: AppColors.historyIconFgInverted)),
                           ),
                         ],
@@ -1847,7 +2013,7 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
                                 style: TextStyle(fontSize: 13, color: AppColors.historyIconFgInverted)),
                           ),
                         Text(
-                          MessageBubble._formatTime(message.timestamp),
+                          _MessageBubbleState._formatTime(message.timestamp),
                           style: const TextStyle(fontSize: 13, color: AppColors.historyIconFgInverted),
                         ),
                         if (widget.isOutgoing) ...[
@@ -3084,7 +3250,7 @@ class _ContactIndicator extends StatelessWidget {
     final phone = message.contactPhone;
     final hasUser = message.contactUserId > 0;
 
-    final accentColor = MessageBubble._senderColor(
+    final accentColor = _MessageBubbleState._senderColor(
       message.contactUserId > 0 ? message.contactUserId.toString() : fullName,
       isDark: isDark,
     );
