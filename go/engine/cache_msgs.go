@@ -913,6 +913,44 @@ func (e *Engine) GetInstalledEmojiSets(accountID string) ([]cores.EmojiSetSummar
 	return fetcher.GetInstalledEmojiSets()
 }
 
+type InstalledStickerPacksFetcher interface {
+	GetInstalledStickerPacks() ([]cores.StickerPackSummary, error)
+}
+
+func (e *Engine) GetInstalledStickerPacks(accountID string) ([]cores.StickerPackSummary, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(InstalledStickerPacksFetcher)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support sticker packs")
+	}
+	return fetcher.GetInstalledStickerPacks()
+}
+
+type RecentStickersFetcher interface {
+	GetRecentStickers() ([]cores.StickerInfo, error)
+}
+
+func (e *Engine) GetRecentStickers(accountID string) ([]cores.StickerInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(RecentStickersFetcher)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support recent stickers")
+	}
+	return fetcher.GetRecentStickers()
+}
+
 type StickerFaver interface {
 	FaveSticker(fileID int64, extra string, unfave bool) error
 }

@@ -10212,5 +10212,238 @@ class EngineGetInstalledEmojiSetsResponse extends $pb.GeneratedMessage {
   $core.List<EngineEmojiSetSummary> get sets => $_getList(0);
 }
 
+class EngineGetInstalledStickerPacksRequest extends $pb.GeneratedMessage {
+  factory EngineGetInstalledStickerPacksRequest({
+    $core.String? accountId,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    return $result;
+  }
+  EngineGetInstalledStickerPacksRequest._() : super();
+  factory EngineGetInstalledStickerPacksRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetInstalledStickerPacksRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineGetInstalledStickerPacksRequest clone() => EngineGetInstalledStickerPacksRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineGetInstalledStickerPacksRequest copyWith(void Function(EngineGetInstalledStickerPacksRequest) updates) => super.copyWith((message) => updates(message as EngineGetInstalledStickerPacksRequest)) as EngineGetInstalledStickerPacksRequest;
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineGetInstalledStickerPacksRequest create() => EngineGetInstalledStickerPacksRequest._();
+  EngineGetInstalledStickerPacksRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineGetInstalledStickerPacksRequest> createRepeated() => $pb.PbList<EngineGetInstalledStickerPacksRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetInstalledStickerPacksRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetInstalledStickerPacksRequest>(create);
+  static EngineGetInstalledStickerPacksRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+}
+
+class EngineStickerPackSummary extends $pb.GeneratedMessage {
+  factory EngineStickerPackSummary({
+    $fixnum.Int64? setId,
+    $fixnum.Int64? accessHash,
+    $core.String? title,
+    $core.String? shortName,
+    $core.int? count,
+    $core.bool? animated,
+    $core.bool? video,
+    $core.String? thumbB64,
+    $core.Iterable<EngineStickerInfo>? stickers,
+  }) {
+    final $result = create();
+    if (setId != null) $result.setId = setId;
+    if (accessHash != null) $result.accessHash = accessHash;
+    if (title != null) $result.title = title;
+    if (shortName != null) $result.shortName = shortName;
+    if (count != null) $result.count = count;
+    if (animated != null) $result.animated = animated;
+    if (video != null) $result.video = video;
+    if (thumbB64 != null) $result.thumbB64 = thumbB64;
+    if (stickers != null) $result.stickers.addAll(stickers);
+    return $result;
+  }
+  EngineStickerPackSummary._() : super();
+  factory EngineStickerPackSummary.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineStickerPackSummary', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aInt64(1, _omitFieldNames ? '' : 'setId')
+    ..aInt64(2, _omitFieldNames ? '' : 'accessHash')
+    ..aOS(3, _omitFieldNames ? '' : 'title')
+    ..aOS(4, _omitFieldNames ? '' : 'shortName')
+    ..a<$core.int>(5, _omitFieldNames ? '' : 'count', $pb.PbFieldType.O3)
+    ..aOB(6, _omitFieldNames ? '' : 'animated')
+    ..aOB(7, _omitFieldNames ? '' : 'video')
+    ..aOS(8, _omitFieldNames ? '' : 'thumbB64')
+    ..pc<EngineStickerInfo>(9, _omitFieldNames ? '' : 'stickers', $pb.PbFieldType.PM, subBuilder: EngineStickerInfo.create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineStickerPackSummary clone() => EngineStickerPackSummary()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineStickerPackSummary copyWith(void Function(EngineStickerPackSummary) updates) => super.copyWith((message) => updates(message as EngineStickerPackSummary)) as EngineStickerPackSummary;
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineStickerPackSummary create() => EngineStickerPackSummary._();
+  EngineStickerPackSummary createEmptyInstance() => create();
+  static $pb.PbList<EngineStickerPackSummary> createRepeated() => $pb.PbList<EngineStickerPackSummary>();
+  @$core.pragma('dart2js:noInline')
+  static EngineStickerPackSummary getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineStickerPackSummary>(create);
+  static EngineStickerPackSummary? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $fixnum.Int64 get setId => $_getI64(0);
+  @$pb.TagNumber(1)
+  set setId($fixnum.Int64 v) { $_setInt64(0, v); }
+
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get accessHash => $_getI64(1);
+  @$pb.TagNumber(2)
+  set accessHash($fixnum.Int64 v) { $_setInt64(1, v); }
+
+  @$pb.TagNumber(3)
+  $core.String get title => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set title($core.String v) { $_setString(2, v); }
+
+  @$pb.TagNumber(4)
+  $core.String get shortName => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set shortName($core.String v) { $_setString(3, v); }
+
+  @$pb.TagNumber(5)
+  $core.int get count => $_getIZ(4);
+  @$pb.TagNumber(5)
+  set count($core.int v) { $_setSignedInt32(4, v); }
+
+  @$pb.TagNumber(6)
+  $core.bool get animated => $_getBF(5);
+  @$pb.TagNumber(6)
+  set animated($core.bool v) { $_setBool(5, v); }
+
+  @$pb.TagNumber(7)
+  $core.bool get video => $_getBF(6);
+  @$pb.TagNumber(7)
+  set video($core.bool v) { $_setBool(6, v); }
+
+  @$pb.TagNumber(8)
+  $core.String get thumbB64 => $_getSZ(7);
+  @$pb.TagNumber(8)
+  set thumbB64($core.String v) { $_setString(7, v); }
+
+  @$pb.TagNumber(9)
+  $core.List<EngineStickerInfo> get stickers => $_getList(8);
+}
+
+class EngineGetInstalledStickerPacksResponse extends $pb.GeneratedMessage {
+  factory EngineGetInstalledStickerPacksResponse({
+    $core.Iterable<EngineStickerPackSummary>? packs,
+  }) {
+    final $result = create();
+    if (packs != null) $result.packs.addAll(packs);
+    return $result;
+  }
+  EngineGetInstalledStickerPacksResponse._() : super();
+  factory EngineGetInstalledStickerPacksResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetInstalledStickerPacksResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..pc<EngineStickerPackSummary>(1, _omitFieldNames ? '' : 'packs', $pb.PbFieldType.PM, subBuilder: EngineStickerPackSummary.create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineGetInstalledStickerPacksResponse clone() => EngineGetInstalledStickerPacksResponse()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineGetInstalledStickerPacksResponse copyWith(void Function(EngineGetInstalledStickerPacksResponse) updates) => super.copyWith((message) => updates(message as EngineGetInstalledStickerPacksResponse)) as EngineGetInstalledStickerPacksResponse;
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineGetInstalledStickerPacksResponse create() => EngineGetInstalledStickerPacksResponse._();
+  EngineGetInstalledStickerPacksResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineGetInstalledStickerPacksResponse> createRepeated() => $pb.PbList<EngineGetInstalledStickerPacksResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetInstalledStickerPacksResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetInstalledStickerPacksResponse>(create);
+  static EngineGetInstalledStickerPacksResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<EngineStickerPackSummary> get packs => $_getList(0);
+}
+
+class EngineGetRecentStickersRequest extends $pb.GeneratedMessage {
+  factory EngineGetRecentStickersRequest({
+    $core.String? accountId,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    return $result;
+  }
+  EngineGetRecentStickersRequest._() : super();
+  factory EngineGetRecentStickersRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetRecentStickersRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineGetRecentStickersRequest clone() => EngineGetRecentStickersRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineGetRecentStickersRequest copyWith(void Function(EngineGetRecentStickersRequest) updates) => super.copyWith((message) => updates(message as EngineGetRecentStickersRequest)) as EngineGetRecentStickersRequest;
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineGetRecentStickersRequest create() => EngineGetRecentStickersRequest._();
+  EngineGetRecentStickersRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineGetRecentStickersRequest> createRepeated() => $pb.PbList<EngineGetRecentStickersRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetRecentStickersRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetRecentStickersRequest>(create);
+  static EngineGetRecentStickersRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+}
+
+class EngineGetRecentStickersResponse extends $pb.GeneratedMessage {
+  factory EngineGetRecentStickersResponse({
+    $core.Iterable<EngineStickerInfo>? stickers,
+  }) {
+    final $result = create();
+    if (stickers != null) $result.stickers.addAll(stickers);
+    return $result;
+  }
+  EngineGetRecentStickersResponse._() : super();
+  factory EngineGetRecentStickersResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetRecentStickersResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..pc<EngineStickerInfo>(1, _omitFieldNames ? '' : 'stickers', $pb.PbFieldType.PM, subBuilder: EngineStickerInfo.create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineGetRecentStickersResponse clone() => EngineGetRecentStickersResponse()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineGetRecentStickersResponse copyWith(void Function(EngineGetRecentStickersResponse) updates) => super.copyWith((message) => updates(message as EngineGetRecentStickersResponse)) as EngineGetRecentStickersResponse;
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineGetRecentStickersResponse create() => EngineGetRecentStickersResponse._();
+  EngineGetRecentStickersResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineGetRecentStickersResponse> createRepeated() => $pb.PbList<EngineGetRecentStickersResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetRecentStickersResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetRecentStickersResponse>(create);
+  static EngineGetRecentStickersResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<EngineStickerInfo> get stickers => $_getList(0);
+}
+
 const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
 const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

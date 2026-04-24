@@ -976,6 +976,63 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return []byte{}, nil
 
+	case "GetInstalledStickerPacks":
+		var req pb.EngineGetInstalledStickerPacksRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		packs, err := e.GetInstalledStickerPacks(req.AccountId)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetInstalledStickerPacksResponse{}
+		for _, p := range packs {
+			summary := &pb.EngineStickerPackSummary{
+				SetId:      p.SetID,
+				AccessHash: p.AccessHash,
+				Title:      p.Title,
+				ShortName:  p.ShortName,
+				Count:      int32(p.Count),
+				Animated:   p.Animated,
+				Video:      p.Video,
+				ThumbB64:   p.ThumbB64,
+			}
+			for _, st := range p.Stickers {
+				summary.Stickers = append(summary.Stickers, &pb.EngineStickerInfo{
+					Emoji:    st.Emoji,
+					ThumbB64: st.ThumbB64,
+					Width:    int32(st.Width),
+					Height:   int32(st.Height),
+					MimeType: st.MimeType,
+					FileId:   st.FileID,
+				})
+			}
+			resp.Packs = append(resp.Packs, summary)
+		}
+		return proto.Marshal(resp)
+
+	case "GetRecentStickers":
+		var req pb.EngineGetRecentStickersRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		stickers, err := e.GetRecentStickers(req.AccountId)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetRecentStickersResponse{}
+		for _, s := range stickers {
+			resp.Stickers = append(resp.Stickers, &pb.EngineStickerInfo{
+				Emoji:    s.Emoji,
+				ThumbB64: s.ThumbB64,
+				Width:    int32(s.Width),
+				Height:   int32(s.Height),
+				MimeType: s.MimeType,
+				FileId:   s.FileID,
+			})
+		}
+		return proto.Marshal(resp)
+
 	case "SaveGif":
 		var req pb.EngineSaveGifRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

@@ -473,7 +473,6 @@
 
 ### §10.4 Sticker Tab
 <!-- File: dart/lib/ui/emoji_panel.dart -->
-- [ ] Sticker grid: ~64px cells, 11px padding; footer with 8 pack icons (horizontally scrollable), active pack highlighted, scroll-to-pack 400ms easeOutCubic; Recent section (server cap 20) — spec §10.4
 - [ ] Featured/trending packs with inline "Add" button (~26px); 400ms debounce search; empty search shows recent popular packs — spec §10.4
 - [ ] Context menu on sticker: Fave/Unfave, View Set; custom emoji packs: also Copy Link; AyuGram: per-pack "Hide" toggle — spec §10.4 / §10.7
 

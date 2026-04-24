@@ -291,6 +291,18 @@ type EmojiSetSummary struct {
 	Stickers   []StickerInfo `json:"stickers"`
 }
 
+type StickerPackSummary struct {
+	SetID      int64         `json:"set_id"`
+	AccessHash int64         `json:"access_hash"`
+	Title      string        `json:"title"`
+	ShortName  string        `json:"short_name"`
+	Count      int           `json:"count"`
+	Animated   bool          `json:"animated"`
+	Video      bool          `json:"video"`
+	ThumbB64   string        `json:"thumb_b64"`
+	Stickers   []StickerInfo `json:"stickers"`
+}
+
 type AttachMenuBotInfo struct {
 	BotID     int64  `json:"bot_id"`
 	ShortName string `json:"short_name"`

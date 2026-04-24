@@ -1003,3 +1003,35 @@ message EngineEmojiSetSummary {
 message EngineGetInstalledEmojiSetsResponse {
   repeated EngineEmojiSetSummary sets = 1;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Installed Sticker Packs (for sticker tab)
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineGetInstalledStickerPacksRequest {
+  string account_id = 1;
+}
+
+message EngineStickerPackSummary {
+  int64  set_id      = 1;
+  int64  access_hash = 2;
+  string title       = 3;
+  string short_name  = 4;
+  int32  count       = 5;
+  bool   animated    = 6;
+  bool   video       = 7;
+  string thumb_b64   = 8;
+  repeated EngineStickerInfo stickers = 9;
+}
+
+message EngineGetInstalledStickerPacksResponse {
+  repeated EngineStickerPackSummary packs = 1;
+}
+
+message EngineGetRecentStickersRequest {
+  string account_id = 1;
+}
+
+message EngineGetRecentStickersResponse {
+  repeated EngineStickerInfo stickers = 1;
+}

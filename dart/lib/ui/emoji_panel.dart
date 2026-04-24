@@ -26,6 +26,52 @@ const double _kPopupPad = 4.0;
 
 Map<String, int> _skinTonePrefs = {};
 
+Uint8List _decodeStrippedThumbB64(String b64) {
+  final stripped = base64Decode(b64);
+  if (stripped.length < 3 || stripped[0] != 0x01) return stripped;
+  final w = stripped[1];
+  final h = stripped[2];
+  final tmpl = Uint8List.fromList([
+    0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01,
+    0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xFF, 0xDB, 0x00, 0x43,
+    0x00, 0x28, 0x1C, 0x1E, 0x23, 0x1E, 0x19, 0x28, 0x23, 0x21, 0x23, 0x2D,
+    0x2B, 0x28, 0x30, 0x3C, 0x64, 0x41, 0x3C, 0x37, 0x37, 0x3C, 0x7B, 0x58,
+    0x5D, 0x49, 0x64, 0x91, 0x80, 0x99, 0x96, 0x8F, 0x80, 0x8C, 0x8A, 0xA0,
+    0xB4, 0xE6, 0xC3, 0xA0, 0xAA, 0xDA, 0xAD, 0x8A, 0x8C, 0xC8, 0xFF, 0xCB,
+    0xDA, 0xEE, 0xF5, 0xFF, 0xFF, 0xFF, 0x9B, 0xC1, 0xFF, 0xFF, 0xFF, 0xFA,
+    0xFF, 0xE6, 0xFD, 0xFF, 0xF8, 0xFF, 0xDB, 0x00, 0x43, 0x01, 0x2B, 0x2D,
+    0x2D, 0x3C, 0x35, 0x3C, 0x76, 0x41, 0x41, 0x76, 0xF8, 0xA5, 0x8C, 0xA5,
+    0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8,
+    0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8,
+    0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8,
+    0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8,
+    0xF8, 0xF8, 0xFF, 0xC0, 0x00, 0x11, 0x08, 0x00, 0x00, 0x00, 0x00, 0x03,
+    0x01, 0x22, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01, 0xFF, 0xC4, 0x00,
+    0x1F, 0x00, 0x00, 0x01, 0x05, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05,
+    0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0xFF, 0xC4, 0x00, 0xB5, 0x10, 0x00,
+    0x02, 0x01, 0x03, 0x03, 0x02, 0x04, 0x03, 0x05, 0x05, 0x04, 0x04, 0x00,
+    0x00, 0x01, 0x7D, 0x01, 0x02, 0x03, 0x00, 0x04, 0x11, 0x05, 0x12, 0x21,
+    0x31, 0x41, 0x06, 0x13, 0x51, 0x61, 0x07, 0x22, 0x71, 0x14, 0x32, 0x81,
+    0x91, 0xA1, 0x08, 0x23, 0x42, 0xB1, 0xC1, 0x15, 0x52, 0xD1, 0xF0, 0x24,
+    0x33, 0x62, 0x72, 0x82, 0x09, 0x0A, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x25,
+    0x26, 0x27, 0x28, 0x29, 0x2A, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3A,
+    0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x53, 0x54, 0x55, 0x56,
+    0x57, 0x58, 0x59, 0x5A, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6A,
+    0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x7A, 0x83, 0x84, 0x85, 0x86,
+    0x87, 0x88, 0x89, 0x8A, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x99,
+    0x9A, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 0xA8, 0xA9, 0xAA, 0xB2, 0xB3,
+  ]);
+  tmpl[164] = h;
+  tmpl[166] = w;
+  const footer = [0xFF, 0xD9];
+  final buf = Uint8List(tmpl.length + stripped.length - 3 + footer.length);
+  buf.setAll(0, tmpl);
+  buf.setAll(tmpl.length, stripped.sublist(3));
+  buf.setAll(tmpl.length + stripped.length - 3, footer);
+  return buf;
+}
+
 const Set<int> _emojiModifierBases = {
   0x261D, 0x26F9,
   0x270A, 0x270B, 0x270C, 0x270D,
@@ -359,19 +405,10 @@ class _TabContent extends StatelessWidget {
     this.onEmojiSelected,
   });
 
-  Widget _buildTab(int index) {
-    if (index == 0) {
-      return _EmojiTab(onEmojiSelected: onEmojiSelected);
-    }
-    final isDark = false; // will be resolved per-build
-    final placeholderColor = const Color(0xFF999999);
-    final labels = ['Emoji', 'Stickers', 'GIFs'];
-    final icons = [
-      Icons.emoji_emotions_outlined,
-      Icons.sticky_note_2_outlined,
-      Icons.gif_box_outlined,
-    ];
-    return _buildPlaceholder(labels[index], icons[index], placeholderColor);
+  Widget _buildTabWidget(int index, Color placeholderColor) {
+    if (index == 0) return _EmojiTab(onEmojiSelected: onEmojiSelected);
+    if (index == 1) return _StickerTab(onStickerSelected: onEmojiSelected);
+    return _buildPlaceholder('GIFs', Icons.gif_box_outlined, placeholderColor);
   }
 
   @override
@@ -388,39 +425,14 @@ class _TabContent extends StatelessWidget {
         final slideProgress = slideController.value;
 
         if (slideProgress >= 1.0 || activeTab == prevTab) {
-          if (activeTab == 0) {
-            return _EmojiTab(onEmojiSelected: onEmojiSelected);
-          }
-          final labels = ['Emoji', 'Stickers', 'GIFs'];
-          final icons = [
-            Icons.emoji_emotions_outlined,
-            Icons.sticky_note_2_outlined,
-            Icons.gif_box_outlined,
-          ];
-          return _buildPlaceholder(labels[activeTab], icons[activeTab], placeholderColor);
+          return _buildTabWidget(activeTab, placeholderColor);
         }
 
         return LayoutBuilder(
           builder: (context, constraints) {
             final panelW = constraints.maxWidth;
-            Widget prevWidget;
-            Widget activeWidget;
-
-            if (prevTab == 0) {
-              prevWidget = _EmojiTab(onEmojiSelected: onEmojiSelected);
-            } else {
-              final labels = ['Emoji', 'Stickers', 'GIFs'];
-              final icons = [Icons.emoji_emotions_outlined, Icons.sticky_note_2_outlined, Icons.gif_box_outlined];
-              prevWidget = _buildPlaceholder(labels[prevTab], icons[prevTab], placeholderColor);
-            }
-
-            if (activeTab == 0) {
-              activeWidget = _EmojiTab(onEmojiSelected: onEmojiSelected);
-            } else {
-              final labels = ['Emoji', 'Stickers', 'GIFs'];
-              final icons = [Icons.emoji_emotions_outlined, Icons.sticky_note_2_outlined, Icons.gif_box_outlined];
-              activeWidget = _buildPlaceholder(labels[activeTab], icons[activeTab], placeholderColor);
-            }
+            Widget prevWidget = _buildTabWidget(prevTab, placeholderColor);
+            Widget activeWidget = _buildTabWidget(activeTab, placeholderColor);
 
             return ClipRect(
               child: Stack(
@@ -1048,19 +1060,7 @@ class _CustomEmojiCellState extends State<_CustomEmojiCell> {
     );
   }
 
-  static Uint8List _decodeStrippedThumb(String b64) {
-    final stripped = base64Decode(b64);
-    if (stripped.length < 3 || stripped[0] != 0x01) return stripped;
-    final w = stripped[1];
-    final h = stripped[2];
-    final header = _jpegHeader(w, h);
-    const footer = [0xFF, 0xD9];
-    final buf = Uint8List(header.length + stripped.length - 3 + footer.length);
-    buf.setAll(0, header);
-    buf.setAll(header.length, stripped.sublist(3));
-    buf.setAll(header.length + stripped.length - 3, footer);
-    return buf;
-  }
+  static Uint8List _decodeStrippedThumb(String b64) => _decodeStrippedThumbB64(b64);
 
   static Uint8List _jpegHeader(int w, int h) {
     final tmpl = Uint8List.fromList([
@@ -1235,6 +1235,408 @@ class _PopupEmojiCellState extends State<_PopupEmojiCell> {
             style: const TextStyle(fontSize: 26),
           ),
         ),
+      ),
+    );
+  }
+}
+
+const double _kStickerCellSize = 64.0;
+const double _kStickerGridPadding = 11.0;
+const double _kStickerFooterHeight = 44.0;
+const int _kVisibleIconsCount = 8;
+
+class _StickerTab extends StatefulWidget {
+  final ValueChanged<String>? onStickerSelected;
+
+  const _StickerTab({this.onStickerSelected});
+
+  @override
+  State<_StickerTab> createState() => _StickerTabState();
+}
+
+class _StickerTabState extends State<_StickerTab> {
+  List<StickerPackSummary> _packs = [];
+  List<StickerInfoItem> _recentStickers = [];
+  bool _loaded = false;
+  int _activePackIndex = 0;
+  final ScrollController _gridScrollController = ScrollController();
+  final ScrollController _footerScrollController = ScrollController();
+  final List<GlobalKey> _sectionKeys = [];
+  bool _programmaticScroll = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _gridScrollController.addListener(_onGridScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
+  }
+
+  @override
+  void dispose() {
+    _gridScrollController.removeListener(_onGridScroll);
+    _gridScrollController.dispose();
+    _footerScrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadData() async {
+    if (_loaded) return;
+    try {
+      final appState = context.read<AppState>();
+      final engine = context.read<EngineService>();
+      final activeAccount = appState.activeAccount;
+      if (activeAccount == null) return;
+      final results = await Future.wait([
+        engine.getInstalledStickerPacks(activeAccount.id),
+        engine.getRecentStickers(activeAccount.id),
+      ]);
+      if (mounted) {
+        final packs = results[0] as List<StickerPackSummary>;
+        final recent = results[1] as List<StickerInfoItem>;
+        _sectionKeys.clear();
+        final totalSections = (recent.isNotEmpty ? 1 : 0) + packs.length;
+        for (int i = 0; i < totalSections; i++) {
+          _sectionKeys.add(GlobalKey());
+        }
+        setState(() {
+          _packs = packs;
+          _recentStickers = recent;
+          _loaded = true;
+          _activePackIndex = 0;
+        });
+      }
+    } catch (_) {}
+  }
+
+  void _onGridScroll() {
+    if (_programmaticScroll || !_loaded) return;
+    final scrollOffset = _gridScrollController.offset;
+    int bestIndex = 0;
+    double bestDistance = double.infinity;
+    for (int i = 0; i < _sectionKeys.length; i++) {
+      final keyContext = _sectionKeys[i].currentContext;
+      if (keyContext == null) continue;
+      final box = keyContext.findRenderObject() as RenderBox;
+      final pos = box.localToGlobal(Offset.zero, ancestor: context.findRenderObject());
+      final dist = pos.dy.abs();
+      if (dist < bestDistance) {
+        bestDistance = dist;
+        bestIndex = i;
+      }
+    }
+    if (bestIndex != _activePackIndex) {
+      setState(() => _activePackIndex = bestIndex);
+      _scrollFooterToIndex(bestIndex);
+    }
+  }
+
+  void _scrollFooterToIndex(int index) {
+    if (!_footerScrollController.hasClients) return;
+    final iconWidth = _kStickerFooterHeight;
+    final targetOffset = (index * iconWidth - _footerScrollController.position.viewportDimension / 2 + iconWidth / 2)
+        .clamp(0.0, _footerScrollController.position.maxScrollExtent);
+    _footerScrollController.animateTo(
+      targetOffset,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void _scrollToSection(int index) {
+    if (index < 0 || index >= _sectionKeys.length) return;
+    setState(() => _activePackIndex = index);
+    _scrollFooterToIndex(index);
+    final keyContext = _sectionKeys[index].currentContext;
+    if (keyContext == null) return;
+    _programmaticScroll = true;
+    Scrollable.ensureVisible(
+      keyContext,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOutCubic,
+      alignment: 0.0,
+    ).then((_) {
+      _programmaticScroll = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    if (!_loaded) {
+      return Center(
+        child: SizedBox(
+          width: 24, height: 24,
+          child: CircularProgressIndicator(strokeWidth: 2, color: isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd)),
+        ),
+      );
+    }
+    if (_packs.isEmpty && _recentStickers.isEmpty) {
+      return Center(
+        child: Text(
+          'No stickers installed',
+          style: TextStyle(fontSize: 14, color: isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999)),
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        Expanded(child: _buildGrid(isDark)),
+        _StickerPackFooter(
+          packs: _packs,
+          hasRecent: _recentStickers.isNotEmpty,
+          activeIndex: _activePackIndex,
+          scrollController: _footerScrollController,
+          onPackTapped: _scrollToSection,
+          isDark: isDark,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGrid(bool isDark) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableWidth = constraints.maxWidth - 2 * _kStickerGridPadding;
+        final colCount = (availableWidth / _kStickerCellSize).floor().clamp(1, 10);
+        final cellSize = availableWidth / colCount;
+
+        final sections = <Widget>[];
+        int sectionIdx = 0;
+
+        if (_recentStickers.isNotEmpty) {
+          sections.add(_buildSection(
+            key: _sectionKeys[sectionIdx],
+            title: 'Recent',
+            stickers: _recentStickers,
+            colCount: colCount,
+            cellSize: cellSize,
+            isDark: isDark,
+          ));
+          sectionIdx++;
+        }
+
+        for (final pack in _packs) {
+          sections.add(_buildSection(
+            key: sectionIdx < _sectionKeys.length ? _sectionKeys[sectionIdx] : null,
+            title: pack.title,
+            stickers: pack.stickers,
+            colCount: colCount,
+            cellSize: cellSize,
+            isDark: isDark,
+          ));
+          sectionIdx++;
+        }
+
+        return ListView(
+          controller: _gridScrollController,
+          padding: const EdgeInsets.symmetric(horizontal: _kStickerGridPadding, vertical: 4),
+          children: sections,
+        );
+      },
+    );
+  }
+
+  Widget _buildSection({
+    Key? key,
+    required String title,
+    required List<StickerInfoItem> stickers,
+    required int colCount,
+    required double cellSize,
+    required bool isDark,
+  }) {
+    final headerColor = isDark ? const Color(0xFF8899a6) : const Color(0xFF666666);
+    final rows = <Widget>[];
+    for (int i = 0; i < stickers.length; i += colCount) {
+      final end = (i + colCount).clamp(0, stickers.length);
+      final rowStickers = stickers.sublist(i, end);
+      rows.add(Row(
+        children: [
+          for (final s in rowStickers)
+            SizedBox(
+              width: cellSize,
+              height: cellSize,
+              child: _StickerCell(
+                sticker: s,
+                onTap: () {
+                  widget.onStickerSelected?.call(s.emoji.isNotEmpty ? s.emoji : s.fileId);
+                },
+              ),
+            ),
+          if (rowStickers.length < colCount)
+            SizedBox(width: cellSize * (colCount - rowStickers.length)),
+        ],
+      ));
+    }
+
+    return Column(
+      key: key,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 8, bottom: 4, left: 2),
+          child: Text(
+            title,
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: headerColor),
+          ),
+        ),
+        ...rows,
+      ],
+    );
+  }
+}
+
+class _StickerCell extends StatefulWidget {
+  final StickerInfoItem sticker;
+  final VoidCallback onTap;
+
+  const _StickerCell({required this.sticker, required this.onTap});
+
+  @override
+  State<_StickerCell> createState() => _StickerCellState();
+}
+
+class _StickerCellState extends State<_StickerCell> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final hoverBg = isDark ? const Color(0xFF202b36) : const Color(0xFFf0f0f0);
+
+    Widget child;
+    if (widget.sticker.thumbB64.isNotEmpty) {
+      try {
+        final bytes = _decodeStrippedThumbB64(widget.sticker.thumbB64);
+        child = Image.memory(
+          bytes,
+          fit: BoxFit.contain,
+          width: _kStickerCellSize - 8,
+          height: _kStickerCellSize - 8,
+          gaplessPlayback: true,
+        );
+      } catch (_) {
+        child = _stickerFallback();
+      }
+    } else {
+      child = _stickerFallback();
+    }
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 100),
+          decoration: BoxDecoration(
+            color: _hovered ? hoverBg : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          alignment: Alignment.center,
+          child: child,
+        ),
+      ),
+    );
+  }
+
+  Widget _stickerFallback() {
+    return Text(
+      widget.sticker.emoji.isNotEmpty ? widget.sticker.emoji : '🖼',
+      style: const TextStyle(fontSize: 32),
+    );
+  }
+}
+
+class _StickerPackFooter extends StatelessWidget {
+  final List<StickerPackSummary> packs;
+  final bool hasRecent;
+  final int activeIndex;
+  final ScrollController scrollController;
+  final ValueChanged<int> onPackTapped;
+  final bool isDark;
+
+  const _StickerPackFooter({
+    required this.packs,
+    required this.hasRecent,
+    required this.activeIndex,
+    required this.scrollController,
+    required this.onPackTapped,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final borderColor = isDark ? const Color(0xFF1e2c3a) : const Color(0xFFe8e8e8);
+    final activeBg = isDark ? const Color(0xFF2b3d4f) : const Color(0xFFe8e8e8);
+    final inactiveColor = isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999);
+
+    final items = <Widget>[];
+    int itemIdx = 0;
+
+    if (hasRecent) {
+      final isActive = activeIndex == itemIdx;
+      items.add(_footerIcon(
+        index: itemIdx,
+        isActive: isActive,
+        activeBg: activeBg,
+        child: Icon(Icons.access_time, size: 22, color: isActive ? (isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd)) : inactiveColor),
+      ));
+      itemIdx++;
+    }
+
+    for (final pack in packs) {
+      final isActive = activeIndex == itemIdx;
+      Widget iconWidget;
+      if (pack.thumbB64.isNotEmpty) {
+        try {
+          final bytes = _decodeStrippedThumbB64(pack.thumbB64);
+          iconWidget = ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: Image.memory(bytes, fit: BoxFit.cover, width: 26, height: 26, gaplessPlayback: true),
+          );
+        } catch (_) {
+          iconWidget = Icon(Icons.sticky_note_2_outlined, size: 22, color: isActive ? (isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd)) : inactiveColor);
+        }
+      } else {
+        iconWidget = Icon(Icons.sticky_note_2_outlined, size: 22, color: isActive ? (isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd)) : inactiveColor);
+      }
+      items.add(_footerIcon(
+        index: itemIdx,
+        isActive: isActive,
+        activeBg: activeBg,
+        child: iconWidget,
+      ));
+      itemIdx++;
+    }
+
+    return Container(
+      height: _kStickerFooterHeight,
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: borderColor, width: 1)),
+      ),
+      child: ListView(
+        controller: scrollController,
+        scrollDirection: Axis.horizontal,
+        children: items,
+      ),
+    );
+  }
+
+  Widget _footerIcon({required int index, required bool isActive, required Color activeBg, required Widget child}) {
+    return GestureDetector(
+      onTap: () => onPackTapped(index),
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: _kStickerFooterHeight,
+        height: _kStickerFooterHeight,
+        decoration: BoxDecoration(
+          color: isActive ? activeBg : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        alignment: Alignment.center,
+        child: child,
       ),
     );
   }

@@ -1532,6 +1532,30 @@ class CustomEmojiSetSummary {
   });
 }
 
+class StickerPackSummary {
+  final int setId;
+  final int accessHash;
+  final String title;
+  final String shortName;
+  final int count;
+  final bool animated;
+  final bool video;
+  final String thumbB64;
+  final List<StickerInfoItem> stickers;
+
+  const StickerPackSummary({
+    this.setId = 0,
+    this.accessHash = 0,
+    this.title = '',
+    this.shortName = '',
+    this.count = 0,
+    this.animated = false,
+    this.video = false,
+    this.thumbB64 = '',
+    this.stickers = const [],
+  });
+}
+
 class InlineBotResult {
   final String id;
   final String type;

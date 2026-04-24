@@ -458,6 +458,62 @@ class EngineService {
     }
   }
 
+  // ── Installed sticker packs ──
+
+  Future<List<StickerPackSummary>> getInstalledStickerPacks(String accountId) async {
+    final req = epb.EngineGetInstalledStickerPacksRequest()
+      ..accountId = accountId;
+    try {
+      final respBytes = await _callAsync('__engine', 'GetInstalledStickerPacks', req.writeToBuffer());
+      if (respBytes.isEmpty) return [];
+      final resp = epb.EngineGetInstalledStickerPacksResponse.fromBuffer(respBytes);
+      return resp.packs.map((p) => StickerPackSummary(
+        setId: p.setId.toInt(),
+        accessHash: p.accessHash.toInt(),
+        title: p.title,
+        shortName: p.shortName,
+        count: p.count,
+        animated: p.animated,
+        video: p.video,
+        thumbB64: p.thumbB64,
+        stickers: p.stickers.map((s) => StickerInfoItem(
+          emoji: s.emoji,
+          thumbB64: s.thumbB64,
+          width: s.width,
+          height: s.height,
+          mimeType: s.mimeType,
+          fileId: s.fileId,
+        )).toList(),
+      )).toList();
+    } catch (e) {
+      Debug.error('ENGINE', 'getInstalledStickerPacks failed', e);
+      return [];
+    }
+  }
+
+  // ── Recent stickers ──
+
+  Future<List<StickerInfoItem>> getRecentStickers(String accountId) async {
+    final req = epb.EngineGetRecentStickersRequest()
+      ..accountId = accountId;
+    try {
+      final respBytes = await _callAsync('__engine', 'GetRecentStickers', req.writeToBuffer());
+      if (respBytes.isEmpty) return [];
+      final resp = epb.EngineGetRecentStickersResponse.fromBuffer(respBytes);
+      return resp.stickers.map((s) => StickerInfoItem(
+        emoji: s.emoji,
+        thumbB64: s.thumbB64,
+        width: s.width,
+        height: s.height,
+        mimeType: s.mimeType,
+        fileId: s.fileId,
+      )).toList();
+    } catch (e) {
+      Debug.error('ENGINE', 'getRecentStickers failed', e);
+      return [];
+    }
+  }
+
   // ── Voice transcription ──
 
   Future<({bool pending, int transcriptionId, String text})?> transcribeAudio(String accountId, String chatId, String msgId) async {
