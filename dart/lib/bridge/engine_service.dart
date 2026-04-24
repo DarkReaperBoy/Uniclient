@@ -737,6 +737,25 @@ class EngineService {
     }
   }
 
+  Future<List<GifInfoItem>> getSavedGifs(String accountId) async {
+    final req = epb.EngineGetSavedGifsRequest()..accountId = accountId;
+    try {
+      final respBytes = await _callAsync('__engine', 'GetSavedGifs', req.writeToBuffer());
+      if (respBytes.isEmpty) return [];
+      final resp = epb.EngineGetSavedGifsResponse.fromBuffer(respBytes);
+      return resp.gifs.map((g) => GifInfoItem(
+        thumbB64: g.thumbB64,
+        width: g.width,
+        height: g.height,
+        mimeType: g.mimeType,
+        fileId: g.fileId,
+      )).toList();
+    } catch (e) {
+      Debug.error('ENGINE', 'getSavedGifs failed', e);
+      return [];
+    }
+  }
+
   // ── Attach menu bots ──
 
   Future<List<AttachMenuBotInfo>> getAttachMenuBots(String accountId) async {

@@ -932,6 +932,25 @@ func (e *Engine) GetInstalledStickerPacks(accountID string) ([]cores.StickerPack
 	return fetcher.GetInstalledStickerPacks()
 }
 
+type SavedGifsFetcher interface {
+	GetSavedGifs() ([]cores.GifInfo, error)
+}
+
+func (e *Engine) GetSavedGifs(accountID string) ([]cores.GifInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(SavedGifsFetcher)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support saved GIFs")
+	}
+	return fetcher.GetSavedGifs()
+}
+
 type RecentStickersFetcher interface {
 	GetRecentStickers() ([]cores.StickerInfo, error)
 }

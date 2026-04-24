@@ -34,6 +34,27 @@ message CallInfo {
   bytes protocol = 8;
 }
 
+message InlineBotResult {
+  string id = 1;
+  string type = 2;
+  string title = 3;
+  string description = 4;
+  string thumb_url = 5;
+  string content_url = 6;
+  int64 thumb_w = 7;
+  int64 thumb_h = 8;
+  string thumb_b64 = 9;
+}
+
+message InlineBotResults {
+  int64 query_id = 1;
+  string next_offset = 2;
+  bool gallery = 3;
+  repeated InlineBotResult results = 4;
+  string switch_p_m = 5;
+  string switch_p_m_param = 6;
+}
+
 message PeerColorEntry {
   int64 color_id = 1;
   repeated int64 day_colors = 2;
@@ -2192,7 +2213,8 @@ message TelegramExportMessageLinkResponse {
 
 message TelegramFaveStickerRequest {
   int64 file_id = 1;
-  bool unfave = 2;
+  string extra = 2;
+  bool unfave = 3;
 }
 
 message TelegramFaveStickerResponse {
@@ -2205,6 +2227,17 @@ message TelegramForwardMessageRequest {
 }
 
 message TelegramForwardMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message TelegramForwardMessageWithOptionsRequest {
+  string from_chat_id = 1;
+  string msg_id = 2;
+  string to_chat_id = 3;
+  ForwardOptions opts = 4;
+}
+
+message TelegramForwardMessageWithOptionsResponse {
   uniclient.Message result_1 = 1;
 }
 
@@ -2421,6 +2454,13 @@ message TelegramGetFavedStickersResponse {
   int64 result_1 = 1;
 }
 
+message TelegramGetFeaturedStickerPacksRequest {
+}
+
+message TelegramGetFeaturedStickerPacksResponse {
+  repeated StickerPackSummary result_1 = 1;
+}
+
 message TelegramGetFeaturedStickersCountRequest {
 }
 
@@ -2527,6 +2567,31 @@ message TelegramGetInlineBotResultsRequest {
 
 message TelegramGetInlineBotResultsResponse {
   int64 result_1 = 1;
+}
+
+message TelegramGetInlineBotResultsFullRequest {
+  string bot_id = 1;
+  string query = 2;
+  string offset = 3;
+  string chat_id = 4;
+}
+
+message TelegramGetInlineBotResultsFullResponse {
+  InlineBotResults result_1 = 1;
+}
+
+message TelegramGetInstalledEmojiSetsRequest {
+}
+
+message TelegramGetInstalledEmojiSetsResponse {
+  repeated EmojiSetSummary result_1 = 1;
+}
+
+message TelegramGetInstalledStickerPacksRequest {
+}
+
+message TelegramGetInstalledStickerPacksResponse {
+  repeated StickerPackSummary result_1 = 1;
 }
 
 message TelegramGetInviteImportersRequest {
@@ -2687,6 +2752,14 @@ message TelegramGetPinnedMessagesResponse {
   repeated uniclient.Message result_1 = 1;
 }
 
+message TelegramGetPinnedStarGiftsRequest {
+  string chat_id = 1;
+}
+
+message TelegramGetPinnedStarGiftsResponse {
+  PinnedGiftsResult result_1 = 1;
+}
+
 message TelegramGetPinnedStoriesRequest {
   string user_id = 1;
 }
@@ -2747,11 +2820,25 @@ message TelegramGetReadStateResponse {
   uniclient.ReadState result_1 = 1;
 }
 
+message TelegramGetRecentStickersRequest {
+}
+
+message TelegramGetRecentStickersResponse {
+  repeated StickerInfo result_1 = 1;
+}
+
 message TelegramGetRecentStickersCountRequest {
 }
 
 message TelegramGetRecentStickersCountResponse {
   int64 result_1 = 1;
+}
+
+message TelegramGetSavedGifsRequest {
+}
+
+message TelegramGetSavedGifsResponse {
+  repeated GifInfo result_1 = 1;
 }
 
 message TelegramGetScheduledMessagesRequest {
@@ -2791,6 +2878,21 @@ message TelegramGetSessionsRequest {
 
 message TelegramGetSessionsResponse {
   repeated uniclient.Session result_1 = 1;
+}
+
+message TelegramGetSimilarChannelsRequest {
+  string chat_id = 1;
+}
+
+message TelegramGetSimilarChannelsResponse {
+  repeated uniclient.Dialog result_1 = 1;
+}
+
+message TelegramGetStarGiftsRequest {
+}
+
+message TelegramGetStarGiftsResponse {
+  StarGiftsResult result_1 = 1;
 }
 
 message TelegramGetStickerSetRequest {
@@ -2866,6 +2968,14 @@ message TelegramGetWebPagePreviewRequest {
 
 message TelegramGetWebPagePreviewResponse {
   string result_1 = 1;
+}
+
+message TelegramGetWebPagePreviewFullRequest {
+  string url = 1;
+}
+
+message TelegramGetWebPagePreviewFullResponse {
+  WebPagePreviewResult result_1 = 1;
 }
 
 message TelegramHelpAcceptTermsOfServiceRequest {
@@ -3051,6 +3161,14 @@ message TelegramImportContactsRequest {
 
 message TelegramImportContactsResponse {
   int64 result_1 = 1;
+}
+
+message TelegramInstallStickerSetRequest {
+  int64 set_id = 1;
+  int64 access_hash = 2;
+}
+
+message TelegramInstallStickerSetResponse {
 }
 
 message TelegramInviteToChannelRequest {
@@ -4524,6 +4642,14 @@ message TelegramMuteChatRequest {
 message TelegramMuteChatResponse {
 }
 
+message TelegramMuteChatForRequest {
+  string chat_id = 1;
+  int32 duration_seconds = 2;
+}
+
+message TelegramMuteChatForResponse {
+}
+
 message TelegramNameRequest {
 }
 
@@ -4876,6 +5002,14 @@ message TelegramPromoteAdminRequest {
 message TelegramPromoteAdminResponse {
 }
 
+message TelegramPromoteToAdminRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message TelegramPromoteToAdminResponse {
+}
+
 message TelegramProvideAuthCodeRequest {
   string code = 1;
 }
@@ -4982,6 +5116,17 @@ message TelegramReplyToMessageResponse {
   uniclient.Message result_1 = 1;
 }
 
+message TelegramReportMessageRequest {
+  string chat_id = 1;
+  repeated int64 msg_ids = 2;
+  bytes option = 3;
+  string message = 4;
+}
+
+message TelegramReportMessageResponse {
+  ReportResult result_1 = 1;
+}
+
 message TelegramResolvePhoneRequest {
   string phone = 1;
 }
@@ -4998,6 +5143,14 @@ message TelegramResolveUsernameResponse {
   string result_1 = 1;
 }
 
+message TelegramRestrictMemberRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message TelegramRestrictMemberResponse {
+}
+
 message TelegramRestrictUserRequest {
   string chat_id = 1;
   string user_id = 2;
@@ -5007,12 +5160,37 @@ message TelegramRestrictUserRequest {
 message TelegramRestrictUserResponse {
 }
 
+message TelegramRetractPollVoteRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message TelegramRetractPollVoteResponse {
+}
+
+message TelegramSaveDefaultSendAsRequest {
+  string chat_id = 1;
+  string peer_id = 2;
+}
+
+message TelegramSaveDefaultSendAsResponse {
+}
+
 message TelegramSaveDraftRequest {
   string chat_id = 1;
   string text = 2;
 }
 
 message TelegramSaveDraftResponse {
+}
+
+message TelegramSaveGifRequest {
+  int64 file_id = 1;
+  string extra = 2;
+  bool unsave = 3;
+}
+
+message TelegramSaveGifResponse {
 }
 
 message TelegramSearchContactsCountRequest {
@@ -5049,6 +5227,14 @@ message TelegramSearchMessagesGlobalRequest {
 
 message TelegramSearchMessagesGlobalResponse {
   repeated uniclient.Message result_1 = 1;
+}
+
+message TelegramSearchStickerSetsRequest {
+  string query = 1;
+}
+
+message TelegramSearchStickerSetsResponse {
+  repeated StickerPackSummary result_1 = 1;
 }
 
 message TelegramSearchStickerSetsCountRequest {
@@ -5559,6 +5745,14 @@ message TelegramStopGroupCallScreenShareRequest {
 }
 
 message TelegramStopGroupCallScreenShareResponse {
+}
+
+message TelegramStopPollRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message TelegramStopPollResponse {
 }
 
 message TelegramStopScreenShareRequest {
@@ -6188,6 +6382,15 @@ message TelegramVoteInPollRequest {
 }
 
 message TelegramVoteInPollResponse {
+}
+
+message TelegramVoteInPollMultiRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  repeated int64 option_indices = 3;
+}
+
+message TelegramVoteInPollMultiResponse {
 }
 
 message TelegramVotePollRequest {

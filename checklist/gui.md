@@ -476,8 +476,7 @@
 
 ### §10.5 GIF Tab
 <!-- File: dart/lib/ui/emoji_panel.dart -->
-- [ ] GIF tab: margins(9,5,3,9); line-packing layout (fill rows until next won't fit; row height uniform within row); 3px inter-item skip on both axes — spec §10.5
-- [ ] Default source: saved GIFs; query switches to @gif bot results; category shortcuts footer (emoji tokens); context menu: Save GIF / Delete GIF — spec §10.5
+- [ ] GIF tab: category shortcuts footer (emoji tokens) — spec §10.5
 
 ### §10.6 Inline Suggestions (Field Autocomplete)
 <!-- File: dart/lib/ui/emoji_panel.dart or separate widget -->

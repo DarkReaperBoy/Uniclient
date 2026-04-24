@@ -913,6 +913,22 @@ message EngineSaveGifRequest {
   string extra      = 4;
 }
 
+message EngineGifInfo {
+  string thumb_b64  = 1;
+  int32  width      = 2;
+  int32  height     = 3;
+  string mime_type  = 4;
+  string file_id    = 5;
+}
+
+message EngineGetSavedGifsRequest {
+  string account_id = 1;
+}
+
+message EngineGetSavedGifsResponse {
+  repeated EngineGifInfo gifs = 1;
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // Translation
 // ═══════════════════════════════════════════════════════════════════════

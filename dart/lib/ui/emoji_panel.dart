@@ -408,7 +408,7 @@ class _TabContent extends StatelessWidget {
   Widget _buildTabWidget(int index, Color placeholderColor) {
     if (index == 0) return _EmojiTab(onEmojiSelected: onEmojiSelected);
     if (index == 1) return _StickerTab(onStickerSelected: onEmojiSelected);
-    return _buildPlaceholder('GIFs', Icons.gif_box_outlined, placeholderColor);
+    return _GifTab(onGifSelected: onEmojiSelected);
   }
 
   @override
@@ -2011,4 +2011,462 @@ class _EmojiCategoryBar extends StatelessWidget {
       ),
     );
   }
+}
+
+const double _kGifPadLeft = 9.0;
+const double _kGifPadTop = 5.0;
+const double _kGifPadRight = 3.0;
+const double _kGifPadBottom = 9.0;
+const double _kGifItemSkip = 3.0;
+const double _kGifRowBaseHeight = 100.0;
+
+class _GifTab extends StatefulWidget {
+  final ValueChanged<String>? onGifSelected;
+
+  const _GifTab({this.onGifSelected});
+
+  @override
+  State<_GifTab> createState() => _GifTabState();
+}
+
+class _GifTabState extends State<_GifTab> {
+  List<GifInfoItem> _gifs = [];
+  bool _loaded = false;
+  bool _searching = false;
+  String _searchQuery = '';
+  List<InlineBotResult> _searchResults = [];
+  final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+  Timer? _searchDebounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(_onSearchChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _scrollController.dispose();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadData() async {
+    if (_loaded) return;
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+    final activeAccount = appState.activeAccount;
+    if (activeAccount == null) return;
+    try {
+      final gifs = await engine.getSavedGifs(activeAccount.id);
+      if (mounted) {
+        setState(() {
+          _gifs = gifs;
+          _loaded = true;
+        });
+      }
+    } catch (_) {}
+  }
+
+  void _onSearchChanged() {
+    _searchDebounce?.cancel();
+    final query = _searchController.text.trim();
+    if (query.isEmpty) {
+      setState(() {
+        _searching = false;
+        _searchQuery = '';
+        _searchResults = [];
+      });
+      return;
+    }
+    setState(() => _searching = true);
+    _searchDebounce = Timer(_kSearchDebounce, () => _performSearch(query));
+  }
+
+  Future<void> _performSearch(String query) async {
+    if (!mounted) return;
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+    final activeAccount = appState.activeAccount;
+    if (activeAccount == null) return;
+    final results = await engine.getInlineBotResults(
+      activeAccount.id, 'gif', query,
+    );
+    if (results != null && mounted && _searchController.text.trim() == query) {
+      setState(() {
+        _searchQuery = query;
+        _searchResults = results.results;
+      });
+    }
+  }
+
+  void _onGifTap(String fileId) {
+    widget.onGifSelected?.call(fileId);
+  }
+
+  void _onSavedGifContextMenu(GifInfoItem gif, Offset globalPos) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final result = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        globalPos.dx, globalPos.dy, globalPos.dx + 1, globalPos.dy + 1,
+      ),
+      items: [
+        PopupMenuItem(
+          value: 'delete',
+          child: Text(
+            'Delete GIF',
+            style: TextStyle(
+              color: isDark ? const Color(0xFFe53935) : const Color(0xFFdd4b39),
+            ),
+          ),
+        ),
+      ],
+    );
+    if (result == 'delete' && mounted) {
+      final appState = context.read<AppState>();
+      final engine = context.read<EngineService>();
+      final activeAccount = appState.activeAccount;
+      if (activeAccount == null) return;
+      final fileId = int.tryParse(gif.fileId) ?? 0;
+      final ok = await engine.saveGif(activeAccount.id, fileId, unsave: true);
+      if (ok && mounted) {
+        setState(() {
+          _gifs.removeWhere((g) => g.fileId == gif.fileId);
+        });
+      }
+    }
+  }
+
+  void _onSearchResultContextMenu(InlineBotResult result, Offset globalPos) async {
+    final menuResult = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        globalPos.dx, globalPos.dy, globalPos.dx + 1, globalPos.dy + 1,
+      ),
+      items: [
+        const PopupMenuItem(value: 'save', child: Text('Save GIF')),
+      ],
+    );
+    if (menuResult == 'save' && mounted) {
+      final appState = context.read<AppState>();
+      final engine = context.read<EngineService>();
+      final activeAccount = appState.activeAccount;
+      if (activeAccount == null) return;
+      final fileId = int.tryParse(result.id) ?? 0;
+      await engine.saveGif(activeAccount.id, fileId);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Column(
+      children: [
+        _buildSearchBar(isDark),
+        Expanded(
+          child: _searching
+              ? _buildSearchResults(isDark)
+              : _buildSavedGifs(isDark),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSearchBar(bool isDark) {
+    final barBg = isDark ? const Color(0xFF1c2733) : const Color(0xFFe8ecf0);
+    final hintColor = isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+      child: SizedBox(
+        height: 30,
+        child: TextField(
+          controller: _searchController,
+          focusNode: _searchFocusNode,
+          style: TextStyle(
+            fontSize: 13,
+            color: isDark ? Colors.white : Colors.black,
+          ),
+          decoration: InputDecoration(
+            hintText: 'Search GIFs',
+            hintStyle: TextStyle(fontSize: 13, color: hintColor),
+            prefixIcon: Icon(Icons.search, size: 18, color: hintColor),
+            prefixIconConstraints: const BoxConstraints(minWidth: 32),
+            suffixIcon: _searchController.text.isNotEmpty
+                ? GestureDetector(
+                    onTap: () {
+                      _searchController.clear();
+                      _searchFocusNode.unfocus();
+                    },
+                    child: Icon(Icons.close, size: 16, color: hintColor),
+                  )
+                : null,
+            filled: true,
+            fillColor: barBg,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(15),
+              borderSide: BorderSide.none,
+            ),
+            contentPadding: const EdgeInsets.symmetric(vertical: 0),
+            isDense: true,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSavedGifs(bool isDark) {
+    if (!_loaded) {
+      return const Center(
+        child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
+      );
+    }
+    if (_gifs.isEmpty) {
+      final color = isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999);
+      return Center(
+        child: Text('No saved GIFs', style: TextStyle(fontSize: 13, color: color)),
+      );
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availW = constraints.maxWidth - _kGifPadLeft - _kGifPadRight;
+        final rows = _packGifRows(_gifs.map((g) => _GifLayoutItem(
+          width: g.width > 0 ? g.width : 100,
+          height: g.height > 0 ? g.height : 100,
+          gif: g,
+        )).toList(), availW);
+        return ListView.builder(
+          controller: _scrollController,
+          padding: const EdgeInsets.only(
+            left: _kGifPadLeft, top: _kGifPadTop,
+            right: _kGifPadRight, bottom: _kGifPadBottom,
+          ),
+          itemCount: rows.length,
+          itemBuilder: (context, rowIdx) {
+            final row = rows[rowIdx];
+            return Padding(
+              padding: EdgeInsets.only(bottom: rowIdx < rows.length - 1 ? _kGifItemSkip : 0),
+              child: SizedBox(
+                height: row.height,
+                child: Row(
+                  children: [
+                    for (int i = 0; i < row.items.length; i++) ...[
+                      if (i > 0) const SizedBox(width: _kGifItemSkip),
+                      SizedBox(
+                        width: row.itemWidths[i],
+                        height: row.height,
+                        child: _GifCell(
+                          gif: row.items[i].gif!,
+                          onTap: () => _onGifTap(row.items[i].gif!.fileId),
+                          onContextMenu: (pos) => _onSavedGifContextMenu(row.items[i].gif!, pos),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildSearchResults(bool isDark) {
+    if (_searchResults.isEmpty) {
+      final color = isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999);
+      return Center(
+        child: _searchQuery.isNotEmpty
+            ? Text('No results', style: TextStyle(fontSize: 13, color: color))
+            : const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
+      );
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availW = constraints.maxWidth - _kGifPadLeft - _kGifPadRight;
+        final rows = _packGifRows(_searchResults.map((r) => _GifLayoutItem(
+          width: r.thumbW > 0 ? r.thumbW : 100,
+          height: r.thumbH > 0 ? r.thumbH : 100,
+          inlineResult: r,
+        )).toList(), availW);
+        return ListView.builder(
+          controller: _scrollController,
+          padding: const EdgeInsets.only(
+            left: _kGifPadLeft, top: _kGifPadTop,
+            right: _kGifPadRight, bottom: _kGifPadBottom,
+          ),
+          itemCount: rows.length,
+          itemBuilder: (context, rowIdx) {
+            final row = rows[rowIdx];
+            return Padding(
+              padding: EdgeInsets.only(bottom: rowIdx < rows.length - 1 ? _kGifItemSkip : 0),
+              child: SizedBox(
+                height: row.height,
+                child: Row(
+                  children: [
+                    for (int i = 0; i < row.items.length; i++) ...[
+                      if (i > 0) const SizedBox(width: _kGifItemSkip),
+                      SizedBox(
+                        width: row.itemWidths[i],
+                        height: row.height,
+                        child: _GifSearchCell(
+                          result: row.items[i].inlineResult!,
+                          onTap: () => _onGifTap(row.items[i].inlineResult!.id),
+                          onContextMenu: (pos) => _onSearchResultContextMenu(row.items[i].inlineResult!, pos),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _GifLayoutItem {
+  final int width;
+  final int height;
+  final GifInfoItem? gif;
+  final InlineBotResult? inlineResult;
+
+  _GifLayoutItem({required this.width, required this.height, this.gif, this.inlineResult});
+
+  double get aspect => width > 0 && height > 0 ? width / height : 1.0;
+}
+
+class _GifRow {
+  final List<_GifLayoutItem> items;
+  final List<double> itemWidths;
+  final double height;
+
+  _GifRow({required this.items, required this.itemWidths, required this.height});
+}
+
+List<_GifRow> _packGifRows(List<_GifLayoutItem> items, double availableWidth) {
+  if (items.isEmpty) return [];
+  final rows = <_GifRow>[];
+  int i = 0;
+  while (i < items.length) {
+    final rowItems = <_GifLayoutItem>[];
+    double totalAspect = 0;
+    int j = i;
+    while (j < items.length) {
+      final item = items[j];
+      final newAspect = totalAspect + item.aspect;
+      final gaps = rowItems.length * _kGifItemSkip;
+      final rowH = (availableWidth - gaps) / newAspect;
+      if (rowItems.isNotEmpty && rowH < _kGifRowBaseHeight * 0.6) break;
+      rowItems.add(item);
+      totalAspect = newAspect;
+      j++;
+      if (rowH <= _kGifRowBaseHeight) break;
+    }
+    if (rowItems.isEmpty) {
+      rowItems.add(items[i]);
+      totalAspect = items[i].aspect;
+      j = i + 1;
+    }
+    final gaps = (rowItems.length - 1) * _kGifItemSkip;
+    final rowH = ((availableWidth - gaps) / totalAspect).clamp(40.0, 200.0);
+    final widths = rowItems.map((it) => it.aspect * rowH).toList();
+    final widthSum = widths.fold(0.0, (a, b) => a + b) + gaps;
+    if (widthSum > 0) {
+      final scale = (availableWidth) / widthSum;
+      for (int k = 0; k < widths.length; k++) {
+        widths[k] *= scale;
+      }
+    }
+    rows.add(_GifRow(items: rowItems, itemWidths: widths, height: rowH));
+    i = j;
+  }
+  return rows;
+}
+
+class _GifCell extends StatelessWidget {
+  final GifInfoItem gif;
+  final VoidCallback onTap;
+  final ValueChanged<Offset> onContextMenu;
+
+  const _GifCell({required this.gif, required this.onTap, required this.onContextMenu});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    Widget thumb;
+    if (gif.thumbB64.isNotEmpty) {
+      try {
+        final bytes = _decodeStrippedThumbB64(gif.thumbB64);
+        thumb = Image.memory(bytes, fit: BoxFit.cover, gaplessPlayback: true);
+      } catch (_) {
+        thumb = _gifPlaceholder(isDark);
+      }
+    } else {
+      thumb = _gifPlaceholder(isDark);
+    }
+    return GestureDetector(
+      onTap: onTap,
+      onSecondaryTapUp: (d) => onContextMenu(d.globalPosition),
+      onLongPressStart: (d) => onContextMenu(d.globalPosition),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: thumb,
+      ),
+    );
+  }
+}
+
+class _GifSearchCell extends StatelessWidget {
+  final InlineBotResult result;
+  final VoidCallback onTap;
+  final ValueChanged<Offset> onContextMenu;
+
+  const _GifSearchCell({required this.result, required this.onTap, required this.onContextMenu});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    Widget thumb;
+    if (result.thumbB64.isNotEmpty) {
+      try {
+        final bytes = _decodeStrippedThumbB64(result.thumbB64);
+        thumb = Image.memory(bytes, fit: BoxFit.cover, gaplessPlayback: true);
+      } catch (_) {
+        thumb = _gifPlaceholder(isDark);
+      }
+    } else {
+      thumb = _gifPlaceholder(isDark);
+    }
+    return GestureDetector(
+      onTap: onTap,
+      onSecondaryTapUp: (d) => onContextMenu(d.globalPosition),
+      onLongPressStart: (d) => onContextMenu(d.globalPosition),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: thumb,
+      ),
+    );
+  }
+}
+
+Widget _gifPlaceholder(bool isDark) {
+  return Container(
+    color: isDark ? const Color(0xFF1c2733) : const Color(0xFFe8ecf0),
+    child: Center(
+      child: Icon(
+        Icons.gif_box_outlined,
+        size: 24,
+        color: isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999),
+      ),
+    ),
+  );
 }

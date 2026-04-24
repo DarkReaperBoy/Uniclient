@@ -9624,6 +9624,148 @@ class EngineSaveGifRequest extends $pb.GeneratedMessage {
   set extra($core.String v) { $_setString(3, v); }
 }
 
+class EngineGifInfo extends $pb.GeneratedMessage {
+  factory EngineGifInfo({
+    $core.String? thumbB64,
+    $core.int? width,
+    $core.int? height,
+    $core.String? mimeType,
+    $core.String? fileId,
+  }) {
+    final $result = create();
+    if (thumbB64 != null) $result.thumbB64 = thumbB64;
+    if (width != null) $result.width = width;
+    if (height != null) $result.height = height;
+    if (mimeType != null) $result.mimeType = mimeType;
+    if (fileId != null) $result.fileId = fileId;
+    return $result;
+  }
+  EngineGifInfo._() : super();
+  factory EngineGifInfo.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGifInfo.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGifInfo', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'thumbB64')
+    ..a<$core.int>(2, _omitFieldNames ? '' : 'width', $pb.PbFieldType.O3)
+    ..a<$core.int>(3, _omitFieldNames ? '' : 'height', $pb.PbFieldType.O3)
+    ..aOS(4, _omitFieldNames ? '' : 'mimeType')
+    ..aOS(5, _omitFieldNames ? '' : 'fileId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGifInfo clone() => EngineGifInfo()..mergeFromMessage(this);
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGifInfo copyWith(void Function(EngineGifInfo) updates) => super.copyWith((message) => updates(message as EngineGifInfo)) as EngineGifInfo;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGifInfo create() => EngineGifInfo._();
+  EngineGifInfo createEmptyInstance() => create();
+  static $pb.PbList<EngineGifInfo> createRepeated() => $pb.PbList<EngineGifInfo>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGifInfo getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGifInfo>(create);
+  static EngineGifInfo? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get thumbB64 => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set thumbB64($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.int get width => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set width($core.int v) { $_setSignedInt32(1, v); }
+
+  @$pb.TagNumber(3)
+  $core.int get height => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set height($core.int v) { $_setSignedInt32(2, v); }
+
+  @$pb.TagNumber(4)
+  $core.String get mimeType => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set mimeType($core.String v) { $_setString(3, v); }
+
+  @$pb.TagNumber(5)
+  $core.String get fileId => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set fileId($core.String v) { $_setString(4, v); }
+}
+
+class EngineGetSavedGifsRequest extends $pb.GeneratedMessage {
+  factory EngineGetSavedGifsRequest({
+    $core.String? accountId,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    return $result;
+  }
+  EngineGetSavedGifsRequest._() : super();
+  factory EngineGetSavedGifsRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetSavedGifsRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGetSavedGifsRequest clone() => EngineGetSavedGifsRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGetSavedGifsRequest copyWith(void Function(EngineGetSavedGifsRequest) updates) => super.copyWith((message) => updates(message as EngineGetSavedGifsRequest)) as EngineGetSavedGifsRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetSavedGifsRequest create() => EngineGetSavedGifsRequest._();
+  EngineGetSavedGifsRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineGetSavedGifsRequest> createRepeated() => $pb.PbList<EngineGetSavedGifsRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetSavedGifsRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetSavedGifsRequest>(create);
+  static EngineGetSavedGifsRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+}
+
+class EngineGetSavedGifsResponse extends $pb.GeneratedMessage {
+  factory EngineGetSavedGifsResponse({
+    $core.Iterable<EngineGifInfo>? gifs,
+  }) {
+    final $result = create();
+    if (gifs != null) $result.gifs.addAll(gifs);
+    return $result;
+  }
+  EngineGetSavedGifsResponse._() : super();
+  factory EngineGetSavedGifsResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetSavedGifsResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..pc<EngineGifInfo>(1, _omitFieldNames ? '' : 'gifs', $pb.PbFieldType.PM, subBuilder: EngineGifInfo.create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGetSavedGifsResponse clone() => EngineGetSavedGifsResponse()..mergeFromMessage(this);
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGetSavedGifsResponse copyWith(void Function(EngineGetSavedGifsResponse) updates) => super.copyWith((message) => updates(message as EngineGetSavedGifsResponse)) as EngineGetSavedGifsResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetSavedGifsResponse create() => EngineGetSavedGifsResponse._();
+  EngineGetSavedGifsResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineGetSavedGifsResponse> createRepeated() => $pb.PbList<EngineGetSavedGifsResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetSavedGifsResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetSavedGifsResponse>(create);
+  static EngineGetSavedGifsResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<EngineGifInfo> get gifs => $_getList(0);
+}
+
 class EngineTranslateTextRequest extends $pb.GeneratedMessage {
   factory EngineTranslateTextRequest({
     $core.String? accountId,

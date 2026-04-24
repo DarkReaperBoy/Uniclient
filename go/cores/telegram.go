@@ -11798,6 +11798,47 @@ func (t *TelegramCore) GetRecentStickers() ([]StickerInfo, error) {
 	return stickers, nil
 }
 
+func (t *TelegramCore) GetSavedGifs() ([]GifInfo, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	result, err := t.api.MessagesGetSavedGifs(t.ctx, 0)
+	if err != nil {
+		return nil, fmt.Errorf("get saved gifs: %w", err)
+	}
+	sg, ok := result.(*tg.MessagesSavedGifs)
+	if !ok {
+		return nil, nil
+	}
+	var gifs []GifInfo
+	for _, doc := range sg.Gifs {
+		d, ok := doc.(*tg.Document)
+		if !ok {
+			continue
+		}
+		t.cacheFileInfo(d.ID, d.AccessHash, d.FileReference)
+		gi := GifInfo{
+			ThumbB64: extractStrippedThumbB64(d.Thumbs),
+			MimeType: d.MimeType,
+			FileID:   strconv.FormatInt(d.ID, 10),
+		}
+		for _, attr := range d.Attributes {
+			switch a := attr.(type) {
+			case *tg.DocumentAttributeImageSize:
+				gi.Width = a.W
+				gi.Height = a.H
+			case *tg.DocumentAttributeVideo:
+				gi.Width = a.W
+				gi.Height = a.H
+			}
+		}
+		gifs = append(gifs, gi)
+	}
+	return gifs, nil
+}
+
 func (t *TelegramCore) GetFeaturedStickerPacks() ([]StickerPackSummary, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()

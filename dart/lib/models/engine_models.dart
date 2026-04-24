@@ -1466,6 +1466,22 @@ class StickerInfoItem {
   });
 }
 
+class GifInfoItem {
+  final String thumbB64;
+  final int width;
+  final int height;
+  final String mimeType;
+  final String fileId;
+
+  const GifInfoItem({
+    this.thumbB64 = '',
+    this.width = 0,
+    this.height = 0,
+    this.mimeType = '',
+    this.fileId = '',
+  });
+}
+
 class SendAsPeerInfo {
   final String peerId;
   final String displayName;

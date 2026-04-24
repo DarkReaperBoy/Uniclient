@@ -1125,6 +1125,27 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return []byte{}, nil
 
+	case "GetSavedGifs":
+		var req pb.EngineGetSavedGifsRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		gifs, err := e.GetSavedGifs(req.AccountId)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetSavedGifsResponse{}
+		for _, g := range gifs {
+			resp.Gifs = append(resp.Gifs, &pb.EngineGifInfo{
+				ThumbB64: g.ThumbB64,
+				Width:    int32(g.Width),
+				Height:   int32(g.Height),
+				MimeType: g.MimeType,
+				FileId:   g.FileID,
+			})
+		}
+		return proto.Marshal(resp)
+
 	case "TranslateText":
 		var req pb.EngineTranslateTextRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

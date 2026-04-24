@@ -258,6 +258,15 @@ type Reaction struct {
 	ByMe  bool   `json:"by_me"`
 }
 
+// GifInfo holds data for a single saved GIF animation.
+type GifInfo struct {
+	ThumbB64 string `json:"thumb_b64"`
+	Width    int    `json:"width"`
+	Height   int    `json:"height"`
+	MimeType string `json:"mime_type"`
+	FileID   string `json:"file_id"`
+}
+
 // StickerInfo holds data for a single sticker in a set.
 type StickerInfo struct {
 	Emoji    string `json:"emoji"`
