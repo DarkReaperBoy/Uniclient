@@ -430,8 +430,6 @@
 
 ### §9.1 Context Menu Chrome
 <!-- File: dart/lib/ui/popup_menu.dart (custom TelegramPopupMenu), all showMenu calls migrated -->
-- [ ] Top fade: fadeHeight 0.2, fadeBg menuBg — spec §9.1
-- [ ] Theme tokens: bg windowBg, hover windowBgOver, text windowFg, icon menuIconFg / menuIconFgOver — spec §9.1
 
 ### §9.2 Attention-Style Items
 <!-- File: dart/lib/ui/chat_view.dart -->

@@ -11,6 +11,7 @@ const double _kShadowOpacity = 0.25;
 const Duration _kOpenDuration = Duration(milliseconds: 200);
 const Duration _kCloseDuration = Duration(milliseconds: 150);
 const double _kScrollPaddingVertical = 8.0;
+const double _kFadeHeight = 0.2;
 
 Color _menuBg(Brightness b) =>
     b == Brightness.dark ? const Color(0xFF17212b) : const Color(0xFFffffff);
@@ -157,6 +158,38 @@ class _SineInOutCurve extends Curve {
   }
 }
 
+class _TopFadePainter extends CustomPainter {
+  final Color color;
+  final double fadeHeight;
+  final double animProgress;
+
+  _TopFadePainter({
+    required this.color,
+    required this.fadeHeight,
+    required this.animProgress,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final fadeOpacity = (1.0 - animProgress).clamp(0.0, 1.0);
+    if (fadeOpacity <= 0) return;
+    final h = size.height * fadeHeight;
+    final rect = Rect.fromLTWH(0, 0, size.width, h);
+    final gradient = LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [color.withOpacity(fadeOpacity), color.withOpacity(0)],
+    ).createShader(rect);
+    canvas.drawRect(rect, Paint()..shader = gradient);
+  }
+
+  @override
+  bool shouldRepaint(_TopFadePainter old) =>
+      color != old.color ||
+      fadeHeight != old.fadeHeight ||
+      animProgress != old.animProgress;
+}
+
 class _TelegramMenuOverlay<T> extends StatelessWidget {
   final Animation<double> animation;
   final Offset position;
@@ -236,7 +269,16 @@ class _TelegramMenuOverlay<T> extends StatelessWidget {
                       alignment: AlignmentDirectional.topStart,
                       widthFactor: widthFactor.clamp(0.0, 1.0),
                       heightFactor: heightFactor.clamp(0.0, 1.0),
-                      child: child,
+                      child: CustomPaint(
+                        foregroundPainter: animation.value < 1.0
+                            ? _TopFadePainter(
+                                color: bg,
+                                fadeHeight: _kFadeHeight,
+                                animProgress: animation.value,
+                              )
+                            : null,
+                        child: child,
+                      ),
                     ),
                   ),
                 );
@@ -455,6 +497,9 @@ class _TelegramRippleItemState<T> extends State<_TelegramRippleItem<T>>
     final iconColorResting = isDark
         ? const Color(0xFF6c7883)
         : const Color(0xFF999999);
+    final iconColorHover = isDark
+        ? const Color(0xFFdcdcdc)
+        : const Color(0xFF8a8a8a);
 
     final item = widget.item;
     final hasIcon = item.icon != null;
@@ -465,7 +510,7 @@ class _TelegramRippleItemState<T> extends State<_TelegramRippleItem<T>>
     final effectiveIconColor =
         item.iconColor ?? (item.isAttention
             ? (isDark ? const Color(0xFFec3942) : const Color(0xFFd14e4e))
-            : iconColorResting);
+            : (_hovering ? iconColorHover : iconColorResting));
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
