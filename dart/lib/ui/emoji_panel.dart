@@ -1244,6 +1244,7 @@ const double _kStickerCellSize = 64.0;
 const double _kStickerGridPadding = 11.0;
 const double _kStickerFooterHeight = 44.0;
 const int _kVisibleIconsCount = 8;
+const Duration _kSearchDebounce = Duration(milliseconds: 400);
 
 class _StickerTab extends StatefulWidget {
   final ValueChanged<String>? onStickerSelected;
@@ -1257,25 +1258,36 @@ class _StickerTab extends StatefulWidget {
 class _StickerTabState extends State<_StickerTab> {
   List<StickerPackSummary> _packs = [];
   List<StickerInfoItem> _recentStickers = [];
+  List<StickerPackSummary> _featuredPacks = [];
+  List<StickerPackSummary> _searchResults = [];
   bool _loaded = false;
+  bool _searching = false;
+  String _searchQuery = '';
   int _activePackIndex = 0;
   final ScrollController _gridScrollController = ScrollController();
   final ScrollController _footerScrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
   final List<GlobalKey> _sectionKeys = [];
   bool _programmaticScroll = false;
+  Timer? _searchDebounce;
 
   @override
   void initState() {
     super.initState();
     _gridScrollController.addListener(_onGridScroll);
+    _searchController.addListener(_onSearchChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _gridScrollController.removeListener(_onGridScroll);
     _gridScrollController.dispose();
     _footerScrollController.dispose();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -1289,18 +1301,17 @@ class _StickerTabState extends State<_StickerTab> {
       final results = await Future.wait([
         engine.getInstalledStickerPacks(activeAccount.id),
         engine.getRecentStickers(activeAccount.id),
+        engine.getFeaturedStickerPacks(activeAccount.id),
       ]);
       if (mounted) {
         final packs = results[0] as List<StickerPackSummary>;
         final recent = results[1] as List<StickerInfoItem>;
-        _sectionKeys.clear();
-        final totalSections = (recent.isNotEmpty ? 1 : 0) + packs.length;
-        for (int i = 0; i < totalSections; i++) {
-          _sectionKeys.add(GlobalKey());
-        }
+        final featured = results[2] as List<StickerPackSummary>;
+        _rebuildSectionKeys(recent, packs);
         setState(() {
           _packs = packs;
           _recentStickers = recent;
+          _featuredPacks = featured;
           _loaded = true;
           _activePackIndex = 0;
         });
@@ -1308,9 +1319,80 @@ class _StickerTabState extends State<_StickerTab> {
     } catch (_) {}
   }
 
+  void _rebuildSectionKeys(List<StickerInfoItem> recent, List<StickerPackSummary> packs) {
+    _sectionKeys.clear();
+    final totalSections = (recent.isNotEmpty ? 1 : 0) + packs.length;
+    for (int i = 0; i < totalSections; i++) {
+      _sectionKeys.add(GlobalKey());
+    }
+  }
+
+  void _onSearchChanged() {
+    _searchDebounce?.cancel();
+    final query = _searchController.text.trim();
+    if (query.isEmpty) {
+      setState(() {
+        _searching = false;
+        _searchQuery = '';
+        _searchResults = [];
+      });
+      return;
+    }
+    setState(() => _searching = true);
+    _searchDebounce = Timer(_kSearchDebounce, () => _performSearch(query));
+  }
+
+  Future<void> _performSearch(String query) async {
+    if (!mounted) return;
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+    final activeAccount = appState.activeAccount;
+    if (activeAccount == null) return;
+    final results = await engine.searchStickerSets(activeAccount.id, query);
+    if (mounted && _searchController.text.trim() == query) {
+      setState(() {
+        _searchQuery = query;
+        _searchResults = results;
+      });
+    }
+  }
+
+  Future<void> _installPack(StickerPackSummary pack) async {
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+    final activeAccount = appState.activeAccount;
+    if (activeAccount == null) return;
+    final success = await engine.installStickerSet(activeAccount.id, pack.setId, pack.accessHash);
+    if (success && mounted) {
+      setState(() {
+        for (int i = 0; i < _featuredPacks.length; i++) {
+          if (_featuredPacks[i].setId == pack.setId) {
+            _featuredPacks[i] = StickerPackSummary(
+              setId: pack.setId, accessHash: pack.accessHash,
+              title: pack.title, shortName: pack.shortName,
+              count: pack.count, animated: pack.animated, video: pack.video,
+              thumbB64: pack.thumbB64, stickers: pack.stickers, installed: true,
+            );
+          }
+        }
+        for (int i = 0; i < _searchResults.length; i++) {
+          if (_searchResults[i].setId == pack.setId) {
+            _searchResults[i] = StickerPackSummary(
+              setId: pack.setId, accessHash: pack.accessHash,
+              title: pack.title, shortName: pack.shortName,
+              count: pack.count, animated: pack.animated, video: pack.video,
+              thumbB64: pack.thumbB64, stickers: pack.stickers, installed: true,
+            );
+          }
+        }
+      });
+      _loaded = false;
+      _loadData();
+    }
+  }
+
   void _onGridScroll() {
-    if (_programmaticScroll || !_loaded) return;
-    final scrollOffset = _gridScrollController.offset;
+    if (_programmaticScroll || !_loaded || _searching) return;
     int bestIndex = 0;
     double bestDistance = double.infinity;
     for (int i = 0; i < _sectionKeys.length; i++) {
@@ -1359,6 +1441,32 @@ class _StickerTabState extends State<_StickerTab> {
     });
   }
 
+  void _showStickerContextMenu(BuildContext context, Offset position, StickerInfoItem sticker) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final menuBg = isDark ? const Color(0xFF1e2c3a) : Colors.white;
+    final textColor = isDark ? const Color(0xFFe1e3e6) : const Color(0xFF222222);
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx + 1, position.dy + 1),
+      color: menuBg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      items: [
+        PopupMenuItem(value: 'fave', child: Text('Fave', style: TextStyle(fontSize: 13, color: textColor))),
+        PopupMenuItem(value: 'view_set', child: Text('View Set', style: TextStyle(fontSize: 13, color: textColor))),
+      ],
+    ).then((value) {
+      if (value == 'fave') {
+        final engine = context.read<EngineService>();
+        final appState = context.read<AppState>();
+        final acc = appState.activeAccount;
+        if (acc != null && sticker.fileId.isNotEmpty) {
+          final id = int.tryParse(sticker.fileId) ?? 0;
+          engine.faveSticker(acc.id, id);
+        }
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -1370,7 +1478,93 @@ class _StickerTabState extends State<_StickerTab> {
         ),
       );
     }
+
+    return Column(
+      children: [
+        _buildSearchBar(isDark),
+        Expanded(child: _searching ? _buildSearchResults(isDark) : _buildGrid(isDark)),
+        if (!_searching)
+          _StickerPackFooter(
+            packs: _packs,
+            hasRecent: _recentStickers.isNotEmpty,
+            activeIndex: _activePackIndex,
+            scrollController: _footerScrollController,
+            onPackTapped: _scrollToSection,
+            isDark: isDark,
+          ),
+      ],
+    );
+  }
+
+  Widget _buildSearchBar(bool isDark) {
+    final bgColor = isDark ? const Color(0xFF242f3d) : const Color(0xFFefeff4);
+    final textColor = isDark ? const Color(0xFFe1e3e6) : const Color(0xFF222222);
+    final hintColor = isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+      child: SizedBox(
+        height: 32,
+        child: TextField(
+          controller: _searchController,
+          focusNode: _searchFocusNode,
+          style: TextStyle(fontSize: 13, color: textColor),
+          decoration: InputDecoration(
+            hintText: 'Search stickers',
+            hintStyle: TextStyle(fontSize: 13, color: hintColor),
+            prefixIcon: Icon(Icons.search, size: 18, color: hintColor),
+            prefixIconConstraints: const BoxConstraints(minWidth: 32),
+            suffixIcon: _searchController.text.isNotEmpty
+                ? GestureDetector(
+                    onTap: () {
+                      _searchController.clear();
+                      _searchFocusNode.unfocus();
+                    },
+                    child: Icon(Icons.close, size: 16, color: hintColor),
+                  )
+                : null,
+            suffixIconConstraints: const BoxConstraints(minWidth: 32),
+            filled: true,
+            fillColor: bgColor,
+            contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 8),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchResults(bool isDark) {
+    final packs = _searchQuery.isEmpty ? _featuredPacks : _searchResults;
+    if (packs.isEmpty) {
+      final msg = _searchQuery.isEmpty ? 'Popular sticker packs' : 'No results for "$_searchQuery"';
+      return Center(
+        child: Text(msg, style: TextStyle(fontSize: 14, color: isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999))),
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      itemCount: packs.length,
+      itemBuilder: (context, index) => _FeaturedPackRow(
+        pack: packs[index],
+        isDark: isDark,
+        onAdd: () => _installPack(packs[index]),
+      ),
+    );
+  }
+
+  Widget _buildGrid(bool isDark) {
     if (_packs.isEmpty && _recentStickers.isEmpty) {
+      if (_featuredPacks.isNotEmpty) {
+        return ListView.builder(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          itemCount: _featuredPacks.length,
+          itemBuilder: (context, index) => _FeaturedPackRow(
+            pack: _featuredPacks[index],
+            isDark: isDark,
+            onAdd: () => _installPack(_featuredPacks[index]),
+          ),
+        );
+      }
       return Center(
         child: Text(
           'No stickers installed',
@@ -1378,23 +1572,6 @@ class _StickerTabState extends State<_StickerTab> {
         ),
       );
     }
-
-    return Column(
-      children: [
-        Expanded(child: _buildGrid(isDark)),
-        _StickerPackFooter(
-          packs: _packs,
-          hasRecent: _recentStickers.isNotEmpty,
-          activeIndex: _activePackIndex,
-          scrollController: _footerScrollController,
-          onPackTapped: _scrollToSection,
-          isDark: isDark,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildGrid(bool isDark) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final availableWidth = constraints.maxWidth - 2 * _kStickerGridPadding;
@@ -1406,7 +1583,7 @@ class _StickerTabState extends State<_StickerTab> {
 
         if (_recentStickers.isNotEmpty) {
           sections.add(_buildSection(
-            key: _sectionKeys[sectionIdx],
+            key: _sectionKeys.length > sectionIdx ? _sectionKeys[sectionIdx] : null,
             title: 'Recent',
             stickers: _recentStickers,
             colCount: colCount,
@@ -1461,6 +1638,7 @@ class _StickerTabState extends State<_StickerTab> {
                 onTap: () {
                   widget.onStickerSelected?.call(s.emoji.isNotEmpty ? s.emoji : s.fileId);
                 },
+                onContextMenu: (pos) => _showStickerContextMenu(context, pos, s),
               ),
             ),
           if (rowStickers.length < colCount)
@@ -1486,11 +1664,129 @@ class _StickerTabState extends State<_StickerTab> {
   }
 }
 
+class _FeaturedPackRow extends StatefulWidget {
+  final StickerPackSummary pack;
+  final bool isDark;
+  final VoidCallback onAdd;
+
+  const _FeaturedPackRow({required this.pack, required this.isDark, required this.onAdd});
+
+  @override
+  State<_FeaturedPackRow> createState() => _FeaturedPackRowState();
+}
+
+class _FeaturedPackRowState extends State<_FeaturedPackRow> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final pack = widget.pack;
+    final isDark = widget.isDark;
+    final hoverBg = isDark ? const Color(0xFF202b36) : const Color(0xFFf4f4f4);
+    final titleColor = isDark ? const Color(0xFFe1e3e6) : const Color(0xFF222222);
+    final subtitleColor = isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd);
+
+    Widget thumb;
+    if (pack.thumbB64.isNotEmpty) {
+      try {
+        final bytes = _decodeStrippedThumbB64(pack.thumbB64);
+        thumb = ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: Image.memory(bytes, fit: BoxFit.cover, width: 48, height: 48, gaplessPlayback: true),
+        );
+      } catch (_) {
+        thumb = Container(
+          width: 48, height: 48,
+          decoration: BoxDecoration(color: isDark ? const Color(0xFF2b3d4f) : const Color(0xFFe8e8e8), borderRadius: BorderRadius.circular(6)),
+          child: Icon(Icons.sticky_note_2_outlined, size: 24, color: subtitleColor),
+        );
+      }
+    } else if (pack.stickers.isNotEmpty && pack.stickers.first.thumbB64.isNotEmpty) {
+      try {
+        final bytes = _decodeStrippedThumbB64(pack.stickers.first.thumbB64);
+        thumb = ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: Image.memory(bytes, fit: BoxFit.cover, width: 48, height: 48, gaplessPlayback: true),
+        );
+      } catch (_) {
+        thumb = Container(
+          width: 48, height: 48,
+          decoration: BoxDecoration(color: isDark ? const Color(0xFF2b3d4f) : const Color(0xFFe8e8e8), borderRadius: BorderRadius.circular(6)),
+          child: Icon(Icons.sticky_note_2_outlined, size: 24, color: subtitleColor),
+        );
+      }
+    } else {
+      thumb = Container(
+        width: 48, height: 48,
+        decoration: BoxDecoration(color: isDark ? const Color(0xFF2b3d4f) : const Color(0xFFe8e8e8), borderRadius: BorderRadius.circular(6)),
+        child: Icon(Icons.sticky_note_2_outlined, size: 24, color: subtitleColor),
+      );
+    }
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 100),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: _hovered ? hoverBg : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            thumb,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(pack.title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: titleColor), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 2),
+                  Text('${pack.count} sticker${pack.count != 1 ? 's' : ''}', style: TextStyle(fontSize: 12, color: subtitleColor)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              height: 26,
+              child: pack.installed
+                  ? Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      decoration: BoxDecoration(
+                        color: (isDark ? const Color(0xFF2b3d4f) : const Color(0xFFe8e8e8)),
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text('Added', style: TextStyle(fontSize: 12, color: subtitleColor)),
+                    )
+                  : GestureDetector(
+                      onTap: widget.onAdd,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: accentColor,
+                          borderRadius: BorderRadius.circular(13),
+                        ),
+                        alignment: Alignment.center,
+                        child: const Text('Add', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _StickerCell extends StatefulWidget {
   final StickerInfoItem sticker;
   final VoidCallback onTap;
+  final void Function(Offset)? onContextMenu;
 
-  const _StickerCell({required this.sticker, required this.onTap});
+  const _StickerCell({required this.sticker, required this.onTap, this.onContextMenu});
 
   @override
   State<_StickerCell> createState() => _StickerCellState();
@@ -1527,6 +1823,12 @@ class _StickerCellState extends State<_StickerCell> {
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
         onTap: widget.onTap,
+        onSecondaryTapUp: widget.onContextMenu != null
+            ? (details) => widget.onContextMenu!(details.globalPosition)
+            : null,
+        onLongPressStart: widget.onContextMenu != null
+            ? (details) => widget.onContextMenu!(details.globalPosition)
+            : null,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 100),
           decoration: BoxDecoration(

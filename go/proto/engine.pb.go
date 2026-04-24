@@ -8443,6 +8443,7 @@ type EngineStickerPackSummary struct {
 	Video         bool                   `protobuf:"varint,7,opt,name=video,proto3" json:"video,omitempty"`
 	ThumbB64      string                 `protobuf:"bytes,8,opt,name=thumb_b64,json=thumbB64,proto3" json:"thumb_b64,omitempty"`
 	Stickers      []*EngineStickerInfo   `protobuf:"bytes,9,rep,name=stickers,proto3" json:"stickers,omitempty"`
+	Installed     bool                   `protobuf:"varint,10,opt,name=installed,proto3" json:"installed,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -8538,6 +8539,13 @@ func (x *EngineStickerPackSummary) GetStickers() []*EngineStickerInfo {
 		return x.Stickers
 	}
 	return nil
+}
+
+func (x *EngineStickerPackSummary) GetInstalled() bool {
+	if x != nil {
+		return x.Installed
+	}
+	return false
 }
 
 type EngineGetInstalledStickerPacksResponse struct {
@@ -8670,6 +8678,286 @@ func (x *EngineGetRecentStickersResponse) GetStickers() []*EngineStickerInfo {
 		return x.Stickers
 	}
 	return nil
+}
+
+type EngineGetFeaturedStickerPacksRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetFeaturedStickerPacksRequest) Reset() {
+	*x = EngineGetFeaturedStickerPacksRequest{}
+	mi := &file_proto_engine_proto_msgTypes[134]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetFeaturedStickerPacksRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetFeaturedStickerPacksRequest) ProtoMessage() {}
+
+func (x *EngineGetFeaturedStickerPacksRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[134]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetFeaturedStickerPacksRequest.ProtoReflect.Descriptor instead.
+func (*EngineGetFeaturedStickerPacksRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{134}
+}
+
+func (x *EngineGetFeaturedStickerPacksRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+type EngineGetFeaturedStickerPacksResponse struct {
+	state         protoimpl.MessageState      `protogen:"open.v1"`
+	Packs         []*EngineStickerPackSummary `protobuf:"bytes,1,rep,name=packs,proto3" json:"packs,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetFeaturedStickerPacksResponse) Reset() {
+	*x = EngineGetFeaturedStickerPacksResponse{}
+	mi := &file_proto_engine_proto_msgTypes[135]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetFeaturedStickerPacksResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetFeaturedStickerPacksResponse) ProtoMessage() {}
+
+func (x *EngineGetFeaturedStickerPacksResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[135]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetFeaturedStickerPacksResponse.ProtoReflect.Descriptor instead.
+func (*EngineGetFeaturedStickerPacksResponse) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{135}
+}
+
+func (x *EngineGetFeaturedStickerPacksResponse) GetPacks() []*EngineStickerPackSummary {
+	if x != nil {
+		return x.Packs
+	}
+	return nil
+}
+
+type EngineSearchStickerSetsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	Query         string                 `protobuf:"bytes,2,opt,name=query,proto3" json:"query,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineSearchStickerSetsRequest) Reset() {
+	*x = EngineSearchStickerSetsRequest{}
+	mi := &file_proto_engine_proto_msgTypes[136]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineSearchStickerSetsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineSearchStickerSetsRequest) ProtoMessage() {}
+
+func (x *EngineSearchStickerSetsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[136]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineSearchStickerSetsRequest.ProtoReflect.Descriptor instead.
+func (*EngineSearchStickerSetsRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{136}
+}
+
+func (x *EngineSearchStickerSetsRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineSearchStickerSetsRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+type EngineSearchStickerSetsResponse struct {
+	state         protoimpl.MessageState      `protogen:"open.v1"`
+	Packs         []*EngineStickerPackSummary `protobuf:"bytes,1,rep,name=packs,proto3" json:"packs,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineSearchStickerSetsResponse) Reset() {
+	*x = EngineSearchStickerSetsResponse{}
+	mi := &file_proto_engine_proto_msgTypes[137]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineSearchStickerSetsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineSearchStickerSetsResponse) ProtoMessage() {}
+
+func (x *EngineSearchStickerSetsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[137]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineSearchStickerSetsResponse.ProtoReflect.Descriptor instead.
+func (*EngineSearchStickerSetsResponse) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{137}
+}
+
+func (x *EngineSearchStickerSetsResponse) GetPacks() []*EngineStickerPackSummary {
+	if x != nil {
+		return x.Packs
+	}
+	return nil
+}
+
+type EngineInstallStickerSetRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	SetId         int64                  `protobuf:"varint,2,opt,name=set_id,json=setId,proto3" json:"set_id,omitempty"`
+	AccessHash    int64                  `protobuf:"varint,3,opt,name=access_hash,json=accessHash,proto3" json:"access_hash,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineInstallStickerSetRequest) Reset() {
+	*x = EngineInstallStickerSetRequest{}
+	mi := &file_proto_engine_proto_msgTypes[138]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineInstallStickerSetRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineInstallStickerSetRequest) ProtoMessage() {}
+
+func (x *EngineInstallStickerSetRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[138]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineInstallStickerSetRequest.ProtoReflect.Descriptor instead.
+func (*EngineInstallStickerSetRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{138}
+}
+
+func (x *EngineInstallStickerSetRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineInstallStickerSetRequest) GetSetId() int64 {
+	if x != nil {
+		return x.SetId
+	}
+	return 0
+}
+
+func (x *EngineInstallStickerSetRequest) GetAccessHash() int64 {
+	if x != nil {
+		return x.AccessHash
+	}
+	return 0
+}
+
+type EngineInstallStickerSetResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineInstallStickerSetResponse) Reset() {
+	*x = EngineInstallStickerSetResponse{}
+	mi := &file_proto_engine_proto_msgTypes[139]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineInstallStickerSetResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineInstallStickerSetResponse) ProtoMessage() {}
+
+func (x *EngineInstallStickerSetResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[139]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineInstallStickerSetResponse.ProtoReflect.Descriptor instead.
+func (*EngineInstallStickerSetResponse) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{139}
 }
 
 var File_proto_engine_proto protoreflect.FileDescriptor
@@ -9413,7 +9701,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x04sets\x18\x01 \x03(\v2 .uniclient.EngineEmojiSetSummaryR\x04sets\"F\n" +
 	"%EngineGetInstalledStickerPacksRequest\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x01 \x01(\tR\taccountId\"\xa6\x02\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\"\xc4\x02\n" +
 	"\x18EngineStickerPackSummary\x12\x15\n" +
 	"\x06set_id\x18\x01 \x01(\x03R\x05setId\x12\x1f\n" +
 	"\vaccess_hash\x18\x02 \x01(\x03R\n" +
@@ -9425,14 +9713,34 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\banimated\x18\x06 \x01(\bR\banimated\x12\x14\n" +
 	"\x05video\x18\a \x01(\bR\x05video\x12\x1b\n" +
 	"\tthumb_b64\x18\b \x01(\tR\bthumbB64\x128\n" +
-	"\bstickers\x18\t \x03(\v2\x1c.uniclient.EngineStickerInfoR\bstickers\"c\n" +
+	"\bstickers\x18\t \x03(\v2\x1c.uniclient.EngineStickerInfoR\bstickers\x12\x1c\n" +
+	"\tinstalled\x18\n" +
+	" \x01(\bR\tinstalled\"c\n" +
 	"&EngineGetInstalledStickerPacksResponse\x129\n" +
 	"\x05packs\x18\x01 \x03(\v2#.uniclient.EngineStickerPackSummaryR\x05packs\"?\n" +
 	"\x1eEngineGetRecentStickersRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\"[\n" +
 	"\x1fEngineGetRecentStickersResponse\x128\n" +
-	"\bstickers\x18\x01 \x03(\v2\x1c.uniclient.EngineStickerInfoR\bstickersB\x11Z\x0funiclient/protob\x06proto3"
+	"\bstickers\x18\x01 \x03(\v2\x1c.uniclient.EngineStickerInfoR\bstickers\"E\n" +
+	"$EngineGetFeaturedStickerPacksRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\"b\n" +
+	"%EngineGetFeaturedStickerPacksResponse\x129\n" +
+	"\x05packs\x18\x01 \x03(\v2#.uniclient.EngineStickerPackSummaryR\x05packs\"U\n" +
+	"\x1eEngineSearchStickerSetsRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x14\n" +
+	"\x05query\x18\x02 \x01(\tR\x05query\"\\\n" +
+	"\x1fEngineSearchStickerSetsResponse\x129\n" +
+	"\x05packs\x18\x01 \x03(\v2#.uniclient.EngineStickerPackSummaryR\x05packs\"w\n" +
+	"\x1eEngineInstallStickerSetRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x15\n" +
+	"\x06set_id\x18\x02 \x01(\x03R\x05setId\x12\x1f\n" +
+	"\vaccess_hash\x18\x03 \x01(\x03R\n" +
+	"accessHash\"!\n" +
+	"\x1fEngineInstallStickerSetResponseB\x11Z\x0funiclient/protob\x06proto3"
 
 var (
 	file_proto_engine_proto_rawDescOnce sync.Once
@@ -9446,7 +9754,7 @@ func file_proto_engine_proto_rawDescGZIP() []byte {
 	return file_proto_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 134)
+var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 140)
 var file_proto_engine_proto_goTypes = []any{
 	(*EngineEvent)(nil),                            // 0: uniclient.EngineEvent
 	(*AccountInfo)(nil),                            // 1: uniclient.AccountInfo
@@ -9582,6 +9890,12 @@ var file_proto_engine_proto_goTypes = []any{
 	(*EngineGetInstalledStickerPacksResponse)(nil), // 131: uniclient.EngineGetInstalledStickerPacksResponse
 	(*EngineGetRecentStickersRequest)(nil),         // 132: uniclient.EngineGetRecentStickersRequest
 	(*EngineGetRecentStickersResponse)(nil),        // 133: uniclient.EngineGetRecentStickersResponse
+	(*EngineGetFeaturedStickerPacksRequest)(nil),   // 134: uniclient.EngineGetFeaturedStickerPacksRequest
+	(*EngineGetFeaturedStickerPacksResponse)(nil),  // 135: uniclient.EngineGetFeaturedStickerPacksResponse
+	(*EngineSearchStickerSetsRequest)(nil),         // 136: uniclient.EngineSearchStickerSetsRequest
+	(*EngineSearchStickerSetsResponse)(nil),        // 137: uniclient.EngineSearchStickerSetsResponse
+	(*EngineInstallStickerSetRequest)(nil),         // 138: uniclient.EngineInstallStickerSetRequest
+	(*EngineInstallStickerSetResponse)(nil),        // 139: uniclient.EngineInstallStickerSetResponse
 }
 var file_proto_engine_proto_depIdxs = []int32{
 	1,   // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
@@ -9612,11 +9926,13 @@ var file_proto_engine_proto_depIdxs = []int32{
 	95,  // 25: uniclient.EngineStickerPackSummary.stickers:type_name -> uniclient.EngineStickerInfo
 	130, // 26: uniclient.EngineGetInstalledStickerPacksResponse.packs:type_name -> uniclient.EngineStickerPackSummary
 	95,  // 27: uniclient.EngineGetRecentStickersResponse.stickers:type_name -> uniclient.EngineStickerInfo
-	28,  // [28:28] is the sub-list for method output_type
-	28,  // [28:28] is the sub-list for method input_type
-	28,  // [28:28] is the sub-list for extension type_name
-	28,  // [28:28] is the sub-list for extension extendee
-	0,   // [0:28] is the sub-list for field type_name
+	130, // 28: uniclient.EngineGetFeaturedStickerPacksResponse.packs:type_name -> uniclient.EngineStickerPackSummary
+	130, // 29: uniclient.EngineSearchStickerSetsResponse.packs:type_name -> uniclient.EngineStickerPackSummary
+	30,  // [30:30] is the sub-list for method output_type
+	30,  // [30:30] is the sub-list for method input_type
+	30,  // [30:30] is the sub-list for extension type_name
+	30,  // [30:30] is the sub-list for extension extendee
+	0,   // [0:30] is the sub-list for field type_name
 }
 
 func init() { file_proto_engine_proto_init() }
@@ -9630,7 +9946,7 @@ func file_proto_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   134,
+			NumMessages:   140,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

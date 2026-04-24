@@ -301,6 +301,7 @@ type StickerPackSummary struct {
 	Video      bool          `json:"video"`
 	ThumbB64   string        `json:"thumb_b64"`
 	Stickers   []StickerInfo `json:"stickers"`
+	Installed  bool          `json:"installed"`
 }
 
 type AttachMenuBotInfo struct {

@@ -11798,6 +11798,206 @@ func (t *TelegramCore) GetRecentStickers() ([]StickerInfo, error) {
 	return stickers, nil
 }
 
+func (t *TelegramCore) GetFeaturedStickerPacks() ([]StickerPackSummary, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+
+	installedResult, err := t.api.MessagesGetAllStickers(t.ctx, 0)
+	if err != nil {
+		return nil, fmt.Errorf("get installed stickers: %w", err)
+	}
+	installedIDs := make(map[int64]bool)
+	if all, ok := installedResult.(*tg.MessagesAllStickers); ok {
+		for _, s := range all.Sets {
+			installedIDs[s.ID] = true
+		}
+	}
+
+	result, err := t.api.MessagesGetFeaturedStickers(t.ctx, 0)
+	if err != nil {
+		return nil, fmt.Errorf("get featured stickers: %w", err)
+	}
+	fs, ok := result.(*tg.MessagesFeaturedStickers)
+	if !ok {
+		return nil, nil
+	}
+
+	var packs []StickerPackSummary
+	for _, setCovered := range fs.Sets {
+		var set *tg.StickerSet
+		var covers []tg.DocumentClass
+		switch sc := setCovered.(type) {
+		case *tg.StickerSetCovered:
+			set = &sc.Set
+			covers = []tg.DocumentClass{sc.Cover}
+		case *tg.StickerSetMultiCovered:
+			set = &sc.Set
+			covers = sc.Covers
+		case *tg.StickerSetFullCovered:
+			set = &sc.Set
+			covers = sc.Documents
+		case *tg.StickerSetNoCovered:
+			set = &sc.Set
+		}
+		if set == nil {
+			continue
+		}
+		summary := StickerPackSummary{
+			SetID:      set.ID,
+			AccessHash: set.AccessHash,
+			Title:      set.Title,
+			ShortName:  set.ShortName,
+			Count:      set.Count,
+			Installed:  installedIDs[set.ID],
+		}
+		if thumbs, ok := set.GetThumbs(); ok {
+			for _, thumb := range thumbs {
+				if stripped, ok := thumb.(*tg.PhotoStrippedSize); ok {
+					summary.ThumbB64 = base64.StdEncoding.EncodeToString(stripped.Bytes)
+					break
+				}
+			}
+		}
+		for _, doc := range covers {
+			d, ok := doc.(*tg.Document)
+			if !ok {
+				continue
+			}
+			t.cacheFileInfo(d.ID, d.AccessHash, d.FileReference)
+			si := StickerInfo{
+				ThumbB64: extractStrippedThumbB64(d.Thumbs),
+				MimeType: d.MimeType,
+				FileID:   strconv.FormatInt(d.ID, 10),
+			}
+			for _, attr := range d.Attributes {
+				switch a := attr.(type) {
+				case *tg.DocumentAttributeImageSize:
+					si.Width = a.W; si.Height = a.H
+				case *tg.DocumentAttributeVideo:
+					si.Width = a.W; si.Height = a.H
+				case *tg.DocumentAttributeSticker:
+					si.Emoji = a.Alt
+				}
+			}
+			if summary.ThumbB64 == "" && si.ThumbB64 != "" {
+				summary.ThumbB64 = si.ThumbB64
+			}
+			summary.Stickers = append(summary.Stickers, si)
+		}
+		packs = append(packs, summary)
+	}
+	return packs, nil
+}
+
+func (t *TelegramCore) SearchStickerSets(query string) ([]StickerPackSummary, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+
+	installedResult, err := t.api.MessagesGetAllStickers(t.ctx, 0)
+	if err != nil {
+		return nil, fmt.Errorf("get installed stickers: %w", err)
+	}
+	installedIDs := make(map[int64]bool)
+	if all, ok := installedResult.(*tg.MessagesAllStickers); ok {
+		for _, s := range all.Sets {
+			installedIDs[s.ID] = true
+		}
+	}
+
+	result, err := t.api.MessagesSearchStickerSets(t.ctx, &tg.MessagesSearchStickerSetsRequest{Q: query})
+	if err != nil {
+		return nil, fmt.Errorf("search sticker sets: %w", err)
+	}
+	found, ok := result.(*tg.MessagesFoundStickerSets)
+	if !ok {
+		return nil, nil
+	}
+
+	var packs []StickerPackSummary
+	for _, setCovered := range found.Sets {
+		var set *tg.StickerSet
+		var covers []tg.DocumentClass
+		switch sc := setCovered.(type) {
+		case *tg.StickerSetCovered:
+			set = &sc.Set
+			covers = []tg.DocumentClass{sc.Cover}
+		case *tg.StickerSetMultiCovered:
+			set = &sc.Set
+			covers = sc.Covers
+		case *tg.StickerSetFullCovered:
+			set = &sc.Set
+			covers = sc.Documents
+		case *tg.StickerSetNoCovered:
+			set = &sc.Set
+		}
+		if set == nil {
+			continue
+		}
+		summary := StickerPackSummary{
+			SetID:      set.ID,
+			AccessHash: set.AccessHash,
+			Title:      set.Title,
+			ShortName:  set.ShortName,
+			Count:      set.Count,
+			Installed:  installedIDs[set.ID],
+		}
+		if thumbs, ok := set.GetThumbs(); ok {
+			for _, thumb := range thumbs {
+				if stripped, ok := thumb.(*tg.PhotoStrippedSize); ok {
+					summary.ThumbB64 = base64.StdEncoding.EncodeToString(stripped.Bytes)
+					break
+				}
+			}
+		}
+		for _, doc := range covers {
+			d, ok := doc.(*tg.Document)
+			if !ok {
+				continue
+			}
+			t.cacheFileInfo(d.ID, d.AccessHash, d.FileReference)
+			si := StickerInfo{
+				ThumbB64: extractStrippedThumbB64(d.Thumbs),
+				MimeType: d.MimeType,
+				FileID:   strconv.FormatInt(d.ID, 10),
+			}
+			for _, attr := range d.Attributes {
+				switch a := attr.(type) {
+				case *tg.DocumentAttributeImageSize:
+					si.Width = a.W; si.Height = a.H
+				case *tg.DocumentAttributeVideo:
+					si.Width = a.W; si.Height = a.H
+				case *tg.DocumentAttributeSticker:
+					si.Emoji = a.Alt
+				}
+			}
+			if summary.ThumbB64 == "" && si.ThumbB64 != "" {
+				summary.ThumbB64 = si.ThumbB64
+			}
+			summary.Stickers = append(summary.Stickers, si)
+		}
+		packs = append(packs, summary)
+	}
+	return packs, nil
+}
+
+func (t *TelegramCore) InstallStickerSet(setID, accessHash int64) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+	_, err := t.api.MessagesInstallStickerSet(t.ctx, &tg.MessagesInstallStickerSetRequest{
+		Stickerset: &tg.InputStickerSetID{ID: setID, AccessHash: accessHash},
+	})
+	return err
+}
+
 // GetStarGifts returns the list of available star gifts for purchase.
 func (t *TelegramCore) GetStarGifts() (*StarGiftsResult, error) {
 	t.mu.RLock()

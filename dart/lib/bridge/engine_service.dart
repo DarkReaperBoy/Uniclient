@@ -514,6 +514,91 @@ class EngineService {
     }
   }
 
+  // ── Featured sticker packs ──
+
+  Future<List<StickerPackSummary>> getFeaturedStickerPacks(String accountId) async {
+    final req = epb.EngineGetFeaturedStickerPacksRequest()
+      ..accountId = accountId;
+    try {
+      final respBytes = await _callAsync('__engine', 'GetFeaturedStickerPacks', req.writeToBuffer());
+      if (respBytes.isEmpty) return [];
+      final resp = epb.EngineGetFeaturedStickerPacksResponse.fromBuffer(respBytes);
+      return resp.packs.map((p) => StickerPackSummary(
+        setId: p.setId.toInt(),
+        accessHash: p.accessHash.toInt(),
+        title: p.title,
+        shortName: p.shortName,
+        count: p.count,
+        animated: p.animated,
+        video: p.video,
+        thumbB64: p.thumbB64,
+        installed: p.installed,
+        stickers: p.stickers.map((s) => StickerInfoItem(
+          emoji: s.emoji,
+          thumbB64: s.thumbB64,
+          width: s.width,
+          height: s.height,
+          mimeType: s.mimeType,
+          fileId: s.fileId,
+        )).toList(),
+      )).toList();
+    } catch (e) {
+      Debug.error('ENGINE', 'getFeaturedStickerPacks failed', e);
+      return [];
+    }
+  }
+
+  // ── Search sticker sets ──
+
+  Future<List<StickerPackSummary>> searchStickerSets(String accountId, String query) async {
+    final req = epb.EngineSearchStickerSetsRequest()
+      ..accountId = accountId
+      ..query = query;
+    try {
+      final respBytes = await _callAsync('__engine', 'SearchStickerSets', req.writeToBuffer());
+      if (respBytes.isEmpty) return [];
+      final resp = epb.EngineSearchStickerSetsResponse.fromBuffer(respBytes);
+      return resp.packs.map((p) => StickerPackSummary(
+        setId: p.setId.toInt(),
+        accessHash: p.accessHash.toInt(),
+        title: p.title,
+        shortName: p.shortName,
+        count: p.count,
+        animated: p.animated,
+        video: p.video,
+        thumbB64: p.thumbB64,
+        installed: p.installed,
+        stickers: p.stickers.map((s) => StickerInfoItem(
+          emoji: s.emoji,
+          thumbB64: s.thumbB64,
+          width: s.width,
+          height: s.height,
+          mimeType: s.mimeType,
+          fileId: s.fileId,
+        )).toList(),
+      )).toList();
+    } catch (e) {
+      Debug.error('ENGINE', 'searchStickerSets failed', e);
+      return [];
+    }
+  }
+
+  // ── Install sticker set ──
+
+  Future<bool> installStickerSet(String accountId, int setId, int accessHash) async {
+    final req = epb.EngineInstallStickerSetRequest()
+      ..accountId = accountId
+      ..setId = Int64(setId)
+      ..accessHash = Int64(accessHash);
+    try {
+      await _callAsync('__engine', 'InstallStickerSet', req.writeToBuffer());
+      return true;
+    } catch (e) {
+      Debug.error('ENGINE', 'installStickerSet failed', e);
+      return false;
+    }
+  }
+
   // ── Voice transcription ──
 
   Future<({bool pending, int transcriptionId, String text})?> transcribeAudio(String accountId, String chatId, String msgId) async {

@@ -1022,6 +1022,7 @@ message EngineStickerPackSummary {
   bool   video       = 7;
   string thumb_b64   = 8;
   repeated EngineStickerInfo stickers = 9;
+  bool   installed   = 10;
 }
 
 message EngineGetInstalledStickerPacksResponse {
@@ -1035,3 +1036,28 @@ message EngineGetRecentStickersRequest {
 message EngineGetRecentStickersResponse {
   repeated EngineStickerInfo stickers = 1;
 }
+
+message EngineGetFeaturedStickerPacksRequest {
+  string account_id = 1;
+}
+
+message EngineGetFeaturedStickerPacksResponse {
+  repeated EngineStickerPackSummary packs = 1;
+}
+
+message EngineSearchStickerSetsRequest {
+  string account_id = 1;
+  string query = 2;
+}
+
+message EngineSearchStickerSetsResponse {
+  repeated EngineStickerPackSummary packs = 1;
+}
+
+message EngineInstallStickerSetRequest {
+  string account_id = 1;
+  int64  set_id = 2;
+  int64  access_hash = 3;
+}
+
+message EngineInstallStickerSetResponse {}

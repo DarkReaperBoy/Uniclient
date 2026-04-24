@@ -973,6 +973,63 @@ func (e *Engine) FaveSticker(accountID string, fileID int64, extra string, unfav
 	return faver.FaveSticker(fileID, extra, unfave)
 }
 
+type FeaturedStickerPacksFetcher interface {
+	GetFeaturedStickerPacks() ([]cores.StickerPackSummary, error)
+}
+
+func (e *Engine) GetFeaturedStickerPacks(accountID string) ([]cores.StickerPackSummary, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(FeaturedStickerPacksFetcher)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support featured sticker packs")
+	}
+	return fetcher.GetFeaturedStickerPacks()
+}
+
+type StickerSetSearcher interface {
+	SearchStickerSets(query string) ([]cores.StickerPackSummary, error)
+}
+
+func (e *Engine) SearchStickerSets(accountID string, query string) ([]cores.StickerPackSummary, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	searcher, ok := acc.Core.(StickerSetSearcher)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support sticker search")
+	}
+	return searcher.SearchStickerSets(query)
+}
+
+type StickerSetInstaller interface {
+	InstallStickerSet(setID, accessHash int64) error
+}
+
+func (e *Engine) InstallStickerSet(accountID string, setID, accessHash int64) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	installer, ok := acc.Core.(StickerSetInstaller)
+	if !ok {
+		return fmt.Errorf("platform does not support sticker set install")
+	}
+	return installer.InstallStickerSet(setID, accessHash)
+}
+
 type GifSaver interface {
 	SaveGif(fileID int64, extra string, unsave bool) error
 }

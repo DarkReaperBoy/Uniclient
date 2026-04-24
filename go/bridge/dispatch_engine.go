@@ -1033,6 +1033,88 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(resp)
 
+	case "GetFeaturedStickerPacks":
+		var req pb.EngineGetFeaturedStickerPacksRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		packs, err := e.GetFeaturedStickerPacks(req.AccountId)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetFeaturedStickerPacksResponse{}
+		for _, p := range packs {
+			summary := &pb.EngineStickerPackSummary{
+				SetId:      p.SetID,
+				AccessHash: p.AccessHash,
+				Title:      p.Title,
+				ShortName:  p.ShortName,
+				Count:      int32(p.Count),
+				Animated:   p.Animated,
+				Video:      p.Video,
+				ThumbB64:   p.ThumbB64,
+				Installed:  p.Installed,
+			}
+			for _, st := range p.Stickers {
+				summary.Stickers = append(summary.Stickers, &pb.EngineStickerInfo{
+					Emoji:    st.Emoji,
+					ThumbB64: st.ThumbB64,
+					Width:    int32(st.Width),
+					Height:   int32(st.Height),
+					MimeType: st.MimeType,
+					FileId:   st.FileID,
+				})
+			}
+			resp.Packs = append(resp.Packs, summary)
+		}
+		return proto.Marshal(resp)
+
+	case "SearchStickerSets":
+		var req pb.EngineSearchStickerSetsRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		packs, err := e.SearchStickerSets(req.AccountId, req.Query)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineSearchStickerSetsResponse{}
+		for _, p := range packs {
+			summary := &pb.EngineStickerPackSummary{
+				SetId:      p.SetID,
+				AccessHash: p.AccessHash,
+				Title:      p.Title,
+				ShortName:  p.ShortName,
+				Count:      int32(p.Count),
+				Animated:   p.Animated,
+				Video:      p.Video,
+				ThumbB64:   p.ThumbB64,
+				Installed:  p.Installed,
+			}
+			for _, st := range p.Stickers {
+				summary.Stickers = append(summary.Stickers, &pb.EngineStickerInfo{
+					Emoji:    st.Emoji,
+					ThumbB64: st.ThumbB64,
+					Width:    int32(st.Width),
+					Height:   int32(st.Height),
+					MimeType: st.MimeType,
+					FileId:   st.FileID,
+				})
+			}
+			resp.Packs = append(resp.Packs, summary)
+		}
+		return proto.Marshal(resp)
+
+	case "InstallStickerSet":
+		var req pb.EngineInstallStickerSetRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		if err := e.InstallStickerSet(req.AccountId, req.SetId, req.AccessHash); err != nil {
+			return nil, err
+		}
+		return []byte{}, nil
+
 	case "SaveGif":
 		var req pb.EngineSaveGifRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

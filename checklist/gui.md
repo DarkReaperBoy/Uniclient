@@ -473,8 +473,6 @@
 
 ### §10.4 Sticker Tab
 <!-- File: dart/lib/ui/emoji_panel.dart -->
-- [ ] Featured/trending packs with inline "Add" button (~26px); 400ms debounce search; empty search shows recent popular packs — spec §10.4
-- [ ] Context menu on sticker: Fave/Unfave, View Set; custom emoji packs: also Copy Link; AyuGram: per-pack "Hide" toggle — spec §10.4 / §10.7
 
 ### §10.5 GIF Tab
 <!-- File: dart/lib/ui/emoji_panel.dart -->

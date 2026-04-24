@@ -1542,6 +1542,7 @@ class StickerPackSummary {
   final bool video;
   final String thumbB64;
   final List<StickerInfoItem> stickers;
+  final bool installed;
 
   const StickerPackSummary({
     this.setId = 0,
@@ -1553,6 +1554,7 @@ class StickerPackSummary {
     this.video = false,
     this.thumbB64 = '',
     this.stickers = const [],
+    this.installed = false,
   });
 }
 
