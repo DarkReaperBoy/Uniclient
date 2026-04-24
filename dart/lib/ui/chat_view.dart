@@ -536,22 +536,49 @@ class _ChatViewState extends State<ChatView>
     final msg = chatState.messages.where((m) => m.msgId == msgId).firstOrNull;
     if (msg == null) return;
 
+    final isScheduled = widget.isScheduledView || chatState.isScheduledView;
+    final hasPhoto = msg.mediaType == 1 && msg.mediaLocalPath.isNotEmpty;
+    final hasVideo = msg.mediaType == 2 && msg.mediaLocalPath.isNotEmpty;
+    final hasFile = msg.hasMedia && msg.mediaLocalPath.isNotEmpty && msg.mediaType == 8;
+    final hasForwardOrigin = msg.forwardFrom.isNotEmpty;
+    final chat = chatState.activeChat;
+
     showTelegramMenu<String>(
       context: context,
       position: position,
       items: [
+        // Pass 1: top actions
         const TelegramMenuItem(value: 'reply', icon: Icon(Icons.reply), label: 'Reply'),
         if (msg.contentText.isNotEmpty)
+          const TelegramMenuItem(value: 'quote_reply', icon: Icon(Icons.format_quote), label: 'Quote and Reply'),
+        // Pass 2: message actions
+        if (msg.contentText.isNotEmpty)
           const TelegramMenuItem(value: 'copy', icon: Icon(Icons.copy), label: 'Copy Text'),
-        const TelegramMenuItem(value: 'forward', icon: Icon(Icons.forward), label: 'Forward'),
-        const TelegramMenuItem(value: 'select', icon: Icon(Icons.check_circle_outline), label: 'Select'),
+        if (hasForwardOrigin)
+          const TelegramMenuItem(value: 'go_to_message', icon: Icon(Icons.shortcut), label: 'Go to Message'),
+        if (msg.isOutgoing)
+          const TelegramMenuItem(value: 'edit', icon: Icon(Icons.edit), label: 'Edit'),
         TelegramMenuItem(
           value: 'pin',
           icon: Icon(msg.isPinned ? Icons.push_pin : Icons.push_pin_outlined),
           label: msg.isPinned ? 'Unpin Message' : 'Pin Message',
         ),
-        if (msg.isOutgoing)
-          const TelegramMenuItem(value: 'edit', icon: Icon(Icons.edit), label: 'Edit'),
+        if (chat != null)
+          const TelegramMenuItem(value: 'copy_link', icon: Icon(Icons.link), label: 'Copy Message Link'),
+        const TelegramMenuItem.separator(),
+        // Pass 3: post-actions
+        const TelegramMenuItem(value: 'forward', icon: Icon(Icons.forward), label: 'Forward'),
+        if (isScheduled)
+          const TelegramMenuItem(value: 'send_now', icon: Icon(Icons.send), label: 'Send Now'),
+        if (isScheduled)
+          const TelegramMenuItem(value: 'reschedule', icon: Icon(Icons.schedule_send), label: 'Reschedule'),
+        if (hasPhoto)
+          const TelegramMenuItem(value: 'save_image', icon: Icon(Icons.save_alt), label: 'Save Image'),
+        if (hasVideo)
+          const TelegramMenuItem(value: 'save_image', icon: Icon(Icons.save_alt), label: 'Save Video'),
+        if (hasFile)
+          const TelegramMenuItem(value: 'save_image', icon: Icon(Icons.save_alt), label: 'Save File'),
+        const TelegramMenuItem(value: 'select', icon: Icon(Icons.check_circle_outline), label: 'Select'),
         const TelegramMenuItem.separator(),
         const TelegramMenuItem(value: 'delete', icon: Icon(Icons.delete_outline), label: 'Delete', isAttention: true),
         const TelegramMenuItem.separator(),
@@ -562,8 +589,12 @@ class _ChatViewState extends State<ChatView>
       switch (action) {
         case 'reply':
           setState(() => _replyToId = msgId);
+        case 'quote_reply':
+          _quoteAndReply(msg);
         case 'copy':
           Clipboard.setData(ClipboardData(text: msg.contentText));
+        case 'go_to_message':
+          _goToForwardedMessage(msg);
         case 'forward':
           _forwardSingle(context, chatState, msgId);
         case 'select':
@@ -580,12 +611,119 @@ class _ChatViewState extends State<ChatView>
               TextPosition(offset: _composeController.text.length),
             );
           });
+        case 'send_now':
+          chatState.sendScheduledNow([msgId]);
+        case 'reschedule':
+          _showReschedulePicker(msgId);
+        case 'save_image':
+          _saveMediaToDownloads(msg);
+        case 'copy_link':
+          _copyMessageLink(msg, chat);
         case 'delete':
           chatState.deleteMessage(msgId);
         case 'copy_info':
           _showCopyInfoMenu(msg, position);
       }
     });
+  }
+
+  void _quoteAndReply(CachedMessage msg) {
+    setState(() {
+      _replyToId = msg.msgId;
+      final quoted = msg.contentText.split('\n').map((l) => '> $l').join('\n');
+      _composeController.text = '$quoted\n';
+      _composeController.selection = TextSelection.fromPosition(
+        TextPosition(offset: _composeController.text.length),
+      );
+    });
+  }
+
+  void _goToForwardedMessage(CachedMessage msg) {
+    final chatState = context.read<ChatState>();
+    chatState.jumpToMessage(msg.timestamp);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(0);
+      }
+    });
+  }
+
+  void _saveMediaToDownloads(CachedMessage msg) async {
+    if (msg.mediaLocalPath.isEmpty) return;
+    final sourceFile = File(msg.mediaLocalPath);
+    if (!await sourceFile.exists()) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('File not found'), behavior: SnackBarBehavior.floating),
+      );
+      return;
+    }
+    final downloadsDir = Directory('${Platform.environment['HOME'] ?? '/tmp'}/Downloads');
+    if (!await downloadsDir.exists()) {
+      await downloadsDir.create(recursive: true);
+    }
+    final fileName = msg.mediaFileName.isNotEmpty
+        ? msg.mediaFileName
+        : sourceFile.uri.pathSegments.last;
+    var destPath = '${downloadsDir.path}/$fileName';
+    var counter = 1;
+    while (await File(destPath).exists()) {
+      final ext = fileName.contains('.') ? '.${fileName.split('.').last}' : '';
+      final base = fileName.contains('.') ? fileName.substring(0, fileName.lastIndexOf('.')) : fileName;
+      destPath = '${downloadsDir.path}/${base}_($counter)$ext';
+      counter++;
+    }
+    await sourceFile.copy(destPath);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Saved to ${destPath.split('/').last}'),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _copyMessageLink(CachedMessage msg, ChatInfo? chat) {
+    if (chat == null) return;
+    final chatId = chat.chatId;
+    final msgId = msg.msgId;
+    String link;
+    if (chat.type == ChatType.channel || chat.type == ChatType.group) {
+      final numericId = chatId.replaceFirst('-100', '').replaceFirst('-', '');
+      link = 'https://t.me/c/$numericId/$msgId';
+    } else {
+      link = 'https://t.me/c/$chatId/$msgId';
+    }
+    Clipboard.setData(ClipboardData(text: link));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Message link copied'),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Future<void> _showReschedulePicker(String msgId) async {
+    final now = DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: now,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(now.add(const Duration(minutes: 5))),
+    );
+    if (time == null || !mounted) return;
+    final scheduled = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    if (scheduled.isBefore(DateTime.now())) return;
+    final chatState = context.read<ChatState>();
+    chatState.sendScheduledNow([msgId]);
   }
 
   void _showCopyInfoMenu(CachedMessage msg, Offset position) {
