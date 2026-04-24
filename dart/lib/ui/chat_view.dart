@@ -1820,6 +1820,7 @@ class _ChatViewState extends State<ChatView>
       context: context,
       builder: (ctx) => _ShareBox(
         chats: chatState.chats,
+        folders: chatState.folders,
         hasSenders: true,
         hasCaptions: msgIds.length > 0,
         onSend: (opts) async {
@@ -8520,12 +8521,14 @@ class _ForwardSendOptions {
 
 class _ShareBox extends StatefulWidget {
   final List<ChatInfo> chats;
+  final List<FolderInfo> folders;
   final ValueChanged<_ForwardSendOptions> onSend;
   final bool hasSenders;
   final bool hasCaptions;
 
   const _ShareBox({
     required this.chats,
+    this.folders = const [],
     required this.onSend,
     this.hasSenders = true,
     this.hasCaptions = false,
@@ -8554,6 +8557,7 @@ class _ShareBoxState extends State<_ShareBox> {
   ];
 
   String _query = '';
+  String? _selectedFolderId;
   final Set<String> _selected = {};
   final _commentController = TextEditingController();
   bool _showSenderName = true;
@@ -8573,8 +8577,25 @@ class _ShareBoxState extends State<_ShareBox> {
     return chats;
   }
 
+  bool _chatMatchesFolder(ChatInfo chat, FolderInfo folder) {
+    if (folder.excludeChatIds.contains(chat.chatId)) return false;
+    if (folder.chatIds.contains(chat.chatId)) return true;
+    if (folder.contacts && chat.isContact && chat.type == ChatType.dm) return true;
+    if (folder.nonContacts && !chat.isContact && chat.type == ChatType.dm && !chat.isBot) return true;
+    if (folder.groups && chat.type == ChatType.group) return true;
+    if (folder.channels && chat.type == ChatType.channel) return true;
+    if (folder.bots && chat.isBot) return true;
+    return false;
+  }
+
   List<ChatInfo> get _filteredChats {
-    final sorted = _sortedChats;
+    var sorted = _sortedChats;
+    if (_selectedFolderId != null) {
+      final folder = widget.folders.where((f) => f.id == _selectedFolderId).firstOrNull;
+      if (folder != null) {
+        sorted = sorted.where((c) => _chatMatchesFolder(c, folder)).toList();
+      }
+    }
     if (_query.isEmpty) return sorted;
     final q = _query.toLowerCase();
     return sorted.where((c) => c.title.toLowerCase().contains(q)).toList();
@@ -8629,6 +8650,21 @@ class _ShareBoxState extends State<_ShareBox> {
                 onChanged: (v) => setState(() => _query = v),
               ),
             ),
+            if (widget.folders.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 32,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  children: [
+                    _buildFolderTab(context, theme, isDark, null, 'All Chats'),
+                    for (final folder in widget.folders)
+                      _buildFolderTab(context, theme, isDark, folder.id, folder.name),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             Flexible(
               child: GridView.builder(
@@ -8710,6 +8746,33 @@ class _ShareBoxState extends State<_ShareBox> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFolderTab(BuildContext context, ThemeData theme, bool isDark, String? folderId, String label) {
+    final isActive = _selectedFolderId == folderId;
+    final accentColor = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF40a7e3);
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: Material(
+        color: isActive ? accentColor : (isDark ? const Color(0xFF242f3d) : const Color(0xFFf1f1f1)),
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => setState(() => _selectedFolderId = folderId),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: isActive ? Colors.white : (isDark ? const Color(0xFFaaaaaa) : const Color(0xFF555555)),
+              ),
+            ),
+          ),
         ),
       ),
     );

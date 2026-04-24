@@ -454,7 +454,6 @@
 
 ### §9.7 Forward Dialog (ShareBox)
 <!-- File: dart/lib/ui/chat_view.dart (_ShareBox, _ShareBoxItem) -->
-- [ ] Folder-based filter tabs in recipient list — spec §9.4
 
 ### §9.8 Delete Confirmation Box
 <!-- File: not yet implemented -->
