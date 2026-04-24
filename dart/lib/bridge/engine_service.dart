@@ -280,6 +280,13 @@ class EngineService {
     await _callAsync('__engine', 'AddContact', req.writeToBuffer());
   }
 
+  Future<void> deleteContact(String accountId, String userId) async {
+    final req = epb.EngineBlockUserRequest()
+      ..accountId = accountId
+      ..userId = userId;
+    await _callAsync('__engine', 'DeleteContact', req.writeToBuffer());
+  }
+
   void markChatRead(String accountId, String chatId, String upToMsgId) {
     final req = epb.EngineMarkChatReadRequest()
       ..accountId = accountId

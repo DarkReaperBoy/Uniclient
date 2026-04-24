@@ -422,7 +422,6 @@
 - [x] Channel: subscriber count as status subtitle — spec §8 — DONE in _AvatarHeader
 - [x] Notifications toggle (mute/unmute) — spec §8 — DONE in _NotificationToggle
 - [x] DM details: phone, username, bio fields with TextWithLabel style; empty fields auto-hide — spec §8 — DONE in _ChatDetails + _TextWithLabel (uses GetUserProfile engine method)
-- [ ] DM action buttons: Share/Edit/Delete Contact, Block/Unblock actions in info panel — spec §8
 - [ ] Group info: Leave Group, Report, Edit Group (if admin); click member pushes user profile — spec §8
 - [ ] Channel info: Similar Channels button; Join/Leave actions; no inline members list — spec §8
 - [ ] Live reactivity: name, phone, bio, member count, notifications update as live streams — spec §8

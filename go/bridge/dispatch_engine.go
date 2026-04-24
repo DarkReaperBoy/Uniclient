@@ -293,6 +293,13 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.AddContact(req.AccountId, req.Phone, req.FirstName, req.LastName)
 
+	case "DeleteContact":
+		var req pb.EngineBlockUserRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.DeleteContact(req.AccountId, req.UserId)
+
 	case "MarkChatRead":
 		var req pb.EngineMarkChatReadRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

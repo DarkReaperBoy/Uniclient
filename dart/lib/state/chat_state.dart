@@ -690,6 +690,11 @@ class ChatState extends ChangeNotifier {
     loadChats();
   }
 
+  Future<void> deleteContact(String accountId, String userId) async {
+    await _engine.deleteContact(accountId, userId);
+    loadChats();
+  }
+
   void leaveChat(String accountId, String chatId) {
     _engine.leaveChat(accountId, chatId);
     // If this was the active chat, clear it.

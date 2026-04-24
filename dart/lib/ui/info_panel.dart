@@ -1251,6 +1251,14 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
                   chatId: widget.chat.chatId,
                 ),
               ],
+              if (widget.chat.type == ChatType.dm &&
+                  widget.chat.title != 'Saved Messages') ...[
+                const Divider(height: 24),
+                _DmActionsSection(
+                  chat: widget.chat,
+                  theme: widget.theme,
+                ),
+              ],
               const SizedBox(height: 16),
             ]),
           ),
@@ -1716,6 +1724,297 @@ class _NotificationToggle extends StatelessWidget {
             },
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _DmActionsSection extends StatelessWidget {
+  final ChatInfo chat;
+  final ThemeData theme;
+
+  const _DmActionsSection({required this.chat, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    final chatState = context.read<ChatState>();
+    final isContact = chat.isContact;
+    final isBlocked = chat.isBlocked;
+    final attentionColor = const Color(0xFFDD4B39);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (isContact) ...[
+          _ActionRow(
+            icon: Icons.share,
+            label: 'Share Contact',
+            theme: theme,
+            onTap: () => _shareContact(context, chatState),
+          ),
+          _ActionRow(
+            icon: Icons.edit,
+            label: 'Edit Contact',
+            theme: theme,
+            onTap: () => _editContact(context, chatState),
+          ),
+          _ActionRow(
+            icon: Icons.delete_outline,
+            label: 'Delete Contact',
+            theme: theme,
+            color: attentionColor,
+            onTap: () => _confirmDeleteContact(context, chatState),
+          ),
+        ] else ...[
+          _ActionRow(
+            icon: Icons.person_add,
+            label: 'Add Contact',
+            theme: theme,
+            onTap: () => _addContact(context, chatState),
+          ),
+        ],
+        _ActionRow(
+          icon: isBlocked ? Icons.lock_open : Icons.block,
+          label: isBlocked ? 'Unblock User' : 'Block User',
+          theme: theme,
+          color: isBlocked ? null : attentionColor,
+          onTap: () => _toggleBlock(context, chatState),
+        ),
+      ],
+    );
+  }
+
+  void _shareContact(BuildContext context, ChatState chatState) {
+    final engine = context.read<EngineService>();
+    engine.getUserProfile(chat.accountId, chat.chatId).then((profile) {
+      if (profile == null || !context.mounted) return;
+      final text = [
+        if (profile.phone.isNotEmpty) '+${profile.phone}',
+        if (profile.username.isNotEmpty) '@${profile.username}',
+      ].join('\n');
+      if (text.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No contact info to share')),
+        );
+        return;
+      }
+      Clipboard.setData(ClipboardData(text: text));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Contact info copied to clipboard'),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    });
+  }
+
+  void _editContact(BuildContext context, ChatState chatState) {
+    final engine = context.read<EngineService>();
+    engine.getUserProfile(chat.accountId, chat.chatId).then((profile) {
+      if (profile == null || !context.mounted) return;
+      final nameParts = profile.displayName.split(' ');
+      final firstCtrl = TextEditingController(text: nameParts.first);
+      final lastCtrl = TextEditingController(
+        text: nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '',
+      );
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Edit Contact'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: firstCtrl,
+                decoration: const InputDecoration(labelText: 'First name'),
+                autofocus: true,
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: lastCtrl,
+                decoration: const InputDecoration(labelText: 'Last name'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                final first = firstCtrl.text.trim();
+                if (first.isEmpty) return;
+                chatState.addContact(
+                  chat.accountId,
+                  profile.phone,
+                  first,
+                  lastCtrl.text.trim(),
+                );
+                Navigator.pop(ctx);
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  void _confirmDeleteContact(BuildContext context, ChatState chatState) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Contact'),
+        content: Text('Remove ${chat.title} from your contacts?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFFDD4B39)),
+            onPressed: () {
+              chatState.deleteContact(chat.accountId, chat.chatId);
+              Navigator.pop(ctx);
+            },
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _addContact(BuildContext context, ChatState chatState) {
+    final engine = context.read<EngineService>();
+    engine.getUserProfile(chat.accountId, chat.chatId).then((profile) {
+      if (!context.mounted) return;
+      final pName = profile?.displayName ?? chat.title;
+      final pParts = pName.split(' ');
+      final firstCtrl = TextEditingController(text: pParts.first);
+      final lastCtrl = TextEditingController(
+        text: pParts.length > 1 ? pParts.sublist(1).join(' ') : '',
+      );
+      final phoneCtrl = TextEditingController(
+        text: profile?.phone ?? '',
+      );
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Add Contact'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: firstCtrl,
+                decoration: const InputDecoration(labelText: 'First name'),
+                autofocus: true,
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: lastCtrl,
+                decoration: const InputDecoration(labelText: 'Last name'),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: phoneCtrl,
+                decoration: const InputDecoration(labelText: 'Phone number'),
+                keyboardType: TextInputType.phone,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                final first = firstCtrl.text.trim();
+                final phone = phoneCtrl.text.trim();
+                if (first.isEmpty || phone.isEmpty) return;
+                chatState.addContact(
+                  chat.accountId, phone, first, lastCtrl.text.trim(),
+                );
+                Navigator.pop(ctx);
+              },
+              child: const Text('Add'),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  void _toggleBlock(BuildContext context, ChatState chatState) {
+    if (chat.isBlocked) {
+      chatState.unblockUser(chat.accountId, chat.chatId);
+      return;
+    }
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Block User'),
+        content: Text('Block ${chat.title}? They will not be able to contact you.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFFDD4B39)),
+            onPressed: () {
+              chatState.blockUser(chat.accountId, chat.chatId);
+              Navigator.pop(ctx);
+            },
+            child: const Text('Block'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final ThemeData theme;
+  final Color? color;
+  final VoidCallback onTap;
+
+  const _ActionRow({
+    required this.icon,
+    required this.label,
+    required this.theme,
+    this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = color ?? theme.textTheme.bodyMedium?.color;
+    final iconColor = color ?? theme.iconTheme.color;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.only(left: 21, top: 11, right: 20, bottom: 9),
+        child: Row(
+          children: [
+            Icon(icon, size: 24, color: iconColor),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: fg,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

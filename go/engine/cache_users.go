@@ -415,6 +415,22 @@ func (e *Engine) AddContact(accountID, phone, firstName, lastName string) error 
 	return acc.Core.AddContact(phone, firstName, lastName)
 }
 
+func (e *Engine) DeleteContact(accountID, userID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	if err := acc.Core.DeleteContact(userID); err != nil {
+		return err
+	}
+	e.db.Exec("UPDATE users SET is_contact = 0 WHERE account_id = ? AND user_id = ?", accountID, userID)
+	e.emitChatUpdate(accountID, userID)
+	return nil
+}
+
 // GetPeerColors fetches the extended peer color palette (help.peerColors) from the core.
 // Returns up to 64 color entries. Only works for Telegram accounts.
 func (e *Engine) GetPeerColors(accountID string) ([]cores.PeerColorEntry, error) {
