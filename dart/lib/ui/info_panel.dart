@@ -1260,6 +1260,13 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
                   members: widget.members,
                 ),
               ],
+              if (widget.chat.type == ChatType.channel) ...[
+                const Divider(height: 24),
+                _ChannelActionsSection(
+                  chat: widget.chat,
+                  theme: widget.theme,
+                ),
+              ],
               if (widget.chat.type == ChatType.dm &&
                   widget.chat.title != 'Saved Messages') ...[
                 const Divider(height: 24),
@@ -1890,6 +1897,93 @@ class _GroupActionsSection extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Leave Group'),
+        content: Text('Leave ${chat.title}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFFDD4B39)),
+            onPressed: () {
+              chatState.leaveChat(chat.accountId, chat.chatId);
+              Navigator.pop(ctx);
+            },
+            child: const Text('Leave'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChannelActionsSection extends StatelessWidget {
+  final ChatInfo chat;
+  final ThemeData theme;
+
+  const _ChannelActionsSection({required this.chat, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    final chatState = context.read<ChatState>();
+    final attentionColor = const Color(0xFFDD4B39);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _ActionRow(
+          icon: Icons.flag_outlined,
+          label: 'Report',
+          theme: theme,
+          onTap: () => _confirmReport(context, chatState),
+        ),
+        _ActionRow(
+          icon: Icons.logout,
+          label: 'Leave Channel',
+          theme: theme,
+          color: attentionColor,
+          onTap: () => _confirmLeave(context, chatState),
+        ),
+      ],
+    );
+  }
+
+  void _confirmReport(BuildContext context, ChatState chatState) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Report Channel'),
+        content: Text('Report ${chat.title} as spam?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFFDD4B39)),
+            onPressed: () {
+              chatState.reportSpam(chat.accountId, chat.chatId);
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Channel reported'),
+                  duration: Duration(seconds: 2),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+            child: const Text('Report'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmLeave(BuildContext context, ChatState chatState) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Leave Channel'),
         content: Text('Leave ${chat.title}?'),
         actions: [
           TextButton(
