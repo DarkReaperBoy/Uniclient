@@ -894,6 +894,25 @@ func (e *Engine) GetStickerSetInfo(accountID, shortName string, setID, accessHas
 	return fetcher.GetStickerSetInfo(shortName, setID, accessHash)
 }
 
+type StickerSuggestionsFetcher interface {
+	GetStickerSuggestions(emoji string) ([]cores.StickerInfo, error)
+}
+
+func (e *Engine) GetStickerSuggestions(accountID, emoji string) ([]cores.StickerInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(StickerSuggestionsFetcher)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support sticker suggestions")
+	}
+	return fetcher.GetStickerSuggestions(emoji)
+}
+
 type InstalledEmojiSetsFetcher interface {
 	GetInstalledEmojiSets() ([]cores.EmojiSetSummary, error)
 }
@@ -1306,6 +1325,18 @@ func (e *Engine) SendInlineBotResult(accountID, chatID string, queryID int64, re
 		return 0, fmt.Errorf("platform does not support inline bot results")
 	}
 	return sender.SendInlineBotResult(chatID, queryID, resultID)
+}
+
+func (e *Engine) SendSticker(accountID, chatID, stickerID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	_, err := acc.Core.SendSticker(chatID, stickerID)
+	return err
 }
 
 type MessageReporter interface {

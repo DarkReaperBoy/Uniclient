@@ -426,6 +426,41 @@ class EngineService {
     }
   }
 
+  Future<List<StickerInfoItem>> getStickerSuggestions(String accountId, String emoji) async {
+    final req = epb.EngineGetStickerSuggestionsRequest()
+      ..accountId = accountId
+      ..emoji = emoji;
+    try {
+      final respBytes = await _callAsync('__engine', 'GetStickerSuggestions', req.writeToBuffer());
+      if (respBytes.isEmpty) return [];
+      final resp = epb.EngineGetStickerSuggestionsResponse.fromBuffer(respBytes);
+      return resp.stickers.map((s) => StickerInfoItem(
+        emoji: s.emoji,
+        thumbB64: s.thumbB64,
+        width: s.width,
+        height: s.height,
+        mimeType: s.mimeType,
+        fileId: s.fileId,
+      )).toList();
+    } catch (e) {
+      Debug.error('ENGINE', 'getStickerSuggestions failed', e);
+      return [];
+    }
+  }
+
+  Future<void> sendSticker(String accountId, String chatId, String stickerId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'sticker_id': stickerId,
+    }));
+    try {
+      await _callAsync('__engine', 'SendSticker', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'sendSticker failed', e);
+    }
+  }
+
   // ── Installed custom emoji sets ──
 
   Future<List<CustomEmojiSetSummary>> getInstalledEmojiSets(String accountId) async {

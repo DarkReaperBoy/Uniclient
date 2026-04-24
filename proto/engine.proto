@@ -1077,3 +1077,16 @@ message EngineInstallStickerSetRequest {
 }
 
 message EngineInstallStickerSetResponse {}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Sticker Suggestions (messages.getStickers — stickers matching a Unicode emoji)
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineGetStickerSuggestionsRequest {
+  string account_id = 1;
+  string emoji      = 2;
+}
+
+message EngineGetStickerSuggestionsResponse {
+  repeated EngineStickerInfo stickers = 1;
+}

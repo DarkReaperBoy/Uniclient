@@ -11585,6 +11585,53 @@ func (t *TelegramCore) GetStickerSetInfo(shortName string, setID int64, accessHa
 	return res, nil
 }
 
+func (t *TelegramCore) GetStickerSuggestions(emoji string) ([]StickerInfo, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+
+	result, err := t.api.MessagesGetStickers(t.ctx, &tg.MessagesGetStickersRequest{
+		Emoticon: emoji,
+		Hash:     0,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get stickers: %w", err)
+	}
+	stickers, ok := result.(*tg.MessagesStickers)
+	if !ok {
+		return nil, nil
+	}
+
+	var out []StickerInfo
+	for _, doc := range stickers.Stickers {
+		d, ok := doc.(*tg.Document)
+		if !ok {
+			continue
+		}
+		t.cacheFileInfo(d.ID, d.AccessHash, d.FileReference)
+		si := StickerInfo{
+			Emoji:    emoji,
+			ThumbB64: extractStrippedThumbB64(d.Thumbs),
+			MimeType: d.MimeType,
+			FileID:   strconv.FormatInt(d.ID, 10),
+		}
+		for _, attr := range d.Attributes {
+			switch a := attr.(type) {
+			case *tg.DocumentAttributeImageSize:
+				si.Width = a.W
+				si.Height = a.H
+			case *tg.DocumentAttributeVideo:
+				si.Width = a.W
+				si.Height = a.H
+			}
+		}
+		out = append(out, si)
+	}
+	return out, nil
+}
+
 // GetInstalledEmojiSets returns the user's installed custom emoji sticker sets with thumbnails.
 func (t *TelegramCore) GetInstalledEmojiSets() ([]EmojiSetSummary, error) {
 	t.mu.RLock()
@@ -18681,9 +18728,15 @@ func (t *TelegramCore) SendSticker(chatID string, stickerID string) (*Message, e
 	if err != nil {
 		return nil, err
 	}
+	accessHash := t.getCachedFileHash(id)
+	fileRef := t.getCachedFileRef(id)
 	result, err := t.api.MessagesSendMedia(t.ctx, &tg.MessagesSendMediaRequest{
 		Peer: inputPeer, RandomID: time.Now().UnixNano(),
-		Media: &tg.InputMediaDocument{ID: &tg.InputDocument{ID: id}},
+		Media: &tg.InputMediaDocument{ID: &tg.InputDocument{
+			ID:            id,
+			AccessHash:    accessHash,
+			FileReference: fileRef,
+		}},
 	})
 	if err != nil {
 		return nil, err

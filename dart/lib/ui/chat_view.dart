@@ -184,6 +184,7 @@ class _ChatViewState extends State<ChatView>
   List<MemberInfo> _acMembers = [];
   List<MemberInfo> _acFilteredMembers = [];
   List<EmojiEntry> _acFilteredEmojis = [];
+  List<StickerInfoItem> _acStickerSuggestions = [];
   int _acSelectedIndex = 0;
   bool _acMembersLoaded = false;
   String? _acMembersChatId;
@@ -359,6 +360,7 @@ class _ChatViewState extends State<ChatView>
             _hiddenMsgIds.clear();
             _acQuery = null;
             _acFilteredMembers = [];
+            _acStickerSuggestions = [];
             _acMembersLoaded = false;
           });
         });
@@ -1924,7 +1926,7 @@ class _ChatViewState extends State<ChatView>
 
   void _onAutocompleteQuery(AutocompleteQuery? query) {
     if (query == null) {
-      if (_acQuery != null) setState(() { _acQuery = null; _acFilteredEmojis = []; });
+      if (_acQuery != null) setState(() { _acQuery = null; _acFilteredEmojis = []; _acStickerSuggestions = []; });
       return;
     }
     final chatState = context.read<ChatState>();
@@ -1943,6 +1945,7 @@ class _ChatViewState extends State<ChatView>
         _acQuery = query;
         _acFilteredMembers = filtered;
         _acFilteredEmojis = [];
+        _acStickerSuggestions = [];
         _acSelectedIndex = 0;
       });
     } else if (query.type == AutocompleteType.emoji) {
@@ -1951,13 +1954,23 @@ class _ChatViewState extends State<ChatView>
         _acQuery = query;
         _acFilteredMembers = [];
         _acFilteredEmojis = results;
+        _acStickerSuggestions = [];
         _acSelectedIndex = 0;
       });
+    } else if (query.type == AutocompleteType.stickerSuggestion) {
+      setState(() {
+        _acQuery = query;
+        _acFilteredMembers = [];
+        _acFilteredEmojis = [];
+        _acSelectedIndex = 0;
+      });
+      _loadStickerSuggestions(chat.accountId, query.query);
     } else {
       setState(() {
         _acQuery = query;
         _acFilteredMembers = [];
         _acFilteredEmojis = [];
+        _acStickerSuggestions = [];
         _acSelectedIndex = 0;
       });
     }
@@ -2003,8 +2016,24 @@ class _ChatViewState extends State<ChatView>
     }).catchError((_) {});
   }
 
+  String? _stickerSuggestEmoji;
+
+  void _loadStickerSuggestions(String accountId, String emoji) {
+    _stickerSuggestEmoji = emoji;
+    final engine = context.read<EngineService>();
+    engine.getStickerSuggestions(accountId, emoji).then((stickers) {
+      if (mounted && _stickerSuggestEmoji == emoji && _acQuery?.type == AutocompleteType.stickerSuggestion) {
+        setState(() {
+          _acStickerSuggestions = stickers;
+          _acSelectedIndex = 0;
+        });
+      }
+    }).catchError((_) {});
+  }
+
   int get _acItemCount {
     if (_acQuery?.type == AutocompleteType.emoji) return _acFilteredEmojis.length;
+    if (_acQuery?.type == AutocompleteType.stickerSuggestion) return _acStickerSuggestions.length;
     return _acFilteredMembers.length;
   }
 
@@ -2031,6 +2060,10 @@ class _ChatViewState extends State<ChatView>
     if (_acQuery!.type == AutocompleteType.mention && _acSelectedIndex < _acFilteredMembers.length) {
       final member = _acFilteredMembers[_acSelectedIndex];
       _insertAutocomplete(member.username.isNotEmpty ? '@${member.username} ' : '@${member.displayName} ');
+      return;
+    }
+    if (_acQuery!.type == AutocompleteType.stickerSuggestion && _acSelectedIndex < _acStickerSuggestions.length) {
+      _sendStickerSuggestion(_acStickerSuggestions[_acSelectedIndex]);
     }
   }
 
@@ -2042,7 +2075,24 @@ class _ChatViewState extends State<ChatView>
     if (_acQuery?.type == AutocompleteType.mention && index < _acFilteredMembers.length) {
       final member = _acFilteredMembers[index];
       _insertAutocomplete(member.username.isNotEmpty ? '@${member.username} ' : '@${member.displayName} ');
+      return;
     }
+    if (_acQuery?.type == AutocompleteType.stickerSuggestion && index < _acStickerSuggestions.length) {
+      _sendStickerSuggestion(_acStickerSuggestions[index]);
+    }
+  }
+
+  void _sendStickerSuggestion(StickerInfoItem sticker) {
+    final chatState = context.read<ChatState>();
+    final chat = chatState.activeChat;
+    if (chat == null) return;
+    final engine = context.read<EngineService>();
+    engine.sendSticker(chat.accountId, chat.chatId, sticker.fileId);
+    _composeController.clear();
+    setState(() {
+      _acQuery = null;
+      _acStickerSuggestions = [];
+    });
   }
 
   void _insertAutocomplete(String replacement) {
@@ -2879,6 +2929,13 @@ class _ChatViewState extends State<ChatView>
               onPick: _acPickIndex,
               onHover: (i) => setState(() => _acSelectedIndex = i),
             ),
+          if (_acQuery != null && _acQuery!.type == AutocompleteType.stickerSuggestion && _acStickerSuggestions.isNotEmpty)
+            _StickerSuggestionPanel(
+              stickers: _acStickerSuggestions,
+              selectedIndex: _acSelectedIndex,
+              onPick: (i) => _acPickIndex(i),
+              onHover: (i) => setState(() => _acSelectedIndex = i),
+            ),
           if (_inlineBotResults != null && _inlineBotResults!.results.isNotEmpty)
             _InlineBotResultsPanel(
               results: _inlineBotResults!,
@@ -2940,7 +2997,7 @@ class _ChatViewState extends State<ChatView>
               },
               onFilesSelected: (paths) => _uploadFiles(chatState, paths),
               onAutocompleteQuery: _onAutocompleteQuery,
-              autocompleteActive: _acQuery != null && (_acFilteredMembers.isNotEmpty || _acFilteredEmojis.isNotEmpty),
+              autocompleteActive: _acQuery != null && (_acFilteredMembers.isNotEmpty || _acFilteredEmojis.isNotEmpty || _acStickerSuggestions.isNotEmpty),
               onAutocompleteUp: _acMoveUp,
               onAutocompleteDown: _acMoveDown,
               onAutocompletePick: _acPick,
@@ -9546,6 +9603,76 @@ class _EmojiSuggestionPanel extends StatelessWidget {
               );
             },
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StickerSuggestionPanel extends StatelessWidget {
+  final List<StickerInfoItem> stickers;
+  final int selectedIndex;
+  final ValueChanged<int> onPick;
+  final ValueChanged<int> onHover;
+
+  const _StickerSuggestionPanel({
+    required this.stickers,
+    required this.selectedIndex,
+    required this.onPick,
+    required this.onHover,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212b) : Colors.white;
+    final hoverColor = isDark ? const Color(0xFF202b36) : const Color(0xFFf1f1f1);
+    final borderColor = isDark ? const Color(0xFF101a23) : const Color(0xFFdadada);
+    const cellSize = 100.0;
+
+    return TextFieldTapRegion(
+      child: Container(
+        height: cellSize + 8,
+        decoration: BoxDecoration(
+          color: bgColor,
+          border: Border(
+            top: BorderSide(color: borderColor, width: 1),
+          ),
+        ),
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          itemCount: stickers.length,
+          itemBuilder: (context, index) {
+            final s = stickers[index];
+            final isSelected = index == selectedIndex;
+            return MouseRegion(
+              onEnter: (_) => onHover(index),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => onPick(index),
+                child: Container(
+                  width: cellSize,
+                  height: cellSize,
+                  decoration: BoxDecoration(
+                    color: isSelected ? hoverColor : null,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  padding: const EdgeInsets.all(4),
+                  child: s.thumbB64.isNotEmpty
+                      ? Image.memory(
+                          base64Decode(s.thumbB64),
+                          fit: BoxFit.contain,
+                          gaplessPlayback: true,
+                        )
+                      : Center(
+                          child: Text(s.emoji, style: const TextStyle(fontSize: 40)),
+                        ),
+                ),
+              ),
+            );
+          },
         ),
       ),
     );

@@ -917,6 +917,28 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(resp)
 
+	case "GetStickerSuggestions":
+		var req pb.EngineGetStickerSuggestionsRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		stickers, err := e.GetStickerSuggestions(req.AccountId, req.Emoji)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetStickerSuggestionsResponse{}
+		for _, s := range stickers {
+			resp.Stickers = append(resp.Stickers, &pb.EngineStickerInfo{
+				Emoji:    s.Emoji,
+				ThumbB64: s.ThumbB64,
+				Width:    int32(s.Width),
+				Height:   int32(s.Height),
+				MimeType: s.MimeType,
+				FileId:   s.FileID,
+			})
+		}
+		return proto.Marshal(resp)
+
 	case "GetInstalledEmojiSets":
 		var req pb.EngineGetInstalledEmojiSetsRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
@@ -1295,6 +1317,20 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			return nil, err
 		}
 		return json.Marshal(map[string]int{"msg_id": msgID})
+
+	case "SendSticker":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			StickerID string `json:"sticker_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.SendSticker(params.AccountID, params.ChatID, params.StickerID); err != nil {
+			return nil, err
+		}
+		return nil, nil
 
 	// ── Send As ──
 
