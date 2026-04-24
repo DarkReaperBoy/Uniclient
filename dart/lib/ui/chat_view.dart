@@ -2986,6 +2986,17 @@ class _ChatViewState extends State<ChatView>
         child: EmojiTabbedPanel(
           visible: _emojiPanelVisible,
           onHide: () => setState(() => _emojiPanelVisible = false),
+          onEmojiSelected: (emoji) {
+            final text = _composeController.text;
+            final sel = _composeController.selection;
+            final start = sel.isValid ? sel.start : text.length;
+            final end = sel.isValid ? sel.end : text.length;
+            final newText = text.replaceRange(start, end, emoji);
+            _composeController.value = TextEditingValue(
+              text: newText,
+              selection: TextSelection.collapsed(offset: start + emoji.length),
+            );
+          },
         ),
       ),
       Positioned.fill(

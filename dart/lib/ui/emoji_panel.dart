@@ -10,14 +10,20 @@ const double _kHeightRatio = 0.55;
 const Duration _kShowDuration = Duration(milliseconds: 200);
 const Duration _kHideTimeout = Duration(milliseconds: 300);
 
+const double _kEmojiCellSize = 40.0;
+const double _kEmojiGridPadding = 8.0;
+const double _kCategoryBarHeight = 38.0;
+
 class EmojiTabbedPanel extends StatefulWidget {
   final bool visible;
   final VoidCallback onHide;
+  final ValueChanged<String>? onEmojiSelected;
 
   const EmojiTabbedPanel({
     super.key,
     required this.visible,
     required this.onHide,
+    this.onEmojiSelected,
   });
 
   @override
@@ -165,6 +171,7 @@ class _EmojiTabbedPanelState extends State<EmojiTabbedPanel>
                             activeTab: _activeTab,
                             prevTab: _prevTab,
                             slideController: _tabSlideController,
+                            onEmojiSelected: widget.onEmojiSelected,
                           ),
                         ),
                       ],
@@ -253,12 +260,29 @@ class _TabContent extends StatelessWidget {
   final int activeTab;
   final int prevTab;
   final AnimationController slideController;
+  final ValueChanged<String>? onEmojiSelected;
 
   const _TabContent({
     required this.activeTab,
     required this.prevTab,
     required this.slideController,
+    this.onEmojiSelected,
   });
+
+  Widget _buildTab(int index) {
+    if (index == 0) {
+      return _EmojiTab(onEmojiSelected: onEmojiSelected);
+    }
+    final isDark = false; // will be resolved per-build
+    final placeholderColor = const Color(0xFF999999);
+    final labels = ['Emoji', 'Stickers', 'GIFs'];
+    final icons = [
+      Icons.emoji_emotions_outlined,
+      Icons.sticky_note_2_outlined,
+      Icons.gif_box_outlined,
+    ];
+    return _buildPlaceholder(labels[index], icons[index], placeholderColor);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -267,13 +291,6 @@ class _TabContent extends StatelessWidget {
         ? const Color(0xFF7e8b93)
         : const Color(0xFF999999);
 
-    final labels = ['Emoji', 'Stickers', 'GIFs'];
-    final icons = [
-      Icons.emoji_emotions_outlined,
-      Icons.sticky_note_2_outlined,
-      Icons.gif_box_outlined,
-    ];
-
     return AnimatedBuilder(
       animation: slideController,
       builder: (context, _) {
@@ -281,12 +298,40 @@ class _TabContent extends StatelessWidget {
         final slideProgress = slideController.value;
 
         if (slideProgress >= 1.0 || activeTab == prevTab) {
+          if (activeTab == 0) {
+            return _EmojiTab(onEmojiSelected: onEmojiSelected);
+          }
+          final labels = ['Emoji', 'Stickers', 'GIFs'];
+          final icons = [
+            Icons.emoji_emotions_outlined,
+            Icons.sticky_note_2_outlined,
+            Icons.gif_box_outlined,
+          ];
           return _buildPlaceholder(labels[activeTab], icons[activeTab], placeholderColor);
         }
 
         return LayoutBuilder(
           builder: (context, constraints) {
             final panelW = constraints.maxWidth;
+            Widget prevWidget;
+            Widget activeWidget;
+
+            if (prevTab == 0) {
+              prevWidget = _EmojiTab(onEmojiSelected: onEmojiSelected);
+            } else {
+              final labels = ['Emoji', 'Stickers', 'GIFs'];
+              final icons = [Icons.emoji_emotions_outlined, Icons.sticky_note_2_outlined, Icons.gif_box_outlined];
+              prevWidget = _buildPlaceholder(labels[prevTab], icons[prevTab], placeholderColor);
+            }
+
+            if (activeTab == 0) {
+              activeWidget = _EmojiTab(onEmojiSelected: onEmojiSelected);
+            } else {
+              final labels = ['Emoji', 'Stickers', 'GIFs'];
+              final icons = [Icons.emoji_emotions_outlined, Icons.sticky_note_2_outlined, Icons.gif_box_outlined];
+              activeWidget = _buildPlaceholder(labels[activeTab], icons[activeTab], placeholderColor);
+            }
+
             return ClipRect(
               child: Stack(
                 children: [
@@ -297,7 +342,7 @@ class _TabContent extends StatelessWidget {
                       child: SizedBox(
                         width: panelW,
                         height: constraints.maxHeight,
-                        child: _buildPlaceholder(labels[prevTab], icons[prevTab], placeholderColor),
+                        child: prevWidget,
                       ),
                     ),
                   ),
@@ -308,7 +353,7 @@ class _TabContent extends StatelessWidget {
                       child: SizedBox(
                         width: panelW,
                         height: constraints.maxHeight,
-                        child: _buildPlaceholder(labels[activeTab], icons[activeTab], placeholderColor),
+                        child: activeWidget,
                       ),
                     ),
                   ),
@@ -336,6 +381,379 @@ class _TabContent extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+enum _EmojiCategory {
+  recent,
+  smileys,
+  nature,
+  food,
+  activities,
+  travel,
+  objects,
+  symbols,
+}
+
+class _EmojiCategoryData {
+  final _EmojiCategory category;
+  final IconData icon;
+  final String label;
+  final List<String> emojis;
+
+  const _EmojiCategoryData({
+    required this.category,
+    required this.icon,
+    required this.label,
+    required this.emojis,
+  });
+}
+
+final List<_EmojiCategoryData> _emojiCategories = [
+  _EmojiCategoryData(
+    category: _EmojiCategory.recent,
+    icon: Icons.access_time,
+    label: 'Recent',
+    emojis: [],
+  ),
+  const _EmojiCategoryData(
+    category: _EmojiCategory.smileys,
+    icon: Icons.emoji_emotions_outlined,
+    label: 'Smileys',
+    emojis: [
+      '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃',
+      '😉', '😊', '😇', '🥰', '😍', '🤩', '😘', '😗', '😚', '😙',
+      '🥲', '😋', '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫',
+      '🤔', '🫡', '🤐', '🤨', '😐', '😑', '😶', '🫥', '😏', '😒',
+      '🙄', '😬', '🤥', '🫨', '😌', '😔', '😪', '🤤', '😴', '😷',
+      '🤒', '🤕', '🤢', '🤮', '🤧', '🥵', '🥶', '🥴', '😵', '🤯',
+      '🤠', '🥳', '🥸', '😎', '🤓', '🧐', '😕', '🫤', '😟', '🙁',
+      '😮', '😯', '😲', '😳', '🥺', '🥹', '😦', '😧', '😨', '😰',
+      '😥', '😢', '😭', '😱', '😖', '😣', '😞', '😓', '😩', '😫',
+      '🥱', '😤', '😡', '😠', '🤬', '😈', '👿', '💀', '☠️', '💩',
+      '🤡', '👹', '👺', '👻', '👽', '👾', '🤖', '😺', '😸', '😹',
+      '😻', '😼', '😽', '🙀', '😿', '😾', '🫶', '👋', '🤚', '🖐️',
+      '✋', '🖖', '🫱', '🫲', '🫳', '🫴', '👌', '🤌', '🤏', '✌️',
+      '🤞', '🫰', '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇',
+      '☝️', '🫵', '👍', '👎', '✊', '👊', '🤛', '🤜', '👏', '🙌',
+      '🫶', '👐', '🤲', '🤝', '🙏', '✍️', '💅', '🤳', '💪', '🦾',
+    ],
+  ),
+  const _EmojiCategoryData(
+    category: _EmojiCategory.nature,
+    icon: Icons.pets_outlined,
+    label: 'Nature',
+    emojis: [
+      '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐻‍❄️', '🐨',
+      '🐯', '🦁', '🐮', '🐷', '🐽', '🐸', '🐵', '🙈', '🙉', '🙊',
+      '🐒', '🐔', '🐧', '🐦', '🐤', '🐣', '🐥', '🦆', '🦅', '🦉',
+      '🦇', '🐺', '🐗', '🐴', '🦄', '🐝', '🪱', '🐛', '🦋', '🐌',
+      '🐞', '🐜', '🪰', '🪲', '🪳', '🦟', '🦗', '🕷️', '🕸️', '🦂',
+      '🐢', '🐍', '🦎', '🦖', '🦕', '🐙', '🦑', '🦐', '🦞', '🦀',
+      '🪸', '🐡', '���', '🐟', '🐬', '🐳', '🐋', '🦈', '🐊', '🐅',
+      '🐆', '🦓', '🫏', '🦍', '🦧', '🐘', '🦣', '🦛', '🦏', '🐪',
+      '🐫', '🦒', '🦘', '🦬', '🐃', '🐂', '🐄', '🐎', '🐖', '🐏',
+      '🐑', '🦙', '🐐', '🦌', '🐕', '🐩', '🦮', '🐕‍🦺', '🐈', '🐈‍⬛',
+      '🌸', '💮', '🏵️', '🌹', '🥀', '🌺', '🌻', '🌼', '🌷', '🪻',
+      '🌱', '🪴', '🌲', '🌳', '🌴', '🌵', '🌾', '🌿', '☘️', '🍀',
+      '🍁', '🍂', '🍃', '🪹', '🪺', '🍄', '🌰', '🦀', '🌍', '🌎',
+      '🌏', '🌑', '🌒', '🌓', '🌔', '🌕', '🌖', '🌗', '🌘', '🌙',
+      '🌚', '🌛', '🌜', '☀️', '🌝', '🌞', '⭐', '🌟', '🌠', '☁️',
+      '⛅', '⛈️', '🌤️', '🌥️', '🌦️', '🌧️', '🌨️', '🌩️', '🌪️', '🌫️',
+    ],
+  ),
+  const _EmojiCategoryData(
+    category: _EmojiCategory.food,
+    icon: Icons.restaurant_outlined,
+    label: 'Food',
+    emojis: [
+      '🍇', '🍈', '🍉', '🍊', '🍋', '🍌', '🍍', '🥭', '🍎', '🍏',
+      '🍐', '🍑', '🍒', '🍓', '🫐', '🥝', '🍅', '🫒', '🥥', '🥑',
+      '🍆', '🥔', '🥕', '🌽', '🌶️', '🫑', '🥒', '🥬', '🥦', '🧄',
+      '🧅', '🥜', '🫘', '🌰', '🫚', '🫛', '🍞', '🥐', '🥖', '🫓',
+      '🥨', '🥯', '🥞', '🧇', '🧀', '🍖', '🍗', '🥩', '🥓', '🍔',
+      '🍟', '🍕', '🌭', '🥪', '🌮', '🌯', '🫔', '🥙', '🧆', '🥚',
+      '🍳', '🥘', '🍲', '🫕', '🥣', '🥗', '🍿', '🧈', '🧂', '🥫',
+      '🍱', '🍘', '🍙', '🍚', '🍛', '🍜', '🍝', '🍠', '🍢', '🍣',
+      '🍤', '🍥', '🥮', '🍡', '🥟', '🥠', '🥡', '🦀', '🦞', '🦐',
+      '🦑', '🦪', '🍦', '🍧', '🍨', '🍩', '🍪', '🎂', '🍰', '🧁',
+      '🥧', '🍫', '🍬', '🍭', '🍮', '🍯', '🍼', '🥛', '☕', '🫖',
+      '🍵', '🍶', '🍾', '🍷', '🍸', '🍹', '🍺', '🍻', '🥂', '🥃',
+      '🫗', '🥤', '🧋', '🧃', '🧉', '🧊', '🥢', '🍽️', '🍴', '🥄',
+    ],
+  ),
+  const _EmojiCategoryData(
+    category: _EmojiCategory.activities,
+    icon: Icons.sports_soccer_outlined,
+    label: 'Activities',
+    emojis: [
+      '⚽', '🏀', '🏈', '⚾', '🥎', '🎾', '🏐', '🏉', '🥏', '🎱',
+      '🪀', '🏓', '🏸', '🏒', '🏑', '🥍', '🏏', '🪃', '🥅', '⛳',
+      '🪁', '🏹', '🎣', '🤿', '🥊', '🥋', '🎽', '🛹', '🛼', '🛷',
+      '⛸️', '🥌', '🎿', '⛷️', '🏂', '🪂', '🏋️', '🤼', '🤸', '⛹️',
+      '🤺', '🏇', '🧘', '🏄', '🏊', '🤽', '🚣', '🧗', '🚵', '🚴',
+      '🏆', '🥇', '🥈', '🥉', '🏅', '🎖️', '🏵️', '🎗️', '🎪', '🤹',
+      '🎭', '🩰', '🎨', '🎬', '🎤', '🎧', '🎼', '🎹', '🥁', '🪘',
+      '🎷', '🎺', '🪗', '🎸', '🎻', '🪕', '🎲', '♟️', '🎯', '🎳',
+      '🎮', '🕹️', '🎰', '🧩', '🪅', '🪩', '🪆', '♠️', '♥️', '♦️',
+      '♣️', '🃏', '🀄', '🎴', '🎭', '🖼️', '🎨', '🧵', '🪡', '🧶',
+    ],
+  ),
+  const _EmojiCategoryData(
+    category: _EmojiCategory.travel,
+    icon: Icons.directions_car_outlined,
+    label: 'Travel',
+    emojis: [
+      '🚗', '🚕', '🚙', '🚌', '🚎', '🏎️', '🚓', '🚑', '🚒', '🚐',
+      '🛻', '🚚', '🚛', '🚜', '🦯', '🦽', '🦼', '🛴', '🚲', '🛵',
+      '🏍️', '🛺', '🚨', '🚔', '🚍', '🚘', '🚖', '🛞', '🚡', '🚠',
+      '🚟', '🚃', '🚋', '🚞', '🚝', '🚄', '🚅', '🚆', '🚇', '🚈',
+      '🚉', '🚊', '🚁', '🛩️', '✈️', '🛫', '🛬', '🪂', '💺', '🛰️',
+      '🚀', '🛸', '🚢', '⛵', '🛥️', '🚤', '🛳️', '⛴️', '🚢', '⚓',
+      '🛟', '🪝', '⛽', '🚧', '🚦', '🚥', '🛑', '🚏', '🗺️', '🗿',
+      '🗽', '🗼', '🏰', '🏯', '🏟️', '🎡', '🎢', '🎠', '⛲', '⛱️',
+      '🏖️', '🏝️', '🏜️', '🌋', '⛰️', '🏔️', '🗻', '🏕️', '⛺', '🛖',
+      '🏠', '🏡', '🏘️', '🏚️', '🏗️', '🏭', '🏢', '🏬', '🏣', '🏤',
+      '🏥', '🏦', '🏨', '🏪', '🏫', '🏩', '💒', '🏛️', '⛪', '🕌',
+      '🕍', '🛕', '🕋', '⛩️', '🛤️', '🛣️', '🗾', '🎑', '🏞️', '🌅',
+      '🌄', '🌠', '🎇', '🎆', '🌇', '🌆', '🏙️', '🌃', '🌌', '🌉',
+    ],
+  ),
+  const _EmojiCategoryData(
+    category: _EmojiCategory.objects,
+    icon: Icons.lightbulb_outline,
+    label: 'Objects',
+    emojis: [
+      '⌚', '📱', '📲', '💻', '⌨️', '🖥️', '🖨️', '🖱️', '🖲️', '🕹️',
+      '🗜️', '💽', '💾', '💿', '📀', '📼', '📷', '📸', '📹', '🎥',
+      '📽️', '🎞️', '📞', '☎️', '📟', '📠', '📺', '📻', '🎙️', '🎚️',
+      '🎛️', '🧭', '⏱️', '⏲️', '⏰', '🕰️', '⌛', '⏳', '📡', '🔋',
+      '🪫', '🔌', '💡', '🔦', '🕯️', '🪔', '🧯', '🛢️', '💸', '💵',
+      '💴', '💶', '💷', '🪙', '💰', '💳', '💎', '⚖️', '🪜', '🧰',
+      '🪛', '🔧', '🔨', '⚒️', '🛠️', '⛏️', '🪚', '🔩', '⚙️', '🪤',
+      '🧱', '⛓️', '🧲', '🔫', '💣', '🧨', '🪓', '🔪', '🗡️', '⚔️',
+      '🛡️', '🚬', '⚰️', '🪦', '⚱️', '🏺', '🔮', '📿', '🧿', '🪬',
+      '💈', '⚗️', '🔭', '🔬', '🕳️', '🩹', '🩺', '🩻', '🩼', '💊',
+      '💉', '🩸', '����', '🦠', '🧫', '🧪', '🌡️', '🧹', '🪠', '🧺',
+      '🧻', '🚽', '🚰', '🚿', '🛁', '🛀', '🧼', '🪥', '🪒', '🧽',
+      '📦', '📫', '📪', '📬', '📭', '📮', '📯', '📜', '📃', '📄',
+      '📑', '🧾', '📊', '📈', '📉', '🗒️', '🗓️', '📆', '📅', '🗑️',
+      '📇', '🗃️', '🗳️', '🗄️', '📋', '📁', '📂', '🗂️', '🗞️', '📰',
+      '📓', '📔', '📒', '📕', '📗', '📘', '📙', '📚', '📖', '🔖',
+    ],
+  ),
+  const _EmojiCategoryData(
+    category: _EmojiCategory.symbols,
+    icon: Icons.tag,
+    label: 'Symbols',
+    emojis: [
+      '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔',
+      '❤️‍🔥', '❤️‍🩹', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝',
+      '💟', '☮️', '✝️', '☪️', '🕉️', '☸️', '✡️', '🔯', '🕎', '☯️',
+      '☦️', '🛐', '⛎', '♈', '♉', '♊', '♋', '♌', '♍', '♎',
+      '♏', '♐', '♑', '♒', '♓', '🆔', '⚛️', '🉑', '☢️', '☣️',
+      '📴', '📳', '🈶', '🈚', '🈸', '🈺', '🈷️', '✴️', '🆚', '💮',
+      '🉐', '㊙️', '㊗️', '🈴', '🈵', '🈹', '🈲', '🅰️', '🅱️', '🆎',
+      '🆑', '🅾️', '🆘', '❌', '⭕', '🛑', '⛔', '📛', '🚫', '💯',
+      '💢', '♨️', '🚷', '🚯', '🚳', '🚱', '🔞', '📵', '🚭', '❗',
+      '❕', '❓', '❔', '‼️', '⁉️', '🔅', '🔆', '〽️', '⚠️', '🚸',
+      '🔱', '⚜️', '🔰', '♻️', '✅', '🈯', '💹', '❇️', '✳️', '❎',
+      '🌐', '💠', 'Ⓜ️', '🌀', '💤', '🏧', '🚾', '♿', '🅿️', '🛗',
+      '🈳', '🈂️', '🛂', '🛃', '🛄', '🛅', '🚹', '🚺', '🚻', '🚼',
+      '🚮', '🎦', '📶', '🈁', '🔣', 'ℹ️', '🔤', '🔡', '🔠', '🆖',
+      '🆗', '🆙', '🆒', '🆕', '🆓', '0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣',
+      '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟', '🔢', '#️⃣', '*️⃣', '⏏️',
+    ],
+  ),
+];
+
+List<String> _recentEmojis = [];
+
+class _EmojiTab extends StatefulWidget {
+  final ValueChanged<String>? onEmojiSelected;
+
+  const _EmojiTab({this.onEmojiSelected});
+
+  @override
+  State<_EmojiTab> createState() => _EmojiTabState();
+}
+
+class _EmojiTabState extends State<_EmojiTab> {
+  int _activeCategory = 1;
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _selectCategory(int index) {
+    if (index == 0 && _recentEmojis.isEmpty) return;
+    setState(() => _activeCategory = index);
+    _scrollController.jumpTo(0);
+  }
+
+  void _onEmojiTap(String emoji) {
+    _recentEmojis.remove(emoji);
+    _recentEmojis.insert(0, emoji);
+    if (_recentEmojis.length > 50) {
+      _recentEmojis = _recentEmojis.sublist(0, 50);
+    }
+    widget.onEmojiSelected?.call(emoji);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final activeCategory = _emojiCategories[_activeCategory];
+    final emojis = _activeCategory == 0 ? _recentEmojis : activeCategory.emojis;
+
+    return Column(
+      children: [
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = ((constraints.maxWidth - 2 * _kEmojiGridPadding) / _kEmojiCellSize).floor().clamp(1, 20);
+              return GridView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.all(_kEmojiGridPadding),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: columns,
+                  childAspectRatio: 1.0,
+                ),
+                itemCount: emojis.length,
+                itemBuilder: (context, index) {
+                  return _EmojiCell(
+                    emoji: emojis[index],
+                    onTap: () => _onEmojiTap(emojis[index]),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        _EmojiCategoryBar(
+          activeIndex: _activeCategory,
+          onCategoryChanged: _selectCategory,
+          hasRecent: _recentEmojis.isNotEmpty,
+        ),
+      ],
+    );
+  }
+}
+
+class _EmojiCell extends StatefulWidget {
+  final String emoji;
+  final VoidCallback onTap;
+
+  const _EmojiCell({
+    required this.emoji,
+    required this.onTap,
+  });
+
+  @override
+  State<_EmojiCell> createState() => _EmojiCellState();
+}
+
+class _EmojiCellState extends State<_EmojiCell> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final hoverBg = isDark
+        ? const Color(0xFF202b36)
+        : const Color(0xFFf0f0f0);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 100),
+          decoration: BoxDecoration(
+            color: _hovered ? hoverBg : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            widget.emoji,
+            style: const TextStyle(fontSize: 26),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EmojiCategoryBar extends StatelessWidget {
+  final int activeIndex;
+  final ValueChanged<int> onCategoryChanged;
+  final bool hasRecent;
+
+  const _EmojiCategoryBar({
+    required this.activeIndex,
+    required this.onCategoryChanged,
+    required this.hasRecent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final activeBg = isDark
+        ? const Color(0xFF6ab3f3)
+        : const Color(0xFF168acd);
+    final inactiveColor = isDark
+        ? const Color(0xFF7e8b93)
+        : const Color(0xFF999999);
+    final borderColor = isDark
+        ? const Color(0xFF1e2c3a)
+        : const Color(0xFFe8e8e8);
+
+    return Container(
+      height: _kCategoryBarHeight,
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(color: borderColor, width: 1),
+        ),
+      ),
+      child: Row(
+        children: List.generate(_emojiCategories.length, (i) {
+          final cat = _emojiCategories[i];
+          final isActive = i == activeIndex;
+          final isDisabled = i == 0 && !hasRecent;
+
+          return Expanded(
+            child: GestureDetector(
+              onTap: isDisabled ? null : () => onCategoryChanged(i),
+              behavior: HitTestBehavior.opaque,
+              child: Center(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: isActive ? activeBg : Colors.transparent,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Icon(
+                    cat.icon,
+                    size: 20,
+                    color: isActive
+                        ? Colors.white
+                        : isDisabled
+                            ? inactiveColor.withValues(alpha: 0.4)
+                            : inactiveColor,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
       ),
     );
   }

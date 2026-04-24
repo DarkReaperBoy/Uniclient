@@ -470,7 +470,6 @@
 
 ### §10.3 Emoji Tab
 <!-- File: dart/lib/ui/emoji_panel.dart -->
-- [ ] 8 category icons (Recent, Smileys, Nature, Food, Activities, Travel, Objects, Symbols); active bg (activeFg); grid columns = (panelWidth - 2*padding) / singleSize; cell ~37-42px — spec §10.3
 - [ ] Skin-tone popup: 500ms long-press, base + 5 Fitzpatrick variants; chrome emojiColorsPadding=8px, emojiColorsSep=1px; selection persisted per-emoji — spec §10.3
 - [ ] Custom emoji pack sections: locked packs show "Unlock" (premium gate); free packs show "Add"; collapsed sets show 3 rows + "+N" overflow badge — spec §10.3
 
