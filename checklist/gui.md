@@ -476,7 +476,6 @@
 
 ### §10.5 GIF Tab
 <!-- File: dart/lib/ui/emoji_panel.dart -->
-- [ ] GIF tab: category shortcuts footer (emoji tokens) — spec §10.5
 
 ### §10.6 Inline Suggestions (Field Autocomplete)
 <!-- File: dart/lib/ui/emoji_panel.dart or separate widget -->
@@ -1673,3 +1672,4 @@ Status key: `[ ]` not started · `[x]` done
 
 - [ ] Mobile (oneColumn) selection mode: context menu "Select" action doesn't activate selection mode — no selection bar, no checkboxes appear. Works fine in desktop (twoColumn) mode. Likely a state/animation issue in oneColumn layout.
 - [ ] Info panel scroll doesn't work via flutter_interact.sh scroll events — scroll goes to chat list instead of info panel CustomScrollView. Affects both desktop (third column) and mobile (full screen) modes. The SliverPersistentHeader cover never compresses.
+- [ ] GIF tab inline search broken: GetInlineBotResults passes string "gif" as bot ID but engine expects numeric ID. Error: `invalid ID "gif": strconv.ParseInt: parsing "gif": invalid syntax`. Affects both manual text search and category emoji search.

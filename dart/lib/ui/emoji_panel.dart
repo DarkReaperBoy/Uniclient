@@ -2019,6 +2019,13 @@ const double _kGifPadRight = 3.0;
 const double _kGifPadBottom = 9.0;
 const double _kGifItemSkip = 3.0;
 const double _kGifRowBaseHeight = 100.0;
+const double _kGifFooterHeight = 44.0;
+
+const List<String> _kGifCategoryEmojis = [
+  '😂', '😍', '😘', '❤️', '🥳', '😡',
+  '👍', '🤔', '👏', '🙄', '😎', '💃',
+  '🐶', '🐱', '🎮', '🏆', '🎄', '⚽',
+];
 
 class _GifTab extends StatefulWidget {
   final ValueChanged<String>? onGifSelected;
@@ -2035,6 +2042,7 @@ class _GifTabState extends State<_GifTab> {
   bool _searching = false;
   String _searchQuery = '';
   List<InlineBotResult> _searchResults = [];
+  int _activeCategoryIndex = -1; // -1 = saved GIFs (no category active)
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
@@ -2081,11 +2089,33 @@ class _GifTabState extends State<_GifTab> {
         _searching = false;
         _searchQuery = '';
         _searchResults = [];
+        _activeCategoryIndex = -1;
       });
       return;
     }
+    if (_activeCategoryIndex < 0 || (_activeCategoryIndex < _kGifCategoryEmojis.length && query != _kGifCategoryEmojis[_activeCategoryIndex])) {
+      _activeCategoryIndex = -1;
+    }
     setState(() => _searching = true);
     _searchDebounce = Timer(_kSearchDebounce, () => _performSearch(query));
+  }
+
+  void _onCategoryTap(int index) {
+    if (index < 0) {
+      _searchController.clear();
+      _searchFocusNode.unfocus();
+      setState(() {
+        _searching = false;
+        _searchQuery = '';
+        _searchResults = [];
+        _activeCategoryIndex = -1;
+      });
+      return;
+    }
+    final emoji = _kGifCategoryEmojis[index];
+    _activeCategoryIndex = index;
+    _searchController.text = emoji;
+    _searchController.selection = TextSelection.collapsed(offset: emoji.length);
   }
 
   Future<void> _performSearch(String query) async {
@@ -2174,6 +2204,11 @@ class _GifTabState extends State<_GifTab> {
           child: _searching
               ? _buildSearchResults(isDark)
               : _buildSavedGifs(isDark),
+        ),
+        _GifCategoryFooter(
+          activeIndex: _activeCategoryIndex,
+          onCategoryTap: _onCategoryTap,
+          isDark: isDark,
         ),
       ],
     );
@@ -2329,6 +2364,77 @@ class _GifTabState extends State<_GifTab> {
           },
         );
       },
+    );
+  }
+}
+
+class _GifCategoryFooter extends StatelessWidget {
+  final int activeIndex;
+  final ValueChanged<int> onCategoryTap;
+  final bool isDark;
+
+  const _GifCategoryFooter({
+    required this.activeIndex,
+    required this.onCategoryTap,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final borderColor = isDark ? const Color(0xFF1e2c3a) : const Color(0xFFe8e8e8);
+    final activeBg = isDark ? const Color(0xFF2b3d4f) : const Color(0xFFe8e8e8);
+    final inactiveColor = isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999);
+    final activeAccent = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd);
+
+    return Container(
+      height: _kGifFooterHeight,
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: borderColor, width: 1)),
+      ),
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: _kGifCategoryEmojis.length + 1,
+        itemBuilder: (context, i) {
+          if (i == 0) {
+            final isActive = activeIndex < 0;
+            return GestureDetector(
+              onTap: () => onCategoryTap(-1),
+              behavior: HitTestBehavior.opaque,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: _kGifFooterHeight,
+                height: _kGifFooterHeight,
+                decoration: BoxDecoration(
+                  color: isActive ? activeBg : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                alignment: Alignment.center,
+                child: Icon(Icons.access_time, size: 22, color: isActive ? activeAccent : inactiveColor),
+              ),
+            );
+          }
+          final catIdx = i - 1;
+          final isActive = activeIndex == catIdx;
+          return GestureDetector(
+            onTap: () => onCategoryTap(catIdx),
+            behavior: HitTestBehavior.opaque,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              width: _kGifFooterHeight,
+              height: _kGifFooterHeight,
+              decoration: BoxDecoration(
+                color: isActive ? activeBg : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                _kGifCategoryEmojis[catIdx],
+                style: const TextStyle(fontSize: 22),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }
