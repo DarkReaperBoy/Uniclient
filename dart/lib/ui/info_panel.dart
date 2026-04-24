@@ -48,8 +48,10 @@ class _InfoPanelState extends State<InfoPanel> {
   List<MemberInfo>? _members;
   bool _loadingMembers = false;
   String? _loadedChatId;
+  int _loadedMemberCount = 0;
   Map<String, int> _mediaCounts = {};
   List<PinnedGiftItem> _pinnedGifts = [];
+  StreamSubscription<ChatInfo>? _chatUpdatedSub;
 
   final List<_InfoNavPage> _navStack = [_InfoNavPage(type: _InfoPageType.chatInfo)];
   bool _isPushing = true;
@@ -116,6 +118,7 @@ class _InfoPanelState extends State<InfoPanel> {
 
   @override
   void dispose() {
+    _chatUpdatedSub?.cancel();
     for (final c in _scrollControllers.values) {
       c.dispose();
     }
@@ -131,6 +134,15 @@ class _InfoPanelState extends State<InfoPanel> {
       _resetNavStack();
       _loadMembers(chat);
     }
+    _chatUpdatedSub ??= context.read<EngineService>().onChatUpdated.listen(_onChatUpdated);
+  }
+
+  void _onChatUpdated(ChatInfo updated) {
+    if (_loadedChatId == null) return;
+    if (updated.chatId != _loadedChatId) return;
+    if (updated.memberCount != _loadedMemberCount) {
+      _loadMembers(updated);
+    }
   }
 
   Future<void> _loadMembers(ChatInfo chat) async {
@@ -138,6 +150,7 @@ class _InfoPanelState extends State<InfoPanel> {
     setState(() {
       _loadingMembers = true;
       _loadedChatId = chat.chatId;
+      _loadedMemberCount = chat.memberCount;
     });
 
     final engine = context.read<EngineService>();
@@ -1588,10 +1601,12 @@ class _ChatDetailsState extends State<_ChatDetails> {
   UserProfile? _profile;
   bool _fetched = false;
   String? _fetchedFor;
+  StreamSubscription<ChatInfo>? _chatUpdatedSub;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _chatUpdatedSub ??= context.read<EngineService>().onChatUpdated.listen(_onChatUpdated);
     _fetchIfNeeded();
   }
 
@@ -1602,6 +1617,31 @@ class _ChatDetailsState extends State<_ChatDetails> {
       _fetched = false;
       _fetchIfNeeded();
     }
+  }
+
+  @override
+  void dispose() {
+    _chatUpdatedSub?.cancel();
+    super.dispose();
+  }
+
+  void _onChatUpdated(ChatInfo updated) {
+    if (widget.chat.type != ChatType.dm) return;
+    if (updated.chatId != widget.chat.chatId) return;
+    _refetchProfile();
+  }
+
+  void _refetchProfile() {
+    final engine = context.read<EngineService>();
+    engine.getUserProfile(widget.chat.accountId, widget.chat.chatId).then((p) {
+      if (mounted && p != null) {
+        final changed = _profile == null ||
+            _profile!.phone != p.phone ||
+            _profile!.username != p.username ||
+            _profile!.bio != p.bio;
+        if (changed) setState(() { _profile = p; _fetched = true; });
+      }
+    });
   }
 
   void _fetchIfNeeded() {
