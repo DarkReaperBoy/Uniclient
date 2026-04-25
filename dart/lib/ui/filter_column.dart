@@ -18,6 +18,29 @@ class FilterColumn extends StatefulWidget {
 
   static const width = 72.0;
 
+  /// Spec §13.4: Index of folder tab highlighted as drop target (-1 = none).
+  static final dropHighlightIndex = ValueNotifier<int>(-1);
+
+  static _FilterColumnState? _activeState;
+
+  /// Hit-test folder tabs by global position. Returns folder index or -1.
+  static int hitTestFolderIndex(Offset globalPos) {
+    return _activeState?._hitTestTab(globalPos) ?? -1;
+  }
+
+  /// Get the folder ID at the given tab index, or null.
+  static String? folderIdAt(int index) {
+    if (_activeState == null || index < 0) return null;
+    final chatState = _activeState!.context.read<ChatState>();
+    final folders = chatState.folders;
+    if (index >= folders.length) return null;
+    return folders[index].id;
+  }
+
+  static void clearDropHighlight() {
+    dropHighlightIndex.value = -1;
+  }
+
   @override
   State<FilterColumn> createState() => _FilterColumnState();
 
@@ -79,6 +102,17 @@ class _FilterColumnState extends State<FilterColumn> {
 
   final List<GlobalKey> _tabKeys = [];
 
+  @override
+  void initState() {
+    super.initState();
+    FilterColumn._activeState = this;
+    FilterColumn.dropHighlightIndex.addListener(_onDropHighlightChanged);
+  }
+
+  void _onDropHighlightChanged() {
+    if (mounted) setState(() {});
+  }
+
   void _syncTabKeys(int count) {
     while (_tabKeys.length < count) {
       _tabKeys.add(GlobalKey());
@@ -90,6 +124,8 @@ class _FilterColumnState extends State<FilterColumn> {
 
   @override
   void dispose() {
+    FilterColumn.dropHighlightIndex.removeListener(_onDropHighlightChanged);
+    if (FilterColumn._activeState == this) FilterColumn._activeState = null;
     _scrollController.dispose();
     super.dispose();
   }
@@ -330,6 +366,8 @@ class _FilterColumnState extends State<FilterColumn> {
                     final allMuted = chatState.isFolderUnreadAllMuted(folder.id);
                     final isDragged = _dragActive && _dragIndex == index;
                     final shift = _computeShiftForTab(index);
+                    final isDropTarget =
+                        FilterColumn.dropHighlightIndex.value == index;
 
                     return AnimatedContainer(
                       key: _tabKeys[index],
@@ -341,6 +379,14 @@ class _FilterColumnState extends State<FilterColumn> {
                         isDragged ? _dragOffset : shift,
                         isDragged ? 1 : 0,
                       ),
+                      decoration: isDropTarget
+                          ? BoxDecoration(
+                              border: Border.all(
+                                color: FilterColumn.dayBadgeBg,
+                                width: 2,
+                              ),
+                            )
+                          : null,
                       child: Opacity(
                         opacity: isDragged ? 0.8 : 1.0,
                         child: GestureDetector(

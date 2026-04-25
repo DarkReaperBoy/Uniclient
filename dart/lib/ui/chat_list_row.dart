@@ -605,6 +605,9 @@ class SwipeableChatRow extends StatefulWidget {
     this.action = SwipeAction.archive,
   });
 
+  /// Spec §13.4: Manhattan distance gate before swipe gesture begins (5-10px).
+  static const kManhattanGate = 8.0;
+
   /// Spec §2.7: Base swipe threshold in logical pixels.
   /// Auto-scaled by DPI via Flutter's logical pixel system.
   static const kThresholdWidth = 50.0;
@@ -626,6 +629,8 @@ class SwipeableChatRow extends StatefulWidget {
 
 class _SwipeableChatRowState extends State<SwipeableChatRow>
     with TickerProviderStateMixin {
+  Offset? _dragStartGlobal;
+  bool _manhattanPassed = false;
   double _swipeOffset = 0.0;
   late final AnimationController _resetController;
   late final AnimationController _rippleController;
@@ -702,8 +707,22 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
     super.dispose();
   }
 
+  void _onDragStart(DragStartDetails details) {
+    _dragStartGlobal = details.globalPosition;
+    _manhattanPassed = false;
+  }
+
   void _onDragUpdate(DragUpdateDetails details) {
     if (_resetController.isAnimating) return;
+    if (!_manhattanPassed) {
+      if (_dragStartGlobal != null) {
+        final manhattan =
+            (details.globalPosition.dx - _dragStartGlobal!.dx).abs() +
+                (details.globalPosition.dy - _dragStartGlobal!.dy).abs();
+        if (manhattan < SwipeableChatRow.kManhattanGate) return;
+      }
+      _manhattanPassed = true;
+    }
     debugPrint('[SWIPE] dragUpdate dx=${details.delta.dx} offset=$_swipeOffset');
     final prevOffset = _swipeOffset;
     setState(() {
@@ -728,6 +747,8 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
   }
 
   void _onDragEnd(DragEndDetails details) {
+    _manhattanPassed = false;
+    _dragStartGlobal = null;
     // Spec §2.7: If past threshold, commit the action.
     final pastThreshold = _swipeProgress >= 1.0;
     if (pastThreshold) {
@@ -753,6 +774,8 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
   }
 
   void _onDragCancel() {
+    _manhattanPassed = false;
+    _dragStartGlobal = null;
     _thresholdCrossed = false;
     if (_swipeOffset > 0) {
       _resetFrom = _swipeOffset;
@@ -766,6 +789,7 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
   Widget build(BuildContext context) {
     if (_swipeOffset == 0.0 && !_resetController.isAnimating) {
       return GestureDetector(
+        onHorizontalDragStart: _onDragStart,
         onHorizontalDragUpdate: _onDragUpdate,
         onHorizontalDragEnd: _onDragEnd,
         onHorizontalDragCancel: _onDragCancel,
@@ -777,6 +801,7 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
     final actionBg = _swipeActionBgColor(widget.action, isDark);
     final progress = _swipeProgress;
     return GestureDetector(
+      onHorizontalDragStart: _onDragStart,
       onHorizontalDragUpdate: _onDragUpdate,
       onHorizontalDragEnd: _onDragEnd,
       onHorizontalDragCancel: _onDragCancel,

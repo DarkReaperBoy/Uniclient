@@ -11,6 +11,7 @@ import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import 'chat_list_row.dart';
+import 'filter_column.dart';
 import 'popup_menu.dart';
 import 'confirm_box.dart';
 
@@ -121,6 +122,10 @@ class _ChatListPanelState extends State<ChatListPanel>
   // ── Drag-to-reorder pinned chats (spec §2.7) ──
   static const _kReorderThreshold = 30.0; // kStartReorderThreshold
   static const _kChatRowHeight = 62.0;
+
+  // ── Drag-to-filter thresholds (spec §13.4) ──
+  static const _kDragToFilterThresholdX = 30.0;
+  static const _kDragToFilterThresholdY = 75.0;
   final ScrollController _chatListScrollCtrl = ScrollController();
   final GlobalKey _chatListKey = GlobalKey();
   int? _reorderPinnedIdx; // 0-based index within pinned items
@@ -133,6 +138,11 @@ class _ChatListPanelState extends State<ChatListPanel>
   // Cached during build for pointer handlers:
   List<ChatInfo> _buildNonArchived = [];
   int _buildPinnedCount = 0;
+
+  // ── Drag-to-filter state (spec §13.4) ──
+  bool _dragToFilterActive = false;
+  OverlayEntry? _dragToFilterOverlay;
+  Offset _dragToFilterPos = Offset.zero;
 
   // ── Drag-and-drop forwarding (spec §2.7) ──
   /// Chat ID currently hovered during a forward drag.
@@ -856,14 +866,30 @@ class _ChatListPanelState extends State<ChatListPanel>
   void _onReorderPointerMove(PointerMoveEvent event) {
     if (_reorderPointer != event.pointer || _reorderPinnedIdx == null) return;
 
+    final rawDx = event.position.dx - _reorderStartPos!.dx;
     final dy = event.position.dy - _reorderStartPos!.dy;
 
+    // Drag-to-filter active: update overlay and highlight.
+    if (_dragToFilterActive) {
+      _dragToFilterPos = event.position;
+      _dragToFilterOverlay?.markNeedsBuild();
+      final tabIdx = FilterColumn.hitTestFolderIndex(event.position);
+      FilterColumn.dropHighlightIndex.value = tabIdx;
+      return;
+    }
+
     if (!_reorderActive) {
-      final dx = (event.position.dx - _reorderStartPos!.dx).abs();
-      // Horizontal movement wins → swipe gesture, cancel reorder tracking.
-      if (dx > 10 && dx > dy.abs()) {
+      final dx = rawDx.abs();
+      // Rightward horizontal > 10px and dominant → swipe gesture.
+      if (rawDx > 10 && dx > dy.abs()) {
         _reorderPinnedIdx = null;
         _reorderPointer = null;
+        return;
+      }
+      // Spec §13.4: Leftward > 30px OR vertical > 75px → drag-to-filter.
+      if (rawDx < -_kDragToFilterThresholdX ||
+          dy.abs() > _kDragToFilterThresholdY) {
+        _startDragToFilter(event.position);
         return;
       }
       if (dy.abs() >= _kReorderThreshold) {
@@ -874,6 +900,15 @@ class _ChatListPanelState extends State<ChatListPanel>
       return;
     }
 
+    // Reorder active: check for transition to drag-to-filter.
+    if (rawDx < -_kDragToFilterThresholdX) {
+      _reorderOverlay?.remove();
+      _reorderOverlay = null;
+      _reorderActive = false;
+      _startDragToFilter(event.position);
+      return;
+    }
+
     setState(() => _reorderOffsetY = dy);
     _reorderOverlay?.markNeedsBuild();
     _autoScrollDuringReorder(event.position);
@@ -881,6 +916,17 @@ class _ChatListPanelState extends State<ChatListPanel>
 
   void _onReorderPointerUp(PointerUpEvent event) {
     if (_reorderPointer != event.pointer) return;
+    if (_dragToFilterActive && _reorderPinnedIdx != null) {
+      final tabIdx = FilterColumn.hitTestFolderIndex(event.position);
+      final folderId = FilterColumn.folderIdAt(tabIdx);
+      if (folderId != null && _reorderPinnedIdx! < _buildNonArchived.length) {
+        final chat = _buildNonArchived[_reorderPinnedIdx!];
+        debugPrint('[DRAG-TO-FILTER] Drop chat ${chat.chatId} on folder $folderId');
+      }
+      _cancelDragToFilter();
+      _cancelReorder();
+      return;
+    }
     if (_reorderActive && _reorderPinnedIdx != null) {
       final target = _computeReorderTarget();
       if (target != null && target != _reorderPinnedIdx!) {
@@ -894,7 +940,10 @@ class _ChatListPanelState extends State<ChatListPanel>
   }
 
   void _onReorderPointerCancel(PointerCancelEvent event) {
-    if (_reorderPointer == event.pointer) _cancelReorder();
+    if (_reorderPointer == event.pointer) {
+      _cancelDragToFilter();
+      _cancelReorder();
+    }
   }
 
   void _cancelReorder() {
@@ -907,6 +956,85 @@ class _ChatListPanelState extends State<ChatListPanel>
       _reorderActive = false;
       _reorderOffsetY = 0;
     });
+  }
+
+  // ── Drag-to-filter (spec §13.4) ──
+
+  void _startDragToFilter(Offset position) {
+    if (_reorderPinnedIdx == null ||
+        _reorderPinnedIdx! >= _buildNonArchived.length) return;
+    _dragToFilterActive = true;
+    _dragToFilterPos = position;
+    _createDragToFilterOverlay();
+    final tabIdx = FilterColumn.hitTestFolderIndex(position);
+    FilterColumn.dropHighlightIndex.value = tabIdx;
+    setState(() {});
+  }
+
+  void _cancelDragToFilter() {
+    _dragToFilterOverlay?.remove();
+    _dragToFilterOverlay = null;
+    _dragToFilterActive = false;
+    FilterColumn.clearDropHighlight();
+  }
+
+  void _createDragToFilterOverlay() {
+    final idx = _reorderPinnedIdx!;
+    if (idx >= _buildNonArchived.length) return;
+    final chat = _buildNonArchived[idx];
+    final theme = Theme.of(context);
+
+    _dragToFilterOverlay = OverlayEntry(
+      builder: (_) => Positioned(
+        left: _dragToFilterPos.dx - 80,
+        top: _dragToFilterPos.dy - 20,
+        child: IgnorePointer(
+          child: Theme(
+            data: theme,
+            child: Material(
+              elevation: 12,
+              shadowColor: Colors.black54,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                constraints: const BoxConstraints(maxWidth: 200),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircleAvatar(
+                      radius: 16,
+                      backgroundColor: theme.colorScheme.primary,
+                      child: Text(
+                        chat.title.isNotEmpty
+                            ? chat.title[0].toUpperCase()
+                            : '?',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        chat.title,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: theme.textTheme.bodyMedium?.color,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    Overlay.of(context).insert(_dragToFilterOverlay!);
   }
 
   void _createReorderOverlay() {
