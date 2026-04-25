@@ -13,6 +13,9 @@ class CallPanelInfo {
   final String callerAvatarUrl;
   final bool isVideo;
   final CallPanelState state;
+  final bool isRemoteMuted;
+  final bool isRemoteLowBattery;
+  final bool isFullscreen;
 
   const CallPanelInfo({
     required this.callerId,
@@ -20,6 +23,9 @@ class CallPanelInfo {
     this.callerAvatarUrl = '',
     this.isVideo = false,
     this.state = CallPanelState.incoming,
+    this.isRemoteMuted = false,
+    this.isRemoteLowBattery = false,
+    this.isFullscreen = false,
   });
 }
 
@@ -51,8 +57,14 @@ class CallPanel extends StatefulWidget {
 class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
   List<Color>? _dominantColors;
   late AnimationController _rippleController;
+  late AnimationController _controlsFadeController;
   Timer? _durationTimer;
+  Timer? _controlsHideTimer;
   int _durationSeconds = 0;
+  bool _controlsVisible = true;
+
+  static const _kHideControlsFullscreen = Duration(milliseconds: 5000);
+  static const _kHideControlsMouseLeave = Duration(milliseconds: 2000);
 
   @override
   void initState() {
@@ -61,9 +73,17 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 2000),
     )..repeat();
+    _controlsFadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 150),
+      value: 1.0,
+    );
     _extractDominantColors();
     if (widget.info.state == CallPanelState.active) {
       _startDurationTimer();
+      if (widget.info.isFullscreen) {
+        _scheduleControlsHide(_kHideControlsFullscreen);
+      }
     }
   }
 
@@ -77,18 +97,51 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     if (widget.info.state == CallPanelState.active &&
         oldWidget.info.state != CallPanelState.active) {
       _startDurationTimer();
+      if (widget.info.isFullscreen) {
+        _scheduleControlsHide(_kHideControlsFullscreen);
+      }
     }
     if (widget.info.state != CallPanelState.active) {
       _durationTimer?.cancel();
       _durationTimer = null;
+      _showControls();
     }
   }
 
   @override
   void dispose() {
     _rippleController.dispose();
+    _controlsFadeController.dispose();
     _durationTimer?.cancel();
+    _controlsHideTimer?.cancel();
     super.dispose();
+  }
+
+  void _scheduleControlsHide(Duration timeout) {
+    if (widget.info.state != CallPanelState.active) return;
+    _controlsHideTimer?.cancel();
+    _controlsHideTimer = Timer(timeout, () {
+      if (mounted && widget.info.state == CallPanelState.active) {
+        setState(() => _controlsVisible = false);
+        _controlsFadeController.reverse();
+      }
+    });
+  }
+
+  void _showControls() {
+    _controlsHideTimer?.cancel();
+    if (!_controlsVisible) {
+      setState(() => _controlsVisible = true);
+      _controlsFadeController.forward();
+    }
+  }
+
+  void _onMouseMove() {
+    if (widget.info.state != CallPanelState.active) return;
+    _showControls();
+    if (widget.info.isFullscreen) {
+      _scheduleControlsHide(_kHideControlsFullscreen);
+    }
   }
 
   void _startDurationTimer() {
@@ -345,67 +398,107 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildRemotePills() {
+    final pills = <Widget>[];
+    if (widget.info.isRemoteMuted) {
+      pills.add(_RemoteStatusPill(
+        icon: Icons.mic_off,
+        text: '${widget.info.callerName} muted their microphone',
+      ));
+    }
+    if (widget.info.isRemoteLowBattery) {
+      pills.add(_RemoteStatusPill(
+        icon: Icons.battery_alert,
+        text: '${widget.info.callerName} has low battery',
+      ));
+    }
+    if (pills.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: pills,
+      ),
+    );
+  }
+
   Widget _buildActiveState() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const Spacer(flex: 3),
-        _buildUserpic(160),
-        const SizedBox(height: 20),
-        Text(
-          widget.info.callerName,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 21,
-            fontWeight: FontWeight.w600,
-          ),
-          textAlign: TextAlign.center,
+    return MouseRegion(
+      onHover: (_) => _onMouseMove(),
+      onEnter: (_) => _onMouseMove(),
+      onExit: (_) {
+        if (widget.info.state == CallPanelState.active) {
+          _scheduleControlsHide(_kHideControlsMouseLeave);
+        }
+      },
+      child: GestureDetector(
+        onTap: _onMouseMove,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Spacer(flex: 3),
+            _buildUserpic(160),
+            const SizedBox(height: 20),
+            Text(
+              widget.info.callerName,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 21,
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _formatDuration(_durationSeconds),
+              style: const TextStyle(
+                color: Color(0xAAFFFFFF),
+                fontSize: 15,
+              ),
+            ),
+            _buildRemotePills(),
+            const Spacer(flex: 4),
+            FadeTransition(
+              opacity: _controlsFadeController,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _CallControlButton(
+                      icon: Icons.screen_share_outlined,
+                      label: 'Screencast',
+                      onTap: () {},
+                    ),
+                    _CallControlButton(
+                      icon: Icons.videocam_outlined,
+                      label: 'Camera',
+                      onTap: () {},
+                    ),
+                    _CallActionButton(
+                      icon: Icons.call_end,
+                      label: 'End Call',
+                      backgroundColor: const Color(0xFFE53935),
+                      onTap: widget.onHangup,
+                    ),
+                    _CallControlButton(
+                      icon: Icons.mic_off_outlined,
+                      label: 'Mute',
+                      onTap: () {},
+                    ),
+                    _CallControlButton(
+                      icon: Icons.person_add_outlined,
+                      label: 'Add People',
+                      onTap: () {},
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 48),
+          ],
         ),
-        const SizedBox(height: 8),
-        Text(
-          _formatDuration(_durationSeconds),
-          style: const TextStyle(
-            color: Color(0xAAFFFFFF),
-            fontSize: 15,
-          ),
-        ),
-        const Spacer(flex: 4),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _CallControlButton(
-                icon: Icons.screen_share_outlined,
-                label: 'Screencast',
-                onTap: () {},
-              ),
-              _CallControlButton(
-                icon: Icons.videocam_outlined,
-                label: 'Camera',
-                onTap: () {},
-              ),
-              _CallActionButton(
-                icon: Icons.call_end,
-                label: 'End Call',
-                backgroundColor: const Color(0xFFE53935),
-                onTap: widget.onHangup,
-              ),
-              _CallControlButton(
-                icon: Icons.mic_off_outlined,
-                label: 'Mute',
-                onTap: () {},
-              ),
-              _CallControlButton(
-                icon: Icons.person_add_outlined,
-                label: 'Add People',
-                onTap: () {},
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 48),
-      ],
+      ),
     );
   }
 
@@ -660,6 +753,45 @@ class _CallControlButton extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _RemoteStatusPill extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _RemoteStatusPill({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: const Color(0xAAFFFFFF), size: 16),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                text,
+                style: const TextStyle(
+                  color: Color(0xAAFFFFFF),
+                  fontSize: 13,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

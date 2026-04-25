@@ -521,7 +521,6 @@
 
 ### §12.1 1-on-1 Call Panel
 <!-- File: dart/lib/ui/call_panel.dart -->
-- [ ] Remote muted pill, low-battery pill; controls auto-hide 5000ms fullscreen / 2000ms mouse-leave; mouse movement restores — spec §12.1
 
 ### §12.2 Signal Bars
 <!-- File: dart/lib/ui/call_screen.dart -->
