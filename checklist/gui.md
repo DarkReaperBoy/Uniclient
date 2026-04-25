@@ -523,8 +523,7 @@
 <!-- File: dart/lib/ui/call_panel.dart -->
 
 ### §12.2 Signal Bars
-<!-- File: dart/lib/ui/call_screen.dart -->
-- [ ] 4-bar signal indicator: bar width 2px, heights [4,6,8,10]px, skip 2px, radius 1px; active bar full opacity, inactive 0.5 opacity; quality [0..100] maps to [0..4] active bars, snap (no interpolation) — spec §12.2
+<!-- File: dart/lib/ui/call_panel.dart -->
 
 ### §12.3 Encryption Fingerprint
 <!-- File: dart/lib/ui/call_screen.dart -->

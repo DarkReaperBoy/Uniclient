@@ -16,6 +16,7 @@ class CallPanelInfo {
   final bool isRemoteMuted;
   final bool isRemoteLowBattery;
   final bool isFullscreen;
+  final int signalQuality;
 
   const CallPanelInfo({
     required this.callerId,
@@ -26,6 +27,7 @@ class CallPanelInfo {
     this.isRemoteMuted = false,
     this.isRemoteLowBattery = false,
     this.isFullscreen = false,
+    this.signalQuality = -1,
   });
 }
 
@@ -449,12 +451,21 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
-            Text(
-              _formatDuration(_durationSeconds),
-              style: const TextStyle(
-                color: Color(0xAAFFFFFF),
-                fontSize: 15,
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _formatDuration(_durationSeconds),
+                  style: const TextStyle(
+                    color: Color(0xAAFFFFFF),
+                    fontSize: 15,
+                  ),
+                ),
+                if (widget.info.signalQuality >= 0) ...[
+                  const SizedBox(width: 8),
+                  _SignalBars(quality: widget.info.signalQuality),
+                ],
+              ],
             ),
             _buildRemotePills(),
             const Spacer(flex: 4),
@@ -794,6 +805,73 @@ class _RemoteStatusPill extends StatelessWidget {
       ),
     );
   }
+}
+
+class _SignalBars extends StatelessWidget {
+  final int quality;
+
+  const _SignalBars({required this.quality});
+
+  static const _barCount = 4;
+  static const _barWidth = 2.0;
+  static const _minHeight = 4.0;
+  static const _maxHeight = 10.0;
+  static const _skip = 2.0;
+  static const _totalWidth = _barCount * _barWidth + (_barCount - 1) * _skip;
+
+  @override
+  Widget build(BuildContext context) {
+    if (quality < 0) return const SizedBox.shrink();
+    return CustomPaint(
+      size: const Size(_totalWidth, _maxHeight),
+      painter: _SignalBarsPainter(quality: quality),
+    );
+  }
+}
+
+class _SignalBarsPainter extends CustomPainter {
+  final int quality;
+
+  _SignalBarsPainter({required this.quality});
+
+  static const _barCount = 4;
+  static const _barWidth = 2.0;
+  static const _minHeight = 4.0;
+  static const _maxHeight = 10.0;
+  static const _skip = 2.0;
+  static const _radius = Radius.circular(1.0);
+
+  int get _activeBars =>
+      quality <= 0 ? 0 : (quality * _barCount / 100).ceil().clamp(0, _barCount);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final active = _activeBars;
+
+    for (int i = 0; i < _barCount; i++) {
+      final barHeight =
+          _minHeight + (_maxHeight - _minHeight) * (i / (_barCount - 1));
+      final x = i * (_barWidth + _skip);
+      final y = size.height - barHeight;
+
+      final paint = Paint()
+        ..color = i < active
+            ? const Color(0xFFFFFFFF)
+            : const Color(0x80FFFFFF)
+        ..style = PaintingStyle.fill;
+
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x, y, _barWidth, barHeight),
+          _radius,
+        ),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SignalBarsPainter old) => old.quality != quality;
 }
 
 void showCallPanel(BuildContext context, CallPanelInfo info) {

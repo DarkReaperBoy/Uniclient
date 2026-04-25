@@ -499,6 +499,7 @@ class _UniClientAppState extends State<UniClientApp>
               callerAvatarUrl: cmd['avatarUrl'] as String? ?? '',
               isVideo: cmd['isVideo'] == true,
               state: callState,
+              signalQuality: (cmd['signalQuality'] as num?)?.toInt() ?? -1,
             ));
           }
       }
