@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -5,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
+import 'chat_list_row.dart' show ForwardDragData;
 import 'popup_menu.dart';
 
 /// Spec §1/§2: Vertical folder sidebar, 72px wide.
@@ -102,6 +105,10 @@ class _FilterColumnState extends State<FilterColumn> {
 
   final List<GlobalKey> _tabKeys = [];
 
+  // Spec §13.4: kFreezeTimeout — auto-switch folder after 2s hover while dragging.
+  Timer? _autoSwitchTimer;
+  int _autoSwitchPendingIdx = -1;
+
   @override
   void initState() {
     super.initState();
@@ -110,6 +117,20 @@ class _FilterColumnState extends State<FilterColumn> {
   }
 
   void _onDropHighlightChanged() {
+    final idx = FilterColumn.dropHighlightIndex.value;
+    if (idx != _autoSwitchPendingIdx) {
+      _autoSwitchTimer?.cancel();
+      _autoSwitchPendingIdx = idx;
+      if (idx >= 0) {
+        _autoSwitchTimer = Timer(const Duration(milliseconds: 2000), () {
+          if (!mounted) return;
+          final folderId = FilterColumn.folderIdAt(idx);
+          if (folderId != null) {
+            context.read<ChatState>().setActiveFolder(folderId);
+          }
+        });
+      }
+    }
     if (mounted) setState(() {});
   }
 
@@ -124,6 +145,7 @@ class _FilterColumnState extends State<FilterColumn> {
 
   @override
   void dispose() {
+    _autoSwitchTimer?.cancel();
     FilterColumn.dropHighlightIndex.removeListener(_onDropHighlightChanged);
     if (FilterColumn._activeState == this) FilterColumn._activeState = null;
     _scrollController.dispose();
@@ -389,7 +411,23 @@ class _FilterColumnState extends State<FilterColumn> {
                           : null,
                       child: Opacity(
                         opacity: isDragged ? 0.8 : 1.0,
-                        child: GestureDetector(
+                        child: DragTarget<ForwardDragData>(
+                          onWillAcceptWithDetails: (_) => true,
+                          onMove: (_) {
+                            if (FilterColumn.dropHighlightIndex.value != index) {
+                              FilterColumn.dropHighlightIndex.value = index;
+                            }
+                          },
+                          onLeave: (_) {
+                            if (FilterColumn.dropHighlightIndex.value == index) {
+                              FilterColumn.dropHighlightIndex.value = -1;
+                            }
+                          },
+                          onAcceptWithDetails: (_) {
+                            FilterColumn.clearDropHighlight();
+                          },
+                          builder: (context, candidateData, rejectedData) =>
+                        GestureDetector(
                           onSecondaryTapUp: _dragActive
                               ? null
                               : (details) => _showFolderContextMenu(
@@ -409,6 +447,7 @@ class _FilterColumnState extends State<FilterColumn> {
                                     ),
                           ),
                         ),
+                      ),
                       ),
                     );
                   }),
