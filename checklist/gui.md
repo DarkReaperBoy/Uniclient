@@ -575,7 +575,6 @@
 
 ### §13.5 Flutter-Web Divergence
 <!-- File: dart/lib/utils/system_tray.dart, dart/lib/bridge/bridge_web.dart -->
-- [ ] Mobile-web: hover states become tap-only; compose-toolbar formatting buttons visible — spec §13.5
 # GUI Checklist: Settings Pages & Dialogs (§14–§22)
 
 Consolidated from `checklist/gui.md`. Micro-items grouped into per-widget tasks.

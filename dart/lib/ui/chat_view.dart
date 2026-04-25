@@ -7,7 +7,7 @@ import 'dart:ui' as ui;
 
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7379,13 +7379,15 @@ class _ComposeAreaState extends State<_ComposeArea>
       );
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: composeBg,
-        border: Border(
-          top: BorderSide(color: theme.dividerColor, width: 1),
-        ),
-      ),
+    final isMobileWeb = kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+         defaultTargetPlatform == TargetPlatform.iOS);
+
+    final richCtrl = widget.controller is RichTextEditingController
+        ? widget.controller as RichTextEditingController
+        : null;
+
+    final composeRow = Container(
       padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 9),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -7512,6 +7514,125 @@ class _ComposeAreaState extends State<_ComposeArea>
             );
           }),
         ],
+      ),
+    );
+
+    return Container(
+      decoration: BoxDecoration(
+        color: composeBg,
+        border: Border(
+          top: BorderSide(color: theme.dividerColor, width: 1),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isMobileWeb && richCtrl != null)
+            _FormattingToolbar(
+              controller: richCtrl,
+              iconColor: iconFg,
+              activeColor: theme.colorScheme.primary,
+              isDark: isDark,
+            ),
+          composeRow,
+        ],
+      ),
+    );
+  }
+}
+
+/// Formatting toolbar for mobile-web — spec §13.5: keyboard shortcuts hidden,
+/// compose-toolbar formatting buttons visible in place of Ctrl+B/I/U.
+class _FormattingToolbar extends StatelessWidget {
+  final RichTextEditingController controller;
+  final Color iconColor;
+  final Color activeColor;
+  final bool isDark;
+
+  const _FormattingToolbar({
+    required this.controller,
+    required this.iconColor,
+    required this.activeColor,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        return Container(
+          height: 36,
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: Theme.of(context).dividerColor,
+                width: 1,
+              ),
+            ),
+          ),
+          child: Row(
+            children: [
+              for (final entry in _formatButtons)
+                _FormatButton(
+                  icon: entry.icon,
+                  tooltip: entry.label,
+                  isActive: controller.hasFormat(entry.type),
+                  iconColor: iconColor,
+                  activeColor: activeColor,
+                  onTap: () => controller.toggleFormat(entry.type),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  static const _formatButtons = [
+    (type: FormatType.bold, icon: Icons.format_bold, label: 'Bold'),
+    (type: FormatType.italic, icon: Icons.format_italic, label: 'Italic'),
+    (type: FormatType.underline, icon: Icons.format_underlined, label: 'Underline'),
+    (type: FormatType.strike, icon: Icons.strikethrough_s, label: 'Strikethrough'),
+    (type: FormatType.code, icon: Icons.code, label: 'Code'),
+    (type: FormatType.spoiler, icon: Icons.visibility_off_outlined, label: 'Spoiler'),
+    (type: FormatType.blockquote, icon: Icons.format_quote, label: 'Quote'),
+  ];
+}
+
+class _FormatButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final bool isActive;
+  final Color iconColor;
+  final Color activeColor;
+  final VoidCallback onTap;
+
+  const _FormatButton({
+    required this.icon,
+    required this.tooltip,
+    required this.isActive,
+    required this.iconColor,
+    required this.activeColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(4),
+        child: SizedBox(
+          width: 36,
+          height: 36,
+          child: Icon(
+            icon,
+            size: 20,
+            color: isActive ? activeColor : iconColor,
+          ),
+        ),
       ),
     );
   }
