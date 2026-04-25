@@ -24,6 +24,12 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   bool _showAllCloudThemes = false;
   bool _tileBackground = true;
   bool _adaptiveLayout = true;
+  bool _largeEmoji = true;
+  bool _replaceEmojis = true;
+  bool _suggestEmoji = true;
+  bool _suggestAnimatedEmoji = true;
+  bool _suggestStickersByEmoji = true;
+  bool _loopAnimatedStickers = true;
 
   @override
   void initState() {
@@ -238,6 +244,25 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             onActionChanged: (action) {
               appState.swipeAction = action;
             },
+          ),
+          const SizedBox(height: 7),
+          Container(height: 1, color: dividerColor),
+          const SizedBox(height: 7),
+          _StickersEmojiSection(
+            isDark: isDark,
+            accentColor: currentAccent,
+            largeEmoji: _largeEmoji,
+            replaceEmojis: _replaceEmojis,
+            suggestEmoji: _suggestEmoji,
+            suggestAnimatedEmoji: _suggestAnimatedEmoji,
+            suggestStickersByEmoji: _suggestStickersByEmoji,
+            loopAnimatedStickers: _loopAnimatedStickers,
+            onLargeEmojiChanged: (v) => setState(() => _largeEmoji = v),
+            onReplaceEmojisChanged: (v) => setState(() => _replaceEmojis = v),
+            onSuggestEmojiChanged: (v) => setState(() => _suggestEmoji = v),
+            onSuggestAnimatedEmojiChanged: (v) => setState(() => _suggestAnimatedEmoji = v),
+            onSuggestStickersByEmojiChanged: (v) => setState(() => _suggestStickersByEmoji = v),
+            onLoopAnimatedStickersChanged: (v) => setState(() => _loopAnimatedStickers = v),
           ),
           const SizedBox(height: 7),
           Container(height: 1, color: dividerColor),
@@ -2259,4 +2284,242 @@ class _CloudThemePreviewPainter extends CustomPainter {
       old.background != background ||
       old.receivedBubble != receivedBubble ||
       old.sentBubble != sentBubble;
+}
+
+// ── §14.6.6: Stickers & Emoji ──
+
+class _StickersEmojiSection extends StatelessWidget {
+  final bool isDark;
+  final Color accentColor;
+  final bool largeEmoji;
+  final bool replaceEmojis;
+  final bool suggestEmoji;
+  final bool suggestAnimatedEmoji;
+  final bool suggestStickersByEmoji;
+  final bool loopAnimatedStickers;
+  final ValueChanged<bool> onLargeEmojiChanged;
+  final ValueChanged<bool> onReplaceEmojisChanged;
+  final ValueChanged<bool> onSuggestEmojiChanged;
+  final ValueChanged<bool> onSuggestAnimatedEmojiChanged;
+  final ValueChanged<bool> onSuggestStickersByEmojiChanged;
+  final ValueChanged<bool> onLoopAnimatedStickersChanged;
+
+  const _StickersEmojiSection({
+    required this.isDark,
+    required this.accentColor,
+    required this.largeEmoji,
+    required this.replaceEmojis,
+    required this.suggestEmoji,
+    required this.suggestAnimatedEmoji,
+    required this.suggestStickersByEmoji,
+    required this.loopAnimatedStickers,
+    required this.onLargeEmojiChanged,
+    required this.onReplaceEmojisChanged,
+    required this.onSuggestEmojiChanged,
+    required this.onSuggestAnimatedEmojiChanged,
+    required this.onSuggestStickersByEmojiChanged,
+    required this.onLoopAnimatedStickersChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final hoverBg =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 22, top: 4, bottom: 8),
+          child: Text(
+            'Stickers and Emoji',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: accentColor,
+            ),
+          ),
+        ),
+        _StickerCheckbox(
+          label: 'Large Emoji',
+          value: largeEmoji,
+          isDark: isDark,
+          onChanged: onLargeEmojiChanged,
+        ),
+        _StickerCheckbox(
+          label: 'Replace Emojis',
+          value: replaceEmojis,
+          isDark: isDark,
+          onChanged: onReplaceEmojisChanged,
+        ),
+        _StickerCheckbox(
+          label: 'Suggest Emoji',
+          value: suggestEmoji,
+          isDark: isDark,
+          onChanged: onSuggestEmojiChanged,
+        ),
+        if (suggestEmoji)
+          _StickerCheckbox(
+            label: 'Suggest Animated Emoji',
+            value: suggestAnimatedEmoji,
+            isDark: isDark,
+            onChanged: onSuggestAnimatedEmojiChanged,
+            nested: true,
+            premiumOnly: true,
+          ),
+        _StickerCheckbox(
+          label: 'Suggest Stickers by Emoji',
+          value: suggestStickersByEmoji,
+          isDark: isDark,
+          onChanged: onSuggestStickersByEmojiChanged,
+        ),
+        _StickerCheckbox(
+          label: 'Loop Animated Stickers',
+          value: loopAnimatedStickers,
+          isDark: isDark,
+          onChanged: onLoopAnimatedStickersChanged,
+        ),
+        const SizedBox(height: 4),
+        _StickerNavButton(
+          icon: Icons.sticky_note_2_outlined,
+          label: 'Your Stickers',
+          isDark: isDark,
+          onTap: () {},
+        ),
+        _StickerNavButton(
+          icon: Icons.emoji_emotions_outlined,
+          label: 'Emoji Sets',
+          isDark: isDark,
+          onTap: () {},
+        ),
+      ],
+    );
+  }
+}
+
+class _StickerCheckbox extends StatelessWidget {
+  final String label;
+  final bool value;
+  final bool isDark;
+  final ValueChanged<bool> onChanged;
+  final bool nested;
+  final bool premiumOnly;
+
+  const _StickerCheckbox({
+    required this.label,
+    required this.value,
+    required this.isDark,
+    required this.onChanged,
+    this.nested = false,
+    this.premiumOnly = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+
+    return InkWell(
+      onTap: () => onChanged(!value),
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: nested ? 44 : 22,
+          top: 10,
+          right: 10,
+          bottom: 10,
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: Checkbox(
+                value: value,
+                onChanged: (v) => onChanged(v ?? false),
+                activeColor: accentColor,
+                side: BorderSide(color: subtextColor, width: 1.5),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(fontSize: 14, color: textColor),
+              ),
+            ),
+            if (premiumOnly)
+              Icon(Icons.star, size: 14, color: const Color(0xFFFFA500)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StickerNavButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _StickerNavButton({
+    required this.icon,
+    required this.label,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final iconColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final hoverBg =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    return InkWell(
+      onTap: onTap,
+      hoverColor: hoverBg,
+      splashColor: hoverBg.withValues(alpha: 0.5),
+      child: Padding(
+        padding: const EdgeInsets.only(
+          left: 21,
+          top: 11,
+          right: 20,
+          bottom: 9,
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 24, color: iconColor),
+            const SizedBox(width: 15),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: textColor,
+                ),
+              ),
+            ),
+            Icon(Icons.chevron_right, size: 20, color: iconColor),
+          ],
+        ),
+      ),
+    );
+  }
 }

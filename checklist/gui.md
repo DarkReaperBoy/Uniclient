@@ -606,7 +606,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 14.5 My Account / Edit Profile Sub-Page
 
 ### 14.6 Chat Settings Sub-Page
-- [ ] Stickers & Emoji: five checkboxes (Large Emoji, Replace Emojis, Suggest Emoji, Suggest Stickers, Loop Animated), Suggest Animated Emoji (Premium nested), Your Stickers + Emoji Sets buttons, margins(22,10,10,10) — spec §14.6.6 & §14.6.6.1
 - [ ] Messages group: Send by radio (Enter/Ctrl+Enter), Double-click radio (Reply/React with reaction preview), Show reply button checkbox, Show reaction button checkbox, correct subsection titles and dividers — spec §14.6.7 & §14.6.7.1
 - [ ] Sensitive content toggle: "Disable filtering" with footer, hidden if server disallows — spec §14.6.8
 - [ ] Shortcuts & Archive: Keyboard Shortcuts nav button, Archive Settings button (opens ArchiveSettingsBox) — spec §14.6.9
