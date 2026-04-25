@@ -155,7 +155,53 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
   }
 
   // §14.7.2: Private/Groups/Channels auto-download buttons.
-  List<Widget> _buildAutoMediaDownload(bool isDark) => const [];
+  List<Widget> _buildAutoMediaDownload(bool isDark) {
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final iconColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final hoverBg =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    return [
+      _AdvancedIconButtonRow(
+        icon: Icons.person,
+        label: 'In private chats',
+        textColor: textColor,
+        subtextColor: subtextColor,
+        iconColor: iconColor,
+        hoverBg: hoverBg,
+        onTap: () => _openAutoDownloadBox(context, 'In private chats'),
+      ),
+      _AdvancedIconButtonRow(
+        icon: Icons.group,
+        label: 'In groups',
+        textColor: textColor,
+        subtextColor: subtextColor,
+        iconColor: iconColor,
+        hoverBg: hoverBg,
+        onTap: () => _openAutoDownloadBox(context, 'In groups'),
+      ),
+      _AdvancedIconButtonRow(
+        icon: Icons.campaign,
+        label: 'In channels',
+        textColor: textColor,
+        subtextColor: subtextColor,
+        iconColor: iconColor,
+        hoverBg: hoverBg,
+        onTap: () => _openAutoDownloadBox(context, 'In channels'),
+      ),
+    ];
+  }
+
+  void _openAutoDownloadBox(BuildContext context, String source) {
+    showDialog(
+      context: context,
+      builder: (_) => _AutoDownloadBox(source: source),
+    );
+  }
 
   // §14.7.3: Chat name / Account name / Unread count checkboxes, native frame toggle.
   List<Widget> _buildWindowTitle(bool isDark, AppState appState) => const [];
@@ -298,6 +344,231 @@ class _AdvancedToggleRow extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _AutoDownloadBox extends StatefulWidget {
+  final String source;
+
+  const _AutoDownloadBox({required this.source});
+
+  @override
+  State<_AutoDownloadBox> createState() => _AutoDownloadBoxState();
+}
+
+class _AutoDownloadBoxState extends State<_AutoDownloadBox> {
+  bool _photos = true;
+  bool _files = false;
+  double _downloadLimit = 10;
+
+  bool _videoMessages = true;
+  bool _videos = true;
+  bool _gifs = true;
+  double _autoPlayLimit = 50;
+
+  static const _sizeSteps = <double>[
+    0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500,
+    1024, 1536, 2048, 3072, 4096, 5120, 7168, 8192,
+  ];
+
+  int _sizeToIndex(double mb) {
+    for (var i = 0; i < _sizeSteps.length; i++) {
+      if (_sizeSteps[i] >= mb) return i;
+    }
+    return _sizeSteps.length - 1;
+  }
+
+  double _indexToSize(int i) => _sizeSteps[i.clamp(0, _sizeSteps.length - 1)];
+
+  String _formatSize(double mb) {
+    if (mb >= 1024) {
+      final gb = mb / 1024;
+      return gb == gb.roundToDouble()
+          ? '${gb.round()} GB'
+          : '${gb.toStringAsFixed(1)} GB';
+    }
+    return mb == mb.roundToDouble()
+        ? '${mb.round()} MB'
+        : '${mb.toStringAsFixed(1)} MB';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final dividerColor =
+        isDark ? const Color(0xFF101921) : const Color(0xFFE0E0E0);
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 364),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 18, 22, 4),
+              child: Text(
+                widget.source,
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: textColor,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 22),
+              child: Text(
+                'Automatically download',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: accentColor,
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            _toggleRow('Photos', _photos, (v) => setState(() => _photos = v),
+                textColor, accentColor),
+            _toggleRow('Files', _files, (v) => setState(() => _files = v),
+                textColor, accentColor),
+            _sizeSlider(
+              'Size limit',
+              _downloadLimit,
+              (v) => setState(() => _downloadLimit = v),
+              textColor,
+              subtextColor,
+              accentColor,
+            ),
+            const SizedBox(height: 4),
+            Divider(height: 1, color: dividerColor, indent: 22, endIndent: 22),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 22),
+              child: Text(
+                'Auto-play media',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: accentColor,
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            _toggleRow('Video messages', _videoMessages,
+                (v) => setState(() => _videoMessages = v), textColor, accentColor),
+            _toggleRow('Videos', _videos,
+                (v) => setState(() => _videos = v), textColor, accentColor),
+            _toggleRow('GIFs', _gifs,
+                (v) => setState(() => _gifs = v), textColor, accentColor),
+            _sizeSlider(
+              'Size limit',
+              _autoPlayLimit,
+              (v) => setState(() => _autoPlayLimit = v),
+              textColor,
+              subtextColor,
+              accentColor,
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 0, 22, 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('Cancel',
+                        style: TextStyle(color: accentColor, fontSize: 14)),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('Save',
+                        style: TextStyle(color: accentColor, fontSize: 14)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _toggleRow(String label, bool value, ValueChanged<bool> onChanged,
+      Color textColor, Color accentColor) {
+    return InkWell(
+      onTap: () => onChanged(!value),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 4),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(label,
+                  style: TextStyle(fontSize: 14, color: textColor)),
+            ),
+            Switch(
+              value: value,
+              onChanged: onChanged,
+              activeColor: accentColor,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sizeSlider(String label, double currentMb,
+      ValueChanged<double> onChanged, Color textColor, Color subtextColor,
+      Color accentColor) {
+    final idx = _sizeToIndex(currentMb);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 4, 22, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(label,
+                  style: TextStyle(fontSize: 13, color: subtextColor)),
+              const Spacer(),
+              Text(_formatSize(currentMb),
+                  style: TextStyle(fontSize: 13, color: accentColor)),
+            ],
+          ),
+          SliderTheme(
+            data: SliderThemeData(
+              thumbShape:
+                  const RoundSliderThumbShape(enabledThumbRadius: 7.5),
+              activeTrackColor: accentColor,
+              inactiveTrackColor: accentColor.withValues(alpha: 0.24),
+              thumbColor: accentColor,
+              overlayColor: accentColor.withValues(alpha: 0.12),
+              trackHeight: 2,
+            ),
+            child: Slider(
+              value: idx.toDouble(),
+              min: 0,
+              max: (_sizeSteps.length - 1).toDouble(),
+              divisions: _sizeSteps.length - 1,
+              onChanged: (v) => onChanged(_indexToSize(v.round())),
+            ),
+          ),
+        ],
       ),
     );
   }
