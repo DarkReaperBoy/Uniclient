@@ -575,7 +575,6 @@
 
 ### §13.5 Flutter-Web Divergence
 <!-- File: dart/lib/utils/system_tray.dart, dart/lib/bridge/bridge_web.dart -->
-- [ ] Web: hide system tray icon, global hotkeys, native file picker, clipboard image read, process-level single-instance — spec §13.5
 - [ ] Web: Notifications API + favicon badge instead of tray; <input type=file> + HTML5 drop events — spec §13.5
 - [ ] Web degraded: keyboard shortcuts yield to browser-reserved combos; fullscreen requires user gesture; WebRTC getUserMedia device-selection constraints — spec §13.5
 - [ ] Mobile-web: hover states become tap-only; compose-toolbar formatting buttons visible — spec §13.5

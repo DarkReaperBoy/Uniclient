@@ -165,10 +165,16 @@ class _UniClientAppState extends State<UniClientApp>
     final appState = context.read<AppState>();
     final chatState = context.read<ChatState>();
     // Platform-appropriate directories — uniconfig file lives in configDir.
+    // On web (§13.5), no filesystem — use empty strings and let the engine
+    // handle persistence via IndexedDB / localStorage.
     late final String configDir;
     late final String cacheDir;
     late final String downloadDir;
-    if (Platform.isMacOS) {
+    if (kIsWeb) {
+      configDir = '';
+      cacheDir = '';
+      downloadDir = '';
+    } else if (Platform.isMacOS) {
       final home = Platform.environment['HOME'] ?? '/tmp';
       configDir = '$home/Library/Application Support/uniclient';
       cacheDir = '$home/Library/Caches/uniclient';
@@ -187,9 +193,11 @@ class _UniClientAppState extends State<UniClientApp>
       downloadDir = '$home/Downloads/uniclient';
     }
 
-    // Ensure directories exist.
-    for (final dir in [configDir, cacheDir, downloadDir]) {
-      Directory(dir).createSync(recursive: true);
+    // Ensure directories exist (desktop-only — no filesystem on web).
+    if (!kIsWeb) {
+      for (final dir in [configDir, cacheDir, downloadDir]) {
+        Directory(dir).createSync(recursive: true);
+      }
     }
 
     await appState.initialize(
@@ -203,24 +211,26 @@ class _UniClientAppState extends State<UniClientApp>
       chatState.switchAccount(appState.activeAccountId);
     }
 
-    // Initialize system tray after engine is ready.
-    await _tray.init();
-    _tray.onQuit = () => exit(0);
+    // Initialize system tray after engine is ready (desktop-only, §13.5).
+    if (!kIsWeb) {
+      await _tray.init();
+      _tray.onQuit = () => exit(0);
 
-    // Track unread count changes and update tray tooltip.
-    if (_tray.isAvailable) {
-      _chatStateRef = chatState;
-      _unreadListener = () {
+      // Track unread count changes and update tray tooltip.
+      if (_tray.isAvailable) {
+        _chatStateRef = chatState;
+        _unreadListener = () {
+          _tray.updateUnread(chatState.totalUnread);
+        };
+        chatState.addListener(_unreadListener!);
+        // Set initial tooltip.
         _tray.updateUnread(chatState.totalUnread);
-      };
-      chatState.addListener(_unreadListener!);
-      // Set initial tooltip.
-      _tray.updateUnread(chatState.totalUnread);
+      }
     }
 
     // Debug command poller — reads /tmp/uniclient_debug_cmd.json for
-    // programmatic UI interaction (smoke testing on Wayland).
-    if (kDebugMode) {
+    // programmatic UI interaction (smoke testing on Wayland). Desktop-only.
+    if (kDebugMode && !kIsWeb) {
       _debugCmdTimer = Timer.periodic(const Duration(seconds: 1), (_) {
         _pollDebugCommand(chatState);
       });
@@ -1093,11 +1103,11 @@ class _UniClientAppState extends State<UniClientApp>
             key: _themeBoundaryKey,
             child: Column(
               children: [
-                if (Platform.isLinux && !appState.nativeWindowFrame) const CustomTitlebar(),
+                if (!kIsWeb && Platform.isLinux && !appState.nativeWindowFrame) const CustomTitlebar(),
                 // Spec §1: NativeTitleRequiresShadow — 1px shadow under native frame
                 // when system window decorations are enabled. Replaces the bottom
                 // border that the custom titlebar would normally provide.
-                if (Platform.isLinux && appState.nativeWindowFrame)
+                if (!kIsWeb && Platform.isLinux && appState.nativeWindowFrame)
                   Builder(builder: (ctx) {
                     final isDark = Theme.of(ctx).brightness == Brightness.dark;
                     return Container(
@@ -1185,29 +1195,15 @@ class _UniClientAppState extends State<UniClientApp>
               () => ChatListPanel.requestSwitchFolderByIndex(7),
           const SingleActivator(LogicalKeyboardKey.digit8, control: true):
               () => ChatListPanel.requestSwitchFolderByIndex(8),
-          // Telegram Desktop spec §24.4 Application / Window: Ctrl+W closes
-          // the window (minimizes to system tray). No-op when the native
-          // tray is unavailable — SystemTray.hideWindowRequest is only set
-          // after init() detected the tray channel. The app keeps running
-          // in the background; the tray icon (if present) is how the user
-          // brings it back.
-          const SingleActivator(LogicalKeyboardKey.keyW, control: true):
+          // §24.4 Window shortcuts — desktop-only (§13.5: yield to browser
+          // combos on web — Ctrl+W/Q/M/F4 are browser-reserved).
+          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.keyW, control: true):
               () => SystemTray.hideWindowRequest?.call(),
-          // Telegram Desktop spec §24.4 Application / Window: Ctrl+F4 is the
-          // documented alternate binding for `close_telegram` (hide to tray).
-          // Same callback as Ctrl+W so behaviour is byte-identical — no-ops
-          // when SystemTray.hideWindowRequest is null (no appindicator tray).
-          const SingleActivator(LogicalKeyboardKey.f4, control: true):
+          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.f4, control: true):
               () => SystemTray.hideWindowRequest?.call(),
-          // Telegram Desktop spec §24.4 Application / Window: Ctrl+M
-          // minimizes the window (iconify to taskbar). Works without the
-          // system tray — just asks the window manager to minimize.
-          const SingleActivator(LogicalKeyboardKey.keyM, control: true):
+          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.keyM, control: true):
               () => SystemTray.minimizeWindowRequest?.call(),
-          // Telegram Desktop spec §24.4 Application / Window: Ctrl+Q
-          // fully quits the application (unlike Ctrl+W which hides to
-          // tray). Works regardless of tray availability.
-          const SingleActivator(LogicalKeyboardKey.keyQ, control: true):
+          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.keyQ, control: true):
               () => SystemTray.quitAppRequest?.call(),
           // Telegram Desktop spec §24.4 Chat Actions: Ctrl+\ opens the
           // chat-level action menu (peer menu) anchored at the top-bar

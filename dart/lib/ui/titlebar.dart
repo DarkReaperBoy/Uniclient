@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -169,7 +170,7 @@ class _CustomTitlebarState extends State<CustomTitlebar> {
 
   @override
   Widget build(BuildContext context) {
-    if (!Platform.isLinux) return const SizedBox.shrink();
+    if (kIsWeb || !Platform.isLinux) return const SizedBox.shrink();
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);

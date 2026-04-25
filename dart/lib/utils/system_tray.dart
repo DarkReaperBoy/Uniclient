@@ -1,5 +1,4 @@
-import 'dart:io' show Platform;
-
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 
 import 'debug.dart';
@@ -44,8 +43,9 @@ class SystemTray {
   void Function()? onWindowHidden;
 
   /// Initialize the tray.  Call once after the engine is running.
+  /// No-op on Flutter Web — native tray is desktop-only (§13.5).
   Future<void> init() async {
-    if (!Platform.isLinux && !Platform.isWindows && !Platform.isMacOS) return;
+    if (kIsWeb) return;
 
     // Listen for native → Dart calls (onQuit, onWindowHidden).
     _channel.setMethodCallHandler(_handleNativeCall);

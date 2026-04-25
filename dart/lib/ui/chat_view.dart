@@ -7,6 +7,7 @@ import 'dart:ui' as ui;
 
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -2626,6 +2627,45 @@ class _ChatViewState extends State<ChatView>
     return KeyEventResult.ignored;
   }
 
+  Widget _wrapDropTarget(Widget child) {
+    if (kIsWeb) return child;
+    return DropTarget(
+      onDragEntered: (_) {
+        setState(() => _isDragOver = true);
+        _dragOverlayAnimCtrl.forward();
+      },
+      onDragExited: (_) {
+        setState(() {
+          _isDragOver = false;
+          _dragHoveredCard = 0;
+        });
+        _dragOverlayAnimCtrl.reverse();
+      },
+      onDragUpdated: (details) {
+        final box = context.findRenderObject() as RenderBox?;
+        if (box == null) return;
+        final localY = details.localPosition.dy;
+        final h = box.size.height;
+        final newCard = localY < h / 2 ? 1 : 2;
+        if (newCard != _dragHoveredCard) {
+          setState(() => _dragHoveredCard = newCard);
+        }
+      },
+      onDragDone: (details) {
+        setState(() {
+          _isDragOver = false;
+          _dragHoveredCard = 0;
+        });
+        _dragOverlayAnimCtrl.reverse();
+        final paths = details.files.map((f) => f.path).toList();
+        if (paths.isNotEmpty) {
+          _uploadFiles(context.read<ChatState>(), paths);
+        }
+      },
+      child: child,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -2663,40 +2703,7 @@ class _ChatViewState extends State<ChatView>
         }
         return KeyEventResult.ignored;
       },
-      child: DropTarget(
-      onDragEntered: (_) {
-        setState(() => _isDragOver = true);
-        _dragOverlayAnimCtrl.forward();
-      },
-      onDragExited: (_) {
-        setState(() {
-          _isDragOver = false;
-          _dragHoveredCard = 0;
-        });
-        _dragOverlayAnimCtrl.reverse();
-      },
-      onDragUpdated: (details) {
-        final box = context.findRenderObject() as RenderBox?;
-        if (box == null) return;
-        final localY = details.localPosition.dy;
-        final h = box.size.height;
-        final newCard = localY < h / 2 ? 1 : 2;
-        if (newCard != _dragHoveredCard) {
-          setState(() => _dragHoveredCard = newCard);
-        }
-      },
-      onDragDone: (details) {
-        setState(() {
-          _isDragOver = false;
-          _dragHoveredCard = 0;
-        });
-        _dragOverlayAnimCtrl.reverse();
-        final paths = details.files.map((f) => f.path).toList();
-        if (paths.isNotEmpty) {
-          _uploadFiles(context.read<ChatState>(), paths);
-        }
-      },
-      child: Stack(
+      child: _wrapDropTarget(Stack(
       children: [
       Container(
       color: theme.scaffoldBackgroundColor,
