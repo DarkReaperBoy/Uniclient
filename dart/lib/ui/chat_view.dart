@@ -29,6 +29,7 @@ import 'send_files_box.dart';
 import 'confirm_box.dart';
 import 'call_panel.dart';
 import 'emoji_panel.dart';
+import '../utils/web_drop.dart';
 
 /// Chat column: top bar + message list + compose area.
 /// Spec §4 (top bar 54px), §5 (messages), §7 (compose).
@@ -2628,7 +2629,20 @@ class _ChatViewState extends State<ChatView>
   }
 
   Widget _wrapDropTarget(Widget child) {
-    if (kIsWeb) return child;
+    if (kIsWeb) {
+      return buildWebDropZone(
+        child: child,
+        onDrop: (names) async {
+          if (names.isEmpty) return;
+          final result = await FilePicker.platform.pickFiles(allowMultiple: true);
+          if (result == null || result.files.isEmpty) return;
+          final paths = result.files.where((f) => f.path != null).map((f) => f.path!).toList();
+          if (paths.isNotEmpty) {
+            _uploadFiles(context.read<ChatState>(), paths);
+          }
+        },
+      );
+    }
     return DropTarget(
       onDragEntered: (_) {
         setState(() => _isDragOver = true);

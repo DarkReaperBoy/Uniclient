@@ -27,6 +27,7 @@ import 'ui/shell.dart';
 import 'ui/titlebar.dart';
 import 'utils/debug.dart';
 import 'utils/system_tray.dart';
+import 'utils/web_notifier.dart';
 import 'package:media_kit/media_kit.dart';
 
 void main() {
@@ -78,6 +79,7 @@ class _UniClientAppState extends State<UniClientApp>
     with TickerProviderStateMixin {
   bool _initStarted = false;
   final SystemTray _tray = SystemTray();
+  final WebNotifier _webNotifier = WebNotifier();
   VoidCallback? _unreadListener;
   ChatState? _chatStateRef;
   Timer? _debugCmdTimer;
@@ -226,6 +228,17 @@ class _UniClientAppState extends State<UniClientApp>
         // Set initial tooltip.
         _tray.updateUnread(chatState.totalUnread);
       }
+    }
+
+    // Web: Notifications API + favicon/title badge instead of tray (§13.5).
+    if (kIsWeb) {
+      _webNotifier.init();
+      _chatStateRef = chatState;
+      _unreadListener = () {
+        _webNotifier.updateBadge(chatState.totalUnread);
+      };
+      chatState.addListener(_unreadListener!);
+      _webNotifier.updateBadge(chatState.totalUnread);
     }
 
     // Debug command poller — reads /tmp/uniclient_debug_cmd.json for
@@ -1083,6 +1096,7 @@ class _UniClientAppState extends State<UniClientApp>
     _themeCrossFadeImage?.dispose();
     _instance = null;
     _tray.dispose();
+    _webNotifier.dispose();
     super.dispose();
   }
 
