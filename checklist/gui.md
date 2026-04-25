@@ -559,21 +559,16 @@
 - [x] isOneColumn / twoColumn / threeColumn layout enum and predicates — spec §13.1 — DONE in shell.dart
 - [x] Sidebar min 260px, chat min 380px, info panel min 292px / max 392px constants — spec §13.1 — DONE in shell.dart
 - [x] Wide chat bubbles threshold 880px (wideChatThreshold constant) — spec §13.1 — DONE in shell.dart
-- [ ] Group call narrow/wide switch at 600px (distinct from main window breakpoints) — spec §13.1
-
 ### §13.2 OneColumn Mode
 <!-- File: dart/lib/ui/shell.dart — MOSTLY DONE -->
 - [x] One panel visible at a time; tapping chat slides message view in from right; back button in chat top-bar — spec §13.2 — DONE in shell.dart
 - [x] Slide animation with easeOutCubic curve, ~200ms, both sides rendered as cached pixmaps — spec §13.2 — DONE in shell.dart
-- [ ] Info panel opens as full-width takeover layer in OneColumn mode — spec §13.2
-- [ ] Folder tabs switch from vertical rail to horizontal strip below search bar in OneColumn mode — spec §13.2
 
 ### §13.3 Other Responsive Adaptations
 <!-- File: dart/lib/ui/shell.dart -->
 - [x] Sidebar cannot shrink below 260px — spec §13.3 — DONE in shell.dart
 - [x] Wide chat mode (>= 880px): bubbles center with gutters — spec §13.3 — DONE in shell.dart (constant defined)
 - [ ] Emoji panel height clamped [278px, 640px] (part of §10 panel, listed here for completeness) — spec §13.3
-- [ ] Forward/Share dialog: full-screen overlay regardless of width — spec §13.3
 
 ### §13.4 Touch vs Mouse
 <!-- File: dart/lib/ui/ (various) -->

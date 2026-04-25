@@ -1854,9 +1854,19 @@ class _ChatViewState extends State<ChatView>
 
   void _executeForward(BuildContext context, ChatState chatState) {
     final msgIds = _forwardingMsgIds.toList();
-    showDialog(
+    showGeneralDialog(
       context: context,
-      builder: (ctx) => _ShareBox(
+      barrierDismissible: true,
+      barrierLabel: 'Forward',
+      barrierColor: Colors.black54,
+      transitionDuration: const Duration(milliseconds: 200),
+      transitionBuilder: (ctx, anim, _, child) {
+        return FadeTransition(
+          opacity: CurvedAnimation(parent: anim, curve: Curves.easeOutCubic),
+          child: child,
+        );
+      },
+      pageBuilder: (ctx, _, __) => _ShareBox(
         chats: chatState.chats,
         folders: chatState.folders,
         hasSenders: true,
@@ -8846,26 +8856,40 @@ class _ShareBoxState extends State<_ShareBox> {
     final isDark = theme.brightness == Brightness.dark;
     final boxBg = isDark ? const Color(0xFF17212b) : Colors.white;
     final filtered = _filteredChats;
-    final colCount = _columnsForWidth(MediaQuery.of(context).size.width);
+    final size = MediaQuery.of(context).size;
+    final colCount = _columnsForWidth(size.width);
+    final accentColor = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF40a7e3);
 
-    return Dialog(
-      backgroundColor: boxBg,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420, maxHeight: 560),
+    return Material(
+      color: boxBg,
+      child: SafeArea(
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-              child: Text(
-                'Forward to...',
-                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+            SizedBox(
+              height: 54,
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                  Expanded(
+                    child: Text(
+                      'Forward to...',
+                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  if (widget.hasSenders || widget.hasCaptions)
+                    _buildMenuButton(context, theme, isDark),
+                ],
               ),
             ),
-            const SizedBox(height: 8),
+            Container(
+              height: 1,
+              color: isDark ? const Color(0xFF0e1621) : const Color(0x18000000),
+            ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
               child: TextField(
                 autofocus: true,
                 decoration: InputDecoration(
@@ -8899,7 +8923,7 @@ class _ShareBoxState extends State<_ShareBox> {
               ),
             ],
             const SizedBox(height: 12),
-            Flexible(
+            Expanded(
               child: GridView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -8950,12 +8974,14 @@ class _ShareBoxState extends State<_ShareBox> {
                     )
                   : const SizedBox.shrink(),
             ),
+            Container(
+              height: 1,
+              color: isDark ? const Color(0xFF0e1621) : const Color(0x18000000),
+            ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
               child: Row(
                 children: [
-                  if (widget.hasSenders || widget.hasCaptions)
-                    _buildMenuButton(context, theme, isDark),
                   const Spacer(),
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
@@ -9220,8 +9246,7 @@ class _ShareBoxState extends State<_ShareBox> {
   }
 
   int _columnsForWidth(double screenWidth) {
-    final dialogWidth = screenWidth.clamp(280.0, 420.0);
-    return (dialogWidth / 90).floor().clamp(3, 5);
+    return (screenWidth / 90).floor().clamp(3, 10);
   }
 
   static Color avatarColor(String id) {
