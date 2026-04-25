@@ -606,7 +606,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 14.5 My Account / Edit Profile Sub-Page
 
 ### 14.6 Chat Settings Sub-Page
-- [ ] Chat list quick action: radio group (Mute/Pin/Read/Archive/Delete/Disabled) with live Lottie preview — spec §14.6.5
 - [ ] Stickers & Emoji: five checkboxes (Large Emoji, Replace Emojis, Suggest Emoji, Suggest Stickers, Loop Animated), Suggest Animated Emoji (Premium nested), Your Stickers + Emoji Sets buttons, margins(22,10,10,10) — spec §14.6.6 & §14.6.6.1
 - [ ] Messages group: Send by radio (Enter/Ctrl+Enter), Double-click radio (Reply/React with reaction preview), Show reply button checkbox, Show reaction button checkbox, correct subsection titles and dividers — spec §14.6.7 & §14.6.7.1
 - [ ] Sensitive content toggle: "Disable filtering" with footer, hidden if server disallows — spec §14.6.8
@@ -1606,3 +1605,4 @@ Status key: `[ ]` not started · `[x]` done
 - [ ] Mobile (oneColumn) selection mode: context menu "Select" action doesn't activate selection mode — no selection bar, no checkboxes appear. Works fine in desktop (twoColumn) mode. Likely a state/animation issue in oneColumn layout.
 - [ ] Info panel scroll doesn't work via flutter_interact.sh scroll events — scroll goes to chat list instead of info panel CustomScrollView. Affects both desktop (third column) and mobile (full screen) modes. The SliverPersistentHeader cover never compresses.
 - [ ] GIF tab inline search broken: GetInlineBotResults passes string "gif" as bot ID but engine expects numeric ID. Error: `invalid ID "gif": strconv.ParseInt: parsing "gif": invalid syntax`. Affects both manual text search and category emoji search.
+- [ ] Chat Settings page scroll broken via flutter_interact.sh — PointerScrollEvent dispatched at various y positions doesn't cause ListView to scroll. Scrollbar error "ScrollController has no ScrollPosition attached" in logs. ListView has `primary: true` but scroll still doesn't work via debug dispatch. Affects testing of items below viewport (quick action radios).

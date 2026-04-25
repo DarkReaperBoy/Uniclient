@@ -127,6 +127,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
         ],
       ),
       body: ListView(
+        primary: true,
         padding: EdgeInsets.zero,
         children: [
           const SizedBox(height: 10),
@@ -226,6 +227,17 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             accentColor: currentAccent,
             onTileChanged: (v) => setState(() => _tileBackground = v),
             onAdaptiveChanged: (v) => setState(() => _adaptiveLayout = v),
+          ),
+          const SizedBox(height: 7),
+          Container(height: 1, color: dividerColor),
+          const SizedBox(height: 7),
+          _ChatListQuickActionSection(
+            isDark: isDark,
+            currentAction: appState.swipeAction,
+            accentColor: currentAccent,
+            onActionChanged: (action) {
+              appState.swipeAction = action;
+            },
           ),
           const SizedBox(height: 7),
           Container(height: 1, color: dividerColor),
@@ -1928,6 +1940,263 @@ class _SettingsCheckbox extends StatelessWidget {
               child: Text(
                 label,
                 style: TextStyle(fontSize: 14, color: textColor),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── §14.6.5: Chat List Quick Action ──
+
+class _ChatListQuickActionSection extends StatelessWidget {
+  final bool isDark;
+  final String currentAction;
+  final Color accentColor;
+  final ValueChanged<String> onActionChanged;
+
+  const _ChatListQuickActionSection({
+    required this.isDark,
+    required this.currentAction,
+    required this.accentColor,
+    required this.onActionChanged,
+  });
+
+  static const _actions = [
+    ('mute', 'Mute', Icons.volume_off),
+    ('pin', 'Pin', Icons.push_pin),
+    ('read', 'Read', Icons.done_all),
+    ('archive', 'Archive', Icons.archive),
+    ('delete', 'Delete', Icons.delete),
+    ('disabled', 'Disabled', Icons.block),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 22, top: 4, bottom: 8),
+          child: Text(
+            'Chat list quick action',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: accentColor,
+            ),
+          ),
+        ),
+        Center(
+          child: _QuickActionPreview(
+            action: currentAction,
+            isDark: isDark,
+            accentColor: accentColor,
+          ),
+        ),
+        const SizedBox(height: 12),
+        for (final (value, label, icon) in _actions)
+          InkWell(
+            onTap: () => onActionChanged(value),
+            child: Padding(
+              padding: const EdgeInsets.only(
+                  left: 22, top: 5, bottom: 5, right: 10),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: Radio<String>(
+                      value: value,
+                      groupValue: currentAction,
+                      onChanged: (v) {
+                        if (v != null) onActionChanged(v);
+                      },
+                      activeColor: accentColor,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Icon(
+                    icon,
+                    size: 20,
+                    color: value == currentAction ? accentColor : subtextColor,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    label,
+                    style: TextStyle(fontSize: 14, color: textColor),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _QuickActionPreview extends StatelessWidget {
+  final String action;
+  final bool isDark;
+  final Color accentColor;
+
+  const _QuickActionPreview({
+    required this.action,
+    required this.isDark,
+    required this.accentColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final chatRowBg =
+        isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final chatRowHover =
+        isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
+
+    Color actionColor;
+    IconData actionIcon;
+    String actionLabel;
+    switch (action) {
+      case 'mute':
+        actionColor = const Color(0xFF40A7E3);
+        actionIcon = Icons.volume_off;
+        actionLabel = 'Mute';
+      case 'pin':
+        actionColor = const Color(0xFF40A7E3);
+        actionIcon = Icons.push_pin;
+        actionLabel = 'Pin';
+      case 'read':
+        actionColor = const Color(0xFF40A7E3);
+        actionIcon = Icons.done_all;
+        actionLabel = 'Read';
+      case 'archive':
+        actionColor = const Color(0xFF40A7E3);
+        actionIcon = Icons.archive;
+        actionLabel = 'Archive';
+      case 'delete':
+        actionColor = const Color(0xFFE53935);
+        actionIcon = Icons.delete;
+        actionLabel = 'Delete';
+      default:
+        actionColor = const Color(0xFF999999);
+        actionIcon = Icons.block;
+        actionLabel = 'Disabled';
+    }
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
+      child: Container(
+        key: ValueKey(action),
+        width: 260,
+        height: 62,
+        decoration: BoxDecoration(
+          color: chatRowBg,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isDark ? const Color(0xFF2B3A4A) : const Color(0xFFE0E0E0),
+          ),
+        ),
+        child: Stack(
+          children: [
+            // The revealed action area (right side).
+            Positioned(
+              right: 0,
+              top: 0,
+              bottom: 0,
+              width: 80,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: actionColor,
+                  borderRadius: const BorderRadius.only(
+                    topRight: Radius.circular(9),
+                    bottomRight: Radius.circular(9),
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(actionIcon, size: 22, color: Colors.white),
+                    const SizedBox(height: 2),
+                    Text(
+                      actionLabel,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // The chat row sliding left.
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              right: 30,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: chatRowHover,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(9),
+                    bottomLeft: Radius.circular(9),
+                  ),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: accentColor.withValues(alpha: 0.3),
+                      ),
+                      child: Icon(Icons.person, size: 24,
+                          color: accentColor.withValues(alpha: 0.7)),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            height: 10,
+                            width: 80,
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? const Color(0xFF4A5568)
+                                  : const Color(0xFFBDBDBD),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Container(
+                            height: 8,
+                            width: 110,
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? const Color(0xFF3A4558)
+                                  : const Color(0xFFD5D5D5),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
