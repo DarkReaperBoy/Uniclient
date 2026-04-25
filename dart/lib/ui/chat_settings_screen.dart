@@ -30,6 +30,10 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   bool _suggestAnimatedEmoji = true;
   bool _suggestStickersByEmoji = true;
   bool _loopAnimatedStickers = true;
+  String _sendBy = 'enter';
+  String _doubleClickAction = 'reply';
+  bool _showReplyButton = true;
+  bool _showReactionButton = true;
 
   @override
   void initState() {
@@ -263,6 +267,21 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             onSuggestAnimatedEmojiChanged: (v) => setState(() => _suggestAnimatedEmoji = v),
             onSuggestStickersByEmojiChanged: (v) => setState(() => _suggestStickersByEmoji = v),
             onLoopAnimatedStickersChanged: (v) => setState(() => _loopAnimatedStickers = v),
+          ),
+          const SizedBox(height: 7),
+          Container(height: 1, color: dividerColor),
+          const SizedBox(height: 7),
+          _MessagesSection(
+            isDark: isDark,
+            accentColor: currentAccent,
+            sendBy: _sendBy,
+            doubleClickAction: _doubleClickAction,
+            showReplyButton: _showReplyButton,
+            showReactionButton: _showReactionButton,
+            onSendByChanged: (v) => setState(() => _sendBy = v),
+            onDoubleClickActionChanged: (v) => setState(() => _doubleClickAction = v),
+            onShowReplyButtonChanged: (v) => setState(() => _showReplyButton = v),
+            onShowReactionButtonChanged: (v) => setState(() => _showReactionButton = v),
           ),
           const SizedBox(height: 7),
           Container(height: 1, color: dividerColor),
@@ -2517,6 +2536,246 @@ class _StickerNavButton extends StatelessWidget {
               ),
             ),
             Icon(Icons.chevron_right, size: 20, color: iconColor),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── §14.6.7: Messages ──
+
+class _MessagesSection extends StatelessWidget {
+  final bool isDark;
+  final Color accentColor;
+  final String sendBy;
+  final String doubleClickAction;
+  final bool showReplyButton;
+  final bool showReactionButton;
+  final ValueChanged<String> onSendByChanged;
+  final ValueChanged<String> onDoubleClickActionChanged;
+  final ValueChanged<bool> onShowReplyButtonChanged;
+  final ValueChanged<bool> onShowReactionButtonChanged;
+
+  const _MessagesSection({
+    required this.isDark,
+    required this.accentColor,
+    required this.sendBy,
+    required this.doubleClickAction,
+    required this.showReplyButton,
+    required this.showReactionButton,
+    required this.onSendByChanged,
+    required this.onDoubleClickActionChanged,
+    required this.onShowReplyButtonChanged,
+    required this.onShowReactionButtonChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final dividerColor =
+        isDark ? const Color(0xFF101921) : const Color(0xFFE8E8E8);
+    final isMac = Theme.of(context).platform == TargetPlatform.macOS;
+    final ctrlLabel = isMac ? 'Cmd+Enter' : 'Ctrl+Enter';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 22, top: 4, bottom: 4),
+          child: Text(
+            'Send by',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: accentColor,
+            ),
+          ),
+        ),
+        _SendTypeRadio(
+          value: 'enter',
+          groupValue: sendBy,
+          label: 'Enter',
+          isDark: isDark,
+          accentColor: accentColor,
+          onChanged: onSendByChanged,
+        ),
+        _SendTypeRadio(
+          value: 'ctrl_enter',
+          groupValue: sendBy,
+          label: ctrlLabel,
+          isDark: isDark,
+          accentColor: accentColor,
+          onChanged: onSendByChanged,
+        ),
+        const SizedBox(height: 4),
+        Padding(
+          padding: const EdgeInsets.only(left: 22, top: 4, bottom: 4),
+          child: Text(
+            'Double-click action',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: accentColor,
+            ),
+          ),
+        ),
+        _SendTypeRadio(
+          value: 'reply',
+          groupValue: doubleClickAction,
+          label: 'Reply',
+          isDark: isDark,
+          accentColor: accentColor,
+          onChanged: onDoubleClickActionChanged,
+        ),
+        _SendTypeRadio(
+          value: 'react',
+          groupValue: doubleClickAction,
+          label: 'React',
+          isDark: isDark,
+          accentColor: accentColor,
+          onChanged: onDoubleClickActionChanged,
+          trailing: Icon(
+            Icons.favorite,
+            size: 18,
+            color: const Color(0xFFE53935),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 22),
+          child: Container(height: 1, color: dividerColor),
+        ),
+        const SizedBox(height: 4),
+        _MessageCheckbox(
+          label: 'Show reply button in corner',
+          value: showReplyButton,
+          isDark: isDark,
+          onChanged: onShowReplyButtonChanged,
+        ),
+        _MessageCheckbox(
+          label: 'Show reaction button in corner',
+          value: showReactionButton,
+          isDark: isDark,
+          onChanged: onShowReactionButtonChanged,
+        ),
+      ],
+    );
+  }
+}
+
+class _SendTypeRadio extends StatelessWidget {
+  final String value;
+  final String groupValue;
+  final String label;
+  final bool isDark;
+  final Color accentColor;
+  final ValueChanged<String> onChanged;
+  final Widget? trailing;
+
+  const _SendTypeRadio({
+    required this.value,
+    required this.groupValue,
+    required this.label,
+    required this.isDark,
+    required this.accentColor,
+    required this.onChanged,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+
+    return InkWell(
+      onTap: () => onChanged(value),
+      child: Padding(
+        padding: const EdgeInsets.only(left: 22, top: 5, right: 10, bottom: 5),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: Radio<String>(
+                value: value,
+                groupValue: groupValue,
+                onChanged: (v) {
+                  if (v != null) onChanged(v);
+                },
+                activeColor: accentColor,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(fontSize: 14, color: textColor),
+              ),
+            ),
+            if (trailing != null) trailing!,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MessageCheckbox extends StatelessWidget {
+  final String label;
+  final bool value;
+  final bool isDark;
+  final ValueChanged<bool> onChanged;
+
+  const _MessageCheckbox({
+    required this.label,
+    required this.value,
+    required this.isDark,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+
+    return InkWell(
+      onTap: () => onChanged(!value),
+      child: Padding(
+        padding: const EdgeInsets.only(left: 22, top: 10, right: 10, bottom: 10),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: Checkbox(
+                value: value,
+                onChanged: (v) => onChanged(v ?? false),
+                activeColor: accentColor,
+                side: BorderSide(color: subtextColor, width: 1.5),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(fontSize: 14, color: textColor),
+              ),
+            ),
           ],
         ),
       ),
