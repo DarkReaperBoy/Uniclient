@@ -5,11 +5,16 @@ import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
 
-/// Advanced settings page (§17). Opened from Settings → Advanced row.
-/// Contains: System Integration (§17.6) with native window frame toggle.
-class AdvancedSettingsScreen extends StatelessWidget {
+/// Advanced settings page (§14.7). Opened from Settings → Advanced row.
+/// Build order per §14.7.0: 11 sections separated by skip+divider+skip.
+class AdvancedSettingsScreen extends StatefulWidget {
   const AdvancedSettingsScreen({super.key});
 
+  @override
+  State<AdvancedSettingsScreen> createState() => _AdvancedSettingsScreenState();
+}
+
+class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -17,16 +22,42 @@ class AdvancedSettingsScreen extends StatelessWidget {
     final appState = context.watch<AppState>();
 
     final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
-    final dividerColor =
-        isDark ? const Color(0xFF101921) : const Color(0xFFF1F1F1);
     final textColor =
         isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subtextColor =
-        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
-    final hoverBg =
-        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+    final dividerColor =
+        isDark ? const Color(0xFF101921) : const Color(0xFFF1F1F1);
+
+    // §14.7.0: 11 sections in spec order.
+    final sections = <List<Widget>>[
+      _buildSoftwareUpdateTop(isDark),        // 1. Update (non-auto only)
+      _buildDataAndStorage(isDark),            // 2. Data and Storage
+      _buildAutoMediaDownload(isDark),         // 3. Automatic Media Download
+      _buildWindowTitle(isDark, appState),     // 4. Window Title
+      _buildWindowCloseBehavior(isDark),       // 5. Window Close (Linux only)
+      _buildSystemIntegration(isDark, appState), // 6. System Integration
+      _buildPerformance(isDark),               // 7. Performance
+      _buildSpellchecker(isDark),              // 8. Spellchecker
+      _buildScreenReader(isDark),              // 9. Screen Reader
+      _buildSoftwareUpdateBottom(isDark),      // 10. Update (auto only)
+      _buildExportData(isDark),                // 11. Export Data
+    ];
+
+    // Interleave skip(7)+divider(1)+skip(7) between non-empty sections.
+    final children = <Widget>[];
+    var first = true;
+    for (final section in sections) {
+      if (section.isEmpty) continue;
+      if (!first) {
+        children.add(const SizedBox(height: 7));
+        children.add(Container(height: 1, color: dividerColor));
+        children.add(const SizedBox(height: 7));
+      }
+      children.addAll(section);
+      first = false;
+    }
+    if (children.isNotEmpty) {
+      children.add(const SizedBox(height: 32));
+    }
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -49,63 +80,107 @@ class AdvancedSettingsScreen extends StatelessWidget {
       ),
       body: ListView(
         padding: EdgeInsets.zero,
-        children: [
-          // §17.6: System Integration section.
-          if (Platform.isLinux) ...[
-            // Section header.
-            Padding(
-              padding: const EdgeInsets.only(
-                  left: 20, right: 20, top: 14, bottom: 6),
+        children: children,
+      ),
+    );
+  }
+
+  // §14.7.8 top: shown only when NOT auto-updating.
+  List<Widget> _buildSoftwareUpdateTop(bool isDark) => const [];
+
+  // §14.7.1: Connection Type, Download Path, Local Storage, Downloads, Ask path toggle.
+  List<Widget> _buildDataAndStorage(bool isDark) => const [];
+
+  // §14.7.2: Private/Groups/Channels auto-download buttons.
+  List<Widget> _buildAutoMediaDownload(bool isDark) => const [];
+
+  // §14.7.3: Chat name / Account name / Unread count checkboxes, native frame toggle.
+  List<Widget> _buildWindowTitle(bool isDark, AppState appState) => const [];
+
+  // §14.7.4: Run in Background / Close to Taskbar / Quit radios. Linux/BSD only.
+  List<Widget> _buildWindowCloseBehavior(bool isDark) {
+    if (!Platform.isLinux) return const [];
+    return const [];
+  }
+
+  // §14.7.5: Tray/taskbar icons, monochrome, launch at startup, start minimized.
+  List<Widget> _buildSystemIntegration(bool isDark, AppState appState) {
+    if (!Platform.isLinux) return const [];
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final hoverBg =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    return [
+      _AdvancedToggleRow(
+        label: 'Use system window frame',
+        value: appState.nativeWindowFrame,
+        onChanged: (v) => appState.setNativeWindowFrame(v),
+        textColor: textColor,
+        accentColor: accentColor,
+        hoverBg: hoverBg,
+      ),
+    ];
+  }
+
+  // §14.7.6: Power Saving button, hardware video accel, OpenGL/ANGLE toggle.
+  List<Widget> _buildPerformance(bool isDark) => const [];
+
+  // §14.7.7: System/custom toggle, auto-download dictionaries, Manage Dictionaries.
+  List<Widget> _buildSpellchecker(bool isDark) => const [];
+
+  // §14.7.9: Screen reader mode toggle (shown only when reader detected).
+  List<Widget> _buildScreenReader(bool isDark) => const [];
+
+  // §14.7.8 bottom: shown only when auto-updating.
+  List<Widget> _buildSoftwareUpdateBottom(bool isDark) => const [];
+
+  // §14.7.11: Export Telegram Data, Experimental Settings.
+  List<Widget> _buildExportData(bool isDark) => const [];
+}
+
+class _AdvancedToggleRow extends StatelessWidget {
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final Color textColor;
+  final Color accentColor;
+  final Color hoverBg;
+
+  const _AdvancedToggleRow({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+    required this.textColor,
+    required this.accentColor,
+    required this.hoverBg,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => onChanged(!value),
+      hoverColor: hoverBg,
+      splashColor: hoverBg.withValues(alpha: 0.5),
+      child: Padding(
+        padding: const EdgeInsets.only(left: 22, right: 22, top: 10, bottom: 8),
+        child: Row(
+          children: [
+            Expanded(
               child: Text(
-                'System Integration',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: accentColor,
-                ),
+                label,
+                style: TextStyle(fontSize: 15, color: textColor),
               ),
             ),
-            // "Use system window frame" toggle — spec §1, §17.6.
-            InkWell(
-              onTap: () => appState
-                  .setNativeWindowFrame(!appState.nativeWindowFrame),
-              hoverColor: hoverBg,
-              splashColor: hoverBg.withValues(alpha: 0.5),
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Use system window frame',
-                            style: TextStyle(fontSize: 15, color: textColor),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Use the native system titlebar instead of the custom one',
-                            style:
-                                TextStyle(fontSize: 13, color: subtextColor),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Switch(
-                      value: appState.nativeWindowFrame,
-                      onChanged: (v) => appState.setNativeWindowFrame(v),
-                      activeColor: accentColor,
-                    ),
-                  ],
-                ),
-              ),
+            Switch(
+              value: value,
+              onChanged: onChanged,
+              activeColor: accentColor,
             ),
-            Container(height: 8, color: dividerColor),
           ],
-          const SizedBox(height: 32),
-        ],
+        ),
       ),
     );
   }
