@@ -586,6 +586,38 @@ func (e *Engine) GetPeerColors(accountID string) ([]cores.PeerColorEntry, error)
 	return fetcher.GetPeerColorPalette()
 }
 
+type selfColorChannelGetter interface {
+	GetSelfColorAndChannel() (colorID int, personalChannelName string, err error)
+}
+
+func (e *Engine) GetSelfColorAndChannel(accountID string) (int, string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return -1, "", fmt.Errorf("account %q not connected", accountID)
+	}
+	g, ok := acc.Core.(selfColorChannelGetter)
+	if !ok {
+		return -1, "", fmt.Errorf("platform does not support color/channel info")
+	}
+	return g.GetSelfColorAndChannel()
+}
+
+type nameColorUpdater interface {
+	UpdateNameColor(colorID int) error
+}
+
+func (e *Engine) UpdateNameColor(accountID string, colorID int) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not connected", accountID)
+	}
+	u, ok := acc.Core.(nameColorUpdater)
+	if !ok {
+		return fmt.Errorf("platform does not support name color update")
+	}
+	return u.UpdateNameColor(colorID)
+}
+
 func (e *Engine) GetWebPagePreview(accountID, url string) (*cores.WebPagePreviewResult, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {

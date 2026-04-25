@@ -604,7 +604,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 - [x] Full interface scale: "Use Default Scale" toggle, scale slider (15x15 thumb, 5-step discrete, 100%–300% range), right-side percentage label in windowActiveTextFg, floating ScalePreview tooltip during drag, scale applied on pointer-release not real-time, restart confirmation dialog on change, SlideWrap collapses slider when "Use Default" ON — DONE in `settings_screen.dart`
 
 ### 14.5 My Account / Edit Profile Sub-Page
-- [ ] Personal Channel & Your Color rows: Channel row with channel name or "Add", AddPeerColorButton showing name color swatch, opens EditPeerColorBox — spec §14.5.4
 - [ ] Birthday row: date picker, dynamic footer with "[Manage]" link to privacy — spec §14.5.5
 - [ ] Accounts list: all logged-in accounts as rows with avatar+name+badge, drag-to-reorder, right-click menu (Copy Phone / Mark All Read / Activate / Log Out), Add Account button (hidden at limit), premium limit enforcement, active-account ring on userpic — spec §14.5.6 & §14.5.6.1
 

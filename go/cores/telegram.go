@@ -13064,6 +13064,51 @@ func (t *TelegramCore) UpdateBio(bio string) error {
 	_, err := t.api.AccountUpdateProfile(t.ctx, req); return err
 }
 
+func (t *TelegramCore) GetSelfColorAndChannel() (int, string, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return -1, "", ErrAuth }
+	result, err := t.api.UsersGetFullUser(t.ctx, &tg.InputUser{UserID: t.selfID, AccessHash: 0})
+	if err != nil { return -1, "", err }
+
+	colorID := -1
+	for _, u := range result.Users {
+		user, ok := u.(*tg.User)
+		if !ok || user.ID != t.selfID { continue }
+		if pc, ok := user.GetColor(); ok {
+			if c, ok := pc.(*tg.PeerColor); ok {
+				colorID = c.Color
+			}
+		}
+		break
+	}
+
+	channelName := ""
+	if chID, ok := result.FullUser.GetPersonalChannelID(); ok && chID != 0 {
+		for _, ch := range result.Chats {
+			if channel, ok := ch.(*tg.Channel); ok && channel.ID == chID {
+				channelName = channel.Title
+				break
+			}
+		}
+	}
+	return colorID, channelName, nil
+}
+
+func (t *TelegramCore) UpdateNameColor(colorID int) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	pc := &tg.PeerColor{}
+	pc.SetColor(colorID)
+	req := &tg.AccountUpdateColorRequest{}
+	req.SetColor(pc)
+	_, err := t.api.AccountUpdateColor(t.ctx, req)
+	if err != nil { return err }
+	t.peerMu.Lock()
+	t.userColorIDs[t.selfID] = colorID
+	t.peerMu.Unlock()
+	return nil
+}
+
 // UpdateStatus sets the user's online or offline status.
 func (t *TelegramCore) UpdateStatus(online bool) error {
 	t.mu.RLock(); defer t.mu.RUnlock()

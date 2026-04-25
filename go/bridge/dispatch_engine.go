@@ -1339,6 +1339,32 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.UpdateBio(params.AccountID, params.Bio)
 
+	case "GetSelfColorAndChannel":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		colorID, channelName, err := e.GetSelfColorAndChannel(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]interface{}{
+			"color_id":     colorID,
+			"channel_name": channelName,
+		})
+
+	case "UpdateNameColor":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ColorID   int    `json:"color_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.UpdateNameColor(params.AccountID, params.ColorID)
+
 	case "UploadProfilePhoto":
 		var params struct {
 			AccountID string `json:"account_id"`

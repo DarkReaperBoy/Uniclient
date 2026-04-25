@@ -25,11 +25,15 @@ class _MyProfilePageState extends State<MyProfilePage> {
   Timer? _debounceTimer;
   String _savedBio = '';
   bool _bioLoaded = false;
+  int _selfColorId = -1;
+  String _personalChannelName = '';
+  bool _colorChannelLoaded = false;
 
   @override
   void initState() {
     super.initState();
     _loadBio();
+    _loadColorAndChannel();
   }
 
   @override
@@ -51,6 +55,21 @@ class _MyProfilePageState extends State<MyProfilePage> {
         _savedBio = bio;
         _bioController.text = bio;
         _bioLoaded = true;
+      });
+    });
+  }
+
+  void _loadColorAndChannel() {
+    final appState = context.read<AppState>();
+    final account = appState.activeAccount;
+    if (account == null) return;
+    final engine = context.read<EngineService>();
+    engine.getSelfColorAndChannel(account.id).then((result) {
+      if (!mounted) return;
+      setState(() {
+        _selfColorId = result.colorId;
+        _personalChannelName = result.channelName;
+        _colorChannelLoaded = true;
       });
     });
   }
@@ -178,6 +197,29 @@ class _MyProfilePageState extends State<MyProfilePage> {
             padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
             child: Text(
               'People can message you using your username without knowing your phone number.',
+              style: TextStyle(fontSize: 13, color: subtextColor),
+            ),
+          ),
+          Container(height: 8, color: dividerColor),
+          _PersonalChannelRow(
+            channelName: _personalChannelName,
+            isDark: isDark,
+            loaded: _colorChannelLoaded,
+          ),
+          _rowDivider(isDark),
+          _YourColorRow(
+            colorId: _selfColorId,
+            isDark: isDark,
+            loaded: _colorChannelLoaded,
+            accountId: account?.id,
+            onColorChanged: (newColorId) {
+              setState(() => _selfColorId = newColorId);
+            },
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
+            child: Text(
+              'Choose your name color that will be seen by others in chats.',
               style: TextStyle(fontSize: 13, color: subtextColor),
             ),
           ),
@@ -461,6 +503,374 @@ class _ProfilePhotoArea extends StatelessWidget {
     Color(0xFF65aadd), Color(0xFFa695e7), Color(0xFFee7aae),
     Color(0xFF6ec9cb),
   ];
+}
+
+/// §14.5.4: Personal Channel row — shows channel name or "Add".
+class _PersonalChannelRow extends StatelessWidget {
+  final String channelName;
+  final bool isDark;
+  final bool loaded;
+
+  const _PersonalChannelRow({
+    required this.channelName,
+    required this.isDark,
+    required this.loaded,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = isDark
+        ? const Color(0xFFF5F5F5)
+        : const Color(0xFF000000);
+    final subtextColor = isDark
+        ? const Color(0xFF6C7883)
+        : const Color(0xFF999999);
+    final hoverBg = isDark
+        ? const Color(0xFF232E3C)
+        : const Color(0xFFF1F1F1);
+
+    final hasChannel = channelName.isNotEmpty;
+    final displayValue = hasChannel ? channelName : 'Add';
+
+    return InkWell(
+      onTap: hasChannel
+          ? () {
+              Clipboard.setData(ClipboardData(text: channelName));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Channel name copied'),
+                  duration: Duration(milliseconds: 500),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
+          : null,
+      hoverColor: hoverBg,
+      splashColor: hoverBg.withValues(alpha: 0.5),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          children: [
+            const SizedBox(width: 20),
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF9800),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              alignment: Alignment.center,
+              child: const Icon(Icons.video_library, size: 18, color: Colors.white),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    displayValue,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: hasChannel ? textColor : subtextColor,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Personal Channel',
+                    style: TextStyle(fontSize: 13, color: subtextColor),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 22),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// §14.5.4: Your Color row — shows name color swatch, opens EditPeerColorBox.
+class _YourColorRow extends StatelessWidget {
+  final int colorId;
+  final bool isDark;
+  final bool loaded;
+  final String? accountId;
+  final ValueChanged<int> onColorChanged;
+
+  const _YourColorRow({
+    required this.colorId,
+    required this.isDark,
+    required this.loaded,
+    required this.accountId,
+    required this.onColorChanged,
+  });
+
+  static const _baseColors = [
+    Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77),
+    Color(0xFF65aadd), Color(0xFFa695e7), Color(0xFFee7aae),
+    Color(0xFF6ec9cb),
+  ];
+
+  Color get _currentColor {
+    final idx = colorId >= 0 && colorId < _baseColors.length
+        ? colorId
+        : (accountId?.hashCode.abs() ?? 0) % 7;
+    return _baseColors[idx];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = isDark
+        ? const Color(0xFFF5F5F5)
+        : const Color(0xFF000000);
+    final subtextColor = isDark
+        ? const Color(0xFF6C7883)
+        : const Color(0xFF999999);
+    final hoverBg = isDark
+        ? const Color(0xFF232E3C)
+        : const Color(0xFFF1F1F1);
+
+    return InkWell(
+      onTap: () => _openEditPeerColorBox(context),
+      hoverColor: hoverBg,
+      splashColor: hoverBg.withValues(alpha: 0.5),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          children: [
+            const SizedBox(width: 20),
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: _currentColor,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              alignment: Alignment.center,
+              child: const Icon(Icons.palette, size: 18, color: Colors.white),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 14,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: _currentColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Your Color',
+                        style: TextStyle(fontSize: 14, color: textColor),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Name Color',
+                    style: TextStyle(fontSize: 13, color: subtextColor),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 22),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openEditPeerColorBox(BuildContext context) {
+    final acctId = accountId;
+    if (acctId == null) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => _EditPeerColorBox(
+        isDark: isDark,
+        currentColorId: colorId >= 0 ? colorId : (acctId.hashCode.abs() % 7),
+        accountId: acctId,
+        onColorSaved: onColorChanged,
+      ),
+    );
+  }
+}
+
+/// §14.5.4: EditPeerColorBox — dialog showing 7 base name colors as circular
+/// swatches. User picks one, Save persists via engine.
+class _EditPeerColorBox extends StatefulWidget {
+  final bool isDark;
+  final int currentColorId;
+  final String accountId;
+  final ValueChanged<int> onColorSaved;
+
+  const _EditPeerColorBox({
+    required this.isDark,
+    required this.currentColorId,
+    required this.accountId,
+    required this.onColorSaved,
+  });
+
+  @override
+  State<_EditPeerColorBox> createState() => _EditPeerColorBoxState();
+}
+
+class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
+  late int _selected;
+  bool _saving = false;
+
+  static const _baseColors = [
+    Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77),
+    Color(0xFF65aadd), Color(0xFFa695e7), Color(0xFFee7aae),
+    Color(0xFF6ec9cb),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = widget.currentColorId.clamp(0, 6);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = widget.isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
+    final textColor = widget.isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentColor = widget.isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 364),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Your Name Color',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: textColor,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: List.generate(7, (i) {
+                  final isSelected = i == _selected;
+                  return GestureDetector(
+                    onTap: () => setState(() => _selected = i),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: isSelected
+                            ? Border.all(color: accentColor, width: 2.5)
+                            : null,
+                      ),
+                      padding: EdgeInsets.all(isSelected ? 3 : 0),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: _baseColors[i],
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: (widget.isDark
+                      ? const Color(0xFF17212B)
+                      : const Color(0xFFF5F5F5)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 18,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: _baseColors[_selected],
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Your Name',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: _baseColors[_selected],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('Cancel', style: TextStyle(color: accentColor)),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: _saving ? null : _save,
+                    child: _saving
+                        ? SizedBox(
+                            width: 16, height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: accentColor),
+                          )
+                        : Text('Save', style: TextStyle(color: accentColor)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    try {
+      final engine = context.read<EngineService>();
+      await engine.updateNameColor(widget.accountId, _selected);
+      widget.onColorSaved(_selected);
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update color: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        setState(() => _saving = false);
+      }
+    }
+  }
 }
 
 /// Small circular camera button overlaid at bottom-right of avatar.
