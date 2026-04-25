@@ -604,8 +604,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 - [x] Full interface scale: "Use Default Scale" toggle, scale slider (15x15 thumb, 5-step discrete, 100%–300% range), right-side percentage label in windowActiveTextFg, floating ScalePreview tooltip during drag, scale applied on pointer-release not real-time, restart confirmation dialog on change, SlideWrap collapses slider when "Use Default" ON — DONE in `settings_screen.dart`
 
 ### 14.5 My Account / Edit Profile Sub-Page
-- [ ] Edit Profile screen: "Edit Profile" title, vertically scrolling panel — spec §14.5
-- [ ] Profile photo area: 162px height (settingsInfoPhotoHeight), 100x100px UserpicButton centered, upload sub-button overlay (bottom-right), name (17px semibold, 24px max height, centered below photo), online status below name — spec §14.5.1
 - [ ] Bio input: transparent multiline InputField, margins 22/6/22/4px, 32px min height, character counter (grey ≥0 / red <0), 70-char limit (140 Premium), debounced 1000ms auto-save, emoji suggestions, "Any details…" footer — spec §14.5.2
 - [ ] Profile info rows: Name / Phone / Username rows with icon in 6px rounded square, primary value (14px) + secondary label (windowSubTextFg), right-click copy menus, no trailing chevron — spec §14.5.3 & §14.5.3.1
 - [ ] Personal Channel & Your Color rows: Channel row with channel name or "Add", AddPeerColorButton showing name color swatch, opens EditPeerColorBox — spec §14.5.4

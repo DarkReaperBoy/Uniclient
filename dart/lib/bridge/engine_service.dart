@@ -1174,6 +1174,14 @@ class EngineService {
     }
   }
 
+  Future<void> uploadProfilePhoto(String accountId, String filePath) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'file_path': filePath,
+    }));
+    await _callAsync('__engine', 'UploadProfilePhoto', Uint8List.fromList(payload));
+  }
+
   Future<int?> sendInlineBotResult(String accountId, String chatId, int queryId, String resultId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

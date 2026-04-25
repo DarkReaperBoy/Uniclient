@@ -1316,6 +1316,16 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(user)
 
+	case "UploadProfilePhoto":
+		var params struct {
+			AccountID string `json:"account_id"`
+			FilePath  string `json:"file_path"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.UploadProfilePhoto(params.AccountID, params.FilePath)
+
 	case "SendInlineBotResult":
 		var params struct {
 			AccountID string `json:"account_id"`

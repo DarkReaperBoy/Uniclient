@@ -3,6 +3,7 @@ package engine
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"time"
 
 	"uniclient/cores"
@@ -126,6 +127,26 @@ func (e *Engine) GetUserProfile(accountID, userID string) (*CachedUser, error) {
 	}
 
 	return e.GetOrFetchUser(accountID, userID)
+}
+
+type profilePhotoUploader interface {
+	UploadProfilePhoto(pngData []byte) error
+}
+
+func (e *Engine) UploadProfilePhoto(accountID, filePath string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not connected", accountID)
+	}
+	upl, ok := acc.Core.(profilePhotoUploader)
+	if !ok {
+		return fmt.Errorf("platform does not support profile photo upload")
+	}
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("read photo: %w", err)
+	}
+	return upl.UploadProfilePhoto(data)
 }
 
 // MemberInfo is the member data returned to the UI for a chat member list.

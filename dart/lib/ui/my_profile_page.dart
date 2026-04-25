@@ -1,9 +1,11 @@
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 
@@ -53,10 +55,8 @@ class MyProfilePage extends StatelessWidget {
       body: ListView(
         padding: EdgeInsets.zero,
         children: [
-          // §14.5.1: Profile Photo Area — 162px height, 100x100 avatar centered.
           _ProfilePhotoArea(account: account, isDark: isDark),
           Container(height: 8, color: dividerColor),
-          // §14.5.3: Profile information rows.
           _ProfileInfoRow(
             icon: Icons.person,
             iconBg: const Color(0xFF5E97F6),
@@ -96,7 +96,6 @@ class MyProfilePage extends StatelessWidget {
               }
             },
           ),
-          // §14.5.3 footer.
           Padding(
             padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
             child: Text(
@@ -132,7 +131,9 @@ class MyProfilePage extends StatelessWidget {
   }
 }
 
-/// §14.5.1: Profile photo area — 162px height, 100x100 avatar centered.
+/// §14.5.1: Profile photo area — 162px height, 100x100 avatar centered,
+/// upload sub-button at bottom-right, name (17px semibold, 24px max height),
+/// online status below name.
 class _ProfilePhotoArea extends StatelessWidget {
   final AccountInfo? account;
   final bool isDark;
@@ -158,41 +159,61 @@ class _ProfilePhotoArea extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.start,
         children: [
-          const SizedBox(height: 2), // §14.5.1: top offset 2px
-          // 100x100 avatar.
+          const SizedBox(height: 2),
+          // 100x100 avatar with upload sub-button overlay.
           SizedBox(
             width: 100,
             height: 100,
-            child: account != null && account!.avatarPath.isNotEmpty
-                ? ClipOval(
-                    child: Image.file(
-                      File(account!.avatarPath),
-                      width: 100,
-                      height: 100,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
-                          _avatarFallback(color, initials),
-                    ),
-                  )
-                : _avatarFallback(color, initials),
-          ),
-          const SizedBox(height: 7), // §14.5.1: 7px gap below photo
-          // Name: 17px semibold.
-          if (name.isNotEmpty)
-            Text(
-              name,
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w600,
-                color: textColor,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                // Main avatar.
+                Positioned.fill(
+                  child: account != null && account!.avatarPath.isNotEmpty
+                      ? ClipOval(
+                          child: Image.file(
+                            File(account!.avatarPath),
+                            width: 100,
+                            height: 100,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) =>
+                                _avatarFallback(color, initials),
+                          ),
+                        )
+                      : _avatarFallback(color, initials),
+                ),
+                // §14.5.1: Upload sub-button at bottom-right (6px from right edge).
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: _UploadSubButton(
+                    isDark: isDark,
+                    onTap: () => _pickAndUploadPhoto(context),
+                  ),
+                ),
+              ],
             ),
-          // Status: windowSubTextFg, -1px spacing.
+          ),
+          const SizedBox(height: 7),
+          // §14.5.1: Name — 17px semibold, max height 24px.
+          if (name.isNotEmpty)
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 24),
+              child: Text(
+                name,
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: textColor,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          // §14.5.1: Online status — windowSubTextFg, -1px spacing.
           if (account != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 0), // -1px effective
+            Transform.translate(
+              offset: const Offset(0, -1),
               child: Text(
                 'online',
                 style: TextStyle(
@@ -204,6 +225,45 @@ class _ProfilePhotoArea extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  void _pickAndUploadPhoto(BuildContext context) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final path = result.files.first.path;
+    if (path == null) return;
+    if (!context.mounted) return;
+
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccount?.id;
+    if (accountId == null) return;
+    final engine = context.read<EngineService>();
+
+    try {
+      await engine.uploadProfilePhoto(accountId, path);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile photo updated'),
+            duration: Duration(milliseconds: 1500),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update photo: $e'),
+            duration: const Duration(milliseconds: 2000),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   static Widget _avatarFallback(Color color, String initials) {
@@ -238,6 +298,41 @@ class _ProfilePhotoArea extends StatelessWidget {
     Color(0xFF65aadd), Color(0xFFa695e7), Color(0xFFee7aae),
     Color(0xFF6ec9cb),
   ];
+}
+
+/// Small circular camera button overlaid at bottom-right of avatar.
+class _UploadSubButton extends StatelessWidget {
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _UploadSubButton({required this.isDark, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final borderColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 30,
+        height: 30,
+        decoration: BoxDecoration(
+          color: bgColor,
+          shape: BoxShape.circle,
+          border: Border.all(color: borderColor, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.3),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        alignment: Alignment.center,
+        child: const Icon(Icons.camera_alt, size: 15, color: Colors.white),
+      ),
+    );
+  }
 }
 
 /// §14.5.3: Profile info row — icon, label, value, tap-to-copy.
@@ -279,7 +374,6 @@ class _ProfileInfoRow extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
         child: Row(
           children: [
-            // §14.5.3.1: 60px icon column, icon at 20px, 6px rounded bg.
             SizedBox(
               width: 40,
               child: Container(
@@ -298,7 +392,6 @@ class _ProfileInfoRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Primary line: value text (14px).
                   Text(
                     displayValue,
                     style: TextStyle(
@@ -309,7 +402,6 @@ class _ProfileInfoRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 2),
-                  // Secondary line: label (windowSubTextFg).
                   Text(
                     label,
                     style: TextStyle(fontSize: 12, color: subtextColor),
