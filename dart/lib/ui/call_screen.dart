@@ -197,7 +197,11 @@ class _GroupCallPanelState extends State<GroupCallPanel>
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          avatar,
+          _SpeakerBlobAvatar(
+            level: p.isSpeaking ? (p.audioLevel > 0 ? p.audioLevel : 0.5) : 0.0,
+            isSpeaking: p.isSpeaking,
+            child: avatar,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -379,6 +383,248 @@ class _GroupCallPanelState extends State<GroupCallPanel>
       ),
     );
   }
+}
+
+class _SpeakerBlobAvatar extends StatefulWidget {
+  final double level;
+  final bool isSpeaking;
+  final Widget child;
+
+  const _SpeakerBlobAvatar({
+    required this.level,
+    required this.isSpeaking,
+    required this.child,
+  });
+
+  @override
+  State<_SpeakerBlobAvatar> createState() => _SpeakerBlobAvatarState();
+}
+
+class _SpeakerBlobAvatarState extends State<_SpeakerBlobAvatar>
+    with SingleTickerProviderStateMixin {
+  static const _minRadius = 27.0;
+  static const _maxRadius = 29.0;
+  static const _minorScale = 0.545;
+  static const _majorScale = 0.605;
+  static const _minorVertices = 6;
+  static const _majorVertices = 8;
+  static const _userpicMinScale = 0.8;
+  static const _levelDuration = Duration(milliseconds: 215);
+
+  late AnimationController _ticker;
+  late _BlobState _minorBlob;
+  late _BlobState _majorBlob;
+  double _currentLevel = 0.0;
+  double _targetLevel = 0.0;
+  double _levelVelocity = 0.0;
+  DateTime _lastLevelUpdate = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    final rng = math.Random(widget.child.hashCode);
+    _minorBlob = _BlobState(_minorVertices, rng);
+    _majorBlob = _BlobState(_majorVertices, rng);
+    _ticker = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    );
+    _ticker.addListener(_onTick);
+    if (widget.isSpeaking) {
+      _targetLevel = widget.level;
+      _ticker.repeat();
+    }
+  }
+
+  @override
+  void didUpdateWidget(_SpeakerBlobAvatar old) {
+    super.didUpdateWidget(old);
+    if (widget.isSpeaking != old.isSpeaking || widget.level != old.level) {
+      _targetLevel = widget.isSpeaking ? widget.level : 0.0;
+      _lastLevelUpdate = DateTime.now();
+      if (widget.isSpeaking && !_ticker.isAnimating) {
+        _ticker.repeat();
+      }
+    }
+  }
+
+  void _onTick() {
+    final now = DateTime.now();
+    final dt = now.difference(_lastLevelUpdate).inMilliseconds /
+        _levelDuration.inMilliseconds;
+    _lastLevelUpdate = now;
+
+    final diff = _targetLevel - _currentLevel;
+    _levelVelocity = diff * dt.clamp(0.0, 1.0);
+    _currentLevel = (_currentLevel + _levelVelocity).clamp(0.0, 1.0);
+
+    _minorBlob.advance();
+    _majorBlob.advance();
+
+    if (!widget.isSpeaking && _currentLevel < 0.001) {
+      _currentLevel = 0.0;
+      _ticker.stop();
+    }
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = _minRadius + (_maxRadius - _minRadius) * _currentLevel;
+    final userpicScale =
+        _userpicMinScale + (1.0 - _userpicMinScale) * _currentLevel;
+    final blobSize = _maxRadius * 2 + 4;
+
+    if (!widget.isSpeaking && _currentLevel < 0.001) {
+      return SizedBox(
+        width: blobSize,
+        height: blobSize,
+        child: Center(child: widget.child),
+      );
+    }
+
+    return SizedBox(
+      width: blobSize,
+      height: blobSize,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          CustomPaint(
+            size: Size(blobSize, blobSize),
+            painter: _BlobPainter(
+              majorBlob: _majorBlob,
+              minorBlob: _minorBlob,
+              radius: radius,
+              majorScale: _majorScale,
+              minorScale: _minorScale,
+              color: const Color(0xFF4DC920),
+              level: _currentLevel,
+            ),
+          ),
+          Transform.scale(
+            scale: userpicScale,
+            child: widget.child,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BlobState {
+  final int vertexCount;
+  final List<double> _radii;
+  final List<double> _targetRadii;
+  final List<double> _angles;
+  final math.Random _rng;
+
+  _BlobState(this.vertexCount, this._rng)
+      : _radii = List.generate(vertexCount, (_) => 0.9 + _rng.nextDouble() * 0.2),
+        _targetRadii = List.generate(vertexCount, (_) => 0.9 + _rng.nextDouble() * 0.2),
+        _angles = List.generate(vertexCount, (i) {
+          final base = (i / vertexCount) * 2 * math.pi;
+          return base + (_rng.nextDouble() - 0.5) * 0.3;
+        });
+
+  void advance() {
+    for (var i = 0; i < vertexCount; i++) {
+      _radii[i] += (_targetRadii[i] - _radii[i]) * 0.12;
+      if ((_radii[i] - _targetRadii[i]).abs() < 0.01) {
+        _targetRadii[i] = 0.85 + _rng.nextDouble() * 0.3;
+      }
+      _angles[i] += (_rng.nextDouble() - 0.5) * 0.02;
+    }
+  }
+
+  List<Offset> getVertices(double radius, double cx, double cy) {
+    final verts = <Offset>[];
+    for (var i = 0; i < vertexCount; i++) {
+      final r = radius * _radii[i];
+      verts.add(Offset(
+        cx + r * math.cos(_angles[i]),
+        cy + r * math.sin(_angles[i]),
+      ));
+    }
+    return verts;
+  }
+}
+
+class _BlobPainter extends CustomPainter {
+  final _BlobState majorBlob;
+  final _BlobState minorBlob;
+  final double radius;
+  final double majorScale;
+  final double minorScale;
+  final Color color;
+  final double level;
+
+  _BlobPainter({
+    required this.majorBlob,
+    required this.minorBlob,
+    required this.radius,
+    required this.majorScale,
+    required this.minorScale,
+    required this.color,
+    required this.level,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (level < 0.001) return;
+
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final alpha = (level * 180).round().clamp(0, 180);
+
+    final majorPaint = Paint()
+      ..color = color.withAlpha(alpha ~/ 2)
+      ..style = PaintingStyle.fill;
+    final majorVerts =
+        majorBlob.getVertices(radius * majorScale, cx, cy);
+    canvas.drawPath(_smoothPath(majorVerts), majorPaint);
+
+    final minorPaint = Paint()
+      ..color = color.withAlpha(alpha)
+      ..style = PaintingStyle.fill;
+    final minorVerts =
+        minorBlob.getVertices(radius * minorScale, cx, cy);
+    canvas.drawPath(_smoothPath(minorVerts), minorPaint);
+  }
+
+  Path _smoothPath(List<Offset> points) {
+    if (points.length < 3) return Path();
+    final path = Path();
+    final n = points.length;
+
+    path.moveTo(
+      (points[n - 1].dx + points[0].dx) / 2,
+      (points[n - 1].dy + points[0].dy) / 2,
+    );
+
+    for (var i = 0; i < n; i++) {
+      final next = (i + 1) % n;
+      final midX = (points[i].dx + points[next].dx) / 2;
+      final midY = (points[i].dy + points[next].dy) / 2;
+      path.quadraticBezierTo(
+        points[i].dx,
+        points[i].dy,
+        midX,
+        midY,
+      );
+    }
+
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldRepaint(_BlobPainter old) => true;
 }
 
 class _RecordingDot extends StatefulWidget {

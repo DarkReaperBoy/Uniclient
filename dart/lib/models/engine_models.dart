@@ -1382,6 +1382,7 @@ class GroupCallParticipant {
   final bool isSpeaking;
   final bool hasVideo;
   final String avatarPath;
+  final double audioLevel;
 
   const GroupCallParticipant({
     this.userId = '',
@@ -1390,6 +1391,7 @@ class GroupCallParticipant {
     this.isSpeaking = false,
     this.hasVideo = false,
     this.avatarPath = '',
+    this.audioLevel = 0.0,
   });
 
   factory GroupCallParticipant.fromJson(Map<String, dynamic> j) => GroupCallParticipant(
@@ -1399,6 +1401,7 @@ class GroupCallParticipant {
     isSpeaking: j['is_speaking'] as bool? ?? false,
     hasVideo: j['has_video'] as bool? ?? false,
     avatarPath: j['avatar_path'] as String? ?? '',
+    audioLevel: (j['audio_level'] as num?)?.toDouble() ?? 0.0,
   );
 }
 

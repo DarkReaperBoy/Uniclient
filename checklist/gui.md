@@ -536,7 +536,6 @@
 
 ### §12.6 Speaker Blob Animation
 <!-- File: dart/lib/ui/call_screen.dart -->
-- [ ] Blob animation: minor blob (inner, scale 0.545, 6 vertices) + major blob (outer, scale 0.605, 8 vertices); min 27px / max 29px radius; 215ms level-to-level interpolation; userpic pulses 80%→100% with voice level — spec §12.6
 
 ### §12.7 Mute Button (Big)
 <!-- File: dart/lib/ui/call_screen.dart -->
