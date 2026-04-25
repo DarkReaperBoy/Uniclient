@@ -608,7 +608,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 14.6 Chat Settings Sub-Page
 
 ### 14.7 Advanced Sub-Page
-- [ ] Window Title: "Show chat name" / "Show account name" (SlideWrap multi-account) / "Show unread count" checkboxes, native frame toggle (platform-gated) — spec §14.7.3
 - [ ] Window Close Behavior (Linux only): three radio options (Run in Background / Close to Taskbar / Quit) — spec §14.7.4
 - [ ] System Integration: tray icon / taskbar icon / monochrome tray (SlideWrap) / launch at startup / start minimized (nested SlideWrap) / Add to Send To (Windows) checkboxes — spec §14.7.5
 - [ ] Performance: Power Saving button (opens PowerSavingBox), hardware-accelerated video toggle (SlideWrap/platform), OpenGL/ANGLE toggle (restart dialog) — spec §14.7.6

@@ -28,6 +28,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _nativeWindowFrame = false;
   bool _mainMenuAccountsShown = false;
   bool _systemDarkMode = false;
+  bool _showChatNameInTitle = true;
+  bool _showAccountNameInTitle = true;
+  bool _showUnreadCountInTitle = true;
   bool _editingTheme = false;
   List<String> _accountOrder = []; // persisted display order of account IDs
   final List<StreamSubscription<dynamic>> _subs = [];
@@ -106,6 +109,30 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get canAddAccount => _accounts.length < maxAccountLimit;
 
   bool get nativeWindowFrame => _nativeWindowFrame;
+  bool get showChatNameInTitle => _showChatNameInTitle;
+  bool get showAccountNameInTitle => _showAccountNameInTitle;
+  bool get showUnreadCountInTitle => _showUnreadCountInTitle;
+
+  void setShowChatNameInTitle(bool v) {
+    if (_showChatNameInTitle == v) return;
+    _showChatNameInTitle = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setShowAccountNameInTitle(bool v) {
+    if (_showAccountNameInTitle == v) return;
+    _showAccountNameInTitle = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setShowUnreadCountInTitle(bool v) {
+    if (_showUnreadCountInTitle == v) return;
+    _showUnreadCountInTitle = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
 
   /// Spec §3.4: true when the theme editor is open — blocks night mode toggle.
   bool get isEditingTheme => _editingTheme;
@@ -418,6 +445,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _systemDarkMode = data['systemDarkMode'] as bool? ?? false;
       _recordVideoMessages = data['recordVideoMessages'] as bool? ?? false;
       _powerSavingFlags = data['powerSavingFlags'] as int? ?? 0;
+      _showChatNameInTitle = data['showChatNameInTitle'] as bool? ?? true;
+      _showAccountNameInTitle = data['showAccountNameInTitle'] as bool? ?? true;
+      _showUnreadCountInTitle = data['showUnreadCountInTitle'] as bool? ?? true;
       final order = data['accountOrder'] as List<dynamic>?;
       if (order != null) _accountOrder = order.cast<String>();
     } catch (_) {}
@@ -434,6 +464,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'recordVideoMessages': _recordVideoMessages,
         'powerSavingFlags': _powerSavingFlags,
         'accountOrder': _accountOrder,
+        'showChatNameInTitle': _showChatNameInTitle,
+        'showAccountNameInTitle': _showAccountNameInTitle,
+        'showUnreadCountInTitle': _showUnreadCountInTitle,
       }));
     } catch (_) {}
   }

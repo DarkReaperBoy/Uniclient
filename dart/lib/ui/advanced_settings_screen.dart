@@ -204,7 +204,58 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
   }
 
   // §14.7.3: Chat name / Account name / Unread count checkboxes, native frame toggle.
-  List<Widget> _buildWindowTitle(bool isDark, AppState appState) => const [];
+  List<Widget> _buildWindowTitle(bool isDark, AppState appState) {
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final hoverBg =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+    final multiAccount = appState.accounts.length > 1;
+
+    return [
+      _AdvancedCheckboxRow(
+        label: 'Show chat name in the window title',
+        value: appState.showChatNameInTitle,
+        onChanged: (v) => appState.setShowChatNameInTitle(v),
+        textColor: textColor,
+        accentColor: accentColor,
+        hoverBg: hoverBg,
+      ),
+      AnimatedSize(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        alignment: Alignment.topCenter,
+        child: multiAccount
+            ? _AdvancedCheckboxRow(
+                label: 'Show account name in the window title',
+                value: appState.showAccountNameInTitle,
+                onChanged: (v) => appState.setShowAccountNameInTitle(v),
+                textColor: textColor,
+                accentColor: accentColor,
+                hoverBg: hoverBg,
+              )
+            : const SizedBox.shrink(),
+      ),
+      _AdvancedCheckboxRow(
+        label: 'Show total unread count in the window title',
+        value: appState.showUnreadCountInTitle,
+        onChanged: (v) => appState.setShowUnreadCountInTitle(v),
+        textColor: textColor,
+        accentColor: accentColor,
+        hoverBg: hoverBg,
+      ),
+      if (Platform.isLinux)
+        _AdvancedToggleRow(
+          label: 'Use system window frame',
+          value: appState.nativeWindowFrame,
+          onChanged: (v) => appState.setNativeWindowFrame(v),
+          textColor: textColor,
+          accentColor: accentColor,
+          hoverBg: hoverBg,
+        ),
+    ];
+  }
 
   // §14.7.4: Run in Background / Close to Taskbar / Quit radios. Linux/BSD only.
   List<Widget> _buildWindowCloseBehavior(bool isDark) {
@@ -213,26 +264,8 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
   }
 
   // §14.7.5: Tray/taskbar icons, monochrome, launch at startup, start minimized.
-  List<Widget> _buildSystemIntegration(bool isDark, AppState appState) {
-    if (!Platform.isLinux) return const [];
-    final textColor =
-        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
-    final hoverBg =
-        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
-
-    return [
-      _AdvancedToggleRow(
-        label: 'Use system window frame',
-        value: appState.nativeWindowFrame,
-        onChanged: (v) => appState.setNativeWindowFrame(v),
-        textColor: textColor,
-        accentColor: accentColor,
-        hoverBg: hoverBg,
-      ),
-    ];
-  }
+  List<Widget> _buildSystemIntegration(bool isDark, AppState appState) =>
+      const [];
 
   // §14.7.6: Power Saving button, hardware video accel, OpenGL/ANGLE toggle.
   List<Widget> _buildPerformance(bool isDark) => const [];
@@ -341,6 +374,58 @@ class _AdvancedToggleRow extends StatelessWidget {
               value: value,
               onChanged: onChanged,
               activeColor: accentColor,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AdvancedCheckboxRow extends StatelessWidget {
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final Color textColor;
+  final Color accentColor;
+  final Color hoverBg;
+
+  const _AdvancedCheckboxRow({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+    required this.textColor,
+    required this.accentColor,
+    required this.hoverBg,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => onChanged(!value),
+      hoverColor: hoverBg,
+      splashColor: hoverBg.withValues(alpha: 0.5),
+      child: Padding(
+        padding: const EdgeInsets.only(left: 22, right: 22, top: 10, bottom: 8),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 22,
+              height: 22,
+              child: Checkbox(
+                value: value,
+                onChanged: (v) => onChanged(v ?? false),
+                activeColor: accentColor,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(fontSize: 15, color: textColor),
+              ),
             ),
           ],
         ),
