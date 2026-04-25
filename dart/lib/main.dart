@@ -13,12 +13,14 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'bridge/engine_service.dart';
+import 'models/engine_models.dart';
 import 'state/app_state.dart';
 import 'state/chat_state.dart';
 import 'state/audio_service.dart';
 import 'state/auth_state.dart';
 import 'theme/theme.dart';
 import 'ui/call_panel.dart';
+import 'ui/call_screen.dart';
 import 'ui/chat_list_panel.dart';
 import 'ui/chat_view.dart';
 import 'ui/shell.dart';
@@ -506,6 +508,36 @@ class _UniClientAppState extends State<UniClientApp>
               signalQuality: (cmd['signalQuality'] as num?)?.toInt() ?? -1,
               fingerprintEmoji: fpEmoji,
             ));
+          }
+
+        case 'showGroupCallPanel':
+          final navCtx = _navigatorKey.currentContext;
+          if (navCtx != null) {
+            final pRaw = cmd['participants'] as List<dynamic>? ?? [];
+            final participants = pRaw.map((p) {
+              final m = p as Map<String, dynamic>;
+              return GroupCallParticipant(
+                userId: m['userId'] as String? ?? '',
+                displayName: m['displayName'] as String? ?? '',
+                isMuted: m['isMuted'] == true,
+                isSpeaking: m['isSpeaking'] == true,
+                hasVideo: m['hasVideo'] == true,
+              );
+            }).toList();
+            showGroupCallPanel(
+              navCtx,
+              GroupCallInfo(
+                callId: cmd['callId'] as String? ?? 'test_gc',
+                title: cmd['title'] as String? ?? '',
+                participantsCount: participants.isNotEmpty
+                    ? participants.length
+                    : (cmd['participantsCount'] as num?)?.toInt() ?? 0,
+                participants: participants,
+                active: true,
+              ),
+              chatTitle: cmd['chatTitle'] as String? ?? 'Test Group',
+              isRecording: cmd['isRecording'] == true,
+            );
           }
       }
     } catch (e) {

@@ -533,9 +533,6 @@
 
 ### §12.5 Group Call (Narrow / Wide)
 <!-- File: dart/lib/ui/call_screen.dart -->
-- [ ] Width threshold: 600px; narrow = single column (participants + bottom controls, min 380px); wide = video viewport + members sidebar — spec §12.5
-- [ ] Title bar: group name, participant count, menu toggle; recording state: 6px red dot with 1200ms opacity-breathing loop — spec §12.5
-- [ ] Mode transition animation via slideWrapDuration (~150-200ms) — spec §12.5
 
 ### §12.6 Speaker Blob Animation
 <!-- File: dart/lib/ui/call_screen.dart -->
