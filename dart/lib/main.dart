@@ -18,6 +18,7 @@ import 'state/chat_state.dart';
 import 'state/audio_service.dart';
 import 'state/auth_state.dart';
 import 'theme/theme.dart';
+import 'ui/call_panel.dart';
 import 'ui/chat_list_panel.dart';
 import 'ui/chat_view.dart';
 import 'ui/shell.dart';
@@ -78,6 +79,7 @@ class _UniClientAppState extends State<UniClientApp>
   VoidCallback? _unreadListener;
   ChatState? _chatStateRef;
   Timer? _debugCmdTimer;
+  final _navigatorKey = GlobalKey<NavigatorState>();
 
   // §3.4: Theme cross-fade — capture old frame, overlay, fade out to reveal new theme.
   static _UniClientAppState? _instance;
@@ -479,6 +481,25 @@ class _UniClientAppState extends State<UniClientApp>
               .toList() ?? [];
           if (paths.isNotEmpty) {
             ChatView.showSendFilesBoxRequest?.call(paths);
+          }
+
+        case 'showCallPanel':
+          final state = cmd['state'] as String? ?? 'incoming';
+          final callState = switch (state) {
+            'connecting' => CallPanelState.connecting,
+            'active' => CallPanelState.active,
+            'ended' => CallPanelState.ended,
+            _ => CallPanelState.incoming,
+          };
+          final navCtx = _navigatorKey.currentContext;
+          if (navCtx != null) {
+            showCallPanel(navCtx, CallPanelInfo(
+              callerId: cmd['callerId'] as String? ?? 'test_user',
+              callerName: cmd['callerName'] as String? ?? 'Test Caller',
+              callerAvatarUrl: cmd['avatarUrl'] as String? ?? '',
+              isVideo: cmd['isVideo'] == true,
+              state: callState,
+            ));
           }
       }
     } catch (e) {
@@ -1014,6 +1035,7 @@ class _UniClientAppState extends State<UniClientApp>
     final appState = context.watch<AppState>();
 
     return MaterialApp(
+      navigatorKey: _navigatorKey,
       title: 'UniClient',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,

@@ -521,8 +521,6 @@
 
 ### §12.1 1-on-1 Call Panel
 <!-- File: dart/lib/ui/call_panel.dart -->
-- [ ] Incoming state: 160px circle userpic, caller name 21px semibold, "Incoming call..." status, Decline (red) + Answer (green with animated ripple ring tracking ringtone peak level) — spec §12.1
-- [ ] Active audio call: userpic, name, mm:ss duration timer (1Hz tick); bottom button row: Screencast, Camera, Hangup (red, centered "End Call"), Mute, Add People — spec §12.1
 - [ ] Remote muted pill, low-battery pill; controls auto-hide 5000ms fullscreen / 2000ms mouse-leave; mouse movement restores — spec §12.1
 
 ### §12.2 Signal Bars

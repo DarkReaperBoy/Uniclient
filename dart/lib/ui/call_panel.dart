@@ -50,11 +50,21 @@ class CallPanel extends StatefulWidget {
 
 class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
   List<Color>? _dominantColors;
+  late AnimationController _rippleController;
+  Timer? _durationTimer;
+  int _durationSeconds = 0;
 
   @override
   void initState() {
     super.initState();
+    _rippleController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    )..repeat();
     _extractDominantColors();
+    if (widget.info.state == CallPanelState.active) {
+      _startDurationTimer();
+    }
   }
 
   @override
@@ -64,6 +74,35 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
         oldWidget.info.callerId != widget.info.callerId) {
       _extractDominantColors();
     }
+    if (widget.info.state == CallPanelState.active &&
+        oldWidget.info.state != CallPanelState.active) {
+      _startDurationTimer();
+    }
+    if (widget.info.state != CallPanelState.active) {
+      _durationTimer?.cancel();
+      _durationTimer = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _rippleController.dispose();
+    _durationTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startDurationTimer() {
+    _durationSeconds = 0;
+    _durationTimer?.cancel();
+    _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() => _durationSeconds++);
+    });
+  }
+
+  String _formatDuration(int seconds) {
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
   void _extractDominantColors() {
@@ -188,9 +227,244 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildUserpic(double size) {
+    final url = widget.info.callerAvatarUrl;
+    if (url.isNotEmpty) {
+      final file = File(url);
+      if (file.existsSync()) {
+        return ClipOval(
+          child: Image.file(file, width: size, height: size, fit: BoxFit.cover),
+        );
+      }
+    }
+    final id = widget.info.callerId;
+    final hash = id.hashCode.abs();
+    final hue = (hash % 360).toDouble();
+    final name = widget.info.callerName;
+    final initials = name.isNotEmpty
+        ? name.split(' ').where((w) => w.isNotEmpty).take(2).map((w) => w[0].toUpperCase()).join()
+        : '?';
+    return CircleAvatar(
+      radius: size / 2,
+      backgroundColor: HSLColor.fromAHSL(1.0, hue, 0.5, 0.45).toColor(),
+      child: Text(
+        initials,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: size * 0.36,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIncomingState() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Spacer(flex: 3),
+        _buildUserpic(160),
+        const SizedBox(height: 20),
+        Text(
+          widget.info.callerName,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 21,
+            fontWeight: FontWeight.w600,
+          ),
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          widget.info.isVideo ? 'Incoming video call...' : 'Incoming call...',
+          style: const TextStyle(
+            color: Color(0xAAFFFFFF),
+            fontSize: 15,
+          ),
+        ),
+        const Spacer(flex: 4),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _CallActionButton(
+              icon: Icons.call_end,
+              label: 'Decline',
+              backgroundColor: const Color(0xFFE53935),
+              onTap: widget.onDecline,
+            ),
+            const SizedBox(width: 80),
+            _AnswerButton(
+              rippleController: _rippleController,
+              onTap: widget.onAccept,
+              isVideo: widget.info.isVideo,
+            ),
+          ],
+        ),
+        const SizedBox(height: 48),
+      ],
+    );
+  }
+
+  Widget _buildConnectingState() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Spacer(flex: 3),
+        _buildUserpic(160),
+        const SizedBox(height: 20),
+        Text(
+          widget.info.callerName,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 21,
+            fontWeight: FontWeight.w600,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Connecting...',
+          style: TextStyle(
+            color: Color(0xAAFFFFFF),
+            fontSize: 15,
+          ),
+        ),
+        const Spacer(flex: 4),
+        _CallActionButton(
+          icon: Icons.call_end,
+          label: 'End Call',
+          backgroundColor: const Color(0xFFE53935),
+          onTap: widget.onHangup,
+          size: 64,
+          iconSize: 32,
+        ),
+        const SizedBox(height: 48),
+      ],
+    );
+  }
+
+  Widget _buildActiveState() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Spacer(flex: 3),
+        _buildUserpic(160),
+        const SizedBox(height: 20),
+        Text(
+          widget.info.callerName,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 21,
+            fontWeight: FontWeight.w600,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          _formatDuration(_durationSeconds),
+          style: const TextStyle(
+            color: Color(0xAAFFFFFF),
+            fontSize: 15,
+          ),
+        ),
+        const Spacer(flex: 4),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _CallControlButton(
+                icon: Icons.screen_share_outlined,
+                label: 'Screencast',
+                onTap: () {},
+              ),
+              _CallControlButton(
+                icon: Icons.videocam_outlined,
+                label: 'Camera',
+                onTap: () {},
+              ),
+              _CallActionButton(
+                icon: Icons.call_end,
+                label: 'End Call',
+                backgroundColor: const Color(0xFFE53935),
+                onTap: widget.onHangup,
+              ),
+              _CallControlButton(
+                icon: Icons.mic_off_outlined,
+                label: 'Mute',
+                onTap: () {},
+              ),
+              _CallControlButton(
+                icon: Icons.person_add_outlined,
+                label: 'Add People',
+                onTap: () {},
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 48),
+      ],
+    );
+  }
+
+  Widget _buildEndedState() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Spacer(flex: 3),
+        _buildUserpic(160),
+        const SizedBox(height: 20),
+        Text(
+          widget.info.callerName,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 21,
+            fontWeight: FontWeight.w600,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Call ended',
+          style: TextStyle(
+            color: Color(0xAAFFFFFF),
+            fontSize: 15,
+          ),
+        ),
+        const Spacer(flex: 4),
+        TextButton(
+          onPressed: widget.onClose,
+          child: const Text(
+            'Close',
+            style: TextStyle(color: Colors.white, fontSize: 16),
+          ),
+        ),
+        const SizedBox(height: 48),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = _dominantColors ?? [const Color(0xFF1a1a2e), const Color(0xFF0f0f1a)];
+
+    Widget content;
+    switch (widget.info.state) {
+      case CallPanelState.incoming:
+        content = _buildIncomingState();
+        break;
+      case CallPanelState.connecting:
+        content = _buildConnectingState();
+        break;
+      case CallPanelState.active:
+        content = _buildActiveState();
+        break;
+      case CallPanelState.ended:
+        content = _buildEndedState();
+        break;
+    }
 
     return ConstrainedBox(
       constraints: const BoxConstraints(
@@ -205,8 +479,187 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
             colors: colors,
           ),
         ),
-        child: const SizedBox.expand(),
+        child: content,
       ),
+    );
+  }
+}
+
+class _CallActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color backgroundColor;
+  final VoidCallback? onTap;
+  final double size;
+  final double iconSize;
+
+  const _CallActionButton({
+    required this.icon,
+    required this.label,
+    required this.backgroundColor,
+    this.onTap,
+    this.size = 56,
+    this.iconSize = 28,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              color: backgroundColor,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: Colors.white, size: iconSize),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xAAFFFFFF),
+            fontSize: 12,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AnswerButton extends StatelessWidget {
+  final AnimationController rippleController;
+  final VoidCallback? onTap;
+  final bool isVideo;
+
+  const _AnswerButton({
+    required this.rippleController,
+    this.onTap,
+    this.isVideo = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        GestureDetector(
+          onTap: onTap,
+          child: AnimatedBuilder(
+            animation: rippleController,
+            builder: (context, child) {
+              return CustomPaint(
+                painter: _RippleRingPainter(
+                  progress: rippleController.value,
+                  color: const Color(0xFF4CAF50),
+                ),
+                child: child,
+              );
+            },
+            child: Container(
+              width: 56,
+              height: 56,
+              decoration: const BoxDecoration(
+                color: Color(0xFF4CAF50),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isVideo ? Icons.videocam : Icons.call,
+                color: Colors.white,
+                size: 28,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          isVideo ? 'Answer Video' : 'Answer',
+          style: const TextStyle(
+            color: Color(0xAAFFFFFF),
+            fontSize: 12,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RippleRingPainter extends CustomPainter {
+  final double progress;
+  final Color color;
+
+  _RippleRingPainter({required this.progress, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final baseRadius = size.width / 2;
+
+    for (int i = 0; i < 3; i++) {
+      final phaseOffset = i / 3.0;
+      final p = (progress + phaseOffset) % 1.0;
+      final radius = baseRadius + p * 24;
+      final opacity = (1.0 - p) * 0.4;
+      if (opacity <= 0) continue;
+      final paint = Paint()
+        ..color = color.withValues(alpha: opacity)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0;
+      canvas.drawCircle(center, radius, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_RippleRingPainter oldDelegate) =>
+      oldDelegate.progress != progress;
+}
+
+class _CallControlButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isActive;
+  final VoidCallback? onTap;
+
+  const _CallControlButton({
+    required this.icon,
+    required this.label,
+    this.isActive = false,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: isActive
+                  ? Colors.white.withValues(alpha: 0.3)
+                  : Colors.white.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: Colors.white, size: 24),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xAAFFFFFF),
+            fontSize: 11,
+          ),
+        ),
+      ],
     );
   }
 }
