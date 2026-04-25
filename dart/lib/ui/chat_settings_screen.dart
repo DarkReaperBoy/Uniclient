@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
+import 'settings_style.dart';
 
 class ChatSettingsScreen extends StatefulWidget {
   const ChatSettingsScreen({super.key});
@@ -1101,18 +1102,18 @@ class _YourColorRow extends StatelessWidget {
       hoverColor: hoverBg,
       splashColor: hoverBg.withValues(alpha: 0.5),
       child: Padding(
-        padding: const EdgeInsets.only(left: 20, top: 10, bottom: 10, right: 22),
+        padding: SettingsStyle.iconRowPadding,
         child: Row(
           children: [
             Container(
-              width: 28,
-              height: 28,
+              width: SettingsStyle.iconSize,
+              height: SettingsStyle.iconSize,
               decoration: BoxDecoration(
                 color: _currentColor,
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(SettingsStyle.iconRadius),
               ),
               alignment: Alignment.center,
-              child: const Icon(Icons.palette, size: 18, color: Colors.white),
+              child: const Icon(Icons.palette, size: SettingsStyle.iconInner, color: Colors.white),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -1358,20 +1359,20 @@ class _AutoNightRow extends StatelessWidget {
       hoverColor: hoverBg,
       splashColor: hoverBg.withValues(alpha: 0.5),
       child: Padding(
-        padding: const EdgeInsets.only(left: 20, top: 10, bottom: 10, right: 22),
+        padding: SettingsStyle.iconRowPadding,
         child: Row(
           children: [
             Container(
-              width: 28,
-              height: 28,
+              width: SettingsStyle.iconSize,
+              height: SettingsStyle.iconSize,
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF3E546A) : const Color(0xFF9E9E9E),
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(SettingsStyle.iconRadius),
               ),
               alignment: Alignment.center,
               child: Icon(
                 isDark ? Icons.dark_mode : Icons.brightness_2,
-                size: 18,
+                size: SettingsStyle.iconInner,
                 color: Colors.white,
               ),
             ),
@@ -1430,18 +1431,18 @@ class _FontFamilyRow extends StatelessWidget {
       hoverColor: hoverBg,
       splashColor: hoverBg.withValues(alpha: 0.5),
       child: Padding(
-        padding: const EdgeInsets.only(left: 20, top: 10, bottom: 10, right: 22),
+        padding: SettingsStyle.iconRowPadding,
         child: Row(
           children: [
             Container(
-              width: 28,
-              height: 28,
+              width: SettingsStyle.iconSize,
+              height: SettingsStyle.iconSize,
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF3E546A) : const Color(0xFF9E9E9E),
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(SettingsStyle.iconRadius),
               ),
               alignment: Alignment.center,
-              child: const Icon(Icons.text_fields, size: 18, color: Colors.white),
+              child: const Icon(Icons.text_fields, size: SettingsStyle.iconInner, color: Colors.white),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -1682,7 +1683,7 @@ class _CloudThemeSection extends StatelessWidget {
               hoverColor: hoverBg,
               splashColor: hoverBg.withValues(alpha: 0.5),
               child: Padding(
-                padding: const EdgeInsets.only(left: 20, top: 10, bottom: 10, right: 22),
+                padding: SettingsStyle.iconRowPadding,
                 child: Row(
                   children: [
                     Icon(Icons.palette_outlined, size: 20, color: accentColor),

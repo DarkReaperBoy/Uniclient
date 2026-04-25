@@ -612,7 +612,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 14.8 Premium & Help Sections
 
 ### 14.9 Visual Style Constants
-- [ ] All settingsButton style constants applied throughout settings: padding 60/10/22/10, iconLeft 20px, settingsButtonNoIcon padding 22/10/22/8, all size tokens (see full list) — spec §14.9
 
 ### 14.10 Animations & Transitions
 - [ ] Section navigation: horizontal slide + fade right, toggle switches as sliding pills, color dot selection ring animation (defaultRadio.duration × 2), scale preview tooltip, drag-reorder spring physics, all SlideWraps with smooth height animation, ripple on all SettingsButton instances — spec §14.10

@@ -13,6 +13,7 @@ import '../state/auth_state.dart';
 import '../state/chat_state.dart';
 import 'confirm_box.dart';
 import 'popup_menu.dart';
+import 'settings_style.dart';
 
 /// "My Profile" / "Edit Profile" page (§14.5).
 /// Opened from hamburger drawer "My Profile" row or Settings "My Account".
@@ -419,7 +420,7 @@ class _BioInput extends StatelessWidget {
         Stack(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(22, 6, 22, 4),
+              padding: SettingsStyle.bioMargins,
               child: ConstrainedBox(
                 constraints: const BoxConstraints(minHeight: 32),
                 child: TextField(
@@ -686,18 +687,18 @@ class _BirthdayRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
           children: [
-            const SizedBox(width: 20),
+            const SizedBox(width: SettingsStyle.iconLeft),
             Container(
-              width: 28,
-              height: 28,
+              width: SettingsStyle.iconSize,
+              height: SettingsStyle.iconSize,
               decoration: BoxDecoration(
                 color: const Color(0xFFE91E63),
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(SettingsStyle.iconRadius),
               ),
               alignment: Alignment.center,
-              child: const Icon(Icons.cake, size: 18, color: Colors.white),
+              child: const Icon(Icons.cake, size: SettingsStyle.iconInner, color: Colors.white),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: SettingsStyle.iconGap),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -705,7 +706,7 @@ class _BirthdayRow extends StatelessWidget {
                   Text(
                     displayValue,
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: SettingsStyle.buttonFontSize,
                       color: hasBirthday ? textColor : subtextColor,
                     ),
                     maxLines: 1,
@@ -773,18 +774,18 @@ class _PersonalChannelRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
           children: [
-            const SizedBox(width: 20),
+            const SizedBox(width: SettingsStyle.iconLeft),
             Container(
-              width: 28,
-              height: 28,
+              width: SettingsStyle.iconSize,
+              height: SettingsStyle.iconSize,
               decoration: BoxDecoration(
                 color: const Color(0xFFFF9800),
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(SettingsStyle.iconRadius),
               ),
               alignment: Alignment.center,
-              child: const Icon(Icons.video_library, size: 18, color: Colors.white),
+              child: const Icon(Icons.video_library, size: SettingsStyle.iconInner, color: Colors.white),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: SettingsStyle.iconGap),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -792,7 +793,7 @@ class _PersonalChannelRow extends StatelessWidget {
                   Text(
                     displayValue,
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: SettingsStyle.buttonFontSize,
                       color: hasChannel ? textColor : subtextColor,
                     ),
                     maxLines: 1,
@@ -863,18 +864,18 @@ class _YourColorRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
           children: [
-            const SizedBox(width: 20),
+            const SizedBox(width: SettingsStyle.iconLeft),
             Container(
-              width: 28,
-              height: 28,
+              width: SettingsStyle.iconSize,
+              height: SettingsStyle.iconSize,
               decoration: BoxDecoration(
                 color: _currentColor,
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(SettingsStyle.iconRadius),
               ),
               alignment: Alignment.center,
-              child: const Icon(Icons.palette, size: 18, color: Colors.white),
+              child: const Icon(Icons.palette, size: SettingsStyle.iconInner, color: Colors.white),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: SettingsStyle.iconGap),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -892,7 +893,7 @@ class _YourColorRow extends StatelessWidget {
                       const SizedBox(width: 8),
                       Text(
                         'Your Color',
-                        style: TextStyle(fontSize: 14, color: textColor),
+                        style: TextStyle(fontSize: SettingsStyle.buttonFontSize, color: textColor),
                       ),
                     ],
                   ),
@@ -1179,18 +1180,18 @@ class _ProfileInfoRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 10),
           child: Row(
             children: [
-              const SizedBox(width: 20),
+              const SizedBox(width: SettingsStyle.iconLeft),
               Container(
-                width: 28,
-                height: 28,
+                width: SettingsStyle.iconSize,
+                height: SettingsStyle.iconSize,
                 decoration: BoxDecoration(
                   color: iconBg,
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(SettingsStyle.iconRadius),
                 ),
                 alignment: Alignment.center,
-                child: Icon(icon, size: 18, color: Colors.white),
+                child: Icon(icon, size: SettingsStyle.iconInner, color: Colors.white),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: SettingsStyle.iconGap),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1198,7 +1199,7 @@ class _ProfileInfoRow extends StatelessWidget {
                     Text(
                       displayValue,
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: SettingsStyle.buttonFontSize,
                         color: isSet ? textColor : subtextColor,
                       ),
                       maxLines: 1,

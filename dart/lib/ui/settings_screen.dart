@@ -12,6 +12,7 @@ import 'advanced_settings_screen.dart';
 import 'chat_settings_screen.dart';
 import 'confirm_box.dart';
 import 'my_profile_page.dart';
+import 'settings_style.dart';
 
 /// Settings page (§14). Opened from hamburger drawer "Settings" row.
 /// Scrollable panel with profile header at top, then settings navigation rows.
@@ -775,25 +776,25 @@ class _SettingsRow extends StatelessWidget {
       hoverColor: hoverBg,
       splashColor: hoverBg.withValues(alpha: 0.5),
       child: SizedBox(
-        height: 41,
+        height: SettingsStyle.rowHeight,
         child: Row(
           children: [
-            const SizedBox(width: 20),
+            const SizedBox(width: SettingsStyle.iconLeft),
             Container(
-              width: 28,
-              height: 28,
+              width: SettingsStyle.iconSize,
+              height: SettingsStyle.iconSize,
               decoration: BoxDecoration(
                 color: iconBg,
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(SettingsStyle.iconRadius),
               ),
-              child: Icon(icon, size: 18, color: Colors.white),
+              child: Icon(icon, size: SettingsStyle.iconInner, color: Colors.white),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: SettingsStyle.iconGap),
             Expanded(
               child: Text(
                 label,
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: SettingsStyle.buttonFontSize,
                   color: textColor,
                 ),
                 maxLines: 1,
@@ -841,29 +842,29 @@ class _PremiumRow extends StatelessWidget {
       hoverColor: hoverBg,
       splashColor: hoverBg.withValues(alpha: 0.5),
       child: SizedBox(
-        height: 41,
+        height: SettingsStyle.rowHeight,
         child: Row(
           children: [
-            const SizedBox(width: 20),
+            const SizedBox(width: SettingsStyle.iconLeft),
             Container(
-              width: 28,
-              height: 28,
+              width: SettingsStyle.iconSize,
+              height: SettingsStyle.iconSize,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(SettingsStyle.iconRadius),
                 gradient: const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [Color(0xFF6B93FF), Color(0xFF976FFF), Color(0xFFE46ACE)],
                 ),
               ),
-              child: Icon(icon, size: 18, color: Colors.white),
+              child: Icon(icon, size: SettingsStyle.iconInner, color: Colors.white),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: SettingsStyle.iconGap),
             Expanded(
               child: Text(
                 label,
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: SettingsStyle.buttonFontSize,
                   color: textColor,
                 ),
                 maxLines: 1,
@@ -947,7 +948,7 @@ class _InterfaceScaleSectionState extends State<_InterfaceScaleSection> {
           hoverColor: hoverBg,
           splashColor: hoverBg.withValues(alpha: 0.5),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(60, 10, 22, 10),
+            padding: SettingsStyle.buttonPadding,
             child: Row(
               children: [
                 Expanded(

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
+import 'settings_style.dart';
 
 /// Advanced settings page (§14.7). Opened from Settings → Advanced row.
 /// Build order per §14.7.0: 11 sections separated by skip+divider+skip.
@@ -668,7 +669,7 @@ class _AdvancedIconButtonRow extends StatelessWidget {
       hoverColor: hoverBg,
       splashColor: hoverBg.withValues(alpha: 0.5),
       child: Padding(
-        padding: const EdgeInsets.only(left: 20, top: 10, right: 22, bottom: 10),
+        padding: SettingsStyle.iconRowPadding,
         child: Row(
           children: [
             Icon(icon, size: 24, color: iconColor),
@@ -676,7 +677,7 @@ class _AdvancedIconButtonRow extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                style: TextStyle(fontSize: 14, color: textColor),
+                style: TextStyle(fontSize: SettingsStyle.buttonFontSize, color: textColor),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -684,7 +685,7 @@ class _AdvancedIconButtonRow extends StatelessWidget {
             if (rightLabel != null)
               Text(
                 rightLabel!,
-                style: TextStyle(fontSize: 14, color: subtextColor),
+                style: TextStyle(fontSize: SettingsStyle.buttonFontSize, color: subtextColor),
               ),
           ],
         ),
@@ -717,13 +718,13 @@ class _AdvancedToggleRow extends StatelessWidget {
       hoverColor: hoverBg,
       splashColor: hoverBg.withValues(alpha: 0.5),
       child: Padding(
-        padding: const EdgeInsets.only(left: 22, right: 22, top: 10, bottom: 8),
+        padding: SettingsStyle.noIconPadding,
         child: Row(
           children: [
             Expanded(
               child: Text(
                 label,
-                style: TextStyle(fontSize: 15, color: textColor),
+                style: TextStyle(fontSize: SettingsStyle.buttonFontSize, color: textColor),
               ),
             ),
             Switch(
@@ -762,7 +763,7 @@ class _AdvancedCheckboxRow extends StatelessWidget {
       hoverColor: hoverBg,
       splashColor: hoverBg.withValues(alpha: 0.5),
       child: Padding(
-        padding: const EdgeInsets.only(left: 22, right: 22, top: 10, bottom: 8),
+        padding: SettingsStyle.checkboxPadding,
         child: Row(
           children: [
             SizedBox(
@@ -780,7 +781,7 @@ class _AdvancedCheckboxRow extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                style: TextStyle(fontSize: 15, color: textColor),
+                style: TextStyle(fontSize: SettingsStyle.buttonFontSize, color: textColor),
               ),
             ),
           ],
@@ -814,7 +815,7 @@ class _AdvancedRadioRow extends StatelessWidget {
       hoverColor: hoverBg,
       splashColor: hoverBg.withValues(alpha: 0.5),
       child: Padding(
-        padding: const EdgeInsets.only(left: 22, right: 22, top: 10, bottom: 8),
+        padding: SettingsStyle.sendTypePadding,
         child: Row(
           children: [
             SizedBox(
@@ -833,7 +834,7 @@ class _AdvancedRadioRow extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                style: TextStyle(fontSize: 15, color: textColor),
+                style: TextStyle(fontSize: SettingsStyle.buttonFontSize, color: textColor),
               ),
             ),
           ],
@@ -1220,14 +1221,14 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
     return InkWell(
       onTap: () => _toggle(flag),
       child: Padding(
-        padding: const EdgeInsets.only(left: 20, top: 8, right: 22, bottom: 8),
+        padding: SettingsStyle.iconRowPadding,
         child: Row(
           children: [
             Icon(icon, size: 24, color: iconColor),
-            const SizedBox(width: 13),
+            const SizedBox(width: 16),
             Expanded(
               child: Text(label,
-                  style: TextStyle(fontSize: 14, color: textColor)),
+                  style: TextStyle(fontSize: SettingsStyle.buttonFontSize, color: textColor)),
             ),
             Switch(
               value: on,
@@ -1246,12 +1247,12 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
     return InkWell(
       onTap: () => _toggle(flag),
       child: Padding(
-        padding: const EdgeInsets.only(left: 22, top: 8, right: 22, bottom: 8),
+        padding: SettingsStyle.noIconPadding,
         child: Row(
           children: [
             Expanded(
               child: Text(label,
-                  style: TextStyle(fontSize: 14, color: textColor)),
+                  style: TextStyle(fontSize: SettingsStyle.buttonFontSize, color: textColor)),
             ),
             Switch(
               value: on,
