@@ -283,8 +283,89 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
   }
 
   // §14.7.5: Tray/taskbar icons, monochrome, launch at startup, start minimized.
-  List<Widget> _buildSystemIntegration(bool isDark, AppState appState) =>
-      const [];
+  List<Widget> _buildSystemIntegration(bool isDark, AppState appState) {
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final hoverBg =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    return [
+      _AdvancedCheckboxRow(
+        label: 'Show tray icon',
+        value: appState.showTrayIcon,
+        onChanged: (v) {
+          if (!appState.setShowTrayIcon(v)) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('At least one of tray icon or taskbar icon must be enabled.'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        },
+        textColor: textColor,
+        accentColor: accentColor,
+        hoverBg: hoverBg,
+      ),
+      _AdvancedCheckboxRow(
+        label: 'Show taskbar icon',
+        value: appState.showTaskbarIcon,
+        onChanged: (v) {
+          if (!appState.setShowTaskbarIcon(v)) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('At least one of tray icon or taskbar icon must be enabled.'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        },
+        textColor: textColor,
+        accentColor: accentColor,
+        hoverBg: hoverBg,
+      ),
+      AnimatedSize(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        alignment: Alignment.topCenter,
+        child: appState.showTrayIcon
+            ? _AdvancedCheckboxRow(
+                label: 'Use monochrome tray icon',
+                value: appState.monochromeTrayIcon,
+                onChanged: (v) => appState.setMonochromeTrayIcon(v),
+                textColor: textColor,
+                accentColor: accentColor,
+                hoverBg: hoverBg,
+              )
+            : const SizedBox.shrink(),
+      ),
+      _AdvancedCheckboxRow(
+        label: 'Launch at system startup',
+        value: appState.launchAtStartup,
+        onChanged: (v) => appState.setLaunchAtStartup(v),
+        textColor: textColor,
+        accentColor: accentColor,
+        hoverBg: hoverBg,
+      ),
+      AnimatedSize(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        alignment: Alignment.topCenter,
+        child: appState.launchAtStartup
+            ? _AdvancedCheckboxRow(
+                label: 'Start minimized',
+                value: appState.startMinimized,
+                onChanged: (v) => appState.setStartMinimized(v),
+                textColor: textColor,
+                accentColor: accentColor,
+                hoverBg: hoverBg,
+              )
+            : const SizedBox.shrink(),
+      ),
+    ];
+  }
 
   // §14.7.6: Power Saving button, hardware video accel, OpenGL/ANGLE toggle.
   List<Widget> _buildPerformance(bool isDark) => const [];

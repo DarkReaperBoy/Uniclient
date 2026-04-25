@@ -32,6 +32,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _showAccountNameInTitle = true;
   bool _showUnreadCountInTitle = true;
   int _windowCloseBehavior = 0; // 0=Run in Background, 1=Close to Taskbar, 2=Quit
+  bool _showTrayIcon = true;
+  bool _showTaskbarIcon = true;
+  bool _monochromeTrayIcon = false;
+  bool _launchAtStartup = false;
+  bool _startMinimized = false;
   bool _editingTheme = false;
   List<String> _accountOrder = []; // persisted display order of account IDs
   final List<StreamSubscription<dynamic>> _subs = [];
@@ -114,6 +119,53 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get showAccountNameInTitle => _showAccountNameInTitle;
   bool get showUnreadCountInTitle => _showUnreadCountInTitle;
   int get windowCloseBehavior => _windowCloseBehavior;
+  bool get showTrayIcon => _showTrayIcon;
+  bool get showTaskbarIcon => _showTaskbarIcon;
+  bool get monochromeTrayIcon => _monochromeTrayIcon;
+  bool get launchAtStartup => _launchAtStartup;
+  bool get startMinimized => _startMinimized;
+
+  bool setShowTrayIcon(bool v) {
+    if (!v && !_showTaskbarIcon) return false;
+    if (_showTrayIcon == v) return true;
+    _showTrayIcon = v;
+    notifyListeners();
+    _saveWindowPrefs();
+    return true;
+  }
+
+  bool setShowTaskbarIcon(bool v) {
+    if (!v && !_showTrayIcon) return false;
+    if (_showTaskbarIcon == v) return true;
+    _showTaskbarIcon = v;
+    notifyListeners();
+    _saveWindowPrefs();
+    return true;
+  }
+
+  void setMonochromeTrayIcon(bool v) {
+    if (_monochromeTrayIcon == v) return;
+    _monochromeTrayIcon = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setLaunchAtStartup(bool v) {
+    if (_launchAtStartup == v) return;
+    _launchAtStartup = v;
+    if (!v) {
+      _startMinimized = false;
+    }
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setStartMinimized(bool v) {
+    if (_startMinimized == v) return;
+    _startMinimized = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
 
   void setShowChatNameInTitle(bool v) {
     if (_showChatNameInTitle == v) return;
@@ -458,6 +510,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _showAccountNameInTitle = data['showAccountNameInTitle'] as bool? ?? true;
       _showUnreadCountInTitle = data['showUnreadCountInTitle'] as bool? ?? true;
       _windowCloseBehavior = data['windowCloseBehavior'] as int? ?? 0;
+      _showTrayIcon = data['showTrayIcon'] as bool? ?? true;
+      _showTaskbarIcon = data['showTaskbarIcon'] as bool? ?? true;
+      _monochromeTrayIcon = data['monochromeTrayIcon'] as bool? ?? false;
+      _launchAtStartup = data['launchAtStartup'] as bool? ?? false;
+      _startMinimized = data['startMinimized'] as bool? ?? false;
       final order = data['accountOrder'] as List<dynamic>?;
       if (order != null) _accountOrder = order.cast<String>();
     } catch (_) {}
@@ -478,6 +535,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'showAccountNameInTitle': _showAccountNameInTitle,
         'showUnreadCountInTitle': _showUnreadCountInTitle,
         'windowCloseBehavior': _windowCloseBehavior,
+        'showTrayIcon': _showTrayIcon,
+        'showTaskbarIcon': _showTaskbarIcon,
+        'monochromeTrayIcon': _monochromeTrayIcon,
+        'launchAtStartup': _launchAtStartup,
+        'startMinimized': _startMinimized,
       }));
     } catch (_) {}
   }
