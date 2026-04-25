@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
+import '../models/engine_models.dart';
 import '../state/app_state.dart';
 
 class ChatSettingsScreen extends StatefulWidget {
@@ -18,11 +19,15 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   int _selfColorId = -1;
   bool _colorLoaded = false;
   String _fontFamily = 'Inter';
+  List<CloudThemeInfo> _cloudThemes = [];
+  bool _cloudThemesLoaded = false;
+  bool _showAllCloudThemes = false;
 
   @override
   void initState() {
     super.initState();
     _loadSelfColor();
+    _loadCloudThemes();
   }
 
   void _loadSelfColor() {
@@ -35,6 +40,20 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
       setState(() {
         _selfColorId = result.colorId;
         _colorLoaded = true;
+      });
+    });
+  }
+
+  void _loadCloudThemes() {
+    final appState = context.read<AppState>();
+    final account = appState.activeAccount;
+    if (account == null) return;
+    final engine = context.read<EngineService>();
+    engine.getCloudThemes(account.id).then((themes) {
+      if (!mounted) return;
+      setState(() {
+        _cloudThemes = themes;
+        _cloudThemesLoaded = true;
       });
     });
   }
@@ -155,6 +174,25 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                 ),
               ],
             ),
+          ),
+          _CloudThemeSection(
+            themes: _cloudThemes,
+            loaded: _cloudThemesLoaded,
+            showAll: _showAllCloudThemes,
+            isDark: isDark,
+            accentColor: currentAccent,
+            onToggleShowAll: () => setState(() => _showAllCloudThemes = !_showAllCloudThemes),
+            onThemeSelected: (theme) {
+              final targetTheme = theme.isDark ? 'dark' : 'light';
+              appState.updateTheme(targetTheme);
+              if (theme.accentColor != 0) {
+                final hex = '#${(theme.accentColor & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
+                appState.updateAccentColor(hex);
+              }
+            },
+            onEditTheme: _cloudThemes.any((t) => t.isCreator) ? () {
+              _showCreateThemeDialog(context);
+            } : null,
           ),
           const SizedBox(height: 8),
           Container(height: 1, color: dividerColor),
@@ -1457,4 +1495,270 @@ class _ChooseFontBoxState extends State<_ChooseFontBox> {
       ),
     );
   }
+}
+
+// ── §14.6.3: Cloud Themes section ──
+
+class _CloudThemeSection extends StatelessWidget {
+  final List<CloudThemeInfo> themes;
+  final bool loaded;
+  final bool showAll;
+  final bool isDark;
+  final Color accentColor;
+  final VoidCallback onToggleShowAll;
+  final ValueChanged<CloudThemeInfo> onThemeSelected;
+  final VoidCallback? onEditTheme;
+
+  const _CloudThemeSection({
+    required this.themes,
+    required this.loaded,
+    required this.showAll,
+    required this.isDark,
+    required this.accentColor,
+    required this.onToggleShowAll,
+    required this.onThemeSelected,
+    this.onEditTheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (!loaded || themes.isEmpty) return const SizedBox.shrink();
+
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    final visibleThemes = showAll ? themes : themes.take(8).toList();
+
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 22),
+            child: Row(
+              children: [
+                Text(
+                  'Cloud Themes',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: accentColor,
+                  ),
+                ),
+                const Spacer(),
+                if (themes.length > 8)
+                  GestureDetector(
+                    onTap: onToggleShowAll,
+                    child: Text(
+                      showAll ? 'Show Less' : 'Show All',
+                      style: TextStyle(fontSize: 14, color: accentColor),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: _gridHeight(visibleThemes.length),
+            child: _buildGrid(visibleThemes, textColor, subtextColor),
+          ),
+          if (onEditTheme != null)
+            InkWell(
+              onTap: onEditTheme,
+              hoverColor: hoverBg,
+              splashColor: hoverBg.withValues(alpha: 0.5),
+              child: Padding(
+                padding: const EdgeInsets.only(left: 20, top: 10, bottom: 10, right: 22),
+                child: Row(
+                  children: [
+                    Icon(Icons.palette_outlined, size: 20, color: accentColor),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Edit Current Theme',
+                      style: TextStyle(fontSize: 14, color: accentColor),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  double _gridHeight(int count) {
+    final rows = showAll ? ((count + 3) ~/ 4) : 1;
+    return rows * 116.0;
+  }
+
+  Widget _buildGrid(List<CloudThemeInfo> visible, Color textColor, Color subtextColor) {
+    if (!showAll) {
+      return ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 22),
+        itemCount: visible.length,
+        itemBuilder: (context, i) => Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: _CloudThemeCard(
+            theme: visible[i],
+            isDark: isDark,
+            accentColor: accentColor,
+            textColor: textColor,
+            subtextColor: subtextColor,
+            onTap: () => onThemeSelected(visible[i]),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 22),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: visible.map((t) => _CloudThemeCard(
+          theme: t,
+          isDark: isDark,
+          accentColor: accentColor,
+          textColor: textColor,
+          subtextColor: subtextColor,
+          onTap: () => onThemeSelected(t),
+        )).toList(),
+      ),
+    );
+  }
+}
+
+class _CloudThemeCard extends StatelessWidget {
+  final CloudThemeInfo theme;
+  final bool isDark;
+  final Color accentColor;
+  final Color textColor;
+  final Color subtextColor;
+  final VoidCallback onTap;
+
+  const _CloudThemeCard({
+    required this.theme,
+    required this.isDark,
+    required this.accentColor,
+    required this.textColor,
+    required this.subtextColor,
+    required this.onTap,
+  });
+
+  Color _argbToColor(int argb) {
+    if (argb == 0) return isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    return Color(0xFF000000 | (argb & 0xFFFFFF));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = _argbToColor(theme.accentColor);
+    final sent = _argbToColor(theme.sentColor);
+    final bg = theme.bgColor != 0
+        ? _argbToColor(theme.bgColor)
+        : (theme.isDark ? const Color(0xFF0E1621) : const Color(0xFFDFE7EB));
+    final recv = theme.recvColor != 0
+        ? _argbToColor(theme.recvColor)
+        : (theme.isDark ? const Color(0xFF182533) : const Color(0xFFFFFFFF));
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            width: 80,
+            height: 92,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.transparent, width: 2),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: CustomPaint(
+                size: const Size(76, 88),
+                painter: _CloudThemePreviewPainter(
+                  background: bg,
+                  receivedBubble: recv,
+                  sentBubble: sent.a > 0 ? sent : accent,
+                  isDarkTheme: theme.isDark,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            width: 80,
+            child: Text(
+              theme.title,
+              style: TextStyle(fontSize: 11, color: subtextColor),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CloudThemePreviewPainter extends CustomPainter {
+  final Color background;
+  final Color receivedBubble;
+  final Color sentBubble;
+  final bool isDarkTheme;
+
+  _CloudThemePreviewPainter({
+    required this.background,
+    required this.receivedBubble,
+    required this.sentBubble,
+    required this.isDarkTheme,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      Paint()..color = background,
+    );
+
+    final recvPaint = Paint()..color = receivedBubble;
+    final sentPaint = Paint()..color = sentBubble;
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(6, 8, 40, 14),
+        const Radius.circular(2),
+      ),
+      recvPaint,
+    );
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(size.width - 46, 28, 40, 14),
+        const Radius.circular(2),
+      ),
+      sentPaint,
+    );
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(6, 48, 32, 14),
+        const Radius.circular(2),
+      ),
+      recvPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_CloudThemePreviewPainter old) =>
+      old.background != background ||
+      old.receivedBubble != receivedBubble ||
+      old.sentBubble != sentBubble;
 }

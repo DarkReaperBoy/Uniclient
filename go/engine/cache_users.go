@@ -650,6 +650,25 @@ func (e *Engine) UpdateNameColor(accountID string, colorID int) error {
 	return u.UpdateNameColor(colorID)
 }
 
+type cloudThemesFetcher interface {
+	GetCloudThemes() ([]cores.CloudThemeInfo, error)
+}
+
+func (e *Engine) GetCloudThemes(accountID string) ([]cores.CloudThemeInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	f, ok := acc.Core.(cloudThemesFetcher)
+	if !ok {
+		return nil, nil
+	}
+	return f.GetCloudThemes()
+}
+
 func (e *Engine) GetWebPagePreview(accountID, url string) (*cores.WebPagePreviewResult, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {

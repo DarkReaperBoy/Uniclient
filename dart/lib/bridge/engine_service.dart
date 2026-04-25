@@ -1252,6 +1252,22 @@ class EngineService {
     await _callAsync('__engine', 'UpdateNameColor', Uint8List.fromList(payload));
   }
 
+  Future<List<CloudThemeInfo>> getCloudThemes(String accountId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetCloudThemes', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return [];
+      final data = json.decode(utf8.decode(respBytes));
+      if (data == null) return [];
+      return (data as List).map((e) => CloudThemeInfo.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (e) {
+      Debug.error('ENGINE', 'getCloudThemes failed', e);
+      return [];
+    }
+  }
+
   Future<void> uploadProfilePhoto(String accountId, String filePath) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

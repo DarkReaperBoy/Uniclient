@@ -1765,3 +1765,39 @@ class ReportMessageResult {
     this.commentOption = const [],
   });
 }
+
+class CloudThemeInfo {
+  final int id;
+  final String title;
+  final String slug;
+  final bool isCreator;
+  final int accentColor;
+  final int bgColor;
+  final int sentColor;
+  final int recvColor;
+  final bool isDark;
+
+  const CloudThemeInfo({
+    required this.id,
+    required this.title,
+    required this.slug,
+    this.isCreator = false,
+    this.accentColor = 0,
+    this.bgColor = 0,
+    this.sentColor = 0,
+    this.recvColor = 0,
+    this.isDark = false,
+  });
+
+  factory CloudThemeInfo.fromJson(Map<String, dynamic> json) => CloudThemeInfo(
+    id: (json['id'] as num?)?.toInt() ?? 0,
+    title: json['title'] as String? ?? '',
+    slug: json['slug'] as String? ?? '',
+    isCreator: json['is_creator'] as bool? ?? false,
+    accentColor: (json['accent_color'] as num?)?.toInt() ?? 0,
+    bgColor: (json['bg_color'] as num?)?.toInt() ?? 0,
+    sentColor: (json['sent_color'] as num?)?.toInt() ?? 0,
+    recvColor: (json['recv_color'] as num?)?.toInt() ?? 0,
+    isDark: json['is_dark'] as bool? ?? false,
+  );
+}

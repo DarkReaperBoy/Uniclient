@@ -14961,6 +14961,48 @@ func (t *TelegramCore) AccountGetThemes(request *tg.AccountGetThemesRequest) (tg
 	return t.api.AccountGetThemes(t.ctx, request)
 }
 
+func (t *TelegramCore) GetCloudThemes() ([]CloudThemeInfo, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	resp, err := t.api.AccountGetThemes(t.ctx, &tg.AccountGetThemesRequest{
+		Format: "tdesktop",
+		Hash:   0,
+	})
+	if err != nil {
+		return nil, err
+	}
+	themes, ok := resp.(*tg.AccountThemes)
+	if !ok {
+		return nil, nil
+	}
+	var result []CloudThemeInfo
+	for _, th := range themes.Themes {
+		info := CloudThemeInfo{
+			ID:        th.ID,
+			Title:     th.Title,
+			Slug:      th.Slug,
+			IsCreator: th.Creator,
+		}
+		if len(th.Settings) > 0 {
+			s := th.Settings[0]
+			info.AccentColor = s.AccentColor
+			switch s.BaseTheme.(type) {
+			case *tg.BaseThemeNight, *tg.BaseThemeTinted:
+				info.IsDark = true
+			}
+			if len(s.MessageColors) > 0 {
+				info.SentColor = s.MessageColors[0]
+			}
+			info.RecvColor = info.AccentColor
+		}
+		result = append(result, info)
+	}
+	return result, nil
+}
+
 // AccountGetTmpPassword generates a temporary password for payments.
 func (t *TelegramCore) AccountGetTmpPassword(request *tg.AccountGetTmpPasswordRequest) (*tg.AccountTmpPassword, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
@@ -16232,6 +16274,18 @@ type PeerColorEntry struct {
 	DayColors   []int `json:"day_colors"`
 	NightColors []int `json:"night_colors"`
 	Hidden      bool  `json:"hidden"`
+}
+
+type CloudThemeInfo struct {
+	ID          int64  `json:"id"`
+	Title       string `json:"title"`
+	Slug        string `json:"slug"`
+	IsCreator   bool   `json:"is_creator"`
+	AccentColor int    `json:"accent_color"`
+	BgColor     int    `json:"bg_color"`
+	SentColor   int    `json:"sent_color"`
+	RecvColor   int    `json:"recv_color"`
+	IsDark      bool   `json:"is_dark"`
 }
 
 // GetPeerColorPalette fetches and parses help.peerColors into a simple list.

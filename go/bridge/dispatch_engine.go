@@ -1390,6 +1390,19 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.UpdateNameColor(params.AccountID, params.ColorID)
 
+	case "GetCloudThemes":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		themes, err := e.GetCloudThemes(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(themes)
+
 	case "UploadProfilePhoto":
 		var params struct {
 			AccountID string `json:"account_id"`
