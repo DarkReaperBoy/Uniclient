@@ -251,7 +251,13 @@ class SettingsScreen extends StatelessWidget {
             iconBg: const Color(0xFF43A047),
             label: 'Power Saving',
             isDark: isDark,
-            onTap: () {},
+            onTap: () => showDialog(
+              context: context,
+              builder: (_) => ChangeNotifierProvider.value(
+                value: context.read<AppState>(),
+                child: const PowerSavingBox(),
+              ),
+            ),
           ),
           _SettingsRow(
             icon: Icons.translate,

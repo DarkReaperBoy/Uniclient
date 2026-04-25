@@ -368,7 +368,111 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
   }
 
   // §14.7.6: Power Saving button, hardware video accel, OpenGL/ANGLE toggle.
-  List<Widget> _buildPerformance(bool isDark) => const [];
+  List<Widget> _buildPerformance(bool isDark) {
+    final appState = context.read<AppState>();
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final iconColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final hoverBg =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    return [
+      _AdvancedIconButtonRow(
+        icon: Icons.battery_saver,
+        label: 'Power Saving',
+        textColor: textColor,
+        subtextColor: subtextColor,
+        iconColor: iconColor,
+        hoverBg: hoverBg,
+        onTap: () => showDialog(
+          context: context,
+          builder: (_) => ChangeNotifierProvider.value(
+            value: appState,
+            child: const PowerSavingBox(),
+          ),
+        ),
+      ),
+      _AdvancedToggleRow(
+        label: 'Enable hardware acceleration for video',
+        value: appState.hardwareAccelVideo,
+        onChanged: (v) => appState.setHardwareAccelVideo(v),
+        textColor: textColor,
+        accentColor: accentColor,
+        hoverBg: hoverBg,
+      ),
+      if (!Platform.isMacOS)
+        _AdvancedToggleRow(
+          label: Platform.isWindows
+              ? 'Use ANGLE graphics backend'
+              : 'Disable OpenGL',
+          value: appState.openGlDisabled,
+          onChanged: (v) {
+            appState.setOpenGlDisabled(v);
+            _showRestartDialog(context, isDark);
+          },
+          textColor: textColor,
+          accentColor: accentColor,
+          hoverBg: hoverBg,
+        ),
+    ];
+  }
+
+  void _showRestartDialog(BuildContext context, bool isDark) {
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: bgColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 320),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 18, 22, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Restart required',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Please restart the application for this change to take effect.',
+                  style: TextStyle(fontSize: 14, color: textColor),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text('OK',
+                          style: TextStyle(color: accentColor, fontSize: 14)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   // §14.7.7: System/custom toggle, auto-download dictionaries, Manage Dictionaries.
   List<Widget> _buildSpellchecker(bool isDark) => const [];
@@ -807,6 +911,204 @@ class _AutoDownloadBoxState extends State<_AutoDownloadBox> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class PowerSavingBox extends StatefulWidget {
+  const PowerSavingBox();
+
+  @override
+  State<PowerSavingBox> createState() => _PowerSavingBoxState();
+}
+
+class _PowerSavingBoxState extends State<PowerSavingBox> {
+  late int _flags;
+
+  @override
+  void initState() {
+    super.initState();
+    _flags = context.read<AppState>().powerSavingFlags;
+  }
+
+  bool _flag(int bit) => _flags & bit != 0;
+
+  void _toggle(int bit) {
+    setState(() {
+      _flags = _flags ^ bit;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final headerColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final iconColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 364),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 18, 22, 4),
+              child: Text(
+                'Power Saving',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: textColor,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _header('Stickers', headerColor),
+                    _iconToggle('Stickers in Panel', Icons.sticky_note_2,
+                        AppState.kPowerSavingStickersPanel, textColor, iconColor, accentColor),
+                    _plainToggle('Stickers in Messages',
+                        AppState.kPowerSavingStickersChat, textColor, accentColor),
+                    const SizedBox(height: 8),
+                    _header('Emoji', headerColor),
+                    _iconToggle('Emoji in Panel', Icons.emoji_emotions,
+                        AppState.kPowerSavingEmojiPanel, textColor, iconColor, accentColor),
+                    _plainToggle('Emoji Reactions',
+                        AppState.kPowerSavingEmojiReactions, textColor, accentColor),
+                    _plainToggle('Emoji in Messages',
+                        AppState.kPowerSavingEmojiChat, textColor, accentColor),
+                    _plainToggle('Emoji Status',
+                        AppState.kPowerSavingEmojiStatus, textColor, accentColor),
+                    const SizedBox(height: 8),
+                    _header('Chat', headerColor),
+                    _iconToggle('Chat Background', Icons.chat_bubble_outline,
+                        AppState.kPowerSavingChatBackground, textColor, iconColor, accentColor),
+                    _plainToggle('Spoiler Effect',
+                        AppState.kPowerSavingChatSpoiler, textColor, accentColor),
+                    _plainToggle('Message Effects',
+                        AppState.kPowerSavingChatEffects, textColor, accentColor),
+                    const SizedBox(height: 8),
+                    _iconToggle('Calls', Icons.phone,
+                        AppState.kPowerSavingCalls, textColor, iconColor, accentColor),
+                    _iconToggle('Interface Animations', Icons.play_circle_outline,
+                        AppState.kPowerSavingAnimations, textColor, iconColor, accentColor),
+                    const SizedBox(height: 8),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 0, 22, 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('Cancel',
+                        style: TextStyle(color: accentColor, fontSize: 14)),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: () {
+                      final appState = context.read<AppState>();
+                      final old = appState.powerSavingFlags;
+                      final changed = old ^ _flags;
+                      for (var bit = 0; bit < 12; bit++) {
+                        if (changed & (1 << bit) != 0) {
+                          appState.setPowerSaving(1 << bit, _flags & (1 << bit) != 0);
+                        }
+                      }
+                      Navigator.of(context).pop();
+                    },
+                    child: Text('Save',
+                        style: TextStyle(color: accentColor, fontSize: 14)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _header(String text, Color color) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 8, 22, 4),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  Widget _iconToggle(String label, IconData icon, int flag,
+      Color textColor, Color iconColor, Color accentColor) {
+    final on = !_flag(flag);
+    return InkWell(
+      onTap: () => _toggle(flag),
+      child: Padding(
+        padding: const EdgeInsets.only(left: 20, top: 8, right: 22, bottom: 8),
+        child: Row(
+          children: [
+            Icon(icon, size: 24, color: iconColor),
+            const SizedBox(width: 13),
+            Expanded(
+              child: Text(label,
+                  style: TextStyle(fontSize: 14, color: textColor)),
+            ),
+            Switch(
+              value: on,
+              onChanged: (_) => _toggle(flag),
+              activeColor: accentColor,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _plainToggle(String label, int flag, Color textColor, Color accentColor) {
+    final on = !_flag(flag);
+    return InkWell(
+      onTap: () => _toggle(flag),
+      child: Padding(
+        padding: const EdgeInsets.only(left: 22, top: 8, right: 22, bottom: 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(label,
+                  style: TextStyle(fontSize: 14, color: textColor)),
+            ),
+            Switch(
+              value: on,
+              onChanged: (_) => _toggle(flag),
+              activeColor: accentColor,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ],
+        ),
       ),
     );
   }

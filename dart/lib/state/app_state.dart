@@ -37,6 +37,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _monochromeTrayIcon = false;
   bool _launchAtStartup = false;
   bool _startMinimized = false;
+  bool _hardwareAccelVideo = true;
+  bool _openGlDisabled = false;
   bool _editingTheme = false;
   List<String> _accountOrder = []; // persisted display order of account IDs
   final List<StreamSubscription<dynamic>> _subs = [];
@@ -59,7 +61,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   static const kPowerSavingEmojiReactions = 1 << 4;
   static const kPowerSavingEmojiChat     = 1 << 5;
   static const kPowerSavingEmojiStatus   = 1 << 9;
+  static const kPowerSavingChatBackground = 1 << 6;
   static const kPowerSavingChatSpoiler   = 1 << 7;
+  static const kPowerSavingChatEffects   = 1 << 8;
   static const kPowerSavingCalls         = 1 << 10;
   static const kPowerSavingAnimations    = 1 << 11;
   int _powerSavingFlags = 0;
@@ -124,6 +128,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get monochromeTrayIcon => _monochromeTrayIcon;
   bool get launchAtStartup => _launchAtStartup;
   bool get startMinimized => _startMinimized;
+  bool get hardwareAccelVideo => _hardwareAccelVideo;
+  bool get openGlDisabled => _openGlDisabled;
 
   bool setShowTrayIcon(bool v) {
     if (!v && !_showTaskbarIcon) return false;
@@ -163,6 +169,20 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setStartMinimized(bool v) {
     if (_startMinimized == v) return;
     _startMinimized = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setHardwareAccelVideo(bool v) {
+    if (_hardwareAccelVideo == v) return;
+    _hardwareAccelVideo = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setOpenGlDisabled(bool v) {
+    if (_openGlDisabled == v) return;
+    _openGlDisabled = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -515,6 +535,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _monochromeTrayIcon = data['monochromeTrayIcon'] as bool? ?? false;
       _launchAtStartup = data['launchAtStartup'] as bool? ?? false;
       _startMinimized = data['startMinimized'] as bool? ?? false;
+      _hardwareAccelVideo = data['hardwareAccelVideo'] as bool? ?? true;
+      _openGlDisabled = data['openGlDisabled'] as bool? ?? false;
       final order = data['accountOrder'] as List<dynamic>?;
       if (order != null) _accountOrder = order.cast<String>();
     } catch (_) {}
@@ -540,6 +562,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'monochromeTrayIcon': _monochromeTrayIcon,
         'launchAtStartup': _launchAtStartup,
         'startMinimized': _startMinimized,
+        'hardwareAccelVideo': _hardwareAccelVideo,
+        'openGlDisabled': _openGlDisabled,
       }));
     } catch (_) {}
   }
