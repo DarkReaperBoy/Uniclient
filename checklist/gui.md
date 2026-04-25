@@ -619,13 +619,9 @@ Spec file: `research/telegram_desktop_ui.md`.
 
 ## §15 — Settings: Notifications
 
-<!-- dart/lib/ui/settings_screen.dart (nav row only); sub-page not yet created -->
-
-### 15.1 Multi-Account Notifications
-- [ ] Notifications sub-page: conditional "Show notifications from" section (2+ accounts), "All accounts" toggle (settingsButtonNoIcon), divider explanation — spec §15.1
+<!-- dart/lib/ui/notifications_settings_screen.dart -->
 
 ### 15.2 Global Settings + Volume Slider
-- [ ] "Global settings" section: Desktop notifications toggle, platform-specific flash/bounce toggle (label varies by OS), "Allow sound" toggle — all settingsButton with 60px left padding — spec §15.2
 - [ ] Master volume slider in SlideWrap (visible when sound ON): "Volume" subtitle, horizontal MediaSlider with 15x15 thumb, 100 steps (1–100), live percentage label, plays preview on drag, 150ms slide animation — spec §15.2.1
 
 ### 15.3 Notification Preview Widget

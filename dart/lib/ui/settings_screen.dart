@@ -12,6 +12,7 @@ import 'advanced_settings_screen.dart';
 import 'chat_settings_screen.dart';
 import 'confirm_box.dart';
 import 'my_profile_page.dart';
+import 'notifications_settings_screen.dart';
 import 'settings_style.dart';
 
 /// Settings page (§14). Opened from hamburger drawer "Settings" row.
@@ -187,7 +188,16 @@ class SettingsScreen extends StatelessWidget {
             iconBg: const Color(0xFFEB4D3D),
             label: 'Notifications and Sounds',
             isDark: isDark,
-            onTap: () {},
+            onTap: () {
+              Navigator.of(context).push(
+                settingsPageRoute(
+                  ChangeNotifierProvider.value(
+                    value: appState,
+                    child: const NotificationsSettingsScreen(),
+                  ),
+                ),
+              );
+            },
           ),
           _SettingsRow(
             icon: Icons.lock,
