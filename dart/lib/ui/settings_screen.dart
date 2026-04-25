@@ -9,6 +9,7 @@ import '../state/app_state.dart';
 import '../state/auth_state.dart';
 import '../state/chat_state.dart';
 import 'advanced_settings_screen.dart';
+import 'chat_settings_screen.dart';
 import 'confirm_box.dart';
 import 'my_profile_page.dart';
 
@@ -199,7 +200,16 @@ class SettingsScreen extends StatelessWidget {
             iconBg: const Color(0xFF50C878),
             label: 'Chat Settings',
             isDark: isDark,
-            onTap: () {},
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ChangeNotifierProvider.value(
+                    value: appState,
+                    child: const ChatSettingsScreen(),
+                  ),
+                ),
+              );
+            },
           ),
           _SettingsRow(
             icon: Icons.folder,
