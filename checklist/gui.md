@@ -626,7 +626,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 15.3 Notification Preview Widget
 
 ### 15.4 Per-Type Notification Rows
-- [ ] "Notifications for chats" section: four 40px split-toggle rows (Private/Groups/Channels/Reactions), left area clickable (icon+label+status subtitle), right 70px toggle area, 1px vertical separator between them, confirmation dialog when toggling with exceptions — spec §15.4 & §15.4.1
 
 ### 15.5 Per-Type Sub-Page
 - [ ] Per-type sub-page: "Enable notifications" toggle (right-click opens Mute Menu), "Sound" toggle (SlideWrap), "Notification tone" row (nested SlideWrap, right-label = current tone name, opens Ringtones Box), per-type volume slider (SlideWrap, plays selected tone) — spec §15.5.1 & §15.5.1.1 & §15.5.1.2

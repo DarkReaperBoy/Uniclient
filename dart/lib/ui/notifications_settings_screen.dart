@@ -22,6 +22,11 @@ class _NotificationsSettingsScreenState
   bool _previewName = true;
   bool _previewText = true;
 
+  bool _privateChatsNotify = true;
+  bool _groupsNotify = true;
+  bool _channelsNotify = true;
+  bool _reactionsNotify = true;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -47,6 +52,8 @@ class _NotificationsSettingsScreenState
           subtextColor, accentColor, hoverBg),
       _buildGlobalSettings(isDark, sectionTitleColor, textColor, subtextColor,
           accentColor, hoverBg),
+      _buildNotificationsForChats(isDark, sectionTitleColor, textColor,
+          subtextColor, accentColor, hoverBg),
     ];
 
     final children = <Widget>[];
@@ -223,6 +230,73 @@ class _NotificationsSettingsScreenState
       ),
     ];
   }
+
+  List<Widget> _buildNotificationsForChats(
+    bool isDark,
+    Color sectionTitleColor,
+    Color textColor,
+    Color subtextColor,
+    Color accentColor,
+    Color hoverBg,
+  ) {
+    return [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(22, 10, 22, 4),
+        child: Text(
+          'Notifications for chats',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: sectionTitleColor,
+          ),
+        ),
+      ),
+      _SplitToggleRow(
+        icon: Icons.person,
+        label: 'Private chats',
+        value: _privateChatsNotify,
+        onToggle: (v) => setState(() => _privateChatsNotify = v),
+        textColor: textColor,
+        subtextColor: subtextColor,
+        accentColor: accentColor,
+        hoverBg: hoverBg,
+        isDark: isDark,
+      ),
+      _SplitToggleRow(
+        icon: Icons.group,
+        label: 'Groups',
+        value: _groupsNotify,
+        onToggle: (v) => setState(() => _groupsNotify = v),
+        textColor: textColor,
+        subtextColor: subtextColor,
+        accentColor: accentColor,
+        hoverBg: hoverBg,
+        isDark: isDark,
+      ),
+      _SplitToggleRow(
+        icon: Icons.campaign,
+        label: 'Channels',
+        value: _channelsNotify,
+        onToggle: (v) => setState(() => _channelsNotify = v),
+        textColor: textColor,
+        subtextColor: subtextColor,
+        accentColor: accentColor,
+        hoverBg: hoverBg,
+        isDark: isDark,
+      ),
+      _SplitToggleRow(
+        icon: Icons.add_reaction_outlined,
+        label: 'Reactions',
+        value: _reactionsNotify,
+        onToggle: (v) => setState(() => _reactionsNotify = v),
+        textColor: textColor,
+        subtextColor: subtextColor,
+        accentColor: accentColor,
+        hoverBg: hoverBg,
+        isDark: isDark,
+      ),
+    ];
+  }
 }
 
 class _NotifToggleRow extends StatelessWidget {
@@ -396,6 +470,168 @@ class _NotifIconToggleRow extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _SplitToggleRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onToggle;
+  final Color textColor;
+  final Color subtextColor;
+  final Color accentColor;
+  final Color hoverBg;
+  final bool isDark;
+  final int exceptionCount;
+
+  const _SplitToggleRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.onToggle,
+    required this.textColor,
+    required this.subtextColor,
+    required this.accentColor,
+    required this.hoverBg,
+    required this.isDark,
+    this.exceptionCount = 0,
+  });
+
+  String get _statusText {
+    if (exceptionCount == 0) return 'Click here to change';
+    final state = value ? 'On' : 'Off';
+    final exc = exceptionCount == 1 ? '1 exception' : '$exceptionCount exceptions';
+    return '$state, $exc';
+  }
+
+  void _handleToggle(BuildContext context, bool newValue) {
+    if (exceptionCount > 0) {
+      showDialog<void>(
+        context: context,
+        builder: (ctx) {
+          final dialogBg =
+              isDark ? const Color(0xFF1B2836) : const Color(0xFFFFFFFF);
+          final dialogText =
+              isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+          return AlertDialog(
+            backgroundColor: dialogBg,
+            title: Text('Notifications',
+                style: TextStyle(color: dialogText, fontWeight: FontWeight.w600)),
+            content: Text(
+              'Please note that $exceptionCount chat(s) are listed as exceptions and won\'t be affected.',
+              style: TextStyle(color: dialogText, fontSize: 14),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: Text('View exceptions',
+                    style: TextStyle(color: accentColor)),
+              ),
+              TextButton(
+                onPressed: () {
+                  onToggle(newValue);
+                  Navigator.of(ctx).pop();
+                },
+                child: Text('OK', style: TextStyle(color: accentColor)),
+              ),
+            ],
+          );
+        },
+      );
+    } else {
+      onToggle(newValue);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final separatorColor = isDark
+        ? const Color(0xFF232E3C)
+        : const Color(0xFFF1F1F1);
+    final iconColor = isDark
+        ? const Color(0xFF6C7883)
+        : const Color(0xFF999999);
+
+    const double rowHeight = 40;
+    const double toggleAreaWidth = 70;
+
+    return SizedBox(
+      height: rowHeight,
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              hoverColor: hoverBg,
+              splashColor: hoverBg.withValues(alpha: 0.5),
+              onTap: () {},
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 0, 0),
+                child: Row(
+                  children: [
+                    Icon(icon, size: 24, color: iconColor),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            label,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: textColor,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            _statusText,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: subtextColor,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Container(
+            width: 1,
+            height: rowHeight - 8,
+            color: separatorColor,
+          ),
+          SizedBox(
+            width: toggleAreaWidth,
+            height: rowHeight,
+            child: InkWell(
+              hoverColor: hoverBg,
+              splashColor: hoverBg.withValues(alpha: 0.5),
+              onTap: () => _handleToggle(context, !value),
+              child: Center(
+                child: SizedBox(
+                  width: 36,
+                  height: 20,
+                  child: Switch(
+                    value: value,
+                    onChanged: (v) => _handleToggle(context, v),
+                    activeColor: accentColor,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
