@@ -530,7 +530,6 @@
 
 ### §12.4 Video Call / PIP
 <!-- File: dart/lib/ui/call_screen.dart -->
-- [ ] Remote video fills main area (KeepAspectRatio crop); userpic/name/status hidden while stream live — spec §12.4
 - [ ] Self-view VideoBubble: default 160x110px; snap-to-corners (TopLeft/TopRight/BottomLeft/BottomRight default BottomRight); 12px inset rest, ~120ms easeOutCirc snap on mouse-release — spec §12.4
 - [ ] Self-view mirrored by default (flip horizontal); mirror off during screen-share — spec §12.4
 - [ ] Pre-connect outgoing preview scales 360x120→1620x540 based on window height; camera button with corner chevron for device-selector menu — spec §12.4

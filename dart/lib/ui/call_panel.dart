@@ -39,6 +39,7 @@ class CallPanel extends StatefulWidget {
   final VoidCallback? onAccept;
   final VoidCallback? onHangup;
   final VoidCallback? onClose;
+  final Widget? remoteVideoWidget;
 
   const CallPanel({
     super.key,
@@ -47,6 +48,7 @@ class CallPanel extends StatefulWidget {
     this.onAccept,
     this.onHangup,
     this.onClose,
+    this.remoteVideoWidget,
   });
 
   static const defaultWidth = 720.0;
@@ -426,7 +428,162 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildControlsRow() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        _CallControlButton(
+          icon: Icons.screen_share_outlined,
+          label: 'Screencast',
+          onTap: () {},
+        ),
+        _CallControlButton(
+          icon: Icons.videocam_outlined,
+          label: 'Camera',
+          onTap: () {},
+        ),
+        _CallActionButton(
+          icon: Icons.call_end,
+          label: 'End Call',
+          backgroundColor: const Color(0xFFE53935),
+          onTap: widget.onHangup,
+        ),
+        _CallControlButton(
+          icon: Icons.mic_off_outlined,
+          label: 'Mute',
+          onTap: () {},
+        ),
+        _CallControlButton(
+          icon: Icons.person_add_outlined,
+          label: 'Add People',
+          onTap: () {},
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusRow() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          _formatDuration(_durationSeconds),
+          style: const TextStyle(
+            color: Color(0xAAFFFFFF),
+            fontSize: 15,
+          ),
+        ),
+        if (widget.info.fingerprintEmoji.length == 4) ...[
+          const SizedBox(width: 8),
+          _EncryptionFingerprint(emoji: widget.info.fingerprintEmoji),
+        ],
+        if (widget.info.signalQuality >= 0) ...[
+          const SizedBox(width: 8),
+          _SignalBars(quality: widget.info.signalQuality),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildActiveVideoState() {
+    return MouseRegion(
+      onHover: (_) => _onMouseMove(),
+      onEnter: (_) => _onMouseMove(),
+      onExit: (_) {
+        if (widget.info.state == CallPanelState.active) {
+          _scheduleControlsHide(_kHideControlsMouseLeave);
+        }
+      },
+      child: GestureDetector(
+        onTap: _onMouseMove,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: widget.remoteVideoWidget!,
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              top: 0,
+              child: FadeTransition(
+                opacity: _controlsFadeController,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Color(0x80000000), Color(0x00000000)],
+                    ),
+                  ),
+                  child: SafeArea(
+                    bottom: false,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildUserpic(28),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  widget.info.callerName,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        _buildStatusRow(),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            if (widget.info.isRemoteMuted || widget.info.isRemoteLowBattery)
+              Positioned(
+                left: 0,
+                right: 0,
+                top: 56,
+                child: _buildRemotePills(),
+              ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: FadeTransition(
+                opacity: _controlsFadeController,
+                child: Container(
+                  padding: const EdgeInsets.only(left: 24, right: 24, bottom: 48, top: 24),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                      colors: [Color(0x80000000), Color(0x00000000)],
+                    ),
+                  ),
+                  child: _buildControlsRow(),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildActiveState() {
+    if (widget.remoteVideoWidget != null) {
+      return _buildActiveVideoState();
+    }
     return MouseRegion(
       onHover: (_) => _onMouseMove(),
       onEnter: (_) => _onMouseMove(),
@@ -453,63 +610,14 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _formatDuration(_durationSeconds),
-                  style: const TextStyle(
-                    color: Color(0xAAFFFFFF),
-                    fontSize: 15,
-                  ),
-                ),
-                if (widget.info.fingerprintEmoji.length == 4) ...[
-                  const SizedBox(width: 8),
-                  _EncryptionFingerprint(emoji: widget.info.fingerprintEmoji),
-                ],
-                if (widget.info.signalQuality >= 0) ...[
-                  const SizedBox(width: 8),
-                  _SignalBars(quality: widget.info.signalQuality),
-                ],
-              ],
-            ),
+            _buildStatusRow(),
             _buildRemotePills(),
             const Spacer(flex: 4),
             FadeTransition(
               opacity: _controlsFadeController,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _CallControlButton(
-                      icon: Icons.screen_share_outlined,
-                      label: 'Screencast',
-                      onTap: () {},
-                    ),
-                    _CallControlButton(
-                      icon: Icons.videocam_outlined,
-                      label: 'Camera',
-                      onTap: () {},
-                    ),
-                    _CallActionButton(
-                      icon: Icons.call_end,
-                      label: 'End Call',
-                      backgroundColor: const Color(0xFFE53935),
-                      onTap: widget.onHangup,
-                    ),
-                    _CallControlButton(
-                      icon: Icons.mic_off_outlined,
-                      label: 'Mute',
-                      onTap: () {},
-                    ),
-                    _CallControlButton(
-                      icon: Icons.person_add_outlined,
-                      label: 'Add People',
-                      onTap: () {},
-                    ),
-                  ],
-                ),
+                child: _buildControlsRow(),
               ),
             ),
             const SizedBox(height: 48),
@@ -1003,7 +1111,7 @@ class _SignalBarsPainter extends CustomPainter {
   bool shouldRepaint(_SignalBarsPainter old) => old.quality != quality;
 }
 
-void showCallPanel(BuildContext context, CallPanelInfo info) {
+void showCallPanel(BuildContext context, CallPanelInfo info, {Widget? remoteVideoWidget}) {
   showDialog(
     context: context,
     barrierDismissible: false,
@@ -1021,6 +1129,7 @@ void showCallPanel(BuildContext context, CallPanelInfo info) {
               onDecline: () => Navigator.of(ctx).pop(),
               onAccept: () {},
               onHangup: () => Navigator.of(ctx).pop(),
+              remoteVideoWidget: remoteVideoWidget,
             ),
           ),
         ),
