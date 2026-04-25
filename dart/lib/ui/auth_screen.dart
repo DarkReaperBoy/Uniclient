@@ -6,6 +6,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../models/engine_models.dart';
 import '../state/auth_state.dart';
+import 'settings_screen.dart';
 
 /// Authentication screen. Spec §11.
 class AuthScreen extends StatefulWidget {
@@ -31,6 +32,36 @@ class _AuthScreenState extends State<AuthScreen> {
     _inputController.clear();
   }
 
+  bool _canGoBack(AuthStateData? data) {
+    if (data == null) return false;
+    return switch (data.state) {
+      'input' || 'otp' || '2fa' || 'qr' => true,
+      _ => false,
+    };
+  }
+
+  bool _showNext(AuthStateData? data) {
+    if (data == null) return false;
+    return switch (data.state) {
+      'input' || 'otp' || '2fa' => true,
+      _ => false,
+    };
+  }
+
+  String _nextButtonText(AuthStateData? data) {
+    if (data == null) return 'Next';
+    return switch (data.state) {
+      'otp' => 'Next',
+      '2fa' => 'Submit',
+      _ => 'Next',
+    };
+  }
+
+  bool _showResetAccount(AuthStateData? data) {
+    if (data == null) return false;
+    return data.state == '2fa' && !data.hasRecovery;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -40,79 +71,112 @@ class _AuthScreenState extends State<AuthScreen> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 380),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Platform icon.
-                Icon(
-                  Icons.lock_outlined,
-                  size: 48,
-                  color: theme.colorScheme.primary,
-                ),
-                const SizedBox(height: 16),
-                // Title.
-                Text(
-                  _title(data),
-                  style: theme.textTheme.headlineMedium,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                // Description.
-                if (data?.label.isNotEmpty == true)
-                  Text(
-                    data!.label,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.textTheme.bodySmall?.color,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                if (data?.hint.isNotEmpty == true) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    'Hint: ${data!.hint}',
-                    style: theme.textTheme.bodySmall,
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-                const SizedBox(height: 24),
-                // Error.
-                if (authState.error != null) ...[
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.error.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      authState.error!,
-                      style: TextStyle(color: theme.colorScheme.error, fontSize: 13),
-                    ),
+        child: SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 380),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.lock_outlined,
+                    size: 48,
+                    color: theme.colorScheme.primary,
                   ),
                   const SizedBox(height: 16),
+                  Text(
+                    _title(data),
+                    style: theme.textTheme.headlineMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  if (data?.label.isNotEmpty == true)
+                    Text(
+                      data!.label,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.textTheme.bodySmall?.color,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  if (data?.hint.isNotEmpty == true) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Hint: ${data!.hint}',
+                      style: theme.textTheme.bodySmall,
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  if (authState.error != null) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.error.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        authState.error!,
+                        style: TextStyle(color: theme.colorScheme.error, fontSize: 13),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  if (data?.state == 'choose' && data!.options.isNotEmpty)
+                    ..._buildChoices(data.options, authState, theme),
+                  if (data?.state == 'qr' && data!.qrData.isNotEmpty)
+                    _buildQR(data, theme),
+                  if (data?.state == 'input' || data?.state == 'otp' || data?.state == '2fa')
+                    _buildInput(data!, authState, theme),
                 ],
-                // Auth method choice.
-                if (data?.state == 'choose' && data!.options.isNotEmpty)
-                  ..._buildChoices(data.options, authState, theme),
-                // QR code.
-                if (data?.state == 'qr' && data!.qrData.isNotEmpty)
-                  _buildQR(data, theme),
-                // Input field (phone, OTP, 2FA).
-                if (data?.state == 'input' || data?.state == 'otp' || data?.state == '2fa')
-                  _buildInput(data!, authState, theme),
-                const SizedBox(height: 16),
-                // Cancel button.
-                TextButton(
-                  onPressed: () => authState.cancelAuth(),
-                  child: const Text('Cancel'),
-                ),
-              ],
+              ),
             ),
           ),
         ),
+      ),
+      bottomNavigationBar: _AuthBottomBar(
+        showNext: _showNext(data),
+        nextText: _nextButtonText(data),
+        submitting: authState.submitting,
+        canGoBack: _canGoBack(data),
+        showResetAccount: _showResetAccount(data),
+        onNext: () => _submit(authState),
+        onBack: () => authState.cancelAuth(),
+        onSettings: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const SettingsScreen()),
+        ),
+        onResetAccount: () => _showResetAccountDialog(context),
+      ),
+    );
+  }
+
+  void _showResetAccountDialog(BuildContext context) {
+    final theme = Theme.of(context);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reset Account'),
+        content: Text(
+          'Since this account has no recovery email, you can reset it. '
+          'This will delete your account after a 7-day waiting period. '
+          'Your chats, messages, and contacts will be permanently lost.',
+          style: theme.textTheme.bodyMedium,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: theme.colorScheme.error,
+            ),
+            child: const Text('Reset Account'),
+          ),
+        ],
       ),
     );
   }
@@ -159,8 +223,6 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Widget _buildQR(AuthStateData data, ThemeData theme) {
-    // qrData from the engine is the login URL (e.g. tg://login?token=...) encoded
-    // as UTF-8 bytes. QrImageView takes a string and handles the matrix encoding.
     final payload = utf8.decode(data.qrData, allowMalformed: true);
     return Column(
       children: [
@@ -222,22 +284,129 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 16),
-        SizedBox(
-          width: 300,
-          height: 42,
-          child: FilledButton(
-            onPressed: authState.submitting ? null : () => _submit(authState),
-            child: authState.submitting
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                  )
-                : const Text('Next'),
-          ),
-        ),
       ],
+    );
+  }
+}
+
+/// Persistent bottom bar for auth screens. Spec §11.1.
+class _AuthBottomBar extends StatelessWidget {
+  final bool showNext;
+  final String nextText;
+  final bool submitting;
+  final bool canGoBack;
+  final bool showResetAccount;
+  final VoidCallback onNext;
+  final VoidCallback onBack;
+  final VoidCallback onSettings;
+  final VoidCallback onResetAccount;
+
+  const _AuthBottomBar({
+    required this.showNext,
+    required this.nextText,
+    required this.submitting,
+    required this.canGoBack,
+    required this.showResetAccount,
+    required this.onNext,
+    required this.onBack,
+    required this.onSettings,
+    required this.onResetAccount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (showNext)
+              SizedBox(
+                width: 300,
+                height: 42,
+                child: FilledButton(
+                  onPressed: submitting ? null : onNext,
+                  style: FilledButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                  child: submitting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(nextText),
+                ),
+              ),
+            if (showResetAccount) ...[
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: onResetAccount,
+                style: TextButton.styleFrom(
+                  foregroundColor: theme.colorScheme.error,
+                ),
+                child: const Text('Reset Account'),
+              ),
+            ],
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                if (canGoBack)
+                  IconButton(
+                    onPressed: onBack,
+                    icon: const Icon(Icons.arrow_back),
+                    tooltip: 'Back',
+                    iconSize: 20,
+                  ),
+                if (!canGoBack)
+                  const SizedBox(width: 40),
+                const Spacer(),
+                TextButton(
+                  onPressed: () => _showLanguageDialog(context),
+                  child: Text(
+                    'Change Language',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  onPressed: onSettings,
+                  icon: const Icon(Icons.settings_outlined),
+                  tooltip: 'Settings',
+                  iconSize: 20,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showLanguageDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Choose Language'),
+        children: [
+          RadioListTile<String>(
+            title: const Text('English'),
+            value: 'en',
+            groupValue: 'en',
+            onChanged: (_) => Navigator.of(ctx).pop(),
+          ),
+        ],
+      ),
     );
   }
 }
