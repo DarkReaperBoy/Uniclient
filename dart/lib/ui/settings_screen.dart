@@ -280,6 +280,85 @@ class SettingsScreen extends StatelessWidget {
           Container(height: 1, color: dividerColor),
           const SizedBox(height: 7),
           _InterfaceScaleSection(isDark: isDark, appState: appState),
+          // §14.8: skip+divider+skip before Premium section.
+          const SizedBox(height: 7),
+          Container(height: 1, color: dividerColor),
+          const SizedBox(height: 7),
+          // §14.8.1: Premium section.
+          _PremiumRow(
+            icon: Icons.workspace_premium,
+            label: 'Telegram Premium',
+            isDark: isDark,
+            onTap: () {},
+          ),
+          _PremiumRow(
+            icon: Icons.star_border,
+            label: 'Telegram Stars',
+            isDark: isDark,
+            trailing: Text(
+              '0',
+              style: TextStyle(
+                fontSize: 14,
+                color: isDark
+                    ? const Color(0xFF6C7883)
+                    : const Color(0xFF999999),
+              ),
+            ),
+            onTap: () {},
+          ),
+          _SettingsRow(
+            icon: Icons.diamond_outlined,
+            iconBg: const Color(0xFF3A3A5C),
+            label: 'Telegram Business',
+            isDark: isDark,
+            onTap: () {},
+          ),
+          _PremiumRow(
+            icon: Icons.card_giftcard,
+            label: 'Send a Gift',
+            isDark: isDark,
+            showNewBadge: true,
+            onTap: () {},
+          ),
+          // §14.8: skip+divider+skip before Help section.
+          const SizedBox(height: 7),
+          Container(height: 1, color: dividerColor),
+          const SizedBox(height: 7),
+          // §14.8.2: Help section.
+          _SettingsRow(
+            icon: Icons.help_outline,
+            iconBg: const Color(0xFF40A7E3),
+            label: 'Telegram FAQ',
+            isDark: isDark,
+            onTap: () {},
+          ),
+          _SettingsRow(
+            icon: Icons.info_outline,
+            iconBg: const Color(0xFF40A7E3),
+            label: 'Telegram Features',
+            isDark: isDark,
+            onTap: () {},
+          ),
+          _SettingsRow(
+            icon: Icons.chat_outlined,
+            iconBg: const Color(0xFF40A7E3),
+            label: 'Ask a Question',
+            isDark: isDark,
+            onTap: () => _showAskQuestionConfirm(context),
+          ),
+          // About-label (§14.8.2): aligned with row title column at 59px left inset.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(59, 0, 46, 6),
+            child: Text(
+              'Ask a volunteer in the Telegram support community for help.',
+              style: TextStyle(
+                fontSize: 13,
+                color: isDark
+                    ? const Color(0xFF6C7883)
+                    : const Color(0xFF999999),
+              ),
+            ),
+          ),
           const SizedBox(height: 32),
         ],
       ),
@@ -315,6 +394,17 @@ class SettingsScreen extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+
+  void _showAskQuestionConfirm(BuildContext context) {
+    showConfirmBox(
+      context,
+      title: 'Telegram Support',
+      text: 'You can ask a question in the Telegram support community. They are volunteers and may take some time to respond.\n\nPlease take a look at the Telegram FAQ first: it has important troubleshooting tips and answers to most questions.',
+      confirmText: 'Ask a Volunteer',
+      cancelText: 'Cancel',
+      onConfirm: () {},
     );
   }
 
@@ -710,6 +800,95 @@ class _SettingsRow extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            if (trailing != null) trailing!,
+            const SizedBox(width: 22),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// §14.8.1: Premium row with gradient icon background (purple→blue star glyph style).
+class _PremiumRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isDark;
+  final VoidCallback onTap;
+  final Widget? trailing;
+  final bool showNewBadge;
+
+  const _PremiumRow({
+    required this.icon,
+    required this.label,
+    required this.isDark,
+    required this.onTap,
+    this.trailing,
+    this.showNewBadge = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = isDark
+        ? const Color(0xFFF5F5F5)
+        : const Color(0xFF000000);
+    final hoverBg = isDark
+        ? const Color(0xFF232E3C)
+        : const Color(0xFFF1F1F1);
+
+    return InkWell(
+      onTap: onTap,
+      hoverColor: hoverBg,
+      splashColor: hoverBg.withValues(alpha: 0.5),
+      child: SizedBox(
+        height: 41,
+        child: Row(
+          children: [
+            const SizedBox(width: 20),
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(6),
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF6B93FF), Color(0xFF976FFF), Color(0xFFE46ACE)],
+                ),
+              ),
+              child: Icon(icon, size: 18, color: Colors.white),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: textColor,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (showNewBadge)
+              Container(
+                margin: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF6B93FF), Color(0xFF976FFF)],
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Text(
+                  'NEW',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
             if (trailing != null) trailing!,
             const SizedBox(width: 22),
           ],

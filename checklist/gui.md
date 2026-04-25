@@ -610,8 +610,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 14.7 Advanced Sub-Page
 
 ### 14.8 Premium & Help Sections
-- [ ] Premium group: Telegram Premium (gradient button), Telegram Stars (live balance), TON Currency (hidden when empty), Telegram Business, Send a Gift (newBadge) — spec §14.8.1
-- [ ] Help group: Telegram FAQ / Features / Ask a Question rows in settingsButton style (60px icon column), about-label at 59px left inset — spec §14.8.2
 
 ### 14.9 Visual Style Constants
 - [ ] All settingsButton style constants applied throughout settings: padding 60/10/22/10, iconLeft 20px, settingsButtonNoIcon padding 22/10/22/8, all size tokens (see full list) — spec §14.9
