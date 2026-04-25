@@ -687,7 +687,7 @@ class _SettingsRow extends StatelessWidget {
 }
 
 /// §14.4: Interface scale section with toggle and slider.
-class _InterfaceScaleSection extends StatelessWidget {
+class _InterfaceScaleSection extends StatefulWidget {
   final bool isDark;
   final AppState appState;
 
@@ -697,38 +697,176 @@ class _InterfaceScaleSection extends StatelessWidget {
   });
 
   @override
+  State<_InterfaceScaleSection> createState() => _InterfaceScaleSectionState();
+}
+
+class _InterfaceScaleSectionState extends State<_InterfaceScaleSection> {
+  bool _useDefault = true;
+  double _scalePercent = 100;
+  double _committedScale = 100;
+  bool _isDragging = false;
+
+  static const double _kMin = 100;
+  static const double _kMax = 300;
+  static const double _kStep = 5;
+
+  double _snap(double v) => (v / _kStep).round() * _kStep;
+
+  @override
   Widget build(BuildContext context) {
+    final isDark = widget.isDark;
     final textColor = isDark
         ? const Color(0xFFF5F5F5)
         : const Color(0xFF000000);
     final accentColor = isDark
         ? const Color(0xFF5288C1)
         : const Color(0xFF40A7E3);
+    final hoverBg = isDark
+        ? const Color(0xFF232E3C)
+        : const Color(0xFFF1F1F1);
+    final activeTextColor = isDark
+        ? const Color(0xFF5288C1)
+        : const Color(0xFF40A7E3);
 
     return Column(
       children: [
-        // "Default interface scale" toggle.
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          child: Row(
-            children: [
-              Icon(Icons.visibility, size: 22, color: textColor.withValues(alpha: 0.5)),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  'Default interface scale',
-                  style: TextStyle(fontSize: 15, color: textColor),
+        InkWell(
+          onTap: () => setState(() => _useDefault = !_useDefault),
+          hoverColor: hoverBg,
+          splashColor: hoverBg.withValues(alpha: 0.5),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(60, 10, 22, 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Use Default Scale',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: textColor,
+                    ),
+                  ),
                 ),
-              ),
-              Switch(
-                value: true, // Default scale on
-                onChanged: (v) {},
-                activeColor: accentColor,
-              ),
-            ],
+                SizedBox(
+                  height: 20,
+                  child: Switch(
+                    value: _useDefault,
+                    onChanged: (v) => setState(() => _useDefault = v),
+                    activeColor: accentColor,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
+          child: _useDefault
+              ? const SizedBox.shrink()
+              : Padding(
+                  padding: const EdgeInsets.fromLTRB(60, 7, 22, 4),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: SliderTheme(
+                          data: SliderThemeData(
+                            trackHeight: 2,
+                            thumbShape: const RoundSliderThumbShape(
+                              enabledThumbRadius: 7.5,
+                            ),
+                            activeTrackColor: accentColor,
+                            inactiveTrackColor: textColor.withValues(alpha: 0.15),
+                            thumbColor: accentColor,
+                            overlayShape: const RoundSliderOverlayShape(
+                              overlayRadius: 14,
+                            ),
+                            overlayColor: accentColor.withValues(alpha: 0.12),
+                          ),
+                          child: Slider(
+                            value: _scalePercent,
+                            min: _kMin,
+                            max: _kMax,
+                            divisions: ((_kMax - _kMin) / _kStep).round(),
+                            onChangeStart: (_) =>
+                                setState(() => _isDragging = true),
+                            onChanged: (v) =>
+                                setState(() => _scalePercent = _snap(v)),
+                            onChangeEnd: (v) {
+                              final snapped = _snap(v);
+                              setState(() {
+                                _isDragging = false;
+                                _scalePercent = snapped;
+                              });
+                              if (snapped != _committedScale) {
+                                _showRestartDialog(snapped);
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      SizedBox(
+                        width: 42,
+                        child: Text(
+                          '${_scalePercent.round()}%',
+                          textAlign: TextAlign.right,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: activeTextColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+        ),
+        if (_isDragging && !_useDefault)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(60, 0, 22, 8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? const Color(0xFF2B3A4A)
+                    : const Color(0xFFF5F5F5),
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Text(
+                'Preview: ${_scalePercent.round()}%',
+                style: TextStyle(
+                  fontSize: 12 * (_scalePercent / 100),
+                  color: textColor,
+                ),
+              ),
+            ),
+          ),
       ],
+    );
+  }
+
+  void _showRestartDialog(double newScale) {
+    showConfirmBox(
+      context,
+      text: 'Some settings will be applied after restarting.',
+      title: 'Restart Required',
+      confirmText: 'Restart Now',
+      cancelText: 'Cancel',
+      onConfirm: () {
+        setState(() => _committedScale = newScale);
+      },
+      onCancel: () {
+        setState(() => _scalePercent = _committedScale);
+      },
     );
   }
 }

@@ -599,9 +599,9 @@ Spec file: `research/telegram_desktop_ui.md`.
 - [x] Core settings rows present: My Account, Notifications, Privacy, Chat Settings, Folders, Advanced, Devices, Language with icon+rounded-square bg, ripple on tap — spec §14.3 — DONE in `settings_screen.dart`
 - [x] Full nav button spec: exact 41px row height, 60px left text offset (20px iconLeft + 28px icon + 12px gap), 6px radius icon-bg, 22px right padding, no inter-row separators, grouping via skip+divider+skip pairs, all 10 buttons in correct order (AyuGram Preferences / My Account / Notifications / Privacy / Chat Settings / Folders / Advanced / Devices / Power Saving / Language), Language right-label shows "English" — DONE in `settings_screen.dart`
 
-### 14.4 Interface Scale — PARTIAL
+### 14.4 Interface Scale — DONE
 - [x] "Default interface scale" toggle stub — DONE in `settings_screen.dart`
-- [ ] Full interface scale: "Use Default Scale" toggle, scale slider (15x15 thumb, 5-step discrete, 100%–300% range), right-side percentage label in windowActiveTextFg, floating ScalePreview tooltip during drag, scale applied on pointer-release not real-time, restart confirmation dialog on change, SlideWrap collapses slider when "Use Default" ON — spec §14.4 & §14.4.1
+- [x] Full interface scale: "Use Default Scale" toggle, scale slider (15x15 thumb, 5-step discrete, 100%–300% range), right-side percentage label in windowActiveTextFg, floating ScalePreview tooltip during drag, scale applied on pointer-release not real-time, restart confirmation dialog on change, SlideWrap collapses slider when "Use Default" ON — DONE in `settings_screen.dart`
 
 ### 14.5 My Account / Edit Profile Sub-Page
 - [ ] Edit Profile screen: "Edit Profile" title, vertically scrolling panel — spec §14.5
