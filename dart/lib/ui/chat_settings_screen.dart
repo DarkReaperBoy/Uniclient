@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 
 class ChatSettingsScreen extends StatefulWidget {
@@ -14,6 +15,29 @@ class ChatSettingsScreen extends StatefulWidget {
 
 class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   bool _useSystemAccent = false;
+  int _selfColorId = -1;
+  bool _colorLoaded = false;
+  String _fontFamily = 'Inter';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSelfColor();
+  }
+
+  void _loadSelfColor() {
+    final appState = context.read<AppState>();
+    final account = appState.activeAccount;
+    if (account == null) return;
+    final engine = context.read<EngineService>();
+    engine.getSelfColorAndChannel(account.id).then((result) {
+      if (!mounted) return;
+      setState(() {
+        _selfColorId = result.colorId;
+        _colorLoaded = true;
+      });
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -133,6 +157,26 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             ),
           ),
           const SizedBox(height: 8),
+          Container(height: 1, color: dividerColor),
+          const SizedBox(height: 7),
+          _YourColorRow(
+            colorId: _selfColorId,
+            isDark: isDark,
+            loaded: _colorLoaded,
+            accountId: appState.activeAccount?.id,
+            onColorChanged: (newId) => setState(() => _selfColorId = newId),
+          ),
+          _AutoNightRow(
+            isDark: isDark,
+            enabled: appState.systemDarkModeEnabled,
+            onChanged: (v) => appState.setSystemDarkMode(v),
+          ),
+          _FontFamilyRow(
+            isDark: isDark,
+            currentFont: _fontFamily,
+            onFontChanged: (f) => setState(() => _fontFamily = f),
+          ),
+          const SizedBox(height: 7),
           Container(height: 1, color: dividerColor),
         ],
       ),
@@ -867,4 +911,550 @@ class _GradientSliderPainter extends CustomPainter {
   @override
   bool shouldRepaint(_GradientSliderPainter old) =>
       old.thumbX != thumbX || old.gradient != gradient;
+}
+
+// ── §14.6.2: Your Color row ──
+
+class _YourColorRow extends StatelessWidget {
+  final int colorId;
+  final bool isDark;
+  final bool loaded;
+  final String? accountId;
+  final ValueChanged<int> onColorChanged;
+
+  const _YourColorRow({
+    required this.colorId,
+    required this.isDark,
+    required this.loaded,
+    required this.accountId,
+    required this.onColorChanged,
+  });
+
+  static const _baseColors = [
+    Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77),
+    Color(0xFF65aadd), Color(0xFFa695e7), Color(0xFFee7aae),
+    Color(0xFF6ec9cb),
+  ];
+
+  Color get _currentColor {
+    final idx = colorId >= 0 && colorId < _baseColors.length
+        ? colorId
+        : (accountId?.hashCode.abs() ?? 0) % 7;
+    return _baseColors[idx];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    return InkWell(
+      onTap: () => _openEditPeerColorBox(context),
+      hoverColor: hoverBg,
+      splashColor: hoverBg.withValues(alpha: 0.5),
+      child: Padding(
+        padding: const EdgeInsets.only(left: 20, top: 10, bottom: 10, right: 22),
+        child: Row(
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: _currentColor,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              alignment: Alignment.center,
+              child: const Icon(Icons.palette, size: 18, color: Colors.white),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 14,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: _currentColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Your Color',
+                        style: TextStyle(fontSize: 14, color: textColor),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Name Color',
+                    style: TextStyle(fontSize: 13, color: subtextColor),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openEditPeerColorBox(BuildContext context) {
+    final acctId = accountId;
+    if (acctId == null) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => _EditPeerColorBox(
+        isDark: isDark,
+        currentColorId: colorId >= 0 ? colorId : (acctId.hashCode.abs() % 7),
+        accountId: acctId,
+        onColorSaved: onColorChanged,
+      ),
+    );
+  }
+}
+
+// ── §14.6.2: EditPeerColorBox ──
+
+class _EditPeerColorBox extends StatefulWidget {
+  final bool isDark;
+  final int currentColorId;
+  final String accountId;
+  final ValueChanged<int> onColorSaved;
+
+  const _EditPeerColorBox({
+    required this.isDark,
+    required this.currentColorId,
+    required this.accountId,
+    required this.onColorSaved,
+  });
+
+  @override
+  State<_EditPeerColorBox> createState() => _EditPeerColorBoxState();
+}
+
+class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
+  late int _selected;
+  bool _saving = false;
+
+  static const _baseColors = [
+    Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77),
+    Color(0xFF65aadd), Color(0xFFa695e7), Color(0xFFee7aae),
+    Color(0xFF6ec9cb),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = widget.currentColorId.clamp(0, 6);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = widget.isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
+    final textColor = widget.isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentColor = widget.isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 364),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Your Name Color',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: textColor,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: List.generate(7, (i) {
+                  final isSelected = i == _selected;
+                  return GestureDetector(
+                    onTap: () => setState(() => _selected = i),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: isSelected
+                            ? Border.all(color: accentColor, width: 2.5)
+                            : null,
+                      ),
+                      padding: EdgeInsets.all(isSelected ? 3 : 0),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: _baseColors[i],
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: widget.isDark
+                      ? const Color(0xFF17212B)
+                      : const Color(0xFFF5F5F5),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 18,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: _baseColors[_selected],
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Your Name',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: _baseColors[_selected],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('Cancel', style: TextStyle(color: accentColor)),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: _saving ? null : _save,
+                    child: _saving
+                        ? SizedBox(
+                            width: 16, height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: accentColor),
+                          )
+                        : Text('Save', style: TextStyle(color: accentColor)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    try {
+      final engine = context.read<EngineService>();
+      await engine.updateNameColor(widget.accountId, _selected);
+      widget.onColorSaved(_selected);
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update color: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        setState(() => _saving = false);
+      }
+    }
+  }
+}
+
+// ── §14.6.2: Auto-Night Mode toggle ──
+
+class _AutoNightRow extends StatelessWidget {
+  final bool isDark;
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+
+  const _AutoNightRow({
+    required this.isDark,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+
+    return InkWell(
+      onTap: () => onChanged(!enabled),
+      hoverColor: hoverBg,
+      splashColor: hoverBg.withValues(alpha: 0.5),
+      child: Padding(
+        padding: const EdgeInsets.only(left: 20, top: 10, bottom: 10, right: 22),
+        child: Row(
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF3E546A) : const Color(0xFF9E9E9E),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                isDark ? Icons.dark_mode : Icons.brightness_2,
+                size: 18,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Auto-Night Mode',
+                style: TextStyle(fontSize: 14, color: textColor),
+              ),
+            ),
+            SizedBox(
+              height: 24,
+              child: Switch(
+                value: enabled,
+                onChanged: onChanged,
+                activeColor: accentColor,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── §14.6.2: Font Family row ──
+
+const _availableFonts = [
+  'Inter',
+  'Roboto',
+  'Open Sans',
+  'Noto Sans',
+  'System Default',
+];
+
+class _FontFamilyRow extends StatelessWidget {
+  final bool isDark;
+  final String currentFont;
+  final ValueChanged<String> onFontChanged;
+
+  const _FontFamilyRow({
+    required this.isDark,
+    required this.currentFont,
+    required this.onFontChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    return InkWell(
+      onTap: () => _openChooseFontBox(context),
+      hoverColor: hoverBg,
+      splashColor: hoverBg.withValues(alpha: 0.5),
+      child: Padding(
+        padding: const EdgeInsets.only(left: 20, top: 10, bottom: 10, right: 22),
+        child: Row(
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF3E546A) : const Color(0xFF9E9E9E),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              alignment: Alignment.center,
+              child: const Icon(Icons.text_fields, size: 18, color: Colors.white),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Font Family',
+                style: TextStyle(fontSize: 14, color: textColor),
+              ),
+            ),
+            Text(
+              currentFont,
+              style: TextStyle(fontSize: 14, color: subtextColor),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openChooseFontBox(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => _ChooseFontBox(
+        isDark: isDark,
+        currentFont: currentFont,
+        onFontSelected: (f) {
+          onFontChanged(f);
+          Navigator.of(ctx).pop();
+        },
+      ),
+    );
+  }
+}
+
+// ── §14.6.2: ChooseFontBox dialog ──
+
+class _ChooseFontBox extends StatefulWidget {
+  final bool isDark;
+  final String currentFont;
+  final ValueChanged<String> onFontSelected;
+
+  const _ChooseFontBox({
+    required this.isDark,
+    required this.currentFont,
+    required this.onFontSelected,
+  });
+
+  @override
+  State<_ChooseFontBox> createState() => _ChooseFontBoxState();
+}
+
+class _ChooseFontBoxState extends State<_ChooseFontBox> {
+  late String _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = widget.currentFont;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = widget.isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
+    final textColor = widget.isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = widget.isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final previewBg = widget.isDark ? const Color(0xFF17212B) : const Color(0xFFF5F5F5);
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 364),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Choose Font',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: textColor,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: previewBg,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'The quick brown fox jumps over the lazy dog.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: textColor,
+                    fontFamily: _selected == 'System Default' ? null : _selected,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ..._availableFonts.map((font) {
+                final isSelected = font == _selected;
+                return InkWell(
+                  onTap: () => setState(() => _selected = font),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: Radio<String>(
+                            value: font,
+                            groupValue: _selected,
+                            onChanged: (v) {
+                              if (v != null) setState(() => _selected = v);
+                            },
+                            activeColor: accentColor,
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          font,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: textColor,
+                            fontFamily: font == 'System Default' ? null : font,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('Cancel', style: TextStyle(color: accentColor)),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: () => widget.onFontSelected(_selected),
+                    child: Text('Apply', style: TextStyle(color: accentColor)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
