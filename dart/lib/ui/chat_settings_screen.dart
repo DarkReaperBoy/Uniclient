@@ -321,6 +321,10 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
           ],
           const SizedBox(height: 7),
           Container(height: 1, color: dividerColor),
+          const SizedBox(height: 7),
+          _ShortcutsArchiveSection(isDark: isDark, accentColor: currentAccent),
+          const SizedBox(height: 7),
+          Container(height: 1, color: dividerColor),
         ],
       ),
     );
@@ -2797,6 +2801,386 @@ class _MessageCheckbox extends StatelessWidget {
                 value: value,
                 onChanged: (v) => onChanged(v ?? false),
                 activeColor: accentColor,
+                side: BorderSide(color: subtextColor, width: 1.5),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(fontSize: 14, color: textColor),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── §14.6.9: Shortcuts & Archive ──
+
+class _ShortcutsArchiveSection extends StatelessWidget {
+  final bool isDark;
+  final Color accentColor;
+
+  const _ShortcutsArchiveSection({
+    required this.isDark,
+    required this.accentColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final hoverBg =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _ShortcutsArchiveButton(
+          icon: Icons.keyboard_outlined,
+          label: 'Keyboard Shortcuts',
+          isDark: isDark,
+          hoverBg: hoverBg,
+          textColor: textColor,
+          onTap: () => _showKeyboardShortcuts(context),
+        ),
+        _ShortcutsArchiveButton(
+          icon: Icons.archive_outlined,
+          label: 'Archive Settings',
+          isDark: isDark,
+          hoverBg: hoverBg,
+          textColor: textColor,
+          onTap: () => _showArchiveSettingsBox(context),
+        ),
+      ],
+    );
+  }
+
+  void _showKeyboardShortcuts(BuildContext context) {
+    final bgColor =
+        isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final dividerColor =
+        isDark ? const Color(0xFF101921) : const Color(0xFFE8E8E8);
+    final isMac =
+        Theme.of(context).platform == TargetPlatform.macOS;
+    final ctrl = isMac ? '⌘' : 'Ctrl';
+    final alt = isMac ? '⌥' : 'Alt';
+
+    final shortcuts = <(String, String)>[
+      ('Search', '$ctrl+K'),
+      ('Lock by Passcode', '$ctrl+L'),
+      ('Minimize', '$ctrl+M'),
+      ('Close', '$ctrl+W'),
+      ('Quit', '$ctrl+Q'),
+      ('Previous Chat', '$ctrl+Shift+Tab'),
+      ('Next Chat', '$ctrl+Tab'),
+      ('First Chat', '$ctrl+$alt+Home'),
+      ('Last Chat', '$ctrl+$alt+End'),
+      ('Show Archive', '$ctrl+9'),
+      ('Pin Chat 1–8', '$ctrl+1…8'),
+      ('Bold', '$ctrl+B'),
+      ('Italic', '$ctrl+I'),
+      ('Underline', '$ctrl+U'),
+      ('Strikethrough', '$ctrl+Shift+X'),
+      ('Monospace', '$ctrl+Shift+M'),
+      ('Spoiler', '$ctrl+Shift+P'),
+      ('Clear Formatting', '$ctrl+Shift+N'),
+      ('Create Link', '$ctrl+K'),
+      ('Reply', '$ctrl+↑'),
+      ('Edit Last Message', '↑'),
+      ('Delete Message', 'Delete'),
+      ('Forward', '$ctrl+Shift+F'),
+      ('Send File', '$ctrl+O'),
+    ];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bgColor,
+        title: Text(
+          'Keyboard Shortcuts',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            color: textColor,
+          ),
+        ),
+        content: SizedBox(
+          width: 364,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var i = 0; i < shortcuts.length; i++) ...[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            shortcuts[i].$1,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: textColor,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          shortcuts[i].$2,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: subtextColor,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (i < shortcuts.length - 1)
+                    Container(height: 1, color: dividerColor),
+                ],
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('Close', style: TextStyle(color: accentColor)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showArchiveSettingsBox(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => _ArchiveSettingsBox(
+        isDark: isDark,
+        accentColor: accentColor,
+      ),
+    );
+  }
+}
+
+class _ShortcutsArchiveButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isDark;
+  final Color hoverBg;
+  final Color textColor;
+  final VoidCallback onTap;
+
+  const _ShortcutsArchiveButton({
+    required this.icon,
+    required this.label,
+    required this.isDark,
+    required this.hoverBg,
+    required this.textColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final iconColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+
+    return InkWell(
+      onTap: onTap,
+      hoverColor: hoverBg,
+      splashColor: hoverBg.withValues(alpha: 0.5),
+      child: Padding(
+        padding: const EdgeInsets.only(
+            left: 22, top: 10, right: 22, bottom: 10),
+        child: Row(
+          children: [
+            Icon(icon, size: 24, color: iconColor),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(fontSize: 14, color: textColor),
+              ),
+            ),
+            Icon(Icons.chevron_right, size: 20, color: iconColor),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ArchiveSettingsBox extends StatefulWidget {
+  final bool isDark;
+  final Color accentColor;
+
+  const _ArchiveSettingsBox({
+    required this.isDark,
+    required this.accentColor,
+  });
+
+  @override
+  State<_ArchiveSettingsBox> createState() => _ArchiveSettingsBoxState();
+}
+
+class _ArchiveSettingsBoxState extends State<_ArchiveSettingsBox> {
+  bool _archiveAndMute = false;
+  bool _keepUnmuted = false;
+  bool _keepFolders = false;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadArchiveSettings();
+  }
+
+  void _loadArchiveSettings() {
+    final appState = context.read<AppState>();
+    final account = appState.activeAccount;
+    if (account == null) return;
+    final engine = context.read<EngineService>();
+    engine.getArchiveSettings(account.id).then((result) {
+      if (!mounted) return;
+      setState(() {
+        _archiveAndMute = result.archiveAndMute;
+        _keepUnmuted = result.keepArchivedUnmuted;
+        _keepFolders = result.keepArchivedFolders;
+        _loaded = true;
+      });
+    });
+  }
+
+  void _save() {
+    final appState = context.read<AppState>();
+    final account = appState.activeAccount;
+    if (account == null) return;
+    final engine = context.read<EngineService>();
+    engine.setArchiveSettings(
+      account.id,
+      archiveAndMute: _archiveAndMute,
+      keepArchivedUnmuted: _keepUnmuted,
+      keepArchivedFolders: _keepFolders,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor =
+        widget.isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor =
+        widget.isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+
+    return AlertDialog(
+      backgroundColor: bgColor,
+      title: Text(
+        'Archive Settings',
+        style: TextStyle(
+          fontSize: 17,
+          fontWeight: FontWeight.w600,
+          color: textColor,
+        ),
+      ),
+      content: SizedBox(
+        width: 364,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _archiveCheckbox(
+              label: 'Archive and Mute',
+              value: _archiveAndMute,
+              textColor: textColor,
+              subtextColor: subtextColor,
+              onChanged: (v) {
+                setState(() => _archiveAndMute = v);
+                _save();
+              },
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Automatically archive and mute new chats from non-contacts.',
+              style: TextStyle(fontSize: 13, color: subtextColor),
+            ),
+            const SizedBox(height: 12),
+            _archiveCheckbox(
+              label: 'Keep archived unmuted',
+              value: _keepUnmuted,
+              textColor: textColor,
+              subtextColor: subtextColor,
+              onChanged: (v) {
+                setState(() => _keepUnmuted = v);
+                _save();
+              },
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Keep unmuted chats in the Archive when they get a new message.',
+              style: TextStyle(fontSize: 13, color: subtextColor),
+            ),
+            const SizedBox(height: 12),
+            _archiveCheckbox(
+              label: 'Keep archived folders',
+              value: _keepFolders,
+              textColor: textColor,
+              subtextColor: subtextColor,
+              onChanged: (v) {
+                setState(() => _keepFolders = v);
+                _save();
+              },
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Keep chats pinned in folders in the Archive when they get a new message.',
+              style: TextStyle(fontSize: 13, color: subtextColor),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text('Close', style: TextStyle(color: widget.accentColor)),
+        ),
+      ],
+    );
+  }
+
+  Widget _archiveCheckbox({
+    required String label,
+    required bool value,
+    required Color textColor,
+    required Color subtextColor,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return InkWell(
+      onTap: _loaded ? () => onChanged(!value) : null,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: Checkbox(
+                value: value,
+                onChanged: _loaded ? (v) => onChanged(v ?? false) : null,
+                activeColor: widget.accentColor,
                 side: BorderSide(color: subtextColor, width: 1.5),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(4),

@@ -1416,6 +1416,35 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.SetContentSettings(params.AccountID, params.SensitiveEnabled)
 
+	case "GetArchiveSettings":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		archiveAndMute, keepUnmuted, keepFolders, err := e.GetArchiveSettings(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]interface{}{
+			"archive_and_mute":      archiveAndMute,
+			"keep_archived_unmuted": keepUnmuted,
+			"keep_archived_folders": keepFolders,
+		})
+
+	case "SetArchiveSettings":
+		var params struct {
+			AccountID          string `json:"account_id"`
+			ArchiveAndMute     bool   `json:"archive_and_mute"`
+			KeepArchivedUnmuted bool  `json:"keep_archived_unmuted"`
+			KeepArchivedFolders bool  `json:"keep_archived_folders"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SetArchiveSettings(params.AccountID, params.ArchiveAndMute, params.KeepArchivedUnmuted, params.KeepArchivedFolders)
+
 	case "GetCloudThemes":
 		var params struct {
 			AccountID string `json:"account_id"`

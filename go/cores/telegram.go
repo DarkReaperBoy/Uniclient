@@ -13693,6 +13693,25 @@ func (t *TelegramCore) GetGlobalPrivacy() (*tg.GlobalPrivacySettings, error) {
 	return t.api.AccountGetGlobalPrivacySettings(t.ctx)
 }
 
+func (t *TelegramCore) GetArchiveSettings() (archiveAndMute bool, keepArchivedUnmuted bool, keepArchivedFolders bool, err error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return false, false, false, ErrAuth }
+	s, err := t.api.AccountGetGlobalPrivacySettings(t.ctx)
+	if err != nil { return false, false, false, err }
+	return s.ArchiveAndMuteNewNoncontactPeers, s.KeepArchivedUnmuted, s.KeepArchivedFolders, nil
+}
+
+func (t *TelegramCore) SetArchiveSettings(archiveAndMute, keepArchivedUnmuted, keepArchivedFolders bool) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	s := tg.GlobalPrivacySettings{}
+	s.SetArchiveAndMuteNewNoncontactPeers(archiveAndMute)
+	s.SetKeepArchivedUnmuted(keepArchivedUnmuted)
+	s.SetKeepArchivedFolders(keepArchivedFolders)
+	_, err := t.api.AccountSetGlobalPrivacySettings(t.ctx, s)
+	return err
+}
+
 // GetAppConfigCheck returns app config only if changed since a given hash.
 func (t *TelegramCore) GetAppConfigCheck() error {
 	t.mu.RLock(); defer t.mu.RUnlock()

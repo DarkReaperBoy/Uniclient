@@ -606,7 +606,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 14.5 My Account / Edit Profile Sub-Page
 
 ### 14.6 Chat Settings Sub-Page
-- [ ] Shortcuts & Archive: Keyboard Shortcuts nav button, Archive Settings button (opens ArchiveSettingsBox) — spec §14.6.9
 
 ### 14.7 Advanced Sub-Page
 - [ ] Advanced section build order: Update (top when non-auto), Data+Storage, Auto-Download, Window Title, Window Close (Linux), System Integration, Performance, Spellchecker, Screen Reader, Update (bottom when auto), Export — skip+divider+skip between each, conditional SlideWraps — spec §14.7.0

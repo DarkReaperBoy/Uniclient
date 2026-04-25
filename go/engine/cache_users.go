@@ -682,6 +682,38 @@ func (e *Engine) SetContentSettings(accountID string, sensitiveEnabled bool) err
 	return s.SetContentSettings(sensitiveEnabled)
 }
 
+type archiveSettingsGetter interface {
+	GetArchiveSettings() (archiveAndMute bool, keepArchivedUnmuted bool, keepArchivedFolders bool, err error)
+}
+
+type archiveSettingsSetter interface {
+	SetArchiveSettings(archiveAndMute, keepArchivedUnmuted, keepArchivedFolders bool) error
+}
+
+func (e *Engine) GetArchiveSettings(accountID string) (bool, bool, bool, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return false, false, false, fmt.Errorf("account %q not connected", accountID)
+	}
+	g, ok := acc.Core.(archiveSettingsGetter)
+	if !ok {
+		return false, false, false, fmt.Errorf("platform does not support archive settings")
+	}
+	return g.GetArchiveSettings()
+}
+
+func (e *Engine) SetArchiveSettings(accountID string, archiveAndMute, keepArchivedUnmuted, keepArchivedFolders bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not connected", accountID)
+	}
+	s, ok := acc.Core.(archiveSettingsSetter)
+	if !ok {
+		return fmt.Errorf("platform does not support archive settings")
+	}
+	return s.SetArchiveSettings(archiveAndMute, keepArchivedUnmuted, keepArchivedFolders)
+}
+
 type cloudThemesFetcher interface {
 	GetCloudThemes() ([]cores.CloudThemeInfo, error)
 }

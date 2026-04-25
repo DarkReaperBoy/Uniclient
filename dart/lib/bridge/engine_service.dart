@@ -1277,6 +1277,34 @@ class EngineService {
     await _callAsync('__engine', 'SetContentSettings', Uint8List.fromList(payload));
   }
 
+  Future<({bool archiveAndMute, bool keepArchivedUnmuted, bool keepArchivedFolders})> getArchiveSettings(String accountId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetArchiveSettings', Uint8List.fromList(payload));
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return (
+        archiveAndMute: data['archive_and_mute'] as bool? ?? false,
+        keepArchivedUnmuted: data['keep_archived_unmuted'] as bool? ?? false,
+        keepArchivedFolders: data['keep_archived_folders'] as bool? ?? false,
+      );
+    } catch (e) {
+      Debug.error('ENGINE', 'getArchiveSettings failed', e);
+      return (archiveAndMute: false, keepArchivedUnmuted: false, keepArchivedFolders: false);
+    }
+  }
+
+  Future<void> setArchiveSettings(String accountId, {required bool archiveAndMute, required bool keepArchivedUnmuted, required bool keepArchivedFolders}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'archive_and_mute': archiveAndMute,
+      'keep_archived_unmuted': keepArchivedUnmuted,
+      'keep_archived_folders': keepArchivedFolders,
+    }));
+    await _callAsync('__engine', 'SetArchiveSettings', Uint8List.fromList(payload));
+  }
+
   Future<List<CloudThemeInfo>> getCloudThemes(String accountId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
