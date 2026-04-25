@@ -510,8 +510,7 @@
 <!-- File: dart/lib/ui/auth_screen.dart -->
 
 ### §11.7 Registration Screen
-<!-- File: dart/lib/ui/auth_screen.dart — not yet implemented -->
-- [ ] Registration: UserpicButton at top offset 10px (tap opens photo picker + server crop-upload); first + last name fields 300px wide each; RTL swap for Arabic/Farsi/Hebrew; terms acceptance dialog gates submit — spec §11.7
+<!-- File: dart/lib/ui/auth_screen.dart -->
 
 ### §11.8 Inter-Screen Animations
 <!-- File: dart/lib/ui/auth_screen.dart -->

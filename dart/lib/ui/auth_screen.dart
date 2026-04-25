@@ -39,6 +39,8 @@ class _AuthScreenState extends State<AuthScreen>
 
   final _codeController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
   late _CountryInfo _selectedCountry;
 
   @override
@@ -63,6 +65,8 @@ class _AuthScreenState extends State<AuthScreen>
     _recoveryCodeController.dispose();
     _codeController.dispose();
     _phoneController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     _shakeController.dispose();
     _floodTimer?.cancel();
     super.dispose();
@@ -74,7 +78,8 @@ class _AuthScreenState extends State<AuthScreen>
     'input' => 2,
     'otp' => 3,
     '2fa' => 4,
-    'ready' || 'error' => 5,
+    'signup' => 5,
+    'ready' || 'error' => 6,
     _ => -1,
   };
 
@@ -104,6 +109,14 @@ class _AuthScreenState extends State<AuthScreen>
       authState.submitInput(pwd);
       return;
     }
+    if (data?.state == 'signup') {
+      final firstName = _firstNameController.text.trim();
+      if (firstName.isEmpty) return;
+      final lastName = _lastNameController.text.trim();
+      setState(() => _showErrorBorder = false);
+      authState.submitInput('$firstName\n$lastName');
+      return;
+    }
     final text = _inputController.text.trim();
     if (text.isEmpty) return;
     setState(() => _showErrorBorder = false);
@@ -122,7 +135,7 @@ class _AuthScreenState extends State<AuthScreen>
   bool _showNext(AuthStateData? data) {
     if (data == null) return false;
     return switch (data.state) {
-      'input' || '2fa' => true,
+      'input' || '2fa' || 'signup' => true,
       _ => false,
     };
   }
@@ -130,7 +143,7 @@ class _AuthScreenState extends State<AuthScreen>
   String _nextButtonText(AuthStateData? data) {
     if (data == null) return 'Next';
     return switch (data.state) {
-      '2fa' => 'Next',
+      'signup' => 'Start Messaging',
       _ => 'Next',
     };
   }
@@ -288,6 +301,7 @@ class _AuthScreenState extends State<AuthScreen>
       'otp' => 'Enter Verification Code',
       '2fa' => 'Enter Your Password',
       'qr' => 'Scan QR Code',
+      'signup' => 'Your Name',
       'ready' => 'Authenticated!',
       'error' => 'Authentication Error',
       _ => 'Authenticating...',
@@ -299,6 +313,9 @@ class _AuthScreenState extends State<AuthScreen>
     final state = data?.state ?? '';
     if (state == '2fa') {
       return _build2FA(data!, authState, theme);
+    }
+    if (state == 'signup') {
+      return _buildSignUp(data!, authState, theme);
     }
     return Column(
       key: ValueKey(state),
@@ -522,6 +539,90 @@ class _AuthScreenState extends State<AuthScreen>
               ),
             ),
           ),
+      ],
+    );
+  }
+
+  Widget _buildSignUp(
+      AuthStateData data, AuthState authState, ThemeData theme) {
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
+    return Column(
+      key: const ValueKey('signup'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(height: 10),
+        GestureDetector(
+          onTap: () {},
+          child: CircleAvatar(
+            radius: 40,
+            backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.15),
+            child: Icon(
+              Icons.add_a_photo_outlined,
+              size: 32,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        Text(
+          'Your Name',
+          style: theme.textTheme.headlineMedium,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: 300,
+          child: Text(
+            'Enter your name and add a\nprofile photo',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.textTheme.bodySmall?.color,
+              height: 1.4,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+        const SizedBox(height: 24),
+        if (authState.error != null) ...[
+          SizedBox(
+            width: 300,
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.error.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                authState.error!,
+                style: TextStyle(color: theme.colorScheme.error, fontSize: 13),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+        SizedBox(
+          width: 300,
+          child: TextField(
+            controller: isRtl ? _lastNameController : _firstNameController,
+            autofocus: true,
+            textInputAction: TextInputAction.next,
+            decoration: InputDecoration(
+              labelText: isRtl ? 'Last name' : 'First name',
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: 300,
+          child: TextField(
+            controller: isRtl ? _firstNameController : _lastNameController,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _submit(authState),
+            decoration: InputDecoration(
+              labelText: isRtl ? 'First name' : 'Last name',
+            ),
+          ),
+        ),
       ],
     );
   }

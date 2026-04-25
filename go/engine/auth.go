@@ -15,6 +15,7 @@ const (
 	AuthStateOTP     = "otp"
 	AuthState2FA     = "2fa"
 	AuthStateQR      = "qr"
+	AuthStateSignUp  = "signup"
 	AuthStateReady   = "ready"
 	AuthStateError   = "error"
 )
@@ -433,6 +434,11 @@ func advanceTelegram(flow *authFlow, input string, base *AuthState) (*AuthState,
 				base.HasRecovery = false
 				return base, nil
 			}
+			if err.Error() == "signup_required" {
+				base.State = AuthStateSignUp
+				base.Label = "Enter your name and add a profile photo"
+				return base, nil
+			}
 			return nil, err
 		}
 		return tryAuth(flow, base)
@@ -459,8 +465,46 @@ func advanceTelegram(flow *authFlow, input string, base *AuthState) (*AuthState,
 			return nil, err
 		}
 		return tryAuth(flow, base)
+	case AuthStateSignUp:
+		// Input format: "firstName\nlastName"
+		tc, ok := flow.core.(*cores.TelegramCore)
+		if !ok {
+			return nil, fmt.Errorf("expected TelegramCore for signup")
+		}
+		parts := splitSignUpInput(input)
+		err := tc.SubmitSignUp(parts[0], parts[1])
+		if err == nil {
+			base.State = AuthStateReady
+			base.DisplayName = parts[0]
+			if parts[1] != "" {
+				base.DisplayName += " " + parts[1]
+			}
+			if profile, pErr := flow.core.GetProfile(""); pErr == nil && profile != nil {
+				base.DisplayName = profile.DisplayName
+				if base.DisplayName == "" {
+					base.DisplayName = profile.Username
+				}
+				base.AvatarB64 = profile.AvatarB64
+			}
+			return base, nil
+		}
+		return nil, err
 	}
 	return nil, fmt.Errorf("unexpected state %s for telegram", flow.state.State)
+}
+
+func splitSignUpInput(input string) [2]string {
+	idx := 0
+	for i, c := range input {
+		if c == '\n' {
+			idx = i
+			break
+		}
+	}
+	if idx == 0 {
+		return [2]string{input, ""}
+	}
+	return [2]string{input[:idx], input[idx+1:]}
 }
 
 func advanceBale(flow *authFlow, input string, base *AuthState) (*AuthState, error) {

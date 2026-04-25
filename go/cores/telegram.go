@@ -107,13 +107,15 @@ type TelegramCore struct {
 
 	// Interactive auth support (user mode)
 	// When OTP/2FA aren't provided upfront, the auth flow blocks on these channels.
-	authCodeCh    chan string   // caller sends OTP code here
-	authPwdCh     chan string   // caller sends 2FA password here
-	authCodeReady chan struct{} // closed when auth flow needs OTP (signals caller)
-	authPwdReady  chan struct{} // closed when auth flow needs 2FA password
-	authSetupDone chan struct{} // closed after interactive auth channels are initialized
-	authDoneCh    chan struct{} // closed when auth completes (for interactive flow)
-	authErrCh     chan error    // auth error channel (for interactive flow)
+	authCodeCh      chan string   // caller sends OTP code here
+	authPwdCh       chan string   // caller sends 2FA password here
+	authSignUpCh    chan [2]string // caller sends [firstName, lastName] here
+	authCodeReady   chan struct{} // closed when auth flow needs OTP (signals caller)
+	authPwdReady    chan struct{} // closed when auth flow needs 2FA password
+	authSignUpReady chan struct{} // closed when auth flow needs signup info
+	authSetupDone   chan struct{} // closed after interactive auth channels are initialized
+	authDoneCh      chan struct{} // closed when auth completes (for interactive flow)
+	authErrCh       chan error    // auth error channel (for interactive flow)
 
 	// Call state
 	activeCalls map[int64]*tgCall       // callID → active call
@@ -659,6 +661,8 @@ func (t *TelegramCore) Authenticate(cfg AuthConfig) error {
 			t.authPwdCh = make(chan string, 1)
 			t.authPwdReady = make(chan struct{})
 		}
+		t.authSignUpCh = make(chan [2]string, 1)
+		t.authSignUpReady = make(chan struct{})
 	}
 	close(t.authSetupDone)
 
@@ -709,6 +713,8 @@ func (t *TelegramCore) Authenticate(cfg AuthConfig) error {
 					authFlow.pwdCh = t.authPwdCh
 					authFlow.pwdReady = t.authPwdReady
 				}
+				authFlow.signUpCh = t.authSignUpCh
+				authFlow.signUpReady = t.authSignUpReady
 
 				flow := auth.NewFlow(authFlow, auth.SendCodeOptions{})
 				if err := t.client.Auth().IfNecessary(ctx, flow); err != nil {
@@ -813,7 +819,8 @@ func (t *TelegramCore) Authenticate(cfg AuthConfig) error {
 
 // SubmitOTP provides the OTP code to an in-progress interactive auth flow.
 // Must be called after Authenticate returns "otp_required".
-// Returns nil on success, "2fa_required" if 2FA password is needed next.
+// Returns nil on success, "2fa_required" if 2FA password is needed,
+// "signup_required" if the number is not registered.
 func (t *TelegramCore) SubmitOTP(code string) error {
 	if t.authCodeCh == nil {
 		return fmt.Errorf("no auth flow in progress")
@@ -830,6 +837,8 @@ func (t *TelegramCore) SubmitOTP(code string) error {
 		return nil
 	case <-t.authPwdReady:
 		return fmt.Errorf("2fa_required")
+	case <-t.authSignUpReady:
+		return fmt.Errorf("signup_required")
 	case err := <-errCh:
 		if err != nil && !isContextErr(err) {
 			return fmt.Errorf("%w: %s", ErrAuth, err)
@@ -875,6 +884,38 @@ func (t *TelegramCore) Submit2FA(password string) error {
 		return fmt.Errorf("%w: 2FA failed", ErrAuth)
 	case <-time.After(30 * time.Second):
 		return fmt.Errorf("%w: 2FA verification timed out", ErrAuth)
+	}
+}
+
+// SubmitSignUp provides first/last name for a new account registration.
+// Must be called after SubmitOTP signals "signup_required".
+func (t *TelegramCore) SubmitSignUp(firstName, lastName string) error {
+	if t.authSignUpCh == nil {
+		return fmt.Errorf("no signup flow in progress")
+	}
+	t.authSignUpCh <- [2]string{firstName, lastName}
+
+	t.mu.RLock()
+	doneCh := t.authDoneCh
+	errCh := t.authErrCh
+	t.mu.RUnlock()
+
+	select {
+	case <-doneCh:
+		return nil
+	case err := <-errCh:
+		if err != nil && !isContextErr(err) {
+			return fmt.Errorf("%w: %s", ErrAuth, err)
+		}
+		t.mu.RLock()
+		authed := t.authed
+		t.mu.RUnlock()
+		if authed {
+			return nil
+		}
+		return fmt.Errorf("%w: signup failed", ErrAuth)
+	case <-time.After(30 * time.Second):
+		return fmt.Errorf("%w: signup timed out", ErrAuth)
 	}
 }
 
@@ -11029,10 +11070,12 @@ type telegramAuthFlow struct {
 	password string
 
 	// Interactive channels (nil if pre-provided)
-	codeCh    chan string
-	codeReady chan struct{}
-	pwdCh     chan string
-	pwdReady  chan struct{}
+	codeCh      chan string
+	codeReady   chan struct{}
+	pwdCh       chan string
+	pwdReady    chan struct{}
+	signUpCh    chan [2]string
+	signUpReady chan struct{}
 }
 
 func (f *telegramAuthFlow) Phone(_ context.Context) (string, error) {
@@ -11077,7 +11120,16 @@ func (f *telegramAuthFlow) AcceptTermsOfService(_ context.Context, tos tg.HelpTe
 	return nil
 }
 
-func (f *telegramAuthFlow) SignUp(_ context.Context) (auth.UserInfo, error) {
+func (f *telegramAuthFlow) SignUp(ctx context.Context) (auth.UserInfo, error) {
+	if f.signUpCh != nil {
+		close(f.signUpReady)
+		select {
+		case names := <-f.signUpCh:
+			return auth.UserInfo{FirstName: names[0], LastName: names[1]}, nil
+		case <-ctx.Done():
+			return auth.UserInfo{}, ctx.Err()
+		}
+	}
 	return auth.UserInfo{}, fmt.Errorf("sign up not supported")
 }
 

@@ -40,7 +40,7 @@ class AuthState extends ChangeNotifier {
 
   /// Whether the current state needs user input.
   bool get needsInput => _currentAuth != null && switch (_currentAuth!.state) {
-    'choose' || 'input' || 'otp' || '2fa' => true,
+    'choose' || 'input' || 'otp' || '2fa' || 'signup' => true,
     _ => false,
   };
 
