@@ -13,6 +13,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
+import 'gesture_utils.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/audio_service.dart';
@@ -4014,7 +4015,7 @@ class _MessageList extends StatelessWidget {
           children: [
             if (showDate) _DateSeparator(timestamp: msg.timestamp),
             if (showUnreadBar) _UnreadBar(count: openedUnreadCount),
-            GestureDetector(
+            PlatformGestureDetector(
               behavior: inSelectionMode ? HitTestBehavior.opaque : HitTestBehavior.deferToChild,
               onLongPress: () => onLongPress(msg.msgId),
               onTap: inSelectionMode ? () => onToggleSelect(msg.msgId) : null,
@@ -8346,7 +8347,7 @@ class _SendButtonState extends State<_SendButton>
           child: showStars
               ? Padding(
                   padding: const EdgeInsets.only(right: 6),
-                  child: GestureDetector(
+                  child: PlatformGestureDetector(
                     onTap: _onTap,
                     onLongPress: _canShowSendMenu ? _showSendMenu : null,
                     child: InkResponse(
@@ -8363,7 +8364,7 @@ class _SendButtonState extends State<_SendButton>
                 )
               : isRecordOrRound
               ? SizedBox(width: buttonWidth, height: 46, child: content)
-              : GestureDetector(
+              : PlatformGestureDetector(
                   onLongPress: _canShowSendMenu ? _showSendMenu : null,
                   child: InkResponse(
                     onTap: _onTap,

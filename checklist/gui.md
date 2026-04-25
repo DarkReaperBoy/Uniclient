@@ -568,12 +568,10 @@
 <!-- File: dart/lib/ui/shell.dart -->
 - [x] Sidebar cannot shrink below 260px — spec §13.3 — DONE in shell.dart
 - [x] Wide chat mode (>= 880px): bubbles center with gutters — spec §13.3 — DONE in shell.dart (constant defined)
-- [ ] Emoji panel height clamped [278px, 640px] (part of §10 panel, listed here for completeness) — spec §13.3
 
 ### §13.4 Touch vs Mouse
 <!-- File: dart/lib/ui/ (various) -->
 - [x] Long-press enters selection mode (message bubbles) — spec §13.4 — DONE in chat_view.dart
-- [ ] Long-press context menu threshold: ~500ms desktop / ~300ms mobile — spec §13.4
 - [ ] Swipe gestures: Manhattan distance gate 5-10px; drag-to-reorder 30px vertical; drag-to-filter 30px horizontal / 75px vertical — spec §13.4
 - [ ] Folder tab auto-switch while dragging: 2000ms hover freeze timeout — spec §13.4
 - [ ] Voice recording: hold-to-record, slide-up to lock — spec §13.4

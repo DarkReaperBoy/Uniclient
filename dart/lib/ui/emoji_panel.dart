@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
+import 'gesture_utils.dart';
 
 const double _kPanelWidth = 345.0;
 const double _kPanelMinHeight = 278.0;
@@ -1196,7 +1197,7 @@ class _EmojiCellState extends State<_EmojiCell> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
+      child: PlatformGestureDetector(
         onTap: () => widget.onEmojiSelected(_shownEmoji),
         onLongPress: _supportsSkinTone(widget.emoji) ? _handleLongPress : null,
         child: AnimatedContainer(
@@ -1840,7 +1841,7 @@ class _StickerCellState extends State<_StickerCell> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
+      child: PlatformGestureDetector(
         onTap: widget.onTap,
         onSecondaryTapUp: widget.onContextMenu != null
             ? (details) => widget.onContextMenu!(details.globalPosition)
@@ -2538,7 +2539,7 @@ class _GifCell extends StatelessWidget {
     } else {
       thumb = _gifPlaceholder(isDark);
     }
-    return GestureDetector(
+    return PlatformGestureDetector(
       onTap: onTap,
       onSecondaryTapUp: (d) => onContextMenu(d.globalPosition),
       onLongPressStart: (d) => onContextMenu(d.globalPosition),
@@ -2571,7 +2572,7 @@ class _GifSearchCell extends StatelessWidget {
     } else {
       thumb = _gifPlaceholder(isDark);
     }
-    return GestureDetector(
+    return PlatformGestureDetector(
       onTap: onTap,
       onSecondaryTapUp: (d) => onContextMenu(d.globalPosition),
       onLongPressStart: (d) => onContextMenu(d.globalPosition),

@@ -8,6 +8,8 @@ import 'dart:ui' as ui;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
+
+import 'gesture_utils.dart';
 import 'package:lottie/lottie.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -247,7 +249,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                 const SizedBox(width: 7),
               ],
           Flexible(
-            child: GestureDetector(
+            child: PlatformGestureDetector(
             onLongPressStart: onContextMenu != null
                 ? (details) {
                     if (!_SenderNameTapTarget.recentlyConsumed) {
