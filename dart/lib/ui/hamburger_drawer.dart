@@ -20,6 +20,7 @@ import 'create_channel_screen.dart';
 import 'my_profile_page.dart';
 import 'popup_menu.dart';
 import 'settings_screen.dart';
+import 'settings_style.dart' show settingsPageRoute;
 
 /// Hamburger menu drawer. Spec §3: 274px wide, 134px cover.
 /// Shows active account profile at top, collapsible account switcher,
@@ -300,8 +301,8 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         final authSt = context.read<AuthState>();
                         Navigator.of(context).pop();
                         Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => ChangeNotifierProvider.value(
+                          settingsPageRoute(
+                            ChangeNotifierProvider.value(
                               value: appState,
                               child: ChangeNotifierProvider.value(
                                 value: chatSt,
@@ -656,8 +657,8 @@ class _ProfileCover extends StatelessWidget {
         final authSt = context.read<AuthState>();
         Navigator.of(context).pop();
         Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => ChangeNotifierProvider.value(
+          settingsPageRoute(
+            ChangeNotifierProvider.value(
               value: appState,
               child: ChangeNotifierProvider.value(
                 value: chatSt,

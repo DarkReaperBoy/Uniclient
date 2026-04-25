@@ -1,5 +1,24 @@
 import 'package:flutter/widgets.dart';
 
+Route<T> settingsPageRoute<T>(Widget page) {
+  return PageRouteBuilder<T>(
+    pageBuilder: (context, animation, secondaryAnimation) => page,
+    transitionDuration: const Duration(milliseconds: 200),
+    reverseTransitionDuration: const Duration(milliseconds: 200),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final slide = Tween<Offset>(
+        begin: const Offset(1.0, 0.0),
+        end: Offset.zero,
+      ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic));
+      final fade = CurvedAnimation(parent: animation, curve: Curves.easeIn);
+      return SlideTransition(
+        position: slide,
+        child: FadeTransition(opacity: fade, child: child),
+      );
+    },
+  );
+}
+
 abstract final class SettingsStyle {
   // §14.9 settingsButton: standard row with icon
   // Text starts at 60px from left edge (iconLeft + iconSize + iconGap).

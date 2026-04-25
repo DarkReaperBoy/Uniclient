@@ -687,7 +687,8 @@ class _AccentColorPalette extends StatelessWidget {
               child: GestureDetector(
                 onTap: () => onColorSelected(color),
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutCubic,
                   width: 24,
                   height: 24,
                   decoration: BoxDecoration(

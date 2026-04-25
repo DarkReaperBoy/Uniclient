@@ -74,8 +74,8 @@ class SettingsScreen extends StatelessWidget {
                   final chatSt = context.read<ChatState>();
                   final authSt = context.read<AuthState>();
                   Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => ChangeNotifierProvider.value(
+                    settingsPageRoute(
+                      ChangeNotifierProvider.value(
                         value: appState,
                         child: ChangeNotifierProvider.value(
                           value: chatSt,
@@ -167,8 +167,8 @@ class SettingsScreen extends StatelessWidget {
               final chatSt = context.read<ChatState>();
               final authSt = context.read<AuthState>();
               Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => ChangeNotifierProvider.value(
+                settingsPageRoute(
+                  ChangeNotifierProvider.value(
                     value: appState,
                     child: ChangeNotifierProvider.value(
                       value: chatSt,
@@ -203,8 +203,8 @@ class SettingsScreen extends StatelessWidget {
             isDark: isDark,
             onTap: () {
               Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => ChangeNotifierProvider.value(
+                settingsPageRoute(
+                  ChangeNotifierProvider.value(
                     value: appState,
                     child: const ChatSettingsScreen(),
                   ),
@@ -230,9 +230,7 @@ class SettingsScreen extends StatelessWidget {
             isDark: isDark,
             onTap: () {
               Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const AdvancedSettingsScreen(),
-                ),
+                settingsPageRoute(const AdvancedSettingsScreen()),
               );
             },
           ),
