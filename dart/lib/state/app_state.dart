@@ -31,6 +31,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _showChatNameInTitle = true;
   bool _showAccountNameInTitle = true;
   bool _showUnreadCountInTitle = true;
+  int _windowCloseBehavior = 0; // 0=Run in Background, 1=Close to Taskbar, 2=Quit
   bool _editingTheme = false;
   List<String> _accountOrder = []; // persisted display order of account IDs
   final List<StreamSubscription<dynamic>> _subs = [];
@@ -112,6 +113,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get showChatNameInTitle => _showChatNameInTitle;
   bool get showAccountNameInTitle => _showAccountNameInTitle;
   bool get showUnreadCountInTitle => _showUnreadCountInTitle;
+  int get windowCloseBehavior => _windowCloseBehavior;
 
   void setShowChatNameInTitle(bool v) {
     if (_showChatNameInTitle == v) return;
@@ -130,6 +132,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setShowUnreadCountInTitle(bool v) {
     if (_showUnreadCountInTitle == v) return;
     _showUnreadCountInTitle = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setWindowCloseBehavior(int v) {
+    if (_windowCloseBehavior == v) return;
+    _windowCloseBehavior = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -448,6 +457,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _showChatNameInTitle = data['showChatNameInTitle'] as bool? ?? true;
       _showAccountNameInTitle = data['showAccountNameInTitle'] as bool? ?? true;
       _showUnreadCountInTitle = data['showUnreadCountInTitle'] as bool? ?? true;
+      _windowCloseBehavior = data['windowCloseBehavior'] as int? ?? 0;
       final order = data['accountOrder'] as List<dynamic>?;
       if (order != null) _accountOrder = order.cast<String>();
     } catch (_) {}
@@ -467,6 +477,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'showChatNameInTitle': _showChatNameInTitle,
         'showAccountNameInTitle': _showAccountNameInTitle,
         'showUnreadCountInTitle': _showUnreadCountInTitle,
+        'windowCloseBehavior': _windowCloseBehavior,
       }));
     } catch (_) {}
   }

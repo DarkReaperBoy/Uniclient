@@ -260,7 +260,26 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
   // §14.7.4: Run in Background / Close to Taskbar / Quit radios. Linux/BSD only.
   List<Widget> _buildWindowCloseBehavior(bool isDark) {
     if (!Platform.isLinux) return const [];
-    return const [];
+    final appState = context.read<AppState>();
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final hoverBg =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    const labels = ['Run in background', 'Close to the taskbar', 'Quit Telegram'];
+    return [
+      for (var i = 0; i < labels.length; i++)
+        _AdvancedRadioRow(
+          label: labels[i],
+          selected: appState.windowCloseBehavior == i,
+          onTap: () => appState.setWindowCloseBehavior(i),
+          textColor: textColor,
+          accentColor: accentColor,
+          hoverBg: hoverBg,
+        ),
+    ];
   }
 
   // §14.7.5: Tray/taskbar icons, monochrome, launch at startup, start minimized.
@@ -415,6 +434,59 @@ class _AdvancedCheckboxRow extends StatelessWidget {
               child: Checkbox(
                 value: value,
                 onChanged: (v) => onChanged(v ?? false),
+                activeColor: accentColor,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(fontSize: 15, color: textColor),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AdvancedRadioRow extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final Color textColor;
+  final Color accentColor;
+  final Color hoverBg;
+
+  const _AdvancedRadioRow({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    required this.textColor,
+    required this.accentColor,
+    required this.hoverBg,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      hoverColor: hoverBg,
+      splashColor: hoverBg.withValues(alpha: 0.5),
+      child: Padding(
+        padding: const EdgeInsets.only(left: 22, right: 22, top: 10, bottom: 8),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 22,
+              height: 22,
+              child: Radio<bool>(
+                value: true,
+                groupValue: selected,
+                onChanged: (_) => onTap(),
                 activeColor: accentColor,
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 visualDensity: VisualDensity.compact,
