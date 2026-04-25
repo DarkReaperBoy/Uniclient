@@ -572,7 +572,6 @@
 ### §13.4 Touch vs Mouse
 <!-- File: dart/lib/ui/ (various) -->
 - [x] Long-press enters selection mode (message bubbles) — spec §13.4 — DONE in chat_view.dart
-- [ ] Voice recording: hold-to-record, slide-up to lock — spec §13.4
 
 ### §13.5 Flutter-Web Divergence
 <!-- File: dart/lib/utils/system_tray.dart, dart/lib/bridge/bridge_web.dart -->

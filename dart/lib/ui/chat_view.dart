@@ -6649,8 +6649,10 @@ class _ComposeAreaState extends State<_ComposeArea>
   Duration _recordingDuration = Duration.zero;
   bool _isRecordingLocked = false;
   double _lockDragStartY = 0;
+  double _lockDragStartX = 0;
   int _trackingPointerId = -1;
   double _lockProgress = 0.0;
+  double _slideLeftOffset = 0.0;
   bool _ttlArmed = false;
   bool _silentMode = false;
   late AnimationController _lockShowController;
@@ -6723,8 +6725,9 @@ class _ComposeAreaState extends State<_ComposeArea>
   }
 
   static const double _lockThreshold = 80.0;
+  static const double _slideCancelThreshold = 100.0;
 
-  void _startRecording(double startY, int pointerId, {bool videoRound = false}) {
+  void _startRecording(double startY, int pointerId, {bool videoRound = false, double startX = 0}) {
     setState(() {
       _isRecording = true;
       _isVideoRound = videoRound;
@@ -6732,8 +6735,10 @@ class _ComposeAreaState extends State<_ComposeArea>
       _recordingStart = DateTime.now();
       _recordingDuration = Duration.zero;
       _lockDragStartY = startY;
+      _lockDragStartX = startX;
       _trackingPointerId = pointerId;
       _lockProgress = 0.0;
+      _slideLeftOffset = 0.0;
     });
     _lockShowController.forward(from: 0.0);
     GestureBinding.instance.pointerRouter.addGlobalRoute(_onGlobalPointerEvent);
@@ -6752,16 +6757,25 @@ class _ComposeAreaState extends State<_ComposeArea>
     if (event is PointerMoveEvent) {
       final dragUp = _lockDragStartY - event.position.dy;
       final progress = (dragUp / _lockThreshold).clamp(0.0, 1.0);
-      if (progress != _lockProgress) {
-        setState(() => _lockProgress = progress);
+      final dragLeft = _lockDragStartX - event.position.dx;
+      final slideOffset = dragLeft.clamp(0.0, double.infinity);
+      if (slideOffset >= _slideCancelThreshold) {
+        GestureBinding.instance.pointerRouter.removeGlobalRoute(_onGlobalPointerEvent);
+        _trackingPointerId = -1;
+        _cancelRecording();
+        return;
       }
+      setState(() {
+        _lockProgress = progress;
+        _slideLeftOffset = slideOffset;
+      });
     } else if (event is PointerUpEvent || event is PointerCancelEvent) {
       GestureBinding.instance.pointerRouter.removeGlobalRoute(_onGlobalPointerEvent);
       _trackingPointerId = -1;
       if (_lockProgress >= 1.0) {
         setState(() => _isRecordingLocked = true);
       } else {
-        setState(() => _lockProgress = 0.0);
+        _stopAndSendRecording();
       }
     }
   }
@@ -6777,6 +6791,7 @@ class _ComposeAreaState extends State<_ComposeArea>
       _recordingStart = null;
       _recordingDuration = Duration.zero;
       _lockProgress = 0.0;
+      _slideLeftOffset = 0.0;
       _ttlArmed = false;
     });
   }
@@ -6796,6 +6811,7 @@ class _ComposeAreaState extends State<_ComposeArea>
       _recordingStart = null;
       _recordingDuration = Duration.zero;
       _lockProgress = 0.0;
+      _slideLeftOffset = 0.0;
       _ttlArmed = false;
     });
   }
@@ -7283,6 +7299,7 @@ class _ComposeAreaState extends State<_ComposeArea>
             isLocked: _isRecordingLocked,
             isVideoRound: _isVideoRound,
             onStop: _stopAndSendRecording,
+            slideLeftOffset: _slideLeftOffset,
           ),
         ),
       );
@@ -7937,7 +7954,7 @@ class _SendButton extends StatefulWidget {
   final Color iconFg;
   final VoidCallback onSend;
   final VoidCallback? onToggleVoiceRound;
-  final void Function(double startY, int pointerId, {bool videoRound})? onRecordStart;
+  final void Function(double startY, int pointerId, {bool videoRound, double startX})? onRecordStart;
   final VoidCallback? onSendSilent;
   final ValueChanged<DateTime>? onSendScheduled;
   final VoidCallback? onSendWhenOnline;
@@ -8021,9 +8038,10 @@ class _SendButtonState extends State<_SendButton>
     final globalY = e.position.dy;
     final pointerId = e.pointer;
     final isRound = widget.type == SendButtonType.round;
+    final globalX = e.position.dx;
     _holdTimer = Timer(const Duration(milliseconds: 200), () {
       _holdFired = true;
-      widget.onRecordStart?.call(globalY, pointerId, videoRound: isRound);
+      widget.onRecordStart?.call(globalY, pointerId, videoRound: isRound, startX: globalX);
     });
   }
 
@@ -8387,6 +8405,7 @@ class _VoiceRecordBar extends StatefulWidget {
   final bool isLocked;
   final bool isVideoRound;
   final VoidCallback? onStop;
+  final double slideLeftOffset;
 
   const _VoiceRecordBar({
     required this.duration,
@@ -8394,6 +8413,7 @@ class _VoiceRecordBar extends StatefulWidget {
     this.isLocked = false,
     this.isVideoRound = false,
     this.onStop,
+    this.slideLeftOffset = 0.0,
   });
 
   @override
@@ -8466,7 +8486,9 @@ class _VoiceRecordBarState extends State<_VoiceRecordBar>
     final cancelFg = isDark ? const Color(0xFF6ab4f8) : const Color(0xFF168acd);
     final hintFg = isDark ? const Color(0xFF7e8e9f) : const Color(0xFF999999);
 
-    return Row(
+    final slideOpacity = widget.isLocked ? 1.0 : (1.0 - (widget.slideLeftOffset / 100.0).clamp(0.0, 0.6));
+
+    final recordContent = Row(
       children: [
         const SizedBox(width: 12),
         SizedBox(
@@ -8550,15 +8572,18 @@ class _VoiceRecordBarState extends State<_VoiceRecordBar>
         ] else ...[
           Expanded(
             child: Center(
-              child: SizedBox(
-                width: 210,
-                child: Text(
-                  'Slide to cancel',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: hintFg,
-                  ),
+              child: Opacity(
+                opacity: slideOpacity,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.chevron_left, size: 18, color: hintFg),
+                    const SizedBox(width: 2),
+                    Text(
+                      'Slide to cancel',
+                      style: TextStyle(fontSize: 13, color: hintFg),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -8588,6 +8613,14 @@ class _VoiceRecordBarState extends State<_VoiceRecordBar>
         ],
       ],
     );
+
+    if (!widget.isLocked && widget.slideLeftOffset > 0) {
+      return Transform.translate(
+        offset: Offset(-widget.slideLeftOffset * 0.5, 0),
+        child: recordContent,
+      );
+    }
+    return recordContent;
   }
 }
 
