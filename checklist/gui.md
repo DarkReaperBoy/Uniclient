@@ -495,7 +495,6 @@
 ### §11.2 Next Button
 <!-- File: dart/lib/ui/auth_screen.dart -->
 - [x] Next button: 300px wide, 42px height, filled style — spec §11.2 — DONE in auth_screen.dart
-- [ ] Next button spec details: radius 6px, textTop 11px, base Y=266px, slide-in from +200px, 150ms linear fade; disabled during flood; error: shake + red border — spec §11.2
 
 ### §11.3 QR Code Screen
 <!-- File: dart/lib/ui/auth_screen.dart -->

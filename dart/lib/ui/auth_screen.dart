@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -16,15 +17,34 @@ class AuthScreen extends StatefulWidget {
   State<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen> {
+class _AuthScreenState extends State<AuthScreen>
+    with TickerProviderStateMixin {
   final _inputController = TextEditingController();
   String _prevStep = '';
   bool _isForward = true;
   bool _isCover = false;
 
+  late final AnimationController _shakeController;
+  bool _showErrorBorder = false;
+  String? _lastError;
+
+  @override
+  void initState() {
+    super.initState();
+    _shakeController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    )..addStatusListener((status) {
+        if (status == AnimationStatus.completed) {
+          _shakeController.reset();
+        }
+      });
+  }
+
   @override
   void dispose() {
     _inputController.dispose();
+    _shakeController.dispose();
     super.dispose();
   }
 
@@ -43,6 +63,7 @@ class _AuthScreenState extends State<AuthScreen> {
   void _submit(AuthState authState) {
     final text = _inputController.text.trim();
     if (text.isEmpty) return;
+    setState(() => _showErrorBorder = false);
     authState.submitInput(text);
     _inputController.clear();
   }
@@ -91,6 +112,16 @@ class _AuthScreenState extends State<AuthScreen> {
     if (currentStep.isNotEmpty) {
       _prevStep = currentStep;
     }
+
+    final err = authState.error;
+    if (err != null && err != _lastError) {
+      _showErrorBorder = true;
+      _shakeController.forward(from: 0);
+    }
+    if (err == null && _showErrorBorder) {
+      _showErrorBorder = false;
+    }
+    _lastError = err;
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -332,18 +363,50 @@ class _AuthScreenState extends State<AuthScreen> {
               style: theme.textTheme.bodySmall),
           const SizedBox(height: 12),
         ],
-        SizedBox(
-          width: 300,
-          child: TextField(
-            controller: _inputController,
-            obscureText: isPassword,
-            keyboardType: isOtp ? TextInputType.number : TextInputType.text,
-            autofocus: true,
-            maxLength: isOtp && data.codeLength > 0 ? data.codeLength : null,
-            onSubmitted: (_) => _submit(authState),
-            decoration: InputDecoration(
-              hintText: data.hint.isNotEmpty ? data.hint : null,
-              counterText: '',
+        AnimatedBuilder(
+          animation: _shakeController,
+          builder: (context, child) {
+            final dx = _shakeController.isAnimating
+                ? sin(_shakeController.value * pi * 4) *
+                    6 *
+                    (1 - _shakeController.value)
+                : 0.0;
+            return Transform.translate(
+              offset: Offset(dx, 0),
+              child: child,
+            );
+          },
+          child: SizedBox(
+            width: 300,
+            child: TextField(
+              controller: _inputController,
+              obscureText: isPassword,
+              keyboardType:
+                  isOtp ? TextInputType.number : TextInputType.text,
+              autofocus: true,
+              maxLength:
+                  isOtp && data.codeLength > 0 ? data.codeLength : null,
+              onSubmitted: (_) => _submit(authState),
+              decoration: InputDecoration(
+                hintText: data.hint.isNotEmpty ? data.hint : null,
+                counterText: '',
+                enabledBorder: _showErrorBorder
+                    ? OutlineInputBorder(
+                        borderSide: BorderSide(
+                          color: theme.colorScheme.error,
+                          width: 2,
+                        ),
+                      )
+                    : null,
+                focusedBorder: _showErrorBorder
+                    ? OutlineInputBorder(
+                        borderSide: BorderSide(
+                          color: theme.colorScheme.error,
+                          width: 2,
+                        ),
+                      )
+                    : null,
+              ),
             ),
           ),
         ),
@@ -353,7 +416,7 @@ class _AuthScreenState extends State<AuthScreen> {
 }
 
 /// Persistent bottom bar for auth screens. Spec §11.1.
-class _AuthBottomBar extends StatelessWidget {
+class _AuthBottomBar extends StatefulWidget {
   final bool showNext;
   final String nextText;
   final bool submitting;
@@ -377,6 +440,49 @@ class _AuthBottomBar extends StatelessWidget {
   });
 
   @override
+  State<_AuthBottomBar> createState() => _AuthBottomBarState();
+}
+
+class _AuthBottomBarState extends State<_AuthBottomBar>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _slideController;
+  late final Animation<Offset> _slideAnim;
+  late final Animation<double> _fadeAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _slideController = AnimationController(
+      duration: const Duration(milliseconds: 150),
+      vsync: this,
+      value: widget.showNext ? 1.0 : 0.0,
+    );
+    _slideAnim = Tween<Offset>(
+      begin: const Offset(0, 200),
+      end: Offset.zero,
+    ).animate(_slideController);
+    _fadeAnim = _slideController;
+  }
+
+  @override
+  void didUpdateWidget(_AuthBottomBar old) {
+    super.didUpdateWidget(old);
+    if (widget.showNext != old.showNext) {
+      if (widget.showNext) {
+        _slideController.forward();
+      } else {
+        _slideController.reverse();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _slideController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return SafeArea(
@@ -385,18 +491,32 @@ class _AuthBottomBar extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (showNext)
-              SizedBox(
+            AnimatedBuilder(
+              animation: _slideController,
+              builder: (context, child) {
+                if (_slideController.isDismissed) {
+                  return const SizedBox.shrink();
+                }
+                return Transform.translate(
+                  offset: _slideAnim.value,
+                  child: Opacity(
+                    opacity: _fadeAnim.value,
+                    child: child,
+                  ),
+                );
+              },
+              child: SizedBox(
                 width: 300,
                 height: 42,
                 child: FilledButton(
-                  onPressed: submitting ? null : onNext,
+                  onPressed: widget.submitting ? null : widget.onNext,
                   style: FilledButton.styleFrom(
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(6),
                     ),
+                    padding: const EdgeInsets.only(top: 11, bottom: 17),
                   ),
-                  child: submitting
+                  child: widget.submitting
                       ? const SizedBox(
                           width: 20,
                           height: 20,
@@ -405,13 +525,14 @@ class _AuthBottomBar extends StatelessWidget {
                             color: Colors.white,
                           ),
                         )
-                      : Text(nextText),
+                      : Text(widget.nextText),
                 ),
               ),
-            if (showResetAccount) ...[
+            ),
+            if (widget.showResetAccount) ...[
               const SizedBox(height: 8),
               TextButton(
-                onPressed: onResetAccount,
+                onPressed: widget.onResetAccount,
                 style: TextButton.styleFrom(
                   foregroundColor: theme.colorScheme.error,
                 ),
@@ -421,14 +542,14 @@ class _AuthBottomBar extends StatelessWidget {
             const SizedBox(height: 8),
             Row(
               children: [
-                if (canGoBack)
+                if (widget.canGoBack)
                   IconButton(
-                    onPressed: onBack,
+                    onPressed: widget.onBack,
                     icon: const Icon(Icons.arrow_back),
                     tooltip: 'Back',
                     iconSize: 20,
                   ),
-                if (!canGoBack)
+                if (!widget.canGoBack)
                   const SizedBox(width: 40),
                 const Spacer(),
                 TextButton(
@@ -443,7 +564,7 @@ class _AuthBottomBar extends StatelessWidget {
                 ),
                 const SizedBox(width: 4),
                 IconButton(
-                  onPressed: onSettings,
+                  onPressed: widget.onSettings,
                   icon: const Icon(Icons.settings_outlined),
                   tooltip: 'Settings',
                   iconSize: 20,
