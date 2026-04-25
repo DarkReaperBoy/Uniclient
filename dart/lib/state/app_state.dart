@@ -377,6 +377,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  void updateAccentColor(String hexColor) {
+    _engine.updateConfig(accentColor: hexColor);
+    _config = _engine.getConfig();
+    notifyListeners();
+  }
+
+  String get accentColorHex =>
+      _config.accentColor.isNotEmpty ? _config.accentColor : '#40a7e3';
+
   static const _windowChannel = MethodChannel('com.uniclient.app/window');
 
   /// Toggle between native system window frame and client-side custom titlebar.

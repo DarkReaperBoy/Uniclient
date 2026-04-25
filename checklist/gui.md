@@ -606,7 +606,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 14.5 My Account / Edit Profile Sub-Page
 
 ### 14.6 Chat Settings Sub-Page
-- [ ] Theme picker: horizontal row of 4 cards (80x92px, settingsThemePreviewSize), each with mini chat bubbles (40x14px, 2px radius), radio dot (12px bottom inset), accent color palette row of 24px dots, custom HSL color picker as rightmost dot, "Use system accent color" checkbox — spec §14.6.1 & §14.6.1.1
 - [ ] Theme settings group: Your Color preview (opens EditPeerColorBox), Auto-Night Mode toggle, Font Family button with ChooseFontBox — spec §14.6.2
 - [ ] Cloud themes: horizontal scrollable SlideWrap list, "Show All" toggle, "Edit Current Theme" when user-owned, edit launches theme editor — spec §14.6.3 & §14.6.3.1
 - [ ] Chat background: 76px thumbnail with rounded corners, "Choose from gallery" link, "Choose from file" link, "Tile Background" checkbox, "Adaptive Layout" checkbox (wide mode only) — spec §14.6.4
