@@ -13120,6 +13120,23 @@ func (t *TelegramCore) UpdateNameColor(colorID int) error {
 	return nil
 }
 
+func (t *TelegramCore) GetContentSettings() (sensitiveEnabled bool, sensitiveCanChange bool, err error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return false, false, ErrAuth }
+	cs, err := t.api.AccountGetContentSettings(t.ctx)
+	if err != nil { return false, false, err }
+	return cs.SensitiveEnabled, cs.SensitiveCanChange, nil
+}
+
+func (t *TelegramCore) SetContentSettings(sensitiveEnabled bool) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	req := &tg.AccountSetContentSettingsRequest{SensitiveEnabled: sensitiveEnabled}
+	req.SetFlags()
+	_, err := t.api.AccountSetContentSettings(t.ctx, req)
+	return err
+}
+
 // UpdateStatus sets the user's online or offline status.
 func (t *TelegramCore) UpdateStatus(online bool) error {
 	t.mu.RLock(); defer t.mu.RUnlock()

@@ -650,6 +650,38 @@ func (e *Engine) UpdateNameColor(accountID string, colorID int) error {
 	return u.UpdateNameColor(colorID)
 }
 
+type contentSettingsGetter interface {
+	GetContentSettings() (sensitiveEnabled bool, sensitiveCanChange bool, err error)
+}
+
+type contentSettingsSetter interface {
+	SetContentSettings(sensitiveEnabled bool) error
+}
+
+func (e *Engine) GetContentSettings(accountID string) (bool, bool, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return false, false, fmt.Errorf("account %q not connected", accountID)
+	}
+	g, ok := acc.Core.(contentSettingsGetter)
+	if !ok {
+		return false, false, fmt.Errorf("platform does not support content settings")
+	}
+	return g.GetContentSettings()
+}
+
+func (e *Engine) SetContentSettings(accountID string, sensitiveEnabled bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not connected", accountID)
+	}
+	s, ok := acc.Core.(contentSettingsSetter)
+	if !ok {
+		return fmt.Errorf("platform does not support content settings")
+	}
+	return s.SetContentSettings(sensitiveEnabled)
+}
+
 type cloudThemesFetcher interface {
 	GetCloudThemes() ([]cores.CloudThemeInfo, error)
 }

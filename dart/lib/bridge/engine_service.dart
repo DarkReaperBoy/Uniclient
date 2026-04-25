@@ -1252,6 +1252,31 @@ class EngineService {
     await _callAsync('__engine', 'UpdateNameColor', Uint8List.fromList(payload));
   }
 
+  Future<({bool sensitiveEnabled, bool sensitiveCanChange})> getContentSettings(String accountId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetContentSettings', Uint8List.fromList(payload));
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return (
+        sensitiveEnabled: data['sensitive_enabled'] as bool? ?? false,
+        sensitiveCanChange: data['sensitive_can_change'] as bool? ?? false,
+      );
+    } catch (e) {
+      Debug.error('ENGINE', 'getContentSettings failed', e);
+      return (sensitiveEnabled: false, sensitiveCanChange: false);
+    }
+  }
+
+  Future<void> setContentSettings(String accountId, bool sensitiveEnabled) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'sensitive_enabled': sensitiveEnabled,
+    }));
+    await _callAsync('__engine', 'SetContentSettings', Uint8List.fromList(payload));
+  }
+
   Future<List<CloudThemeInfo>> getCloudThemes(String accountId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

@@ -606,7 +606,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 14.5 My Account / Edit Profile Sub-Page
 
 ### 14.6 Chat Settings Sub-Page
-- [ ] Sensitive content toggle: "Disable filtering" with footer, hidden if server disallows — spec §14.6.8
 - [ ] Shortcuts & Archive: Keyboard Shortcuts nav button, Archive Settings button (opens ArchiveSettingsBox) — spec §14.6.9
 
 ### 14.7 Advanced Sub-Page

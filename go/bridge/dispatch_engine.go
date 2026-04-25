@@ -1390,6 +1390,32 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.UpdateNameColor(params.AccountID, params.ColorID)
 
+	case "GetContentSettings":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		enabled, canChange, err := e.GetContentSettings(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]interface{}{
+			"sensitive_enabled":    enabled,
+			"sensitive_can_change": canChange,
+		})
+
+	case "SetContentSettings":
+		var params struct {
+			AccountID        string `json:"account_id"`
+			SensitiveEnabled bool   `json:"sensitive_enabled"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SetContentSettings(params.AccountID, params.SensitiveEnabled)
+
 	case "GetCloudThemes":
 		var params struct {
 			AccountID string `json:"account_id"`

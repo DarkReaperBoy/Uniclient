@@ -34,12 +34,16 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   String _doubleClickAction = 'reply';
   bool _showReplyButton = true;
   bool _showReactionButton = true;
+  bool _sensitiveEnabled = false;
+  bool _sensitiveCanChange = false;
+  bool _sensitiveLoaded = false;
 
   @override
   void initState() {
     super.initState();
     _loadSelfColor();
     _loadCloudThemes();
+    _loadContentSettings();
   }
 
   void _loadSelfColor() {
@@ -52,6 +56,21 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
       setState(() {
         _selfColorId = result.colorId;
         _colorLoaded = true;
+      });
+    });
+  }
+
+  void _loadContentSettings() {
+    final appState = context.read<AppState>();
+    final account = appState.activeAccount;
+    if (account == null) return;
+    final engine = context.read<EngineService>();
+    engine.getContentSettings(account.id).then((result) {
+      if (!mounted) return;
+      setState(() {
+        _sensitiveEnabled = result.sensitiveEnabled;
+        _sensitiveCanChange = result.sensitiveCanChange;
+        _sensitiveLoaded = true;
       });
     });
   }
@@ -283,6 +302,23 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             onShowReplyButtonChanged: (v) => setState(() => _showReplyButton = v),
             onShowReactionButtonChanged: (v) => setState(() => _showReactionButton = v),
           ),
+          if (_sensitiveLoaded && _sensitiveCanChange) ...[
+            const SizedBox(height: 7),
+            Container(height: 1, color: dividerColor),
+            const SizedBox(height: 7),
+            _SensitiveContentSection(
+              isDark: isDark,
+              accentColor: currentAccent,
+              enabled: _sensitiveEnabled,
+              onChanged: (v) {
+                setState(() => _sensitiveEnabled = v);
+                final account = appState.activeAccount;
+                if (account != null) {
+                  context.read<EngineService>().setContentSettings(account.id, v);
+                }
+              },
+            ),
+          ],
           const SizedBox(height: 7),
           Container(height: 1, color: dividerColor),
         ],
@@ -2779,6 +2815,87 @@ class _MessageCheckbox extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── §14.6.8: Sensitive Content ──
+
+class _SensitiveContentSection extends StatelessWidget {
+  final bool isDark;
+  final Color accentColor;
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+
+  const _SensitiveContentSection({
+    required this.isDark,
+    required this.accentColor,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 22, top: 4, bottom: 8),
+          child: Text(
+            'Sensitive content',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: accentColor,
+            ),
+          ),
+        ),
+        InkWell(
+          onTap: () => onChanged(!enabled),
+          child: Padding(
+            padding: const EdgeInsets.only(
+                left: 22, top: 10, right: 22, bottom: 10),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: Checkbox(
+                    value: enabled,
+                    onChanged: (v) => onChanged(v ?? false),
+                    activeColor: accentColor,
+                    side: BorderSide(color: subtextColor, width: 1.5),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Disable filtering',
+                    style: TextStyle(fontSize: 14, color: textColor),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(left: 22, right: 22, bottom: 4),
+          child: Text(
+            'Display sensitive media in public channels on all your Telegram devices.',
+            style: TextStyle(fontSize: 13, color: subtextColor),
+          ),
+        ),
+      ],
     );
   }
 }
