@@ -493,6 +493,10 @@ class _UniClientAppState extends State<UniClientApp>
           };
           final navCtx = _navigatorKey.currentContext;
           if (navCtx != null) {
+            final fpRaw = cmd['fingerprintEmoji'];
+            final fpEmoji = fpRaw is List
+                ? fpRaw.cast<String>().toList()
+                : <String>[];
             showCallPanel(navCtx, CallPanelInfo(
               callerId: cmd['callerId'] as String? ?? 'test_user',
               callerName: cmd['callerName'] as String? ?? 'Test Caller',
@@ -500,6 +504,7 @@ class _UniClientAppState extends State<UniClientApp>
               isVideo: cmd['isVideo'] == true,
               state: callState,
               signalQuality: (cmd['signalQuality'] as num?)?.toInt() ?? -1,
+              fingerprintEmoji: fpEmoji,
             ));
           }
       }

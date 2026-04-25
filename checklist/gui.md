@@ -527,7 +527,6 @@
 
 ### §12.3 Encryption Fingerprint
 <!-- File: dart/lib/ui/call_screen.dart -->
-- [ ] 4 emoji at rest; reveal carousel: 10 emojis cycled per position, 50ms stagger, 100ms per-emoji hop (~1200ms total); indices from SHA-256 over 658-emoji table; tooltip after 1000ms hover; pill container radius = height/2 — spec §12.3
 
 ### §12.4 Video Call / PIP
 <!-- File: dart/lib/ui/call_screen.dart -->

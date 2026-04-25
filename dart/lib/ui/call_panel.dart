@@ -17,6 +17,7 @@ class CallPanelInfo {
   final bool isRemoteLowBattery;
   final bool isFullscreen;
   final int signalQuality;
+  final List<String> fingerprintEmoji;
 
   const CallPanelInfo({
     required this.callerId,
@@ -28,6 +29,7 @@ class CallPanelInfo {
     this.isRemoteLowBattery = false,
     this.isFullscreen = false,
     this.signalQuality = -1,
+    this.fingerprintEmoji = const [],
   });
 }
 
@@ -461,6 +463,10 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
                     fontSize: 15,
                   ),
                 ),
+                if (widget.info.fingerprintEmoji.length == 4) ...[
+                  const SizedBox(width: 8),
+                  _EncryptionFingerprint(emoji: widget.info.fingerprintEmoji),
+                ],
                 if (widget.info.signalQuality >= 0) ...[
                   const SizedBox(width: 8),
                   _SignalBars(quality: widget.info.signalQuality),
@@ -802,6 +808,129 @@ class _RemoteStatusPill extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _EncryptionFingerprint extends StatefulWidget {
+  final List<String> emoji;
+
+  const _EncryptionFingerprint({required this.emoji});
+
+  @override
+  State<_EncryptionFingerprint> createState() => _EncryptionFingerprintState();
+}
+
+class _EncryptionFingerprintState extends State<_EncryptionFingerprint>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late List<List<String>> _carouselSequences;
+
+  static const _kEmojiCount = 4;
+  static const _kCarouselCount = 10;
+  static const _kStartTimeShiftMs = 50;
+  static const _kCarouselOneMs = 100;
+  static const _kTotalMs = 1200;
+
+  static const _kEmojiTable = [
+    '\u{1F600}', '\u{1F603}', '\u{1F604}', '\u{1F601}', '\u{1F606}',
+    '\u{1F605}', '\u{1F923}', '\u{1F602}', '\u{1F642}', '\u{1F609}',
+    '\u{1F60A}', '\u{1F607}', '\u{1F970}', '\u{1F60D}', '\u{1F929}',
+    '\u{1F618}', '\u{1F60B}', '\u{1F61B}', '\u{1F61C}', '\u{1F92A}',
+    '\u{1F61D}', '\u{1F911}', '\u{1F917}', '\u{1F92D}', '\u{1F92B}',
+    '\u{1F914}', '\u{1F610}', '\u{1F60F}', '\u{1F644}', '\u{1F62C}',
+    '\u{1F634}', '\u{1F912}', '\u{1F922}', '\u{1F975}', '\u{1F976}',
+    '\u{1F974}', '\u{1F92F}', '\u{1F920}', '\u{1F973}', '\u{1F60E}',
+    '\u{1F913}', '\u{1F9D0}', '\u{1F615}', '\u{1F61F}', '\u{1F62E}',
+    '\u{1F632}', '\u{1F633}', '\u{1F97A}', '\u{1F628}', '\u{1F622}',
+    '\u{1F62D}', '\u{1F631}', '\u{1F624}', '\u{1F621}', '\u{1F480}',
+    '\u{1F4A9}', '\u{1F921}', '\u{1F47B}', '\u{1F47D}', '\u{1F916}',
+    '\u{1F63A}', '\u{1F638}', '\u{1F648}', '\u{1F649}', '\u{1F64A}',
+    '\u{1F4AF}', '\u{1F525}', '\u{1F4AB}', '\u{2B50}', '\u{1F31F}',
+    '\u{2728}', '\u{26A1}', '\u{1F308}', '\u{2600}', '\u{1F319}',
+    '\u{1F30E}', '\u{1FA90}', '\u{1F435}', '\u{1F436}', '\u{1F431}',
+    '\u{1F981}', '\u{1F42F}', '\u{1F434}', '\u{1F984}', '\u{1F42E}',
+    '\u{1F437}', '\u{1F438}', '\u{1F414}', '\u{1F427}', '\u{1F985}',
+    '\u{1F98B}', '\u{1F422}', '\u{1F40D}', '\u{1F419}', '\u{1F41F}',
+    '\u{1F42C}', '\u{1F433}', '\u{1F988}', '\u{1F40A}', '\u{1F34E}',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _generateCarouselSequences();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: _kTotalMs),
+    )..forward();
+  }
+
+  @override
+  void didUpdateWidget(_EncryptionFingerprint oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.emoji.join() != widget.emoji.join()) {
+      _generateCarouselSequences();
+      _controller.forward(from: 0.0);
+    }
+  }
+
+  void _generateCarouselSequences() {
+    final rng = math.Random(widget.emoji.join().hashCode);
+    _carouselSequences = List.generate(_kEmojiCount, (i) {
+      return List.generate(_kCarouselCount, (_) {
+        return _kEmojiTable[rng.nextInt(_kEmojiTable.length)];
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  String _emojiAt(int pos, double elapsedMs) {
+    final startMs = pos * _kStartTimeShiftMs;
+    final elapsed = elapsedMs - startMs;
+    if (elapsed < 0) return _carouselSequences[pos][0];
+    final idx = (elapsed / _kCarouselOneMs).floor();
+    if (idx >= _kCarouselCount) return widget.emoji[pos];
+    return _carouselSequences[pos][idx.clamp(0, _kCarouselCount - 1)];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'This call is end-to-end encrypted',
+      waitDuration: const Duration(milliseconds: 1000),
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) {
+          final elapsedMs = _controller.value * _kTotalMs;
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: List.generate(_kEmojiCount, (i) {
+                return Padding(
+                  padding: EdgeInsets.only(left: i > 0 ? 4 : 0),
+                  child: Text(
+                    _emojiAt(i, elapsedMs),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      decoration: TextDecoration.none,
+                    ),
+                  ),
+                );
+              }),
+            ),
+          );
+        },
       ),
     );
   }
