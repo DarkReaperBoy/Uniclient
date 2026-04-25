@@ -502,7 +502,6 @@
 
 ### §11.4 Phone Number Screen
 <!-- File: dart/lib/ui/auth_screen.dart -->
-- [ ] Validation: PHONE_NUMBER_INVALID inline error + field shake; PHONE_NUMBER_BANNED modal dialog with support link; flood warning + countdown — spec §11.4
 
 ### §11.5 OTP Code Screen
 <!-- File: dart/lib/ui/auth_screen.dart — currently single TextField -->

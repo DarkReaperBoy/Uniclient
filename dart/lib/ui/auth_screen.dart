@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -28,6 +29,9 @@ class _AuthScreenState extends State<AuthScreen>
   late final AnimationController _shakeController;
   bool _showErrorBorder = false;
   String? _lastError;
+  _PhoneErrorType? _phoneErrorType;
+  Timer? _floodTimer;
+  int _floodSecondsLeft = 0;
 
   final _codeController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -54,6 +58,7 @@ class _AuthScreenState extends State<AuthScreen>
     _codeController.dispose();
     _phoneController.dispose();
     _shakeController.dispose();
+    _floodTimer?.cancel();
     super.dispose();
   }
 
@@ -133,11 +138,22 @@ class _AuthScreenState extends State<AuthScreen>
 
     final err = authState.error;
     if (err != null && err != _lastError) {
+      _phoneErrorType = _classifyPhoneError(err);
+      if (_phoneErrorType == _PhoneErrorType.banned) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _showBannedDialog(context, err);
+        });
+      } else if (_phoneErrorType == _PhoneErrorType.flood) {
+        _startFloodCountdown(err);
+      }
       _showErrorBorder = true;
       _shakeController.forward(from: 0);
     }
     if (err == null && _showErrorBorder) {
       _showErrorBorder = false;
+      _phoneErrorType = null;
+      _floodTimer?.cancel();
+      _floodSecondsLeft = 0;
     }
     _lastError = err;
 
@@ -283,7 +299,7 @@ class _AuthScreenState extends State<AuthScreen>
           ),
         ],
         const SizedBox(height: 24),
-        if (authState.error != null) ...[
+        if (authState.error != null && !_isPhoneScreenError(data)) ...[
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -616,7 +632,120 @@ class _AuthScreenState extends State<AuthScreen>
             ],
           ),
         ),
+        if (_phoneErrorType == _PhoneErrorType.invalid) ...[
+          const SizedBox(height: 8),
+          SizedBox(
+            width: 300,
+            child: Text(
+              'Invalid phone number. Please check and try again.',
+              style: TextStyle(color: theme.colorScheme.error, fontSize: 13),
+            ),
+          ),
+        ],
+        if (_phoneErrorType == _PhoneErrorType.flood) ...[
+          const SizedBox(height: 8),
+          SizedBox(
+            width: 300,
+            child: Row(
+              children: [
+                Icon(Icons.warning_amber_rounded,
+                    color: theme.colorScheme.error, size: 16),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    _floodSecondsLeft > 0
+                        ? 'Too many attempts. Try again in ${_formatFloodTime(_floodSecondsLeft)}.'
+                        : 'Too many attempts. Please try again later.',
+                    style:
+                        TextStyle(color: theme.colorScheme.error, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
+    );
+  }
+
+  _PhoneErrorType? _classifyPhoneError(String error) {
+    final upper = error.toUpperCase();
+    if (upper.contains('PHONE_NUMBER_BANNED')) return _PhoneErrorType.banned;
+    if (upper.contains('PHONE_NUMBER_INVALID')) return _PhoneErrorType.invalid;
+    if (upper.contains('FLOOD_WAIT') || upper.contains('FLOOD_')) {
+      return _PhoneErrorType.flood;
+    }
+    return null;
+  }
+
+  bool _isPhoneScreenError(AuthStateData? data) {
+    if (data == null) return false;
+    if (data.state != 'input' || data.fieldType != 'phone') return false;
+    return _phoneErrorType != null;
+  }
+
+  void _startFloodCountdown(String error) {
+    _floodTimer?.cancel();
+    final match = RegExp(r'FLOOD_WAIT[_\s]*(\d+)', caseSensitive: false)
+        .firstMatch(error);
+    _floodSecondsLeft = match != null ? int.parse(match.group(1)!) : 0;
+    if (_floodSecondsLeft > 0) {
+      _floodTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        setState(() {
+          _floodSecondsLeft--;
+          if (_floodSecondsLeft <= 0) {
+            timer.cancel();
+            _floodTimer = null;
+          }
+        });
+      });
+    }
+  }
+
+  String _formatFloodTime(int seconds) {
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    if (m > 0) return '$m:${s.toString().padLeft(2, '0')}';
+    return '${s}s';
+  }
+
+  void _showBannedDialog(BuildContext context, String error) {
+    final theme = Theme.of(context);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Phone Number Banned'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'This phone number has been banned from Telegram.',
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'If you think this is a mistake, please contact Telegram support:',
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 8),
+            SelectableText(
+              'login@stel.com',
+              style: TextStyle(
+                color: theme.colorScheme.primary,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1156,3 +1285,5 @@ const _countries = <_CountryInfo>[
   _CountryInfo('Zambia', 'ZM', '260'),
   _CountryInfo('Zimbabwe', 'ZW', '263'),
 ];
+
+enum _PhoneErrorType { invalid, banned, flood }
