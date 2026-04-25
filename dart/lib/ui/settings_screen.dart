@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../models/engine_models.dart';
@@ -284,17 +285,24 @@ class SettingsScreen extends StatelessWidget {
   }
 }
 
-/// §14.2: Profile header with avatar, name, phone, username.
-/// Total height: settingsPhotoTop(8) + photo(88) + settingsPhotoBottom(16) = 112px.
-class _ProfileHeader extends StatelessWidget {
+class _ProfileHeader extends StatefulWidget {
   final AccountInfo? account;
   final bool isDark;
 
   const _ProfileHeader({required this.account, required this.isDark});
 
   @override
+  State<_ProfileHeader> createState() => _ProfileHeaderState();
+}
+
+class _ProfileHeaderState extends State<_ProfileHeader> {
+  bool _avatarHovered = false;
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = widget.isDark;
+    final account = widget.account;
     final nameColor = isDark
         ? const Color(0xFFF5F5F5)
         : const Color(0xFF000000);
@@ -304,93 +312,289 @@ class _ProfileHeader extends StatelessWidget {
     final usernameColor = isDark
         ? const Color(0xFF6C7883)
         : const Color(0xFF999999);
+    final accentColor = isDark
+        ? const Color(0xFF5288C1)
+        : const Color(0xFF40A7E3);
 
     final displayName = account?.displayName.isNotEmpty == true
         ? account!.displayName
         : 'Unknown';
     final phone = account?.phone ?? '';
     final username = account?.username ?? '';
+    final hasUsername = username.isNotEmpty;
+    final hasQr = hasUsername;
 
-    return Padding(
-      padding: const EdgeInsets.only(
-        left: 22,
-        top: 8,
-        right: 22,
-        bottom: 16,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // §14.2: Avatar — 88px UserpicButton at (22, 8).
-          CircleAvatar(
-            radius: 44,
-            backgroundColor: theme.colorScheme.primary,
-            backgroundImage: account?.avatarPath.isNotEmpty == true
-                ? FileImage(File(account!.avatarPath))
-                : null,
-            child: account?.avatarPath.isNotEmpty != true
-                ? Text(
-                    displayName.isNotEmpty
-                        ? displayName[0].toUpperCase()
-                        : '?',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 32,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  )
-                : null,
-          ),
-          const SizedBox(width: 22),
-          // §14.2: Name, phone, username stacked.
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 4),
-                // Display name.
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        displayName,
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w600,
-                          color: nameColor,
+    return SizedBox(
+      height: 112,
+      child: Padding(
+        padding: const EdgeInsets.only(left: 22, top: 8, right: 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Avatar — 88px, with hover camera overlay.
+            MouseRegion(
+              onEnter: (_) => setState(() => _avatarHovered = true),
+              onExit: (_) => setState(() => _avatarHovered = false),
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: () => _showAvatarMenu(context),
+                child: SizedBox(
+                  width: 88,
+                  height: 88,
+                  child: Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 44,
+                        backgroundColor: theme.colorScheme.primary,
+                        backgroundImage:
+                            account?.avatarPath.isNotEmpty == true
+                                ? FileImage(File(account!.avatarPath))
+                                : null,
+                        child: account?.avatarPath.isNotEmpty != true
+                            ? Text(
+                                displayName.isNotEmpty
+                                    ? displayName[0].toUpperCase()
+                                    : '?',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              )
+                            : null,
+                      ),
+                      if (_avatarHovered)
+                        Positioned.fill(
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Color(0x66000000),
+                            ),
+                            child: const Icon(
+                              Icons.camera_alt,
+                              color: Colors.white,
+                              size: 32,
+                            ),
+                          ),
                         ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            // Gap between avatar and text column (settingsNameLeft=112 - settingsPhotoLeft=22 - photoSize=88 = 2).
+            const SizedBox(width: 2),
+            // Text column: name, phone/ID, username.
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Name at top:4 (spec settingsNameTop=12 minus settingsPhotoTop=8 = 4).
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          displayName,
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w600,
+                            color: nameColor,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (account?.isPremium == true) ...[
+                        const SizedBox(width: 4),
+                        Icon(Icons.workspace_premium, size: 18, color: accentColor),
+                      ],
+                    ],
+                  ),
+                  // Phone at settingsPhoneTop(37) - settingsNameTop(12) - lineHeight ≈ 5px gap.
+                  if (phone.isNotEmpty) ...[
+                    const SizedBox(height: 5),
+                    GestureDetector(
+                      onSecondaryTapUp: (details) =>
+                          _showCopyMenu(context, details.globalPosition, phone, 'Copy Phone'),
+                      child: Text(
+                        phone,
+                        style: TextStyle(fontSize: 14, color: phoneColor),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    if (account?.isPremium == true) ...[
-                      const SizedBox(width: 4),
-                      Icon(
-                        Icons.workspace_premium,
-                        size: 18,
-                        color: isDark
-                            ? const Color(0xFF5288C1)
-                            : const Color(0xFF40A7E3),
-                      ),
-                    ],
                   ],
+                  // Username at settingsUsernameTop(58) - settingsPhoneTop(37) - lineHeight ≈ 1px gap.
+                  const SizedBox(height: 1),
+                  GestureDetector(
+                    onTap: () => _onUsernameTap(context, username),
+                    child: Text(
+                      hasUsername ? '@$username' : 'Add',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: hasUsername ? usernameColor : accentColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // QR code button — right side, vertically centered in the 88px avatar area.
+            if (hasQr)
+              SizedBox(
+                width: 48,
+                height: 88,
+                child: Center(
+                  child: IconButton(
+                    icon: Icon(Icons.qr_code, size: 24, color: accentColor),
+                    tooltip: 'QR Code',
+                    onPressed: () => _showQrDialog(context, username),
+                  ),
                 ),
-                if (phone.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    phone,
-                    style: TextStyle(fontSize: 14, color: phoneColor),
-                  ),
-                ],
-                if (username.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    '@$username',
-                    style: TextStyle(fontSize: 14, color: usernameColor),
-                  ),
-                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAvatarMenu(BuildContext context) {
+    final isDark = widget.isDark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+
+    final RenderBox box = context.findRenderObject() as RenderBox;
+    final offset = box.localToGlobal(const Offset(22, 96));
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(offset.dx, offset.dy, offset.dx + 200, offset.dy),
+      color: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      items: [
+        PopupMenuItem(
+          value: 'upload',
+          child: Row(
+            children: [
+              Icon(Icons.photo, size: 20, color: subtextColor),
+              const SizedBox(width: 12),
+              Text('Upload Photo', style: TextStyle(color: textColor)),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'emoji',
+          child: Row(
+            children: [
+              Icon(Icons.emoji_emotions, size: 20, color: subtextColor),
+              const SizedBox(width: 12),
+              Text('Choose Emoji', style: TextStyle(color: textColor)),
+            ],
+          ),
+        ),
+        if (widget.account?.avatarPath.isNotEmpty == true)
+          PopupMenuItem(
+            value: 'remove',
+            child: Row(
+              children: [
+                Icon(Icons.delete, size: 20, color: isDark ? const Color(0xFFEC3942) : const Color(0xFFD14E4E)),
+                const SizedBox(width: 12),
+                Text('Remove Photo', style: TextStyle(color: isDark ? const Color(0xFFEC3942) : const Color(0xFFD14E4E))),
               ],
             ),
+          ),
+      ],
+    );
+  }
+
+  void _showCopyMenu(BuildContext context, Offset position, String text, String label) {
+    final isDark = widget.isDark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx, position.dy),
+      color: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      items: [
+        PopupMenuItem(
+          value: 'copy',
+          child: Text(label, style: TextStyle(color: textColor)),
+          onTap: () => Clipboard.setData(ClipboardData(text: text)),
+        ),
+      ],
+    );
+  }
+
+  void _onUsernameTap(BuildContext context, String username) {
+    if (username.isEmpty) return;
+    final link = 'https://t.me/$username';
+    Clipboard.setData(ClipboardData(text: link));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Link copied: $link'),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _showQrDialog(BuildContext context, String username) {
+    final isDark = widget.isDark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bgColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: Text('QR Code', style: TextStyle(color: textColor)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 200,
+              height: 200,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Center(
+                child: Icon(Icons.qr_code_2, size: 160, color: accentColor),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SelectableText(
+              'https://t.me/$username',
+              style: TextStyle(fontSize: 14, color: accentColor),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: 'https://t.me/$username'));
+              Navigator.of(ctx).pop();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Link copied'),
+                  duration: Duration(seconds: 2),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+            child: Text('Copy Link', style: TextStyle(color: accentColor)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('Close', style: TextStyle(color: accentColor)),
           ),
         ],
       ),

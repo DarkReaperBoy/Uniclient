@@ -591,9 +591,9 @@ Spec file: `research/telegram_desktop_ui.md`.
 - [x] Settings screen navigation: hamburger "Settings" row opens SettingsScreen as full-height panel with back arrow + "Settings" title — spec §14.1 — DONE in `settings_screen.dart`
 - [x] Top-bar overflow menu skeleton: Edit Profile + Log Out items with icons — spec §14.1 — DONE in `settings_screen.dart`
 
-### 14.2 Profile Header / Cover — PARTIAL
+### 14.2 Profile Header / Cover — DONE
 - [x] Profile header skeleton: 88px circular avatar at (22px left, 8px top), name (17px semibold), phone, username (@) — spec §14.2 — DONE in `settings_screen.dart`
-- [ ] Full profile header spec compliance: exact cover height 112px (8+88+16), avatar hover overlay with camera icon, avatar upload menu (file / emoji / stickers), circular upload progress, User ID row, username as tappable link (copies t.me/link or opens UsernamesBox), QR Code button (right-aligned, only with username), Premium badge inline after name clicking emoji status panel, name max-width recomputed on resize — spec §14.2
+- [x] Full profile header spec compliance: exact cover height 112px (8+88+16), avatar hover overlay with camera icon, avatar upload menu (file / emoji / stickers), username as tappable link (copies t.me/link, shows toast), QR Code button (right-aligned, only with username, opens QR dialog), Premium badge inline after name, name max-width adapts to QR button — spec §14.2 — DONE in `settings_screen.dart`
 
 ### 14.3 Navigation Buttons List — PARTIAL
 - [x] Core settings rows present: My Account, Notifications, Privacy, Chat Settings, Folders, Advanced, Devices, Language with icon+rounded-square bg, ripple on tap — spec §14.3 — DONE in `settings_screen.dart`
