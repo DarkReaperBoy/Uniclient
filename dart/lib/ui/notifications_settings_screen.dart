@@ -1,9 +1,11 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../models/engine_models.dart';
+import 'popup_menu.dart';
 import 'settings_style.dart';
 
 class NotificationsSettingsScreen extends StatefulWidget {
@@ -369,12 +371,44 @@ class _NotifException {
   });
 }
 
+class _MuteDuration {
+  final String label;
+  final int seconds;
+  const _MuteDuration(this.label, this.seconds);
+}
+
+const _kMutePresets = <_MuteDuration>[
+  _MuteDuration('15 minutes', 900),
+  _MuteDuration('30 minutes', 1800),
+  _MuteDuration('1 hour', 3600),
+  _MuteDuration('2 hours', 7200),
+  _MuteDuration('3 hours', 10800),
+  _MuteDuration('4 hours', 14400),
+  _MuteDuration('8 hours', 28800),
+  _MuteDuration('12 hours', 43200),
+  _MuteDuration('1 day', 86400),
+  _MuteDuration('2 days', 172800),
+  _MuteDuration('3 days', 259200),
+  _MuteDuration('1 week', 604800),
+  _MuteDuration('2 weeks', 1209600),
+  _MuteDuration('1 month', 2592000),
+];
+
+String _compactDuration(int seconds) {
+  if (seconds < 3600) return '${seconds ~/ 60}m';
+  if (seconds < 86400) return '${seconds ~/ 3600}h';
+  if (seconds < 604800) return '${seconds ~/ 86400}d';
+  if (seconds < 2592000) return '${seconds ~/ 604800}w';
+  return '${seconds ~/ 2592000}mo';
+}
+
 class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
   bool _enabled = true;
   bool _soundEnabled = true;
   String _toneName = 'Default';
   int _volume = 100;
   final List<_NotifException> _exceptions = [];
+  final List<int> _recentMuteDurations = [];
 
   @override
   Widget build(BuildContext context) {
@@ -428,6 +462,9 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
             textColor: textColor,
             accentColor: accentColor,
             hoverBg: hoverBg,
+            onSecondaryTap: (pos) {
+              _showMuteMenu(context, pos, isMuted: !_enabled);
+            },
           ),
           AnimatedSize(
             duration: const Duration(milliseconds: 300),
@@ -525,6 +562,9 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
                     );
                   }
                 });
+              },
+              onSecondaryTap: (pos) {
+                _showMuteMenu(context, pos, isMuted: exc.isMuted);
               },
             ),
           if (_exceptions.length > 1)
@@ -812,6 +852,333 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
       }
     });
   }
+
+  void _addRecentDuration(int seconds) {
+    _recentMuteDurations.remove(seconds);
+    _recentMuteDurations.insert(0, seconds);
+    if (_recentMuteDurations.length > 2) {
+      _recentMuteDurations.removeRange(2, _recentMuteDurations.length);
+    }
+  }
+
+  void _showMuteMenu(BuildContext context, Offset position,
+      {bool isMuted = false}) {
+    final greenColor = const Color(0xFF4CAF50);
+
+    final items = <TelegramMenuItem<String>>[
+      const TelegramMenuItem<String>(
+        value: 'select_tone',
+        icon: Icon(Icons.music_note, size: 20),
+        label: 'Select tone',
+      ),
+      TelegramMenuItem<String>(
+        value: 'toggle_sound',
+        icon: Icon(
+            _soundEnabled ? Icons.volume_off : Icons.volume_up,
+            size: 20),
+        label: _soundEnabled ? 'Disable sound' : 'Enable sound',
+      ),
+      if (_recentMuteDurations.isNotEmpty) ...[
+        const TelegramMenuItem<String>.separator(),
+        for (final dur in _recentMuteDurations)
+          TelegramMenuItem<String>(
+            value: 'recent_$dur',
+            icon: const Icon(Icons.access_time, size: 20),
+            label: 'Mute for ${_compactDuration(dur)}',
+          ),
+      ],
+      const TelegramMenuItem<String>.separator(),
+      const TelegramMenuItem<String>(
+        value: 'mute_for',
+        icon: Icon(Icons.timer_outlined, size: 20),
+        label: 'Mute for\u2026',
+      ),
+      const TelegramMenuItem<String>.separator(),
+      if (isMuted)
+        TelegramMenuItem<String>(
+          value: 'unmute',
+          icon: const Icon(Icons.notifications, size: 20),
+          label: 'Unmute',
+          labelColor: greenColor,
+          iconColor: greenColor,
+        )
+      else
+        const TelegramMenuItem<String>(
+          value: 'mute_forever',
+          icon: Icon(Icons.notifications_off, size: 20),
+          label: 'Mute forever',
+          isAttention: true,
+        ),
+    ];
+
+    showTelegramMenu<String>(
+      context: context,
+      position: position,
+      items: items,
+    ).then((value) {
+      if (value == null) return;
+      if (value == 'select_tone') {
+        _showRingtonesBox(context);
+      } else if (value == 'toggle_sound') {
+        setState(() => _soundEnabled = !_soundEnabled);
+      } else if (value.startsWith('recent_')) {
+        final seconds = int.tryParse(value.substring(7));
+        if (seconds != null) {
+          _addRecentDuration(seconds);
+          setState(() => _enabled = false);
+        }
+      } else if (value == 'mute_for') {
+        _showMuteDurationPicker(context);
+      } else if (value == 'mute_forever') {
+        setState(() => _enabled = false);
+      } else if (value == 'unmute') {
+        setState(() => _enabled = true);
+      }
+    });
+  }
+
+  void _showMuteDurationPicker(BuildContext context) {
+    showDialog<int>(
+      context: context,
+      builder: (ctx) => _MuteDurationPickerDialog(
+        isDark: Theme.of(context).brightness == Brightness.dark,
+      ),
+    ).then((seconds) {
+      if (seconds != null) {
+        _addRecentDuration(seconds);
+        setState(() => _enabled = false);
+      }
+    });
+  }
+}
+
+class _MuteDurationPickerDialog extends StatefulWidget {
+  final bool isDark;
+
+  const _MuteDurationPickerDialog({required this.isDark});
+
+  @override
+  State<_MuteDurationPickerDialog> createState() =>
+      _MuteDurationPickerDialogState();
+}
+
+class _MuteDurationPickerDialogState
+    extends State<_MuteDurationPickerDialog> {
+  late final FixedExtentScrollController _scrollController;
+  int _selectedIndex = 2;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController =
+        FixedExtentScrollController(initialItem: _selectedIndex);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor =
+        widget.isDark ? const Color(0xFF1B2836) : const Color(0xFFFFFFFF);
+    final textColor =
+        widget.isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor =
+        widget.isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final highlightColor =
+        widget.isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    return AlertDialog(
+      backgroundColor: bgColor,
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Mute for\u2026',
+              style: TextStyle(
+                  color: textColor,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 17),
+            ),
+          ),
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert, color: subtextColor, size: 20),
+            color: bgColor,
+            onSelected: (value) {
+              if (value == 'custom') {
+                Navigator.of(context).pop();
+                _showCustomDurationInput(context);
+              }
+            },
+            itemBuilder: (ctx) => [
+              PopupMenuItem<String>(
+                value: 'custom',
+                child: Text('Custom',
+                    style: TextStyle(color: textColor, fontSize: 14)),
+              ),
+            ],
+          ),
+        ],
+      ),
+      contentPadding: const EdgeInsets.fromLTRB(0, 8, 0, 0),
+      content: SizedBox(
+        width: 300,
+        height: 200,
+        child: Stack(
+          children: [
+            Center(
+              child: Container(
+                height: 40,
+                margin: const EdgeInsets.symmetric(horizontal: 24),
+                decoration: BoxDecoration(
+                  color: highlightColor,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+            ListWheelScrollView.useDelegate(
+              controller: _scrollController,
+              itemExtent: 40,
+              perspective: 0.005,
+              diameterRatio: 1.5,
+              physics: const FixedExtentScrollPhysics(),
+              onSelectedItemChanged: (index) {
+                setState(() => _selectedIndex = index);
+              },
+              childDelegate: ListWheelChildBuilderDelegate(
+                childCount: _kMutePresets.length,
+                builder: (context, index) {
+                  final isSelected = index == _selectedIndex;
+                  return Center(
+                    child: Text(
+                      _kMutePresets[index].label,
+                      style: TextStyle(
+                        fontSize: isSelected ? 17 : 15,
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                        color: isSelected ? accentColor : subtextColor,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text('Cancel', style: TextStyle(color: accentColor)),
+        ),
+        TextButton(
+          onPressed: () {
+            Navigator.of(context)
+                .pop(_kMutePresets[_selectedIndex].seconds);
+          },
+          child: Text('Mute', style: TextStyle(color: accentColor)),
+        ),
+      ],
+    );
+  }
+
+  void _showCustomDurationInput(BuildContext parentContext) {
+    final bgColor =
+        widget.isDark ? const Color(0xFF1B2836) : const Color(0xFFFFFFFF);
+    final textColor =
+        widget.isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor =
+        widget.isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+
+    final hoursCtrl = TextEditingController(text: '0');
+    final minutesCtrl = TextEditingController(text: '30');
+
+    showDialog<int>(
+      context: parentContext,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: bgColor,
+          title: Text('Custom duration',
+              style: TextStyle(
+                  color: textColor,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 17)),
+          content: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: hoursCtrl,
+                  keyboardType: TextInputType.number,
+                  style: TextStyle(color: textColor, fontSize: 16),
+                  decoration: InputDecoration(
+                    labelText: 'Hours',
+                    labelStyle: TextStyle(color: subtextColor),
+                    enabledBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(
+                            color:
+                                subtextColor.withValues(alpha: 0.3))),
+                    focusedBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: accentColor)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: TextField(
+                  controller: minutesCtrl,
+                  keyboardType: TextInputType.number,
+                  style: TextStyle(color: textColor, fontSize: 16),
+                  decoration: InputDecoration(
+                    labelText: 'Minutes',
+                    labelStyle: TextStyle(color: subtextColor),
+                    enabledBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(
+                            color:
+                                subtextColor.withValues(alpha: 0.3))),
+                    focusedBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: accentColor)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child:
+                  Text('Cancel', style: TextStyle(color: accentColor)),
+            ),
+            TextButton(
+              onPressed: () {
+                final h = int.tryParse(hoursCtrl.text) ?? 0;
+                final m = int.tryParse(minutesCtrl.text) ?? 0;
+                final total = h * 3600 + m * 60;
+                if (total > 0) Navigator.of(ctx).pop(total);
+              },
+              child: Text('Mute', style: TextStyle(color: accentColor)),
+            ),
+          ],
+        );
+      },
+    ).then((seconds) {
+      if (seconds != null) {
+        final pageState = parentContext
+            .findAncestorStateOfType<_NotificationTypeSubPageState>();
+        if (pageState != null && pageState.mounted) {
+          pageState._addRecentDuration(seconds);
+          pageState.setState(() => pageState._enabled = false);
+        }
+      }
+    });
+  }
 }
 
 class _ToneRow extends StatelessWidget {
@@ -1000,6 +1367,7 @@ class _NotifIconToggleRow extends StatelessWidget {
   final Color textColor;
   final Color accentColor;
   final Color hoverBg;
+  final void Function(Offset globalPosition)? onSecondaryTap;
 
   const _NotifIconToggleRow({
     required this.icon,
@@ -1010,33 +1378,42 @@ class _NotifIconToggleRow extends StatelessWidget {
     required this.textColor,
     required this.accentColor,
     required this.hoverBg,
+    this.onSecondaryTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () => onChanged(!value),
-      hoverColor: hoverBg,
-      splashColor: hoverBg.withValues(alpha: 0.5),
-      child: Padding(
-        padding: SettingsStyle.iconRowPadding,
-        child: Row(
-          children: [
-            Icon(icon, size: 24, color: iconColor),
-            const SizedBox(width: SettingsStyle.iconGap),
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                    fontSize: SettingsStyle.buttonFontSize, color: textColor),
+    return Listener(
+      onPointerDown: (event) {
+        if (event.buttons == kSecondaryMouseButton && onSecondaryTap != null) {
+          onSecondaryTap!(event.position);
+        }
+      },
+      child: InkWell(
+        onTap: () => onChanged(!value),
+        hoverColor: hoverBg,
+        splashColor: hoverBg.withValues(alpha: 0.5),
+        child: Padding(
+          padding: SettingsStyle.iconRowPadding,
+          child: Row(
+            children: [
+              Icon(icon, size: 24, color: iconColor),
+              const SizedBox(width: SettingsStyle.iconGap),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                      fontSize: SettingsStyle.buttonFontSize,
+                      color: textColor),
+                ),
               ),
-            ),
-            Switch(
-              value: value,
-              onChanged: onChanged,
-              activeColor: accentColor,
-            ),
-          ],
+              Switch(
+                value: value,
+                onChanged: onChanged,
+                activeColor: accentColor,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1397,6 +1774,7 @@ class _ExceptionRow extends StatelessWidget {
   final bool isDark;
   final VoidCallback onRemove;
   final VoidCallback onToggleMute;
+  final void Function(Offset globalPosition)? onSecondaryTap;
 
   const _ExceptionRow({
     required this.exception,
@@ -1407,6 +1785,7 @@ class _ExceptionRow extends StatelessWidget {
     required this.isDark,
     required this.onRemove,
     required this.onToggleMute,
+    this.onSecondaryTap,
   });
 
   @override
@@ -1417,7 +1796,13 @@ class _ExceptionRow extends StatelessWidget {
     final removeColor =
         isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
 
-    return InkWell(
+    return Listener(
+      onPointerDown: (event) {
+        if (event.buttons == kSecondaryMouseButton && onSecondaryTap != null) {
+          onSecondaryTap!(event.position);
+        }
+      },
+      child: InkWell(
       hoverColor: hoverBg,
       splashColor: hoverBg.withValues(alpha: 0.5),
       onTap: onToggleMute,
@@ -1469,6 +1854,7 @@ class _ExceptionRow extends StatelessWidget {
           ],
         ),
       ),
+    ),
     );
   }
 }

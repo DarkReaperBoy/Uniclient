@@ -628,7 +628,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 15.4 Per-Type Notification Rows
 
 ### 15.5 Per-Type Sub-Page
-- [ ] Mute Menu: PopupMenu with popupMenuWithIcons style — Select tone, Disable/Enable sound, recent mute durations, Mute for…, Mute forever/Unmute with red/green animation, drum-picker duration wheel (15min–1mo, Custom option) — spec §15.5.3
 
 ### 15.6 Ringtones Box
 - [ ] GenericBox 364px "Notification Sound": "Default" + "No sound" radios, custom tones list (play on select, right-click Delete), "Upload Sound" button (mp3, max 100KB/5s/100 tones), in-box volume slider (hidden for No sound), footer text, Save + Cancel buttons — spec §15.6 & §15.6.1
