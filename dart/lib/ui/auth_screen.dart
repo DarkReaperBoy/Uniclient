@@ -22,6 +22,7 @@ class AuthScreen extends StatefulWidget {
 class _AuthScreenState extends State<AuthScreen>
     with TickerProviderStateMixin {
   final _inputController = TextEditingController();
+  final _passwordController = TextEditingController();
   String _prevStep = '';
   bool _isForward = true;
   bool _isCover = false;
@@ -32,6 +33,9 @@ class _AuthScreenState extends State<AuthScreen>
   _PhoneErrorType? _phoneErrorType;
   Timer? _floodTimer;
   int _floodSecondsLeft = 0;
+  bool _isRecoveryMode = false;
+  bool _showResetButton = false;
+  final _recoveryCodeController = TextEditingController();
 
   final _codeController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -55,6 +59,8 @@ class _AuthScreenState extends State<AuthScreen>
   @override
   void dispose() {
     _inputController.dispose();
+    _passwordController.dispose();
+    _recoveryCodeController.dispose();
     _codeController.dispose();
     _phoneController.dispose();
     _shakeController.dispose();
@@ -84,6 +90,20 @@ class _AuthScreenState extends State<AuthScreen>
       authState.submitInput('+$code$phone');
       return;
     }
+    if (data?.state == '2fa') {
+      if (_isRecoveryMode) {
+        final code = _recoveryCodeController.text.trim();
+        if (code.isEmpty) return;
+        setState(() => _showErrorBorder = false);
+        authState.submitInput(code);
+        return;
+      }
+      final pwd = _passwordController.text;
+      if (pwd.isEmpty) return;
+      setState(() => _showErrorBorder = false);
+      authState.submitInput(pwd);
+      return;
+    }
     final text = _inputController.text.trim();
     if (text.isEmpty) return;
     setState(() => _showErrorBorder = false);
@@ -110,14 +130,14 @@ class _AuthScreenState extends State<AuthScreen>
   String _nextButtonText(AuthStateData? data) {
     if (data == null) return 'Next';
     return switch (data.state) {
-      '2fa' => 'Submit',
+      '2fa' => 'Next',
       _ => 'Next',
     };
   }
 
   bool _showResetAccount(AuthStateData? data) {
     if (data == null) return false;
-    return data.state == '2fa' && !data.hasRecovery;
+    return data.state == '2fa' && _showResetButton;
   }
 
   @override
@@ -130,6 +150,12 @@ class _AuthScreenState extends State<AuthScreen>
     if (currentStep != _prevStep && _prevStep.isNotEmpty && currentStep.isNotEmpty) {
       _isForward = _stepOrder(currentStep) >= _stepOrder(_prevStep);
       _isCover = _hasCover(_prevStep) && _hasCover(currentStep);
+      if (_prevStep == '2fa' && currentStep != '2fa') {
+        _isRecoveryMode = false;
+        _showResetButton = false;
+        _passwordController.clear();
+        _recoveryCodeController.clear();
+      }
     }
     if (currentStep.isNotEmpty) {
       _prevStep = currentStep;
@@ -147,6 +173,12 @@ class _AuthScreenState extends State<AuthScreen>
       }
       _showErrorBorder = true;
       _shakeController.forward(from: 0);
+      if (currentStep == '2fa' && !_isRecoveryMode) {
+        _passwordController.selection = TextSelection(
+          baseOffset: 0,
+          extentOffset: _passwordController.text.length,
+        );
+      }
     }
     if (err == null && _showErrorBorder) {
       _showErrorBorder = false;
@@ -254,7 +286,7 @@ class _AuthScreenState extends State<AuthScreen>
       'choose' => 'Choose Login Method',
       'input' => data.fieldType == 'phone' ? 'Enter Phone Number' : 'Enter ${data.fieldType}',
       'otp' => 'Enter Verification Code',
-      '2fa' => 'Two-Factor Authentication',
+      '2fa' => 'Enter Your Password',
       'qr' => 'Scan QR Code',
       'ready' => 'Authenticated!',
       'error' => 'Authentication Error',
@@ -265,6 +297,9 @@ class _AuthScreenState extends State<AuthScreen>
   Widget _buildStepContent(
       AuthStateData? data, AuthState authState, ThemeData theme) {
     final state = data?.state ?? '';
+    if (state == '2fa') {
+      return _build2FA(data!, authState, theme);
+    }
     return Column(
       key: ValueKey(state),
       mainAxisSize: MainAxisSize.min,
@@ -289,7 +324,7 @@ class _AuthScreenState extends State<AuthScreen>
             ),
             textAlign: TextAlign.center,
           ),
-        if (data?.hint.isNotEmpty == true) ...[
+        if (data?.hint.isNotEmpty == true && data?.state != '2fa') ...[
           const SizedBox(height: 4),
           Text(
             'Hint: ${data!.hint}',
@@ -316,10 +351,213 @@ class _AuthScreenState extends State<AuthScreen>
           ..._buildChoices(data.options, authState, theme),
         if (data?.state == 'qr')
           _buildQR(data, authState, theme),
-        if (data?.state == 'input' || data?.state == 'otp' || data?.state == '2fa')
+        if (data?.state == 'input' || data?.state == 'otp')
           _buildInput(data!, authState, theme),
       ],
     );
+  }
+
+  Widget _build2FA(AuthStateData data, AuthState authState, ThemeData theme) {
+    return Column(
+      key: ValueKey(_isRecoveryMode ? '2fa_recovery' : '2fa'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.lock_outlined,
+          size: 48,
+          color: theme.colorScheme.primary,
+        ),
+        const SizedBox(height: 16),
+        Text(
+          _title(data),
+          style: theme.textTheme.headlineMedium,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: 300,
+          child: Text(
+            _isRecoveryMode
+                ? 'Recovery code sent to ${data.sentTo.isNotEmpty ? data.sentTo : 'your email'}.'
+                : 'You have Two-Step Verification enabled, so your account is protected with an additional password.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.textTheme.bodySmall?.color,
+              height: 1.4,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+        const SizedBox(height: 74),
+        if (authState.error != null && !_isRecoveryMode) ...[
+          SizedBox(
+            width: 300,
+            child: Text(
+              authState.error!,
+              style: TextStyle(color: theme.colorScheme.error, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+        AnimatedBuilder(
+          animation: _shakeController,
+          builder: (context, child) {
+            final dx = _shakeController.isAnimating
+                ? sin(_shakeController.value * pi * 4) *
+                    6 *
+                    (1 - _shakeController.value)
+                : 0.0;
+            return Transform.translate(
+              offset: Offset(dx, 0),
+              child: child,
+            );
+          },
+          child: _isRecoveryMode
+              ? SizedBox(
+                  width: 300,
+                  child: TextField(
+                    controller: _recoveryCodeController,
+                    keyboardType: TextInputType.number,
+                    autofocus: true,
+                    onSubmitted: (_) => _submit(authState),
+                    decoration: InputDecoration(
+                      labelText: 'Recovery Code',
+                      counterText: '',
+                      enabledBorder: _showErrorBorder
+                          ? OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: theme.colorScheme.error,
+                                width: 2,
+                              ),
+                            )
+                          : null,
+                      focusedBorder: _showErrorBorder
+                          ? OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: theme.colorScheme.error,
+                                width: 2,
+                              ),
+                            )
+                          : null,
+                    ),
+                  ),
+                )
+              : SizedBox(
+                  width: 300,
+                  child: TextField(
+                    controller: _passwordController,
+                    obscureText: true,
+                    autofocus: true,
+                    onSubmitted: (_) => _submit(authState),
+                    decoration: InputDecoration(
+                      labelText: 'Password',
+                      counterText: '',
+                      enabledBorder: _showErrorBorder
+                          ? OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: theme.colorScheme.error,
+                                width: 2,
+                              ),
+                            )
+                          : null,
+                      focusedBorder: _showErrorBorder
+                          ? OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: theme.colorScheme.error,
+                                width: 2,
+                              ),
+                            )
+                          : null,
+                    ),
+                  ),
+                ),
+        ),
+        if (!_isRecoveryMode && data.hint.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          SizedBox(
+            width: 300,
+            child: Text(
+              'Hint: ${data.hint}',
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
+        ],
+        if (authState.error != null && _isRecoveryMode) ...[
+          const SizedBox(height: 8),
+          SizedBox(
+            width: 300,
+            child: Text(
+              authState.error!,
+              style: TextStyle(color: theme.colorScheme.error, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
+        const SizedBox(height: 24),
+        if (!_isRecoveryMode)
+          TextButton(
+            onPressed: () => _handleForgotPassword(data, authState),
+            child: Text(
+              'Forgot password?',
+              style: TextStyle(
+                fontSize: 14,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+          )
+        else
+          TextButton(
+            onPressed: () {
+              setState(() {
+                _isRecoveryMode = false;
+                _showErrorBorder = false;
+                _recoveryCodeController.clear();
+              });
+            },
+            child: Text(
+              'Try password',
+              style: TextStyle(
+                fontSize: 14,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  void _handleForgotPassword(AuthStateData data, AuthState authState) {
+    if (data.hasRecovery) {
+      setState(() {
+        _isRecoveryMode = true;
+        _showErrorBorder = false;
+      });
+    } else {
+      _showNoRecoveryDialog(context);
+    }
+  }
+
+  void _showNoRecoveryDialog(BuildContext context) {
+    final theme = Theme.of(context);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Forgot Password'),
+        content: Text(
+          'Since you haven\'t provided a recovery email when setting up your password, '
+          'your remaining options are either to remember your password or to reset your account.',
+          style: theme.textTheme.bodyMedium,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    ).then((_) {
+      setState(() => _showResetButton = true);
+    });
   }
 
   List<Widget> _buildChoices(
@@ -478,7 +716,6 @@ class _AuthScreenState extends State<AuthScreen>
   }
 
   Widget _buildInput(AuthStateData data, AuthState authState, ThemeData theme) {
-    final isPassword = data.state == '2fa';
     final isOtp = data.state == 'otp';
     final isPhone = data.state == 'input' && data.fieldType == 'phone';
 
@@ -519,7 +756,6 @@ class _AuthScreenState extends State<AuthScreen>
                     width: 300,
                     child: TextField(
                       controller: _inputController,
-                      obscureText: isPassword,
                       keyboardType: TextInputType.text,
                       autofocus: true,
                       onSubmitted: (_) => _submit(authState),

@@ -507,9 +507,7 @@
 <!-- File: dart/lib/ui/auth_screen.dart — _OtpCodeInput widget -->
 
 ### §11.6 2FA Password Screen
-<!-- File: dart/lib/ui/auth_screen.dart — currently basic TextField -->
-- [ ] 2FA screen: PasswordInput 300px wide, offset 74px; hint label "Hint: {hint}"; SRP hash client-side; error shake + red border + selectAll; "Forgot password?" link swaps to recovery-code mode — spec §11.6
-- [ ] No recovery email path: info box with "Reset account" button (7-day timer) — spec §11.6
+<!-- File: dart/lib/ui/auth_screen.dart -->
 
 ### §11.7 Registration Screen
 <!-- File: dart/lib/ui/auth_screen.dart — not yet implemented -->
