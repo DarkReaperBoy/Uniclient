@@ -15,6 +15,8 @@ class AdvancedSettingsScreen extends StatefulWidget {
 }
 
 class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
+  bool _askDownloadPath = false;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -89,7 +91,68 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
   List<Widget> _buildSoftwareUpdateTop(bool isDark) => const [];
 
   // §14.7.1: Connection Type, Download Path, Local Storage, Downloads, Ask path toggle.
-  List<Widget> _buildDataAndStorage(bool isDark) => const [];
+  List<Widget> _buildDataAndStorage(bool isDark) {
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final iconColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final hoverBg =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    return [
+      _AdvancedIconButtonRow(
+        icon: Icons.settings_ethernet,
+        label: 'Connection type',
+        rightLabel: 'Using TCP',
+        textColor: textColor,
+        subtextColor: subtextColor,
+        iconColor: iconColor,
+        hoverBg: hoverBg,
+        onTap: () {},
+      ),
+      if (!_askDownloadPath)
+        _AdvancedIconButtonRow(
+          icon: Icons.folder_open,
+          label: 'Download path',
+          rightLabel: 'Default folder',
+          textColor: textColor,
+          subtextColor: subtextColor,
+          iconColor: iconColor,
+          hoverBg: hoverBg,
+          onTap: () {},
+        ),
+      _AdvancedIconButtonRow(
+        icon: Icons.storage,
+        label: 'Manage local storage',
+        textColor: textColor,
+        subtextColor: subtextColor,
+        iconColor: iconColor,
+        hoverBg: hoverBg,
+        onTap: () {},
+      ),
+      _AdvancedIconButtonRow(
+        icon: Icons.download,
+        label: 'Recent Downloads',
+        textColor: textColor,
+        subtextColor: subtextColor,
+        iconColor: iconColor,
+        hoverBg: hoverBg,
+        onTap: () {},
+      ),
+      _AdvancedToggleRow(
+        label: 'Ask download path for each file',
+        value: _askDownloadPath,
+        onChanged: (v) => setState(() => _askDownloadPath = v),
+        textColor: textColor,
+        accentColor: accentColor,
+        hoverBg: hoverBg,
+      ),
+    ];
+  }
 
   // §14.7.2: Private/Groups/Channels auto-download buttons.
   List<Widget> _buildAutoMediaDownload(bool isDark) => const [];
@@ -139,6 +202,60 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
 
   // §14.7.11: Export Telegram Data, Experimental Settings.
   List<Widget> _buildExportData(bool isDark) => const [];
+}
+
+/// settingsButton style row: 24px icon at 20px left, label at 60px, optional right-label.
+class _AdvancedIconButtonRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String? rightLabel;
+  final Color textColor;
+  final Color subtextColor;
+  final Color iconColor;
+  final Color hoverBg;
+  final VoidCallback onTap;
+
+  const _AdvancedIconButtonRow({
+    required this.icon,
+    required this.label,
+    required this.textColor,
+    required this.subtextColor,
+    required this.iconColor,
+    required this.hoverBg,
+    required this.onTap,
+    this.rightLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      hoverColor: hoverBg,
+      splashColor: hoverBg.withValues(alpha: 0.5),
+      child: Padding(
+        padding: const EdgeInsets.only(left: 20, top: 10, right: 22, bottom: 10),
+        child: Row(
+          children: [
+            Icon(icon, size: 24, color: iconColor),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(fontSize: 14, color: textColor),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (rightLabel != null)
+              Text(
+                rightLabel!,
+                style: TextStyle(fontSize: 14, color: subtextColor),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _AdvancedToggleRow extends StatelessWidget {

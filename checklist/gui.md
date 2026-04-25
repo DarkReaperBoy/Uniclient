@@ -608,7 +608,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 14.6 Chat Settings Sub-Page
 
 ### 14.7 Advanced Sub-Page
-- [ ] Data and Storage: Connection Type button (with proxy right-label), Download Path button, Local Storage button, Downloads button, "Ask download path" toggle — spec §14.7.1
 - [ ] Auto Media Download: three buttons (Private/Groups/Channels) each opening AutoDownloadBox — spec §14.7.2
 - [ ] Window Title: "Show chat name" / "Show account name" (SlideWrap multi-account) / "Show unread count" checkboxes, native frame toggle (platform-gated) — spec §14.7.3
 - [ ] Window Close Behavior (Linux only): three radio options (Run in Background / Close to Taskbar / Quit) — spec §14.7.4
