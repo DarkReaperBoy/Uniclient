@@ -83,6 +83,8 @@ class _AuthScreenState extends State<AuthScreen>
     _ => -1,
   };
 
+  static const _kCoverHeight = 208.0;
+
   static bool _hasCover(String s) => s == 'qr' || s == 'input';
 
   void _submit(AuthState authState) {
@@ -201,50 +203,66 @@ class _AuthScreenState extends State<AuthScreen>
     }
     _lastError = err;
 
+    final showCover = _hasCover(currentStep);
+
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
-      body: Center(
-        child: SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 380),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                transitionBuilder: (child, animation) {
-                  final isIncoming = child.key == ValueKey(currentStep);
-                  final curve = _isCover ? Curves.easeOutCirc : Curves.linear;
-                  final curved = CurvedAnimation(parent: animation, curve: curve);
-                  final slideBegin = isIncoming
-                      ? Offset(_isForward ? 0.5 : -0.5, 0.0)
-                      : Offset(_isForward ? -0.5 : 0.5, 0.0);
-                  return ClipRect(
-                    child: SlideTransition(
-                      position: Tween<Offset>(
-                        begin: slideBegin,
-                        end: Offset.zero,
-                      ).animate(curved),
-                      child: FadeTransition(
-                        opacity: curved,
-                        child: child,
-                      ),
+      body: Column(
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutCirc,
+            height: showCover ? _kCoverHeight : 0,
+            child: showCover
+                ? _CoverGradient(isDark: theme.brightness == Brightness.dark)
+                : const SizedBox.shrink(),
+          ),
+          Expanded(
+            child: Center(
+              child: SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 380),
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      transitionBuilder: (child, animation) {
+                        final isIncoming = child.key == ValueKey(currentStep);
+                        final curve = _isCover ? Curves.easeOutCirc : Curves.linear;
+                        final curved = CurvedAnimation(parent: animation, curve: curve);
+                        final slideBegin = isIncoming
+                            ? Offset(_isForward ? 0.5 : -0.5, 0.0)
+                            : Offset(_isForward ? -0.5 : 0.5, 0.0);
+                        return ClipRect(
+                          child: SlideTransition(
+                            position: Tween<Offset>(
+                              begin: slideBegin,
+                              end: Offset.zero,
+                            ).animate(curved),
+                            child: FadeTransition(
+                              opacity: curved,
+                              child: child,
+                            ),
+                          ),
+                        );
+                      },
+                      layoutBuilder: (currentChild, previousChildren) {
+                        return Stack(
+                          alignment: Alignment.topCenter,
+                          children: [
+                            ...previousChildren,
+                            if (currentChild != null) currentChild,
+                          ],
+                        );
+                      },
+                      child: _buildStepContent(data, authState, theme),
                     ),
-                  );
-                },
-                layoutBuilder: (currentChild, previousChildren) {
-                  return Stack(
-                    alignment: Alignment.topCenter,
-                    children: [
-                      ...previousChildren,
-                      if (currentChild != null) currentChild,
-                    ],
-                  );
-                },
-                child: _buildStepContent(data, authState, theme),
+                  ),
+                ),
               ),
             ),
           ),
-        ),
+        ],
       ),
       bottomNavigationBar: _AuthBottomBar(
         showNext: _showNext(data),
@@ -317,16 +335,19 @@ class _AuthScreenState extends State<AuthScreen>
     if (state == 'signup') {
       return _buildSignUp(data!, authState, theme);
     }
+    final hasCover = _hasCover(state);
     return Column(
       key: ValueKey(state),
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(
-          Icons.lock_outlined,
-          size: 48,
-          color: theme.colorScheme.primary,
-        ),
-        const SizedBox(height: 16),
+        if (!hasCover) ...[
+          Icon(
+            Icons.lock_outlined,
+            size: 48,
+            color: theme.colorScheme.primary,
+          ),
+          const SizedBox(height: 16),
+        ],
         Text(
           _title(data),
           style: theme.textTheme.headlineMedium,
@@ -1114,6 +1135,51 @@ class _AuthScreenState extends State<AuthScreen>
           });
           Navigator.of(ctx).pop();
         },
+      ),
+    );
+  }
+}
+
+class _CoverGradient extends StatelessWidget {
+  final bool isDark;
+  const _CoverGradient({required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    final topColor = isDark ? const Color(0xFF1B3A4B) : const Color(0xFF0088CC);
+    final bottomColor = isDark ? const Color(0xFF0D2637) : const Color(0xFF0066AA);
+    const iconSize = 80.0;
+
+    return ClipRect(
+      child: Container(
+        width: double.infinity,
+        height: _AuthScreenState._kCoverHeight,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [topColor, bottomColor],
+          ),
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              top: 46,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Transform.translate(
+                  offset: const Offset(-50, 0),
+                  child: Icon(
+                    Icons.send_rounded,
+                    size: iconSize,
+                    color: Colors.white.withValues(alpha: 0.9),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

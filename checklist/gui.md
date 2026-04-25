@@ -514,8 +514,6 @@
 
 ### §11.8 Inter-Screen Animations
 <!-- File: dart/lib/ui/auth_screen.dart -->
-- [ ] Cover gradient area: 208px height (introCoverHeight), vertical linear blue sweep; logo centered at (center - 50px, 46px top) — spec §11.8
-- [ ] Slide easing: easeOutCirc for cover transitions (QR/phone), linear otherwise; 200ms crossfade; horizontal translate with clipping — spec §11.8
 
 ---
 
