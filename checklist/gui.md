@@ -630,7 +630,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 15.5 Per-Type Sub-Page
 
 ### 15.6 Ringtones Box
-- [ ] GenericBox 364px "Notification Sound": "Default" + "No sound" radios, custom tones list (play on select, right-click Delete), "Upload Sound" button (mp3, max 100KB/5s/100 tones), in-box volume slider (hidden for No sound), footer text, Save + Cancel buttons — spec §15.6 & §15.6.1
 
 ### 15.7 Reactions Sub-Page
 - [ ] "Notifications for reactions" sub-page: two split-toggle rows (Reactions to my messages / Votes in my polls), left click (when enabled) opens Everyone/My Contacts radio dialog, "Show sender's name" toggle — spec §15.7

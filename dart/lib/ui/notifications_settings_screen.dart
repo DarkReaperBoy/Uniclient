@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
@@ -402,11 +403,20 @@ String _compactDuration(int seconds) {
   return '${seconds ~/ 2592000}mo';
 }
 
+class _CustomTone {
+  final int id;
+  final String name;
+  const _CustomTone({required this.id, required this.name});
+}
+
 class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
   bool _enabled = true;
   bool _soundEnabled = true;
   String _toneName = 'Default';
+  int _selectedToneId = -1; // -1 = Default, -2 = No sound, >0 = custom
   int _volume = 100;
+  final List<_CustomTone> _customTones = [];
+  int _nextToneId = 1;
   final List<_NotifException> _exceptions = [];
   final List<int> _recentMuteDurations = [];
 
@@ -769,87 +779,36 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
   }
 
   void _showRingtonesBox(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF1B2836) : const Color(0xFFFFFFFF);
-    final textColor =
-        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subtextColor =
-        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
-
-    final tones = ['Default', 'No sound'];
-    var selectedTone = _toneName;
-
-    showDialog<String>(
+    showDialog<_RingtonesResult>(
       context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setDialogState) {
-            return AlertDialog(
-              backgroundColor: bgColor,
-              title: Text('Notification Sound',
-                  style: TextStyle(
-                      color: textColor, fontWeight: FontWeight.w600)),
-              contentPadding: const EdgeInsets.fromLTRB(0, 16, 0, 0),
-              content: SizedBox(
-                width: 364,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (final tone in tones)
-                      InkWell(
-                        onTap: () =>
-                            setDialogState(() => selectedTone = tone),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 24, vertical: 10),
-                          child: Row(
-                            children: [
-                              Radio<String>(
-                                value: tone,
-                                groupValue: selectedTone,
-                                onChanged: (v) => setDialogState(
-                                    () => selectedTone = v ?? selectedTone),
-                                activeColor: accentColor,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(tone,
-                                  style: TextStyle(
-                                      fontSize: 14, color: textColor)),
-                            ],
-                          ),
-                        ),
-                      ),
-                    Padding(
-                      padding:
-                          const EdgeInsets.fromLTRB(24, 12, 24, 8),
-                      child: Text(
-                        'Right click on any short voice note or MP3 file in chat and select "Save for Notifications".',
-                        style: TextStyle(fontSize: 13, color: subtextColor),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  child: Text('Cancel', style: TextStyle(color: accentColor)),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(selectedTone),
-                  child: Text('Save', style: TextStyle(color: accentColor)),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (ctx) => _RingtonesBoxDialog(
+        selectedToneId: _selectedToneId,
+        customTones: List.of(_customTones),
+        volume: _volume,
+        isDark: Theme.of(context).brightness == Brightness.dark,
+      ),
     ).then((result) {
-      if (result != null) {
-        setState(() => _toneName = result);
-      }
+      if (result == null) return;
+      setState(() {
+        _selectedToneId = result.selectedToneId;
+        _volume = result.volume;
+        _customTones
+          ..clear()
+          ..addAll(result.customTones);
+        if (result.selectedToneId == -1) {
+          _toneName = 'Default';
+        } else if (result.selectedToneId == -2) {
+          _toneName = 'No sound';
+        } else {
+          final tone = result.customTones.where(
+              (t) => t.id == result.selectedToneId);
+          _toneName = tone.isNotEmpty ? tone.first.name : 'Default';
+        }
+        if (_nextToneId <= result.customTones.length) {
+          _nextToneId = result.customTones.fold<int>(0,
+              (m, t) => t.id > m ? t.id : m) + 1;
+        }
+      });
     });
   }
 
@@ -2014,6 +1973,328 @@ class _ServiceCheckboxPill extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _RingtonesResult {
+  final int selectedToneId;
+  final List<_CustomTone> customTones;
+  final int volume;
+  const _RingtonesResult({
+    required this.selectedToneId,
+    required this.customTones,
+    required this.volume,
+  });
+}
+
+class _RingtonesBoxDialog extends StatefulWidget {
+  final int selectedToneId;
+  final List<_CustomTone> customTones;
+  final int volume;
+  final bool isDark;
+
+  const _RingtonesBoxDialog({
+    required this.selectedToneId,
+    required this.customTones,
+    required this.volume,
+    required this.isDark,
+  });
+
+  @override
+  State<_RingtonesBoxDialog> createState() => _RingtonesBoxDialogState();
+}
+
+class _RingtonesBoxDialogState extends State<_RingtonesBoxDialog> {
+  static const _kDefaultValue = -1;
+  static const _kNoSoundValue = -2;
+  static const _kMaxTones = 100;
+  static const _kMaxSizeBytes = 100 * 1024;
+  static const _kMaxDurationSec = 5;
+
+  late int _selectedId;
+  late List<_CustomTone> _tones;
+  late int _volume;
+  int _nextId = 1;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedId = widget.selectedToneId;
+    _tones = List.of(widget.customTones);
+    _volume = widget.volume;
+    if (_tones.isNotEmpty) {
+      _nextId = _tones.fold<int>(0, (m, t) => t.id > m ? t.id : m) + 1;
+    }
+  }
+
+  Color get _bgColor =>
+      widget.isDark ? const Color(0xFF1B2836) : const Color(0xFFFFFFFF);
+  Color get _textColor =>
+      widget.isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+  Color get _subtextColor =>
+      widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+  Color get _accentColor =>
+      widget.isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+  Color get _sectionTitleColor =>
+      widget.isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
+  Color get _dividerColor =>
+      widget.isDark ? const Color(0xFF101921) : const Color(0xFFF1F1F1);
+  Color get _hoverBg =>
+      widget.isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+  String _formatSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  String _formatDuration(int seconds) {
+    if (seconds < 60) return '${seconds}s';
+    return '${seconds ~/ 60}m ${seconds % 60}s';
+  }
+
+  void _onUploadSound() async {
+    if (_tones.length >= _kMaxTones) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              'You can upload at most $_kMaxTones notification sounds.'),
+          backgroundColor: const Color(0xFFDD4B39),
+        ),
+      );
+      return;
+    }
+
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['mp3'],
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty) return;
+    if (!mounted) return;
+
+    final file = result.files.first;
+    final bytes = file.size;
+
+    if (bytes > _kMaxSizeBytes) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              'The file is too large (${_formatSize(bytes)}). '
+              'Maximum allowed size is ${_formatSize(_kMaxSizeBytes)}.'),
+          backgroundColor: const Color(0xFFDD4B39),
+        ),
+      );
+      return;
+    }
+
+    final name = (file.name.endsWith('.mp3')
+            ? file.name.substring(0, file.name.length - 4)
+            : file.name)
+        .trim();
+    final displayName = name.isEmpty ? 'Audio file' : name;
+
+    setState(() {
+      final tone = _CustomTone(id: _nextId, name: displayName);
+      _tones.add(tone);
+      _selectedId = _nextId;
+      _nextId++;
+    });
+  }
+
+  void _deleteTone(int id) {
+    setState(() {
+      _tones.removeWhere((t) => t.id == id);
+      if (_selectedId == id) {
+        _selectedId = _kDefaultValue;
+      }
+    });
+  }
+
+  void _showDeleteMenu(BuildContext context, Offset position, int toneId) {
+    showTelegramMenu<String>(
+      context: context,
+      position: position,
+      items: const [
+        TelegramMenuItem<String>(
+          value: 'delete',
+          icon: Icon(Icons.delete_outline, size: 20, color: Color(0xFFDD4B39)),
+          label: 'Delete',
+          isAttention: true,
+        ),
+      ],
+    ).then((value) {
+      if (value == 'delete') _deleteTone(toneId);
+    });
+  }
+
+  Widget _buildRadioRow(int value, String label, {bool isCustom = false}) {
+    final isSelected = _selectedId == value;
+    return Listener(
+      onPointerDown: (event) {
+        if (isCustom &&
+            event.buttons == kSecondaryMouseButton) {
+          _showDeleteMenu(context, event.position, value);
+        }
+      },
+      child: InkWell(
+        onTap: () => setState(() => _selectedId = value),
+        hoverColor: _hoverBg,
+        splashColor: _hoverBg.withValues(alpha: 0.5),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+          child: SizedBox(
+            height: 44,
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: Radio<int>(
+                    value: value,
+                    groupValue: _selectedId,
+                    onChanged: (v) =>
+                        setState(() => _selectedId = v ?? _selectedId),
+                    activeColor: _accentColor,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: _textColor,
+                      fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final showVolume = _selectedId != _kNoSoundValue;
+
+    return AlertDialog(
+      backgroundColor: _bgColor,
+      title: Text(
+        'Notification Sound',
+        style: TextStyle(
+          color: _textColor,
+          fontWeight: FontWeight.w600,
+          fontSize: 17,
+        ),
+      ),
+      titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+      contentPadding: const EdgeInsets.fromLTRB(0, 12, 0, 0),
+      content: SizedBox(
+        width: 364,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 4),
+              child: Text(
+                'Cloud',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: _sectionTitleColor,
+                ),
+              ),
+            ),
+            _buildRadioRow(_kDefaultValue, 'Default'),
+            _buildRadioRow(_kNoSoundValue, 'No sound'),
+            if (_tones.isNotEmpty) ...[
+              for (final tone in _tones)
+                _buildRadioRow(tone.id, tone.name, isCustom: true),
+            ],
+            const SizedBox(height: 4),
+            InkWell(
+              onTap: _onUploadSound,
+              hoverColor: _hoverBg,
+              splashColor: _hoverBg.withValues(alpha: 0.5),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(25, 10, 22, 8),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color: _accentColor,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.add, size: 14, color: Colors.white),
+                    ),
+                    const SizedBox(width: 14),
+                    Text(
+                      'Upload Sound',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: _accentColor,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 150),
+              curve: Curves.easeInOut,
+              alignment: Alignment.topCenter,
+              child: showVolume
+                  ? _VolumeSliderSection(
+                      volume: _volume,
+                      onChanged: (v) => setState(() => _volume = v),
+                      accentColor: _accentColor,
+                      isDark: widget.isDark,
+                    )
+                  : const SizedBox(width: double.infinity, height: 0),
+            ),
+            const SizedBox(height: 7),
+            Container(height: 1, color: _dividerColor),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+              child: Text(
+                'Right click on any short voice note or MP3 file '
+                'in chat and select "Save for Notifications".',
+                style: TextStyle(fontSize: 13, color: _subtextColor),
+              ),
+            ),
+            const SizedBox(height: 7),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text('Cancel', style: TextStyle(color: _accentColor)),
+        ),
+        TextButton(
+          onPressed: () {
+            Navigator.of(context).pop(_RingtonesResult(
+              selectedToneId: _selectedId,
+              customTones: List.of(_tones),
+              volume: _volume,
+            ));
+          },
+          child: Text('Save', style: TextStyle(color: _accentColor)),
+        ),
+      ],
     );
   }
 }
