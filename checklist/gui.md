@@ -628,7 +628,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 15.4 Per-Type Notification Rows
 
 ### 15.5 Per-Type Sub-Page
-- [ ] Exceptions list: "Add an exception" button, exception rows (userpic+name+status+"Remove"), "Delete all exceptions" red button with confirmation — spec §15.5.2
 - [ ] Mute Menu: PopupMenu with popupMenuWithIcons style — Select tone, Disable/Enable sound, recent mute durations, Mute for…, Mute forever/Unmute with red/green animation, drum-picker duration wheel (15min–1mo, Custom option) — spec §15.5.3
 
 ### 15.6 Ringtones Box

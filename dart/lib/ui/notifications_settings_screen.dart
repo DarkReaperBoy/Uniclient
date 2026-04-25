@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
+import '../state/chat_state.dart';
+import '../models/engine_models.dart';
 import 'settings_style.dart';
 
 class NotificationsSettingsScreen extends StatefulWidget {
@@ -351,11 +353,28 @@ class _NotificationTypeSubPage extends StatefulWidget {
       _NotificationTypeSubPageState();
 }
 
+class _NotifException {
+  final String chatId;
+  final String accountId;
+  final String name;
+  final String avatarPath;
+  final bool isMuted;
+
+  const _NotifException({
+    required this.chatId,
+    required this.accountId,
+    required this.name,
+    this.avatarPath = '',
+    this.isMuted = true,
+  });
+}
+
 class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
   bool _enabled = true;
   bool _soundEnabled = true;
   String _toneName = 'Default';
   int _volume = 100;
+  final List<_NotifException> _exceptions = [];
 
   @override
   Widget build(BuildContext context) {
@@ -464,10 +483,249 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
                   )
                 : const SizedBox(width: double.infinity, height: 0),
           ),
+          const SizedBox(height: 7),
+          Container(height: 1, color: dividerColor),
+          const SizedBox(height: 7),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 10, 22, 4),
+            child: Text(
+              'Exceptions',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: sectionTitleColor,
+              ),
+            ),
+          ),
+          _AddExceptionButton(
+            accentColor: accentColor,
+            hoverBg: hoverBg,
+            onTap: () => _showPeerPicker(context),
+          ),
+          for (final exc in _exceptions)
+            _ExceptionRow(
+              exception: exc,
+              textColor: textColor,
+              subtextColor: subtextColor,
+              hoverBg: hoverBg,
+              accentColor: accentColor,
+              isDark: isDark,
+              onRemove: () => setState(() =>
+                  _exceptions.removeWhere((e) => e.chatId == exc.chatId)),
+              onToggleMute: () {
+                setState(() {
+                  final idx = _exceptions.indexOf(exc);
+                  if (idx >= 0) {
+                    _exceptions[idx] = _NotifException(
+                      chatId: exc.chatId,
+                      accountId: exc.accountId,
+                      name: exc.name,
+                      avatarPath: exc.avatarPath,
+                      isMuted: !exc.isMuted,
+                    );
+                  }
+                });
+              },
+            ),
+          if (_exceptions.length > 1)
+            _DeleteAllExceptionsButton(
+              hoverBg: hoverBg,
+              isDark: isDark,
+              onTap: () => _showDeleteAllConfirmation(context),
+            ),
           const SizedBox(height: 32),
         ],
       ),
     );
+  }
+
+  void _showPeerPicker(BuildContext context) {
+    final chatState = context.read<ChatState>();
+    final appState = context.read<AppState>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1B2836) : const Color(0xFFFFFFFF);
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final hoverBg =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    final existingIds = _exceptions.map((e) => e.chatId).toSet();
+    final activeId = appState.activeAccountId;
+    final allChats = chatState.chatsForAccount(activeId);
+    final availableChats =
+        allChats.where((c) => !existingIds.contains(c.chatId)).toList();
+    var searchQuery = '';
+
+    showDialog<ChatInfo>(
+      context: context,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (stateCtx, setDialogState) {
+            final filtered = searchQuery.isEmpty
+                ? availableChats
+                : availableChats
+                    .where((c) => c.title
+                        .toLowerCase()
+                        .contains(searchQuery.toLowerCase()))
+                    .toList();
+            return AlertDialog(
+              backgroundColor: bgColor,
+              title: Text('Add an exception',
+                  style: TextStyle(
+                      color: textColor, fontWeight: FontWeight.w600)),
+              contentPadding: const EdgeInsets.fromLTRB(0, 16, 0, 0),
+              content: SizedBox(
+                width: 364,
+                height: 400,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: TextField(
+                        style: TextStyle(color: textColor, fontSize: 14),
+                        decoration: InputDecoration(
+                          hintText: 'Search',
+                          hintStyle:
+                              TextStyle(color: subtextColor, fontSize: 14),
+                          prefixIcon:
+                              Icon(Icons.search, color: subtextColor, size: 20),
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                              vertical: 10, horizontal: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(
+                                color: subtextColor.withValues(alpha: 0.3)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(
+                                color: subtextColor.withValues(alpha: 0.3)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: accentColor),
+                          ),
+                        ),
+                        onChanged: (v) =>
+                            setDialogState(() => searchQuery = v),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: filtered.isEmpty
+                          ? Center(
+                              child: Text('No chats available',
+                                  style: TextStyle(
+                                      color: subtextColor, fontSize: 14)),
+                            )
+                          : ListView.builder(
+                              itemCount: filtered.length,
+                              itemBuilder: (itemCtx, i) {
+                                final chat = filtered[i];
+                                return InkWell(
+                                  hoverColor: hoverBg,
+                                  onTap: () {
+                                    Navigator.of(dialogCtx).pop(chat);
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 16, vertical: 8),
+                                    child: Row(
+                                      children: [
+                                        _PeerAvatar(
+                                            name: chat.title,
+                                            avatarPath: chat.avatarPath,
+                                            size: 36),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Text(
+                                            chat.title,
+                                            style: TextStyle(
+                                                fontSize: 14,
+                                                color: textColor),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogCtx).pop(),
+                  child: Text('Cancel', style: TextStyle(color: accentColor)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    ).then((chat) {
+      if (chat != null) {
+        setState(() {
+          _exceptions.add(_NotifException(
+            chatId: chat.chatId,
+            accountId: chat.accountId,
+            name: chat.title,
+            avatarPath: chat.avatarPath,
+            isMuted: true,
+          ));
+        });
+      }
+    });
+  }
+
+  void _showDeleteAllConfirmation(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dialogBg =
+        isDark ? const Color(0xFF1B2836) : const Color(0xFFFFFFFF);
+    final dialogText =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final errorColor = const Color(0xFFDD4B39);
+
+    showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: dialogBg,
+          title: Text('Delete all exceptions',
+              style:
+                  TextStyle(color: dialogText, fontWeight: FontWeight.w600)),
+          content: Text(
+            'Are you sure you want to delete all ${_exceptions.length} exceptions?',
+            style: TextStyle(color: dialogText, fontSize: 14),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text('Cancel', style: TextStyle(color: accentColor)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: Text('Delete', style: TextStyle(color: errorColor)),
+            ),
+          ],
+        );
+      },
+    ).then((confirmed) {
+      if (confirmed == true) {
+        setState(() => _exceptions.clear());
+      }
+    });
   }
 
   void _showRingtonesBox(BuildContext context) {
@@ -1086,6 +1344,236 @@ class _NotificationPreview extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AddExceptionButton extends StatelessWidget {
+  final Color accentColor;
+  final Color hoverBg;
+  final VoidCallback onTap;
+
+  const _AddExceptionButton({
+    required this.accentColor,
+    required this.hoverBg,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      hoverColor: hoverBg,
+      splashColor: hoverBg.withValues(alpha: 0.5),
+      child: Padding(
+        padding: SettingsStyle.iconRowPadding,
+        child: Row(
+          children: [
+            Icon(Icons.person_add, size: 24, color: accentColor),
+            const SizedBox(width: SettingsStyle.iconGap),
+            Text(
+              'Add an exception',
+              style: TextStyle(
+                fontSize: SettingsStyle.buttonFontSize,
+                color: accentColor,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ExceptionRow extends StatelessWidget {
+  final _NotifException exception;
+  final Color textColor;
+  final Color subtextColor;
+  final Color hoverBg;
+  final Color accentColor;
+  final bool isDark;
+  final VoidCallback onRemove;
+  final VoidCallback onToggleMute;
+
+  const _ExceptionRow({
+    required this.exception,
+    required this.textColor,
+    required this.subtextColor,
+    required this.hoverBg,
+    required this.accentColor,
+    required this.isDark,
+    required this.onRemove,
+    required this.onToggleMute,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final muteStatusColor = exception.isMuted
+        ? const Color(0xFFDD4B39)
+        : const Color(0xFF4CAF50);
+    final removeColor =
+        isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
+
+    return InkWell(
+      hoverColor: hoverBg,
+      splashColor: hoverBg.withValues(alpha: 0.5),
+      onTap: onToggleMute,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 6, 22, 6),
+        child: Row(
+          children: [
+            _PeerAvatar(
+              name: exception.name,
+              avatarPath: exception.avatarPath,
+              size: 36,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    exception.name,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: textColor,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    exception.isMuted ? 'Muted' : 'Unmuted',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: muteStatusColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            GestureDetector(
+              onTap: onRemove,
+              child: Text(
+                'Remove',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: removeColor,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DeleteAllExceptionsButton extends StatelessWidget {
+  final Color hoverBg;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _DeleteAllExceptionsButton({
+    required this.hoverBg,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const errorColor = Color(0xFFDD4B39);
+    return InkWell(
+      onTap: onTap,
+      hoverColor: hoverBg,
+      splashColor: hoverBg.withValues(alpha: 0.5),
+      child: Padding(
+        padding: SettingsStyle.iconRowPadding,
+        child: Row(
+          children: [
+            const Icon(Icons.delete_outline, size: 24, color: errorColor),
+            const SizedBox(width: SettingsStyle.iconGap),
+            const Text(
+              'Delete all exceptions',
+              style: TextStyle(
+                fontSize: SettingsStyle.buttonFontSize,
+                color: errorColor,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PeerAvatar extends StatelessWidget {
+  final String name;
+  final String avatarPath;
+  final double size;
+
+  const _PeerAvatar({
+    required this.name,
+    required this.avatarPath,
+    required this.size,
+  });
+
+  static const _fallbackColors = [
+    Color(0xFFE17076),
+    Color(0xFF7BC862),
+    Color(0xFFE5CA77),
+    Color(0xFF65AADD),
+    Color(0xFFA695E7),
+    Color(0xFFEE7AAE),
+    Color(0xFF6EC9CB),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    if (avatarPath.isNotEmpty) {
+      return ClipOval(
+        child: Image.network(
+          avatarPath,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _fallbackAvatar(),
+        ),
+      );
+    }
+    return _fallbackAvatar();
+  }
+
+  Widget _fallbackAvatar() {
+    final colorIdx = name.isEmpty ? 0 : name.codeUnitAt(0) % _fallbackColors.length;
+    final initials = name.isEmpty
+        ? '?'
+        : name
+            .split(' ')
+            .where((s) => s.isNotEmpty)
+            .take(2)
+            .map((s) => s[0].toUpperCase())
+            .join();
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: _fallbackColors[colorIdx],
+      ),
+      child: Center(
+        child: Text(
+          initials,
+          style: TextStyle(
+            fontSize: size * 0.4,
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );
