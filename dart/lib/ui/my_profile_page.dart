@@ -9,6 +9,10 @@ import 'package:provider/provider.dart';
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
+import '../state/auth_state.dart';
+import '../state/chat_state.dart';
+import 'confirm_box.dart';
+import 'popup_menu.dart';
 
 /// "My Profile" / "Edit Profile" page (§14.5).
 /// Opened from hamburger drawer "My Profile" row or Settings "My Account".
@@ -345,6 +349,8 @@ class _MyProfilePageState extends State<MyProfilePage> {
               style: TextStyle(fontSize: 13, color: subtextColor),
             ),
           ),
+          Container(height: 8, color: dividerColor),
+          _AccountsSection(isDark: isDark),
         ],
       ),
     );
@@ -1245,5 +1251,466 @@ class _ProfileInfoRow extends StatelessWidget {
         }
       }
     });
+  }
+}
+
+/// §14.5.6: Accounts list — all logged-in accounts as rows with small avatar,
+/// name, premium/unread badges, active-account ring, drag-to-reorder,
+/// right-click context menu, and Add Account button at the end.
+class _AccountsSection extends StatelessWidget {
+  final bool isDark;
+
+  const _AccountsSection({required this.isDark});
+
+  static const _platformIcons = <String, IconData>{
+    'telegram': Icons.send,
+    'matrix': Icons.grid_view,
+    'xmpp': Icons.message,
+    'irc': Icons.tag,
+    'bale': Icons.chat,
+    'rubika': Icons.radio_button_checked,
+    'deltachat': Icons.email,
+    'mumble': Icons.headset_mic,
+    'teamspeak': Icons.headset,
+    'github': Icons.code,
+  };
+
+  static String _platformLabel(String platform) => switch (platform) {
+    'telegram' => 'Telegram',
+    'matrix' => 'Matrix',
+    'xmpp' => 'XMPP',
+    'irc' => 'IRC',
+    'bale' => 'Bale',
+    'rubika' => 'Rubika',
+    'deltachat' => 'Delta Chat',
+    'mumble' => 'Mumble',
+    'teamspeak' => 'TeamSpeak',
+    'github' => 'GitHub',
+    _ => platform,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final appState = context.watch<AppState>();
+    final chatState = context.watch<ChatState>();
+    final accounts = appState.accounts;
+    final activeId = appState.activeAccountId;
+    final premiumLimit = appState.maxAccountLimit;
+
+    final labelColor = isDark
+        ? const Color(0xFFE1E3E6)
+        : const Color(0xFF222222);
+    final hoverBg = isDark
+        ? const Color(0xFF232E3C)
+        : const Color(0xFFF1F1F1);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (int i = 0; i < accounts.length; i++) ...[
+          _SettingsAccountRow(
+            key: ValueKey(accounts[i].id),
+            account: accounts[i],
+            isActive: accounts[i].id == activeId,
+            unreadCount: chatState.unreadCountForAccount(accounts[i].id),
+            unreadAllMuted: chatState.isAccountUnreadAllMuted(accounts[i].id),
+            labelColor: labelColor,
+            hoverBg: hoverBg,
+            isDark: isDark,
+            onTap: () {
+              if (accounts[i].id == activeId) {
+                Navigator.of(context).pop();
+              } else {
+                appState.setActiveAccountId(accounts[i].id);
+              }
+            },
+            onMarkAllRead: () {
+              chatState.markAllChatsReadForAccount(accounts[i].id);
+            },
+            onLogOut: () {
+              appState.removeAccount(accounts[i].id);
+              if (accounts.length <= 1) {
+                Navigator.of(context).pop();
+              }
+            },
+          ),
+        ],
+        if (appState.canAddAccount)
+          _AddAccountButton(
+            isDark: isDark,
+            atPremiumLimit: accounts.length >= premiumLimit,
+            labelColor: labelColor,
+            hoverBg: hoverBg,
+          ),
+      ],
+    );
+  }
+}
+
+/// §14.5.6.1: Single account row in the settings accounts list.
+class _SettingsAccountRow extends StatelessWidget {
+  final AccountInfo account;
+  final bool isActive;
+  final int unreadCount;
+  final bool unreadAllMuted;
+  final Color labelColor;
+  final Color hoverBg;
+  final bool isDark;
+  final VoidCallback onTap;
+  final VoidCallback onMarkAllRead;
+  final VoidCallback onLogOut;
+
+  const _SettingsAccountRow({
+    super.key,
+    required this.account,
+    required this.isActive,
+    required this.unreadCount,
+    required this.unreadAllMuted,
+    required this.labelColor,
+    required this.hoverBg,
+    required this.isDark,
+    required this.onTap,
+    required this.onMarkAllRead,
+    required this.onLogOut,
+  });
+
+  void _showContextMenu(BuildContext context, Offset position) {
+    final items = <TelegramMenuItem<String>>[];
+
+    if (account.phone.isNotEmpty) {
+      items.add(const TelegramMenuItem(
+        value: 'copy_phone',
+        icon: Icon(Icons.copy),
+        label: 'Copy Phone',
+      ));
+    }
+
+    items.add(const TelegramMenuItem(
+      value: 'mark_read',
+      icon: Icon(Icons.done_all),
+      label: 'Mark All Chats as Read',
+    ));
+
+    if (!isActive) {
+      items.add(const TelegramMenuItem(
+        value: 'activate',
+        icon: Icon(Icons.check_circle_outline),
+        label: 'Activate',
+      ));
+    }
+
+    if (!isActive) {
+      items.add(const TelegramMenuItem(
+        value: 'log_out',
+        icon: Icon(Icons.logout),
+        label: 'Log Out',
+        isAttention: true,
+      ));
+    }
+
+    showTelegramMenu<String>(
+      context: context,
+      position: position,
+      items: items,
+    ).then((value) {
+      if (value == null) return;
+      switch (value) {
+        case 'copy_phone':
+          Clipboard.setData(ClipboardData(text: account.phone));
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Phone number copied'),
+                duration: Duration(milliseconds: 500),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        case 'mark_read':
+          onMarkAllRead();
+        case 'activate':
+          onTap();
+        case 'log_out':
+          showConfirmBox(
+            context,
+            text: 'Are you sure you want to log out?',
+            confirmText: 'Log Out',
+            isDestructive: true,
+            onConfirm: onLogOut,
+          );
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final accentColor = isDark
+        ? const Color(0xFF5288C1)
+        : const Color(0xFF40A7E3);
+
+    return GestureDetector(
+      onSecondaryTapUp: (details) =>
+          _showContextMenu(context, details.globalPosition),
+      onLongPressStart: (details) =>
+          _showContextMenu(context, details.globalPosition),
+      child: InkWell(
+        onTap: onTap,
+        hoverColor: hoverBg,
+        splashColor: hoverBg.withValues(alpha: 0.5),
+        child: Padding(
+          padding: const EdgeInsets.only(
+            left: 20, top: 11, bottom: 9, right: 20,
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 36,
+                height: 36,
+                child: Center(
+                  child: Container(
+                    decoration: isActive
+                        ? BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: accentColor,
+                              width: 2,
+                            ),
+                          )
+                        : null,
+                    padding: isActive
+                        ? const EdgeInsets.all(2)
+                        : EdgeInsets.zero,
+                    child: account.avatarPath.isNotEmpty
+                        ? ClipOval(
+                            child: Image.file(
+                              File(account.avatarPath),
+                              width: isActive ? 26 : 30,
+                              height: isActive ? 26 : 30,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) =>
+                                  _avatarFallback(isActive ? 26.0 : 30.0),
+                            ),
+                          )
+                        : _avatarFallback(isActive ? 26.0 : 30.0),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        account.displayName.isNotEmpty
+                            ? account.displayName
+                            : _AccountsSection._platformLabel(account.platform),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: labelColor,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (account.isPremium) ...[
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.workspace_premium,
+                        size: 16,
+                        color: accentColor,
+                      ),
+                    ],
+                    if (account.isVerified && !account.isPremium) ...[
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.verified,
+                        size: 16,
+                        color: accentColor,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (unreadCount > 0) ...[
+                const SizedBox(width: 4),
+                _SettingsUnreadBadge(
+                  count: unreadCount,
+                  muted: unreadAllMuted,
+                  isDark: isDark,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _avatarFallback(double size) {
+    final colorIndex = account.id.hashCode.abs() % 7;
+    const colors = [
+      Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77),
+      Color(0xFF65aadd), Color(0xFFa695e7), Color(0xFFee7aae),
+      Color(0xFF6ec9cb),
+    ];
+    final icon = _AccountsSection._platformIcons[account.platform] ?? Icons.chat;
+    return CircleAvatar(
+      radius: size / 2,
+      backgroundColor: colors[colorIndex],
+      child: Icon(icon, size: size * 0.55, color: Colors.white),
+    );
+  }
+}
+
+/// §14.5.6.1: Unread badge for settings account rows.
+class _SettingsUnreadBadge extends StatelessWidget {
+  final int count;
+  final bool muted;
+  final bool isDark;
+
+  const _SettingsUnreadBadge({
+    required this.count,
+    required this.muted,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final Color bgColor;
+    if (muted) {
+      bgColor = isDark
+          ? const Color(0xFF3E546A)
+          : const Color(0xFFBBBBBB);
+    } else {
+      bgColor = isDark
+          ? const Color(0xFF5288C1)
+          : const Color(0xFF40A7E3);
+    }
+    final text = count >= 1000
+        ? '${(count / 1000).toStringAsFixed(count >= 10000 ? 0 : 1)}K'
+        : '$count';
+    return Container(
+      height: 18,
+      constraints: const BoxConstraints(minWidth: 18),
+      padding: const EdgeInsets.symmetric(horizontal: 5),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(9),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+          height: 1.0,
+        ),
+      ),
+    );
+  }
+}
+
+/// §14.5.6: Add Account button at the bottom of the accounts list.
+class _AddAccountButton extends StatelessWidget {
+  final bool isDark;
+  final bool atPremiumLimit;
+  final Color labelColor;
+  final Color hoverBg;
+
+  const _AddAccountButton({
+    required this.isDark,
+    required this.atPremiumLimit,
+    required this.labelColor,
+    required this.hoverBg,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final accentColor = isDark
+        ? const Color(0xFF5288C1)
+        : const Color(0xFF40A7E3);
+
+    return Opacity(
+      opacity: atPremiumLimit ? 0.4 : 1.0,
+      child: InkWell(
+        onTap: atPremiumLimit ? null : () => _showAddAccountDialog(context),
+        hoverColor: hoverBg,
+        splashColor: hoverBg.withValues(alpha: 0.5),
+        child: Padding(
+          padding: const EdgeInsets.only(
+            left: 20, top: 11, bottom: 9, right: 20,
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 36,
+                height: 36,
+                child: Center(
+                  child: Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: accentColor,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.add,
+                      size: 18,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Add Account',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: labelColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showAddAccountDialog(BuildContext context) {
+    final appState = context.read<AppState>();
+    final authState = context.read<AuthState>();
+    showDialog(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Add Account'),
+        children: [
+          for (final p in [
+            ('telegram', 'Telegram'),
+            ('matrix', 'Matrix'),
+            ('xmpp', 'XMPP'),
+            ('irc', 'IRC'),
+            ('bale', 'Bale'),
+            ('rubika', 'Rubika'),
+            ('deltachat', 'Delta Chat'),
+            ('mumble', 'Mumble'),
+            ('teamspeak', 'TeamSpeak'),
+          ])
+            SimpleDialogOption(
+              child: Text(p.$2),
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                Navigator.of(context).pop();
+                final id = appState.addAccount(p.$1);
+                authState.startAuth(id);
+              },
+            ),
+        ],
+      ),
+    );
   }
 }

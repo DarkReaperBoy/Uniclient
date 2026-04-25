@@ -604,7 +604,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 - [x] Full interface scale: "Use Default Scale" toggle, scale slider (15x15 thumb, 5-step discrete, 100%–300% range), right-side percentage label in windowActiveTextFg, floating ScalePreview tooltip during drag, scale applied on pointer-release not real-time, restart confirmation dialog on change, SlideWrap collapses slider when "Use Default" ON — DONE in `settings_screen.dart`
 
 ### 14.5 My Account / Edit Profile Sub-Page
-- [ ] Accounts list: all logged-in accounts as rows with avatar+name+badge, drag-to-reorder, right-click menu (Copy Phone / Mark All Read / Activate / Log Out), Add Account button (hidden at limit), premium limit enforcement, active-account ring on userpic — spec §14.5.6 & §14.5.6.1
 
 ### 14.6 Chat Settings Sub-Page
 - [ ] Chat Settings screen: "Chat Settings" title, "Create New Theme" in top-bar overflow — spec §14.6

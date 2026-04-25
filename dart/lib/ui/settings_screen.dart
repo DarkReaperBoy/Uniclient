@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/auth_state.dart';
+import '../state/chat_state.dart';
 import 'advanced_settings_screen.dart';
 import 'confirm_box.dart';
 import 'my_profile_page.dart';
@@ -68,11 +69,19 @@ class SettingsScreen extends StatelessWidget {
                   _showAddAccountDialog(context, appState);
                   break;
                 case 'edit_profile':
+                  final chatSt = context.read<ChatState>();
+                  final authSt = context.read<AuthState>();
                   Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => ChangeNotifierProvider.value(
                         value: appState,
-                        child: const MyProfilePage(),
+                        child: ChangeNotifierProvider.value(
+                          value: chatSt,
+                          child: ChangeNotifierProvider.value(
+                            value: authSt,
+                            child: const MyProfilePage(),
+                          ),
+                        ),
                       ),
                     ),
                   );
@@ -153,11 +162,19 @@ class SettingsScreen extends StatelessWidget {
             label: 'My Account',
             isDark: isDark,
             onTap: () {
+              final chatSt = context.read<ChatState>();
+              final authSt = context.read<AuthState>();
               Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => ChangeNotifierProvider.value(
                     value: appState,
-                    child: const MyProfilePage(),
+                    child: ChangeNotifierProvider.value(
+                      value: chatSt,
+                      child: ChangeNotifierProvider.value(
+                        value: authSt,
+                        child: const MyProfilePage(),
+                      ),
+                    ),
                   ),
                 ),
               );
