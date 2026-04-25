@@ -887,6 +887,15 @@ class EngineService {
     return resp.callId;
   }
 
+  Future<void> sendCallRating(String accountId, String callId, int rating, String comment) async {
+    final req = epb.EngineSendCallRatingRequest()
+      ..accountId = accountId
+      ..callId = callId
+      ..rating = rating
+      ..comment = comment;
+    await _callAsync('__engine', 'SendCallRating', req.writeToBuffer());
+  }
+
   // ── Contacts ──
 
   Future<List<ContactInfo>> getContacts(String accountId) async {

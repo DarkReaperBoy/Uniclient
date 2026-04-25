@@ -9220,6 +9220,74 @@ func (x *EngineGetStickerSuggestionsResponse) GetStickers() []*EngineStickerInfo
 	return nil
 }
 
+type EngineSendCallRatingRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	CallId        string                 `protobuf:"bytes,2,opt,name=call_id,json=callId,proto3" json:"call_id,omitempty"`
+	Rating        int32                  `protobuf:"varint,3,opt,name=rating,proto3" json:"rating,omitempty"`
+	Comment       string                 `protobuf:"bytes,4,opt,name=comment,proto3" json:"comment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineSendCallRatingRequest) Reset() {
+	*x = EngineSendCallRatingRequest{}
+	mi := &file_proto_engine_proto_msgTypes[145]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineSendCallRatingRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineSendCallRatingRequest) ProtoMessage() {}
+
+func (x *EngineSendCallRatingRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[145]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineSendCallRatingRequest.ProtoReflect.Descriptor instead.
+func (*EngineSendCallRatingRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{145}
+}
+
+func (x *EngineSendCallRatingRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineSendCallRatingRequest) GetCallId() string {
+	if x != nil {
+		return x.CallId
+	}
+	return ""
+}
+
+func (x *EngineSendCallRatingRequest) GetRating() int32 {
+	if x != nil {
+		return x.Rating
+	}
+	return 0
+}
+
+func (x *EngineSendCallRatingRequest) GetComment() string {
+	if x != nil {
+		return x.Comment
+	}
+	return ""
+}
+
 var File_proto_engine_proto protoreflect.FileDescriptor
 
 const file_proto_engine_proto_rawDesc = "" +
@@ -10017,7 +10085,13 @@ const file_proto_engine_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x14\n" +
 	"\x05emoji\x18\x02 \x01(\tR\x05emoji\"_\n" +
 	"#EngineGetStickerSuggestionsResponse\x128\n" +
-	"\bstickers\x18\x01 \x03(\v2\x1c.uniclient.EngineStickerInfoR\bstickersB\x11Z\x0funiclient/protob\x06proto3"
+	"\bstickers\x18\x01 \x03(\v2\x1c.uniclient.EngineStickerInfoR\bstickers\"\x87\x01\n" +
+	"\x1bEngineSendCallRatingRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\acall_id\x18\x02 \x01(\tR\x06callId\x12\x16\n" +
+	"\x06rating\x18\x03 \x01(\x05R\x06rating\x12\x18\n" +
+	"\acomment\x18\x04 \x01(\tR\acommentB\x11Z\x0funiclient/protob\x06proto3"
 
 var (
 	file_proto_engine_proto_rawDescOnce sync.Once
@@ -10031,7 +10105,7 @@ func file_proto_engine_proto_rawDescGZIP() []byte {
 	return file_proto_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 145)
+var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 146)
 var file_proto_engine_proto_goTypes = []any{
 	(*EngineEvent)(nil),                            // 0: uniclient.EngineEvent
 	(*AccountInfo)(nil),                            // 1: uniclient.AccountInfo
@@ -10178,6 +10252,7 @@ var file_proto_engine_proto_goTypes = []any{
 	(*EngineInstallStickerSetResponse)(nil),        // 142: uniclient.EngineInstallStickerSetResponse
 	(*EngineGetStickerSuggestionsRequest)(nil),     // 143: uniclient.EngineGetStickerSuggestionsRequest
 	(*EngineGetStickerSuggestionsResponse)(nil),    // 144: uniclient.EngineGetStickerSuggestionsResponse
+	(*EngineSendCallRatingRequest)(nil),            // 145: uniclient.EngineSendCallRatingRequest
 }
 var file_proto_engine_proto_depIdxs = []int32{
 	1,   // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
@@ -10230,7 +10305,7 @@ func file_proto_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   145,
+			NumMessages:   146,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

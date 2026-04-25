@@ -1090,3 +1090,14 @@ message EngineGetStickerSuggestionsRequest {
 message EngineGetStickerSuggestionsResponse {
   repeated EngineStickerInfo stickers = 1;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Call Rating
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineSendCallRatingRequest {
+  string account_id = 1;
+  string call_id    = 2;
+  int32  rating     = 3;
+  string comment    = 4;
+}

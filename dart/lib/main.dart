@@ -507,7 +507,13 @@ class _UniClientAppState extends State<UniClientApp>
               state: callState,
               signalQuality: (cmd['signalQuality'] as num?)?.toInt() ?? -1,
               fingerprintEmoji: fpEmoji,
-            ));
+            ), callId: cmd['callId'] as String?);
+          }
+
+        case 'showCallRating':
+          final navCtx = _navigatorKey.currentContext;
+          if (navCtx != null) {
+            showCallRatingDialog(navCtx, callId: cmd['callId'] as String? ?? 'test_call');
           }
 
         case 'showGroupCallPanel':

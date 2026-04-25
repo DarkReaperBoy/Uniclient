@@ -782,3 +782,21 @@ func (e *Engine) JoinGroupCall(accountID, chatID string) (string, error) {
 	}
 	return cs.ID, nil
 }
+
+func (e *Engine) SendCallRating(accountID, callID string, rating int, comment string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	type callRater interface {
+		SendCallRating(callID string, rating int, comment string) error
+	}
+	cr, ok := acc.Core.(callRater)
+	if !ok {
+		return nil
+	}
+	return cr.SendCallRating(callID, rating, comment)
+}

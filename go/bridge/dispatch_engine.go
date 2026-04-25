@@ -1465,6 +1465,16 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return []byte{}, nil
 
+	case "SendCallRating":
+		var req pb.EngineSendCallRatingRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		if err := e.SendCallRating(req.AccountId, req.CallId, int(req.Rating), req.Comment); err != nil {
+			return nil, err
+		}
+		return []byte{}, nil
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}

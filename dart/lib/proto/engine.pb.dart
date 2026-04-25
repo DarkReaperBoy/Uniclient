@@ -10889,5 +10889,64 @@ class EngineGetStickerSuggestionsResponse extends $pb.GeneratedMessage {
   $core.List<EngineStickerInfo> get stickers => $_getList(0);
 }
 
+class EngineSendCallRatingRequest extends $pb.GeneratedMessage {
+  factory EngineSendCallRatingRequest({
+    $core.String? accountId,
+    $core.String? callId,
+    $core.int? rating,
+    $core.String? comment,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    if (callId != null) $result.callId = callId;
+    if (rating != null) $result.rating = rating;
+    if (comment != null) $result.comment = comment;
+    return $result;
+  }
+  EngineSendCallRatingRequest._() : super();
+  factory EngineSendCallRatingRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineSendCallRatingRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'callId')
+    ..a<$core.int>(3, _omitFieldNames ? '' : 'rating', $pb.PbFieldType.O3)
+    ..aOS(4, _omitFieldNames ? '' : 'comment')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineSendCallRatingRequest clone() => EngineSendCallRatingRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineSendCallRatingRequest copyWith(void Function(EngineSendCallRatingRequest) updates) => super.copyWith((message) => updates(message as EngineSendCallRatingRequest)) as EngineSendCallRatingRequest;
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineSendCallRatingRequest create() => EngineSendCallRatingRequest._();
+  EngineSendCallRatingRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineSendCallRatingRequest> createRepeated() => $pb.PbList<EngineSendCallRatingRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineSendCallRatingRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineSendCallRatingRequest>(create);
+  static EngineSendCallRatingRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.String get callId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set callId($core.String v) { $_setString(1, v); }
+
+  @$pb.TagNumber(3)
+  $core.int get rating => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set rating($core.int v) { $_setSignedInt32(2, v); }
+
+  @$pb.TagNumber(4)
+  $core.String get comment => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set comment($core.String v) { $_setString(3, v); }
+}
+
 const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
 const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

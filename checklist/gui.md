@@ -547,8 +547,7 @@
 <!-- File: dart/lib/ui/call_screen.dart -->
 
 ### §12.10 Rating Dialog
-<!-- File: dart/lib/ui/call_screen.dart -->
-- [ ] Post-call rating: 5 star icons (unselected windowSubTextFg, selected lightButtonFg); comment input max 135px height; submits via phone.setCallRating — spec §12.10
+<!-- File: dart/lib/ui/call_panel.dart -->
 
 ---
 
