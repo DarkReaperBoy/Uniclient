@@ -131,10 +131,22 @@ class SettingsScreen extends StatelessWidget {
         children: [
           // §14.2: Profile header / cover area.
           _ProfileHeader(account: account, isDark: isDark),
-          // Divider below profile.
-          Container(height: 8, color: dividerColor),
-          // §14.3: Navigation buttons.
-          // My Account (§14.3 item 2) → navigates to Edit Profile (§14.5).
+          // §14.3: skip+divider+skip between profile header and nav buttons.
+          const SizedBox(height: 7),
+          Container(height: 1, color: dividerColor),
+          const SizedBox(height: 7),
+          // §14.3 Item 1: AyuGram Preferences (standalone group).
+          _SettingsRow(
+            icon: Icons.star,
+            iconBg: const Color(0xFF6B72D5),
+            label: 'AyuGram Preferences',
+            isDark: isDark,
+            onTap: () {},
+          ),
+          const SizedBox(height: 7),
+          Container(height: 1, color: dividerColor),
+          const SizedBox(height: 7),
+          // §14.3 Items 2-6: My Account / Notifications / Privacy / Chat Settings / Folders.
           _SettingsRow(
             icon: Icons.person,
             iconBg: const Color(0xFF5E97F6),
@@ -151,7 +163,6 @@ class SettingsScreen extends StatelessWidget {
               );
             },
           ),
-          // Notifications and Sounds (§14.3 item 3).
           _SettingsRow(
             icon: Icons.notifications,
             iconBg: const Color(0xFFEB4D3D),
@@ -159,7 +170,6 @@ class SettingsScreen extends StatelessWidget {
             isDark: isDark,
             onTap: () {},
           ),
-          // Privacy and Security (§14.3 item 4).
           _SettingsRow(
             icon: Icons.lock,
             iconBg: const Color(0xFF9B59B6),
@@ -167,7 +177,6 @@ class SettingsScreen extends StatelessWidget {
             isDark: isDark,
             onTap: () {},
           ),
-          // Chat Settings (§14.3 item 5).
           _SettingsRow(
             icon: Icons.chat_bubble,
             iconBg: const Color(0xFF50C878),
@@ -175,7 +184,6 @@ class SettingsScreen extends StatelessWidget {
             isDark: isDark,
             onTap: () {},
           ),
-          // Folders (§14.3 item 6).
           _SettingsRow(
             icon: Icons.folder,
             iconBg: const Color(0xFF2196F3),
@@ -183,7 +191,10 @@ class SettingsScreen extends StatelessWidget {
             isDark: isDark,
             onTap: () {},
           ),
-          // Advanced (§14.3 item 7).
+          const SizedBox(height: 7),
+          Container(height: 1, color: dividerColor),
+          const SizedBox(height: 7),
+          // §14.3 Items 7-8: Advanced / Devices.
           _SettingsRow(
             icon: Icons.tune,
             iconBg: const Color(0xFF607D8B),
@@ -197,9 +208,6 @@ class SettingsScreen extends StatelessWidget {
               );
             },
           ),
-          // Divider between groups (§14.3).
-          Container(height: 8, color: dividerColor),
-          // Devices (§14.3 item 8).
           _SettingsRow(
             icon: Icons.devices,
             iconBg: const Color(0xFFFFA726),
@@ -207,9 +215,17 @@ class SettingsScreen extends StatelessWidget {
             isDark: isDark,
             onTap: () {},
           ),
-          // Divider.
-          Container(height: 8, color: dividerColor),
-          // Language (§14.3 item 10).
+          const SizedBox(height: 7),
+          Container(height: 1, color: dividerColor),
+          const SizedBox(height: 7),
+          // §14.3 Items 9-10: Power Saving / Language.
+          _SettingsRow(
+            icon: Icons.battery_charging_full,
+            iconBg: const Color(0xFF43A047),
+            label: 'Power Saving',
+            isDark: isDark,
+            onTap: () {},
+          ),
           _SettingsRow(
             icon: Icons.translate,
             iconBg: const Color(0xFF9C27B0),
@@ -227,9 +243,10 @@ class SettingsScreen extends StatelessWidget {
             onTap: () {},
           ),
           // §14.4: Interface scale.
-          Container(height: 8, color: dividerColor),
+          const SizedBox(height: 7),
+          Container(height: 1, color: dividerColor),
+          const SizedBox(height: 7),
           _InterfaceScaleSection(isDark: isDark, appState: appState),
-          // Bottom padding.
           const SizedBox(height: 32),
         ],
       ),
@@ -634,11 +651,11 @@ class _SettingsRow extends StatelessWidget {
       onTap: onTap,
       hoverColor: hoverBg,
       splashColor: hoverBg.withValues(alpha: 0.5),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      child: SizedBox(
+        height: 41,
         child: Row(
           children: [
-            // §14.3: Icon in rounded-square background (settingsIconRadius: 6px).
+            const SizedBox(width: 20),
             Container(
               width: 28,
               height: 28,
@@ -648,12 +665,12 @@ class _SettingsRow extends StatelessWidget {
               ),
               child: Icon(icon, size: 18, color: Colors.white),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 12),
             Expanded(
               child: Text(
                 label,
                 style: TextStyle(
-                  fontSize: 15,
+                  fontSize: 14,
                   color: textColor,
                 ),
                 maxLines: 1,
@@ -661,6 +678,7 @@ class _SettingsRow extends StatelessWidget {
               ),
             ),
             if (trailing != null) trailing!,
+            const SizedBox(width: 22),
           ],
         ),
       ),

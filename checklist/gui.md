@@ -595,9 +595,9 @@ Spec file: `research/telegram_desktop_ui.md`.
 - [x] Profile header skeleton: 88px circular avatar at (22px left, 8px top), name (17px semibold), phone, username (@) — spec §14.2 — DONE in `settings_screen.dart`
 - [x] Full profile header spec compliance: exact cover height 112px (8+88+16), avatar hover overlay with camera icon, avatar upload menu (file / emoji / stickers), username as tappable link (copies t.me/link, shows toast), QR Code button (right-aligned, only with username, opens QR dialog), Premium badge inline after name, name max-width adapts to QR button — spec §14.2 — DONE in `settings_screen.dart`
 
-### 14.3 Navigation Buttons List — PARTIAL
+### 14.3 Navigation Buttons List — DONE
 - [x] Core settings rows present: My Account, Notifications, Privacy, Chat Settings, Folders, Advanced, Devices, Language with icon+rounded-square bg, ripple on tap — spec §14.3 — DONE in `settings_screen.dart`
-- [ ] Full nav button spec: exact 41px row height (10+21+10), 60px left padding / 20px icon / 6px radius icon-bg (settingsIconRadius) / 22px right padding / no inter-row separators / grouping via skip+divider pairs, all 10 buttons in correct order including AyuGram Preferences (item 1), Power Saving (item 9 — opens dialog not subsection), Language right-label shows current language name — spec §14.3 & §14.3.1
+- [x] Full nav button spec: exact 41px row height, 60px left text offset (20px iconLeft + 28px icon + 12px gap), 6px radius icon-bg, 22px right padding, no inter-row separators, grouping via skip+divider+skip pairs, all 10 buttons in correct order (AyuGram Preferences / My Account / Notifications / Privacy / Chat Settings / Folders / Advanced / Devices / Power Saving / Language), Language right-label shows "English" — DONE in `settings_screen.dart`
 
 ### 14.4 Interface Scale — PARTIAL
 - [x] "Default interface scale" toggle stub — DONE in `settings_screen.dart`
