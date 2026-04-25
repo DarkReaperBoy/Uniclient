@@ -504,11 +504,7 @@
 <!-- File: dart/lib/ui/auth_screen.dart -->
 
 ### §11.5 OTP Code Screen
-<!-- File: dart/lib/ui/auth_screen.dart — currently single TextField -->
-- [ ] OTP cells: cell 40x50px, border 4px, inter-cell gap 10px, digit font 20px; bg windowBgOver; unfocused/focused/error border tokens; each cell is own focus target — spec §11.5
-- [ ] Cell animations: new digit fade-in + slide-up 10px; delete scale-down + fade-out; 120ms linear — spec §11.5
-- [ ] Error shake on wrong code; paste auto-fills + submits when complete; arrow/Home/End/Backspace navigation — spec §11.5
-- [ ] Call countdown row "Telegram will call you in X:XX" → "Calling..."; "Didn't get the code?" link — spec §11.5
+<!-- File: dart/lib/ui/auth_screen.dart — _OtpCodeInput widget -->
 
 ### §11.6 2FA Password Screen
 <!-- File: dart/lib/ui/auth_screen.dart — currently basic TextField -->

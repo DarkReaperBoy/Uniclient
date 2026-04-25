@@ -102,7 +102,7 @@ class _AuthScreenState extends State<AuthScreen>
   bool _showNext(AuthStateData? data) {
     if (data == null) return false;
     return switch (data.state) {
-      'input' || 'otp' || '2fa' => true,
+      'input' || '2fa' => true,
       _ => false,
     };
   }
@@ -110,7 +110,6 @@ class _AuthScreenState extends State<AuthScreen>
   String _nextButtonText(AuthStateData? data) {
     if (data == null) return 'Next';
     return switch (data.state) {
-      'otp' => 'Next',
       '2fa' => 'Submit',
       _ => 'Next',
     };
@@ -490,55 +489,63 @@ class _AuthScreenState extends State<AuthScreen>
               style: theme.textTheme.bodySmall),
           const SizedBox(height: 12),
         ],
-        AnimatedBuilder(
-          animation: _shakeController,
-          builder: (context, child) {
-            final dx = _shakeController.isAnimating
-                ? sin(_shakeController.value * pi * 4) *
-                    6 *
-                    (1 - _shakeController.value)
-                : 0.0;
-            return Transform.translate(
-              offset: Offset(dx, 0),
-              child: child,
-            );
-          },
-          child: isPhone
-              ? _buildPhoneFields(authState, theme)
-              : SizedBox(
-                  width: 300,
-                  child: TextField(
-                    controller: _inputController,
-                    obscureText: isPassword,
-                    keyboardType:
-                        isOtp ? TextInputType.number : TextInputType.text,
-                    autofocus: true,
-                    maxLength:
-                        isOtp && data.codeLength > 0 ? data.codeLength : null,
-                    onSubmitted: (_) => _submit(authState),
-                    decoration: InputDecoration(
-                      hintText: data.hint.isNotEmpty ? data.hint : null,
-                      counterText: '',
-                      enabledBorder: _showErrorBorder
-                          ? OutlineInputBorder(
-                              borderSide: BorderSide(
-                                color: theme.colorScheme.error,
-                                width: 2,
-                              ),
-                            )
-                          : null,
-                      focusedBorder: _showErrorBorder
-                          ? OutlineInputBorder(
-                              borderSide: BorderSide(
-                                color: theme.colorScheme.error,
-                                width: 2,
-                              ),
-                            )
-                          : null,
+        if (isOtp)
+          _OtpCodeInput(
+            digitCount: data.codeLength > 0 ? data.codeLength : 5,
+            hasError: _showErrorBorder,
+            onComplete: (code) {
+              setState(() => _showErrorBorder = false);
+              authState.submitInput(code);
+            },
+            timeoutSecs: data.timeoutSecs,
+          )
+        else
+          AnimatedBuilder(
+            animation: _shakeController,
+            builder: (context, child) {
+              final dx = _shakeController.isAnimating
+                  ? sin(_shakeController.value * pi * 4) *
+                      6 *
+                      (1 - _shakeController.value)
+                  : 0.0;
+              return Transform.translate(
+                offset: Offset(dx, 0),
+                child: child,
+              );
+            },
+            child: isPhone
+                ? _buildPhoneFields(authState, theme)
+                : SizedBox(
+                    width: 300,
+                    child: TextField(
+                      controller: _inputController,
+                      obscureText: isPassword,
+                      keyboardType: TextInputType.text,
+                      autofocus: true,
+                      onSubmitted: (_) => _submit(authState),
+                      decoration: InputDecoration(
+                        hintText: data.hint.isNotEmpty ? data.hint : null,
+                        counterText: '',
+                        enabledBorder: _showErrorBorder
+                            ? OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: theme.colorScheme.error,
+                                  width: 2,
+                                ),
+                              )
+                            : null,
+                        focusedBorder: _showErrorBorder
+                            ? OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: theme.colorScheme.error,
+                                  width: 2,
+                                ),
+                              )
+                            : null,
+                      ),
                     ),
                   ),
-                ),
-        ),
+          ),
       ],
     );
   }
@@ -771,6 +778,364 @@ class _AuthScreenState extends State<AuthScreen>
           Navigator.of(ctx).pop();
         },
       ),
+    );
+  }
+}
+
+/// Spec §11.5 — Per-digit OTP code input cells.
+/// Cell 40x50px, 4px border, 10px gap, 20px digit font.
+/// Auto-submits when all cells filled. Shake on error.
+class _OtpCodeInput extends StatefulWidget {
+  final int digitCount;
+  final bool hasError;
+  final ValueChanged<String> onComplete;
+  final int timeoutSecs;
+
+  const _OtpCodeInput({
+    required this.digitCount,
+    required this.hasError,
+    required this.onComplete,
+    this.timeoutSecs = 0,
+  });
+
+  @override
+  State<_OtpCodeInput> createState() => _OtpCodeInputState();
+}
+
+class _OtpCodeInputState extends State<_OtpCodeInput>
+    with TickerProviderStateMixin {
+  static const _cellWidth = 40.0;
+  static const _cellHeight = 50.0;
+  static const _cellGap = 10.0;
+  static const _borderWidth = 4.0;
+  static const _digitFontSize = 20.0;
+  static const _cornerRadius = 3.0;
+
+  late List<String> _digits;
+  int _focusedIndex = 0;
+  late List<AnimationController> _digitAnimControllers;
+  late List<Animation<double>> _fadeAnims;
+  late List<Animation<Offset>> _slideAnims;
+  late AnimationController _shakeController;
+  late FocusNode _focusNode;
+  Timer? _callTimer;
+  int _callSecondsLeft = 0;
+  bool _calling = false;
+  bool _submitted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _digits = List.filled(widget.digitCount, '');
+    _digitAnimControllers = List.generate(widget.digitCount, (_) {
+      return AnimationController(
+        duration: const Duration(milliseconds: 120),
+        vsync: this,
+      );
+    });
+    _fadeAnims = _digitAnimControllers
+        .map((c) => Tween<double>(begin: 0.0, end: 1.0).animate(c))
+        .toList();
+    _slideAnims = _digitAnimControllers
+        .map((c) => Tween<Offset>(begin: const Offset(0, 10), end: Offset.zero)
+            .animate(c))
+        .toList();
+    _shakeController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _focusNode = FocusNode();
+    for (var i = 0; i < widget.digitCount; i++) {
+      _digitAnimControllers[i].value = 0.0;
+    }
+    if (widget.timeoutSecs > 0) {
+      _callSecondsLeft = widget.timeoutSecs;
+      _startCallTimer();
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _focusNode.requestFocus();
+    });
+  }
+
+  @override
+  void didUpdateWidget(_OtpCodeInput old) {
+    super.didUpdateWidget(old);
+    if (widget.hasError && !old.hasError) {
+      _shakeController.forward(from: 0);
+      _submitted = false;
+      for (var i = 0; i < widget.digitCount; i++) {
+        _digits[i] = '';
+        _digitAnimControllers[i].value = 0.0;
+      }
+      _focusedIndex = 0;
+    }
+    if (widget.digitCount != old.digitCount) {
+      _rebuildDigits();
+    }
+  }
+
+  void _rebuildDigits() {
+    for (final c in _digitAnimControllers) {
+      c.dispose();
+    }
+    _digits = List.filled(widget.digitCount, '');
+    _digitAnimControllers = List.generate(widget.digitCount, (_) {
+      return AnimationController(
+        duration: const Duration(milliseconds: 120),
+        vsync: this,
+      );
+    });
+    _fadeAnims = _digitAnimControllers
+        .map((c) => Tween<double>(begin: 0.0, end: 1.0).animate(c))
+        .toList();
+    _slideAnims = _digitAnimControllers
+        .map((c) => Tween<Offset>(begin: const Offset(0, 10), end: Offset.zero)
+            .animate(c))
+        .toList();
+    _focusedIndex = 0;
+    _submitted = false;
+  }
+
+  void _startCallTimer() {
+    _callTimer?.cancel();
+    _callTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      setState(() {
+        _callSecondsLeft--;
+        if (_callSecondsLeft <= 0) {
+          t.cancel();
+          _calling = true;
+        }
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    for (final c in _digitAnimControllers) {
+      c.dispose();
+    }
+    _shakeController.dispose();
+    _focusNode.dispose();
+    _callTimer?.cancel();
+    super.dispose();
+  }
+
+  void _insertDigit(String digit) {
+    if (_submitted) return;
+    if (_focusedIndex >= widget.digitCount) return;
+    setState(() {
+      _digits[_focusedIndex] = digit;
+      _digitAnimControllers[_focusedIndex].forward(from: 0);
+      if (_focusedIndex < widget.digitCount - 1) {
+        _focusedIndex++;
+      }
+    });
+    _checkComplete();
+  }
+
+  void _deleteDigit() {
+    if (_submitted) return;
+    if (_focusedIndex > 0 && _digits[_focusedIndex].isEmpty) {
+      _focusedIndex--;
+    }
+    if (_digits[_focusedIndex].isNotEmpty) {
+      setState(() {
+        _digitAnimControllers[_focusedIndex].reverse();
+        _digits[_focusedIndex] = '';
+      });
+    }
+  }
+
+  void _checkComplete() {
+    if (_submitted) return;
+    final code = _digits.join();
+    if (code.length == widget.digitCount &&
+        code.runes.every((r) => r >= 0x30 && r <= 0x39)) {
+      _submitted = true;
+      Future.delayed(const Duration(milliseconds: 80), () {
+        widget.onComplete(code);
+      });
+    }
+  }
+
+  void _pasteCode() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    if (data?.text == null) return;
+    final digits = data!.text!.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return;
+    setState(() {
+      for (var i = 0; i < widget.digitCount && i < digits.length; i++) {
+        _digits[i] = digits[i];
+        _digitAnimControllers[i].forward(from: 0);
+      }
+      _focusedIndex = min(digits.length, widget.digitCount - 1);
+    });
+    _checkComplete();
+  }
+
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final key = event.logicalKey;
+
+    if (key == LogicalKeyboardKey.backspace) {
+      _deleteDigit();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowLeft) {
+      setState(() {
+        _focusedIndex = max(0, _focusedIndex - 1);
+      });
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowRight) {
+      setState(() {
+        _focusedIndex = min(widget.digitCount - 1, _focusedIndex + 1);
+      });
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.home) {
+      setState(() => _focusedIndex = 0);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.end) {
+      setState(() => _focusedIndex = widget.digitCount - 1);
+      return KeyEventResult.handled;
+    }
+
+    if (HardwareKeyboard.instance.isControlPressed &&
+        key == LogicalKeyboardKey.keyV) {
+      _pasteCode();
+      return KeyEventResult.handled;
+    }
+
+    final char = event.character;
+    if (char != null && char.length == 1 && RegExp(r'\d').hasMatch(char)) {
+      _insertDigit(char);
+      return KeyEventResult.handled;
+    }
+
+    return KeyEventResult.ignored;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final bgColor = isDark ? const Color(0xFF202B36) : const Color(0xFFEFEFEF);
+    final unfocusedBorder =
+        isDark ? const Color(0xFF3A4A5A) : const Color(0xFFD0D0D0);
+    final focusedBorder = const Color(0xFF40A7E3);
+    final errorBorder = theme.colorScheme.error;
+
+    return Column(
+      children: [
+        Focus(
+          focusNode: _focusNode,
+          onKeyEvent: _handleKey,
+          child: GestureDetector(
+            onTap: () => _focusNode.requestFocus(),
+            child: AnimatedBuilder(
+              animation: _shakeController,
+              builder: (context, child) {
+                final dx = _shakeController.isAnimating
+                    ? sin(_shakeController.value * pi * 6) *
+                        8 *
+                        (1 - _shakeController.value)
+                    : 0.0;
+                return Transform.translate(
+                  offset: Offset(dx, 0),
+                  child: child,
+                );
+              },
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(widget.digitCount, (i) {
+                  final isFocused =
+                      _focusNode.hasFocus && i == _focusedIndex;
+                  final borderColor = widget.hasError
+                      ? errorBorder
+                      : isFocused
+                          ? focusedBorder
+                          : unfocusedBorder;
+
+                  return Padding(
+                    padding: EdgeInsets.only(
+                        right: i < widget.digitCount - 1 ? _cellGap : 0),
+                    child: Container(
+                      width: _cellWidth,
+                      height: _cellHeight,
+                      decoration: BoxDecoration(
+                        color: bgColor,
+                        borderRadius:
+                            BorderRadius.circular(_cornerRadius),
+                        border: Border.all(
+                          color: borderColor,
+                          width: _borderWidth,
+                        ),
+                      ),
+                      child: Center(
+                        child: AnimatedBuilder(
+                          animation: _digitAnimControllers[i],
+                          builder: (context, child) {
+                            final fade = _fadeAnims[i].value;
+                            final slide = _slideAnims[i].value;
+                            return Opacity(
+                              opacity: fade,
+                              child: Transform.translate(
+                                offset: Offset(slide.dx,
+                                    slide.dy * (1 - fade)),
+                                child: child,
+                              ),
+                            );
+                          },
+                          child: Text(
+                            _digits[i],
+                            style: TextStyle(
+                              fontSize: _digitFontSize,
+                              fontWeight: FontWeight.w500,
+                              color: theme.textTheme.bodyLarge?.color,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ),
+          ),
+        ),
+        if (widget.timeoutSecs > 0) ...[
+          const SizedBox(height: 16),
+          _calling
+              ? Text(
+                  'Calling...',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                  ),
+                )
+              : _callSecondsLeft > 0
+                  ? Text(
+                      'Telegram will call you in ${_callSecondsLeft ~/ 60}:${(_callSecondsLeft % 60).toString().padLeft(2, '0')}',
+                      style: theme.textTheme.bodySmall,
+                    )
+                  : const SizedBox.shrink(),
+        ],
+        const SizedBox(height: 12),
+        TextButton(
+          onPressed: () {},
+          child: Text(
+            "Didn't get the code?",
+            style: TextStyle(
+              fontSize: 13,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

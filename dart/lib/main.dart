@@ -331,6 +331,18 @@ class _UniClientAppState extends State<UniClientApp>
             appState.setActiveAccountId(accountId);
             chatState.switchAccount(accountId);
           }
+        case 'addAccount':
+          final platform = cmd['platform'] as String? ?? 'telegram';
+          final appState = context.read<AppState>();
+          if (appState.canAddAccount) {
+            final id = appState.addAccount(platform);
+            Debug.log('DEBUG_CMD', 'Added account: $id ($platform)');
+            final authState = context.read<AuthState>();
+            authState.startAuth(id);
+            File('/tmp/uniclient_debug_out.json').writeAsStringSync(
+              jsonEncode({'accountId': id, 'platform': platform}),
+            );
+          }
         case 'listAccounts':
           final appState = context.read<AppState>();
           final out = appState.accounts.map((a) => {
@@ -890,6 +902,26 @@ class _UniClientAppState extends State<UniClientApp>
           logicalKey: LogicalKeyboardKey.tab,
           timeStamp: ts,
         ));
+      default:
+        if (key.length == 1) {
+          final code = key.codeUnitAt(0);
+          final physical = code >= 0x30 && code <= 0x39
+              ? PhysicalKeyboardKey(0x00070027 + code - 0x39 + 9)
+              : PhysicalKeyboardKey(0x00070004 + code - 0x61);
+          final logical = LogicalKeyboardKey(code);
+          final ts = Duration(milliseconds: DateTime.now().millisecondsSinceEpoch);
+          HardwareKeyboard.instance.handleKeyEvent(KeyDownEvent(
+            physicalKey: physical,
+            logicalKey: logical,
+            character: key,
+            timeStamp: ts,
+          ));
+          HardwareKeyboard.instance.handleKeyEvent(KeyUpEvent(
+            physicalKey: physical,
+            logicalKey: logical,
+            timeStamp: ts,
+          ));
+        }
     }
   }
 
