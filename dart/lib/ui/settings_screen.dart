@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
+import '../state/auth_state.dart';
 import 'advanced_settings_screen.dart';
 import 'confirm_box.dart';
 import 'my_profile_page.dart';
@@ -62,6 +63,9 @@ class SettingsScreen extends StatelessWidget {
             ),
             onSelected: (value) {
               switch (value) {
+                case 'add_account':
+                  _showAddAccountDialog(context, appState);
+                  break;
                 case 'edit_profile':
                   Navigator.of(context).push(
                     MaterialPageRoute(
@@ -78,6 +82,17 @@ class SettingsScreen extends StatelessWidget {
               }
             },
             itemBuilder: (ctx) => [
+              if (appState.canAddAccount)
+                PopupMenuItem(
+                  value: 'add_account',
+                  child: Row(
+                    children: [
+                      Icon(Icons.person_add, size: 20, color: subtextColor),
+                      const SizedBox(width: 12),
+                      Text('Add Account', style: TextStyle(color: textColor)),
+                    ],
+                  ),
+                ),
               PopupMenuItem(
                 value: 'edit_profile',
                 child: Row(
@@ -220,6 +235,38 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
+  void _showAddAccountDialog(BuildContext context, AppState appState) {
+    final authState = context.read<AuthState>();
+    showDialog(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Add Account'),
+        children: [
+          for (final p in [
+            ('telegram', 'Telegram'),
+            ('matrix', 'Matrix'),
+            ('xmpp', 'XMPP'),
+            ('irc', 'IRC'),
+            ('bale', 'Bale'),
+            ('rubika', 'Rubika'),
+            ('deltachat', 'Delta Chat'),
+            ('mumble', 'Mumble'),
+            ('teamspeak', 'TeamSpeak'),
+          ])
+            SimpleDialogOption(
+              child: Text(p.$2),
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                Navigator.of(context).pop();
+                final id = appState.addAccount(p.$1);
+                authState.startAuth(id);
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
   void _confirmLogOut(
       BuildContext context, AppState appState, AccountInfo? account) {
     showConfirmBox(
@@ -228,7 +275,7 @@ class SettingsScreen extends StatelessWidget {
       confirmText: 'Log Out',
       isDestructive: true,
       onConfirm: () {
-        Navigator.of(context).pop(); // close settings
+        Navigator.of(context).pop();
         if (account != null) {
           appState.removeAccount(account.id);
         }

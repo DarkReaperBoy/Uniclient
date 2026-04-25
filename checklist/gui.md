@@ -590,7 +590,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 14.1 Opening Settings — DONE
 - [x] Settings screen navigation: hamburger "Settings" row opens SettingsScreen as full-height panel with back arrow + "Settings" title — spec §14.1 — DONE in `settings_screen.dart`
 - [x] Top-bar overflow menu skeleton: Edit Profile + Log Out items with icons — spec §14.1 — DONE in `settings_screen.dart`
-- [ ] Complete overflow menu actions: Add Account (hidden at max 10 Premium / 3 free), Edit Profile navigates to My Account section, Log Out shows `lng_sure_logout` confirmation dialog with red attentionBoxButton — spec §14.1
 
 ### 14.2 Profile Header / Cover — PARTIAL
 - [x] Profile header skeleton: 88px circular avatar at (22px left, 8px top), name (17px semibold), phone, username (@) — spec §14.2 — DONE in `settings_screen.dart`
