@@ -537,6 +537,8 @@ class _UniClientAppState extends State<UniClientApp>
               ),
               chatTitle: cmd['chatTitle'] as String? ?? 'Test Group',
               isRecording: cmd['isRecording'] == true,
+              isSelfMuted: cmd['isSelfMuted'] == true,
+              isForceMuted: cmd['isForceMuted'] == true,
             );
           }
       }

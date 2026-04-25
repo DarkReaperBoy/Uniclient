@@ -539,7 +539,6 @@
 
 ### §12.7 Mute Button (Big)
 <!-- File: dart/lib/ui/call_screen.dart -->
-- [ ] Mute button: 36x36 Lottie icon in 42px circle; three states: green (unmuted), gray (muted), purple (force-muted by admin); each state change plays dedicated Lottie segment; blob ring pulses 215ms — spec §12.7
 
 ### §12.8 Minimised TopBar
 <!-- File: dart/lib/ui/call_screen.dart / shell.dart -->

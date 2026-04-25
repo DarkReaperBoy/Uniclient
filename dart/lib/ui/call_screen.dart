@@ -8,11 +8,14 @@ import '../models/engine_models.dart';
 
 enum GroupCallMode { narrow, wide }
 
+enum MuteButtonState { unmuted, muted, forceMuted }
+
 class GroupCallPanel extends StatefulWidget {
   final GroupCallInfo info;
   final String chatTitle;
   final bool isRecording;
   final bool isSelfMuted;
+  final bool isForceMuted;
   final bool isRtmp;
   final VoidCallback? onLeave;
   final VoidCallback? onToggleMute;
@@ -27,6 +30,7 @@ class GroupCallPanel extends StatefulWidget {
     this.chatTitle = '',
     this.isRecording = false,
     this.isSelfMuted = false,
+    this.isForceMuted = false,
     this.isRtmp = false,
     this.onLeave,
     this.onToggleMute,
@@ -74,6 +78,12 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     final m = seconds ~/ 60;
     final s = seconds % 60;
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  MuteButtonState get _muteState {
+    if (widget.isForceMuted) return MuteButtonState.forceMuted;
+    if (widget.isSelfMuted) return MuteButtonState.muted;
+    return MuteButtonState.unmuted;
   }
 
   GroupCallMode _resolveMode(double width) {
@@ -276,10 +286,8 @@ class _GroupCallPanelState extends State<GroupCallPanel>
             backgroundColor: const Color(0xFFE53935),
             onTap: widget.onLeave,
           ),
-          _GroupCallControlButton(
-            icon: widget.isSelfMuted ? Icons.mic_off : Icons.mic,
-            label: widget.isSelfMuted ? 'Unmute' : 'Mute',
-            isActive: widget.isSelfMuted,
+          _BigMuteButton(
+            state: _muteState,
             onTap: widget.onToggleMute,
           ),
         ],
@@ -691,6 +699,166 @@ class _TitleBarButton extends StatelessWidget {
   }
 }
 
+class _BigMuteButton extends StatefulWidget {
+  final MuteButtonState state;
+  final VoidCallback? onTap;
+
+  const _BigMuteButton({required this.state, this.onTap});
+
+  @override
+  State<_BigMuteButton> createState() => _BigMuteButtonState();
+}
+
+class _BigMuteButtonState extends State<_BigMuteButton>
+    with SingleTickerProviderStateMixin {
+  static const _circleSize = 42.0;
+  static const _iconSize = 36.0;
+  static const _blobMinRadius = 28.0;
+  static const _blobMaxRadius = 33.0;
+  static const _minorScale = 0.545;
+  static const _majorScale = 0.605;
+  static const _pulsePeriodMs = 430;
+
+  static const _greenColor = Color(0xFF4DC920);
+  static const _grayColor = Color(0xFF808B94);
+  static const _purpleColor = Color(0xFF7B5EBF);
+
+  late AnimationController _ticker;
+  late _BlobState _minorBlob;
+  late _BlobState _majorBlob;
+  late DateTime _startTime;
+
+  @override
+  void initState() {
+    super.initState();
+    final rng = math.Random(12345);
+    _minorBlob = _BlobState(6, rng);
+    _majorBlob = _BlobState(8, rng);
+    _startTime = DateTime.now();
+    _ticker = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    )..addListener(_onTick);
+    if (widget.state == MuteButtonState.unmuted) {
+      _ticker.repeat();
+    }
+  }
+
+  @override
+  void didUpdateWidget(_BigMuteButton old) {
+    super.didUpdateWidget(old);
+    if (widget.state != old.state) {
+      if (widget.state == MuteButtonState.unmuted && !_ticker.isAnimating) {
+        _startTime = DateTime.now();
+        _ticker.repeat();
+      } else if (widget.state != MuteButtonState.unmuted &&
+          _ticker.isAnimating) {
+        _ticker.stop();
+      }
+      setState(() {});
+    }
+  }
+
+  void _onTick() {
+    _minorBlob.advance();
+    _majorBlob.advance();
+    setState(() {});
+  }
+
+  double get _pulseLevel {
+    if (widget.state != MuteButtonState.unmuted) return 0.0;
+    final elapsed =
+        DateTime.now().difference(_startTime).inMilliseconds;
+    return 0.35 + 0.35 * math.sin(elapsed * 2 * math.pi / _pulsePeriodMs);
+  }
+
+  Color get _stateColor {
+    switch (widget.state) {
+      case MuteButtonState.unmuted:
+        return _greenColor;
+      case MuteButtonState.muted:
+        return _grayColor;
+      case MuteButtonState.forceMuted:
+        return _purpleColor;
+    }
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _stateColor;
+    final blobSize = _blobMaxRadius * 2 + 8;
+    final level = _pulseLevel;
+    final showBlob = widget.state == MuteButtonState.unmuted && level > 0.001;
+
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: blobSize,
+            height: blobSize,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                if (showBlob)
+                  CustomPaint(
+                    size: Size(blobSize, blobSize),
+                    painter: _BlobPainter(
+                      majorBlob: _majorBlob,
+                      minorBlob: _minorBlob,
+                      radius: _blobMinRadius +
+                          (_blobMaxRadius - _blobMinRadius) * level,
+                      majorScale: _majorScale,
+                      minorScale: _minorScale,
+                      color: color,
+                      level: level,
+                    ),
+                  ),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: _circleSize,
+                  height: _circleSize,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                  ),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child: Icon(
+                      widget.state == MuteButtonState.unmuted
+                          ? Icons.mic
+                          : Icons.mic_off,
+                      key: ValueKey(widget.state),
+                      color: Colors.white,
+                      size: _iconSize,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 6),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            child: Text(
+              widget.state == MuteButtonState.unmuted ? 'Mute' : 'Unmute',
+              key: ValueKey(widget.state == MuteButtonState.unmuted),
+              style: const TextStyle(color: Color(0xAAFFFFFF), fontSize: 11),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _GroupCallControlButton extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -764,6 +932,8 @@ class _GroupCallActionButton extends StatelessWidget {
 void showGroupCallPanel(BuildContext context, GroupCallInfo info,
     {String chatTitle = '',
     bool isRecording = false,
+    bool isSelfMuted = false,
+    bool isForceMuted = false,
     Widget? videoViewport}) {
   showDialog(
     context: context,
@@ -785,6 +955,8 @@ void showGroupCallPanel(BuildContext context, GroupCallInfo info,
               info: info,
               chatTitle: chatTitle,
               isRecording: isRecording,
+              isSelfMuted: isSelfMuted,
+              isForceMuted: isForceMuted,
               videoViewport: videoViewport,
               onLeave: () => Navigator.of(ctx).pop(),
             ),
