@@ -542,8 +542,6 @@
 
 ### §12.8 Minimised TopBar
 <!-- File: dart/lib/ui/call_screen.dart / shell.dart -->
-- [ ] Minimised call bar: 38px height; group name, mm:ss duration, participant userpic strip (28px each, 8px overlap), mute toggle, red hangup — spec §12.8
-- [ ] Gradient states: Active (greens), Muted (grays), Connecting (solid callBarBgMuted), Force-muted (purples); gradient sweeps bar width simultaneously with mute-icon cross-line interpolation — spec §12.8
 
 ### §12.9 Screen-Share Chooser
 <!-- File: dart/lib/ui/call_screen.dart -->

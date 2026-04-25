@@ -966,3 +966,341 @@ void showGroupCallPanel(BuildContext context, GroupCallInfo info,
     },
   );
 }
+
+// ── §12.8 Minimised Call TopBar ──
+
+enum _CallBarGradientState { active, muted, connecting, forceMuted }
+
+class MinimisedCallBar extends StatefulWidget {
+  final String groupName;
+  final List<GroupCallParticipant> participants;
+  final bool isSelfMuted;
+  final bool isForceMuted;
+  final bool isConnecting;
+  final VoidCallback? onToggleMute;
+  final VoidCallback? onHangup;
+  final VoidCallback? onTap;
+
+  const MinimisedCallBar({
+    super.key,
+    required this.groupName,
+    this.participants = const [],
+    this.isSelfMuted = false,
+    this.isForceMuted = false,
+    this.isConnecting = false,
+    this.onToggleMute,
+    this.onHangup,
+    this.onTap,
+  });
+
+  static const height = 38.0;
+
+  @override
+  State<MinimisedCallBar> createState() => _MinimisedCallBarState();
+}
+
+class _MinimisedCallBarState extends State<MinimisedCallBar>
+    with TickerProviderStateMixin {
+  Timer? _durationTimer;
+  int _durationSeconds = 0;
+  late AnimationController _gradientAnim;
+  _CallBarGradientState _fromState = _CallBarGradientState.connecting;
+  _CallBarGradientState _toState = _CallBarGradientState.connecting;
+
+  @override
+  void initState() {
+    super.initState();
+    _gradientAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+      value: 1.0,
+    );
+    _toState = _resolveGradientState();
+    _fromState = _toState;
+    _startDurationTimer();
+  }
+
+  @override
+  void didUpdateWidget(MinimisedCallBar old) {
+    super.didUpdateWidget(old);
+    final newState = _resolveGradientState();
+    if (newState != _toState) {
+      _fromState = _toState;
+      _toState = newState;
+      final stateDistance = (_toState.index - _fromState.index).abs();
+      _gradientAnim.duration = Duration(
+        milliseconds: stateDistance * 300,
+      );
+      _gradientAnim.forward(from: 0.0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _durationTimer?.cancel();
+    _gradientAnim.dispose();
+    super.dispose();
+  }
+
+  void _startDurationTimer() {
+    _durationTimer?.cancel();
+    _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() => _durationSeconds++);
+    });
+  }
+
+  _CallBarGradientState _resolveGradientState() {
+    if (widget.isConnecting) return _CallBarGradientState.connecting;
+    if (widget.isForceMuted) return _CallBarGradientState.forceMuted;
+    if (widget.isSelfMuted) return _CallBarGradientState.muted;
+    return _CallBarGradientState.active;
+  }
+
+  String _formatDuration(int seconds) {
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  static List<Color> _gradientColors(_CallBarGradientState state) {
+    switch (state) {
+      case _CallBarGradientState.active:
+        return [const Color(0xFF52CE5B), const Color(0xFF00B151)];
+      case _CallBarGradientState.muted:
+        return [const Color(0xFF7F8A96), const Color(0xFF6B7684)];
+      case _CallBarGradientState.connecting:
+        return [const Color(0xFF7F8A96), const Color(0xFF7F8A96)];
+      case _CallBarGradientState.forceMuted:
+        return [const Color(0xFF9B59B6), const Color(0xFF7B68EE), const Color(0xFF8E44AD)];
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _gradientAnim,
+      builder: (context, child) {
+        final fromColors = _gradientColors(_fromState);
+        final toColors = _gradientColors(_toState);
+        final t = Curves.easeInOut.transform(_gradientAnim.value);
+
+        final maxLen = math.max(fromColors.length, toColors.length);
+        final interpolated = List.generate(maxLen, (i) {
+          final fc = fromColors[i.clamp(0, fromColors.length - 1)];
+          final tc = toColors[i.clamp(0, toColors.length - 1)];
+          return Color.lerp(fc, tc, t)!;
+        });
+
+        return Container(
+          height: MinimisedCallBar.height,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: interpolated),
+          ),
+          child: child,
+        );
+      },
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: widget.onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          widget.groupName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _formatDuration(_durationSeconds),
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (widget.participants.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  _UserpicStrip(participants: widget.participants),
+                ],
+                const SizedBox(width: 8),
+                _MuteToggle(
+                  isMuted: widget.isSelfMuted || widget.isForceMuted,
+                  isForceMuted: widget.isForceMuted,
+                  onTap: widget.onToggleMute,
+                ),
+                const SizedBox(width: 4),
+                _HangupButton(onTap: widget.onHangup),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _UserpicStrip extends StatelessWidget {
+  final List<GroupCallParticipant> participants;
+
+  const _UserpicStrip({required this.participants});
+
+  static const _size = 28.0;
+  static const _overlap = 8.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final count = math.min(participants.length, 5);
+    final totalWidth = count > 0 ? _size + (_size - _overlap) * (count - 1) : 0.0;
+
+    return SizedBox(
+      width: totalWidth,
+      height: _size,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: List.generate(count, (i) {
+          final p = participants[i];
+          return Positioned(
+            left: i * (_size - _overlap),
+            child: _ParticipantAvatar(
+              name: p.displayName,
+              avatarPath: p.avatarPath,
+              size: _size,
+            ),
+          );
+        }),
+      ),
+    );
+  }
+}
+
+class _ParticipantAvatar extends StatelessWidget {
+  final String name;
+  final String avatarPath;
+  final double size;
+
+  const _ParticipantAvatar({
+    required this.name,
+    required this.avatarPath,
+    required this.size,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasAvatar = avatarPath.isNotEmpty;
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white24, width: 1.5),
+        color: hasAvatar ? null : _colorForName(name),
+        image: hasAvatar
+            ? DecorationImage(
+                image: FileImage(File(avatarPath)),
+                fit: BoxFit.cover,
+              )
+            : null,
+      ),
+      child: hasAvatar
+          ? null
+          : Center(
+              child: Text(
+                name.isNotEmpty ? name[0].toUpperCase() : '?',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: size * 0.4,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+    );
+  }
+
+  static Color _colorForName(String name) {
+    final colors = [
+      const Color(0xFFE57373),
+      const Color(0xFF81C784),
+      const Color(0xFF64B5F6),
+      const Color(0xFFFFB74D),
+      const Color(0xFFBA68C8),
+      const Color(0xFF4DB6AC),
+      const Color(0xFFF06292),
+    ];
+    final hash = name.codeUnits.fold<int>(0, (h, c) => h + c);
+    return colors[hash % colors.length];
+  }
+}
+
+class _MuteToggle extends StatelessWidget {
+  final bool isMuted;
+  final bool isForceMuted;
+  final VoidCallback? onTap;
+
+  const _MuteToggle({
+    required this.isMuted,
+    this.isForceMuted = false,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 32,
+      height: 32,
+      child: IconButton(
+        onPressed: isForceMuted ? null : onTap,
+        padding: EdgeInsets.zero,
+        iconSize: 18,
+        icon: Icon(
+          isMuted ? Icons.mic_off : Icons.mic,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+}
+
+class _HangupButton extends StatelessWidget {
+  final VoidCallback? onTap;
+
+  const _HangupButton({this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 32,
+      height: 32,
+      child: IconButton(
+        onPressed: onTap,
+        padding: EdgeInsets.zero,
+        iconSize: 18,
+        style: IconButton.styleFrom(
+          backgroundColor: const Color(0xFFE53935),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        icon: const Icon(
+          Icons.call_end,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+}

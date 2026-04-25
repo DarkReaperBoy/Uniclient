@@ -13,6 +13,7 @@ import 'chat_list_panel.dart';
 import 'chat_view.dart';
 import 'filter_column.dart';
 import 'hamburger_drawer.dart';
+import 'call_screen.dart';
 import 'info_panel.dart';
 
 /// Layout modes matching Telegram Desktop's responsive breakpoints.
@@ -230,14 +231,40 @@ class _UniClientShellState extends State<UniClientShell>
 
   Widget _buildLayout(BuildContext context, LayoutMode mode, double bodyWidth,
       double windowWidth, bool showFilters, ChatState chatState) {
+    Widget layout;
     switch (mode) {
       case LayoutMode.oneColumn:
-        return _buildOneColumn(context, chatState);
+        layout = _buildOneColumn(context, chatState);
       case LayoutMode.twoColumn:
-        return _buildTwoColumn(context, bodyWidth, showFilters, chatState);
+        layout = _buildTwoColumn(context, bodyWidth, showFilters, chatState);
       case LayoutMode.threeColumn:
-        return _buildThreeColumn(context, bodyWidth, showFilters, chatState);
+        layout = _buildThreeColumn(context, bodyWidth, showFilters, chatState);
     }
+
+    final groupCall = chatState.activeGroupCall;
+    if (groupCall != null && groupCall.active) {
+      return Column(
+        children: [
+          MinimisedCallBar(
+            groupName: groupCall.title.isNotEmpty
+                ? groupCall.title
+                : chatState.activeChat?.title ?? 'Group Call',
+            participants: groupCall.participants,
+            isSelfMuted: groupCall.participants.any((p) =>
+                p.userId == (chatState.activeChat?.accountId ?? '') && p.isMuted),
+            onHangup: () {
+              // Leave handled by engine when available
+            },
+            onToggleMute: () {
+              // Mute toggle handled by engine when available
+            },
+          ),
+          Expanded(child: layout),
+        ],
+      );
+    }
+
+    return layout;
   }
 
   /// Single panel: show either chat list or chat view, with section transition
