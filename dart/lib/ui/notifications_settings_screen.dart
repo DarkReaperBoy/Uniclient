@@ -18,6 +18,7 @@ class _NotificationsSettingsScreenState
   bool _desktopNotify = true;
   bool _flashBounce = true;
   bool _allowSound = true;
+  int _volume = 100;
 
   @override
   Widget build(BuildContext context) {
@@ -185,6 +186,19 @@ class _NotificationsSettingsScreenState
         accentColor: accentColor,
         hoverBg: hoverBg,
       ),
+      AnimatedSize(
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeInOut,
+        alignment: Alignment.topCenter,
+        child: _allowSound
+            ? _VolumeSliderSection(
+                volume: _volume,
+                onChanged: (v) => setState(() => _volume = v),
+                accentColor: accentColor,
+                isDark: isDark,
+              )
+            : const SizedBox(width: double.infinity, height: 0),
+      ),
     ];
   }
 }
@@ -231,6 +245,84 @@ class _NotifToggleRow extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _VolumeSliderSection extends StatelessWidget {
+  final int volume;
+  final ValueChanged<int> onChanged;
+  final Color accentColor;
+  final bool isDark;
+
+  const _VolumeSliderSection({
+    required this.volume,
+    required this.onChanged,
+    required this.accentColor,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final labelColor = accentColor;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 10, 22, 0),
+          child: Text(
+            'Volume',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: labelColor,
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(21, 7, 21, 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    trackHeight: 2,
+                    thumbShape:
+                        const RoundSliderThumbShape(enabledThumbRadius: 7.5),
+                    overlayShape:
+                        const RoundSliderOverlayShape(overlayRadius: 14),
+                    activeTrackColor: accentColor,
+                    inactiveTrackColor: isDark
+                        ? const Color(0xFF3E546A)
+                        : const Color(0xFFD4DEE6),
+                    thumbColor: accentColor,
+                    overlayColor: accentColor.withValues(alpha: 0.2),
+                  ),
+                  child: Slider(
+                    value: volume.toDouble(),
+                    min: 1,
+                    max: 100,
+                    divisions: 99,
+                    onChanged: (v) => onChanged(v.round()),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 44,
+                child: Text(
+                  '$volume%',
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: labelColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

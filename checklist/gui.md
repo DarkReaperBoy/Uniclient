@@ -622,7 +622,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 <!-- dart/lib/ui/notifications_settings_screen.dart -->
 
 ### 15.2 Global Settings + Volume Slider
-- [ ] Master volume slider in SlideWrap (visible when sound ON): "Volume" subtitle, horizontal MediaSlider with 15x15 thumb, 100 steps (1–100), live percentage label, plays preview on drag, 150ms slide animation — spec §15.2.1
 
 ### 15.3 Notification Preview Widget
 - [ ] Preview bubble in SlideWrap (shown when desktop notifications ON): chat-themed rect on wallpaper, 36x36px userpic, title + text, two pill-style checkboxes ("Name" / "Text") centered horizontally with unchecking/dependency logic, three preview states (ShowPreview/ShowName/ShowNothing) — spec §15.3
