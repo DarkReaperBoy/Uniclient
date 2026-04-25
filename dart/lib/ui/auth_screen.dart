@@ -281,8 +281,8 @@ class _AuthScreenState extends State<AuthScreen>
         ],
         if (data?.state == 'choose' && data!.options.isNotEmpty)
           ..._buildChoices(data.options, authState, theme),
-        if (data?.state == 'qr' && data!.qrData.isNotEmpty)
-          _buildQR(data, theme),
+        if (data?.state == 'qr')
+          _buildQR(data, authState, theme),
         if (data?.state == 'input' || data?.state == 'otp' || data?.state == '2fa')
           _buildInput(data!, authState, theme),
       ],
@@ -316,39 +316,131 @@ class _AuthScreenState extends State<AuthScreen>
     ];
   }
 
-  Widget _buildQR(AuthStateData data, ThemeData theme) {
-    final payload = utf8.decode(data.qrData, allowMalformed: true);
+  Widget _buildQR(AuthStateData? data, AuthState authState, ThemeData theme) {
+    final hasQr = data != null && data.qrData.isNotEmpty;
+    final payload = hasQr ? utf8.decode(data.qrData, allowMalformed: true) : '';
+    const qrSize = 180.0;
+    const cardPadding = 12.0;
+    const cardSize = qrSize + cardPadding * 2;
+    const logoSize = 44.0;
+
     return Column(
       children: [
-        Container(
-          width: 180,
-          height: 180,
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: QrImageView(
-            data: payload,
-            version: QrVersions.auto,
-            backgroundColor: Colors.white,
-            eyeStyle: const QrEyeStyle(
-              eyeShape: QrEyeShape.square,
-              color: Colors.black,
-            ),
-            dataModuleStyle: const QrDataModuleStyle(
-              dataModuleShape: QrDataModuleShape.square,
-              color: Colors.black,
-            ),
-            errorCorrectionLevel: QrErrorCorrectLevel.M,
-            gapless: true,
+        SizedBox(
+          width: cardSize,
+          height: cardSize,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              AnimatedOpacity(
+                opacity: hasQr ? 0.0 : 1.0,
+                duration: const Duration(milliseconds: 300),
+                child: SizedBox(
+                  width: qrSize,
+                  height: qrSize,
+                  child: const CircularProgressIndicator(
+                    strokeWidth: 1.5,
+                    valueColor: AlwaysStoppedAnimation(Color(0xFF40A7E3)),
+                  ),
+                ),
+              ),
+              AnimatedOpacity(
+                opacity: hasQr ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 300),
+                child: Container(
+                  width: cardSize,
+                  height: cardSize,
+                  padding: const EdgeInsets.all(cardPadding),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      if (hasQr)
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 200),
+                          child: QrImageView(
+                            key: ValueKey(payload),
+                            data: payload,
+                            version: QrVersions.auto,
+                            backgroundColor: Colors.white,
+                            eyeStyle: const QrEyeStyle(
+                              eyeShape: QrEyeShape.square,
+                              color: Colors.black,
+                            ),
+                            dataModuleStyle: const QrDataModuleStyle(
+                              dataModuleShape: QrDataModuleShape.square,
+                              color: Colors.black,
+                            ),
+                            errorCorrectionLevel: QrErrorCorrectLevel.Q,
+                            gapless: true,
+                          ),
+                        ),
+                      Container(
+                        width: logoSize,
+                        height: logoSize,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF40A7E3),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.send,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 12),
-        Text('Open Telegram on your phone', style: theme.textTheme.bodyMedium),
-        Text('Go to Settings > Devices > Link Desktop Device',
-            style: theme.textTheme.bodySmall, textAlign: TextAlign.center),
+        const SizedBox(height: 16),
+        _buildInstruction(1, 'Open Telegram on your phone', theme),
+        const SizedBox(height: 8),
+        _buildInstruction(
+            2, 'Go to Settings → Devices → Link Desktop Device', theme),
+        const SizedBox(height: 8),
+        _buildInstruction(
+            3, 'Point your phone at this screen to confirm login', theme),
+        const SizedBox(height: 20),
+        TextButton(
+          onPressed: () => authState.switchToMethod('phone'),
+          child: const Text(
+            'Log in by phone number',
+            style: TextStyle(
+              fontSize: 14,
+              color: Color(0xFF40A7E3),
+            ),
+          ),
+        ),
       ],
+    );
+  }
+
+  Widget _buildInstruction(int number, String text, ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 20,
+            child: Text(
+              '$number.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(text, style: theme.textTheme.bodyMedium),
+          ),
+        ],
+      ),
     );
   }
 

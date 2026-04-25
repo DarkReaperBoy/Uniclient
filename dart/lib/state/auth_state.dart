@@ -101,6 +101,22 @@ class AuthState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> switchToMethod(String method) async {
+    final auth = _currentAuth;
+    if (auth == null) return;
+    final accountId = auth.accountId;
+    _engine.cancelAuth(accountId);
+    _currentAuth = null;
+    _submitting = false;
+    _error = null;
+    _stopAutoPoll();
+    notifyListeners();
+    await startAuth(accountId);
+    if (_currentAuth?.state == 'choose') {
+      await submitInput(method);
+    }
+  }
+
   /// Cancel the current auth flow.
   void cancelAuth() {
     final auth = _currentAuth;

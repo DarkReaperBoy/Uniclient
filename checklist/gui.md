@@ -499,7 +499,6 @@
 ### §11.3 QR Code Screen
 <!-- File: dart/lib/ui/auth_screen.dart -->
 - [x] QR code displayed: 180px, white-card bg, 8px radius — spec §11.3 — DONE in auth_screen.dart
-- [ ] QR spec details: 12px card padding, center logo disc 44px blue (#40A7E3) with Telegram plane; radial spinner (180px, 1-2px stroke) fades as QR appears; QR crossfades on token refresh; numbered instruction lines; "Log in by phone number" link; Next button hidden on QR screen — spec §11.3
 
 ### §11.4 Phone Number Screen
 <!-- File: dart/lib/ui/auth_screen.dart — currently single TextField -->
