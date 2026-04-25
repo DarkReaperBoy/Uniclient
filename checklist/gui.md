@@ -545,7 +545,6 @@
 
 ### §12.9 Screen-Share Chooser
 <!-- File: dart/lib/ui/call_screen.dart -->
-- [ ] Screen-share source chooser: dual-tab (Windows / Full Screen); thumb 235x165px, 2px horizontal gap, 10px vertical gap; optional "Share audio" checkbox (Linux PipeWire gated) — spec §12.9
 
 ### §12.10 Rating Dialog
 <!-- File: dart/lib/ui/call_screen.dart -->

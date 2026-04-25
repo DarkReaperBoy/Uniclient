@@ -959,6 +959,7 @@ void showGroupCallPanel(BuildContext context, GroupCallInfo info,
               isForceMuted: isForceMuted,
               videoViewport: videoViewport,
               onLeave: () => Navigator.of(ctx).pop(),
+              onToggleScreenShare: () => showScreenShareChooser(ctx),
             ),
           ),
         ),
@@ -1300,6 +1301,525 @@ class _HangupButton extends StatelessWidget {
           Icons.call_end,
           color: Colors.white,
         ),
+      ),
+    );
+  }
+}
+
+// ── §12.9 Screen-Share Source Chooser ──
+
+const _kThumbW = 235.0;
+const _kThumbH = 165.0;
+const _kThumbHGap = 2.0;
+const _kThumbVGap = 10.0;
+
+class ScreenShareSource {
+  final String id;
+  final String name;
+  final bool isScreen;
+  final String? thumbnailPath;
+
+  const ScreenShareSource({
+    required this.id,
+    required this.name,
+    required this.isScreen,
+    this.thumbnailPath,
+  });
+}
+
+Future<ScreenShareSource?> showScreenShareChooser(BuildContext context) {
+  return showDialog<ScreenShareSource>(
+    context: context,
+    barrierColor: Colors.black54,
+    builder: (ctx) => const _ScreenShareChooserDialog(),
+  );
+}
+
+class _ScreenShareChooserDialog extends StatefulWidget {
+  const _ScreenShareChooserDialog();
+
+  @override
+  State<_ScreenShareChooserDialog> createState() =>
+      _ScreenShareChooserDialogState();
+}
+
+class _ScreenShareChooserDialogState
+    extends State<_ScreenShareChooserDialog> {
+  int _activeTab = 1;
+  ScreenShareSource? _selected;
+  bool _shareAudio = false;
+  bool _hasPipeWire = false;
+  List<ScreenShareSource> _windows = [];
+  List<ScreenShareSource> _screens = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _enumerate();
+  }
+
+  Future<void> _enumerate() async {
+    final results = await Future.wait([
+      _enumerateWindows(),
+      _enumerateScreens(),
+      _checkPipeWire(),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _windows = results[0] as List<ScreenShareSource>;
+      _screens = results[1] as List<ScreenShareSource>;
+      _hasPipeWire = results[2] as bool;
+      _loading = false;
+      if (_screens.isNotEmpty) _selected = _screens.first;
+    });
+  }
+
+  static Future<List<ScreenShareSource>> _enumerateWindows() async {
+    if (!Platform.isLinux) return [];
+
+    final sessionType = Platform.environment['XDG_SESSION_TYPE'] ?? '';
+
+    if (sessionType == 'wayland') {
+      try {
+        final result =
+            await Process.run('kdotool', ['search', '--name', '']);
+        if (result.exitCode == 0) {
+          final uuids = (result.stdout as String)
+              .trim()
+              .split('\n')
+              .where((l) => l.isNotEmpty)
+              .toList();
+          final sources = <ScreenShareSource>[];
+          for (final uuid in uuids) {
+            try {
+              final nr = await Process.run(
+                  'kdotool', ['getwindowname', uuid]);
+              final name = nr.exitCode == 0
+                  ? (nr.stdout as String).trim()
+                  : 'Window';
+              if (name.isNotEmpty) {
+                sources.add(ScreenShareSource(
+                    id: uuid, name: name, isScreen: false));
+              }
+            } catch (_) {}
+          }
+          return sources;
+        }
+      } catch (_) {}
+    }
+
+    try {
+      final result = await Process.run('wmctrl', ['-l']);
+      if (result.exitCode == 0) {
+        final lines = (result.stdout as String).trim().split('\n');
+        return lines.where((l) => l.isNotEmpty).map((line) {
+          final parts = line.split(RegExp(r'\s+'));
+          final id = parts.isNotEmpty ? parts[0] : '';
+          final name = parts.length >= 4
+              ? parts.sublist(3).join(' ')
+              : 'Unknown Window';
+          return ScreenShareSource(
+              id: id, name: name, isScreen: false);
+        }).toList();
+      }
+    } catch (_) {}
+
+    return [];
+  }
+
+  static Future<List<ScreenShareSource>> _enumerateScreens() async {
+    if (!Platform.isLinux) {
+      return [
+        const ScreenShareSource(
+            id: 'screen:0', name: 'Full Screen', isScreen: true),
+      ];
+    }
+
+    try {
+      final result =
+          await Process.run('xrandr', ['--listmonitors']);
+      if (result.exitCode == 0) {
+        final lines = (result.stdout as String).trim().split('\n');
+        final sources = <ScreenShareSource>[];
+        for (final line in lines.skip(1)) {
+          if (line.trim().isEmpty) continue;
+          final match =
+              RegExp(r'(\d+):\s+\+?\*?(\S+)\s+(\d+)/\d+x(\d+)')
+                  .firstMatch(line);
+          if (match != null) {
+            final idx = match.group(1)!;
+            final name = match.group(2)!;
+            final w = match.group(3)!;
+            final h = match.group(4)!;
+            sources.add(ScreenShareSource(
+              id: 'screen:$idx',
+              name: '$name (${w}x$h)',
+              isScreen: true,
+            ));
+          }
+        }
+        if (sources.isNotEmpty) return sources;
+      }
+    } catch (_) {}
+
+    return [
+      const ScreenShareSource(
+          id: 'screen:0', name: 'Full Screen', isScreen: true),
+    ];
+  }
+
+  static Future<bool> _checkPipeWire() async {
+    if (!Platform.isLinux) return false;
+    try {
+      final result = await Process.run('pgrep', ['-x', 'pipewire']);
+      return result.exitCode == 0;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void _confirm() {
+    if (_selected != null) {
+      Navigator.of(context).pop(_selected);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    final dialogW = math.min(640.0, mq.size.width - 48);
+    final dialogH = math.min(480.0, mq.size.height - 48);
+
+    return Center(
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          width: dialogW,
+          height: dialogH,
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E2530),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(100),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              _buildHeader(),
+              _buildTabs(),
+              Expanded(child: _buildGrid()),
+              if (Platform.isLinux && _hasPipeWire) _buildAudioCheckbox(),
+              _buildFooter(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      height: 52,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: const BoxDecoration(
+        border: Border(
+            bottom: BorderSide(color: Color(0x20FFFFFF), width: 1)),
+      ),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Text(
+              'Choose what to share',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(
+                Icons.close, color: Color(0xAAFFFFFF), size: 20),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabs() {
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: const BoxDecoration(
+        border: Border(
+            bottom: BorderSide(color: Color(0x10FFFFFF), width: 1)),
+      ),
+      child: Row(
+        children: [
+          _SourceTab(
+            label: 'Windows',
+            isActive: _activeTab == 0,
+            onTap: () => setState(() {
+              _activeTab = 0;
+              _selected =
+                  _windows.isNotEmpty ? _windows.first : null;
+            }),
+          ),
+          const SizedBox(width: 24),
+          _SourceTab(
+            label: 'Full Screen',
+            isActive: _activeTab == 1,
+            onTap: () => setState(() {
+              _activeTab = 1;
+              _selected =
+                  _screens.isNotEmpty ? _screens.first : null;
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGrid() {
+    if (_loading) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF40A7E3)),
+      );
+    }
+
+    final sources = _activeTab == 0 ? _windows : _screens;
+    if (sources.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _activeTab == 0 ? Icons.web_asset : Icons.monitor,
+              color: const Color(0x40FFFFFF),
+              size: 48,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              _activeTab == 0
+                  ? 'No windows found'
+                  : 'No screens found',
+              style: const TextStyle(
+                  color: Color(0x80FFFFFF), fontSize: 14),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: GridView.builder(
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: _kThumbW + _kThumbHGap,
+          mainAxisExtent: _kThumbH + 28 + _kThumbVGap,
+          crossAxisSpacing: _kThumbHGap,
+          mainAxisSpacing: _kThumbVGap,
+        ),
+        itemCount: sources.length,
+        itemBuilder: (context, index) {
+          final source = sources[index];
+          final isSelected = _selected?.id == source.id;
+          return _ScreenSourceThumb(
+            source: source,
+            isSelected: isSelected,
+            onTap: () => setState(() => _selected = source),
+            onDoubleTap: () {
+              _selected = source;
+              _confirm();
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildAudioCheckbox() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 20,
+            height: 20,
+            child: Checkbox(
+              value: _shareAudio,
+              onChanged: (v) =>
+                  setState(() => _shareAudio = v ?? false),
+              activeColor: const Color(0xFF40A7E3),
+              side: const BorderSide(color: Color(0x80FFFFFF)),
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Text(
+            'Share audio',
+            style: TextStyle(
+                color: Color(0xCCFFFFFF), fontSize: 13),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFooter() {
+    return Container(
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: const BoxDecoration(
+        border: Border(
+            top: BorderSide(color: Color(0x20FFFFFF), width: 1)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(
+                  color: Color(0xAAFFFFFF), fontSize: 14),
+            ),
+          ),
+          const SizedBox(width: 12),
+          FilledButton(
+            onPressed: _selected != null ? _confirm : null,
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF40A7E3),
+              disabledBackgroundColor: const Color(0x40FFFFFF),
+            ),
+            child: const Text('Share'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SourceTab extends StatelessWidget {
+  final String label;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  const _SourceTab({
+    required this.label,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: isActive
+                  ? const Color(0xFF40A7E3)
+                  : Colors.transparent,
+              width: 2,
+            ),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isActive
+                ? const Color(0xFF40A7E3)
+                : const Color(0xAAFFFFFF),
+            fontSize: 14,
+            fontWeight:
+                isActive ? FontWeight.w600 : FontWeight.w400,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ScreenSourceThumb extends StatelessWidget {
+  final ScreenShareSource source;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final VoidCallback onDoubleTap;
+
+  const _ScreenSourceThumb({
+    required this.source,
+    required this.isSelected,
+    required this.onTap,
+    required this.onDoubleTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      onDoubleTap: onDoubleTap,
+      child: Column(
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: _kThumbW,
+            height: _kThumbH,
+            decoration: BoxDecoration(
+              color: const Color(0xFF2A3140),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: isSelected
+                    ? const Color(0xFF40A7E3)
+                    : const Color(0x30FFFFFF),
+                width: isSelected ? 2 : 1,
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(5),
+              child: source.thumbnailPath != null &&
+                      File(source.thumbnailPath!).existsSync()
+                  ? Image.file(
+                      File(source.thumbnailPath!),
+                      fit: BoxFit.cover,
+                      width: _kThumbW,
+                      height: _kThumbH,
+                    )
+                  : Center(
+                      child: Icon(
+                        source.isScreen
+                            ? Icons.monitor
+                            : Icons.web_asset,
+                        color: const Color(0x60FFFFFF),
+                        size: 48,
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            width: _kThumbW,
+            child: Text(
+              source.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: isSelected
+                    ? const Color(0xFF40A7E3)
+                    : const Color(0xCCFFFFFF),
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
