@@ -19,6 +19,8 @@ class _NotificationsSettingsScreenState
   bool _flashBounce = true;
   bool _allowSound = true;
   int _volume = 100;
+  bool _previewName = true;
+  bool _previewText = true;
 
   @override
   Widget build(BuildContext context) {
@@ -165,6 +167,26 @@ class _NotificationsSettingsScreenState
         textColor: textColor,
         accentColor: accentColor,
         hoverBg: hoverBg,
+      ),
+      AnimatedSize(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        alignment: Alignment.topCenter,
+        child: _desktopNotify
+            ? _NotificationPreview(
+                showName: _previewName,
+                showText: _previewText,
+                onNameChanged: (v) => setState(() {
+                  _previewName = v;
+                  if (!v) _previewText = false;
+                }),
+                onTextChanged: (v) => setState(() {
+                  _previewText = v;
+                  if (v) _previewName = true;
+                }),
+                isDark: isDark,
+              )
+            : const SizedBox(width: double.infinity, height: 0),
       ),
       _NotifIconToggleRow(
         icon: Icons.flash_on,
@@ -371,6 +393,201 @@ class _NotifIconToggleRow extends StatelessWidget {
               value: value,
               onChanged: onChanged,
               activeColor: accentColor,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NotificationPreview extends StatelessWidget {
+  final bool showName;
+  final bool showText;
+  final ValueChanged<bool> onNameChanged;
+  final ValueChanged<bool> onTextChanged;
+  final bool isDark;
+
+  const _NotificationPreview({
+    required this.showName,
+    required this.showText,
+    required this.onNameChanged,
+    required this.onTextChanged,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final wallpaperBg =
+        isDark ? const Color(0xFF0E1621) : const Color(0xFFDBDDC0);
+    final bubbleBg =
+        isDark ? const Color(0xFF182533) : const Color(0xFFFFFFFF);
+    final titleColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final textColor =
+        isDark ? const Color(0xFFAAAAAA) : const Color(0xFF555555);
+    final serviceBg =
+        isDark ? const Color(0x7F000000) : const Color(0x54000000);
+
+    final displayTitle = showName ? 'Dino Rex' : 'UniClient';
+    final displayText =
+        showText ? 'It\'s morning in Tokyo \u{1F60E}' : 'You have a new message';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(40, 20, 40, 12),
+      child: Container(
+        decoration: BoxDecoration(
+          color: wallpaperBg,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: bubbleBg,
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
+                padding: const EdgeInsets.fromLTRB(14, 11, 14, 11),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: showName
+                            ? const Color(0xFF4CAF50)
+                            : isDark
+                                ? const Color(0xFF5288C1)
+                                : const Color(0xFF40A7E3),
+                      ),
+                      child: Center(
+                        child: showName
+                            ? const Text(
+                                '\u{1F996}',
+                                style: TextStyle(fontSize: 18),
+                              )
+                            : Icon(
+                                Icons.chat_bubble,
+                                size: 18,
+                                color: Colors.white.withValues(alpha: 0.9),
+                              ),
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            displayTitle,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: titleColor,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            displayText,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: textColor,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(0, 12, 0, 14),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _ServiceCheckboxPill(
+                    label: 'Name',
+                    checked: showName,
+                    onTap: () => onNameChanged(!showName),
+                    serviceBg: serviceBg,
+                  ),
+                  const SizedBox(width: 12),
+                  _ServiceCheckboxPill(
+                    label: 'Text',
+                    checked: showText,
+                    onTap: () => onTextChanged(!showText),
+                    serviceBg: serviceBg,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ServiceCheckboxPill extends StatelessWidget {
+  final String label;
+  final bool checked;
+  final VoidCallback onTap;
+  final Color serviceBg;
+
+  const _ServiceCheckboxPill({
+    required this.label,
+    required this.checked,
+    required this.onTap,
+    required this.serviceBg,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: checked ? serviceBg : serviceBg.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 150),
+              child: Icon(
+                checked ? Icons.check_box : Icons.check_box_outline_blank,
+                key: ValueKey(checked),
+                size: 16,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Colors.white,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ],
         ),

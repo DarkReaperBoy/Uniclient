@@ -624,7 +624,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 15.2 Global Settings + Volume Slider
 
 ### 15.3 Notification Preview Widget
-- [ ] Preview bubble in SlideWrap (shown when desktop notifications ON): chat-themed rect on wallpaper, 36x36px userpic, title + text, two pill-style checkboxes ("Name" / "Text") centered horizontally with unchecking/dependency logic, three preview states (ShowPreview/ShowName/ShowNothing) — spec §15.3
 
 ### 15.4 Per-Type Notification Rows
 - [ ] "Notifications for chats" section: four 40px split-toggle rows (Private/Groups/Channels/Reactions), left area clickable (icon+label+status subtitle), right 70px toggle area, 1px vertical separator between them, confirmation dialog when toggling with exceptions — spec §15.4 & §15.4.1
