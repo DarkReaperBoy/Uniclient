@@ -22,6 +22,8 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   List<CloudThemeInfo> _cloudThemes = [];
   bool _cloudThemesLoaded = false;
   bool _showAllCloudThemes = false;
+  bool _tileBackground = true;
+  bool _adaptiveLayout = true;
 
   @override
   void initState() {
@@ -213,6 +215,17 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             isDark: isDark,
             currentFont: _fontFamily,
             onFontChanged: (f) => setState(() => _fontFamily = f),
+          ),
+          const SizedBox(height: 7),
+          Container(height: 1, color: dividerColor),
+          const SizedBox(height: 7),
+          _ChatBackgroundSection(
+            isDark: isDark,
+            tileBackground: _tileBackground,
+            adaptiveLayout: _adaptiveLayout,
+            accentColor: currentAccent,
+            onTileChanged: (v) => setState(() => _tileBackground = v),
+            onAdaptiveChanged: (v) => setState(() => _adaptiveLayout = v),
           ),
           const SizedBox(height: 7),
           Container(height: 1, color: dividerColor),
@@ -1703,6 +1716,222 @@ class _CloudThemeCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── §14.6.4: Chat Background section ──
+
+class _ChatBackgroundSection extends StatelessWidget {
+  final bool isDark;
+  final bool tileBackground;
+  final bool adaptiveLayout;
+  final Color accentColor;
+  final ValueChanged<bool> onTileChanged;
+  final ValueChanged<bool> onAdaptiveChanged;
+
+  const _ChatBackgroundSection({
+    required this.isDark,
+    required this.tileBackground,
+    required this.adaptiveLayout,
+    required this.accentColor,
+    required this.onTileChanged,
+    required this.onAdaptiveChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final thumbBg = isDark ? const Color(0xFF0E1621) : const Color(0xFFDFE7EB);
+    final thumbRecv = isDark ? const Color(0xFF182533) : const Color(0xFFFFFFFF);
+    final thumbSent = isDark ? const Color(0xFF2B5278) : const Color(0xFFEEFFDE);
+    final windowWidth = MediaQuery.of(context).size.width;
+    final isWide = windowWidth >= 880;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 4),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 76,
+                height: 76,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  color: thumbBg,
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: CustomPaint(
+                    size: const Size(76, 76),
+                    painter: _BackgroundThumbPainter(
+                      background: thumbBg,
+                      receivedBubble: thumbRecv,
+                      sentBubble: thumbSent,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: () {},
+                    child: Text(
+                      'Choose from gallery',
+                      style: TextStyle(fontSize: 14, color: accentColor),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  GestureDetector(
+                    onTap: () {},
+                    child: Text(
+                      'Choose from file',
+                      style: TextStyle(fontSize: 14, color: accentColor),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _SettingsCheckbox(
+            label: 'Tile Background',
+            value: tileBackground,
+            isDark: isDark,
+            onChanged: onTileChanged,
+          ),
+          if (isWide)
+            _SettingsCheckbox(
+              label: 'Adaptive Layout for Wide Screens',
+              value: adaptiveLayout,
+              isDark: isDark,
+              onChanged: onAdaptiveChanged,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BackgroundThumbPainter extends CustomPainter {
+  final Color background;
+  final Color receivedBubble;
+  final Color sentBubble;
+
+  _BackgroundThumbPainter({
+    required this.background,
+    required this.receivedBubble,
+    required this.sentBubble,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      Paint()..color = background,
+    );
+
+    final recvPaint = Paint()..color = receivedBubble;
+    final sentPaint = Paint()..color = sentBubble;
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(5, 8, 32, 10),
+        const Radius.circular(2),
+      ),
+      recvPaint,
+    );
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(size.width - 37, 24, 32, 10),
+        const Radius.circular(2),
+      ),
+      sentPaint,
+    );
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(5, 40, 26, 10),
+        const Radius.circular(2),
+      ),
+      recvPaint,
+    );
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(size.width - 31, 56, 26, 10),
+        const Radius.circular(2),
+      ),
+      sentPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_BackgroundThumbPainter old) =>
+      old.background != background ||
+      old.receivedBubble != receivedBubble ||
+      old.sentBubble != sentBubble;
+}
+
+class _SettingsCheckbox extends StatelessWidget {
+  final String label;
+  final bool value;
+  final bool isDark;
+  final ValueChanged<bool> onChanged;
+
+  const _SettingsCheckbox({
+    required this.label,
+    required this.value,
+    required this.isDark,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+
+    return InkWell(
+      onTap: () => onChanged(!value),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: Checkbox(
+                value: value,
+                onChanged: (v) => onChanged(v ?? false),
+                activeColor: accentColor,
+                side: BorderSide(color: subtextColor, width: 1.5),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(fontSize: 14, color: textColor),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
