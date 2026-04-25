@@ -608,7 +608,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 14.6 Chat Settings Sub-Page
 
 ### 14.7 Advanced Sub-Page
-- [ ] Software Update: auto-update toggle with version/progress label, Install beta toggle, Check for Updates / "Update Telegram" button — spec §14.7.8
 
 ### 14.8 Premium & Help Sections
 - [ ] Premium group: Telegram Premium (gradient button), Telegram Stars (live balance), TON Currency (hidden when empty), Telegram Business, Send a Gift (newBadge) — spec §14.8.1

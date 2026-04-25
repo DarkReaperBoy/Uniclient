@@ -41,6 +41,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _openGlDisabled = false;
   bool _spellcheckerEnabled = true;
   bool _spellcheckerAutoDownload = true;
+  bool _autoUpdateEnabled = true;
+  bool _installBetaVersions = false;
   bool _editingTheme = false;
   List<String> _accountOrder = []; // persisted display order of account IDs
   final List<StreamSubscription<dynamic>> _subs = [];
@@ -134,6 +136,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get openGlDisabled => _openGlDisabled;
   bool get spellcheckerEnabled => _spellcheckerEnabled;
   bool get spellcheckerAutoDownload => _spellcheckerAutoDownload;
+  bool get autoUpdateEnabled => _autoUpdateEnabled;
+  bool get installBetaVersions => _installBetaVersions;
 
   bool setShowTrayIcon(bool v) {
     if (!v && !_showTaskbarIcon) return false;
@@ -201,6 +205,20 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setSpellcheckerAutoDownload(bool v) {
     if (_spellcheckerAutoDownload == v) return;
     _spellcheckerAutoDownload = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setAutoUpdateEnabled(bool v) {
+    if (_autoUpdateEnabled == v) return;
+    _autoUpdateEnabled = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setInstallBetaVersions(bool v) {
+    if (_installBetaVersions == v) return;
+    _installBetaVersions = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -557,6 +575,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _openGlDisabled = data['openGlDisabled'] as bool? ?? false;
       _spellcheckerEnabled = data['spellcheckerEnabled'] as bool? ?? true;
       _spellcheckerAutoDownload = data['spellcheckerAutoDownload'] as bool? ?? true;
+      _autoUpdateEnabled = data['autoUpdateEnabled'] as bool? ?? true;
+      _installBetaVersions = data['installBetaVersions'] as bool? ?? false;
       final order = data['accountOrder'] as List<dynamic>?;
       if (order != null) _accountOrder = order.cast<String>();
     } catch (_) {}
@@ -586,6 +606,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'openGlDisabled': _openGlDisabled,
         'spellcheckerEnabled': _spellcheckerEnabled,
         'spellcheckerAutoDownload': _spellcheckerAutoDownload,
+        'autoUpdateEnabled': _autoUpdateEnabled,
+        'installBetaVersions': _installBetaVersions,
       }));
     } catch (_) {}
   }

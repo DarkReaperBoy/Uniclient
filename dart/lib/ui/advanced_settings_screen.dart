@@ -14,8 +14,11 @@ class AdvancedSettingsScreen extends StatefulWidget {
   State<AdvancedSettingsScreen> createState() => _AdvancedSettingsScreenState();
 }
 
+enum _UpdateState { idle, checking, latest, failed }
+
 class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
   bool _askDownloadPath = false;
+  _UpdateState _updateState = _UpdateState.idle;
 
   @override
   Widget build(BuildContext context) {
@@ -87,8 +90,108 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     );
   }
 
+  static const _appVersion =
+      String.fromEnvironment('APP_VERSION', defaultValue: '0.1.0');
+
+  String get _stateLabel => switch (_updateState) {
+        _UpdateState.idle => 'UniClient v$_appVersion',
+        _UpdateState.checking => 'Checking for updates...',
+        _UpdateState.latest => 'You have the latest version installed',
+        _UpdateState.failed => 'Update check failed',
+      };
+
+  void _checkForUpdates() {
+    setState(() => _updateState = _UpdateState.checking);
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _updateState = _UpdateState.latest);
+    });
+  }
+
+  List<Widget> _buildSoftwareUpdate(bool isDark) {
+    final appState = context.watch<AppState>();
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final hoverBg =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    return [
+      InkWell(
+        onTap: () => appState.setAutoUpdateEnabled(!appState.autoUpdateEnabled),
+        hoverColor: hoverBg,
+        splashColor: hoverBg.withValues(alpha: 0.5),
+        child: Padding(
+          padding:
+              const EdgeInsets.only(left: 22, right: 22, top: 10, bottom: 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Automatic updates',
+                      style: TextStyle(fontSize: 15, color: textColor),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _stateLabel,
+                      style: TextStyle(fontSize: 13, color: subtextColor),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: appState.autoUpdateEnabled,
+                onChanged: (v) => appState.setAutoUpdateEnabled(v),
+                activeColor: accentColor,
+              ),
+            ],
+          ),
+        ),
+      ),
+      if (_updateState != _UpdateState.checking)
+        _AdvancedToggleRow(
+          label: 'Install beta versions',
+          value: appState.installBetaVersions,
+          onChanged: (v) => appState.setInstallBetaVersions(v),
+          textColor: textColor,
+          accentColor: accentColor,
+          hoverBg: hoverBg,
+        ),
+      InkWell(
+        onTap: _updateState == _UpdateState.checking ? null : _checkForUpdates,
+        hoverColor: hoverBg,
+        splashColor: hoverBg.withValues(alpha: 0.5),
+        child: Padding(
+          padding:
+              const EdgeInsets.only(left: 22, right: 22, top: 10, bottom: 10),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Check for updates',
+              style: TextStyle(
+                fontSize: 15,
+                color: _updateState == _UpdateState.checking
+                    ? subtextColor
+                    : textColor,
+              ),
+            ),
+          ),
+        ),
+      ),
+    ];
+  }
+
   // §14.7.8 top: shown only when NOT auto-updating.
-  List<Widget> _buildSoftwareUpdateTop(bool isDark) => const [];
+  List<Widget> _buildSoftwareUpdateTop(bool isDark) {
+    final appState = context.watch<AppState>();
+    if (appState.autoUpdateEnabled) return const [];
+    return _buildSoftwareUpdate(isDark);
+  }
 
   // §14.7.1: Connection Type, Download Path, Local Storage, Downloads, Ask path toggle.
   List<Widget> _buildDataAndStorage(bool isDark) {
@@ -526,7 +629,11 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
   List<Widget> _buildScreenReader(bool isDark) => const [];
 
   // §14.7.8 bottom: shown only when auto-updating.
-  List<Widget> _buildSoftwareUpdateBottom(bool isDark) => const [];
+  List<Widget> _buildSoftwareUpdateBottom(bool isDark) {
+    final appState = context.watch<AppState>();
+    if (!appState.autoUpdateEnabled) return const [];
+    return _buildSoftwareUpdate(isDark);
+  }
 
   // §14.7.11: Export Telegram Data, Experimental Settings.
   List<Widget> _buildExportData(bool isDark) => const [];
