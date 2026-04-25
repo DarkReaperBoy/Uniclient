@@ -13048,6 +13048,22 @@ func (t *TelegramCore) UpdateProfile(firstName, lastName, about string) error {
 	_, err := t.api.AccountUpdateProfile(t.ctx, req); return err
 }
 
+func (t *TelegramCore) GetSelfBio() (string, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return "", ErrAuth }
+	result, err := t.api.UsersGetFullUser(t.ctx, &tg.InputUser{UserID: t.selfID, AccessHash: 0})
+	if err != nil { return "", err }
+	return result.FullUser.About, nil
+}
+
+func (t *TelegramCore) UpdateBio(bio string) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	req := &tg.AccountUpdateProfileRequest{}
+	req.SetAbout(bio)
+	_, err := t.api.AccountUpdateProfile(t.ctx, req); return err
+}
+
 // UpdateStatus sets the user's online or offline status.
 func (t *TelegramCore) UpdateStatus(online bool) error {
 	t.mu.RLock(); defer t.mu.RUnlock()

@@ -133,6 +133,38 @@ type profilePhotoUploader interface {
 	UploadProfilePhoto(pngData []byte) error
 }
 
+type selfBioGetter interface {
+	GetSelfBio() (string, error)
+}
+
+func (e *Engine) GetSelfBio(accountID string) (string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return "", fmt.Errorf("account %q not connected", accountID)
+	}
+	bg, ok := acc.Core.(selfBioGetter)
+	if !ok {
+		return "", fmt.Errorf("platform does not support self bio")
+	}
+	return bg.GetSelfBio()
+}
+
+type bioUpdater interface {
+	UpdateBio(bio string) error
+}
+
+func (e *Engine) UpdateBio(accountID, bio string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not connected", accountID)
+	}
+	bu, ok := acc.Core.(bioUpdater)
+	if !ok {
+		return fmt.Errorf("platform does not support bio update")
+	}
+	return bu.UpdateBio(bio)
+}
+
 func (e *Engine) UploadProfilePhoto(accountID, filePath string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

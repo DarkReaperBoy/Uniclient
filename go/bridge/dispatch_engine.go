@@ -1316,6 +1316,29 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(user)
 
+	case "GetSelfBio":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		bio, err := e.GetSelfBio(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]string{"bio": bio})
+
+	case "UpdateBio":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Bio       string `json:"bio"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.UpdateBio(params.AccountID, params.Bio)
+
 	case "UploadProfilePhoto":
 		var params struct {
 			AccountID string `json:"account_id"`

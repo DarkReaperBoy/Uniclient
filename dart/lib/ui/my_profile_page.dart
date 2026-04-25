@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -11,9 +12,78 @@ import '../state/app_state.dart';
 
 /// "My Profile" / "Edit Profile" page (§14.5).
 /// Opened from hamburger drawer "My Profile" row or Settings "My Account".
-/// Shows profile photo, name, phone, username with copy/edit affordances.
-class MyProfilePage extends StatelessWidget {
+/// Shows profile photo, bio input, name, phone, username with copy/edit affordances.
+class MyProfilePage extends StatefulWidget {
   const MyProfilePage({super.key});
+
+  @override
+  State<MyProfilePage> createState() => _MyProfilePageState();
+}
+
+class _MyProfilePageState extends State<MyProfilePage> {
+  final _bioController = TextEditingController();
+  Timer? _debounceTimer;
+  String _savedBio = '';
+  bool _bioLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBio();
+  }
+
+  @override
+  void dispose() {
+    _flushBio();
+    _debounceTimer?.cancel();
+    _bioController.dispose();
+    super.dispose();
+  }
+
+  void _loadBio() {
+    final appState = context.read<AppState>();
+    final account = appState.activeAccount;
+    if (account == null) return;
+    final engine = context.read<EngineService>();
+    engine.getSelfBio(account.id).then((bio) {
+      if (!mounted) return;
+      setState(() {
+        _savedBio = bio;
+        _bioController.text = bio;
+        _bioLoaded = true;
+      });
+    });
+  }
+
+  void _onBioChanged(String value) {
+    setState(() {});
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 1000), () {
+      _saveBio(value);
+    });
+  }
+
+  void _saveBio(String value) {
+    if (value == _savedBio) return;
+    final bioLimit = _isPremium ? 140 : 70;
+    if (value.length > bioLimit) return;
+    final appState = context.read<AppState>();
+    final account = appState.activeAccount;
+    if (account == null) return;
+    final engine = context.read<EngineService>();
+    engine.updateBio(account.id, value).then((_) {
+      if (mounted) _savedBio = value;
+    });
+  }
+
+  void _flushBio() {
+    if (_debounceTimer?.isActive ?? false) {
+      _debounceTimer!.cancel();
+      _saveBio(_bioController.text);
+    }
+  }
+
+  bool get _isPremium => context.read<AppState>().activeAccount?.isPremium ?? false;
 
   @override
   Widget build(BuildContext context) {
@@ -56,6 +126,18 @@ class MyProfilePage extends StatelessWidget {
         padding: EdgeInsets.zero,
         children: [
           _ProfilePhotoArea(account: account, isDark: isDark),
+          Container(height: 8, color: dividerColor),
+          _BioInput(
+            controller: _bioController,
+            isDark: isDark,
+            isPremium: _isPremium,
+            bioLoaded: _bioLoaded,
+            onChanged: _onBioChanged,
+            onSubmitted: () {
+              _debounceTimer?.cancel();
+              _saveBio(_bioController.text);
+            },
+          ),
           Container(height: 8, color: dividerColor),
           _ProfileInfoRow(
             icon: Icons.person,
@@ -127,6 +209,91 @@ class MyProfilePage extends StatelessWidget {
         duration: const Duration(milliseconds: 500),
         behavior: SnackBarBehavior.floating,
       ),
+    );
+  }
+}
+
+/// §14.5.2: Bio input field — transparent multiline, margins 22/6/22/4px,
+/// 32px min height, character counter (grey ≥0 / red <0), 70-char limit
+/// (140 Premium), debounced 1000ms auto-save, footer text.
+class _BioInput extends StatelessWidget {
+  final TextEditingController controller;
+  final bool isDark;
+  final bool isPremium;
+  final bool bioLoaded;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onSubmitted;
+
+  const _BioInput({
+    required this.controller,
+    required this.isDark,
+    required this.isPremium,
+    required this.bioLoaded,
+    required this.onChanged,
+    required this.onSubmitted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = isDark
+        ? const Color(0xFFF5F5F5)
+        : const Color(0xFF000000);
+    final subtextColor = isDark
+        ? const Color(0xFF6C7883)
+        : const Color(0xFF999999);
+    final maxLen = isPremium ? 140 : 70;
+    final remaining = maxLen - controller.text.length;
+    final counterColor = remaining < 0
+        ? const Color(0xFFE53935)
+        : subtextColor;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 6, 22, 4),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 32),
+                child: TextField(
+                  controller: controller,
+                  maxLines: null,
+                  enabled: bioLoaded,
+                  style: TextStyle(fontSize: 14, color: textColor),
+                  decoration: InputDecoration(
+                    hintText: 'Bio',
+                    hintStyle: TextStyle(fontSize: 14, color: subtextColor),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  inputFormatters: [
+                    LengthLimitingTextInputFormatter(maxLen * 2),
+                  ],
+                  onChanged: onChanged,
+                  onSubmitted: (_) => onSubmitted(),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 6,
+              right: 22,
+              child: Text(
+                '$remaining',
+                style: TextStyle(fontSize: 13, color: counterColor),
+              ),
+            ),
+          ],
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
+          child: Text(
+            'Any details such as age, occupation or city.',
+            style: TextStyle(fontSize: 13, color: subtextColor),
+          ),
+        ),
+      ],
     );
   }
 }

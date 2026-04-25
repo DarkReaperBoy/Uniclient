@@ -1174,6 +1174,29 @@ class EngineService {
     }
   }
 
+  Future<String> getSelfBio(String accountId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetSelfBio', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return '';
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return data['bio'] as String? ?? '';
+    } catch (e) {
+      Debug.error('ENGINE', 'getSelfBio failed', e);
+      return '';
+    }
+  }
+
+  Future<void> updateBio(String accountId, String bio) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'bio': bio,
+    }));
+    await _callAsync('__engine', 'UpdateBio', Uint8List.fromList(payload));
+  }
+
   Future<void> uploadProfilePhoto(String accountId, String filePath) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
