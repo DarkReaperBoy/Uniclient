@@ -575,7 +575,6 @@
 
 ### §13.5 Flutter-Web Divergence
 <!-- File: dart/lib/utils/system_tray.dart, dart/lib/bridge/bridge_web.dart -->
-- [ ] Web degraded: keyboard shortcuts yield to browser-reserved combos; fullscreen requires user gesture; WebRTC getUserMedia device-selection constraints — spec §13.5
 - [ ] Mobile-web: hover states become tap-only; compose-toolbar formatting buttons visible — spec §13.5
 # GUI Checklist: Settings Pages & Dialogs (§14–§22)
 

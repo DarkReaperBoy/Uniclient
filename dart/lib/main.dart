@@ -1160,13 +1160,12 @@ class _UniClientAppState extends State<UniClientApp>
               () => ChatListPanel.requestNavigateChat(1),
           const SingleActivator(LogicalKeyboardKey.arrowUp, alt: true):
               () => ChatListPanel.requestNavigateChat(-1),
-          // Telegram Desktop spec §24.4: Ctrl+PgDn / Ctrl+PgUp are the primary
-          // `next_chat` / `previous_chat` shortcuts (Alt+Down/Up are secondary
-          // bindings). Same navigation: pinned first, then lastMsgTime desc,
-          // archived hidden.
-          const SingleActivator(LogicalKeyboardKey.pageDown, control: true):
+          // Telegram Desktop spec §24.4: Ctrl+PgDn / Ctrl+PgUp navigate chats.
+          // Desktop-only (§13.5: browsers reserve Ctrl+PgUp/PgDn for tab
+          // switching). Alt+Down/Up above still work on web.
+          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.pageDown, control: true):
               () => ChatListPanel.requestNavigateChat(1),
-          const SingleActivator(LogicalKeyboardKey.pageUp, control: true):
+          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.pageUp, control: true):
               () => ChatListPanel.requestNavigateChat(-1),
           // Telegram Desktop spec §24.4: Ctrl+Shift+Down / Ctrl+Shift+Up
           // switch to the next / previous folder tab (`next_folder` /
@@ -1176,9 +1175,9 @@ class _UniClientAppState extends State<UniClientApp>
           const SingleActivator(LogicalKeyboardKey.arrowUp, control: true, shift: true):
               () => ChatListPanel.requestNavigateFolder(-1),
           // Telegram Desktop spec §24.4 Chat Actions: Ctrl+R marks the
-          // currently active chat as read (`read_chat` command). No-op
-          // when no chat is open.
-          const SingleActivator(LogicalKeyboardKey.keyR, control: true):
+          // currently active chat as read. Desktop-only (§13.5: browser
+          // intercepts Ctrl+R for page refresh).
+          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.keyR, control: true):
               () => ChatView.requestMarkActiveChatRead(),
           // Telegram Desktop spec §24.4: Ctrl+Alt+Home / Ctrl+Alt+End jump
           // the active chat selection to the first / last chat in the
@@ -1190,24 +1189,23 @@ class _UniClientAppState extends State<UniClientApp>
           const SingleActivator(LogicalKeyboardKey.end, control: true, alt: true):
               () => ChatListPanel.requestJumpChat(false),
           // Telegram Desktop spec §24.4 Folder Switching — Ctrl+1..Ctrl+8
-          // switch to folder tab by 1-based index. Ctrl+1 = All Chats,
-          // Ctrl+2..Ctrl+7 = folders[0]..folders[5], Ctrl+8 = last folder.
-          // No-op when the target folder doesn't exist.
-          const SingleActivator(LogicalKeyboardKey.digit1, control: true):
+          // switch to folder tab by 1-based index. Desktop-only (§13.5:
+          // browsers reserve Ctrl+1-8 for tab switching).
+          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.digit1, control: true):
               () => ChatListPanel.requestSwitchFolderByIndex(1),
-          const SingleActivator(LogicalKeyboardKey.digit2, control: true):
+          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.digit2, control: true):
               () => ChatListPanel.requestSwitchFolderByIndex(2),
-          const SingleActivator(LogicalKeyboardKey.digit3, control: true):
+          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.digit3, control: true):
               () => ChatListPanel.requestSwitchFolderByIndex(3),
-          const SingleActivator(LogicalKeyboardKey.digit4, control: true):
+          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.digit4, control: true):
               () => ChatListPanel.requestSwitchFolderByIndex(4),
-          const SingleActivator(LogicalKeyboardKey.digit5, control: true):
+          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.digit5, control: true):
               () => ChatListPanel.requestSwitchFolderByIndex(5),
-          const SingleActivator(LogicalKeyboardKey.digit6, control: true):
+          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.digit6, control: true):
               () => ChatListPanel.requestSwitchFolderByIndex(6),
-          const SingleActivator(LogicalKeyboardKey.digit7, control: true):
+          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.digit7, control: true):
               () => ChatListPanel.requestSwitchFolderByIndex(7),
-          const SingleActivator(LogicalKeyboardKey.digit8, control: true):
+          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.digit8, control: true):
               () => ChatListPanel.requestSwitchFolderByIndex(8),
           // §24.4 Window shortcuts — desktop-only (§13.5: yield to browser
           // combos on web — Ctrl+W/Q/M/F4 are browser-reserved).
