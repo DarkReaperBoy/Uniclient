@@ -161,6 +161,13 @@ case "$PLATFORM" in
       done
       cp -f "$COMMON_WRAPPER/include/flutter/"*.h "$EPHEMERAL/cpp_client_wrapper/include/flutter/" 2>/dev/null || true
     fi
+    # generated_config.cmake — Flutter normally creates this via flutter build
+    cat > "$EPHEMERAL/generated_config.cmake" <<CMEOF
+set(FLUTTER_ROOT "$FLUTTER_SDK")
+set(FLUTTER_ENGINE_VERSION "$(cat "$FLUTTER_SDK/bin/internal/engine.version" 2>/dev/null || echo unknown)")
+set(PROJECT_DIR "$DART_DIR")
+set(DART_SOURCES "")
+CMEOF
     echo "  Ephemeral populated."
 
     echo ""
@@ -168,7 +175,7 @@ case "$PLATFORM" in
     mkdir -p "$BUILD_DIR/native_assets/linux"
 
     # Build with nix-shell to get GTK dev dependencies
-    nix-shell -p cmake ninja pkg-config gtk3.dev glib.dev pango.dev cairo.dev atk.dev gdk-pixbuf.dev mpv-unwrapped.dev gnumake --run "
+    nix-shell -p cmake ninja pkg-config gtk3.dev glib.dev pango.dev cairo.dev atk.dev gdk-pixbuf.dev mpv-unwrapped.dev gnumake libxdmcp.dev libxcb.dev libxau.dev sysprof.dev libass.dev --run "
       cd '$BUILD_DIR' &&
       rm -f CMakeCache.txt &&
       export FLUTTER_SKIP_ASSEMBLE=1 &&

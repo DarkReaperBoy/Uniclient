@@ -39,6 +39,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _startMinimized = false;
   bool _hardwareAccelVideo = true;
   bool _openGlDisabled = false;
+  bool _spellcheckerEnabled = true;
+  bool _spellcheckerAutoDownload = true;
   bool _editingTheme = false;
   List<String> _accountOrder = []; // persisted display order of account IDs
   final List<StreamSubscription<dynamic>> _subs = [];
@@ -130,6 +132,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get startMinimized => _startMinimized;
   bool get hardwareAccelVideo => _hardwareAccelVideo;
   bool get openGlDisabled => _openGlDisabled;
+  bool get spellcheckerEnabled => _spellcheckerEnabled;
+  bool get spellcheckerAutoDownload => _spellcheckerAutoDownload;
 
   bool setShowTrayIcon(bool v) {
     if (!v && !_showTaskbarIcon) return false;
@@ -183,6 +187,20 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setOpenGlDisabled(bool v) {
     if (_openGlDisabled == v) return;
     _openGlDisabled = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setSpellcheckerEnabled(bool v) {
+    if (_spellcheckerEnabled == v) return;
+    _spellcheckerEnabled = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setSpellcheckerAutoDownload(bool v) {
+    if (_spellcheckerAutoDownload == v) return;
+    _spellcheckerAutoDownload = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -537,6 +555,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _startMinimized = data['startMinimized'] as bool? ?? false;
       _hardwareAccelVideo = data['hardwareAccelVideo'] as bool? ?? true;
       _openGlDisabled = data['openGlDisabled'] as bool? ?? false;
+      _spellcheckerEnabled = data['spellcheckerEnabled'] as bool? ?? true;
+      _spellcheckerAutoDownload = data['spellcheckerAutoDownload'] as bool? ?? true;
       final order = data['accountOrder'] as List<dynamic>?;
       if (order != null) _accountOrder = order.cast<String>();
     } catch (_) {}
@@ -564,6 +584,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'startMinimized': _startMinimized,
         'hardwareAccelVideo': _hardwareAccelVideo,
         'openGlDisabled': _openGlDisabled,
+        'spellcheckerEnabled': _spellcheckerEnabled,
+        'spellcheckerAutoDownload': _spellcheckerAutoDownload,
       }));
     } catch (_) {}
   }

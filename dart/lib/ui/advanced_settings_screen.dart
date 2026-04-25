@@ -475,7 +475,52 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
   }
 
   // §14.7.7: System/custom toggle, auto-download dictionaries, Manage Dictionaries.
-  List<Widget> _buildSpellchecker(bool isDark) => const [];
+  List<Widget> _buildSpellchecker(bool isDark) {
+    final appState = context.read<AppState>();
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final iconColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final hoverBg =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    return [
+      _AdvancedToggleRow(
+        label: Platform.isLinux || Platform.isMacOS
+            ? 'Use system spellchecker'
+            : 'Enable spellchecker',
+        value: appState.spellcheckerEnabled,
+        onChanged: (v) => appState.setSpellcheckerEnabled(v),
+        textColor: textColor,
+        accentColor: accentColor,
+        hoverBg: hoverBg,
+      ),
+      if (appState.spellcheckerEnabled) ...[
+        _AdvancedToggleRow(
+          label: 'Auto-download dictionaries',
+          value: appState.spellcheckerAutoDownload,
+          onChanged: (v) => appState.setSpellcheckerAutoDownload(v),
+          textColor: textColor,
+          accentColor: accentColor,
+          hoverBg: hoverBg,
+        ),
+        _AdvancedIconButtonRow(
+          icon: Icons.library_books,
+          label: 'Manage Dictionaries',
+          rightLabel: '0',
+          textColor: textColor,
+          subtextColor: subtextColor,
+          iconColor: iconColor,
+          hoverBg: hoverBg,
+          onTap: () {},
+        ),
+      ],
+    ];
+  }
 
   // §14.7.9: Screen reader mode toggle (shown only when reader detected).
   List<Widget> _buildScreenReader(bool isDark) => const [];

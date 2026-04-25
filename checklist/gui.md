@@ -608,7 +608,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 14.6 Chat Settings Sub-Page
 
 ### 14.7 Advanced Sub-Page
-- [ ] Spellchecker: system/custom toggle, auto-download dictionaries toggle, Manage Dictionaries button with count — spec §14.7.7
 - [ ] Software Update: auto-update toggle with version/progress label, Install beta toggle, Check for Updates / "Update Telegram" button — spec §14.7.8
 
 ### 14.8 Premium & Help Sections

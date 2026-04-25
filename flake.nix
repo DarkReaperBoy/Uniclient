@@ -52,6 +52,8 @@
             clang
             libepoxy
             libx11
+            libxcb
+            libxdmcp
             libGL
             pcre2
             util-linux
