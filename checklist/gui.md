@@ -491,7 +491,6 @@
 <!-- File: dart/lib/ui/auth_screen.dart, dart/lib/state/auth_state.dart -->
 - [x] Step-stack auth screen driven by AuthState; QR / phone input / OTP / 2FA / choose variants — spec §11.1 — DONE in auth_screen.dart
 - [x] Cancel button — spec §11.1 — DONE in auth_screen.dart
-- [ ] goNext / goBack / goReplace navigation with slide/cover animations and step sharing Data struct — spec §11.1
 
 ### §11.2 Next Button
 <!-- File: dart/lib/ui/auth_screen.dart -->

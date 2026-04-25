@@ -18,12 +18,27 @@ class AuthScreen extends StatefulWidget {
 
 class _AuthScreenState extends State<AuthScreen> {
   final _inputController = TextEditingController();
+  String _prevStep = '';
+  bool _isForward = true;
+  bool _isCover = false;
 
   @override
   void dispose() {
     _inputController.dispose();
     super.dispose();
   }
+
+  static int _stepOrder(String s) => switch (s) {
+    'choose' => 0,
+    'qr' => 1,
+    'input' => 2,
+    'otp' => 3,
+    '2fa' => 4,
+    'ready' || 'error' => 5,
+    _ => -1,
+  };
+
+  static bool _hasCover(String s) => s == 'qr' || s == 'input';
 
   void _submit(AuthState authState) {
     final text = _inputController.text.trim();
@@ -67,6 +82,15 @@ class _AuthScreenState extends State<AuthScreen> {
     final theme = Theme.of(context);
     final authState = context.watch<AuthState>();
     final data = authState.currentAuth;
+    final currentStep = data?.state ?? '';
+
+    if (currentStep != _prevStep && _prevStep.isNotEmpty && currentStep.isNotEmpty) {
+      _isForward = _stepOrder(currentStep) >= _stepOrder(_prevStep);
+      _isCover = _hasCover(_prevStep) && _hasCover(currentStep);
+    }
+    if (currentStep.isNotEmpty) {
+      _prevStep = currentStep;
+    }
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -76,59 +100,38 @@ class _AuthScreenState extends State<AuthScreen> {
             constraints: const BoxConstraints(maxWidth: 380),
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.lock_outlined,
-                    size: 48,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    _title(data),
-                    style: theme.textTheme.headlineMedium,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  if (data?.label.isNotEmpty == true)
-                    Text(
-                      data!.label,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.textTheme.bodySmall?.color,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  if (data?.hint.isNotEmpty == true) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      'Hint: ${data!.hint}',
-                      style: theme.textTheme.bodySmall,
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-                  if (authState.error != null) ...[
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.error.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        authState.error!,
-                        style: TextStyle(color: theme.colorScheme.error, fontSize: 13),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                transitionBuilder: (child, animation) {
+                  final isIncoming = child.key == ValueKey(currentStep);
+                  final curve = _isCover ? Curves.easeOutCirc : Curves.linear;
+                  final curved = CurvedAnimation(parent: animation, curve: curve);
+                  final slideBegin = isIncoming
+                      ? Offset(_isForward ? 0.5 : -0.5, 0.0)
+                      : Offset(_isForward ? -0.5 : 0.5, 0.0);
+                  return ClipRect(
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: slideBegin,
+                        end: Offset.zero,
+                      ).animate(curved),
+                      child: FadeTransition(
+                        opacity: curved,
+                        child: child,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                  ],
-                  if (data?.state == 'choose' && data!.options.isNotEmpty)
-                    ..._buildChoices(data.options, authState, theme),
-                  if (data?.state == 'qr' && data!.qrData.isNotEmpty)
-                    _buildQR(data, theme),
-                  if (data?.state == 'input' || data?.state == 'otp' || data?.state == '2fa')
-                    _buildInput(data!, authState, theme),
-                ],
+                  );
+                },
+                layoutBuilder: (currentChild, previousChildren) {
+                  return Stack(
+                    alignment: Alignment.topCenter,
+                    children: [
+                      ...previousChildren,
+                      if (currentChild != null) currentChild,
+                    ],
+                  );
+                },
+                child: _buildStepContent(data, authState, theme),
               ),
             ),
           ),
@@ -193,6 +196,66 @@ class _AuthScreenState extends State<AuthScreen> {
       'error' => 'Authentication Error',
       _ => 'Authenticating...',
     };
+  }
+
+  Widget _buildStepContent(
+      AuthStateData? data, AuthState authState, ThemeData theme) {
+    final state = data?.state ?? '';
+    return Column(
+      key: ValueKey(state),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.lock_outlined,
+          size: 48,
+          color: theme.colorScheme.primary,
+        ),
+        const SizedBox(height: 16),
+        Text(
+          _title(data),
+          style: theme.textTheme.headlineMedium,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 8),
+        if (data?.label.isNotEmpty == true)
+          Text(
+            data!.label,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.textTheme.bodySmall?.color,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        if (data?.hint.isNotEmpty == true) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Hint: ${data!.hint}',
+            style: theme.textTheme.bodySmall,
+            textAlign: TextAlign.center,
+          ),
+        ],
+        const SizedBox(height: 24),
+        if (authState.error != null) ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.error.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              authState.error!,
+              style: TextStyle(color: theme.colorScheme.error, fontSize: 13),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+        if (data?.state == 'choose' && data!.options.isNotEmpty)
+          ..._buildChoices(data.options, authState, theme),
+        if (data?.state == 'qr' && data!.qrData.isNotEmpty)
+          _buildQR(data, theme),
+        if (data?.state == 'input' || data?.state == 'otp' || data?.state == '2fa')
+          _buildInput(data!, authState, theme),
+      ],
+    );
   }
 
   List<Widget> _buildChoices(
