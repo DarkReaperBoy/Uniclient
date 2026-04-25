@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -28,6 +29,10 @@ class _AuthScreenState extends State<AuthScreen>
   bool _showErrorBorder = false;
   String? _lastError;
 
+  final _codeController = TextEditingController();
+  final _phoneController = TextEditingController();
+  late _CountryInfo _selectedCountry;
+
   @override
   void initState() {
     super.initState();
@@ -39,11 +44,15 @@ class _AuthScreenState extends State<AuthScreen>
           _shakeController.reset();
         }
       });
+    _selectedCountry = _countries.firstWhere((c) => c.iso == 'US');
+    _codeController.text = _selectedCountry.dialCode;
   }
 
   @override
   void dispose() {
     _inputController.dispose();
+    _codeController.dispose();
+    _phoneController.dispose();
     _shakeController.dispose();
     super.dispose();
   }
@@ -61,6 +70,15 @@ class _AuthScreenState extends State<AuthScreen>
   static bool _hasCover(String s) => s == 'qr' || s == 'input';
 
   void _submit(AuthState authState) {
+    final data = authState.currentAuth;
+    if (data?.state == 'input' && data?.fieldType == 'phone') {
+      final code = _codeController.text.replaceAll(RegExp(r'\D'), '');
+      final phone = _phoneController.text.replaceAll(RegExp(r'\D'), '');
+      if (code.isEmpty || phone.length < 2) return;
+      setState(() => _showErrorBorder = false);
+      authState.submitInput('+$code$phone');
+      return;
+    }
     final text = _inputController.text.trim();
     if (text.isEmpty) return;
     setState(() => _showErrorBorder = false);
@@ -447,6 +465,7 @@ class _AuthScreenState extends State<AuthScreen>
   Widget _buildInput(AuthStateData data, AuthState authState, ThemeData theme) {
     final isPassword = data.state == '2fa';
     final isOtp = data.state == 'otp';
+    final isPhone = data.state == 'input' && data.fieldType == 'phone';
 
     return Column(
       children: [
@@ -468,41 +487,161 @@ class _AuthScreenState extends State<AuthScreen>
               child: child,
             );
           },
-          child: SizedBox(
+          child: isPhone
+              ? _buildPhoneFields(authState, theme)
+              : SizedBox(
+                  width: 300,
+                  child: TextField(
+                    controller: _inputController,
+                    obscureText: isPassword,
+                    keyboardType:
+                        isOtp ? TextInputType.number : TextInputType.text,
+                    autofocus: true,
+                    maxLength:
+                        isOtp && data.codeLength > 0 ? data.codeLength : null,
+                    onSubmitted: (_) => _submit(authState),
+                    decoration: InputDecoration(
+                      hintText: data.hint.isNotEmpty ? data.hint : null,
+                      counterText: '',
+                      enabledBorder: _showErrorBorder
+                          ? OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: theme.colorScheme.error,
+                                width: 2,
+                              ),
+                            )
+                          : null,
+                      focusedBorder: _showErrorBorder
+                          ? OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: theme.colorScheme.error,
+                                width: 2,
+                              ),
+                            )
+                          : null,
+                    ),
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPhoneFields(AuthState authState, ThemeData theme) {
+    final errBorder = _showErrorBorder
+        ? BorderSide(color: theme.colorScheme.error, width: 2)
+        : null;
+    return Column(
+      children: [
+        GestureDetector(
+          onTap: () => _showCountryPicker(theme),
+          child: Container(
             width: 300,
-            child: TextField(
-              controller: _inputController,
-              obscureText: isPassword,
-              keyboardType:
-                  isOtp ? TextInputType.number : TextInputType.text,
-              autofocus: true,
-              maxLength:
-                  isOtp && data.codeLength > 0 ? data.codeLength : null,
-              onSubmitted: (_) => _submit(authState),
-              decoration: InputDecoration(
-                hintText: data.hint.isNotEmpty ? data.hint : null,
-                counterText: '',
-                enabledBorder: _showErrorBorder
-                    ? OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: theme.colorScheme.error,
-                          width: 2,
-                        ),
-                      )
-                    : null,
-                focusedBorder: _showErrorBorder
-                    ? OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: theme.colorScheme.error,
-                          width: 2,
-                        ),
-                      )
-                    : null,
+            constraints: const BoxConstraints(minHeight: 61),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: errBorder?.color ?? theme.dividerColor,
+                width: errBorder?.width ?? 1,
               ),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Row(
+              children: [
+                Text(_selectedCountry.flag,
+                    style: const TextStyle(fontSize: 24)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    _selectedCountry.name,
+                    style: theme.textTheme.bodyLarge,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Icon(Icons.arrow_drop_down, color: theme.hintColor),
+              ],
             ),
           ),
         ),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: 300,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 64,
+                child: TextField(
+                  controller: _codeController,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  textAlign: TextAlign.center,
+                  onChanged: _onCodeChanged,
+                  decoration: InputDecoration(
+                    prefixText: '+',
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 4, vertical: 16),
+                    border: const OutlineInputBorder(),
+                    enabledBorder: errBorder != null
+                        ? OutlineInputBorder(borderSide: errBorder)
+                        : null,
+                    focusedBorder: errBorder != null
+                        ? OutlineInputBorder(borderSide: errBorder)
+                        : null,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: TextField(
+                  controller: _phoneController,
+                  keyboardType: TextInputType.phone,
+                  autofocus: true,
+                  inputFormatters: [_PhoneNumberFormatter()],
+                  onSubmitted: (_) => _submit(authState),
+                  decoration: InputDecoration(
+                    hintText: 'Phone number',
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 16),
+                    border: const OutlineInputBorder(),
+                    enabledBorder: errBorder != null
+                        ? OutlineInputBorder(borderSide: errBorder)
+                        : null,
+                    focusedBorder: errBorder != null
+                        ? OutlineInputBorder(borderSide: errBorder)
+                        : null,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
+    );
+  }
+
+  void _onCodeChanged(String val) {
+    final code = val.replaceAll(RegExp(r'\D'), '');
+    if (code.isEmpty) return;
+    final match = _countries.where((c) => c.dialCode == code).firstOrNull;
+    if (match != null && match != _selectedCountry) {
+      setState(() => _selectedCountry = match);
+    }
+  }
+
+  void _showCountryPicker(ThemeData theme) {
+    showDialog(
+      context: context,
+      builder: (ctx) => _CountryPickerDialog(
+        selected: _selectedCountry,
+        onSelect: (country) {
+          setState(() {
+            _selectedCountry = country;
+            _codeController.text = country.dialCode;
+          });
+          Navigator.of(ctx).pop();
+        },
+      ),
     );
   }
 }
@@ -686,3 +825,334 @@ class _AuthBottomBarState extends State<_AuthBottomBar>
     );
   }
 }
+
+class _CountryPickerDialog extends StatefulWidget {
+  final _CountryInfo selected;
+  final void Function(_CountryInfo) onSelect;
+  const _CountryPickerDialog(
+      {super.key, required this.selected, required this.onSelect});
+  @override
+  State<_CountryPickerDialog> createState() => _CountryPickerDialogState();
+}
+
+class _CountryPickerDialogState extends State<_CountryPickerDialog> {
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final filtered = _query.isEmpty
+        ? _countries
+        : _countries
+            .where((c) =>
+                c.name.toLowerCase().contains(_query) ||
+                c.dialCode.contains(_query) ||
+                c.iso.toLowerCase().contains(_query))
+            .toList();
+
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 360, maxHeight: 500),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: TextField(
+                controller: _searchCtrl,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  hintText: 'Search country',
+                  prefixIcon: Icon(Icons.search),
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (v) => setState(() => _query = v.toLowerCase()),
+              ),
+            ),
+            const Divider(height: 1),
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: filtered.length,
+                itemBuilder: (ctx, i) {
+                  final c = filtered[i];
+                  final isSelected = c.iso == widget.selected.iso;
+                  return ListTile(
+                    dense: true,
+                    selected: isSelected,
+                    leading:
+                        Text(c.flag, style: const TextStyle(fontSize: 22)),
+                    title:
+                        Text(c.name, style: const TextStyle(fontSize: 14)),
+                    trailing: Text('+${c.dialCode}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: theme.textTheme.bodySmall?.color,
+                        )),
+                    onTap: () => widget.onSelect(c),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PhoneNumberFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) {
+      return const TextEditingValue(
+        text: '',
+        selection: TextSelection.collapsed(offset: 0),
+      );
+    }
+    final buf = StringBuffer();
+    for (var i = 0; i < digits.length; i++) {
+      if (i > 0 && i % 3 == 0) buf.write(' ');
+      buf.write(digits[i]);
+    }
+    final formatted = buf.toString();
+    final digitsBeforeCursor = newValue.text
+        .substring(0, newValue.selection.end.clamp(0, newValue.text.length))
+        .replaceAll(RegExp(r'\D'), '')
+        .length;
+    var cursor = 0;
+    var count = 0;
+    for (var i = 0; i < formatted.length && count < digitsBeforeCursor; i++) {
+      cursor = i + 1;
+      if (formatted[i] != ' ') count++;
+    }
+    return TextEditingValue(
+      text: formatted,
+      selection:
+          TextSelection.collapsed(offset: cursor.clamp(0, formatted.length)),
+    );
+  }
+}
+
+class _CountryInfo {
+  final String name;
+  final String iso;
+  final String dialCode;
+  const _CountryInfo(this.name, this.iso, this.dialCode);
+  String get flag => String.fromCharCodes(
+        iso.codeUnits.map((c) => 0x1F1E6 - 0x41 + c),
+      );
+}
+
+const _countries = <_CountryInfo>[
+  _CountryInfo('Afghanistan', 'AF', '93'),
+  _CountryInfo('Albania', 'AL', '355'),
+  _CountryInfo('Algeria', 'DZ', '213'),
+  _CountryInfo('Andorra', 'AD', '376'),
+  _CountryInfo('Angola', 'AO', '244'),
+  _CountryInfo('Antigua and Barbuda', 'AG', '1268'),
+  _CountryInfo('Argentina', 'AR', '54'),
+  _CountryInfo('Armenia', 'AM', '374'),
+  _CountryInfo('Australia', 'AU', '61'),
+  _CountryInfo('Austria', 'AT', '43'),
+  _CountryInfo('Azerbaijan', 'AZ', '994'),
+  _CountryInfo('Bahamas', 'BS', '1242'),
+  _CountryInfo('Bahrain', 'BH', '973'),
+  _CountryInfo('Bangladesh', 'BD', '880'),
+  _CountryInfo('Barbados', 'BB', '1246'),
+  _CountryInfo('Belarus', 'BY', '375'),
+  _CountryInfo('Belgium', 'BE', '32'),
+  _CountryInfo('Belize', 'BZ', '501'),
+  _CountryInfo('Benin', 'BJ', '229'),
+  _CountryInfo('Bhutan', 'BT', '975'),
+  _CountryInfo('Bolivia', 'BO', '591'),
+  _CountryInfo('Bosnia and Herzegovina', 'BA', '387'),
+  _CountryInfo('Botswana', 'BW', '267'),
+  _CountryInfo('Brazil', 'BR', '55'),
+  _CountryInfo('Brunei', 'BN', '673'),
+  _CountryInfo('Bulgaria', 'BG', '359'),
+  _CountryInfo('Burkina Faso', 'BF', '226'),
+  _CountryInfo('Burundi', 'BI', '257'),
+  _CountryInfo('Cambodia', 'KH', '855'),
+  _CountryInfo('Cameroon', 'CM', '237'),
+  _CountryInfo('Canada', 'CA', '1'),
+  _CountryInfo('Cape Verde', 'CV', '238'),
+  _CountryInfo('Central African Republic', 'CF', '236'),
+  _CountryInfo('Chad', 'TD', '235'),
+  _CountryInfo('Chile', 'CL', '56'),
+  _CountryInfo('China', 'CN', '86'),
+  _CountryInfo('Colombia', 'CO', '57'),
+  _CountryInfo('Comoros', 'KM', '269'),
+  _CountryInfo('Congo', 'CG', '242'),
+  _CountryInfo('Costa Rica', 'CR', '506'),
+  _CountryInfo('Croatia', 'HR', '385'),
+  _CountryInfo('Cuba', 'CU', '53'),
+  _CountryInfo('Cyprus', 'CY', '357'),
+  _CountryInfo('Czech Republic', 'CZ', '420'),
+  _CountryInfo('DR Congo', 'CD', '243'),
+  _CountryInfo('Denmark', 'DK', '45'),
+  _CountryInfo('Djibouti', 'DJ', '253'),
+  _CountryInfo('Dominica', 'DM', '1767'),
+  _CountryInfo('Dominican Republic', 'DO', '1809'),
+  _CountryInfo('Ecuador', 'EC', '593'),
+  _CountryInfo('Egypt', 'EG', '20'),
+  _CountryInfo('El Salvador', 'SV', '503'),
+  _CountryInfo('Equatorial Guinea', 'GQ', '240'),
+  _CountryInfo('Eritrea', 'ER', '291'),
+  _CountryInfo('Estonia', 'EE', '372'),
+  _CountryInfo('Eswatini', 'SZ', '268'),
+  _CountryInfo('Ethiopia', 'ET', '251'),
+  _CountryInfo('Fiji', 'FJ', '679'),
+  _CountryInfo('Finland', 'FI', '358'),
+  _CountryInfo('France', 'FR', '33'),
+  _CountryInfo('Gabon', 'GA', '241'),
+  _CountryInfo('Gambia', 'GM', '220'),
+  _CountryInfo('Georgia', 'GE', '995'),
+  _CountryInfo('Germany', 'DE', '49'),
+  _CountryInfo('Ghana', 'GH', '233'),
+  _CountryInfo('Greece', 'GR', '30'),
+  _CountryInfo('Grenada', 'GD', '1473'),
+  _CountryInfo('Guatemala', 'GT', '502'),
+  _CountryInfo('Guinea', 'GN', '224'),
+  _CountryInfo('Guinea-Bissau', 'GW', '245'),
+  _CountryInfo('Guyana', 'GY', '592'),
+  _CountryInfo('Haiti', 'HT', '509'),
+  _CountryInfo('Honduras', 'HN', '504'),
+  _CountryInfo('Hong Kong', 'HK', '852'),
+  _CountryInfo('Hungary', 'HU', '36'),
+  _CountryInfo('Iceland', 'IS', '354'),
+  _CountryInfo('India', 'IN', '91'),
+  _CountryInfo('Indonesia', 'ID', '62'),
+  _CountryInfo('Iran', 'IR', '98'),
+  _CountryInfo('Iraq', 'IQ', '964'),
+  _CountryInfo('Ireland', 'IE', '353'),
+  _CountryInfo('Israel', 'IL', '972'),
+  _CountryInfo('Italy', 'IT', '39'),
+  _CountryInfo('Ivory Coast', 'CI', '225'),
+  _CountryInfo('Jamaica', 'JM', '1876'),
+  _CountryInfo('Japan', 'JP', '81'),
+  _CountryInfo('Jordan', 'JO', '962'),
+  _CountryInfo('Kazakhstan', 'KZ', '77'),
+  _CountryInfo('Kenya', 'KE', '254'),
+  _CountryInfo('Kiribati', 'KI', '686'),
+  _CountryInfo('Kosovo', 'XK', '383'),
+  _CountryInfo('Kuwait', 'KW', '965'),
+  _CountryInfo('Kyrgyzstan', 'KG', '996'),
+  _CountryInfo('Laos', 'LA', '856'),
+  _CountryInfo('Latvia', 'LV', '371'),
+  _CountryInfo('Lebanon', 'LB', '961'),
+  _CountryInfo('Lesotho', 'LS', '266'),
+  _CountryInfo('Liberia', 'LR', '231'),
+  _CountryInfo('Libya', 'LY', '218'),
+  _CountryInfo('Liechtenstein', 'LI', '423'),
+  _CountryInfo('Lithuania', 'LT', '370'),
+  _CountryInfo('Luxembourg', 'LU', '352'),
+  _CountryInfo('Macao', 'MO', '853'),
+  _CountryInfo('Madagascar', 'MG', '261'),
+  _CountryInfo('Malawi', 'MW', '265'),
+  _CountryInfo('Malaysia', 'MY', '60'),
+  _CountryInfo('Maldives', 'MV', '960'),
+  _CountryInfo('Mali', 'ML', '223'),
+  _CountryInfo('Malta', 'MT', '356'),
+  _CountryInfo('Marshall Islands', 'MH', '692'),
+  _CountryInfo('Mauritania', 'MR', '222'),
+  _CountryInfo('Mauritius', 'MU', '230'),
+  _CountryInfo('Mexico', 'MX', '52'),
+  _CountryInfo('Micronesia', 'FM', '691'),
+  _CountryInfo('Moldova', 'MD', '373'),
+  _CountryInfo('Monaco', 'MC', '377'),
+  _CountryInfo('Mongolia', 'MN', '976'),
+  _CountryInfo('Montenegro', 'ME', '382'),
+  _CountryInfo('Morocco', 'MA', '212'),
+  _CountryInfo('Mozambique', 'MZ', '258'),
+  _CountryInfo('Myanmar', 'MM', '95'),
+  _CountryInfo('Namibia', 'NA', '264'),
+  _CountryInfo('Nauru', 'NR', '674'),
+  _CountryInfo('Nepal', 'NP', '977'),
+  _CountryInfo('Netherlands', 'NL', '31'),
+  _CountryInfo('New Zealand', 'NZ', '64'),
+  _CountryInfo('Nicaragua', 'NI', '505'),
+  _CountryInfo('Niger', 'NE', '227'),
+  _CountryInfo('Nigeria', 'NG', '234'),
+  _CountryInfo('North Korea', 'KP', '850'),
+  _CountryInfo('North Macedonia', 'MK', '389'),
+  _CountryInfo('Norway', 'NO', '47'),
+  _CountryInfo('Oman', 'OM', '968'),
+  _CountryInfo('Pakistan', 'PK', '92'),
+  _CountryInfo('Palau', 'PW', '680'),
+  _CountryInfo('Palestine', 'PS', '970'),
+  _CountryInfo('Panama', 'PA', '507'),
+  _CountryInfo('Papua New Guinea', 'PG', '675'),
+  _CountryInfo('Paraguay', 'PY', '595'),
+  _CountryInfo('Peru', 'PE', '51'),
+  _CountryInfo('Philippines', 'PH', '63'),
+  _CountryInfo('Poland', 'PL', '48'),
+  _CountryInfo('Portugal', 'PT', '351'),
+  _CountryInfo('Qatar', 'QA', '974'),
+  _CountryInfo('Romania', 'RO', '40'),
+  _CountryInfo('Russia', 'RU', '7'),
+  _CountryInfo('Rwanda', 'RW', '250'),
+  _CountryInfo('Saint Kitts and Nevis', 'KN', '1869'),
+  _CountryInfo('Saint Lucia', 'LC', '1758'),
+  _CountryInfo('Saint Vincent', 'VC', '1784'),
+  _CountryInfo('Samoa', 'WS', '685'),
+  _CountryInfo('San Marino', 'SM', '378'),
+  _CountryInfo('Saudi Arabia', 'SA', '966'),
+  _CountryInfo('Senegal', 'SN', '221'),
+  _CountryInfo('Serbia', 'RS', '381'),
+  _CountryInfo('Seychelles', 'SC', '248'),
+  _CountryInfo('Sierra Leone', 'SL', '232'),
+  _CountryInfo('Singapore', 'SG', '65'),
+  _CountryInfo('Slovakia', 'SK', '421'),
+  _CountryInfo('Slovenia', 'SI', '386'),
+  _CountryInfo('Solomon Islands', 'SB', '677'),
+  _CountryInfo('Somalia', 'SO', '252'),
+  _CountryInfo('South Africa', 'ZA', '27'),
+  _CountryInfo('South Korea', 'KR', '82'),
+  _CountryInfo('South Sudan', 'SS', '211'),
+  _CountryInfo('Spain', 'ES', '34'),
+  _CountryInfo('Sri Lanka', 'LK', '94'),
+  _CountryInfo('Sudan', 'SD', '249'),
+  _CountryInfo('Suriname', 'SR', '597'),
+  _CountryInfo('Sweden', 'SE', '46'),
+  _CountryInfo('Switzerland', 'CH', '41'),
+  _CountryInfo('Syria', 'SY', '963'),
+  _CountryInfo('Taiwan', 'TW', '886'),
+  _CountryInfo('Tajikistan', 'TJ', '992'),
+  _CountryInfo('Tanzania', 'TZ', '255'),
+  _CountryInfo('Thailand', 'TH', '66'),
+  _CountryInfo('Timor-Leste', 'TL', '670'),
+  _CountryInfo('Togo', 'TG', '228'),
+  _CountryInfo('Tonga', 'TO', '676'),
+  _CountryInfo('Trinidad and Tobago', 'TT', '1868'),
+  _CountryInfo('Tunisia', 'TN', '216'),
+  _CountryInfo('Turkey', 'TR', '90'),
+  _CountryInfo('Turkmenistan', 'TM', '993'),
+  _CountryInfo('Tuvalu', 'TV', '688'),
+  _CountryInfo('Uganda', 'UG', '256'),
+  _CountryInfo('Ukraine', 'UA', '380'),
+  _CountryInfo('United Arab Emirates', 'AE', '971'),
+  _CountryInfo('United Kingdom', 'GB', '44'),
+  _CountryInfo('United States', 'US', '1'),
+  _CountryInfo('Uruguay', 'UY', '598'),
+  _CountryInfo('Uzbekistan', 'UZ', '998'),
+  _CountryInfo('Vanuatu', 'VU', '678'),
+  _CountryInfo('Vatican City', 'VA', '379'),
+  _CountryInfo('Venezuela', 'VE', '58'),
+  _CountryInfo('Vietnam', 'VN', '84'),
+  _CountryInfo('Yemen', 'YE', '967'),
+  _CountryInfo('Zambia', 'ZM', '260'),
+  _CountryInfo('Zimbabwe', 'ZW', '263'),
+];

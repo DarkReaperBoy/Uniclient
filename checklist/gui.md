@@ -501,8 +501,7 @@
 - [x] QR code displayed: 180px, white-card bg, 8px radius — spec §11.3 — DONE in auth_screen.dart
 
 ### §11.4 Phone Number Screen
-<!-- File: dart/lib/ui/auth_screen.dart — currently single TextField -->
-- [ ] Phone entry: country picker (300px wide, 61px min height); separate country-code field (64px, "+" prefix, digit-only mask) + phone-body field (~236px, digit-only with space separators per country pattern); country picker popup with flag + name + code — spec §11.4
+<!-- File: dart/lib/ui/auth_screen.dart -->
 - [ ] Validation: PHONE_NUMBER_INVALID inline error + field shake; PHONE_NUMBER_BANNED modal dialog with support link; flood warning + countdown — spec §11.4
 
 ### §11.5 OTP Code Screen
