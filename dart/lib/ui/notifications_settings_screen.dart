@@ -231,6 +231,14 @@ class _NotificationsSettingsScreenState
     ];
   }
 
+  void _openTypeSubPage(BuildContext context, _NotifType type) {
+    Navigator.of(context).push(
+      settingsPageRoute(
+        _NotificationTypeSubPage(type: type),
+      ),
+    );
+  }
+
   List<Widget> _buildNotificationsForChats(
     bool isDark,
     Color sectionTitleColor,
@@ -256,6 +264,7 @@ class _NotificationsSettingsScreenState
         label: 'Private chats',
         value: _privateChatsNotify,
         onToggle: (v) => setState(() => _privateChatsNotify = v),
+        onTap: () => _openTypeSubPage(context, _NotifType.privateChats),
         textColor: textColor,
         subtextColor: subtextColor,
         accentColor: accentColor,
@@ -267,6 +276,7 @@ class _NotificationsSettingsScreenState
         label: 'Groups',
         value: _groupsNotify,
         onToggle: (v) => setState(() => _groupsNotify = v),
+        onTap: () => _openTypeSubPage(context, _NotifType.groups),
         textColor: textColor,
         subtextColor: subtextColor,
         accentColor: accentColor,
@@ -278,6 +288,7 @@ class _NotificationsSettingsScreenState
         label: 'Channels',
         value: _channelsNotify,
         onToggle: (v) => setState(() => _channelsNotify = v),
+        onTap: () => _openTypeSubPage(context, _NotifType.channels),
         textColor: textColor,
         subtextColor: subtextColor,
         accentColor: accentColor,
@@ -289,6 +300,7 @@ class _NotificationsSettingsScreenState
         label: 'Reactions',
         value: _reactionsNotify,
         onToggle: (v) => setState(() => _reactionsNotify = v),
+        onTap: () => _openTypeSubPage(context, _NotifType.reactions),
         textColor: textColor,
         subtextColor: subtextColor,
         accentColor: accentColor,
@@ -296,6 +308,302 @@ class _NotificationsSettingsScreenState
         isDark: isDark,
       ),
     ];
+  }
+}
+
+enum _NotifType { privateChats, groups, channels, reactions }
+
+extension _NotifTypeExt on _NotifType {
+  String get title {
+    switch (this) {
+      case _NotifType.privateChats:
+        return 'Private chats';
+      case _NotifType.groups:
+        return 'Groups';
+      case _NotifType.channels:
+        return 'Channels';
+      case _NotifType.reactions:
+        return 'Reactions';
+    }
+  }
+
+  String get volumeSubtitle {
+    switch (this) {
+      case _NotifType.privateChats:
+        return 'Volume for private chats';
+      case _NotifType.groups:
+        return 'Volume for groups';
+      case _NotifType.channels:
+        return 'Volume for channels';
+      case _NotifType.reactions:
+        return 'Volume for reactions';
+    }
+  }
+}
+
+class _NotificationTypeSubPage extends StatefulWidget {
+  final _NotifType type;
+
+  const _NotificationTypeSubPage({required this.type});
+
+  @override
+  State<_NotificationTypeSubPage> createState() =>
+      _NotificationTypeSubPageState();
+}
+
+class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
+  bool _enabled = true;
+  bool _soundEnabled = true;
+  String _toneName = 'Default';
+  int _volume = 100;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final dividerColor =
+        isDark ? const Color(0xFF101921) : const Color(0xFFF1F1F1);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final hoverBg =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+    final sectionTitleColor =
+        isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
+    final iconColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: bgColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: textColor),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text(
+          widget.type.title,
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            color: textColor,
+          ),
+        ),
+      ),
+      body: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          _NotifIconToggleRow(
+            icon: Icons.notifications,
+            iconColor: iconColor,
+            label: 'Enable notifications',
+            value: _enabled,
+            onChanged: (v) => setState(() => _enabled = v),
+            textColor: textColor,
+            accentColor: accentColor,
+            hoverBg: hoverBg,
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            alignment: Alignment.topCenter,
+            child: _enabled
+                ? Column(
+                    children: [
+                      const SizedBox(height: 7),
+                      Container(height: 1, color: dividerColor),
+                      const SizedBox(height: 7),
+                      _NotifIconToggleRow(
+                        icon: Icons.volume_up,
+                        iconColor: iconColor,
+                        label: 'Sound',
+                        value: _soundEnabled,
+                        onChanged: (v) => setState(() => _soundEnabled = v),
+                        textColor: textColor,
+                        accentColor: accentColor,
+                        hoverBg: hoverBg,
+                      ),
+                      AnimatedSize(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                        alignment: Alignment.topCenter,
+                        child: _soundEnabled
+                            ? Column(
+                                children: [
+                                  _ToneRow(
+                                    toneName: _toneName,
+                                    textColor: textColor,
+                                    subtextColor: subtextColor,
+                                    iconColor: iconColor,
+                                    hoverBg: hoverBg,
+                                    accentColor: accentColor,
+                                    isDark: isDark,
+                                    onTap: () => _showRingtonesBox(context),
+                                  ),
+                                  _VolumeSliderSection(
+                                    volume: _volume,
+                                    onChanged: (v) =>
+                                        setState(() => _volume = v),
+                                    accentColor: accentColor,
+                                    isDark: isDark,
+                                    subtitle: widget.type.volumeSubtitle,
+                                  ),
+                                ],
+                              )
+                            : const SizedBox(
+                                width: double.infinity, height: 0),
+                      ),
+                    ],
+                  )
+                : const SizedBox(width: double.infinity, height: 0),
+          ),
+          const SizedBox(height: 32),
+        ],
+      ),
+    );
+  }
+
+  void _showRingtonesBox(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1B2836) : const Color(0xFFFFFFFF);
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+
+    final tones = ['Default', 'No sound'];
+    var selectedTone = _toneName;
+
+    showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return AlertDialog(
+              backgroundColor: bgColor,
+              title: Text('Notification Sound',
+                  style: TextStyle(
+                      color: textColor, fontWeight: FontWeight.w600)),
+              contentPadding: const EdgeInsets.fromLTRB(0, 16, 0, 0),
+              content: SizedBox(
+                width: 364,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final tone in tones)
+                      InkWell(
+                        onTap: () =>
+                            setDialogState(() => selectedTone = tone),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 10),
+                          child: Row(
+                            children: [
+                              Radio<String>(
+                                value: tone,
+                                groupValue: selectedTone,
+                                onChanged: (v) => setDialogState(
+                                    () => selectedTone = v ?? selectedTone),
+                                activeColor: accentColor,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(tone,
+                                  style: TextStyle(
+                                      fontSize: 14, color: textColor)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    Padding(
+                      padding:
+                          const EdgeInsets.fromLTRB(24, 12, 24, 8),
+                      child: Text(
+                        'Right click on any short voice note or MP3 file in chat and select "Save for Notifications".',
+                        style: TextStyle(fontSize: 13, color: subtextColor),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: Text('Cancel', style: TextStyle(color: accentColor)),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(selectedTone),
+                  child: Text('Save', style: TextStyle(color: accentColor)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    ).then((result) {
+      if (result != null) {
+        setState(() => _toneName = result);
+      }
+    });
+  }
+}
+
+class _ToneRow extends StatelessWidget {
+  final String toneName;
+  final Color textColor;
+  final Color subtextColor;
+  final Color iconColor;
+  final Color hoverBg;
+  final Color accentColor;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _ToneRow({
+    required this.toneName,
+    required this.textColor,
+    required this.subtextColor,
+    required this.iconColor,
+    required this.hoverBg,
+    required this.accentColor,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      hoverColor: hoverBg,
+      splashColor: hoverBg.withValues(alpha: 0.5),
+      child: Padding(
+        padding: SettingsStyle.iconRowPadding,
+        child: Row(
+          children: [
+            Icon(Icons.music_note, size: 24, color: iconColor),
+            const SizedBox(width: SettingsStyle.iconGap),
+            Expanded(
+              child: Text(
+                'Notification tone',
+                style: TextStyle(
+                    fontSize: SettingsStyle.buttonFontSize, color: textColor),
+              ),
+            ),
+            Text(
+              toneName,
+              style: TextStyle(fontSize: 14, color: subtextColor),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -350,12 +658,14 @@ class _VolumeSliderSection extends StatelessWidget {
   final ValueChanged<int> onChanged;
   final Color accentColor;
   final bool isDark;
+  final String? subtitle;
 
   const _VolumeSliderSection({
     required this.volume,
     required this.onChanged,
     required this.accentColor,
     required this.isDark,
+    this.subtitle,
   });
 
   @override
@@ -367,7 +677,7 @@ class _VolumeSliderSection extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(22, 10, 22, 0),
           child: Text(
-            'Volume',
+            subtitle ?? 'Volume',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
@@ -480,6 +790,7 @@ class _SplitToggleRow extends StatelessWidget {
   final String label;
   final bool value;
   final ValueChanged<bool> onToggle;
+  final VoidCallback? onTap;
   final Color textColor;
   final Color subtextColor;
   final Color accentColor;
@@ -492,6 +803,7 @@ class _SplitToggleRow extends StatelessWidget {
     required this.label,
     required this.value,
     required this.onToggle,
+    this.onTap,
     required this.textColor,
     required this.subtextColor,
     required this.accentColor,
@@ -566,7 +878,7 @@ class _SplitToggleRow extends StatelessWidget {
             child: InkWell(
               hoverColor: hoverBg,
               splashColor: hoverBg.withValues(alpha: 0.5),
-              onTap: () {},
+              onTap: onTap ?? () {},
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 0, 0),
                 child: Row(

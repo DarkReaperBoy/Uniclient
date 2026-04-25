@@ -628,7 +628,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 15.4 Per-Type Notification Rows
 
 ### 15.5 Per-Type Sub-Page
-- [ ] Per-type sub-page: "Enable notifications" toggle (right-click opens Mute Menu), "Sound" toggle (SlideWrap), "Notification tone" row (nested SlideWrap, right-label = current tone name, opens Ringtones Box), per-type volume slider (SlideWrap, plays selected tone) — spec §15.5.1 & §15.5.1.1 & §15.5.1.2
 - [ ] Exceptions list: "Add an exception" button, exception rows (userpic+name+status+"Remove"), "Delete all exceptions" red button with confirmation — spec §15.5.2
 - [ ] Mute Menu: PopupMenu with popupMenuWithIcons style — Select tone, Disable/Enable sound, recent mute durations, Mute for…, Mute forever/Unmute with red/green animation, drum-picker duration wheel (15min–1mo, Custom option) — spec §15.5.3
 
@@ -1582,3 +1581,4 @@ Status key: `[ ]` not started · `[x]` done
 - [ ] Info panel scroll doesn't work via flutter_interact.sh scroll events — scroll goes to chat list instead of info panel CustomScrollView. Affects both desktop (third column) and mobile (full screen) modes. The SliverPersistentHeader cover never compresses.
 - [ ] GIF tab inline search broken: GetInlineBotResults passes string "gif" as bot ID but engine expects numeric ID. Error: `invalid ID "gif": strconv.ParseInt: parsing "gif": invalid syntax`. Affects both manual text search and category emoji search.
 - [ ] Chat Settings page scroll broken via flutter_interact.sh — PointerScrollEvent dispatched at various y positions doesn't cause ListView to scroll. Scrollbar error "ScrollController has no ScrollPosition attached" in logs. ListView has `primary: true` but scroll still doesn't work via debug dispatch. Affects testing of items below viewport (quick action radios).
+- [ ] Notifications page scroll broken — Channels and Reactions split-toggle rows are below viewport (~y=775) but ListView doesn't scroll via flutter_interact.sh. Same class of bug as Chat Settings scroll issue. Affects testing of Channels/Reactions per-type sub-page navigation.
