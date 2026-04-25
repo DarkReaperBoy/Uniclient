@@ -145,8 +145,8 @@ class _MyProfilePageState extends State<MyProfilePage> {
             label: 'Name',
             value: account?.displayName ?? '',
             isDark: isDark,
+            copyMenuLabel: 'Copy Full Name',
             onTap: () => _copyToClipboard(context, account?.displayName ?? '', 'Full name'),
-            onLongPress: () => _copyToClipboard(context, account?.displayName ?? '', 'Full name'),
           ),
           _rowDivider(isDark),
           _ProfileInfoRow(
@@ -155,8 +155,8 @@ class _MyProfilePageState extends State<MyProfilePage> {
             label: 'Phone Number',
             value: account?.phone ?? '',
             isDark: isDark,
+            copyMenuLabel: 'Copy Phone Number',
             onTap: () => _copyToClipboard(context, account?.phone ?? '', 'Phone number'),
-            onLongPress: () => _copyToClipboard(context, account?.phone ?? '', 'Phone number'),
           ),
           _rowDivider(isDark),
           _ProfileInfoRow(
@@ -167,12 +167,8 @@ class _MyProfilePageState extends State<MyProfilePage> {
                 ? '@${account.username}'
                 : '',
             isDark: isDark,
+            copyMenuLabel: 'Copy @mention',
             onTap: () {
-              if (account != null && account.username.isNotEmpty) {
-                _copyToClipboard(context, '@${account.username}', 'Username');
-              }
-            },
-            onLongPress: () {
               if (account != null && account.username.isNotEmpty) {
                 _copyToClipboard(context, '@${account.username}', 'Username');
               }
@@ -502,7 +498,9 @@ class _UploadSubButton extends StatelessWidget {
   }
 }
 
-/// §14.5.3: Profile info row — icon, label, value, tap-to-copy.
+/// §14.5.3: Profile info row — settingsButton layout (60px icon column),
+/// primary value (14px) + secondary label (13px windowSubTextFg),
+/// right-click copy context menu, no trailing chevron.
 class _ProfileInfoRow extends StatelessWidget {
   final IconData icon;
   final Color iconBg;
@@ -510,7 +508,7 @@ class _ProfileInfoRow extends StatelessWidget {
   final String value;
   final bool isDark;
   final VoidCallback? onTap;
-  final VoidCallback? onLongPress;
+  final String copyMenuLabel;
 
   const _ProfileInfoRow({
     required this.icon,
@@ -519,7 +517,7 @@ class _ProfileInfoRow extends StatelessWidget {
     required this.value,
     required this.isDark,
     this.onTap,
-    this.onLongPress,
+    this.copyMenuLabel = 'Copy',
   });
 
   @override
@@ -530,55 +528,96 @@ class _ProfileInfoRow extends StatelessWidget {
     final subtextColor = isDark
         ? const Color(0xFF6C7883)
         : const Color(0xFF999999);
+    final hoverBg = isDark
+        ? const Color(0xFF232E3C)
+        : const Color(0xFFF1F1F1);
 
     final displayValue = value.isNotEmpty ? value : 'Not set';
     final isSet = value.isNotEmpty;
 
-    return InkWell(
-      onTap: isSet ? onTap : null,
-      onLongPress: isSet ? onLongPress : null,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 40,
-              child: Container(
-                width: 36,
-                height: 36,
+    return GestureDetector(
+      onSecondaryTapUp: isSet
+          ? (details) => _showCopyMenu(context, details.globalPosition)
+          : null,
+      child: InkWell(
+        onTap: isSet ? onTap : null,
+        hoverColor: hoverBg,
+        splashColor: hoverBg.withValues(alpha: 0.5),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
+            children: [
+              const SizedBox(width: 20),
+              Container(
+                width: 28,
+                height: 28,
                 decoration: BoxDecoration(
                   color: iconBg,
                   borderRadius: BorderRadius.circular(6),
                 ),
                 alignment: Alignment.center,
-                child: Icon(icon, size: 20, color: Colors.white),
+                child: Icon(icon, size: 18, color: Colors.white),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    displayValue,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: isSet ? textColor : subtextColor,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      displayValue,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: isSet ? textColor : subtextColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    label,
-                    style: TextStyle(fontSize: 12, color: subtextColor),
-                  ),
-                ],
+                    const SizedBox(height: 2),
+                    Text(
+                      label,
+                      style: TextStyle(fontSize: 13, color: subtextColor),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              const SizedBox(width: 22),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  void _showCopyMenu(BuildContext context, Offset position) {
+    final isDk = isDark;
+    final bgColor = isDk ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDk ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx, position.dy, position.dx, position.dy,
+      ),
+      color: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      items: [
+        PopupMenuItem(
+          value: 'copy',
+          child: Text(copyMenuLabel, style: TextStyle(color: textColor)),
+        ),
+      ],
+    ).then((selected) {
+      if (selected == 'copy' && value.isNotEmpty) {
+        Clipboard.setData(ClipboardData(text: value));
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Copied to clipboard'),
+              duration: const Duration(milliseconds: 500),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    });
   }
 }
