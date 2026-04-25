@@ -25,6 +25,7 @@ import 'message_bubble.dart';
 import 'popup_menu.dart';
 import 'send_files_box.dart';
 import 'confirm_box.dart';
+import 'call_panel.dart';
 import 'emoji_panel.dart';
 
 /// Chat column: top bar + message list + compose area.
@@ -3373,7 +3374,7 @@ class _ChatTopBar extends StatelessWidget {
   }
 
   /// Spec §4.3: right-click on call button opens audio/video call submenu.
-  static void _showCallMenu(BuildContext context, Offset globalPos) {
+  void _showCallMenu(BuildContext context, Offset globalPos) {
     showTelegramMenu<String>(
       context: context,
       position: globalPos,
@@ -3381,11 +3382,20 @@ class _ChatTopBar extends StatelessWidget {
         TelegramMenuItem(value: 'audio_call', icon: Icon(Icons.call), label: 'Audio Call'),
         TelegramMenuItem(value: 'video_call', icon: Icon(Icons.videocam), label: 'Video Call'),
       ],
-    );
+    ).then((value) {
+      if (value == null || !context.mounted) return;
+      showCallPanel(context, CallPanelInfo(
+        callerId: chat.chatId,
+        callerName: chat.title,
+        callerAvatarUrl: chat.avatarPath,
+        isVideo: value == 'video_call',
+        state: CallPanelState.connecting,
+      ));
+    });
   }
 
   /// Spec §4.2: right-click on back button opens a call-type menu.
-  static void _showBackButtonCallMenu(BuildContext context, Offset globalPos) {
+  void _showBackButtonCallMenu(BuildContext context, Offset globalPos) {
     showTelegramMenu<String>(
       context: context,
       position: globalPos,
@@ -3393,7 +3403,16 @@ class _ChatTopBar extends StatelessWidget {
         TelegramMenuItem(value: 'audio_call', icon: Icon(Icons.call), label: 'Audio Call'),
         TelegramMenuItem(value: 'video_call', icon: Icon(Icons.videocam), label: 'Video Call'),
       ],
-    );
+    ).then((value) {
+      if (value == null || !context.mounted) return;
+      showCallPanel(context, CallPanelInfo(
+        callerId: chat.chatId,
+        callerName: chat.title,
+        callerAvatarUrl: chat.avatarPath,
+        isVideo: value == 'video_call',
+        state: CallPanelState.connecting,
+      ));
+    });
   }
 
   static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
@@ -3722,7 +3741,13 @@ class _ChatTopBar extends StatelessWidget {
                 child: _TopBarButton(
                   icon: Icons.call,
                   onPressed: () {
-                    // TODO: initiate audio call via engine
+                    showCallPanel(context, CallPanelInfo(
+                      callerId: chat.chatId,
+                      callerName: chat.title,
+                      callerAvatarUrl: chat.avatarPath,
+                      isVideo: false,
+                      state: CallPanelState.connecting,
+                    ));
                   },
                 ),
               ),
