@@ -28,12 +28,17 @@ class _MyProfilePageState extends State<MyProfilePage> {
   int _selfColorId = -1;
   String _personalChannelName = '';
   bool _colorChannelLoaded = false;
+  int _birthdayDay = 0;
+  int _birthdayMonth = 0;
+  int _birthdayYear = 0;
+  bool _birthdayLoaded = false;
 
   @override
   void initState() {
     super.initState();
     _loadBio();
     _loadColorAndChannel();
+    _loadBirthday();
   }
 
   @override
@@ -72,6 +77,70 @@ class _MyProfilePageState extends State<MyProfilePage> {
         _colorChannelLoaded = true;
       });
     });
+  }
+
+  void _loadBirthday() {
+    final appState = context.read<AppState>();
+    final account = appState.activeAccount;
+    if (account == null) return;
+    final engine = context.read<EngineService>();
+    engine.getSelfBirthday(account.id).then((result) {
+      if (!mounted) return;
+      setState(() {
+        _birthdayDay = result.day;
+        _birthdayMonth = result.month;
+        _birthdayYear = result.year;
+        _birthdayLoaded = true;
+      });
+    });
+  }
+
+  void _pickBirthday() async {
+    final now = DateTime.now();
+    final firstDate = DateTime(1900);
+    var initial = _birthdayDay > 0 && _birthdayMonth > 0
+        ? DateTime(_birthdayYear > 0 ? _birthdayYear : now.year, _birthdayMonth, _birthdayDay)
+        : DateTime(now.year - 20, now.month, now.day);
+    if (initial.isBefore(firstDate)) initial = firstDate;
+    if (initial.isAfter(now)) initial = now;
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: firstDate,
+      lastDate: now,
+    );
+    if (picked == null || !mounted) return;
+    final appState = context.read<AppState>();
+    final account = appState.activeAccount;
+    if (account == null) return;
+    final engine = context.read<EngineService>();
+    try {
+      await engine.updateBirthday(account.id, picked.day, picked.month, picked.year);
+      if (mounted) {
+        setState(() {
+          _birthdayDay = picked.day;
+          _birthdayMonth = picked.month;
+          _birthdayYear = picked.year;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Birthday saved'),
+            duration: Duration(milliseconds: 1500),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update birthday: $e'),
+            duration: const Duration(milliseconds: 2000),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   void _onBioChanged(String value) {
@@ -198,6 +267,59 @@ class _MyProfilePageState extends State<MyProfilePage> {
             child: Text(
               'People can message you using your username without knowing your phone number.',
               style: TextStyle(fontSize: 13, color: subtextColor),
+            ),
+          ),
+          Container(height: 8, color: dividerColor),
+          _BirthdayRow(
+            day: _birthdayDay,
+            month: _birthdayMonth,
+            year: _birthdayYear,
+            isDark: isDark,
+            loaded: _birthdayLoaded,
+            onTap: _pickBirthday,
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
+            child: Text.rich(
+              TextSpan(
+                text: 'Your birthday is visible to ',
+                style: TextStyle(fontSize: 13, color: subtextColor),
+                children: [
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.baseline,
+                    baseline: TextBaseline.alphabetic,
+                    child: GestureDetector(
+                      onTap: () {},
+                      child: Text(
+                        'your contacts',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isDark
+                              ? const Color(0xFF6AB3F3)
+                              : const Color(0xFF168ACD),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const TextSpan(text: '. '),
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.baseline,
+                    baseline: TextBaseline.alphabetic,
+                    child: GestureDetector(
+                      onTap: () {},
+                      child: Text(
+                        'Manage',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isDark
+                              ? const Color(0xFF6AB3F3)
+                              : const Color(0xFF168ACD),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           Container(height: 8, color: dividerColor),
@@ -503,6 +625,100 @@ class _ProfilePhotoArea extends StatelessWidget {
     Color(0xFF65aadd), Color(0xFFa695e7), Color(0xFFee7aae),
     Color(0xFF6ec9cb),
   ];
+}
+
+/// §14.5.5: Birthday row — shows formatted date or "Add", opens date picker.
+class _BirthdayRow extends StatelessWidget {
+  final int day;
+  final int month;
+  final int year;
+  final bool isDark;
+  final bool loaded;
+  final VoidCallback onTap;
+
+  const _BirthdayRow({
+    required this.day,
+    required this.month,
+    required this.year,
+    required this.isDark,
+    required this.loaded,
+    required this.onTap,
+  });
+
+  static const _monthNames = [
+    '', 'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+
+  String _formatBirthday() {
+    if (day <= 0 || month <= 0 || month > 12) return '';
+    final monthStr = _monthNames[month];
+    if (year > 0) return '$monthStr $day, $year';
+    return '$monthStr $day';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = isDark
+        ? const Color(0xFFF5F5F5)
+        : const Color(0xFF000000);
+    final subtextColor = isDark
+        ? const Color(0xFF6C7883)
+        : const Color(0xFF999999);
+    final hoverBg = isDark
+        ? const Color(0xFF232E3C)
+        : const Color(0xFFF1F1F1);
+
+    final hasBirthday = day > 0 && month > 0;
+    final displayValue = hasBirthday ? _formatBirthday() : 'Add';
+
+    return InkWell(
+      onTap: onTap,
+      hoverColor: hoverBg,
+      splashColor: hoverBg.withValues(alpha: 0.5),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          children: [
+            const SizedBox(width: 20),
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE91E63),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              alignment: Alignment.center,
+              child: const Icon(Icons.cake, size: 18, color: Colors.white),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    displayValue,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: hasBirthday ? textColor : subtextColor,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Date of Birth',
+                    style: TextStyle(fontSize: 13, color: subtextColor),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 22),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// §14.5.4: Personal Channel row — shows channel name or "Add".

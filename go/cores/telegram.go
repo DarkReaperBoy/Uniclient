@@ -13056,6 +13056,17 @@ func (t *TelegramCore) GetSelfBio() (string, error) {
 	return result.FullUser.About, nil
 }
 
+func (t *TelegramCore) GetSelfBirthday() (day, month, year int, err error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return 0, 0, 0, ErrAuth }
+	result, err := t.api.UsersGetFullUser(t.ctx, &tg.InputUser{UserID: t.selfID, AccessHash: 0})
+	if err != nil { return 0, 0, 0, err }
+	bday, ok := result.FullUser.GetBirthday()
+	if !ok { return 0, 0, 0, nil }
+	y, _ := bday.GetYear()
+	return bday.Day, bday.Month, y, nil
+}
+
 func (t *TelegramCore) UpdateBio(bio string) error {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return ErrAuth }

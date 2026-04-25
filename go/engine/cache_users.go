@@ -149,6 +149,38 @@ func (e *Engine) GetSelfBio(accountID string) (string, error) {
 	return bg.GetSelfBio()
 }
 
+type selfBirthdayGetter interface {
+	GetSelfBirthday() (day, month, year int, err error)
+}
+
+func (e *Engine) GetSelfBirthday(accountID string) (day, month, year int, err error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return 0, 0, 0, fmt.Errorf("account %q not connected", accountID)
+	}
+	bg, ok := acc.Core.(selfBirthdayGetter)
+	if !ok {
+		return 0, 0, 0, fmt.Errorf("platform does not support birthday")
+	}
+	return bg.GetSelfBirthday()
+}
+
+type birthdayUpdater interface {
+	UpdateBirthday(day, month, year int) error
+}
+
+func (e *Engine) UpdateBirthday(accountID string, day, month, year int) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not connected", accountID)
+	}
+	bu, ok := acc.Core.(birthdayUpdater)
+	if !ok {
+		return fmt.Errorf("platform does not support birthday update")
+	}
+	return bu.UpdateBirthday(day, month, year)
+}
+
 type bioUpdater interface {
 	UpdateBio(bio string) error
 }

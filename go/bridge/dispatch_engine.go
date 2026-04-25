@@ -1339,6 +1339,31 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.UpdateBio(params.AccountID, params.Bio)
 
+	case "GetSelfBirthday":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		day, month, year, err := e.GetSelfBirthday(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]int{"day": day, "month": month, "year": year})
+
+	case "UpdateBirthday":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Day       int    `json:"day"`
+			Month     int    `json:"month"`
+			Year      int    `json:"year"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.UpdateBirthday(params.AccountID, params.Day, params.Month, params.Year)
+
 	case "GetSelfColorAndChannel":
 		var params struct {
 			AccountID string `json:"account_id"`

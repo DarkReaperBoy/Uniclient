@@ -1197,6 +1197,35 @@ class EngineService {
     await _callAsync('__engine', 'UpdateBio', Uint8List.fromList(payload));
   }
 
+  Future<({int day, int month, int year})> getSelfBirthday(String accountId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetSelfBirthday', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return (day: 0, month: 0, year: 0);
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return (
+        day: data['day'] as int? ?? 0,
+        month: data['month'] as int? ?? 0,
+        year: data['year'] as int? ?? 0,
+      );
+    } catch (e) {
+      Debug.error('ENGINE', 'getSelfBirthday failed', e);
+      return (day: 0, month: 0, year: 0);
+    }
+  }
+
+  Future<void> updateBirthday(String accountId, int day, int month, int year) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'day': day,
+      'month': month,
+      'year': year,
+    }));
+    await _callAsync('__engine', 'UpdateBirthday', Uint8List.fromList(payload));
+  }
+
   Future<({int colorId, String channelName})> getSelfColorAndChannel(String accountId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
