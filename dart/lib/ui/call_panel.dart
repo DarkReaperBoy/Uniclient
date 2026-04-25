@@ -16,6 +16,7 @@ class CallPanelInfo {
   final bool isRemoteMuted;
   final bool isRemoteLowBattery;
   final bool isFullscreen;
+  final bool isScreenSharing;
   final int signalQuality;
   final List<String> fingerprintEmoji;
 
@@ -28,6 +29,7 @@ class CallPanelInfo {
     this.isRemoteMuted = false,
     this.isRemoteLowBattery = false,
     this.isFullscreen = false,
+    this.isScreenSharing = false,
     this.signalQuality = -1,
     this.fingerprintEmoji = const [],
   });
@@ -40,6 +42,7 @@ class CallPanel extends StatefulWidget {
   final VoidCallback? onHangup;
   final VoidCallback? onClose;
   final Widget? remoteVideoWidget;
+  final Widget? selfVideoWidget;
 
   const CallPanel({
     super.key,
@@ -49,6 +52,7 @@ class CallPanel extends StatefulWidget {
     this.onHangup,
     this.onClose,
     this.remoteVideoWidget,
+    this.selfVideoWidget,
   });
 
   static const defaultWidth = 720.0;
@@ -367,40 +371,62 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
   }
 
   Widget _buildConnectingState() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const Spacer(flex: 3),
-        _buildUserpic(160),
-        const SizedBox(height: 20),
-        Text(
-          widget.info.callerName,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 21,
-            fontWeight: FontWeight.w600,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'Connecting...',
-          style: TextStyle(
-            color: Color(0xAAFFFFFF),
-            fontSize: 15,
-          ),
-        ),
-        const Spacer(flex: 4),
-        _CallActionButton(
-          icon: Icons.call_end,
-          label: 'End Call',
-          backgroundColor: const Color(0xFFE53935),
-          onTap: widget.onHangup,
-          size: 64,
-          iconSize: 32,
-        ),
-        const SizedBox(height: 48),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final hasPreview = widget.info.isVideo && widget.selfVideoWidget != null;
+        return Stack(
+          children: [
+            if (hasPreview)
+              Positioned.fill(
+                child: _OutgoingPreview(
+                  videoWidget: widget.selfVideoWidget!,
+                  containerHeight: constraints.maxHeight,
+                ),
+              ),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Spacer(flex: 3),
+                if (!hasPreview) _buildUserpic(160),
+                if (!hasPreview) const SizedBox(height: 20),
+                Text(
+                  widget.info.callerName,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 21,
+                    fontWeight: FontWeight.w600,
+                    shadows: hasPreview
+                        ? const [Shadow(blurRadius: 8, color: Color(0x80000000))]
+                        : null,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Connecting...',
+                  style: TextStyle(
+                    color: const Color(0xAAFFFFFF),
+                    fontSize: 15,
+                    shadows: hasPreview
+                        ? const [Shadow(blurRadius: 8, color: Color(0x80000000))]
+                        : null,
+                  ),
+                ),
+                const Spacer(flex: 4),
+                _CallActionButton(
+                  icon: Icons.call_end,
+                  label: 'End Call',
+                  backgroundColor: const Color(0xFFE53935),
+                  onTap: widget.onHangup,
+                  size: 64,
+                  iconSize: 32,
+                ),
+                const SizedBox(height: 48),
+              ],
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -574,6 +600,11 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
                 ),
               ),
             ),
+            if (widget.selfVideoWidget != null)
+              _SelfViewBubble(
+                videoWidget: widget.selfVideoWidget!,
+                mirror: !widget.info.isScreenSharing,
+              ),
           ],
         ),
       ),
@@ -594,33 +625,42 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
       },
       child: GestureDetector(
         onTap: _onMouseMove,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Stack(
           children: [
-            const Spacer(flex: 3),
-            _buildUserpic(160),
-            const SizedBox(height: 20),
-            Text(
-              widget.info.callerName,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 21,
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Spacer(flex: 3),
+                _buildUserpic(160),
+                const SizedBox(height: 20),
+                Text(
+                  widget.info.callerName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 21,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                _buildStatusRow(),
+                _buildRemotePills(),
+                const Spacer(flex: 4),
+                FadeTransition(
+                  opacity: _controlsFadeController,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: _buildControlsRow(),
+                  ),
+                ),
+                const SizedBox(height: 48),
+              ],
             ),
-            const SizedBox(height: 8),
-            _buildStatusRow(),
-            _buildRemotePills(),
-            const Spacer(flex: 4),
-            FadeTransition(
-              opacity: _controlsFadeController,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: _buildControlsRow(),
+            if (widget.selfVideoWidget != null)
+              _SelfViewBubble(
+                videoWidget: widget.selfVideoWidget!,
+                mirror: !widget.info.isScreenSharing,
               ),
-            ),
-            const SizedBox(height: 48),
           ],
         ),
       ),
@@ -1111,7 +1151,219 @@ class _SignalBarsPainter extends CustomPainter {
   bool shouldRepaint(_SignalBarsPainter old) => old.quality != quality;
 }
 
-void showCallPanel(BuildContext context, CallPanelInfo info, {Widget? remoteVideoWidget}) {
+enum _SnapCorner { topLeft, topRight, bottomLeft, bottomRight }
+
+class _SelfViewBubble extends StatefulWidget {
+  final Widget videoWidget;
+  final bool mirror;
+
+  const _SelfViewBubble({required this.videoWidget, this.mirror = true});
+
+  static const _width = 160.0;
+  static const _height = 110.0;
+  static const _inset = 12.0;
+  static const _snapDuration = Duration(milliseconds: 120);
+  static const _borderRadius = 8.0;
+
+  @override
+  State<_SelfViewBubble> createState() => _SelfViewBubbleState();
+}
+
+class _SelfViewBubbleState extends State<_SelfViewBubble>
+    with SingleTickerProviderStateMixin {
+  _SnapCorner _corner = _SnapCorner.bottomRight;
+  Offset _dragOffset = Offset.zero;
+  bool _isDragging = false;
+  late AnimationController _snapController;
+  Offset _snapFrom = Offset.zero;
+  Offset _snapTo = Offset.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _snapController = AnimationController(
+      vsync: this,
+      duration: _SelfViewBubble._snapDuration,
+    )..addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _snapController.dispose();
+    super.dispose();
+  }
+
+  Offset _cornerPosition(Size parentSize, _SnapCorner corner) {
+    const i = _SelfViewBubble._inset;
+    const w = _SelfViewBubble._width;
+    const h = _SelfViewBubble._height;
+    switch (corner) {
+      case _SnapCorner.topLeft:
+        return const Offset(i, i);
+      case _SnapCorner.topRight:
+        return Offset(parentSize.width - w - i, i);
+      case _SnapCorner.bottomLeft:
+        return Offset(i, parentSize.height - h - i);
+      case _SnapCorner.bottomRight:
+        return Offset(parentSize.width - w - i, parentSize.height - h - i);
+    }
+  }
+
+  _SnapCorner _nearestCorner(Offset center, Size parentSize) {
+    _SnapCorner best = _SnapCorner.bottomRight;
+    double bestDist = double.infinity;
+    for (final c in _SnapCorner.values) {
+      final pos = _cornerPosition(parentSize, c);
+      final cornerCenter = Offset(
+        pos.dx + _SelfViewBubble._width / 2,
+        pos.dy + _SelfViewBubble._height / 2,
+      );
+      final dist = (cornerCenter - center).distance;
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = c;
+      }
+    }
+    return best;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final parentSize = Size(constraints.maxWidth, constraints.maxHeight);
+
+        Offset currentPos;
+        if (_isDragging) {
+          currentPos = _dragOffset;
+        } else if (_snapController.isAnimating) {
+          final t = Curves.easeOutCirc.transform(_snapController.value);
+          currentPos = Offset.lerp(_snapFrom, _snapTo, t)!;
+        } else {
+          currentPos = _cornerPosition(parentSize, _corner);
+        }
+
+        Widget videoContent = ClipRRect(
+          borderRadius: BorderRadius.circular(_SelfViewBubble._borderRadius),
+          child: SizedBox(
+            width: _SelfViewBubble._width,
+            height: _SelfViewBubble._height,
+            child: widget.videoWidget,
+          ),
+        );
+
+        if (widget.mirror) {
+          videoContent = Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()..scale(-1.0, 1.0),
+            child: videoContent,
+          );
+        }
+
+        return Positioned(
+          left: currentPos.dx,
+          top: currentPos.dy,
+          child: GestureDetector(
+            onPanStart: (details) {
+              _snapController.stop();
+              setState(() {
+                _isDragging = true;
+                _dragOffset = currentPos;
+              });
+            },
+            onPanUpdate: (details) {
+              setState(() {
+                _dragOffset += details.delta;
+                _dragOffset = Offset(
+                  _dragOffset.dx.clamp(0, parentSize.width - _SelfViewBubble._width),
+                  _dragOffset.dy.clamp(0, parentSize.height - _SelfViewBubble._height),
+                );
+              });
+            },
+            onPanEnd: (_) {
+              final center = Offset(
+                _dragOffset.dx + _SelfViewBubble._width / 2,
+                _dragOffset.dy + _SelfViewBubble._height / 2,
+              );
+              final newCorner = _nearestCorner(center, parentSize);
+              _snapFrom = _dragOffset;
+              _snapTo = _cornerPosition(parentSize, newCorner);
+              setState(() {
+                _isDragging = false;
+                _corner = newCorner;
+              });
+              _snapController.forward(from: 0.0);
+            },
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(_SelfViewBubble._borderRadius),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x40000000),
+                    blurRadius: 8,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: videoContent,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _OutgoingPreview extends StatelessWidget {
+  final Widget videoWidget;
+  final double containerHeight;
+
+  const _OutgoingPreview({
+    required this.videoWidget,
+    required this.containerHeight,
+  });
+
+  static const _minSize = Size(360, 120);
+  static const _maxSize = Size(1620, 540);
+  static const _hMin = 400.0;
+  static const _hDefault = 720.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ((containerHeight - _hMin) / (_hDefault - _hMin)).clamp(0.0, 1.0);
+    final w = _minSize.width + (_maxSize.width - _minSize.width) * t;
+    final h = _minSize.height + (_maxSize.height - _minSize.height) * t;
+
+    return Center(
+      child: Transform(
+        alignment: Alignment.center,
+        transform: Matrix4.identity()..scale(-1.0, 1.0),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            width: w,
+            height: h,
+            child: FittedBox(
+              fit: BoxFit.cover,
+              child: SizedBox(
+                width: w,
+                height: h,
+                child: videoWidget,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+void showCallPanel(
+  BuildContext context,
+  CallPanelInfo info, {
+  Widget? remoteVideoWidget,
+  Widget? selfVideoWidget,
+}) {
   showDialog(
     context: context,
     barrierDismissible: false,
@@ -1130,6 +1382,7 @@ void showCallPanel(BuildContext context, CallPanelInfo info, {Widget? remoteVide
               onAccept: () {},
               onHangup: () => Navigator.of(ctx).pop(),
               remoteVideoWidget: remoteVideoWidget,
+              selfVideoWidget: selfVideoWidget,
             ),
           ),
         ),
