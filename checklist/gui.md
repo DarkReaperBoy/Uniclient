@@ -654,7 +654,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 16.9 Blocked Users Screen
 
 ### 16.11 Animations
-- [ ] All Privacy page animations: SlideWrap conditional sections, Lottie icons (cloud password intro/input, local passcode, TTL, blocked users empty), password input icon animates/reverses on typing, fireworks on password validation success — spec §16.11
 
 ---
 

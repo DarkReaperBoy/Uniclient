@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:crypto/crypto.dart';
 import 'package:file_picker/file_picker.dart';
@@ -528,26 +529,40 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
         hoverBg: hoverBg,
         onTap: _openPasscodeLock,
       ),
-      if (_passkeysLoaded)
-        _PrivacyIconRow(
-          icon: Icons.fingerprint,
-          label: 'Passkeys',
-          rightLabel: _passkeysLabel,
-          textColor: textColor,
-          subtextColor: subtextColor,
-          hoverBg: hoverBg,
-          onTap: () {},
-        ),
-      if (_loginEmailPattern.isNotEmpty)
-        _PrivacyIconRow(
-          icon: Icons.email_outlined,
-          label: 'Login Email',
-          rightLabel: _loginEmailPattern,
-          textColor: textColor,
-          subtextColor: subtextColor,
-          hoverBg: hoverBg,
-          onTap: () {},
-        ),
+      AnimatedSize(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+        alignment: Alignment.topCenter,
+        clipBehavior: Clip.hardEdge,
+        child: _passkeysLoaded
+            ? _PrivacyIconRow(
+                icon: Icons.fingerprint,
+                label: 'Passkeys',
+                rightLabel: _passkeysLabel,
+                textColor: textColor,
+                subtextColor: subtextColor,
+                hoverBg: hoverBg,
+                onTap: () {},
+              )
+            : const SizedBox.shrink(),
+      ),
+      AnimatedSize(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+        alignment: Alignment.topCenter,
+        clipBehavior: Clip.hardEdge,
+        child: _loginEmailPattern.isNotEmpty
+            ? _PrivacyIconRow(
+                icon: Icons.email_outlined,
+                label: 'Login Email',
+                rightLabel: _loginEmailPattern,
+                textColor: textColor,
+                subtextColor: subtextColor,
+                hoverBg: hoverBg,
+                onTap: () {},
+              )
+            : const SizedBox.shrink(),
+      ),
       _PrivacyIconRow(
         icon: Icons.block,
         label: 'Blocked Users',
@@ -1156,6 +1171,268 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
       ),
     );
   }
+}
+
+// ── Animated icon widgets (§16.11) ──
+
+class _AnimatedSettingsIcon extends StatefulWidget {
+  final IconData icon;
+  final double size;
+  final Color color;
+  final Color? backgroundColor;
+
+  const _AnimatedSettingsIcon({
+    required this.icon,
+    required this.size,
+    required this.color,
+    this.backgroundColor,
+  });
+
+  @override
+  State<_AnimatedSettingsIcon> createState() => _AnimatedSettingsIconState();
+}
+
+class _AnimatedSettingsIconState extends State<_AnimatedSettingsIcon>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+  late final Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _scale = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack),
+    );
+    _opacity = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _ctrl,
+        curve: const Interval(0.0, 0.5, curve: Curves.easeOut),
+      ),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) => _ctrl.forward());
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (context, child) {
+        return Opacity(
+          opacity: _opacity.value,
+          child: Transform.scale(
+            scale: _scale.value,
+            child: Container(
+              width: widget.size,
+              height: widget.size,
+              decoration: BoxDecoration(
+                color: widget.backgroundColor ??
+                    widget.color.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                widget.icon,
+                size: widget.size * 0.48,
+                color: widget.color,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _InteractivePasswordIcon extends StatefulWidget {
+  final TextEditingController textController;
+  final double size;
+  final Color color;
+  final IconData icon;
+  final IconData? activeIcon;
+
+  const _InteractivePasswordIcon({
+    required this.textController,
+    required this.size,
+    required this.color,
+    required this.icon,
+    this.activeIcon,
+  });
+
+  @override
+  State<_InteractivePasswordIcon> createState() =>
+      _InteractivePasswordIconState();
+}
+
+class _InteractivePasswordIconState extends State<_InteractivePasswordIcon>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+  bool _hasText = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _scale = Tween<double>(begin: 1.0, end: 1.15).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack),
+    );
+    _hasText = widget.textController.text.isNotEmpty;
+    widget.textController.addListener(_onTextChanged);
+  }
+
+  void _onTextChanged() {
+    final nowHasText = widget.textController.text.isNotEmpty;
+    if (nowHasText != _hasText) {
+      _hasText = nowHasText;
+      if (_hasText) {
+        _ctrl.forward();
+      } else {
+        _ctrl.reverse();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.textController.removeListener(_onTextChanged);
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _scale.value,
+          child: Container(
+            width: widget.size,
+            height: widget.size,
+            decoration: BoxDecoration(
+              color: widget.color.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: Icon(
+                _hasText ? (widget.activeIcon ?? widget.icon) : widget.icon,
+                key: ValueKey(_hasText),
+                size: widget.size * 0.48,
+                color: widget.color,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _FireworksOverlay extends StatefulWidget {
+  final VoidCallback onComplete;
+
+  const _FireworksOverlay({required this.onComplete});
+
+  @override
+  State<_FireworksOverlay> createState() => _FireworksOverlayState();
+}
+
+class _FireworksOverlayState extends State<_FireworksOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final List<_Particle> _particles;
+
+  @override
+  void initState() {
+    super.initState();
+    final rng = math.Random();
+    _particles = List.generate(40, (_) => _Particle(rng));
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..addStatusListener((s) {
+        if (s == AnimationStatus.completed) widget.onComplete();
+      });
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (context, _) {
+        return CustomPaint(
+          painter: _FireworksPainter(_particles, _ctrl.value),
+          size: Size.infinite,
+        );
+      },
+    );
+  }
+}
+
+class _Particle {
+  final double angle;
+  final double speed;
+  final double radius;
+  final Color color;
+
+  _Particle(math.Random rng)
+      : angle = rng.nextDouble() * 2 * math.pi,
+        speed = 80 + rng.nextDouble() * 200,
+        radius = 2.0 + rng.nextDouble() * 3.0,
+        color = [
+            const Color(0xFFFF6B6B),
+            const Color(0xFF4ECDC4),
+            const Color(0xFFFFE66D),
+            const Color(0xFF6C5CE7),
+            const Color(0xFFA8E6CF),
+            const Color(0xFF40A7E3),
+          ][rng.nextInt(6)];
+}
+
+class _FireworksPainter extends CustomPainter {
+  final List<_Particle> particles;
+  final double progress;
+
+  _FireworksPainter(this.particles, this.progress);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height * 0.35);
+    final fadeOut = (1.0 - progress).clamp(0.0, 1.0);
+    for (final p in particles) {
+      final dist = p.speed * progress;
+      final dx = center.dx + math.cos(p.angle) * dist;
+      final dy = center.dy + math.sin(p.angle) * dist - 30 * progress;
+      final paint = Paint()
+        ..color = p.color.withValues(alpha: fadeOut * 0.9)
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(Offset(dx, dy), p.radius * (1.0 - progress * 0.5), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_FireworksPainter old) => old.progress != progress;
 }
 
 // ── Shared widgets ──
@@ -2443,14 +2720,10 @@ class _CloudPasswordStart extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.lock_outline, size: 48, color: accentColor),
+              _AnimatedSettingsIcon(
+                icon: Icons.lock_outline,
+                size: 100,
+                color: accentColor,
               ),
               const SizedBox(height: 19),
               Text(
@@ -2532,6 +2805,7 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
   bool _obscureConfirm = true;
   String _error = '';
   bool _loading = false;
+  bool _showFireworks = false;
 
   bool get _isCreateMode => widget.mode == _CloudPasswordMode.create || widget.mode == _CloudPasswordMode.change;
 
@@ -2582,6 +2856,9 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
     try {
       await widget.engine.checkCloudPassword(widget.accountId, password);
       if (!mounted) return;
+      setState(() { _showFireworks = true; _loading = false; });
+      await Future<void>.delayed(const Duration(milliseconds: 1000));
+      if (!mounted) return;
       Navigator.of(context).pushReplacement(settingsPageRoute(
         _CloudPasswordManage(
           accountId: widget.accountId,
@@ -2629,24 +2906,20 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
         ),
         title: Text(title, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
       ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 40),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  _isCreateMode ? Icons.lock_outline : Icons.vpn_key,
-                  size: 48,
-                  color: accentColor,
-                ),
+      body: Stack(
+        children: [
+          Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 40),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+              _InteractivePasswordIcon(
+                textController: _passwordController,
+                size: 100,
+                color: accentColor,
+                icon: _isCreateMode ? Icons.lock_outline : Icons.vpn_key,
+                activeIcon: _isCreateMode ? Icons.lock : Icons.vpn_key_outlined,
               ),
               const SizedBox(height: 19),
               Text(subtitle, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
@@ -2731,6 +3004,18 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
             ],
           ),
         ),
+          ),
+          if (_showFireworks)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: _FireworksOverlay(
+                  onComplete: () {
+                    if (mounted) setState(() => _showFireworks = false);
+                  },
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -3567,10 +3852,11 @@ class _GlobalTTLScreenState extends State<_GlobalTTLScreen> {
             color: dividerBg,
             padding: const EdgeInsets.symmetric(vertical: 20),
             child: Center(
-              child: Icon(
-                Icons.timer_outlined,
+              child: _AnimatedSettingsIcon(
+                icon: Icons.timer_outlined,
                 size: 100,
                 color: accentColor,
+                backgroundColor: Colors.transparent,
               ),
             ),
           ),
@@ -3880,15 +4166,13 @@ class _LocalPasscodeCreateState extends State<_LocalPasscodeCreate> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 100,
-                height: 100,
-                margin: const EdgeInsets.only(top: 19, bottom: 5),
-                decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
+              Padding(
+                padding: const EdgeInsets.only(top: 19, bottom: 5),
+                child: _AnimatedSettingsIcon(
+                  icon: Icons.lock_outline,
+                  size: 100,
+                  color: accentColor,
                 ),
-                child: Icon(Icons.lock_outline, size: 48, color: accentColor),
               ),
               const SizedBox(height: 19),
               Text(
@@ -4123,15 +4407,13 @@ class _LocalPasscodeCheckState extends State<_LocalPasscodeCheck> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 100,
-                height: 100,
-                margin: const EdgeInsets.only(top: 19, bottom: 5),
-                decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
+              Padding(
+                padding: const EdgeInsets.only(top: 19, bottom: 5),
+                child: _AnimatedSettingsIcon(
+                  icon: Icons.lock_outline,
+                  size: 100,
+                  color: accentColor,
                 ),
-                child: Icon(Icons.lock_outline, size: 48, color: accentColor),
               ),
               const SizedBox(height: 19),
               Text(
@@ -5277,7 +5559,12 @@ class _BlockedUsersScreenState extends State<_BlockedUsersScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.block, size: 74, color: subtextColor.withValues(alpha: 0.5)),
+              _AnimatedSettingsIcon(
+                icon: Icons.block,
+                size: 74,
+                color: subtextColor.withValues(alpha: 0.5),
+                backgroundColor: Colors.transparent,
+              ),
               const SizedBox(height: 16),
               Text(
                 'No blocked users',
