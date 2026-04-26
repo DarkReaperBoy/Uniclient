@@ -13,6 +13,7 @@ import 'chat_settings_screen.dart';
 import 'confirm_box.dart';
 import 'my_profile_page.dart';
 import 'notifications_settings_screen.dart';
+import 'privacy_settings_screen.dart';
 import 'settings_style.dart';
 
 /// Settings page (§14). Opened from hamburger drawer "Settings" row.
@@ -204,7 +205,16 @@ class SettingsScreen extends StatelessWidget {
             iconBg: const Color(0xFF9B59B6),
             label: 'Privacy and Security',
             isDark: isDark,
-            onTap: () {},
+            onTap: () {
+              Navigator.of(context).push(
+                settingsPageRoute(
+                  ChangeNotifierProvider.value(
+                    value: appState,
+                    child: const PrivacySettingsScreen(),
+                  ),
+                ),
+              );
+            },
           ),
           _SettingsRow(
             icon: Icons.chat_bubble,

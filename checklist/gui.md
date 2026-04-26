@@ -643,10 +643,7 @@ Spec file: `research/telegram_desktop_ui.md`.
 
 ## §16 — Settings: Privacy & Security
 
-<!-- dart/lib/ui/settings_screen.dart (nav row only); sub-page not yet created -->
-
-### 16.1 Privacy & Security Page
-- [ ] Privacy & Security scrollable page: settingsButton nav row (menuIconLock), 60s polling timer, seven subsections in order — spec §16.1
+<!-- dart/lib/ui/privacy_settings_screen.dart -->
 
 ### 16.2 Security Section
 - [ ] Two-Step Verification button (menuIcon2SV): right-label Loading/On/Off, On→CloudPasswordInput (Lottie 100×100, password field, hint, "Forgot?" link, reset countdown), Off→CloudPasswordStart (Lottie intro, Set Password button), full create flow (two fields, hint step, email step), unconfirmed→email confirmation screen — spec §16.2.1 & §16.2.1.1
