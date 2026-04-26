@@ -712,9 +712,7 @@ Spec file: `research/telegram_desktop_ui.md`.
 <!-- dart/lib/ui/settings_screen.dart (nav rows only); sub-pages not yet created -->
 
 ### 19.1–19.4 Active Sessions Page
-- [ ] Current session display: "This device" header with "Rename" link (defaultLinkButton), 84px row with 42px gradient-circle photo + platform icon, name (msgNameFont 13px semibold), status, location "{location} . {active_date}", no terminate button — spec §19.2 & §19.2.1–2
-- [ ] Device type detection: classify by API ID then keyword, 13 types with gradient pairs (Windows/Mac/Other green, Ubuntu orange, Linux purple, iPhone/iPad cyan, Android red, Web/Chrome/Edge/Firefox/Safari pink), all icons white historyPeerUserpicFg — spec §19.3
-- [ ] Other sessions list: "Active sessions" header (14px top skip), 84px rows, 34×34px terminate button (top 8px/right 11px), row click→SessionInfoBox, terminate→confirmation, footer divider text, no between-row hairlines — spec §19.4 & §19.4.1
+- [ ] Other sessions list: row click→SessionInfoBox (requires §19.6) — spec §19.4 & §19.4.1
 
 ### 19.5 Incomplete Login Attempts
 - [ ] "Incomplete Login Attempts" section (conditional): same row style, newest first, footer explanation — spec §19.5
@@ -724,7 +722,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 
 ### 19.7–19.9 Terminate All / Rename / Auto-Terminate
 - [ ] "Terminate All Other Sessions" button (infoBlockButton, visible when >0), confirmation dialog with red Terminate button — spec §19.7
-- [ ] Rename Device dialog: "Rename Device" title, settingsDeviceName input (transparent, 29px min height), placeholder = device model, max 32 chars, empty reverts to platform name, Save+Cancel — spec §19.8 & §19.8.1
 - [ ] "If Inactive For" button (settingsButtonNoIcon): SelfDestructionBox(Sessions) with radios (1 week/1/3/6/12 months), description above, autolockButton style, Save+Cancel — spec §19.9 & §19.9.1
 
 ### 19.10–19.12 Power Saving Box

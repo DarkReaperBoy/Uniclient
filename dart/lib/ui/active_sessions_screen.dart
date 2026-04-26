@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -89,10 +91,12 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
   List<Map<String, dynamic>> _sessions = [];
   bool _loading = true;
   Timer? _refreshTimer;
+  String _customDeviceModel = '';
 
   @override
   void initState() {
     super.initState();
+    _loadCustomDeviceModel();
     _loadSessions();
     _refreshTimer = Timer.periodic(const Duration(seconds: 60), (_) => _loadSessions());
   }
@@ -218,6 +222,90 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     }
   }
 
+  String get _devicePrefsPath {
+    final configDir = context.read<AppState>().configDir;
+    return configDir.isEmpty ? '' : '$configDir/device_prefs.json';
+  }
+
+  void _loadCustomDeviceModel() {
+    try {
+      final path = _devicePrefsPath;
+      if (path.isEmpty) return;
+      final file = File(path);
+      if (!file.existsSync()) return;
+      final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+      _customDeviceModel = data['custom_device_model'] as String? ?? '';
+    } catch (_) {}
+  }
+
+  void _saveCustomDeviceModel(String name) {
+    setState(() => _customDeviceModel = name);
+    try {
+      final path = _devicePrefsPath;
+      if (path.isEmpty) return;
+      File(path).writeAsStringSync(jsonEncode({
+        'custom_device_model': name,
+      }));
+    } catch (_) {}
+  }
+
+  void _showRenameDialog() {
+    final current = _currentSession;
+    final currentDevice = current?['device'] as String? ?? '';
+    final controller = TextEditingController(text: _customDeviceModel);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E2C3A) : Colors.white,
+        title: Text(
+          'Rename Device',
+          style: TextStyle(
+            color: isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222),
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        content: TextField(
+          controller: controller,
+          maxLength: 32,
+          autofocus: true,
+          style: TextStyle(
+            color: isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222),
+            fontSize: 14,
+          ),
+          decoration: InputDecoration(
+            hintText: currentDevice,
+            hintStyle: TextStyle(
+              color: isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999),
+            ),
+            border: InputBorder.none,
+            counterStyle: TextStyle(
+              color: isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999),
+              fontSize: 12,
+            ),
+            constraints: const BoxConstraints(minHeight: 29),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              final text = controller.text.trim();
+              _saveCustomDeviceModel(text);
+              Navigator.pop(ctx);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -284,14 +372,32 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(22, 14, 22, 8),
-          child: Text(
-            'This device',
-            style: TextStyle(
-              color: accentColor,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
+          padding: const EdgeInsets.fromLTRB(22, 14, 23, 8),
+          child: Row(
+            children: [
+              Text(
+                'This device',
+                style: TextStyle(
+                  color: accentColor,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: _showRenameDialog,
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: Text(
+                    'Rename',
+                    style: TextStyle(
+                      color: accentColor,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         if (current != null) _SessionRow(
@@ -300,6 +406,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
           subtextColor: subtextColor,
           formatDate: _formatActiveDate,
           showTerminate: false,
+          customDeviceName: _customDeviceModel,
         ),
         Container(height: 1, color: dividerColor),
       ],
@@ -406,6 +513,7 @@ class _SessionRow extends StatelessWidget {
   final String Function(String?) formatDate;
   final bool showTerminate;
   final VoidCallback? onTerminate;
+  final String? customDeviceName;
 
   const _SessionRow({
     required this.session,
@@ -414,18 +522,22 @@ class _SessionRow extends StatelessWidget {
     required this.formatDate,
     this.showTerminate = false,
     this.onTerminate,
+    this.customDeviceName,
   });
 
   @override
   Widget build(BuildContext context) {
-    final device = session['device'] as String? ?? 'Unknown';
+    final rawDevice = session['device'] as String? ?? 'Unknown';
+    final device = (customDeviceName != null && customDeviceName!.isNotEmpty)
+        ? customDeviceName!
+        : rawDevice;
     final platform = session['platform'] as String? ?? '';
     final appName = session['app_name'] as String? ?? '';
     final appVersion = session['app_version'] as String? ?? '';
     final ip = session['ip'] as String? ?? '';
     final location = session['location'] as String? ?? '';
     final lastActive = session['last_active'] as String? ?? '';
-    final info = _classifyDevice(device, platform, appName);
+    final info = _classifyDevice(rawDevice, platform, appName);
 
     final statusParts = <String>[];
     if (appName.isNotEmpty) statusParts.add(appName);
