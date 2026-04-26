@@ -227,6 +227,7 @@ class _TelegramMenuOverlay<T> extends StatelessWidget {
       brightness: brightness,
       onSelected: onSelected,
       fullAttention: fullAttention,
+      routeAnimation: animation,
     );
 
     return LayoutBuilder(builder: (context, constraints) {
@@ -401,12 +402,14 @@ class _TelegramMenuContent<T> extends StatelessWidget {
   final Brightness brightness;
   final ValueChanged<T?> onSelected;
   final bool fullAttention;
+  final Animation<double>? routeAnimation;
 
   const _TelegramMenuContent({
     required this.items,
     required this.brightness,
     required this.onSelected,
     this.fullAttention = false,
+    this.routeAnimation,
   });
 
   @override
@@ -435,6 +438,7 @@ class _TelegramMenuContent<T> extends StatelessWidget {
           brightness: brightness,
           onSelected: onSelected,
           fullAttention: fullAttention,
+          routeAnimation: routeAnimation,
         );
       }).toList(),
     );
@@ -446,12 +450,14 @@ class _TelegramRippleItem<T> extends StatefulWidget {
   final Brightness brightness;
   final ValueChanged<T?> onSelected;
   final bool fullAttention;
+  final Animation<double>? routeAnimation;
 
   const _TelegramRippleItem({
     required this.item,
     required this.brightness,
     required this.onSelected,
     this.fullAttention = false,
+    this.routeAnimation,
   });
 
   @override
@@ -520,12 +526,62 @@ class _TelegramRippleItemState<T> extends State<_TelegramRippleItem<T>>
         ? const Color(0xFFec3942)
         : const Color(0xFFd14e4e);
     final useRedText = item.isAttention && (widget.fullAttention || !hasIcon);
-    final effectiveTextColor =
-        item.labelColor ?? (useRedText ? attentionColor : textColor);
-    final effectiveIconColor =
-        item.iconColor ?? (item.isAttention
-            ? attentionColor
-            : (_hovering ? iconColorHover : iconColorResting));
+    final hasCustomColor = item.labelColor != null || item.iconColor != null ||
+        item.isAttention;
+    final anim = widget.routeAnimation;
+
+    Widget buildItemContent(double colorT) {
+      final targetTextColor =
+          item.labelColor ?? (useRedText ? attentionColor : textColor);
+      final targetIconColor =
+          item.iconColor ?? (item.isAttention
+              ? attentionColor
+              : (_hovering ? iconColorHover : iconColorResting));
+      final effectiveTextColor = hasCustomColor
+          ? Color.lerp(textColor, targetTextColor, colorT)!
+          : targetTextColor;
+      final effectiveIconColor = hasCustomColor
+          ? Color.lerp(iconColorResting, targetIconColor, colorT)!
+          : targetIconColor;
+
+      return Stack(
+        clipBehavior: Clip.none,
+        children: [
+          if (hasIcon)
+            Positioned(
+              left: -54 + 15,
+              top: -8 + 5,
+              child: IconTheme(
+                data: IconThemeData(
+                  color: effectiveIconColor,
+                  size: 20,
+                ),
+                child: item.icon!,
+              ),
+            ),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: Text(
+              item.label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.normal,
+                color: effectiveTextColor,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      );
+    }
+
+    final contentChild = (anim != null && hasCustomColor)
+        ? AnimatedBuilder(
+            animation: anim,
+            builder: (context, _) => buildItemContent(anim.value),
+          )
+        : buildItemContent(1.0);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
@@ -555,36 +611,7 @@ class _TelegramRippleItemState<T> extends State<_TelegramRippleItem<T>>
               child: child,
             );
           },
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              if (hasIcon)
-                Positioned(
-                  left: -54 + 15,
-                  top: -8 + 5,
-                  child: IconTheme(
-                    data: IconThemeData(
-                      color: effectiveIconColor,
-                      size: 20,
-                    ),
-                    child: item.icon!,
-                  ),
-                ),
-              Align(
-                alignment: AlignmentDirectional.centerStart,
-                child: Text(
-                  item.label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.normal,
-                    color: effectiveTextColor,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
+          child: contentChild,
         ),
       ),
     );

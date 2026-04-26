@@ -638,7 +638,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 15.11 System Integration (Native Notifications)
 
 ### 15.12 Animations
-- [ ] All Notifications page animations: SlideWrap ~300ms, toggle pills, sample bar 150ms fade, mute menu color transition — spec §15.12
 
 ---
 

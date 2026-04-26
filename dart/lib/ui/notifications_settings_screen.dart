@@ -265,7 +265,7 @@ class _NotificationsSettingsScreenState
         hoverBg: hoverBg,
       ),
       AnimatedSize(
-        duration: const Duration(milliseconds: 150),
+        duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
         alignment: Alignment.topCenter,
         child: _allowSound
@@ -524,107 +524,117 @@ class _NotificationsSettingsScreenState
         accentColor: accentColor,
         hoverBg: hoverBg,
       ),
-      if (!_useNativeNotifications) ...[
-        if (isWindows)
-          _NoIconToggleRow(
-            label: 'Respect system Focus mode',
-            value: false,
-            onChanged: (_) {},
-            textColor: textColor,
-            accentColor: accentColor,
-            hoverBg: hoverBg,
-          ),
-        if (hasMultipleDisplays) ...[
-          const SizedBox(height: 7),
-          Container(
-            height: 1,
-            color: isDark
-                ? const Color(0xFF101921)
-                : const Color(0xFFF1F1F1),
-          ),
-          const SizedBox(height: 7),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(22, 4, 22, 4),
-            child: Text(
-              'Notification display',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: sectionTitleColor,
-              ),
-            ),
-          ),
-          _DisplayRadioRow(
-            label: 'Default',
-            value: 0,
-            groupValue: _selectedDisplayIndex,
-            onChanged: (v) =>
-                setState(() => _selectedDisplayIndex = v ?? 0),
-            textColor: textColor,
-            accentColor: accentColor,
-            hoverBg: hoverBg,
-          ),
-          for (var i = 0; i < displays.length; i++)
-            _DisplayRadioRow(
-              label:
-                  'Display ${i + 1} (${displays[i].size.width.toInt()}\u00D7${displays[i].size.height.toInt()})',
-              value: i + 1,
-              groupValue: _selectedDisplayIndex,
-              onChanged: (v) =>
-                  setState(() => _selectedDisplayIndex = v ?? 0),
-              textColor: textColor,
-              accentColor: accentColor,
-              hoverBg: hoverBg,
-            ),
-        ],
-        const SizedBox(height: 7),
-        Container(
-          height: 1,
-          color: isDark
-              ? const Color(0xFF101921)
-              : const Color(0xFFF1F1F1),
-        ),
-        const SizedBox(height: 7),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(22, 4, 22, 4),
-          child: Text(
-            'Notification position',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: sectionTitleColor,
-            ),
-          ),
-        ),
-        const SizedBox(height: 7),
-        _NotificationMonitorWidget(
-          selectedCorner: _selectedCorner,
-          barCount: _notificationCount,
-          isDark: isDark,
-          onCornerChanged: (corner) =>
-              setState(() => _selectedCorner = corner),
-        ),
-        const SizedBox(height: 14),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(22, 4, 22, 4),
-          child: Text(
-            'Notification count',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: sectionTitleColor,
-            ),
-          ),
-        ),
-        const SizedBox(height: 4),
-        _NotificationCountSlider(
-          count: _notificationCount,
-          isDark: isDark,
-          accentColor: accentColor,
-          onChanged: (count) =>
-              setState(() => _notificationCount = count),
-        ),
-      ],
+      AnimatedSize(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        alignment: Alignment.topCenter,
+        child: !_useNativeNotifications
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (isWindows)
+                    _NoIconToggleRow(
+                      label: 'Respect system Focus mode',
+                      value: false,
+                      onChanged: (_) {},
+                      textColor: textColor,
+                      accentColor: accentColor,
+                      hoverBg: hoverBg,
+                    ),
+                  if (hasMultipleDisplays) ...[
+                    const SizedBox(height: 7),
+                    Container(
+                      height: 1,
+                      color: isDark
+                          ? const Color(0xFF101921)
+                          : const Color(0xFFF1F1F1),
+                    ),
+                    const SizedBox(height: 7),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(22, 4, 22, 4),
+                      child: Text(
+                        'Notification display',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: sectionTitleColor,
+                        ),
+                      ),
+                    ),
+                    _DisplayRadioRow(
+                      label: 'Default',
+                      value: 0,
+                      groupValue: _selectedDisplayIndex,
+                      onChanged: (v) =>
+                          setState(() => _selectedDisplayIndex = v ?? 0),
+                      textColor: textColor,
+                      accentColor: accentColor,
+                      hoverBg: hoverBg,
+                    ),
+                    for (var i = 0; i < displays.length; i++)
+                      _DisplayRadioRow(
+                        label:
+                            'Display ${i + 1} (${displays[i].size.width.toInt()}\u00D7${displays[i].size.height.toInt()})',
+                        value: i + 1,
+                        groupValue: _selectedDisplayIndex,
+                        onChanged: (v) =>
+                            setState(() => _selectedDisplayIndex = v ?? 0),
+                        textColor: textColor,
+                        accentColor: accentColor,
+                        hoverBg: hoverBg,
+                      ),
+                  ],
+                  const SizedBox(height: 7),
+                  Container(
+                    height: 1,
+                    color: isDark
+                        ? const Color(0xFF101921)
+                        : const Color(0xFFF1F1F1),
+                  ),
+                  const SizedBox(height: 7),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(22, 4, 22, 4),
+                    child: Text(
+                      'Notification position',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: sectionTitleColor,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  _NotificationMonitorWidget(
+                    selectedCorner: _selectedCorner,
+                    barCount: _notificationCount,
+                    isDark: isDark,
+                    onCornerChanged: (corner) =>
+                        setState(() => _selectedCorner = corner),
+                  ),
+                  const SizedBox(height: 14),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(22, 4, 22, 4),
+                    child: Text(
+                      'Notification count',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: sectionTitleColor,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  _NotificationCountSlider(
+                    count: _notificationCount,
+                    isDark: isDark,
+                    accentColor: accentColor,
+                    onChanged: (count) =>
+                        setState(() => _notificationCount = count),
+                  ),
+                ],
+              )
+            : const SizedBox(width: double.infinity, height: 0),
+      ),
     ];
   }
 }
@@ -2622,7 +2632,11 @@ class _NotificationPreview extends StatelessWidget {
     final displayText =
         showText ? 'It\'s morning in Tokyo \u{1F60E}' : 'You have a new message';
 
-    return Padding(
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 150),
+      builder: (ctx, opacity, child) => Opacity(opacity: opacity, child: child),
+      child: Padding(
       padding: const EdgeInsets.fromLTRB(40, 20, 40, 12),
       child: Container(
         decoration: BoxDecoration(
@@ -2729,6 +2743,7 @@ class _NotificationPreview extends StatelessWidget {
           ],
         ),
       ),
+    ),
     );
   }
 }
@@ -3300,7 +3315,7 @@ class _RingtonesBoxDialogState extends State<_RingtonesBoxDialog> {
               ),
             ),
             AnimatedSize(
-              duration: const Duration(milliseconds: 150),
+              duration: const Duration(milliseconds: 300),
               curve: Curves.easeInOut,
               alignment: Alignment.topCenter,
               child: showVolume
