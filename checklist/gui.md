@@ -713,9 +713,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 
 ### 19.1–19.4 Active Sessions Page
 
-### 19.5 Incomplete Login Attempts
-- [ ] "Incomplete Login Attempts" section (conditional): same row style, newest first, footer explanation — spec §19.5
-
 ### 19.6 Session Detail View (SessionInfoBox)
 
 ### 19.7–19.9 Terminate All / Rename / Auto-Terminate
