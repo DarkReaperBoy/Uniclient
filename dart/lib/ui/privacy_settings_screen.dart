@@ -504,6 +504,11 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
       addedByPhoneOption = _privacySettings['added_by_phone']?['option'] as String? ?? 'everyone';
     }
 
+    String? callsP2POption;
+    if (key == 'calls') {
+      callsP2POption = _privacySettings['calls_p2p']?['option'] as String? ?? 'everyone';
+    }
+
     bool hideReadMarks = false;
     if (key == 'last_seen') {
       hideReadMarks = await engine.getHideReadMarks(accountId);
@@ -529,10 +534,11 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
         engine: engine,
         userName: appState.activeAccount?.displayName ?? '',
         initialAddedByPhoneOption: addedByPhoneOption,
+        initialCallsP2POption: callsP2POption,
         isPremium: isPremium,
         initialHideReadMarks: hideReadMarks,
         initialHasFallbackPhoto: hasFallbackPhoto,
-        onSaved: (newOption, {String? addedByPhone}) {
+        onSaved: (newOption, {String? addedByPhone, String? callsP2P}) {
           setState(() {
             _privacySettings[key] = {
               ...?_privacySettings[key],
@@ -542,6 +548,12 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
               _privacySettings['added_by_phone'] = {
                 ...?_privacySettings['added_by_phone'],
                 'option': addedByPhone,
+              };
+            }
+            if (callsP2P != null) {
+              _privacySettings['calls_p2p'] = {
+                ...?_privacySettings['calls_p2p'],
+                'option': callsP2P,
               };
             }
           });
@@ -763,8 +775,9 @@ class _EditPrivacyBox extends StatefulWidget {
   final String currentOption;
   final String accountId;
   final EngineService engine;
-  final void Function(String newOption, {String? addedByPhone}) onSaved;
+  final void Function(String newOption, {String? addedByPhone, String? callsP2P}) onSaved;
   final String? initialAddedByPhoneOption;
+  final String? initialCallsP2POption;
   final bool isPremium;
   final bool initialHideReadMarks;
   final bool initialHasFallbackPhoto;
@@ -781,6 +794,7 @@ class _EditPrivacyBox extends StatefulWidget {
     required this.onSaved,
     this.userName = '',
     this.initialAddedByPhoneOption,
+    this.initialCallsP2POption,
     this.isPremium = false,
     this.initialHideReadMarks = false,
     this.initialHasFallbackPhoto = false,
@@ -793,6 +807,7 @@ class _EditPrivacyBox extends StatefulWidget {
 class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
   late String _selected;
   late String _addedByPhoneOption;
+  late String _callsP2POption;
   late bool _hideReadMarks;
   late bool _hasFallbackPhoto;
   bool _saving = false;
@@ -803,12 +818,14 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
   bool get _isLastSeen => widget.privacyKey == 'last_seen';
   bool get _isProfilePhoto => widget.privacyKey == 'profile_photo';
   bool get _isForwards => widget.privacyKey == 'forwards';
+  bool get _isCalls => widget.privacyKey == 'calls';
 
   @override
   void initState() {
     super.initState();
     _selected = widget.currentOption;
     _addedByPhoneOption = widget.initialAddedByPhoneOption ?? 'everyone';
+    _callsP2POption = widget.initialCallsP2POption ?? 'everyone';
     _hideReadMarks = widget.initialHideReadMarks;
     _hasFallbackPhoto = widget.initialHasFallbackPhoto;
     _confirmedRestriction = widget.currentOption != 'everyone';
@@ -990,12 +1007,20 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
           _addedByPhoneOption,
         );
       }
+      if (_isCalls) {
+        await widget.engine.setPrivacySetting(
+          widget.accountId,
+          'calls_p2p',
+          _callsP2POption,
+        );
+      }
       if (_isLastSeen && _hideReadMarks != widget.initialHideReadMarks) {
         await widget.engine.setHideReadMarks(widget.accountId, hide: _hideReadMarks);
       }
       widget.onSaved(
         _selected,
         addedByPhone: _isPhoneNumber ? _addedByPhoneOption : null,
+        callsP2P: _isCalls ? _callsP2POption : null,
       );
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
@@ -1147,6 +1172,67 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
                 ),
               );
             }),
+            if (_isCalls) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 8, 22, 0),
+                child: Divider(height: 1, color: dividerColor),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 10, 22, 4),
+                child: Text(
+                  'Peer-to-Peer',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                ),
+              ),
+              InkWell(
+                onTap: () {
+                  showDialog<String>(
+                    context: context,
+                    builder: (ctx) => _P2PPrivacyBox(
+                      currentOption: _callsP2POption,
+                      accentColor: accentColor,
+                    ),
+                  ).then((result) {
+                    if (result != null) {
+                      setState(() => _callsP2POption = result);
+                    }
+                  });
+                },
+                hoverColor: hoverBg,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
+                  child: Row(
+                    children: [
+                      Icon(Icons.language, size: 20, color: subtextColor),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Peer-to-Peer',
+                          style: TextStyle(fontSize: 14, color: textColor),
+                        ),
+                      ),
+                      Text(
+                        _optionLabel(_callsP2POption),
+                        style: TextStyle(fontSize: 14, color: subtextColor),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(Icons.chevron_right, size: 18, color: subtextColor),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 0, 22, 4),
+                child: Text(
+                  'Disabling peer-to-peer will route voice calls through Telegram servers to avoid revealing your IP address, but will slightly decrease audio quality.',
+                  style: TextStyle(fontSize: 12, color: subtextColor, height: 1.4),
+                ),
+              ),
+            ],
             if (_isProfilePhoto) ...[
               Padding(
                 padding: const EdgeInsets.fromLTRB(22, 8, 22, 0),
@@ -1394,6 +1480,143 @@ class _TooltipArrowPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _TooltipArrowPainter old) => old.color != color;
+}
+
+// ── P2P Privacy Box (second-level dialog for Calls) ──
+
+class _P2PPrivacyBox extends StatefulWidget {
+  final String currentOption;
+  final Color accentColor;
+
+  const _P2PPrivacyBox({
+    required this.currentOption,
+    required this.accentColor,
+  });
+
+  @override
+  State<_P2PPrivacyBox> createState() => _P2PPrivacyBoxState();
+}
+
+class _P2PPrivacyBoxState extends State<_P2PPrivacyBox> {
+  late String _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = widget.currentOption;
+  }
+
+  String _optionLabel(String opt) {
+    switch (opt) {
+      case 'everyone': return 'Everyone';
+      case 'contacts': return 'My Contacts';
+      case 'nobody': return 'Nobody';
+      default: return opt;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = widget.accentColor;
+    final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    const options = ['everyone', 'contacts', 'nobody'];
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 364, minWidth: 280),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 18, 22, 4),
+              child: Text(
+                'Peer-to-Peer',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: textColor,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 8, 22, 4),
+              child: Text(
+                'Who can use peer-to-peer with you in calls?',
+                style: TextStyle(fontSize: 13, color: subtextColor),
+              ),
+            ),
+            const SizedBox(height: 4),
+            ...options.map((opt) {
+              return InkWell(
+                onTap: () => setState(() => _selected = opt),
+                hoverColor: hoverBg,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 10, 22, 8),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: Radio<String>(
+                          value: opt,
+                          groupValue: _selected,
+                          onChanged: (v) {
+                            if (v != null) setState(() => _selected = v);
+                          },
+                          activeColor: accentColor,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Text(
+                        _optionLabel(opt),
+                        style: TextStyle(fontSize: 14, color: textColor),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 8, 22, 4),
+              child: Text(
+                'Disabling peer-to-peer will route voice calls through Telegram servers to avoid revealing your IP address, but will slightly decrease audio quality.',
+                style: TextStyle(fontSize: 12, color: subtextColor, height: 1.4),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('Cancel', style: TextStyle(color: accentColor)),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(_selected),
+                    child: Text('Save', style: TextStyle(color: accentColor)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 // ── Cloud Password Mode Enum ──
