@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
+import 'popup_menu.dart';
 
 class LanguageBox extends StatefulWidget {
   const LanguageBox({super.key});
@@ -391,60 +393,221 @@ class _LanguageBoxState extends State<LanguageBox> {
     Color hoverColor,
   ) {
     final selected = _selectedCode == lang.langCode;
-    return InkWell(
-      onTap: () => _selectLanguage(lang.langCode),
-      hoverColor: hoverColor,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(22, 8, 25, 8),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 22,
-              height: 22,
-              child: Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: selected ? accentColor : subTextColor,
-                    width: selected ? 6 : 2,
-                  ),
-                  color: selected ? null : Colors.transparent,
+    final appState = context.watch<AppState>();
+    final isRemoved = appState.removedLanguageCodes.contains(lang.langCode);
+    final dimOpacity = isRemoved ? 0.4 : 1.0;
+    final showMenu = !lang.official;
+
+    return Opacity(
+      opacity: dimOpacity,
+      child: InkWell(
+        onTap: () => _selectLanguage(lang.langCode),
+        hoverColor: hoverColor,
+        child: Padding(
+          // §19.16: passportRowPadding = 22/8/25/8 (left/top/right/bottom)
+          padding: const EdgeInsets.fromLTRB(22, 8, 25, 8),
+          child: Row(
+            children: [
+              // §19.16: langsRadio 22px diameter
+              _LangsRadio(selected: selected, accentColor: accentColor, subTextColor: subTextColor),
+              // Gap: 66px left offset - 22px padding - 22px radio = 22px
+              const SizedBox(width: 22),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // §19.16: Title = native name, semiboldTextStyle, windowFg
+                    Text(
+                      lang.nativeName.isNotEmpty ? lang.nativeName : lang.name,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    // §19.16.1: passportRowSkip ≈ 4px
+                    const SizedBox(height: 4),
+                    // §19.16: Description = English name, defaultTextStyle, windowSubTextFg
+                    Text(
+                      lang.name,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: subTextColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               ),
-            ),
-            const SizedBox(width: 22),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    lang.nativeName.isNotEmpty ? lang.nativeName : lang.name,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: textColor,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    lang.name,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: subTextColor,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ],
+              // §19.16: 3-dot menu toggle (non-official rows only)
+              if (showMenu)
+                _LangMenuToggle(
+                  lang: lang,
+                  isDark: isDark,
+                  subTextColor: subTextColor,
+                  isRemoved: isRemoved,
+                ),
+            ],
+          ),
         ),
       ),
     );
+  }
+}
+
+// §19.16: Radio button — 22px diameter, outer ring + inner dot when selected.
+class _LangsRadio extends StatelessWidget {
+  final bool selected;
+  final Color accentColor;
+  final Color subTextColor;
+
+  const _LangsRadio({
+    required this.selected,
+    required this.accentColor,
+    required this.subTextColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 22,
+      height: 22,
+      child: CustomPaint(
+        painter: _RadioPainter(
+          selected: selected,
+          activeColor: accentColor,
+          inactiveColor: subTextColor,
+        ),
+      ),
+    );
+  }
+}
+
+class _RadioPainter extends CustomPainter {
+  final bool selected;
+  final Color activeColor;
+  final Color inactiveColor;
+
+  _RadioPainter({
+    required this.selected,
+    required this.activeColor,
+    required this.inactiveColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+    final paint = Paint()..style = PaintingStyle.stroke;
+
+    if (selected) {
+      paint
+        ..color = activeColor
+        ..strokeWidth = 2;
+      canvas.drawCircle(center, radius - 1, paint);
+      final dotPaint = Paint()
+        ..color = activeColor
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(center, 5, dotPaint);
+    } else {
+      paint
+        ..color = inactiveColor
+        ..strokeWidth = 2;
+      canvas.drawCircle(center, radius - 1, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_RadioPainter old) =>
+      selected != old.selected ||
+      activeColor != old.activeColor ||
+      inactiveColor != old.inactiveColor;
+}
+
+// §19.16 + §19.17: 3-dot menu toggle with context menu (non-official rows only).
+class _LangMenuToggle extends StatelessWidget {
+  final _LangEntry lang;
+  final bool isDark;
+  final Color subTextColor;
+  final bool isRemoved;
+
+  const _LangMenuToggle({
+    required this.lang,
+    required this.isDark,
+    required this.subTextColor,
+    required this.isRemoved,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 34,
+      height: 34,
+      child: IconButton(
+        padding: EdgeInsets.zero,
+        iconSize: 18,
+        icon: Icon(Icons.more_vert, color: subTextColor),
+        onPressed: () => _showLangContextMenu(context),
+      ),
+    );
+  }
+
+  void _showLangContextMenu(BuildContext context) async {
+    final box = context.findRenderObject() as RenderBox;
+    final pos = box.localToGlobal(Offset(box.size.width, box.size.height / 2));
+    final appState = context.read<AppState>();
+
+    final items = <TelegramMenuItem<String>>[
+      TelegramMenuItem(
+        value: 'share',
+        icon: const Icon(Icons.share, size: 18),
+        label: 'Share',
+      ),
+      if (isRemoved)
+        TelegramMenuItem(
+          value: 'restore',
+          icon: const Icon(Icons.restore, size: 18),
+          label: 'Restore',
+        )
+      else
+        TelegramMenuItem(
+          value: 'delete',
+          icon: const Icon(Icons.delete_outline, size: 18),
+          label: 'Delete',
+          isAttention: true,
+        ),
+    ];
+
+    final result = await showTelegramMenu<String>(
+      context: context,
+      position: pos,
+      items: items,
+    );
+
+    if (result == null || !context.mounted) return;
+
+    switch (result) {
+      case 'share':
+        final link = 'https://t.me/setlanguage/${lang.langCode}';
+        await Clipboard.setData(ClipboardData(text: link));
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Language link copied to clipboard.'),
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      case 'delete':
+        appState.addRemovedLanguage(lang.langCode);
+      case 'restore':
+        appState.restoreRemovedLanguage(lang.langCode);
+    }
   }
 }
 

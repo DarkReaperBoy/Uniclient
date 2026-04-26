@@ -722,8 +722,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 19.13–19.14 Language Box
 
 ### 19.15–19.17 Language List
-- [ ] Language row (54px): langsRadio 22px button, native name (semiboldTextStyle, 66px left, 8px top), English name below (defaultTextStyle, windowSubTextFg), 3-dot menu toggle (topBarMenuToggle), windowBgOver hover, click activates — spec §19.16 & §19.16.1
-- [ ] Language row context menu (non-official rows): dropdownMenuWithIcons, Share (copies link) / Delete (dims row) / Restore — spec §19.17
 
 ---
 

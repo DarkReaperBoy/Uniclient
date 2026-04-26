@@ -87,6 +87,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   List<String> _recentLanguageCodes = [];
   String _selectedLanguageCode = 'en';
 
+  // §19.17: Language codes the user has "deleted" (dimmed in list, restorable).
+  List<String> _removedLanguageCodes = [];
+
   /// Callback for showing connection-state notifications (set by UI layer).
   void Function(String text, IconData icon, Color color)? onConnStateNotification;
 
@@ -455,6 +458,22 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  // §19.17: Removed (dimmed) language codes.
+  List<String> get removedLanguageCodes => List.unmodifiable(_removedLanguageCodes);
+
+  void addRemovedLanguage(String code) {
+    if (_removedLanguageCodes.contains(code)) return;
+    _removedLanguageCodes.add(code);
+    _saveWindowPrefs();
+    notifyListeners();
+  }
+
+  void restoreRemovedLanguage(String code) {
+    if (!_removedLanguageCodes.remove(code)) return;
+    _saveWindowPrefs();
+    notifyListeners();
+  }
+
   Map<String, bool> get experimentalFlags => Map.unmodifiable(_experimentalFlags);
 
   void setExperimentalFlag(String key, bool value) {
@@ -744,6 +763,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       final recLangs = data['recentLanguageCodes'] as List<dynamic>?;
       if (recLangs != null) _recentLanguageCodes = recLangs.cast<String>();
       _selectedLanguageCode = data['selectedLanguageCode'] as String? ?? 'en';
+      final rmLangs = data['removedLanguageCodes'] as List<dynamic>?;
+      if (rmLangs != null) _removedLanguageCodes = rmLangs.cast<String>();
       final order = data['accountOrder'] as List<dynamic>?;
       if (order != null) _accountOrder = order.cast<String>();
     } catch (_) {}
@@ -785,6 +806,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'skipTranslationLanguages': _skipTranslationLanguages,
         'recentLanguageCodes': _recentLanguageCodes,
         'selectedLanguageCode': _selectedLanguageCode,
+        'removedLanguageCodes': _removedLanguageCodes,
         'experimentalFlags': _experimentalFlags,
       }));
     } catch (_) {}
