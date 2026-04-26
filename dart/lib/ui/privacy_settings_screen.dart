@@ -819,6 +819,7 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
   bool get _isProfilePhoto => widget.privacyKey == 'profile_photo';
   bool get _isForwards => widget.privacyKey == 'forwards';
   bool get _isCalls => widget.privacyKey == 'calls';
+  bool get _isVoiceMessages => widget.privacyKey == 'voice_messages';
 
   @override
   void initState() {
@@ -1134,15 +1135,31 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
               child: Text(
                 _isForwards
                     ? 'Who can add a link to your account when forwarding your messages?'
-                    : 'Who can see your ${widget.title.toLowerCase()}?',
+                    : _isVoiceMessages
+                        ? 'Who can send you voice messages?'
+                        : 'Who can see your ${widget.title.toLowerCase()}?',
                 style: TextStyle(fontSize: 13, color: subtextColor),
               ),
             ),
             if (_isForwards) _buildForwardPreview(isDark, textColor, subtextColor),
             const SizedBox(height: 4),
             ...widget.options.map((opt) {
+              final isPremiumLocked = _isVoiceMessages && !widget.isPremium && opt != 'everyone';
               return InkWell(
-                onTap: () => setState(() => _selected = opt),
+                onTap: () {
+                  if (isPremiumLocked) {
+                    setState(() => _selected = 'everyone');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Subscribe to Telegram Premium to restrict who can send you voice messages.'),
+                        duration: Duration(seconds: 3),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  } else {
+                    setState(() => _selected = opt);
+                  }
+                },
                 hoverColor: hoverBg,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(22, 10, 22, 8),
@@ -1155,7 +1172,20 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
                           value: opt,
                           groupValue: _selected,
                           onChanged: (v) {
-                            if (v != null) setState(() => _selected = v);
+                            if (v != null) {
+                              if (isPremiumLocked) {
+                                setState(() => _selected = 'everyone');
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Subscribe to Telegram Premium to restrict who can send you voice messages.'),
+                                    duration: Duration(seconds: 3),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              } else {
+                                setState(() => _selected = v);
+                              }
+                            }
                           },
                           activeColor: accentColor,
                           materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -1163,10 +1193,14 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
                         ),
                       ),
                       const SizedBox(width: 14),
-                      Text(
-                        _optionLabel(opt),
-                        style: TextStyle(fontSize: 14, color: textColor),
+                      Expanded(
+                        child: Text(
+                          _optionLabel(opt),
+                          style: TextStyle(fontSize: 14, color: textColor),
+                        ),
                       ),
+                      if (isPremiumLocked)
+                        Icon(Icons.lock, size: 16, color: subtextColor),
                     ],
                   ),
                 ),
