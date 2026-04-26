@@ -900,6 +900,14 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
   bool get _isCalls => widget.privacyKey == 'calls';
   bool get _isVoiceMessages => widget.privacyKey == 'voice_messages';
   bool get _isBirthday => widget.privacyKey == 'birthday';
+  bool get _isGifts => widget.privacyKey == 'gifts';
+
+  bool _giftShowIcon = true;
+  bool _giftAcceptLimited = true;
+  bool _giftAcceptUnlimited = true;
+  bool _giftAcceptUnique = true;
+  bool _giftAcceptFromChannels = true;
+  bool _giftAcceptPremium = true;
 
   @override
   void initState() {
@@ -1211,6 +1219,60 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
     }
   }
 
+  Widget _buildPremiumLockedToggle({
+    required String label,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+    required bool isPremium,
+    required Color hoverBg,
+    required Color textColor,
+    required Color subtextColor,
+    required Color accentColor,
+  }) {
+    return InkWell(
+      onTap: () {
+        if (!isPremium) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Subscribe to Telegram Premium to change gift settings.'),
+              duration: Duration(seconds: 3),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        } else {
+          onChanged(!value);
+        }
+      },
+      hoverColor: hoverBg,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(fontSize: 14, color: textColor),
+              ),
+            ),
+            if (!isPremium)
+              Icon(Icons.lock, size: 14, color: subtextColor)
+            else
+              SizedBox(
+                width: 36,
+                height: 20,
+                child: Switch(
+                  value: value,
+                  onChanged: (v) => onChanged(v),
+                  activeColor: accentColor,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1250,7 +1312,9 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
                     ? 'Who can add a link to your account when forwarding your messages?'
                     : _isVoiceMessages
                         ? 'Who can send you voice messages?'
-                        : 'Who can see your ${widget.title.toLowerCase()}?',
+                        : _isGifts
+                            ? 'Who can send you gifts with auto-save?'
+                            : 'Who can see your ${widget.title.toLowerCase()}?',
                 style: TextStyle(fontSize: 13, color: subtextColor),
               ),
             ),
@@ -1269,6 +1333,26 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
                   ),
                 ),
               ),
+            if (_isGifts) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 8, 22, 0),
+                child: Divider(height: 1, color: dividerColor),
+              ),
+              _buildPremiumLockedToggle(
+                label: 'Show gift button in input',
+                value: _giftShowIcon,
+                onChanged: (v) => setState(() => _giftShowIcon = v),
+                isPremium: widget.isPremium,
+                hoverBg: hoverBg,
+                textColor: textColor,
+                subtextColor: subtextColor,
+                accentColor: accentColor,
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 0, 22, 0),
+                child: Divider(height: 1, color: dividerColor),
+              ),
+            ],
             const SizedBox(height: 4),
             ...widget.options.map((opt) {
               final isPremiumLocked = _isVoiceMessages && !widget.isPremium && opt != 'everyone';
@@ -1333,6 +1417,73 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
                 ),
               );
             }),
+            if (_isGifts) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 8, 22, 0),
+                child: Divider(height: 1, color: dividerColor),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 12, 22, 4),
+                child: Text(
+                  'Accepted Types',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                ),
+              ),
+              _buildPremiumLockedToggle(
+                label: 'Limited',
+                value: _giftAcceptLimited,
+                onChanged: (v) => setState(() => _giftAcceptLimited = v),
+                isPremium: widget.isPremium,
+                hoverBg: hoverBg,
+                textColor: textColor,
+                subtextColor: subtextColor,
+                accentColor: accentColor,
+              ),
+              _buildPremiumLockedToggle(
+                label: 'Unlimited',
+                value: _giftAcceptUnlimited,
+                onChanged: (v) => setState(() => _giftAcceptUnlimited = v),
+                isPremium: widget.isPremium,
+                hoverBg: hoverBg,
+                textColor: textColor,
+                subtextColor: subtextColor,
+                accentColor: accentColor,
+              ),
+              _buildPremiumLockedToggle(
+                label: 'Unique',
+                value: _giftAcceptUnique,
+                onChanged: (v) => setState(() => _giftAcceptUnique = v),
+                isPremium: widget.isPremium,
+                hoverBg: hoverBg,
+                textColor: textColor,
+                subtextColor: subtextColor,
+                accentColor: accentColor,
+              ),
+              _buildPremiumLockedToggle(
+                label: 'From Channels',
+                value: _giftAcceptFromChannels,
+                onChanged: (v) => setState(() => _giftAcceptFromChannels = v),
+                isPremium: widget.isPremium,
+                hoverBg: hoverBg,
+                textColor: textColor,
+                subtextColor: subtextColor,
+                accentColor: accentColor,
+              ),
+              _buildPremiumLockedToggle(
+                label: 'Premium',
+                value: _giftAcceptPremium,
+                onChanged: (v) => setState(() => _giftAcceptPremium = v),
+                isPremium: widget.isPremium,
+                hoverBg: hoverBg,
+                textColor: textColor,
+                subtextColor: subtextColor,
+                accentColor: accentColor,
+              ),
+            ],
             if (_isCalls) ...[
               Padding(
                 padding: const EdgeInsets.fromLTRB(22, 8, 22, 0),
