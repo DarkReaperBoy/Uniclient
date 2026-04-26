@@ -720,8 +720,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 19.10–19.12 Power Saving Box
 
 ### 19.13–19.14 Language Box
-- [ ] Translation toggles (logged-in only): "Show Translate Button" (settingsButtonNoIcon), "Translate Entire Chats" (settingsButtonNoIconLocked, Premium), "Do Not Translate" SlideWrap (shown when either toggle ON) with right-label (language name or "{N} languages"), divider explanation text — spec §19.14 & §19.14.1
-- [ ] Skip-languages editor: "Do Not Translate" title, checkbox multi-select, enforced minimum 1 language (toast on deselect-all) — spec §19.14.2
 
 ### 19.15–19.17 Language List
 - [ ] MultiSelect search bar (no tag chips), two sections (Recent / Official) separated by BoxContentDivider, de-duplicated, empty state "No languages found" — spec §19.15 & §19.15.1

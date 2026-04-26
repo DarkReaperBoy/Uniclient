@@ -78,6 +78,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   int _powerSavingFlags = 0;
   bool _autoPowerSaving = false;
 
+  // Spec §19.14: Translation settings (client-side, persisted in window_prefs).
+  bool _showTranslateButton = false;
+  bool _translateEntireChats = false;
+  List<String> _skipTranslationLanguages = ['en'];
+
   /// Callback for showing connection-state notifications (set by UI layer).
   void Function(String text, IconData icon, Color color)? onConnStateNotification;
 
@@ -404,6 +409,33 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  // §19.14: Translation settings
+  bool get showTranslateButton => _showTranslateButton;
+  bool get translateEntireChats => _translateEntireChats;
+  List<String> get skipTranslationLanguages =>
+      List.unmodifiable(_skipTranslationLanguages);
+
+  void setShowTranslateButton(bool v) {
+    if (v == _showTranslateButton) return;
+    _showTranslateButton = v;
+    _saveWindowPrefs();
+    notifyListeners();
+  }
+
+  void setTranslateEntireChats(bool v) {
+    if (v == _translateEntireChats) return;
+    _translateEntireChats = v;
+    _saveWindowPrefs();
+    notifyListeners();
+  }
+
+  void setSkipTranslationLanguages(List<String> langs) {
+    if (langs.isEmpty) return;
+    _skipTranslationLanguages = List<String>.from(langs);
+    _saveWindowPrefs();
+    notifyListeners();
+  }
+
   Map<String, bool> get experimentalFlags => Map.unmodifiable(_experimentalFlags);
 
   void setExperimentalFlag(String key, bool value) {
@@ -684,6 +716,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         _experimentalFlags = expFlags.map((k, v) => MapEntry(k, v == true));
         _experimentalFlags.removeWhere((_, v) => !v);
       }
+      _showTranslateButton = data['showTranslateButton'] as bool? ?? false;
+      _translateEntireChats = data['translateEntireChats'] as bool? ?? false;
+      final skipLangs = data['skipTranslationLanguages'] as List<dynamic>?;
+      if (skipLangs != null && skipLangs.isNotEmpty) {
+        _skipTranslationLanguages = skipLangs.cast<String>();
+      }
       final order = data['accountOrder'] as List<dynamic>?;
       if (order != null) _accountOrder = order.cast<String>();
     } catch (_) {}
@@ -720,6 +758,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'customDownloadPath': _customDownloadPath,
         'askDownloadPath': _askDownloadPath,
         'recentDownloads': _recentDownloads,
+        'showTranslateButton': _showTranslateButton,
+        'translateEntireChats': _translateEntireChats,
+        'skipTranslationLanguages': _skipTranslationLanguages,
         'experimentalFlags': _experimentalFlags,
       }));
     } catch (_) {}
