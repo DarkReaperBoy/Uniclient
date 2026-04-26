@@ -6,6 +6,7 @@ import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
+import 'filter_column.dart';
 import 'settings_style.dart';
 
 class FoldersSettingsScreen extends StatefulWidget {
@@ -61,20 +62,51 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
 
   void _removeFolder(int index) {
     final folder = _folders[index];
+    if (folder.isChatList) {
+      _showChatListRemoveConfirmation(folder, index);
+      return;
+    }
     setState(() {
       _pendingRemovals.add(folder.id);
-      _folders.removeAt(index);
+    });
+  }
+
+  void _showChatListRemoveConfirmation(FolderInfo folder, int index) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E2C3A) : Colors.white,
+        title: const Text('Remove folder'),
+        content: const Text(
+          'This will also delete all invite links created for this folder.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFFE53935),
+            ),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    ).then((confirmed) {
+      if (confirmed == true) {
+        setState(() {
+          _pendingRemovals.add(folder.id);
+        });
+      }
     });
   }
 
   void _restoreFolder(String folderId) {
     setState(() {
       _pendingRemovals.remove(folderId);
-      final chatState = context.read<ChatState>();
-      final original = chatState.folders.where((f) => f.id == folderId).firstOrNull;
-      if (original != null) {
-        _folders.add(original);
-      }
     });
   }
 
@@ -147,11 +179,11 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
               folder: _folders[i],
               isRemoved: _pendingRemovals.contains(_folders[i].id),
               chatCount: _countChatsInFolder(_folders[i]),
+              showTags: _showTags,
               isDark: isDark,
               hoverColor: hoverColor,
               textColor: textColor,
               subtextColor: subtextColor,
-              accentColor: accentColor,
               onRemove: () => _removeFolder(i),
               onRestore: () => _restoreFolder(_folders[i].id),
               onTap: () {},
@@ -329,16 +361,15 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-// §18.3 Folder row — 52px, icon + title + chat count + remove button
-class _FolderRow extends StatelessWidget {
+class _FolderRow extends StatefulWidget {
   final FolderInfo folder;
   final bool isRemoved;
   final int chatCount;
+  final bool showTags;
   final bool isDark;
   final Color hoverColor;
   final Color textColor;
   final Color subtextColor;
-  final Color accentColor;
   final VoidCallback onRemove;
   final VoidCallback onRestore;
   final VoidCallback onTap;
@@ -347,98 +378,204 @@ class _FolderRow extends StatelessWidget {
     required this.folder,
     required this.isRemoved,
     required this.chatCount,
+    required this.showTags,
     required this.isDark,
     required this.hoverColor,
     required this.textColor,
     required this.subtextColor,
-    required this.accentColor,
     required this.onRemove,
     required this.onRestore,
     required this.onTap,
   });
 
+  static const _userpicColors = [
+    Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77), Color(0xFF65aadd),
+    Color(0xFFa695e7), Color(0xFFee7aae), Color(0xFF6ec9cb), Color(0xFFe8a64e),
+  ];
+
+  @override
+  State<_FolderRow> createState() => _FolderRowState();
+}
+
+class _FolderRowState extends State<_FolderRow>
+    with SingleTickerProviderStateMixin {
+  bool _isHovered = false;
+  late final AnimationController _colorDotAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _colorDotAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+      value: (widget.showTags && widget.folder.hasTagColor) ? 1.0 : 0.0,
+    );
+  }
+
+  @override
+  void didUpdateWidget(_FolderRow old) {
+    super.didUpdateWidget(old);
+    final shouldShow = widget.showTags && widget.folder.hasTagColor;
+    final wasShowing = old.showTags && old.folder.hasTagColor;
+    if (shouldShow && !wasShowing) {
+      _colorDotAnim.forward();
+    } else if (!shouldShow && wasShowing) {
+      _colorDotAnim.reverse();
+    }
+  }
+
+  @override
+  void dispose() {
+    _colorDotAnim.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final disabledOpacity = isRemoved ? 0.4 : 1.0;
+    final activeButtonBg = widget.isDark
+        ? const Color(0xFF5288C1)
+        : const Color(0xFF40A7E3);
+    final activeButtonBgOver = widget.isDark
+        ? const Color(0xFF4B7FB0)
+        : const Color(0xFF359AD5);
+    final iconColor = _isHovered ? activeButtonBgOver : activeButtonBg;
+
+    final statusText = StringBuffer('${widget.chatCount} chats');
+    if (widget.folder.isChatList) {
+      statusText.write(' \u00b7 shareable');
+    }
 
     return Opacity(
-      opacity: disabledOpacity,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: isRemoved ? null : onTap,
-          hoverColor: hoverColor,
-          child: SizedBox(
-            height: 52,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 10, 0),
-              child: Row(
-                children: [
-                  // Folder icon
-                  Icon(
-                    Icons.folder,
-                    size: 24,
-                    color: accentColor,
-                  ),
-                  const SizedBox(width: 16),
-                  // Title + status
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          folder.name,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: textColor,
+      opacity: widget.isRemoved ? 0.4 : 1.0,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: Container(
+          height: 52,
+          color: (_isHovered && !widget.isRemoved)
+              ? widget.hoverColor
+              : Colors.transparent,
+          child: Row(
+            children: [
+              Expanded(
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: widget.isRemoved ? null : widget.onTap,
+                    hoverColor: Colors.transparent,
+                    splashColor: Colors.black.withValues(alpha: 0.07),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 0, 0),
+                      child: Row(
+                        children: [
+                          Icon(
+                            FilterColumn.folderIcon(widget.folder.name),
+                            size: 24,
+                            color: iconColor,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '$chatCount chats',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: subtextColor,
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  widget.folder.name,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: widget.textColor,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  statusText.toString(),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: widget.subtextColor,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                  // Remove / Restore
-                  if (isRemoved)
-                    TextButton(
-                      onPressed: onRestore,
-                      style: TextButton.styleFrom(
-                        minimumSize: const Size(60, 26),
-                        maximumSize: const Size(80, 26),
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(13),
-                        ),
-                        backgroundColor: accentColor,
-                      ),
-                      child: const Text(
-                        'Restore',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
-                    )
-                  else
-                    IconButton(
-                      icon: Icon(Icons.close, size: 18, color: subtextColor),
-                      onPressed: onRemove,
-                      splashRadius: 18,
-                    ),
-                ],
+                ),
               ),
-            ),
+              if (widget.folder.hasTagColor)
+                AnimatedBuilder(
+                  animation: _colorDotAnim,
+                  builder: (context, child) {
+                    final size = 17.0 * _colorDotAnim.value;
+                    if (size < 0.5) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: SizedBox(
+                        width: size,
+                        height: size,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _FolderRow._userpicColors[
+                                widget.folder.colorIndex.clamp(0, 7)],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: widget.isRemoved
+                    ? SizedBox(
+                        height: 26,
+                        child: TextButton(
+                          onPressed: widget.onRestore,
+                          style: TextButton.styleFrom(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(13),
+                            ),
+                            backgroundColor: activeButtonBg,
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: const Text(
+                            'Restore',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      )
+                    : SizedBox(
+                        width: 34,
+                        height: 34,
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: widget.onRemove,
+                            customBorder: const CircleBorder(),
+                            child: Center(
+                              child: Icon(
+                                Icons.close,
+                                size: 16,
+                                color: widget.subtextColor
+                                    .withValues(alpha: 0.7),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+              ),
+            ],
           ),
         ),
       ),

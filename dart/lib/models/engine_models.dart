@@ -948,9 +948,11 @@ class FolderInfo {
   final bool excludeMuted;
   final bool excludeRead;
   final bool excludeArchived;
+  final int colorIndex;
+  final bool isChatList;
 
-  /// Whether this folder uses type-based filter flags (not just explicit IDs).
   bool get hasTypeFilters => contacts || nonContacts || groups || channels || bots;
+  bool get hasTagColor => colorIndex >= 0 && colorIndex <= 7;
 
   const FolderInfo({
     this.id = '',
@@ -966,6 +968,8 @@ class FolderInfo {
     this.excludeMuted = false,
     this.excludeRead = false,
     this.excludeArchived = false,
+    this.colorIndex = -1,
+    this.isChatList = false,
   });
 }
 

@@ -684,7 +684,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 18.2 Animated Header
 
 ### 18.3 Existing Folders List
-- [ ] FilterRowButton rows (52px height, RippleButton): folder icon (activeButtonBg/Over), title (contactsNameStyle + custom emoji support), status "{N} chats" + shareable indicator, color dot (circle height/3 diameter, EmptyUserpic color, animated via _colorIndexProgress), Remove X button (filtersRemove style), Restore RoundButton (26px, full radius), row states (Normal/Removed/Suggested), windowBgOver hover (instant), defaultRippleAnimation, click→EditFilterBox, removal confirmation dialogs — spec §18.3 & §18.3.1
 
 ### 18.4 Create New Folder
 - [ ] "Create New Folder" button (settingsButtonActive, settingsIconAdd): check folder limit (show FiltersLimitBox if reached), opens EditFilterBox — spec §18.4
