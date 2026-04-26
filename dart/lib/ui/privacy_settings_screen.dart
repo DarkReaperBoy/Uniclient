@@ -555,7 +555,11 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
         textColor: textColor,
         subtextColor: subtextColor,
         hoverBg: hoverBg,
-        onTap: () {},
+        onTap: () {
+          Navigator.of(context).push<void>(settingsPageRoute(
+            const _BlockedUsersScreen(),
+          )).then((_) => _fetchBlockedCount());
+        },
       ),
       _PrivacyIconRow(
         icon: Icons.devices,
@@ -5014,4 +5018,375 @@ class _ClearPaymentInfoBoxState extends State<_ClearPaymentInfoBox> {
       ],
     );
   }
+}
+
+// ─── §16.9 Blocked Users Screen ───
+
+class _BlockedUsersScreen extends StatefulWidget {
+  const _BlockedUsersScreen();
+
+  @override
+  State<_BlockedUsersScreen> createState() => _BlockedUsersScreenState();
+}
+
+class _BlockedUsersScreenState extends State<_BlockedUsersScreen> {
+  List<Map<String, dynamic>>? _blockedUsers;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchBlockedUsers();
+  }
+
+  Future<void> _fetchBlockedUsers() async {
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    if (accountId.isEmpty) return;
+    final users = await engine.getBlockedUsers(accountId);
+    if (!mounted) return;
+    setState(() {
+      _blockedUsers = users;
+      _loading = false;
+    });
+  }
+
+  Future<void> _unblockUser(String userId) async {
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    if (accountId.isEmpty) return;
+    await engine.unblockUser(accountId, userId);
+    _fetchBlockedUsers();
+  }
+
+  void _showBlockUserPicker() {
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1B2836) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    final accountId = appState.activeAccountId;
+    final blockedIds = (_blockedUsers ?? []).map((u) => u['id'] as String? ?? '').toSet();
+    var searchQuery = '';
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (stateCtx, setDialogState) {
+            return AlertDialog(
+              backgroundColor: bgColor,
+              title: Text('Block User', style: TextStyle(color: textColor, fontWeight: FontWeight.w600)),
+              contentPadding: const EdgeInsets.fromLTRB(0, 16, 0, 0),
+              content: SizedBox(
+                width: 364,
+                height: 400,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: TextField(
+                        style: TextStyle(color: textColor, fontSize: 14),
+                        decoration: InputDecoration(
+                          hintText: 'Search',
+                          hintStyle: TextStyle(color: subtextColor, fontSize: 14),
+                          prefixIcon: Icon(Icons.search, color: subtextColor, size: 20),
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: isDark ? const Color(0xFF3A4A5C) : const Color(0xFFDDDDDD)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: isDark ? const Color(0xFF3A4A5C) : const Color(0xFFDDDDDD)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: accentColor),
+                          ),
+                        ),
+                        onChanged: (v) => setDialogState(() => searchQuery = v),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: FutureBuilder<List<_BlockPickerContact>>(
+                        future: _loadContacts(engine, accountId, blockedIds),
+                        builder: (ctx, snap) {
+                          if (!snap.hasData) {
+                            return const Center(child: CircularProgressIndicator());
+                          }
+                          final contacts = snap.data!;
+                          final filtered = searchQuery.isEmpty
+                              ? contacts
+                              : contacts.where((c) => c.name.toLowerCase().contains(searchQuery.toLowerCase())).toList();
+                          if (filtered.isEmpty) {
+                            return Center(child: Text('No contacts found', style: TextStyle(color: subtextColor)));
+                          }
+                          return ListView.builder(
+                            itemCount: filtered.length,
+                            itemBuilder: (ctx, i) {
+                              final c = filtered[i];
+                              return Opacity(
+                                opacity: c.isBlocked ? 0.4 : 1.0,
+                                child: InkWell(
+                                  onTap: c.isBlocked ? null : () async {
+                                    Navigator.of(dialogCtx).pop();
+                                    await engine.blockUser(accountId, c.id);
+                                    _fetchBlockedUsers();
+                                  },
+                                  hoverColor: hoverBg,
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                    child: Row(
+                                      children: [
+                                        _blockedUserAvatar(c.avatarB64, c.name, 36),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(c.name, style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
+                                              if (c.status.isNotEmpty)
+                                                Text(c.status, style: TextStyle(color: subtextColor, fontSize: 12), overflow: TextOverflow.ellipsis),
+                                            ],
+                                          ),
+                                        ),
+                                        if (c.isBlocked)
+                                          Text('Blocked', style: TextStyle(color: subtextColor, fontSize: 12)),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogCtx).pop(),
+                  child: const Text('Cancel'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<List<_BlockPickerContact>> _loadContacts(EngineService engine, String accountId, Set<String> blockedIds) async {
+    final contacts = await engine.getContacts(accountId);
+    return contacts.map((c) => _BlockPickerContact(
+      id: c.userId,
+      name: c.displayName.isNotEmpty ? c.displayName : (c.username.isNotEmpty ? '@${c.username}' : c.userId),
+      status: c.username.isNotEmpty ? '@${c.username}' : (c.phone.isNotEmpty ? c.phone : ''),
+      avatarB64: c.avatarB64,
+      isBlocked: blockedIds.contains(c.userId),
+    )).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFE8E8E8);
+    final topBarBg = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(54),
+        child: Container(
+          color: topBarBg,
+          child: SafeArea(
+            child: SizedBox(
+              height: 54,
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: Icon(Icons.arrow_back, color: textColor, size: 24),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                  Text('Blocked Users', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+      body: Column(
+        children: [
+          Container(height: 1, color: dividerColor),
+          InkWell(
+            onTap: _showBlockUserPicker,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(20, 10, 22, 10),
+              child: Row(
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: accentColor,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Icon(Icons.person_add, color: Colors.white, size: 18),
+                  ),
+                  const SizedBox(width: 12),
+                  Text('Block User', style: TextStyle(color: accentColor, fontSize: 14, fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Container(height: 1, color: dividerColor),
+          const SizedBox(height: 6),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : (_blockedUsers == null || _blockedUsers!.isEmpty)
+                    ? _buildEmptyState(textColor, subtextColor)
+                    : _buildBlockedList(textColor, subtextColor, accentColor),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(Color textColor, Color subtextColor) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 240),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.block, size: 74, color: subtextColor.withValues(alpha: 0.5)),
+              const SizedBox(height: 16),
+              Text(
+                'No blocked users',
+                style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'You can block users from their profile pages. Blocked users can\'t send you messages or add you to groups.',
+                style: TextStyle(color: subtextColor, fontSize: 13, height: 1.4),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBlockedList(Color textColor, Color subtextColor, Color accentColor) {
+    return ListView.builder(
+      itemCount: _blockedUsers!.length,
+      itemBuilder: (context, index) {
+        final user = _blockedUsers![index];
+        final name = user['display_name'] as String? ?? '';
+        final username = user['username'] as String? ?? '';
+        final phone = user['phone'] as String? ?? '';
+        final isBot = user['is_bot'] as bool? ?? false;
+        final userId = user['id'] as String? ?? '';
+        final avatarB64 = user['avatar_b64'] as String? ?? '';
+
+        String status;
+        if (isBot) {
+          status = 'bot';
+        } else if (phone.isNotEmpty) {
+          status = phone;
+        } else if (username.isNotEmpty) {
+          status = '@$username';
+        } else {
+          status = '';
+        }
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          child: Row(
+            children: [
+              _blockedUserAvatar(avatarB64, name, 44),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name.isNotEmpty ? name : userId,
+                      style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w600),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (status.isNotEmpty)
+                      Text(status, style: TextStyle(color: subtextColor, fontSize: 12), overflow: TextOverflow.ellipsis),
+                  ],
+                ),
+              ),
+              GestureDetector(
+                onTap: () => _unblockUser(userId),
+                child: Text('Unblock', style: TextStyle(color: accentColor, fontSize: 14)),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  static Widget _blockedUserAvatar(String avatarB64, String name, double size) {
+    if (avatarB64.isNotEmpty) {
+      try {
+        final bytes = base64Decode(avatarB64);
+        return ClipOval(child: Image.memory(bytes, width: size, height: size, fit: BoxFit.cover));
+      } catch (_) {}
+    }
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    final colorIndex = name.isNotEmpty ? name.codeUnitAt(0) % 7 : 0;
+    const colors = [
+      Color(0xFFE17076), Color(0xFF7BC862), Color(0xFF65AADD),
+      Color(0xFFEE7AE6), Color(0xFFFAA774), Color(0xFF6EC9CB),
+      Color(0xFFE5679D),
+    ];
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(shape: BoxShape.circle, color: colors[colorIndex]),
+      alignment: Alignment.center,
+      child: Text(initial, style: TextStyle(color: Colors.white, fontSize: size * 0.45, fontWeight: FontWeight.w600)),
+    );
+  }
+}
+
+class _BlockPickerContact {
+  final String id;
+  final String name;
+  final String status;
+  final String avatarB64;
+  final bool isBlocked;
+
+  const _BlockPickerContact({
+    required this.id,
+    required this.name,
+    this.status = '',
+    this.avatarB64 = '',
+    this.isBlocked = false,
+  });
 }

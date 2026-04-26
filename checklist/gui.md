@@ -652,7 +652,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 16.5 Bots and Websites
 
 ### 16.9 Blocked Users Screen
-- [ ] "Block User" top button (opens peer picker, already-blocked disabled), blocked peer list (photo+name+status+"Unblock" link), empty state (Lottie, title, desc, 240px min height) — spec §16.9
 
 ### 16.11 Animations
 - [ ] All Privacy page animations: SlideWrap conditional sections, Lottie icons (cloud password intro/input, local passcode, TTL, blocked users empty), password input icon animates/reverses on typing, fireworks on password validation success — spec §16.11

@@ -1822,6 +1822,20 @@ class EngineService {
     }
   }
 
+  Future<List<Map<String, dynamic>>> getBlockedUsers(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetBlockedUsers', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return [];
+      final decoded = json.decode(utf8.decode(respBytes));
+      if (decoded is List) return decoded.cast<Map<String, dynamic>>();
+      return [];
+    } catch (e) {
+      Debug.error('ENGINE', 'getBlockedUsers failed', e);
+      return [];
+    }
+  }
+
   // ── Sessions ──
 
   Future<int> getSessionsCount(String accountId) async {
