@@ -1146,6 +1146,14 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
   bool _userTyped = false;
   String? _selectedIconName;
 
+  static const _allIncludeTypes = <_PreviewTypeInfo>[
+    _PreviewTypeInfo('contacts', 'Contacts', Icons.person, Color(0xFF7bc862)),
+    _PreviewTypeInfo('nonContacts', 'Non-Contacts', Icons.person_outline, Color(0xFF6ec9cb)),
+    _PreviewTypeInfo('groups', 'Groups', Icons.group, Color(0xFF7bc862)),
+    _PreviewTypeInfo('channels', 'Channels', Icons.campaign, Color(0xFFe17076)),
+    _PreviewTypeInfo('bots', 'Bots', Icons.smart_toy, Color(0xFFa695e7)),
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -1275,6 +1283,46 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
           _excludeArchived = value;
       }
       _updateAutoTitle();
+    });
+  }
+
+  List<_PreviewTypeInfo> _buildIncludeTypeList() {
+    final list = <_PreviewTypeInfo>[];
+    if (_contacts) list.add(_allIncludeTypes[0]);
+    if (_nonContacts) list.add(_allIncludeTypes[1]);
+    if (_groups) list.add(_allIncludeTypes[2]);
+    if (_channels) list.add(_allIncludeTypes[3]);
+    if (_bots) list.add(_allIncludeTypes[4]);
+    return list;
+  }
+
+  void _removeIncludeType(String key) {
+    _onToggle(key, false);
+  }
+
+  void _openIncludeTypePicker() {
+    showDialog<Map<String, bool>>(
+      context: context,
+      builder: (ctx) => _IncludeTypePicker(
+        isDark: widget.isDark,
+        accentColor: widget.accentColor,
+        contacts: _contacts,
+        nonContacts: _nonContacts,
+        groups: _groups,
+        channels: _channels,
+        bots: _bots,
+      ),
+    ).then((result) {
+      if (result != null && mounted) {
+        setState(() {
+          _contacts = result['contacts'] ?? _contacts;
+          _nonContacts = result['nonContacts'] ?? _nonContacts;
+          _groups = result['groups'] ?? _groups;
+          _channels = result['channels'] ?? _channels;
+          _bots = result['bots'] ?? _bots;
+          _updateAutoTitle();
+        });
+      }
     });
   }
 
@@ -1445,50 +1493,16 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
                           ),
                         ),
                       ),
-                      _TypeToggleRow(
-                        label: 'Contacts',
-                        icon: Icons.person,
-                        color: const Color(0xFF7bc862),
-                        value: _contacts,
+                      _AddChatsButton(
                         isDark: widget.isDark,
-                        textColor: textColor,
-                        onChanged: (v) => _onToggle('contacts', v),
+                        accentColor: widget.accentColor,
+                        onTap: _openIncludeTypePicker,
                       ),
-                      _TypeToggleRow(
-                        label: 'Non-Contacts',
-                        icon: Icons.person_outline,
-                        color: const Color(0xFF6ec9cb),
-                        value: _nonContacts,
+                      _FilterChatsPreview(
+                        types: _buildIncludeTypeList(),
                         isDark: widget.isDark,
                         textColor: textColor,
-                        onChanged: (v) => _onToggle('nonContacts', v),
-                      ),
-                      _TypeToggleRow(
-                        label: 'Groups',
-                        icon: Icons.group,
-                        color: const Color(0xFF7bc862),
-                        value: _groups,
-                        isDark: widget.isDark,
-                        textColor: textColor,
-                        onChanged: (v) => _onToggle('groups', v),
-                      ),
-                      _TypeToggleRow(
-                        label: 'Channels',
-                        icon: Icons.campaign,
-                        color: const Color(0xFFe17076),
-                        value: _channels,
-                        isDark: widget.isDark,
-                        textColor: textColor,
-                        onChanged: (v) => _onToggle('channels', v),
-                      ),
-                      _TypeToggleRow(
-                        label: 'Bots',
-                        icon: Icons.smart_toy,
-                        color: const Color(0xFFa695e7),
-                        value: _bots,
-                        isDark: widget.isDark,
-                        textColor: textColor,
-                        onChanged: (v) => _onToggle('bots', v),
+                        onRemove: _removeIncludeType,
                       ),
                       Padding(
                         padding: const EdgeInsets.fromLTRB(22, 4, 22, 0),
@@ -1834,6 +1848,382 @@ class _TypeToggleRow extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PreviewTypeInfo {
+  final String key;
+  final String label;
+  final IconData icon;
+  final Color color;
+  const _PreviewTypeInfo(this.key, this.label, this.icon, this.color);
+}
+
+class _AddChatsButton extends StatelessWidget {
+  final bool isDark;
+  final Color accentColor;
+  final VoidCallback onTap;
+
+  const _AddChatsButton({
+    required this.isDark,
+    required this.accentColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hoverColor = isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        hoverColor: hoverColor,
+        child: SizedBox(
+          height: 44,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(13, 0, 22, 0),
+            child: Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: accentColor,
+                  ),
+                  child: const Icon(Icons.add, size: 18, color: Colors.white),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Add Chats',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: accentColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FilterChatsPreview extends StatelessWidget {
+  final List<_PreviewTypeInfo> types;
+  final bool isDark;
+  final Color textColor;
+  final ValueChanged<String> onRemove;
+
+  const _FilterChatsPreview({
+    required this.types,
+    required this.isDark,
+    required this.textColor,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (types.isEmpty) return const SizedBox.shrink();
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final type in types)
+          _PreviewRow(
+            type: type,
+            isDark: isDark,
+            textColor: textColor,
+            onRemove: () => onRemove(type.key),
+          ),
+      ],
+    );
+  }
+}
+
+class _PreviewRow extends StatefulWidget {
+  final _PreviewTypeInfo type;
+  final bool isDark;
+  final Color textColor;
+  final VoidCallback onRemove;
+
+  const _PreviewRow({
+    required this.type,
+    required this.isDark,
+    required this.textColor,
+    required this.onRemove,
+  });
+
+  @override
+  State<_PreviewRow> createState() => _PreviewRowState();
+}
+
+class _PreviewRowState extends State<_PreviewRow> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final removeBtnColor = widget.isDark
+        ? const Color(0xFF6C7883)
+        : const Color(0xFF999999);
+    final hoverColor = widget.isDark
+        ? const Color(0xFF202B36)
+        : const Color(0xFFF1F1F1);
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: Container(
+        height: 44,
+        color: _hovering ? hoverColor : Colors.transparent,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(13, 5, 10, 5),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      widget.type.color,
+                      widget.type.color.withValues(alpha: 0.8),
+                    ],
+                  ),
+                ),
+                child: Icon(widget.type.icon, size: 18, color: Colors.white),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  widget.type.label,
+                  style: TextStyle(fontSize: 14, color: widget.textColor),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ),
+              SizedBox(
+                width: 34,
+                height: 34,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: widget.onRemove,
+                    customBorder: const CircleBorder(),
+                    child: Center(
+                      child: Icon(
+                        Icons.close,
+                        size: 16,
+                        color: removeBtnColor,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _IncludeTypePicker extends StatefulWidget {
+  final bool isDark;
+  final Color accentColor;
+  final bool contacts;
+  final bool nonContacts;
+  final bool groups;
+  final bool channels;
+  final bool bots;
+
+  const _IncludeTypePicker({
+    required this.isDark,
+    required this.accentColor,
+    required this.contacts,
+    required this.nonContacts,
+    required this.groups,
+    required this.channels,
+    required this.bots,
+  });
+
+  @override
+  State<_IncludeTypePicker> createState() => _IncludeTypePickerState();
+}
+
+class _IncludeTypePickerState extends State<_IncludeTypePicker> {
+  late bool _contacts;
+  late bool _nonContacts;
+  late bool _groups;
+  late bool _channels;
+  late bool _bots;
+
+  @override
+  void initState() {
+    super.initState();
+    _contacts = widget.contacts;
+    _nonContacts = widget.nonContacts;
+    _groups = widget.groups;
+    _channels = widget.channels;
+    _bots = widget.bots;
+  }
+
+  int get _selectedCount {
+    int c = 0;
+    if (_contacts) c++;
+    if (_nonContacts) c++;
+    if (_groups) c++;
+    if (_channels) c++;
+    if (_bots) c++;
+    return c;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = widget.isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = widget.isDark
+        ? const Color(0xFFF5F5F5)
+        : const Color(0xFF000000);
+    final subtextColor = widget.isDark
+        ? const Color(0xFF6C7883)
+        : const Color(0xFF999999);
+    final headerBg = widget.isDark
+        ? const Color(0xFF202B36)
+        : const Color(0xFFF1F1F1);
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: SizedBox(
+        width: 364,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 18, 22, 14),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Include Chats',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '$_selectedCount/5',
+                    style: TextStyle(fontSize: 13, color: subtextColor),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              color: headerBg,
+              padding: const EdgeInsets.fromLTRB(22, 6, 22, 6),
+              child: Text(
+                'Chat types',
+                style: TextStyle(fontSize: 13, color: subtextColor),
+              ),
+            ),
+            _TypeToggleRow(
+              label: 'Contacts',
+              icon: Icons.person,
+              color: const Color(0xFF7bc862),
+              value: _contacts,
+              isDark: widget.isDark,
+              textColor: textColor,
+              onChanged: (v) => setState(() => _contacts = v),
+            ),
+            _TypeToggleRow(
+              label: 'Non-Contacts',
+              icon: Icons.person_outline,
+              color: const Color(0xFF6ec9cb),
+              value: _nonContacts,
+              isDark: widget.isDark,
+              textColor: textColor,
+              onChanged: (v) => setState(() => _nonContacts = v),
+            ),
+            _TypeToggleRow(
+              label: 'Groups',
+              icon: Icons.group,
+              color: const Color(0xFF7bc862),
+              value: _groups,
+              isDark: widget.isDark,
+              textColor: textColor,
+              onChanged: (v) => setState(() => _groups = v),
+            ),
+            _TypeToggleRow(
+              label: 'Channels',
+              icon: Icons.campaign,
+              color: const Color(0xFFe17076),
+              value: _channels,
+              isDark: widget.isDark,
+              textColor: textColor,
+              onChanged: (v) => setState(() => _channels = v),
+            ),
+            _TypeToggleRow(
+              label: 'Bots',
+              icon: Icons.smart_toy,
+              color: const Color(0xFFa695e7),
+              value: _bots,
+              isDark: widget.isDark,
+              textColor: textColor,
+              onChanged: (v) => setState(() => _bots = v),
+            ),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 0, 22, 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(color: subtextColor, fontSize: 14),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop({
+                      'contacts': _contacts,
+                      'nonContacts': _nonContacts,
+                      'groups': _groups,
+                      'channels': _channels,
+                      'bots': _bots,
+                    }),
+                    style: TextButton.styleFrom(
+                      backgroundColor: widget.accentColor,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                    child: const Text(
+                      'Done',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
