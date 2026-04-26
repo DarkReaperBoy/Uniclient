@@ -249,6 +249,166 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     } catch (_) {}
   }
 
+  String _formatFullDate(String? dateStr) {
+    if (dateStr == null || dateStr.isEmpty) return '';
+    try {
+      final date = DateTime.parse(dateStr);
+      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      final h = date.hour.toString().padLeft(2, '0');
+      final m = date.minute.toString().padLeft(2, '0');
+      return '${months[date.month - 1]} ${date.day}, ${date.year} at $h:$m';
+    } catch (_) {
+      return dateStr ?? '';
+    }
+  }
+
+  void _showSessionInfoBox(Map<String, dynamic> session) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isCurrent = session['is_current'] == true;
+    final rawDevice = session['device'] as String? ?? 'Unknown';
+    final device = (isCurrent && _customDeviceModel.isNotEmpty)
+        ? _customDeviceModel
+        : rawDevice;
+    final platform = session['platform'] as String? ?? '';
+    final appName = session['app_name'] as String? ?? '';
+    final appVersion = session['app_version'] as String? ?? '';
+    final ip = session['ip'] as String? ?? '';
+    final location = session['location'] as String? ?? '';
+    final lastActive = session['last_active'] as String? ?? '';
+    final systemStr = session['system'] as String? ?? platform;
+    final info = _classifyDevice(rawDevice, platform, appName);
+
+    final appStr = appVersion.isNotEmpty ? '$appName $appVersion' : appName;
+    final fullDate = isCurrent ? 'online' : _formatFullDate(lastActive);
+
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222);
+    final subtextColor = isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
+    final iconColor = isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: bgColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        child: SizedBox(
+          width: 364,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 18),
+              _DeviceUserpic(info: info, size: 70),
+              const SizedBox(height: 7),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Text(
+                  device,
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    height: 1.3,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (fullDate.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  fullDate,
+                  style: TextStyle(color: subtextColor, fontSize: 13),
+                ),
+              ],
+              const SizedBox(height: 19),
+              if (appStr.isNotEmpty)
+                _SessionInfoRow(
+                  icon: Icons.devices,
+                  iconColor: iconColor,
+                  label: 'Application',
+                  value: appStr,
+                  textColor: textColor,
+                  subtextColor: subtextColor,
+                ),
+              if (systemStr.isNotEmpty)
+                _SessionInfoRow(
+                  icon: Icons.info_outline,
+                  iconColor: iconColor,
+                  label: 'System',
+                  value: systemStr,
+                  textColor: textColor,
+                  subtextColor: subtextColor,
+                ),
+              if (ip.isNotEmpty)
+                _SessionInfoRow(
+                  icon: Icons.language,
+                  iconColor: iconColor,
+                  label: 'IP Address',
+                  value: ip,
+                  textColor: textColor,
+                  subtextColor: subtextColor,
+                ),
+              if (location.isNotEmpty)
+                _SessionInfoRow(
+                  icon: Icons.location_on_outlined,
+                  iconColor: iconColor,
+                  label: 'Location',
+                  value: location,
+                  textColor: textColor,
+                  subtextColor: subtextColor,
+                ),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                child: Row(
+                  children: [
+                    if (!isCurrent) ...[
+                      Expanded(
+                        child: TextButton(
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.red,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _showTerminateConfirmation(
+                              session['id'] as String? ?? '',
+                              device,
+                            );
+                          },
+                          child: const Text(
+                            'Terminate Session',
+                            style: TextStyle(fontWeight: FontWeight.w500),
+                          ),
+                        ),
+                      ),
+                    ],
+                    Expanded(
+                      child: TextButton(
+                        style: TextButton.styleFrom(
+                          foregroundColor: accentColor,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text(
+                          'OK',
+                          style: TextStyle(fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showRenameDialog() {
     final current = _currentSession;
     final currentDevice = current?['device'] as String? ?? '';
@@ -407,6 +567,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
           formatDate: _formatActiveDate,
           showTerminate: false,
           customDeviceName: _customDeviceModel,
+          onTap: () => _showSessionInfoBox(current),
         ),
         Container(height: 1, color: dividerColor),
       ],
@@ -474,6 +635,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
               session['id'] as String? ?? '',
               session['device'] as String? ?? 'Unknown',
             ),
+            onTap: () => _showSessionInfoBox(session),
           ),
         Container(height: 1, color: dividerColor),
         Padding(
@@ -513,6 +675,7 @@ class _SessionRow extends StatelessWidget {
   final String Function(String?) formatDate;
   final bool showTerminate;
   final VoidCallback? onTerminate;
+  final VoidCallback? onTap;
   final String? customDeviceName;
 
   const _SessionRow({
@@ -522,6 +685,7 @@ class _SessionRow extends StatelessWidget {
     required this.formatDate,
     this.showTerminate = false,
     this.onTerminate,
+    this.onTap,
     this.customDeviceName,
   });
 
@@ -555,7 +719,7 @@ class _SessionRow extends StatelessWidget {
 
     return InkWell(
       hoverColor: hoverBg,
-      onTap: () {},
+      onTap: onTap,
       child: SizedBox(
         height: 84,
         child: Padding(
@@ -639,6 +803,57 @@ class _DeviceUserpic extends StatelessWidget {
         ),
       ),
       child: Icon(info.icon, color: Colors.white, size: size * 0.52),
+    );
+  }
+}
+
+class _SessionInfoRow extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String label;
+  final String value;
+  final Color textColor;
+  final Color subtextColor;
+
+  const _SessionInfoRow({
+    required this.icon,
+    required this.iconColor,
+    required this.label,
+    required this.value,
+    required this.textColor,
+    required this.subtextColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 9, 20, 9),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Icon(icon, size: 20, color: iconColor),
+          ),
+          const SizedBox(width: 21),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: TextStyle(color: textColor, fontSize: 14),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  style: TextStyle(color: subtextColor, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -712,13 +712,11 @@ Spec file: `research/telegram_desktop_ui.md`.
 <!-- dart/lib/ui/settings_screen.dart (nav rows only); sub-pages not yet created -->
 
 ### 19.1–19.4 Active Sessions Page
-- [ ] Other sessions list: row click→SessionInfoBox (requires §19.6) — spec §19.4 & §19.4.1
 
 ### 19.5 Incomplete Login Attempts
 - [ ] "Incomplete Login Attempts" section (conditional): same row style, newest first, footer explanation — spec §19.5
 
 ### 19.6 Session Detail View (SessionInfoBox)
-- [ ] SessionInfoBox (364px): 70px userpic + 52px Lottie plays-once header, device name (20px semibold, max 29px), date (windowSubTextFg, full datetime), info rows (Application/System/IP/Location with icons), AyuGram "Official App" row, OK button, non-current session: red "Terminate Session" + confirmation — spec §19.6 & §19.6.1
 
 ### 19.7–19.9 Terminate All / Rename / Auto-Terminate
 - [ ] "Terminate All Other Sessions" button (infoBlockButton, visible when >0), confirmation dialog with red Terminate button — spec §19.7
