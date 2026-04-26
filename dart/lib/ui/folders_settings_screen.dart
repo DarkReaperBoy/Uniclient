@@ -9,6 +9,47 @@ import '../state/chat_state.dart';
 import 'filter_column.dart';
 import 'settings_style.dart';
 
+const _kFilterIconOrder = <String>[
+  'Cat', 'Book', 'Money', 'Game', 'Light', 'Like',
+  'Note', 'Palette', 'Travel', 'Sport', 'Favorite', 'Study',
+  'Airplane', 'Private', 'Groups', 'All', 'Unread', 'Bots',
+  'Crown', 'Flower', 'Home', 'Love', 'Mask', 'Party',
+  'Trade', 'Work', 'Unmuted', 'Channels', 'Custom', 'Setup',
+];
+
+const _kFilterIcons = <String, IconData>{
+  'Cat': Icons.pets,
+  'Book': Icons.menu_book,
+  'Money': Icons.attach_money,
+  'Game': Icons.sports_esports,
+  'Light': Icons.lightbulb_outline,
+  'Like': Icons.thumb_up_outlined,
+  'Note': Icons.note_outlined,
+  'Palette': Icons.palette_outlined,
+  'Travel': Icons.luggage_outlined,
+  'Sport': Icons.sports_soccer_outlined,
+  'Favorite': Icons.star_outline,
+  'Study': Icons.school_outlined,
+  'Airplane': Icons.flight,
+  'Private': Icons.person_outline,
+  'Groups': Icons.group_outlined,
+  'All': Icons.chat_outlined,
+  'Unread': Icons.mark_email_unread_outlined,
+  'Bots': Icons.smart_toy_outlined,
+  'Crown': Icons.workspace_premium_outlined,
+  'Flower': Icons.local_florist_outlined,
+  'Home': Icons.home_outlined,
+  'Love': Icons.favorite_outline,
+  'Mask': Icons.masks_outlined,
+  'Party': Icons.celebration_outlined,
+  'Trade': Icons.trending_up,
+  'Work': Icons.work_outline,
+  'Unmuted': Icons.volume_up_outlined,
+  'Channels': Icons.campaign_outlined,
+  'Custom': Icons.edit_outlined,
+  'Setup': Icons.settings_outlined,
+};
+
 class FoldersSettingsScreen extends StatefulWidget {
   const FoldersSettingsScreen({super.key});
 
@@ -1093,6 +1134,7 @@ class _EditFilterBox extends StatefulWidget {
 
 class _EditFilterBoxState extends State<_EditFilterBox> {
   final _nameController = TextEditingController();
+  final _iconToggleKey = GlobalKey();
   bool _contacts = false;
   bool _nonContacts = false;
   bool _groups = false;
@@ -1102,6 +1144,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
   bool _excludeRead = false;
   bool _excludeArchived = false;
   bool _userTyped = false;
+  String? _selectedIconName;
 
   @override
   void initState() {
@@ -1143,6 +1186,72 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
     }
     if (auto.length > 12) auto = auto.substring(0, 12);
     _nameController.text = auto;
+  }
+
+  String _getAutoIconName() {
+    if (_contacts && !_nonContacts && !_groups && !_channels && !_bots) {
+      return 'Private';
+    }
+    if (_groups && !_contacts && !_nonContacts && !_channels && !_bots) {
+      return 'Groups';
+    }
+    if (_channels && !_contacts && !_nonContacts && !_groups && !_bots) {
+      return 'Channels';
+    }
+    if (_bots && !_contacts && !_nonContacts && !_groups && !_channels) {
+      return 'Bots';
+    }
+    if (_excludeRead) return 'Unread';
+    if (_excludeMuted) return 'Unmuted';
+    if (_contacts || _nonContacts || _groups || _channels || _bots) {
+      return 'Custom';
+    }
+    return 'All';
+  }
+
+  String get _effectiveIconName => _selectedIconName ?? _getAutoIconName();
+
+  void _showIconPicker() {
+    final box = _iconToggleKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final offset = box.localToGlobal(Offset.zero);
+    final size = box.size;
+    const panelWidth = 284.0;
+    final screenWidth = MediaQuery.of(context).size.width;
+    var left = offset.dx + size.width - panelWidth - 2;
+    if (left < 8) left = 8;
+    if (left + panelWidth > screenWidth - 8) left = screenWidth - panelWidth - 8;
+    final top = offset.dy + size.height - 1;
+
+    showDialog<String>(
+      context: context,
+      barrierColor: Colors.transparent,
+      builder: (ctx) => Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => Navigator.of(ctx).pop(),
+            ),
+          ),
+          Positioned(
+            left: left,
+            top: top,
+            child: _FilterIconPanel(
+              isDark: widget.isDark,
+              selectedIcon: _effectiveIconName,
+              onSelect: (name) {
+                Navigator.of(ctx).pop(name);
+              },
+            ),
+          ),
+        ],
+      ),
+    ).then((name) {
+      if (name != null && mounted) {
+        setState(() => _selectedIconName = name);
+      }
+    });
   }
 
   void _onToggle(String key, bool value) {
@@ -1267,6 +1376,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 22),
                         child: Stack(
+                          clipBehavior: Clip.none,
                           children: [
                             TextField(
                               controller: _nameController,
@@ -1287,12 +1397,12 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
                                   borderRadius: BorderRadius.circular(8),
                                   borderSide: BorderSide.none,
                                 ),
-                                contentPadding: const EdgeInsets.fromLTRB(14, 12, 90, 12),
+                                contentPadding: const EdgeInsets.fromLTRB(14, 12, 87, 12),
                               ),
                               style: TextStyle(fontSize: 14, color: textColor),
                             ),
                             Positioned(
-                              right: 14,
+                              right: 46,
                               top: 0,
                               bottom: 0,
                               child: Center(
@@ -1304,6 +1414,19 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
                                         ? const Color(0xFFE53935)
                                         : subtextColor,
                                   ),
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              right: 4,
+                              top: 0,
+                              bottom: 0,
+                              child: Center(
+                                child: _FilterIconToggle(
+                                  key: _iconToggleKey,
+                                  iconName: _effectiveIconName,
+                                  isDark: widget.isDark,
+                                  onTap: _showIconPicker,
                                 ),
                               ),
                             ),
@@ -1463,6 +1586,183 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FilterIconToggle extends StatefulWidget {
+  final String iconName;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _FilterIconToggle({
+    super.key,
+    required this.iconName,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  State<_FilterIconToggle> createState() => _FilterIconToggleState();
+}
+
+class _FilterIconToggleState extends State<_FilterIconToggle> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final mutedColor = widget.isDark
+        ? const Color(0xFF3E546A)
+        : const Color(0xFFBBBBBB);
+    final hoverColor = widget.isDark
+        ? const Color(0xFF4E647A)
+        : const Color(0xFFAAAAAA);
+    final iconData = _kFilterIcons[widget.iconName] ?? Icons.folder_outlined;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: SizedBox(
+          width: 36,
+          height: 36,
+          child: Center(
+            child: Icon(
+              iconData,
+              size: 22,
+              color: _hovering ? hoverColor : mutedColor,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FilterIconPanel extends StatelessWidget {
+  final bool isDark;
+  final String selectedIcon;
+  final ValueChanged<String> onSelect;
+
+  const _FilterIconPanel({
+    required this.isDark,
+    required this.selectedIcon,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = isDark ? const Color(0xFF17212B) : Colors.white;
+    final headerColor = isDark
+        ? const Color(0xFF6C7883)
+        : const Color(0xFF999999);
+
+    return Material(
+      elevation: 4,
+      borderRadius: BorderRadius.circular(12),
+      color: bgColor,
+      child: SizedBox(
+        width: 284,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 14, 0, 6),
+                child: Text(
+                  'Folder Icon',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: headerColor,
+                  ),
+                ),
+              ),
+              for (var row = 0; row < 5; row++)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var col = 0; col < 6; col++)
+                      _IconCell(
+                        iconName: _kFilterIconOrder[row * 6 + col],
+                        isSelected:
+                            _kFilterIconOrder[row * 6 + col] == selectedIcon,
+                        isDark: isDark,
+                        onTap: () =>
+                            onSelect(_kFilterIconOrder[row * 6 + col]),
+                      ),
+                  ],
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _IconCell extends StatefulWidget {
+  final String iconName;
+  final bool isSelected;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _IconCell({
+    required this.iconName,
+    required this.isSelected,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  State<_IconCell> createState() => _IconCellState();
+}
+
+class _IconCellState extends State<_IconCell> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final normalColor = widget.isDark
+        ? const Color(0xFF3E546A)
+        : const Color(0xFFBBBBBB);
+    final activeColor = widget.isDark
+        ? const Color(0xFF6AB3F3)
+        : const Color(0xFF40A7E3);
+    final hoverBg = widget.isDark
+        ? const Color(0xFF202B36)
+        : const Color(0xFFF1F1F1);
+    final iconData = _kFilterIcons[widget.iconName] ?? Icons.folder_outlined;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          width: 44,
+          height: 42,
+          decoration: BoxDecoration(
+            color: _hovering ? hoverBg : null,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            iconData,
+            size: 22,
+            color: widget.isSelected
+                ? activeColor
+                : _hovering
+                    ? normalColor.withValues(alpha: 0.8)
+                    : normalColor,
           ),
         ),
       ),

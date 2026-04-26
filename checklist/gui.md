@@ -690,7 +690,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 18.5 Recommended Folders
 
 ### 18.6 Edit Filter Box
-- [ ] Folder name input (windowFilterNameInput): right margin 87px, placeholder "Folder name", max 12 chars, custom emoji support, character counter at (75,27) from right, emoji button at (-65,22) opens TabbedPanel EmojiOnly, icon selector toggle (36×36px at -4/18), icon painted in dialogsUnreadBgMuted, click opens FilterIconPanel, auto-title on creating — spec §18.6.1
 - [ ] Included Chats section: "Add Chats" button, FilterChatsPreview widget (44px rows, 34px photo at 13/5, name at 59/14, remove button), 5 type rows with gradient circle userpics (Contacts green/NonContacts cyan/Groups green/Channels red/Bots purple), footer text — spec §18.6.2 & §18.6.2.2
 - [ ] Excluded Chats section (hidden when chatlist=true): "Remove Chats" button, same preview widget, 3 exclude types (Muted purple/Archived green/Read cyan), footer — spec §18.6.3
 - [ ] Tag Color section (Premium-gated): "Tag Color" subtitle + inline tag preview badge, 8 circular 30px chips evenly spaced, colors 0–6 from palette, color 7 = "no tag" (X icon, historyPeerArchiveUserpicBg), selection ring with 120ms color crossfade, non-Premium→PremiumPreviewBox(FilterTags), footer — spec §18.6.4 & §18.6.4.1
