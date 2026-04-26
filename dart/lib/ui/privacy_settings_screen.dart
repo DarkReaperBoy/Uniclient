@@ -32,12 +32,16 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
 
   bool _hasPasscode = false;
 
+  List<Map<String, dynamic>> _passkeys = [];
+  bool _passkeysLoaded = false;
+
   @override
   void initState() {
     super.initState();
     _fetchPasswordState();
     _fetchGlobalTTL();
     _loadPasscodeState();
+    _fetchPasskeys();
     _pollTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       _fetchPasswordState();
     });
@@ -109,6 +113,27 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     } else {
       if (mounted) setState(() => _hasPasscode = false);
     }
+  }
+
+  Future<void> _fetchPasskeys() async {
+    if (!mounted) return;
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+
+    final list = await engine.getPasskeyList(accountId);
+    if (!mounted) return;
+    setState(() {
+      _passkeys = list;
+      _passkeysLoaded = true;
+    });
+  }
+
+  String get _passkeysLabel {
+    if (_passkeys.isEmpty) return 'Off';
+    if (_passkeys.length == 1) return _passkeys[0]['name'] as String? ?? 'On';
+    return '${_passkeys.length}';
   }
 
   void _openPasscodeLock() {
@@ -340,6 +365,16 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
         hoverBg: hoverBg,
         onTap: _openPasscodeLock,
       ),
+      if (_passkeysLoaded)
+        _PrivacyIconRow(
+          icon: Icons.fingerprint,
+          label: 'Passkeys',
+          rightLabel: _passkeysLabel,
+          textColor: textColor,
+          subtextColor: subtextColor,
+          hoverBg: hoverBg,
+          onTap: () {},
+        ),
       _PrivacyIconRow(
         icon: Icons.block,
         label: 'Blocked Users',

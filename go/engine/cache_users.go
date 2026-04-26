@@ -881,3 +881,19 @@ func (e *Engine) RemoveCloudPassword(accountID, password string) error {
 	}
 	return p.RemoveCloudPassword(password)
 }
+
+type passkeyListProvider interface {
+	GetPasskeyList() ([]cores.PasskeyInfo, error)
+}
+
+func (e *Engine) GetPasskeyList(accountID string) ([]cores.PasskeyInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account not found")
+	}
+	p, ok := acc.Core.(passkeyListProvider)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support passkeys")
+	}
+	return p.GetPasskeyList()
+}

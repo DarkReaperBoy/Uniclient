@@ -646,7 +646,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 <!-- dart/lib/ui/privacy_settings_screen.dart -->
 
 ### 16.2 Security Section
-- [ ] Passkeys button (menuIconPermissions): shown only if platform supports WebAuthn or user has passkeys, right-label = passkey name/count/Off — spec §16.2.4
 - [ ] Login Email button (menuIconRecoveryEmail): shown only if login email configured, right-label = masked email — spec §16.2.5
 - [ ] Blocked Users button (menuIconBlock): right-label = count or "None" — spec §16.2.6
 - [ ] Active Sessions button (menuIconDevices): right-label = session count — spec §16.2.7

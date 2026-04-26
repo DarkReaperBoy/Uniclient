@@ -1646,6 +1646,24 @@ class EngineService {
     await _callAsync('__engine', 'RemoveCloudPassword', Uint8List.fromList(payload));
   }
 
+  // ── Passkeys ──
+
+  Future<List<Map<String, dynamic>>> getPasskeyList(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetPasskeyList', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return [];
+      final decoded = json.decode(utf8.decode(respBytes));
+      if (decoded is List) {
+        return decoded.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      Debug.error('ENGINE', 'getPasskeyList failed', e);
+      return [];
+    }
+  }
+
   // ── Shutdown ──
 
   void shutdown() {

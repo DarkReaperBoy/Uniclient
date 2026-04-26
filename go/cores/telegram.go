@@ -13686,6 +13686,24 @@ func (t *TelegramCore) GetPassword() (*tg.AccountPassword, error) {
 	return t.api.AccountGetPassword(t.ctx)
 }
 
+type PasskeyInfo struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Date int    `json:"date"`
+}
+
+func (t *TelegramCore) GetPasskeyList() ([]PasskeyInfo, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return nil, ErrAuth }
+	result, err := t.api.AccountGetPasskeys(t.ctx)
+	if err != nil { return nil, err }
+	out := make([]PasskeyInfo, len(result.Passkeys))
+	for i, pk := range result.Passkeys {
+		out[i] = PasskeyInfo{ID: pk.ID, Name: pk.Name, Date: pk.Date}
+	}
+	return out, nil
+}
+
 type CloudPasswordState struct {
 	HasPassword             bool   `json:"hasPassword"`
 	HasRecovery             bool   `json:"hasRecovery"`

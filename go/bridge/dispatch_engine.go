@@ -1696,6 +1696,19 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.RemoveCloudPassword(params.AccountID, params.Password)
 
+	case "GetPasskeyList":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		list, err := e.GetPasskeyList(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(list)
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}
