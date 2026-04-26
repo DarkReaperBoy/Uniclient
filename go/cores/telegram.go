@@ -13710,6 +13710,7 @@ type CloudPasswordState struct {
 	Hint                    string `json:"hint"`
 	EmailUnconfirmedPattern string `json:"emailUnconfirmedPattern"`
 	PendingResetDate        int    `json:"pendingResetDate"`
+	LoginEmailPattern       string `json:"loginEmailPattern"`
 }
 
 func (t *TelegramCore) GetCloudPasswordState() (CloudPasswordState, error) {
@@ -13727,6 +13728,9 @@ func (t *TelegramCore) GetCloudPasswordState() (CloudPasswordState, error) {
 	}
 	if date, ok := pw.GetPendingResetDate(); ok {
 		state.PendingResetDate = date
+	}
+	if pattern, ok := pw.GetLoginEmailPattern(); ok {
+		state.LoginEmailPattern = pattern
 	}
 	return state, nil
 }

@@ -27,6 +27,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
   String _hint = '';
   String _unconfirmedEmail = '';
   int _pendingResetDate = 0;
+  String _loginEmailPattern = '';
 
   int _globalTTL = 0;
 
@@ -75,6 +76,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
       _hint = state['hint'] as String? ?? '';
       _unconfirmedEmail = state['emailUnconfirmedPattern'] as String? ?? '';
       _pendingResetDate = state['pendingResetDate'] as int? ?? 0;
+      _loginEmailPattern = state['loginEmailPattern'] as String? ?? '';
 
       if (_unconfirmedEmail.isNotEmpty) {
         _2faLabel = 'On';
@@ -370,6 +372,16 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
           icon: Icons.fingerprint,
           label: 'Passkeys',
           rightLabel: _passkeysLabel,
+          textColor: textColor,
+          subtextColor: subtextColor,
+          hoverBg: hoverBg,
+          onTap: () {},
+        ),
+      if (_loginEmailPattern.isNotEmpty)
+        _PrivacyIconRow(
+          icon: Icons.email_outlined,
+          label: 'Login Email',
+          rightLabel: _loginEmailPattern,
           textColor: textColor,
           subtextColor: subtextColor,
           hoverBg: hoverBg,
