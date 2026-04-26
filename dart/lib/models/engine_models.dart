@@ -993,6 +993,33 @@ class SuggestedFolderInfo {
   });
 }
 
+// ── Chatlist invite link ──
+class ChatlistInviteLink {
+  final String url;
+  final String title;
+  final int peerCount;
+  final String slug;
+
+  const ChatlistInviteLink({
+    this.url = '',
+    this.title = '',
+    this.peerCount = 0,
+    this.slug = '',
+  });
+
+  String get displayName {
+    if (title.isNotEmpty) return title;
+    var s = url;
+    for (final prefix in ['https://', 'http://', 't.me/+', 't.me/joinchat/']) {
+      if (s.startsWith(prefix)) {
+        s = s.substring(prefix.length);
+        break;
+      }
+    }
+    return s;
+  }
+}
+
 // ── Search result ──
 class SearchResult {
   final String accountId;

@@ -832,6 +832,51 @@ func (e *Engine) CreateFolder(accountID, name string, chatIDs []string, opts *Cr
 	}, nil
 }
 
+// GetFolderInviteLinks returns invite links for a chat folder.
+func (e *Engine) GetFolderInviteLinks(accountID string, folderID int) ([]cores.ChatlistInviteLink, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	type linkGetter interface {
+		GetFolderInviteLinks(folderID int) ([]cores.ChatlistInviteLink, error)
+	}
+	if lg, ok := acc.Core.(linkGetter); ok {
+		return lg.GetFolderInviteLinks(folderID)
+	}
+	return nil, fmt.Errorf("core does not support folder invite links")
+}
+
+// CreateFolderInviteLink creates a shareable invite link for a folder.
+func (e *Engine) CreateFolderInviteLink(accountID string, folderID int, title string, peerIDs []string) (string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return "", fmt.Errorf("account not found: %s", accountID)
+	}
+	type linkCreator interface {
+		ExportChatlistInvite(folderID int, title string, peerIDs []string) (string, error)
+	}
+	if lc, ok := acc.Core.(linkCreator); ok {
+		return lc.ExportChatlistInvite(folderID, title, peerIDs)
+	}
+	return "", fmt.Errorf("core does not support folder invite links")
+}
+
+// DeleteFolderInviteLink deletes a shareable invite link for a folder.
+func (e *Engine) DeleteFolderInviteLink(accountID string, folderID int, slug string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	type linkDeleter interface {
+		DeleteChatlistInvite(folderID int, slug string) error
+	}
+	if ld, ok := acc.Core.(linkDeleter); ok {
+		return ld.DeleteChatlistInvite(folderID, slug)
+	}
+	return fmt.Errorf("core does not support folder invite links")
+}
+
 // emitChatUpdate reads the current chat state from DB and emits an update event.
 func (e *Engine) emitChatUpdate(accountID, chatID string) {
 	row := e.db.QueryRow(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 
@@ -1146,6 +1147,8 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
   bool _userTyped = false;
   String? _selectedIconName;
   int _colorIndex = -1;
+  List<ChatlistInviteLink> _inviteLinks = [];
+  bool _loadingLinks = false;
 
   static const _allIncludeTypes = <_PreviewTypeInfo>[
     _PreviewTypeInfo('contacts', 'Contacts', Icons.person, Color(0xFF7bc862)),
@@ -1178,6 +1181,24 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
       _userTyped = f.name.isNotEmpty;
       _colorIndex = f.colorIndex;
     }
+    if (widget.isEditMode) {
+      _loadInviteLinks();
+    }
+  }
+
+  void _loadInviteLinks() {
+    final f = widget.existingFolder;
+    if (f == null || f.id.isEmpty) return;
+    final folderId = int.tryParse(f.id);
+    if (folderId == null) return;
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccount?.id ?? '';
+    if (accountId.isEmpty) return;
+    setState(() => _loadingLinks = true);
+    engine.getFolderInviteLinks(accountId, folderId).then((links) {
+      if (mounted) setState(() { _inviteLinks = links; _loadingLinks = false; });
+    });
   }
 
   @override
@@ -1318,6 +1339,78 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
 
   void _removeExcludeType(String key) {
     _onToggle(key, false);
+  }
+
+  bool get _hasExclusions =>
+      _excludeMuted || _excludeRead || _excludeArchived ||
+      (widget.existingFolder?.excludeChatIds.isNotEmpty ?? false);
+
+  void _createInviteLink() {
+    if (_hasExclusions) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Can't create links for this folder."),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    final f = widget.existingFolder;
+    if (f == null || f.id.isEmpty) return;
+    final folderId = int.tryParse(f.id);
+    if (folderId == null) return;
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccount?.id ?? '';
+    if (accountId.isEmpty) return;
+    engine.createFolderInviteLink(accountId, folderId, f.name, f.chatIds).then((url) {
+      if (mounted && url != null) {
+        _loadInviteLinks();
+      }
+    });
+  }
+
+  void _deleteInviteLink(ChatlistInviteLink link) {
+    final f = widget.existingFolder;
+    if (f == null || f.id.isEmpty) return;
+    final folderId = int.tryParse(f.id);
+    if (folderId == null) return;
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccount?.id ?? '';
+    if (accountId.isEmpty) return;
+    engine.deleteFolderInviteLink(accountId, folderId, link.slug).then((ok) {
+      if (mounted && ok) {
+        setState(() => _inviteLinks.remove(link));
+      }
+    });
+  }
+
+  void _showLinkContextMenu(BuildContext context, ChatlistInviteLink link, Offset position) {
+    final isDark = widget.isDark;
+    final menuBg = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final menuText = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final deleteColor = isDark ? const Color(0xFFE53935) : const Color(0xFFE53935);
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx + 1, position.dy + 1),
+      color: menuBg,
+      items: [
+        PopupMenuItem(value: 'copy', child: Text('Copy Link', style: TextStyle(color: menuText, fontSize: 14))),
+        PopupMenuItem(value: 'delete', child: Text('Delete Link', style: TextStyle(color: deleteColor, fontSize: 14))),
+      ],
+    ).then((action) {
+      if (!mounted || action == null) return;
+      switch (action) {
+        case 'copy':
+          Clipboard.setData(ClipboardData(text: link.url));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Link copied'), duration: Duration(seconds: 1)),
+          );
+        case 'delete':
+          _deleteInviteLink(link);
+      }
+    });
   }
 
   void _openExcludeTypePicker() {
@@ -1594,6 +1687,19 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
                         folderName: _nameController.text.trim(),
                         onSelect: (idx) => setState(() => _colorIndex = idx),
                       ),
+                      if (widget.isEditMode) ...[
+                        const SizedBox(height: 16),
+                        _ShareableLinkSection(
+                          isDark: widget.isDark,
+                          accentColor: widget.accentColor,
+                          links: _inviteLinks,
+                          loading: _loadingLinks,
+                          hasExclusions: _hasExclusions,
+                          onCreateLink: _createInviteLink,
+                          onDeleteLink: _deleteInviteLink,
+                          onShowContextMenu: _showLinkContextMenu,
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -1908,6 +2014,222 @@ class _TagChipPainter extends CustomPainter {
       color != old.color ||
       isNoTag != old.isNoTag ||
       selectionProgress != old.selectionProgress;
+}
+
+class _ShareableLinkSection extends StatelessWidget {
+  final bool isDark;
+  final Color accentColor;
+  final List<ChatlistInviteLink> links;
+  final bool loading;
+  final bool hasExclusions;
+  final VoidCallback onCreateLink;
+  final void Function(ChatlistInviteLink) onDeleteLink;
+  final void Function(BuildContext, ChatlistInviteLink, Offset) onShowContextMenu;
+
+  const _ShareableLinkSection({
+    required this.isDark,
+    required this.accentColor,
+    required this.links,
+    required this.loading,
+    required this.hasExclusions,
+    required this.onCreateLink,
+    required this.onDeleteLink,
+    required this.onShowContextMenu,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final hasLinks = links.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 0, 22, 4),
+          child: Text(
+            hasLinks ? 'Invite Links' : 'Share Folder',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: accentColor,
+            ),
+          ),
+        ),
+        _ShareLinkButton(
+          isDark: isDark,
+          accentColor: accentColor,
+          hasLinks: hasLinks,
+          onTap: onCreateLink,
+        ),
+        if (loading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+          ),
+        for (final link in links)
+          _InviteLinkRow(
+            link: link,
+            isDark: isDark,
+            textColor: textColor,
+            subtextColor: subtextColor,
+            onDelete: () => onDeleteLink(link),
+            onContextMenu: (pos) => onShowContextMenu(context, link, pos),
+          ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 4, 22, 0),
+          child: Text(
+            hasExclusions
+                ? "Folders with exclusions can't have shareable links."
+                : 'Create an invite link to let others join this folder.',
+            style: TextStyle(fontSize: 13, color: subtextColor),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ShareLinkButton extends StatelessWidget {
+  final bool isDark;
+  final Color accentColor;
+  final bool hasLinks;
+  final VoidCallback onTap;
+
+  const _ShareLinkButton({
+    required this.isDark,
+    required this.accentColor,
+    required this.hasLinks,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hoverColor =
+        isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        hoverColor: hoverColor,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(21, 11, 20, 9),
+          child: Row(
+            children: [
+              Icon(
+                hasLinks ? Icons.add : Icons.link,
+                size: 24,
+                color: accentColor,
+              ),
+              const SizedBox(width: 15),
+              Text(
+                hasLinks ? 'Add Link' : 'Create Link',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: accentColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InviteLinkRow extends StatelessWidget {
+  final ChatlistInviteLink link;
+  final bool isDark;
+  final Color textColor;
+  final Color subtextColor;
+  final VoidCallback onDelete;
+  final void Function(Offset) onContextMenu;
+
+  static const _greenCircle = Color(0xFF4fae4e);
+
+  const _InviteLinkRow({
+    required this.link,
+    required this.isDark,
+    required this.textColor,
+    required this.subtextColor,
+    required this.onDelete,
+    required this.onContextMenu,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hoverColor =
+        isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
+    final dotsColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          Clipboard.setData(ClipboardData(text: link.url));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Link copied'), duration: Duration(seconds: 1)),
+          );
+        },
+        hoverColor: hoverColor,
+        child: SizedBox(
+          height: 52,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(9, 4, 0, 0),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: const BoxDecoration(
+                    color: _greenCircle,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.link, color: Colors.white, size: 22),
+                ),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        link.displayName,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: textColor,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${link.peerCount} chat${link.peerCount == 1 ? '' : 's'}',
+                        style: TextStyle(fontSize: 12, color: subtextColor),
+                      ),
+                    ],
+                  ),
+                ),
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTapDown: (details) => onContextMenu(details.globalPosition),
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: Icon(Icons.more_vert, size: 20, color: dotsColor),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _FilterIconToggle extends StatefulWidget {

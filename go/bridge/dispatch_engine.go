@@ -762,6 +762,52 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(suggestions)
 
+	// ── Folder Invite Links ──
+
+	case "GetFolderInviteLinks":
+		var params struct {
+			AccountID string `json:"account_id"`
+			FolderID  int    `json:"folder_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		links, err := e.GetFolderInviteLinks(params.AccountID, params.FolderID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(links)
+
+	case "CreateFolderInviteLink":
+		var params struct {
+			AccountID string   `json:"account_id"`
+			FolderID  int      `json:"folder_id"`
+			Title     string   `json:"title"`
+			PeerIDs   []string `json:"peer_ids"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		url, err := e.CreateFolderInviteLink(params.AccountID, params.FolderID, params.Title, params.PeerIDs)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]string{"url": url})
+
+	case "DeleteFolderInviteLink":
+		var params struct {
+			AccountID string `json:"account_id"`
+			FolderID  int    `json:"folder_id"`
+			Slug      string `json:"slug"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.DeleteFolderInviteLink(params.AccountID, params.FolderID, params.Slug); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
 	// ── Config ──
 
 	case "GetConfig":

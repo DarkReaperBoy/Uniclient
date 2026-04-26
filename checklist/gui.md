@@ -690,7 +690,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 18.5 Recommended Folders
 
 ### 18.6 Edit Filter Box
-- [ ] Shareable Link section: "Share Folder"/"Invite Links" title, Create/Add Link buttons, link rows (52px, green circle, name+status+three-dots), context menu (Copy/Share/QR/Name it/Delete), validation on create (no exclusions or rule flags) — spec §18.6.5 & §18.6.5.1
 - [ ] Save validation: empty/overlong title → showError+scroll to top; no include types + no chats → toast; all types+NoArchived+no specific chats → toast — spec §18.6.6
 
 ### 18.7 Include/Exclude Picker

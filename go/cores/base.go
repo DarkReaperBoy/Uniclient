@@ -416,6 +416,13 @@ type SuggestedFolder struct {
 	Description string `json:"description"`
 }
 
+type ChatlistInviteLink struct {
+	URL       string `json:"url"`
+	Title     string `json:"title"`
+	PeerCount int    `json:"peer_count"`
+	Slug      string `json:"slug"`
+}
+
 // Session represents an active login session on a device.
 type Session struct {
 	ID         string    `json:"id"`

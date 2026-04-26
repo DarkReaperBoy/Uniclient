@@ -418,6 +418,66 @@ class EngineService {
     await _callAsync('__engine', 'DeleteFolder', req.writeToBuffer());
   }
 
+  // ── Folder Invite Links ──
+
+  Future<List<ChatlistInviteLink>> getFolderInviteLinks(String accountId, int folderId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'folder_id': folderId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetFolderInviteLinks', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return [];
+      final list = json.decode(utf8.decode(respBytes)) as List<dynamic>?;
+      if (list == null) return [];
+      return list.map((e) {
+        final m = e as Map<String, dynamic>;
+        return ChatlistInviteLink(
+          url: m['url'] as String? ?? '',
+          title: m['title'] as String? ?? '',
+          peerCount: m['peer_count'] as int? ?? 0,
+          slug: m['slug'] as String? ?? '',
+        );
+      }).toList();
+    } catch (e) {
+      Debug.error('ENGINE', 'getFolderInviteLinks failed', e);
+      return [];
+    }
+  }
+
+  Future<String?> createFolderInviteLink(String accountId, int folderId, String title, List<String> peerIds) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'folder_id': folderId,
+      'title': title,
+      'peer_ids': peerIds,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'CreateFolderInviteLink', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      final m = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return m['url'] as String?;
+    } catch (e) {
+      Debug.error('ENGINE', 'createFolderInviteLink failed', e);
+      return null;
+    }
+  }
+
+  Future<bool> deleteFolderInviteLink(String accountId, int folderId, String slug) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'folder_id': folderId,
+      'slug': slug,
+    }));
+    try {
+      await _callAsync('__engine', 'DeleteFolderInviteLink', Uint8List.fromList(payload));
+      return true;
+    } catch (e) {
+      Debug.error('ENGINE', 'deleteFolderInviteLink failed', e);
+      return false;
+    }
+  }
+
   // ── Members ──
 
   Future<List<MemberInfo>> getChatMembers(String accountId, String chatId, {int limit = 50, int offset = 0}) async {

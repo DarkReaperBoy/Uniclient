@@ -14933,13 +14933,38 @@ func (t *TelegramCore) ExportChatlistInvite(folderID int, title string, peerIDs 
 	return result.Invite.URL, nil
 }
 
-// GetChatlistInvites returns invite links for a chat folder.
+// GetChatlistInvites returns invite links for a chat folder (count only).
 func (t *TelegramCore) GetChatlistInvites(folderID int) (int, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return 0, ErrAuth }
 	result, err := t.api.ChatlistsGetExportedInvites(t.ctx, tg.InputChatlistDialogFilter{FilterID: folderID})
 	if err != nil { return 0, err }
 	return len(result.Invites), nil
+}
+
+// GetFolderInviteLinks returns detailed invite link data for a chat folder.
+func (t *TelegramCore) GetFolderInviteLinks(folderID int) ([]ChatlistInviteLink, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return nil, ErrAuth }
+	result, err := t.api.ChatlistsGetExportedInvites(t.ctx, tg.InputChatlistDialogFilter{FilterID: folderID})
+	if err != nil { return nil, err }
+	var links []ChatlistInviteLink
+	for _, inv := range result.Invites {
+		slug := inv.URL
+		for i := len(slug) - 1; i >= 0; i-- {
+			if slug[i] == '/' || slug[i] == '+' {
+				slug = slug[i+1:]
+				break
+			}
+		}
+		links = append(links, ChatlistInviteLink{
+			URL:       inv.URL,
+			Title:     inv.Title,
+			PeerCount: len(inv.Peers),
+			Slug:      slug,
+		})
+	}
+	return links, nil
 }
 
 // DeleteChatlistInvite deletes an invite link for a chat folder.
