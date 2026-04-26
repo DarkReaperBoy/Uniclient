@@ -648,7 +648,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 16.2 Security Section
 
 ### 16.3 Privacy Section
-- [ ] Phone Number Privacy: Everyone/My Contacts/Nobody, "Nobody"→"Who can find me" sub-section (Everyone/Contacts), phone-link warning — spec §16.3.1
 - [ ] Last Seen & Online: first-time confirmation dialog, "Hide Read Time" toggle (non-Everyone only), non-Premium Premium button — spec §16.3.2
 - [ ] Profile Photo: Set/Update Public Photo button (ellipse crop), Remove Public Photo (red, when exists) — spec §16.3.3
 - [ ] Forwarded Messages: live forwarded message preview bubble matching user theme, "Forwarded from" header with user's name, tooltip (toastBg/toastFg with 7px arrow) changes per option — spec §16.3.4 & §16.3.4.1

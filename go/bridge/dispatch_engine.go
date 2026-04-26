@@ -1909,7 +1909,7 @@ func setPrivacySetting(e *engine.Engine, accountID, key, option string, alwaysID
 }
 
 func getAllPrivacySettings(e *engine.Engine, accountID string) ([]byte, error) {
-	keys := []string{"phone_number", "last_seen", "profile_photo", "forwards", "calls", "voice_messages", "chat_invite", "birthday", "gifts", "about", "saved_music"}
+	keys := []string{"phone_number", "last_seen", "profile_photo", "forwards", "calls", "voice_messages", "chat_invite", "birthday", "gifts", "about", "saved_music", "added_by_phone"}
 	result := make(map[string]*privacyResult)
 	acc := e.GetAccountCore(accountID)
 	if acc == nil {

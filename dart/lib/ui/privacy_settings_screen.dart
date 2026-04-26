@@ -498,6 +498,11 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     final current = _privacySettings[key];
     final currentOption = current?['option'] as String? ?? 'everyone';
 
+    String? addedByPhoneOption;
+    if (key == 'phone_number') {
+      addedByPhoneOption = _privacySettings['added_by_phone']?['option'] as String? ?? 'everyone';
+    }
+
     showDialog<void>(
       context: context,
       builder: (ctx) => _EditPrivacyBox(
@@ -507,12 +512,19 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
         currentOption: currentOption,
         accountId: accountId,
         engine: engine,
-        onSaved: (newOption) {
+        initialAddedByPhoneOption: addedByPhoneOption,
+        onSaved: (newOption, {String? addedByPhone}) {
           setState(() {
             _privacySettings[key] = {
               ...?_privacySettings[key],
               'option': newOption,
             };
+            if (addedByPhone != null) {
+              _privacySettings['added_by_phone'] = {
+                ...?_privacySettings['added_by_phone'],
+                'option': addedByPhone,
+              };
+            }
           });
         },
       ),
@@ -732,7 +744,8 @@ class _EditPrivacyBox extends StatefulWidget {
   final String currentOption;
   final String accountId;
   final EngineService engine;
-  final void Function(String newOption) onSaved;
+  final void Function(String newOption, {String? addedByPhone}) onSaved;
+  final String? initialAddedByPhoneOption;
 
   const _EditPrivacyBox({
     required this.title,
@@ -742,6 +755,7 @@ class _EditPrivacyBox extends StatefulWidget {
     required this.accountId,
     required this.engine,
     required this.onSaved,
+    this.initialAddedByPhoneOption,
   });
 
   @override
@@ -750,12 +764,16 @@ class _EditPrivacyBox extends StatefulWidget {
 
 class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
   late String _selected;
+  late String _addedByPhoneOption;
   bool _saving = false;
+
+  bool get _isPhoneNumber => widget.privacyKey == 'phone_number';
 
   @override
   void initState() {
     super.initState();
     _selected = widget.currentOption;
+    _addedByPhoneOption = widget.initialAddedByPhoneOption ?? 'everyone';
   }
 
   String _optionLabel(String opt) {
@@ -776,7 +794,17 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
         widget.privacyKey,
         _selected,
       );
-      widget.onSaved(_selected);
+      if (_isPhoneNumber && _selected == 'nobody') {
+        await widget.engine.setPrivacySetting(
+          widget.accountId,
+          'added_by_phone',
+          _addedByPhoneOption,
+        );
+      }
+      widget.onSaved(
+        _selected,
+        addedByPhone: _isPhoneNumber ? _addedByPhoneOption : null,
+      );
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
@@ -799,6 +827,7 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
     final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
     final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFF1F1F1);
     final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+    final warningColor = isDark ? const Color(0xFFE8A63B) : const Color(0xFFC57518);
 
     return Dialog(
       backgroundColor: bgColor,
@@ -829,7 +858,6 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
             ),
             const SizedBox(height: 4),
             ...widget.options.map((opt) {
-              final selected = opt == _selected;
               return InkWell(
                 onTap: () => setState(() => _selected = opt),
                 hoverColor: hoverBg,
@@ -861,6 +889,84 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
                 ),
               );
             }),
+            if (_isPhoneNumber && _selected == 'nobody') ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 8, 22, 0),
+                child: Divider(height: 1, color: dividerColor),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 10, 22, 4),
+                child: Text(
+                  'Who can find me by my number?',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 2, 22, 4),
+                child: Text(
+                  'Users who have your number saved in their contacts will see it on Telegram only if you add them to "Always Allow".',
+                  style: TextStyle(fontSize: 13, color: subtextColor),
+                ),
+              ),
+              ...['everyone', 'contacts'].map((opt) {
+                return InkWell(
+                  onTap: () => setState(() => _addedByPhoneOption = opt),
+                  hoverColor: hoverBg,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(22, 10, 22, 8),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: Radio<String>(
+                            value: opt,
+                            groupValue: _addedByPhoneOption,
+                            onChanged: (v) {
+                              if (v != null) setState(() => _addedByPhoneOption = v);
+                            },
+                            activeColor: accentColor,
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Text(
+                          _optionLabel(opt),
+                          style: TextStyle(fontSize: 14, color: textColor),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ],
+            if (_isPhoneNumber && _selected != 'nobody') ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 8, 22, 0),
+                child: Divider(height: 1, color: dividerColor),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 8, 22, 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_outline, size: 16, color: warningColor),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Users who add your phone number to their contacts will be able to see it and find you on Telegram.',
+                        style: TextStyle(fontSize: 13, color: warningColor),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             Padding(
               padding: const EdgeInsets.fromLTRB(22, 8, 22, 0),
               child: Divider(height: 1, color: dividerColor),
