@@ -16,13 +16,14 @@ class _LanguageBoxState extends State<LanguageBox> {
   List<_LangEntry> _filtered = [];
   bool _loading = true;
   String _searchQuery = '';
-  String _selectedCode = 'en';
+  late String _selectedCode;
   final _searchController = TextEditingController();
   final _searchFocus = FocusNode();
 
   @override
   void initState() {
     super.initState();
+    _selectedCode = context.read<AppState>().selectedLanguageCode;
     _loadLanguages();
   }
 
@@ -79,6 +80,7 @@ class _LanguageBoxState extends State<LanguageBox> {
   }
 
   void _selectLanguage(String langCode) {
+    context.read<AppState>().addRecentLanguage(langCode);
     setState(() => _selectedCode = langCode);
     Navigator.of(context).pop(langCode);
   }
@@ -281,8 +283,25 @@ class _LanguageBoxState extends State<LanguageBox> {
     Color hoverColor,
     Color dividerColor,
   ) {
-    final official = _filtered.where((l) => l.official).toList();
-    final recent = _filtered.where((l) => !l.official).toList();
+    final appState = context.read<AppState>();
+    final recentCodes = appState.recentLanguageCodes;
+
+    // §19.15: Recent = languages whose code is in recentLanguageCodes, ordered by recency.
+    // Current selected language is always first if it's in the filtered list.
+    final recent = <_LangEntry>[];
+    final recentCodeSet = <String>{};
+    for (final code in recentCodes) {
+      final entry = _filtered.where((l) => l.langCode == code).firstOrNull;
+      if (entry != null) {
+        recent.add(entry);
+        recentCodeSet.add(code);
+      }
+    }
+
+    // §19.15: Official = official languages NOT already in Recent (de-duplicated).
+    final official = _filtered
+        .where((l) => l.official && !recentCodeSet.contains(l.langCode))
+        .toList();
 
     return ListView.builder(
       shrinkWrap: true,
@@ -300,16 +319,10 @@ class _LanguageBoxState extends State<LanguageBox> {
 
   int _sectionItemCount(List<_LangEntry> official, List<_LangEntry> recent) {
     int count = 0;
-    if (recent.isNotEmpty) {
-      count += 1 + recent.length;
-    }
+    if (recent.isNotEmpty) count += 1 + recent.length; // header + rows
     if (official.isNotEmpty) {
-      if (recent.isNotEmpty) count += 1;
-      count += 1 + official.length;
-    }
-    if (recent.isEmpty && official.isEmpty) return 0;
-    if (recent.isEmpty && official.isNotEmpty) {
-      return 1 + official.length;
+      if (recent.isNotEmpty) count += 1; // BoxContentDivider
+      count += 1 + official.length; // header + rows
     }
     return count;
   }
@@ -328,18 +341,16 @@ class _LanguageBoxState extends State<LanguageBox> {
     int offset = 0;
 
     if (recent.isNotEmpty) {
-      if (index == offset) {
-        return _sectionHeader('Recent', isDark);
-      }
+      if (index == offset) return _sectionHeader('Recent', isDark);
       offset++;
       if (index < offset + recent.length) {
-        final lang = recent[index - offset];
-        return _languageRow(lang, isDark, textColor, subTextColor, accentColor, hoverColor);
+        return _languageRow(recent[index - offset], isDark, textColor, subTextColor, accentColor, hoverColor);
       }
       offset += recent.length;
 
       if (official.isNotEmpty) {
         if (index == offset) {
+          // §19.15: BoxContentDivider between Recent and Official sections.
           return Container(height: 7, color: dividerColor);
         }
         offset++;
@@ -347,13 +358,10 @@ class _LanguageBoxState extends State<LanguageBox> {
     }
 
     if (official.isNotEmpty) {
-      if (index == offset) {
-        return _sectionHeader('Official', isDark);
-      }
+      if (index == offset) return _sectionHeader('Official', isDark);
       offset++;
       if (index < offset + official.length) {
-        final lang = official[index - offset];
-        return _languageRow(lang, isDark, textColor, subTextColor, accentColor, hoverColor);
+        return _languageRow(official[index - offset], isDark, textColor, subTextColor, accentColor, hoverColor);
       }
     }
 

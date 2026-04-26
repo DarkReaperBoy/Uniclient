@@ -83,6 +83,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _translateEntireChats = false;
   List<String> _skipTranslationLanguages = ['en'];
 
+  // §19.15: Recently used language codes (most-recent first), persisted.
+  List<String> _recentLanguageCodes = [];
+  String _selectedLanguageCode = 'en';
+
   /// Callback for showing connection-state notifications (set by UI layer).
   void Function(String text, IconData icon, Color color)? onConnStateNotification;
 
@@ -436,6 +440,21 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  // §19.15: Recent language codes and selected language.
+  List<String> get recentLanguageCodes => List.unmodifiable(_recentLanguageCodes);
+  String get selectedLanguageCode => _selectedLanguageCode;
+
+  void addRecentLanguage(String code) {
+    _recentLanguageCodes.remove(code);
+    _recentLanguageCodes.insert(0, code);
+    if (_recentLanguageCodes.length > 20) {
+      _recentLanguageCodes = _recentLanguageCodes.sublist(0, 20);
+    }
+    _selectedLanguageCode = code;
+    _saveWindowPrefs();
+    notifyListeners();
+  }
+
   Map<String, bool> get experimentalFlags => Map.unmodifiable(_experimentalFlags);
 
   void setExperimentalFlag(String key, bool value) {
@@ -722,6 +741,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       if (skipLangs != null && skipLangs.isNotEmpty) {
         _skipTranslationLanguages = skipLangs.cast<String>();
       }
+      final recLangs = data['recentLanguageCodes'] as List<dynamic>?;
+      if (recLangs != null) _recentLanguageCodes = recLangs.cast<String>();
+      _selectedLanguageCode = data['selectedLanguageCode'] as String? ?? 'en';
       final order = data['accountOrder'] as List<dynamic>?;
       if (order != null) _accountOrder = order.cast<String>();
     } catch (_) {}
@@ -761,6 +783,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'showTranslateButton': _showTranslateButton,
         'translateEntireChats': _translateEntireChats,
         'skipTranslationLanguages': _skipTranslationLanguages,
+        'recentLanguageCodes': _recentLanguageCodes,
+        'selectedLanguageCode': _selectedLanguageCode,
         'experimentalFlags': _experimentalFlags,
       }));
     } catch (_) {}
