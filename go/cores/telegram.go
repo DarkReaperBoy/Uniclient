@@ -9168,8 +9168,9 @@ func (t *TelegramCore) GetFolders() ([]Folder, error) {
 		case *tg.DialogFilterChatlist:
 			// Shared/public folders — explicit include list only, no type filters.
 			folder = Folder{
-				ID:   strconv.Itoa(filter.ID),
-				Name: filter.Title.Text,
+				ID:         strconv.Itoa(filter.ID),
+				Name:       filter.Title.Text,
+				IsChatList: true,
 			}
 			for _, p := range filter.IncludePeers {
 				folder.ChatIDs = append(folder.ChatIDs, inputPeerToID(p))
@@ -15013,6 +15014,39 @@ func (t *TelegramCore) DeleteChatlistInvite(folderID int, slug string) error {
 	_, err := t.api.ChatlistsDeleteExportedInvite(t.ctx, &tg.ChatlistsDeleteExportedInviteRequest{
 		Chatlist: tg.InputChatlistDialogFilter{FilterID: folderID},
 		Slug:     slug,
+	})
+	return err
+}
+
+// GetLeaveChatlistSuggestions returns peer IDs the server suggests leaving when removing a chatlist folder.
+func (t *TelegramCore) GetLeaveChatlistSuggestions(folderID int) ([]string, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return nil, ErrAuth }
+	peers, err := t.api.ChatlistsGetLeaveChatlistSuggestions(t.ctx, tg.InputChatlistDialogFilter{FilterID: folderID})
+	if err != nil { return nil, err }
+	ids := make([]string, 0, len(peers))
+	for _, p := range peers {
+		if id := peerToID(p); id != "" {
+			ids = append(ids, id)
+		}
+	}
+	return ids, nil
+}
+
+// LeaveChatlistFolder leaves a chatlist folder, optionally leaving selected peers.
+func (t *TelegramCore) LeaveChatlistFolder(folderID int, peerIDs []string) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	var peers []tg.InputPeerClass
+	for _, pid := range peerIDs {
+		peer, err := t.resolvePeer(pid)
+		if err != nil { continue }
+		ip, _ := t.toInputPeer(peer)
+		peers = append(peers, ip)
+	}
+	_, err := t.api.ChatlistsLeaveChatlist(t.ctx, &tg.ChatlistsLeaveChatlistRequest{
+		Chatlist: tg.InputChatlistDialogFilter{FilterID: folderID},
+		Peers:    peers,
 	})
 	return err
 }

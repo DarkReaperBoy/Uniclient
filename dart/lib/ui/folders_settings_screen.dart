@@ -124,27 +124,13 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
 
   void _showChatListRemoveConfirmation(FolderInfo folder, int index) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
     showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF1E2C3A) : Colors.white,
-        title: const Text('Remove folder'),
-        content: const Text(
-          'This will also delete all invite links created for this folder.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFFE53935),
-            ),
-            child: const Text('Remove'),
-          ),
-        ],
+      builder: (ctx) => _ChatlistFolderRemovalDialog(
+        isDark: isDark,
+        accentColor: accentColor,
+        folder: folder,
       ),
     ).then((confirmed) {
       if (confirmed == true) {
@@ -3795,6 +3781,239 @@ class _ExcludeTypePickerState extends State<_ExcludeTypePicker> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ChatlistFolderRemovalDialog extends StatefulWidget {
+  final bool isDark;
+  final Color accentColor;
+  final FolderInfo folder;
+
+  const _ChatlistFolderRemovalDialog({
+    required this.isDark,
+    required this.accentColor,
+    required this.folder,
+  });
+
+  @override
+  State<_ChatlistFolderRemovalDialog> createState() =>
+      _ChatlistFolderRemovalDialogState();
+}
+
+class _ChatlistFolderRemovalDialogState
+    extends State<_ChatlistFolderRemovalDialog> {
+  Set<String> _selectedPeerIds = {};
+  List<ChatInfo> _alwaysChats = [];
+  bool _loading = true;
+  bool _leaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSuggestions();
+  }
+
+  Future<void> _loadSuggestions() async {
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+    final chatState = context.read<ChatState>();
+    final accountId = appState.activeAccount?.id ?? '';
+    final folderId = int.tryParse(widget.folder.id);
+    if (accountId.isEmpty || folderId == null) {
+      setState(() => _loading = false);
+      return;
+    }
+
+    final allChats = chatState.chatsForAccount(accountId);
+    final folderChatIds = widget.folder.chatIds.toSet();
+    final chats = folderChatIds.isEmpty
+        ? <ChatInfo>[]
+        : allChats.where((c) => folderChatIds.contains(c.chatId)).toList();
+
+    List<String> suggestedIds = [];
+    try {
+      suggestedIds =
+          await engine.getLeaveChatlistSuggestions(accountId, folderId);
+    } catch (_) {}
+
+    if (!mounted) return;
+    setState(() {
+      _alwaysChats = chats;
+      _selectedPeerIds = Set<String>.from(suggestedIds);
+      _loading = false;
+    });
+  }
+
+  Future<void> _onLeave() async {
+    if (_leaving) return;
+    setState(() => _leaving = true);
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+    final accountId = appState.activeAccount?.id ?? '';
+    final folderId = int.tryParse(widget.folder.id);
+    if (accountId.isEmpty || folderId == null) {
+      setState(() => _leaving = false);
+      return;
+    }
+    final ok = await engine.leaveChatlistFolder(
+      accountId,
+      folderId,
+      _selectedPeerIds.toList(),
+    );
+    if (!mounted) return;
+    setState(() => _leaving = false);
+    if (ok) {
+      Navigator.of(context).pop(true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to leave folder'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = widget.isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor =
+        widget.isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final dividerColor =
+        widget.isDark ? const Color(0xFF101921) : const Color(0xFFE8E8E8);
+
+    final selectedCount = _selectedPeerIds.length;
+    final buttonLabel =
+        selectedCount > 0 ? 'Remove and leave $selectedCount' : 'Remove';
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: SizedBox(
+        width: 364,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 20, 22, 8),
+                child: Text(
+                  'Remove folder',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 0, 22, 12),
+                child: Text(
+                  'Do you also want to leave the channels and groups that are in this folder?',
+                  style: TextStyle(fontSize: 13, color: subtextColor),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              if (_loading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(
+                    child: SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                )
+              else if (_alwaysChats.isNotEmpty) ...[
+                Divider(height: 1, thickness: 1, color: dividerColor),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 10, 22, 6),
+                  child: Text(
+                    'Chats',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: widget.accentColor,
+                    ),
+                  ),
+                ),
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: _alwaysChats.length,
+                    itemExtent: 52,
+                    itemBuilder: (ctx, i) {
+                      final chat = _alwaysChats[i];
+                      final checked =
+                          _selectedPeerIds.contains(chat.chatId);
+                      return _ShowLinkPeerRow(
+                        chat: chat,
+                        isDark: widget.isDark,
+                        accentColor: widget.accentColor,
+                        checked: checked,
+                        disabled: false,
+                        disabledReason: '',
+                        onToggle: () {
+                          setState(() {
+                            if (checked) {
+                              _selectedPeerIds.remove(chat.chatId);
+                            } else {
+                              _selectedPeerIds.add(chat.chatId);
+                            }
+                          });
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+              Divider(height: 1, thickness: 1, color: dividerColor),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 12, 22, 16),
+                child: SizedBox(
+                  height: 42,
+                  child: TextButton(
+                    onPressed: _leaving ? null : _onLeave,
+                    style: TextButton.styleFrom(
+                      backgroundColor: widget.accentColor,
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: _leaving
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            buttonLabel,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

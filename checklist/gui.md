@@ -698,7 +698,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 18.9 Show Link Box
 
 ### 18.10 Chatlist Folder Removal Dialog
-- [ ] PeerListBox (filterInviteBox, 42px buttons): channels from folder always-list, server-suggested peers pre-selected, action button with selected count badge — spec §18.10
 
 ### 18.11 Folder Tags Toggle
 - [ ] "Show Folder Tags" settingsButtonNoIconLocked with toggle: non-Premium→PremiumPreviewBox(FilterTags), Premium→500ms debounce request, tag toggle drives 120ms color dot animations on all folder rows — spec §18.11

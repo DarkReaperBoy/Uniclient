@@ -584,6 +584,7 @@ message EngineFolderInfo {
   bool exclude_muted   = 11;
   bool exclude_read    = 12;
   bool exclude_archived = 13;
+  bool is_chat_list     = 14;
 }
 
 message EngineGetFoldersRequest {

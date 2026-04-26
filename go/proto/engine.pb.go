@@ -4834,6 +4834,7 @@ type EngineFolderInfo struct {
 	ExcludeMuted    bool                   `protobuf:"varint,11,opt,name=exclude_muted,json=excludeMuted,proto3" json:"exclude_muted,omitempty"`
 	ExcludeRead     bool                   `protobuf:"varint,12,opt,name=exclude_read,json=excludeRead,proto3" json:"exclude_read,omitempty"`
 	ExcludeArchived bool                   `protobuf:"varint,13,opt,name=exclude_archived,json=excludeArchived,proto3" json:"exclude_archived,omitempty"`
+	IsChatList      bool                   `protobuf:"varint,14,opt,name=is_chat_list,json=isChatList,proto3" json:"is_chat_list,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -4955,6 +4956,13 @@ func (x *EngineFolderInfo) GetExcludeRead() bool {
 func (x *EngineFolderInfo) GetExcludeArchived() bool {
 	if x != nil {
 		return x.ExcludeArchived
+	}
+	return false
+}
+
+func (x *EngineFolderInfo) GetIsChatList() bool {
+	if x != nil {
+		return x.IsChatList
 	}
 	return false
 }
@@ -9740,7 +9748,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\rnotify_groups\x18\f \x01(\bR\fnotifyGroups\x12*\n" +
 	"\x11has_notify_groups\x18\r \x01(\bR\x0fhasNotifyGroups\x120\n" +
 	"\x14notify_mentions_only\x18\x0e \x01(\bR\x12notifyMentionsOnly\x127\n" +
-	"\x18has_notify_mentions_only\x18\x0f \x01(\bR\x15hasNotifyMentionsOnly\"\x9d\x03\n" +
+	"\x18has_notify_mentions_only\x18\x0f \x01(\bR\x15hasNotifyMentionsOnly\"\xbf\x03\n" +
 	"\x10EngineFolderInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x19\n" +
@@ -9755,7 +9763,9 @@ const file_proto_engine_proto_rawDesc = "" +
 	" \x01(\bR\x04bots\x12#\n" +
 	"\rexclude_muted\x18\v \x01(\bR\fexcludeMuted\x12!\n" +
 	"\fexclude_read\x18\f \x01(\bR\vexcludeRead\x12)\n" +
-	"\x10exclude_archived\x18\r \x01(\bR\x0fexcludeArchived\"8\n" +
+	"\x10exclude_archived\x18\r \x01(\bR\x0fexcludeArchived\x12 \n" +
+	"\fis_chat_list\x18\x0e \x01(\bR\n" +
+	"isChatList\"8\n" +
 	"\x17EngineGetFoldersRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\"Q\n" +

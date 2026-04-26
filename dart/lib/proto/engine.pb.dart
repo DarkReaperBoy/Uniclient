@@ -6439,6 +6439,7 @@ class EngineFolderInfo extends $pb.GeneratedMessage {
     $core.bool? excludeMuted,
     $core.bool? excludeRead,
     $core.bool? excludeArchived,
+    $core.bool? isChatList,
   }) {
     final $result = create();
     if (id != null) {
@@ -6480,6 +6481,9 @@ class EngineFolderInfo extends $pb.GeneratedMessage {
     if (excludeArchived != null) {
       $result.excludeArchived = excludeArchived;
     }
+    if (isChatList != null) {
+      $result.isChatList = isChatList;
+    }
     return $result;
   }
   EngineFolderInfo._() : super();
@@ -6500,6 +6504,7 @@ class EngineFolderInfo extends $pb.GeneratedMessage {
     ..aOB(11, _omitFieldNames ? '' : 'excludeMuted')
     ..aOB(12, _omitFieldNames ? '' : 'excludeRead')
     ..aOB(13, _omitFieldNames ? '' : 'excludeArchived')
+    ..aOB(14, _omitFieldNames ? '' : 'isChatList')
     ..hasRequiredFields = false
   ;
 
@@ -6622,6 +6627,15 @@ class EngineFolderInfo extends $pb.GeneratedMessage {
   $core.bool hasExcludeArchived() => $_has(12);
   @$pb.TagNumber(13)
   void clearExcludeArchived() => clearField(13);
+
+  @$pb.TagNumber(14)
+  $core.bool get isChatList => $_getBF(13);
+  @$pb.TagNumber(14)
+  set isChatList($core.bool v) { $_setBool(13, v); }
+  @$pb.TagNumber(14)
+  $core.bool hasIsChatList() => $_has(13);
+  @$pb.TagNumber(14)
+  void clearIsChatList() => clearField(14);
 }
 
 class EngineGetFoldersRequest extends $pb.GeneratedMessage {

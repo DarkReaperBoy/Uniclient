@@ -503,6 +503,38 @@ class EngineService {
     }
   }
 
+  Future<List<String>> getLeaveChatlistSuggestions(String accountId, int folderId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'folder_id': folderId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetLeaveChatlistSuggestions', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return [];
+      final list = json.decode(utf8.decode(respBytes)) as List<dynamic>?;
+      if (list == null) return [];
+      return list.cast<String>();
+    } catch (e) {
+      Debug.error('ENGINE', 'getLeaveChatlistSuggestions failed', e);
+      return [];
+    }
+  }
+
+  Future<bool> leaveChatlistFolder(String accountId, int folderId, List<String> peerIds) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'folder_id': folderId,
+      'peer_ids': peerIds,
+    }));
+    try {
+      await _callAsync('__engine', 'LeaveChatlistFolder', Uint8List.fromList(payload));
+      return true;
+    } catch (e) {
+      Debug.error('ENGINE', 'leaveChatlistFolder failed', e);
+      return false;
+    }
+  }
+
   // ── Members ──
 
   Future<List<MemberInfo>> getChatMembers(String accountId, String chatId, {int limit = 50, int offset = 0}) async {
@@ -2689,6 +2721,7 @@ class EngineService {
     excludeMuted: p.excludeMuted,
     excludeRead: p.excludeRead,
     excludeArchived: p.excludeArchived,
+    isChatList: p.isChatList,
   );
 
   static SharedMediaItem _sharedMediaItemFromProto(epb.EngineSharedMediaItem p) => SharedMediaItem(

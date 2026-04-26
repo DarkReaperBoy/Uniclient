@@ -639,6 +639,7 @@ type FolderInfo struct {
 	ExcludeMuted    bool
 	ExcludeRead     bool
 	ExcludeArchived bool
+	IsChatList      bool
 }
 
 // GetFolders returns synced folders from the core, if the core supports them.
@@ -680,6 +681,7 @@ func (e *Engine) GetFolders(accountID string) ([]FolderInfo, error) {
 			ExcludeMuted:    f.ExcludeMuted,
 			ExcludeRead:     f.ExcludeRead,
 			ExcludeArchived: f.ExcludeArchived,
+			IsChatList:      f.IsChatList,
 		}
 	}
 	return result, nil
@@ -890,6 +892,36 @@ func (e *Engine) DeleteFolderInviteLink(accountID string, folderID int, slug str
 		return ld.DeleteChatlistInvite(folderID, slug)
 	}
 	return fmt.Errorf("core does not support folder invite links")
+}
+
+// GetLeaveChatlistSuggestions returns peer IDs the server suggests leaving when removing a chatlist folder.
+func (e *Engine) GetLeaveChatlistSuggestions(accountID string, folderID int) ([]string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	type suggGetter interface {
+		GetLeaveChatlistSuggestions(folderID int) ([]string, error)
+	}
+	if sg, ok := acc.Core.(suggGetter); ok {
+		return sg.GetLeaveChatlistSuggestions(folderID)
+	}
+	return nil, fmt.Errorf("core does not support chatlist leave suggestions")
+}
+
+// LeaveChatlistFolder leaves a chatlist folder, optionally leaving selected peers.
+func (e *Engine) LeaveChatlistFolder(accountID string, folderID int, peerIDs []string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	type chatlistLeaver interface {
+		LeaveChatlistFolder(folderID int, peerIDs []string) error
+	}
+	if cl, ok := acc.Core.(chatlistLeaver); ok {
+		return cl.LeaveChatlistFolder(folderID, peerIDs)
+	}
+	return fmt.Errorf("core does not support chatlist leave")
 }
 
 // emitChatUpdate reads the current chat state from DB and emits an update event.

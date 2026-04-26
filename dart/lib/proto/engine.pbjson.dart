@@ -1164,6 +1164,7 @@ const EngineFolderInfo$json = {
     {'1': 'exclude_muted', '3': 11, '4': 1, '5': 8, '10': 'excludeMuted'},
     {'1': 'exclude_read', '3': 12, '4': 1, '5': 8, '10': 'excludeRead'},
     {'1': 'exclude_archived', '3': 13, '4': 1, '5': 8, '10': 'excludeArchived'},
+    {'1': 'is_chat_list', '3': 14, '4': 1, '5': 8, '10': 'isChatList'},
   ],
 };
 

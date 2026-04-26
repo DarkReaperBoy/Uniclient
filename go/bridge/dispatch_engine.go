@@ -708,6 +708,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 				ExcludeMuted:    f.ExcludeMuted,
 				ExcludeRead:     f.ExcludeRead,
 				ExcludeArchived: f.ExcludeArchived,
+				IsChatList:      f.IsChatList,
 			})
 		}
 		return proto.Marshal(resp)
@@ -820,6 +821,34 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			return nil, err
 		}
 		if err := e.DeleteFolderInviteLink(params.AccountID, params.FolderID, params.Slug); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
+	case "GetLeaveChatlistSuggestions":
+		var params struct {
+			AccountID string `json:"account_id"`
+			FolderID  int    `json:"folder_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		ids, err := e.GetLeaveChatlistSuggestions(params.AccountID, params.FolderID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(ids)
+
+	case "LeaveChatlistFolder":
+		var params struct {
+			AccountID string   `json:"account_id"`
+			FolderID  int      `json:"folder_id"`
+			PeerIDs   []string `json:"peer_ids"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.LeaveChatlistFolder(params.AccountID, params.FolderID, params.PeerIDs); err != nil {
 			return nil, err
 		}
 		return nil, nil
