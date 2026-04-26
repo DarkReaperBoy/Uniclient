@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
@@ -228,8 +229,7 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
   }
 }
 
-// §18.2 Animated header with icon + description
-class _AnimatedHeader extends StatelessWidget {
+class _AnimatedHeader extends StatefulWidget {
   final bool isDark;
   final Color dividerBg;
   final Color subtextColor;
@@ -241,35 +241,62 @@ class _AnimatedHeader extends StatelessWidget {
   });
 
   @override
+  State<_AnimatedHeader> createState() => _AnimatedHeaderState();
+}
+
+class _AnimatedHeaderState extends State<_AnimatedHeader>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _lottieController;
+
+  @override
+  void initState() {
+    super.initState();
+    _lottieController = AnimationController(vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _lottieController.dispose();
+    super.dispose();
+  }
+
+  void _onLottieLoaded(LottieComposition composition) {
+    _lottieController
+      ..duration = composition.duration
+      ..forward();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Container(
-      color: dividerBg,
+      color: widget.dividerBg,
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(0, 17, 0, 5),
       child: Column(
         children: [
-          // Lottie placeholder: 74x74 folder icon
-          Container(
-            width: 74,
-            height: 74,
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF2B5278) : const Color(0xFF40A7E3),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.folder_outlined,
-              size: 40,
-              color: Colors.white,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(0, 17, 0, 5),
+            child: SizedBox(
+              width: 74,
+              height: 74,
+              child: Lottie.asset(
+                'assets/animations/filters.json',
+                controller: _lottieController,
+                onLoaded: _onLottieLoaded,
+                fit: BoxFit.contain,
+              ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 22),
-            child: Text(
-              'Create folders for different groups of chats and quickly switch between them.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
-                color: subtextColor,
+          ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 200),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(0, 16, 0, 22),
+              child: Text(
+                'Create folders for different groups of chats\nand quickly switch between them.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: widget.subtextColor,
+                ),
               ),
             ),
           ),

@@ -682,7 +682,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 <!-- dart/lib/ui/settings_screen.dart (nav row only); dart/lib/ui/filter_column.dart (sidebar rendering) -->
 
 ### 18.2 Animated Header
-- [ ] BoxContentDivider header: Lottie `filters` 74×74px (padding 0/17/0/5, plays once), description label (settingsFilterDividerLabel, 13px regular, windowSubTextFg, min 200px, padding 0/16/0/22, balanced wrapping) — spec §18.2 & §18.2.1
 
 ### 18.3 Existing Folders List
 - [ ] FilterRowButton rows (52px height, RippleButton): folder icon (activeButtonBg/Over), title (contactsNameStyle + custom emoji support), status "{N} chats" + shareable indicator, color dot (circle height/3 diameter, EmptyUserpic color, animated via _colorIndexProgress), Remove X button (filtersRemove style), Restore RoundButton (26px, full radius), row states (Normal/Removed/Suggested), windowBgOver hover (instant), defaultRippleAnimation, click→EditFilterBox, removal confirmation dialogs — spec §18.3 & §18.3.1
