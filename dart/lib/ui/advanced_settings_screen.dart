@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -19,7 +20,6 @@ class AdvancedSettingsScreen extends StatefulWidget {
 enum _UpdateState { idle, checking, latest, failed }
 
 class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
-  bool _askDownloadPath = false;
   _UpdateState _updateState = _UpdateState.idle;
 
   @override
@@ -37,7 +37,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     // §14.7.0: 11 sections in spec order.
     final sections = <List<Widget>>[
       _buildSoftwareUpdateTop(isDark),        // 1. Update (non-auto only)
-      _buildDataAndStorage(isDark),            // 2. Data and Storage
+      _buildDataAndStorage(isDark, appState),   // 2. Data and Storage
       _buildAutoMediaDownload(isDark),         // 3. Automatic Media Download
       _buildWindowTitle(isDark, appState),     // 4. Window Title
       _buildWindowCloseBehavior(isDark),       // 5. Window Close (Linux only)
@@ -196,7 +196,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
   }
 
   // §14.7.1: Connection Type, Download Path, Local Storage, Downloads, Ask path toggle.
-  List<Widget> _buildDataAndStorage(bool isDark) {
+  List<Widget> _buildDataAndStorage(bool isDark, AppState appState) {
     final textColor =
         isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subtextColor =
@@ -222,16 +222,16 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
           builder: (_) => const _ProxiesBox(),
         ),
       ),
-      if (!_askDownloadPath)
+      if (!appState.askDownloadPath)
         _AdvancedIconButtonRow(
           icon: Icons.folder_open,
           label: 'Download path',
-          rightLabel: 'Default folder',
+          rightLabel: appState.downloadPathLabel,
           textColor: textColor,
           subtextColor: subtextColor,
           iconColor: iconColor,
           hoverBg: hoverBg,
-          onTap: () {},
+          onTap: () => _showDownloadPathDialog(context, appState, isDark),
         ),
       _AdvancedIconButtonRow(
         icon: Icons.storage,
@@ -253,13 +253,95 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
       ),
       _AdvancedToggleRow(
         label: 'Ask download path for each file',
-        value: _askDownloadPath,
-        onChanged: (v) => setState(() => _askDownloadPath = v),
+        value: appState.askDownloadPath,
+        onChanged: (v) => appState.setAskDownloadPath(v),
         textColor: textColor,
         accentColor: accentColor,
         hoverBg: hoverBg,
       ),
     ];
+  }
+
+  void _showDownloadPathDialog(BuildContext context, AppState appState, bool isDark) {
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: bgColor,
+          title: Text('Download path', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+          contentPadding: const EdgeInsets.fromLTRB(0, 12, 0, 0),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _DownloadPathOption(
+                label: 'Default folder',
+                subtitle: _defaultDownloadDir(),
+                selected: appState.downloadPathMode == 0,
+                accentColor: accentColor,
+                textColor: textColor,
+                subtextColor: subtextColor,
+                isDark: isDark,
+                onTap: () {
+                  appState.setDownloadPathMode(0);
+                  Navigator.of(ctx).pop();
+                },
+              ),
+              _DownloadPathOption(
+                label: 'Temp folder',
+                subtitle: Directory.systemTemp.path,
+                selected: appState.downloadPathMode == 1,
+                accentColor: accentColor,
+                textColor: textColor,
+                subtextColor: subtextColor,
+                isDark: isDark,
+                onTap: () {
+                  appState.setDownloadPathMode(1);
+                  Navigator.of(ctx).pop();
+                },
+              ),
+              _DownloadPathOption(
+                label: appState.downloadPathMode == 2 && appState.customDownloadPath.isNotEmpty
+                    ? appState.customDownloadPath
+                    : 'Custom folder...',
+                subtitle: appState.downloadPathMode == 2 ? appState.customDownloadPath : null,
+                selected: appState.downloadPathMode == 2,
+                accentColor: accentColor,
+                textColor: textColor,
+                subtextColor: subtextColor,
+                isDark: isDark,
+                onTap: () async {
+                  final path = await FilePicker.platform.getDirectoryPath();
+                  if (path != null && ctx.mounted) {
+                    appState.setDownloadPathMode(2, path);
+                    Navigator.of(ctx).pop();
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text('Cancel', style: TextStyle(color: accentColor)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  static String _defaultDownloadDir() {
+    if (Platform.isMacOS) {
+      return '${Platform.environment['HOME'] ?? '/tmp'}/Downloads/uniclient';
+    } else if (Platform.isWindows) {
+      return '${Platform.environment['USERPROFILE'] ?? 'C:\\Users\\Default'}\\Downloads\\uniclient';
+    }
+    return '${Platform.environment['HOME'] ?? '/tmp'}/Downloads/uniclient';
   }
 
   // §14.7.2: Private/Groups/Channels auto-download buttons.
@@ -2248,6 +2330,70 @@ class _EditProxyDialogState extends State<_EditProxyDialog> {
               child: Text(
                 label,
                 style: TextStyle(fontSize: 14, color: textColor),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DownloadPathOption extends StatelessWidget {
+  final String label;
+  final String? subtitle;
+  final bool selected;
+  final Color accentColor;
+  final Color textColor;
+  final Color subtextColor;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _DownloadPathOption({
+    required this.label,
+    required this.selected,
+    required this.accentColor,
+    required this.textColor,
+    required this.subtextColor,
+    required this.isDark,
+    required this.onTap,
+    this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+    return InkWell(
+      onTap: onTap,
+      hoverColor: hoverBg,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        child: Row(
+          children: [
+            Icon(
+              selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+              size: 22,
+              color: selected ? accentColor : subtextColor,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(fontSize: 14, color: textColor),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (subtitle != null && subtitle != label)
+                    Text(
+                      subtitle!,
+                      style: TextStyle(fontSize: 12, color: subtextColor),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
               ),
             ),
           ],

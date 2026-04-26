@@ -43,6 +43,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _spellcheckerAutoDownload = true;
   bool _autoUpdateEnabled = true;
   bool _installBetaVersions = false;
+  int _downloadPathMode = 0; // 0=default, 1=temp, 2=custom
+  String _customDownloadPath = '';
+  bool _askDownloadPath = false;
   bool _editingTheme = false;
   List<String> _accountOrder = []; // persisted display order of account IDs
   final List<StreamSubscription<dynamic>> _subs = [];
@@ -138,6 +141,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get spellcheckerAutoDownload => _spellcheckerAutoDownload;
   bool get autoUpdateEnabled => _autoUpdateEnabled;
   bool get installBetaVersions => _installBetaVersions;
+  int get downloadPathMode => _downloadPathMode;
+  String get customDownloadPath => _customDownloadPath;
+  bool get askDownloadPath => _askDownloadPath;
 
   bool setShowTrayIcon(bool v) {
     if (!v && !_showTaskbarIcon) return false;
@@ -222,6 +228,29 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
     _saveWindowPrefs();
   }
+
+  void setDownloadPathMode(int mode, [String customPath = '']) {
+    if (_downloadPathMode == mode && _customDownloadPath == customPath) return;
+    _downloadPathMode = mode;
+    if (mode == 2) _customDownloadPath = customPath;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setAskDownloadPath(bool v) {
+    if (_askDownloadPath == v) return;
+    _askDownloadPath = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  String get downloadPathLabel => switch (_downloadPathMode) {
+    1 => 'Temp folder',
+    2 => _customDownloadPath.isNotEmpty
+        ? _customDownloadPath.split('/').last
+        : 'Custom folder',
+    _ => 'Default folder',
+  };
 
   void setShowChatNameInTitle(bool v) {
     if (_showChatNameInTitle == v) return;
@@ -577,6 +606,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _spellcheckerAutoDownload = data['spellcheckerAutoDownload'] as bool? ?? true;
       _autoUpdateEnabled = data['autoUpdateEnabled'] as bool? ?? true;
       _installBetaVersions = data['installBetaVersions'] as bool? ?? false;
+      _downloadPathMode = data['downloadPathMode'] as int? ?? 0;
+      _customDownloadPath = data['customDownloadPath'] as String? ?? '';
+      _askDownloadPath = data['askDownloadPath'] as bool? ?? false;
       final order = data['accountOrder'] as List<dynamic>?;
       if (order != null) _accountOrder = order.cast<String>();
     } catch (_) {}
@@ -608,6 +640,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'spellcheckerAutoDownload': _spellcheckerAutoDownload,
         'autoUpdateEnabled': _autoUpdateEnabled,
         'installBetaVersions': _installBetaVersions,
+        'downloadPathMode': _downloadPathMode,
+        'customDownloadPath': _customDownloadPath,
+        'askDownloadPath': _askDownloadPath,
       }));
     } catch (_) {}
   }
