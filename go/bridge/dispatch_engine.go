@@ -794,6 +794,22 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(map[string]string{"url": url})
 
+	case "EditFolderInviteLink":
+		var params struct {
+			AccountID string   `json:"account_id"`
+			FolderID  int      `json:"folder_id"`
+			Slug      string   `json:"slug"`
+			PeerIDs   []string `json:"peer_ids"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		link, err := e.EditFolderInviteLink(params.AccountID, params.FolderID, params.Slug, params.PeerIDs)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(link)
+
 	case "DeleteFolderInviteLink":
 		var params struct {
 			AccountID string `json:"account_id"`

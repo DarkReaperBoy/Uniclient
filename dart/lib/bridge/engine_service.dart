@@ -437,6 +437,7 @@ class EngineService {
           title: m['title'] as String? ?? '',
           peerCount: m['peer_count'] as int? ?? 0,
           slug: m['slug'] as String? ?? '',
+          peerIds: (m['peer_ids'] as List<dynamic>?)?.cast<String>() ?? [],
         );
       }).toList();
     } catch (e) {
@@ -459,6 +460,30 @@ class EngineService {
       return m['url'] as String?;
     } catch (e) {
       Debug.error('ENGINE', 'createFolderInviteLink failed', e);
+      return null;
+    }
+  }
+
+  Future<ChatlistInviteLink?> editFolderInviteLink(String accountId, int folderId, String slug, List<String> peerIds) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'folder_id': folderId,
+      'slug': slug,
+      'peer_ids': peerIds,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'EditFolderInviteLink', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      final m = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return ChatlistInviteLink(
+        url: m['url'] as String? ?? '',
+        title: m['title'] as String? ?? '',
+        peerCount: m['peer_count'] as int? ?? 0,
+        slug: m['slug'] as String? ?? '',
+        peerIds: (m['peer_ids'] as List<dynamic>?)?.cast<String>() ?? [],
+      );
+    } catch (e) {
+      Debug.error('ENGINE', 'editFolderInviteLink failed', e);
       return null;
     }
   }

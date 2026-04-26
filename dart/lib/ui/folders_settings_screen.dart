@@ -1433,6 +1433,30 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
     });
   }
 
+  void _showLinkDetail(ChatlistInviteLink link) {
+    final f = widget.existingFolder;
+    if (f == null) return;
+    showDialog<ChatlistInviteLink>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _ShowLinkBox(
+        isDark: widget.isDark,
+        accentColor: widget.accentColor,
+        link: link,
+        folder: f,
+      ),
+    ).then((updatedLink) {
+      if (updatedLink != null && mounted) {
+        setState(() {
+          final idx = _inviteLinks.indexWhere((l) => l.slug == updatedLink.slug);
+          if (idx >= 0) {
+            _inviteLinks[idx] = updatedLink;
+          }
+        });
+      }
+    });
+  }
+
   void _openExcludeTypePicker() {
     showDialog<Map<String, bool>>(
       context: context,
@@ -1766,6 +1790,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
                           hasExclusions: _hasExclusions,
                           onCreateLink: _createInviteLink,
                           onDeleteLink: _deleteInviteLink,
+                          onShowLink: _showLinkDetail,
                           onShowContextMenu: _showLinkContextMenu,
                         ),
                       ],
@@ -2093,6 +2118,7 @@ class _ShareableLinkSection extends StatelessWidget {
   final bool hasExclusions;
   final VoidCallback onCreateLink;
   final void Function(ChatlistInviteLink) onDeleteLink;
+  final void Function(ChatlistInviteLink) onShowLink;
   final void Function(BuildContext, ChatlistInviteLink, Offset) onShowContextMenu;
 
   const _ShareableLinkSection({
@@ -2103,6 +2129,7 @@ class _ShareableLinkSection extends StatelessWidget {
     required this.hasExclusions,
     required this.onCreateLink,
     required this.onDeleteLink,
+    required this.onShowLink,
     required this.onShowContextMenu,
   });
 
@@ -2146,6 +2173,7 @@ class _ShareableLinkSection extends StatelessWidget {
             textColor: textColor,
             subtextColor: subtextColor,
             onDelete: () => onDeleteLink(link),
+            onTapLink: () => onShowLink(link),
             onContextMenu: (pos) => onShowContextMenu(context, link, pos),
           ),
         Padding(
@@ -2216,6 +2244,7 @@ class _InviteLinkRow extends StatelessWidget {
   final Color textColor;
   final Color subtextColor;
   final VoidCallback onDelete;
+  final VoidCallback onTapLink;
   final void Function(Offset) onContextMenu;
 
   static const _greenCircle = Color(0xFF4fae4e);
@@ -2226,6 +2255,7 @@ class _InviteLinkRow extends StatelessWidget {
     required this.textColor,
     required this.subtextColor,
     required this.onDelete,
+    required this.onTapLink,
     required this.onContextMenu,
   });
 
@@ -2238,12 +2268,7 @@ class _InviteLinkRow extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () {
-          Clipboard.setData(ClipboardData(text: link.url));
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Link copied'), duration: Duration(seconds: 1)),
-          );
-        },
+        onTap: onTapLink,
         hoverColor: hoverColor,
         child: SizedBox(
           height: 52,
@@ -2296,6 +2321,516 @@ class _InviteLinkRow extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ShowLinkBox extends StatefulWidget {
+  final bool isDark;
+  final Color accentColor;
+  final ChatlistInviteLink link;
+  final FolderInfo folder;
+
+  const _ShowLinkBox({
+    required this.isDark,
+    required this.accentColor,
+    required this.link,
+    required this.folder,
+  });
+
+  @override
+  State<_ShowLinkBox> createState() => _ShowLinkBoxState();
+}
+
+class _ShowLinkBoxState extends State<_ShowLinkBox> {
+  late Set<String> _selectedPeerIds;
+  late Set<String> _initialPeerIds;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedPeerIds = Set<String>.from(widget.link.peerIds);
+    _initialPeerIds = Set<String>.from(widget.link.peerIds);
+  }
+
+  bool get _hasChanges {
+    if (_selectedPeerIds.length != _initialPeerIds.length) return true;
+    return !_selectedPeerIds.containsAll(_initialPeerIds);
+  }
+
+  bool _isPeerDisabled(ChatInfo chat) {
+    if (chat.isBot) return true;
+    if (chat.type == ChatType.dm) return true;
+    return false;
+  }
+
+  String _disabledReason(ChatInfo chat) {
+    if (chat.isBot) return 'Bots can\'t be shared via links';
+    if (chat.type == ChatType.dm) return 'Private chats can\'t be shared';
+    return '';
+  }
+
+  void _toggleSelectAll() {
+    final chats = _getFolderChats();
+    final enabledIds = chats.where((c) => !_isPeerDisabled(c)).map((c) => c.chatId).toSet();
+    final allSelected = enabledIds.every(_selectedPeerIds.contains);
+    setState(() {
+      if (allSelected) {
+        _selectedPeerIds.clear();
+      } else {
+        _selectedPeerIds.addAll(enabledIds);
+      }
+    });
+  }
+
+  List<ChatInfo> _getFolderChats() {
+    final chatState = context.read<ChatState>();
+    final allChats = chatState.chatsForAccount(widget.folder.chatIds.isNotEmpty
+        ? (context.read<AppState>().activeAccount?.id ?? '')
+        : '');
+    final folderChatIds = widget.folder.chatIds.toSet();
+    if (folderChatIds.isEmpty) return allChats;
+    return allChats.where((c) => folderChatIds.contains(c.chatId)).toList();
+  }
+
+  Future<void> _onSave() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccount?.id ?? '';
+    final folderId = int.tryParse(widget.folder.id);
+    if (accountId.isEmpty || folderId == null) {
+      setState(() => _saving = false);
+      return;
+    }
+    final updatedLink = await engine.editFolderInviteLink(
+      accountId, folderId, widget.link.slug, _selectedPeerIds.toList(),
+    );
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (updatedLink != null) {
+      Navigator.of(context).pop(updatedLink);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to save link changes'), duration: Duration(seconds: 2)),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = widget.isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = widget.isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final dividerColor = widget.isDark ? const Color(0xFF101921) : const Color(0xFFE8E8E8);
+    final chats = _getFolderChats();
+    final enabledChats = chats.where((c) => !_isPeerDisabled(c)).toList();
+    final allSelected = enabledChats.isNotEmpty &&
+        enabledChats.every((c) => _selectedPeerIds.contains(c.chatId));
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: SizedBox(
+        width: 364,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(0, 20, 0, 8),
+                child: Center(
+                  child: SizedBox(
+                    width: 74,
+                    height: 74,
+                    child: Lottie.asset(
+                      'assets/animations/filters.json',
+                      repeat: false,
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      const TextSpan(text: 'Share a link to let others add the '),
+                      TextSpan(
+                        text: widget.folder.name,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      const TextSpan(text: ' folder and the chats included in it.'),
+                    ],
+                  ),
+                  style: TextStyle(fontSize: 13, color: subtextColor),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              Container(
+                margin: const EdgeInsets.fromLTRB(22, 4, 22, 12),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: widget.isDark ? const Color(0xFF17212B) : const Color(0xFFF1F1F1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.link.url,
+                      style: TextStyle(fontSize: 13, color: textColor),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        _LinkActionButton(
+                          label: 'Copy',
+                          icon: Icons.copy,
+                          accentColor: widget.accentColor,
+                          onTap: () {
+                            Clipboard.setData(ClipboardData(text: widget.link.url));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Link copied'), duration: Duration(seconds: 1)),
+                            );
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        _LinkActionButton(
+                          label: 'Share',
+                          icon: Icons.share,
+                          accentColor: widget.accentColor,
+                          onTap: () {
+                            Clipboard.setData(ClipboardData(text: widget.link.url));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Link copied to share'), duration: Duration(seconds: 1)),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Divider(height: 1, thickness: 1, color: dividerColor),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 10, 22, 6),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Chats',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: widget.accentColor,
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: _toggleSelectAll,
+                      child: Text(
+                        allSelected ? 'Deselect All' : 'Select All',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: widget.accentColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: chats.length,
+                  itemExtent: 52,
+                  itemBuilder: (ctx, i) {
+                    final chat = chats[i];
+                    final disabled = _isPeerDisabled(chat);
+                    final checked = _selectedPeerIds.contains(chat.chatId);
+                    return _ShowLinkPeerRow(
+                      chat: chat,
+                      isDark: widget.isDark,
+                      accentColor: widget.accentColor,
+                      checked: checked,
+                      disabled: disabled,
+                      disabledReason: disabled ? _disabledReason(chat) : '',
+                      onToggle: disabled ? null : () {
+                        setState(() {
+                          if (checked) {
+                            _selectedPeerIds.remove(chat.chatId);
+                          } else {
+                            _selectedPeerIds.add(chat.chatId);
+                          }
+                        });
+                      },
+                    );
+                  },
+                ),
+              ),
+              Divider(height: 1, thickness: 1, color: dividerColor),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 12, 22, 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (_hasChanges) ...[
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: Text('Cancel', style: TextStyle(color: subtextColor, fontSize: 14)),
+                      ),
+                      const SizedBox(width: 8),
+                      TextButton(
+                        onPressed: _saving ? null : _onSave,
+                        style: TextButton.styleFrom(
+                          backgroundColor: widget.accentColor,
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        ),
+                        child: _saving
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Text('Save', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+                      ),
+                    ] else
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        style: TextButton.styleFrom(
+                          backgroundColor: widget.accentColor,
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        ),
+                        child: const Text('Done', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ShowLinkPeerRow extends StatelessWidget {
+  final ChatInfo chat;
+  final bool isDark;
+  final Color accentColor;
+  final bool checked;
+  final bool disabled;
+  final String disabledReason;
+  final VoidCallback? onToggle;
+
+  const _ShowLinkPeerRow({
+    required this.chat,
+    required this.isDark,
+    required this.accentColor,
+    required this.checked,
+    required this.disabled,
+    required this.disabledReason,
+    this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final hoverColor = isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
+    final opacity = disabled ? 0.5 : 1.0;
+
+    return Opacity(
+      opacity: opacity,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onToggle,
+          hoverColor: hoverColor,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(9, 4, 14, 4),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: disabled
+                      ? CustomPaint(
+                          painter: _DashedCirclePainter(
+                            color: subtextColor,
+                            dashWidth: 1.5,
+                            segments: 11,
+                          ),
+                          child: Center(
+                            child: Icon(
+                              chat.isBot ? Icons.smart_toy : Icons.lock,
+                              size: 18,
+                              color: subtextColor,
+                            ),
+                          ),
+                        )
+                      : _PeerAvatar(chat: chat),
+                ),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        chat.title,
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textColor),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (disabled)
+                        Text(
+                          disabledReason,
+                          style: TextStyle(fontSize: 12, color: subtextColor),
+                          maxLines: 1,
+                        ),
+                    ],
+                  ),
+                ),
+                if (!disabled)
+                  SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: Checkbox(
+                      value: checked,
+                      onChanged: (_) => onToggle?.call(),
+                      activeColor: accentColor,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PeerAvatar extends StatelessWidget {
+  final ChatInfo chat;
+
+  const _PeerAvatar({required this.chat});
+
+  @override
+  Widget build(BuildContext context) {
+    if (chat.avatarPath.isNotEmpty) {
+      return ClipOval(
+        child: Image.network(
+          chat.avatarPath,
+          width: 44,
+          height: 44,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _fallbackAvatar(),
+        ),
+      );
+    }
+    return _fallbackAvatar();
+  }
+
+  Widget _fallbackAvatar() {
+    final colors = [
+      const Color(0xFFE17076),
+      const Color(0xFF7BC862),
+      const Color(0xFF40A7E3),
+      const Color(0xFFFAA74A),
+      const Color(0xFF6EC9CB),
+      const Color(0xFF65AADD),
+      const Color(0xFFEE7AAE),
+    ];
+    final idx = chat.title.isNotEmpty ? chat.title.codeUnitAt(0) % colors.length : 0;
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(color: colors[idx], shape: BoxShape.circle),
+      child: Center(
+        child: Text(
+          chat.title.isNotEmpty ? chat.title[0].toUpperCase() : '?',
+          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashedCirclePainter extends CustomPainter {
+  final Color color;
+  final double dashWidth;
+  final int segments;
+
+  const _DashedCirclePainter({
+    required this.color,
+    required this.dashWidth,
+    required this.segments,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = dashWidth
+      ..style = PaintingStyle.stroke;
+    final radius = (size.shortestSide - dashWidth) / 2;
+    final center = Offset(size.width / 2, size.height / 2);
+    final totalAngle = 2 * 3.14159265;
+    final gapFraction = 0.3;
+    final segAngle = totalAngle / segments;
+    final dashAngle = segAngle * (1 - gapFraction);
+    for (var i = 0; i < segments; i++) {
+      final start = i * segAngle - (totalAngle / 4);
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        start,
+        dashAngle,
+        false,
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedCirclePainter old) =>
+      color != old.color || dashWidth != old.dashWidth || segments != old.segments;
+}
+
+class _LinkActionButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color accentColor;
+  final VoidCallback onTap;
+
+  const _LinkActionButton({
+    required this.label,
+    required this.icon,
+    required this.accentColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 16, color: accentColor),
+      label: Text(label, style: TextStyle(fontSize: 13, color: accentColor)),
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
     );
   }

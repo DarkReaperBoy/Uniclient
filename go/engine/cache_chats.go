@@ -862,6 +862,21 @@ func (e *Engine) CreateFolderInviteLink(accountID string, folderID int, title st
 	return "", fmt.Errorf("core does not support folder invite links")
 }
 
+// EditFolderInviteLink modifies which peers are included in a folder invite link.
+func (e *Engine) EditFolderInviteLink(accountID string, folderID int, slug string, peerIDs []string) (cores.ChatlistInviteLink, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return cores.ChatlistInviteLink{}, fmt.Errorf("account not found: %s", accountID)
+	}
+	type linkEditor interface {
+		EditChatlistInvite(folderID int, slug string, peerIDs []string) (cores.ChatlistInviteLink, error)
+	}
+	if le, ok := acc.Core.(linkEditor); ok {
+		return le.EditChatlistInvite(folderID, slug, peerIDs)
+	}
+	return cores.ChatlistInviteLink{}, fmt.Errorf("core does not support folder invite link editing")
+}
+
 // DeleteFolderInviteLink deletes a shareable invite link for a folder.
 func (e *Engine) DeleteFolderInviteLink(accountID string, folderID int, slug string) error {
 	acc, ok := e.getAccount(accountID)

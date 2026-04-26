@@ -1003,12 +1003,14 @@ class ChatlistInviteLink {
   final String title;
   final int peerCount;
   final String slug;
+  final List<String> peerIds;
 
   const ChatlistInviteLink({
     this.url = '',
     this.title = '',
     this.peerCount = 0,
     this.slug = '',
+    this.peerIds = const [],
   });
 
   String get displayName {

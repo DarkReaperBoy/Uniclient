@@ -14957,14 +14957,53 @@ func (t *TelegramCore) GetFolderInviteLinks(folderID int) ([]ChatlistInviteLink,
 				break
 			}
 		}
+		peerIDs := make([]string, 0, len(inv.Peers))
+		for _, p := range inv.Peers {
+			if id := peerToID(p); id != "" {
+				peerIDs = append(peerIDs, id)
+			}
+		}
 		links = append(links, ChatlistInviteLink{
 			URL:       inv.URL,
 			Title:     inv.Title,
 			PeerCount: len(inv.Peers),
 			Slug:      slug,
+			PeerIDs:   peerIDs,
 		})
 	}
 	return links, nil
+}
+
+// EditChatlistInvite modifies which peers are included in a chatlist invite link.
+func (t *TelegramCore) EditChatlistInvite(folderID int, slug string, peerIDs []string) (ChatlistInviteLink, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ChatlistInviteLink{}, ErrAuth }
+	var peers []tg.InputPeerClass
+	for _, pid := range peerIDs {
+		peer, err := t.resolvePeer(pid)
+		if err != nil { continue }
+		ip, _ := t.toInputPeer(peer)
+		peers = append(peers, ip)
+	}
+	result, err := t.api.ChatlistsEditExportedInvite(t.ctx, &tg.ChatlistsEditExportedInviteRequest{
+		Chatlist: tg.InputChatlistDialogFilter{FilterID: folderID},
+		Slug:     slug,
+		Peers:    peers,
+	})
+	if err != nil { return ChatlistInviteLink{}, err }
+	outPeerIDs := make([]string, 0, len(result.Peers))
+	for _, p := range result.Peers {
+		if id := peerToID(p); id != "" {
+			outPeerIDs = append(outPeerIDs, id)
+		}
+	}
+	return ChatlistInviteLink{
+		URL:       result.URL,
+		Title:     result.Title,
+		PeerCount: len(result.Peers),
+		Slug:      slug,
+		PeerIDs:   outPeerIDs,
+	}, nil
 }
 
 // DeleteChatlistInvite deletes an invite link for a chat folder.

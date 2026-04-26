@@ -696,7 +696,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 18.8 Filter Icon Picker Panel
 
 ### 18.9 Show Link Box
-- [ ] PeerListBox (inviteLinkChatList style): Lottie `cloud_filters` 74×74 header with bold folder name, InviteLinkLabel with URL + Copy + Share, chat list with select/deselect toggle, disabled rows (bots/private users/non-admin channels) with dashed circle overlay (1.5dp, 11 segments), Save/Cancel or Done buttons — spec §18.9
 
 ### 18.10 Chatlist Folder Removal Dialog
 - [ ] PeerListBox (filterInviteBox, 42px buttons): channels from folder always-list, server-suggested peers pre-selected, action button with selected count badge — spec §18.10

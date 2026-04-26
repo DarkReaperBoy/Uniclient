@@ -417,10 +417,11 @@ type SuggestedFolder struct {
 }
 
 type ChatlistInviteLink struct {
-	URL       string `json:"url"`
-	Title     string `json:"title"`
-	PeerCount int    `json:"peer_count"`
-	Slug      string `json:"slug"`
+	URL       string   `json:"url"`
+	Title     string   `json:"title"`
+	PeerCount int      `json:"peer_count"`
+	Slug      string   `json:"slug"`
+	PeerIDs   []string `json:"peer_ids,omitempty"`
 }
 
 // Session represents an active login session on a device.
