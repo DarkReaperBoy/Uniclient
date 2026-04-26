@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -27,11 +30,14 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
 
   int _globalTTL = 0;
 
+  bool _hasPasscode = false;
+
   @override
   void initState() {
     super.initState();
     _fetchPasswordState();
     _fetchGlobalTTL();
+    _loadPasscodeState();
     _pollTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       _fetchPasswordState();
     });
@@ -86,6 +92,59 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     final ttl = await engine.getDefaultHistoryTTL(accountId);
     if (!mounted) return;
     setState(() => _globalTTL = ttl);
+  }
+
+  Future<void> _loadPasscodeState() async {
+    final dir = context.read<AppState>().configDir;
+    if (dir.isEmpty) return;
+    final file = File('$dir/local_passcode.json');
+    if (await file.exists()) {
+      try {
+        final data = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+        if (!mounted) return;
+        setState(() => _hasPasscode = (data['hash'] as String? ?? '').isNotEmpty);
+      } catch (_) {
+        if (mounted) setState(() => _hasPasscode = false);
+      }
+    } else {
+      if (mounted) setState(() => _hasPasscode = false);
+    }
+  }
+
+  void _openPasscodeLock() {
+    final dir = context.read<AppState>().configDir;
+    if (dir.isEmpty) return;
+
+    if (_hasPasscode) {
+      Navigator.of(context).push<void>(settingsPageRoute(
+        _LocalPasscodeCheck(
+          configDir: dir,
+          onSuccess: () {
+            Navigator.of(context).pushReplacement(settingsPageRoute(
+              _LocalPasscodeManage(
+                configDir: dir,
+                onChanged: () => _loadPasscodeState(),
+              ),
+            ));
+          },
+        ),
+      )).then((_) => _loadPasscodeState());
+    } else {
+      Navigator.of(context).push<void>(settingsPageRoute(
+        _LocalPasscodeCreate(
+          configDir: dir,
+          onCreated: () {
+            _loadPasscodeState();
+            Navigator.of(context).pushReplacement(settingsPageRoute(
+              _LocalPasscodeManage(
+                configDir: dir,
+                onChanged: () => _loadPasscodeState(),
+              ),
+            ));
+          },
+        ),
+      )).then((_) => _loadPasscodeState());
+    }
   }
 
   String _formatTTL(int seconds) {
@@ -275,11 +334,11 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
       _PrivacyIconRow(
         icon: Icons.lock,
         label: 'Passcode Lock',
-        rightLabel: 'Off',
+        rightLabel: _hasPasscode ? 'On' : 'Off',
         textColor: textColor,
         subtextColor: subtextColor,
         hoverBg: hoverBg,
-        onTap: () {},
+        onTap: _openPasscodeLock,
       ),
       _PrivacyIconRow(
         icon: Icons.block,
@@ -1917,6 +1976,807 @@ class _CustomTTLDialogState extends State<_CustomTTLDialog> {
             Navigator.of(context).pop(days * 86400);
           },
           child: const Text('Set'),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Local Passcode Helpers ──
+
+String _hashPasscode(String passcode) {
+  final bytes = utf8.encode(passcode);
+  return sha256.convert(bytes).toString();
+}
+
+Future<Map<String, dynamic>> _readPasscodeData(String configDir) async {
+  final file = File('$configDir/local_passcode.json');
+  if (!await file.exists()) return {};
+  try {
+    return jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+  } catch (_) {
+    return {};
+  }
+}
+
+Future<void> _writePasscodeData(
+    String configDir, Map<String, dynamic> data) async {
+  final file = File('$configDir/local_passcode.json');
+  await file.writeAsString(jsonEncode(data));
+}
+
+// ── LocalPasscodeCreate ──
+
+class _LocalPasscodeCreate extends StatefulWidget {
+  final String configDir;
+  final VoidCallback onCreated;
+
+  const _LocalPasscodeCreate({
+    required this.configDir,
+    required this.onCreated,
+  });
+
+  @override
+  State<_LocalPasscodeCreate> createState() => _LocalPasscodeCreateState();
+}
+
+class _LocalPasscodeCreateState extends State<_LocalPasscodeCreate> {
+  final _firstController = TextEditingController();
+  final _confirmController = TextEditingController();
+  final _firstFocus = FocusNode();
+  bool _obscureFirst = true;
+  bool _obscureConfirm = true;
+  String _error = '';
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _firstFocus.requestFocus());
+  }
+
+  @override
+  void dispose() {
+    _firstController.dispose();
+    _confirmController.dispose();
+    _firstFocus.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final first = _firstController.text;
+    final confirm = _confirmController.text;
+    if (first.isEmpty) {
+      setState(() => _error = 'Please enter a passcode');
+      return;
+    }
+    if (confirm.isEmpty) {
+      setState(() => _error = 'Please re-enter your passcode');
+      return;
+    }
+    if (first != confirm) {
+      setState(() => _error = "Passcodes don't match");
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _error = '';
+    });
+
+    await _writePasscodeData(widget.configDir, {
+      'hash': _hashPasscode(first),
+      'autoLockSeconds': 0,
+    });
+
+    if (!mounted) return;
+    widget.onCreated();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor =
+        isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final errorColor =
+        isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F);
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: bgColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: textColor),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text(
+          'Passcode Lock',
+          style: TextStyle(
+              fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
+        ),
+      ),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 40),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 100,
+                height: 100,
+                margin: const EdgeInsets.only(top: 19, bottom: 5),
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.lock_outline, size: 48, color: accentColor),
+              ),
+              const SizedBox(height: 19),
+              Text(
+                'Create Passcode',
+                style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: textColor),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: 256,
+                child: Text(
+                  'When you set up an additional passcode, a lock icon will appear on the chats page. Tap it to lock and unlock the app.',
+                  style: TextStyle(
+                      fontSize: 14, color: subtextColor, height: 1.4),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: 256,
+                child: Text(
+                  'Note: if you forget the passcode, you\'ll need to delete and reinstall the app. All secret chats will be lost.',
+                  style: TextStyle(
+                      fontSize: 14, color: subtextColor, height: 1.4),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 15),
+              SizedBox(
+                width: 256,
+                child: TextField(
+                  controller: _firstController,
+                  focusNode: _firstFocus,
+                  obscureText: _obscureFirst,
+                  onChanged: (_) {
+                    if (_error.isNotEmpty) setState(() => _error = '');
+                  },
+                  onSubmitted: (_) =>
+                      FocusScope.of(context).nextFocus(),
+                  decoration: InputDecoration(
+                    hintText: 'Enter a passcode',
+                    hintStyle: TextStyle(color: subtextColor),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                          _obscureFirst
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                          color: subtextColor),
+                      onPressed: () =>
+                          setState(() => _obscureFirst = !_obscureFirst),
+                    ),
+                    enabledBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: subtextColor)),
+                    focusedBorder: UnderlineInputBorder(
+                        borderSide:
+                            BorderSide(color: accentColor, width: 2)),
+                  ),
+                  style: TextStyle(fontSize: 16, color: textColor),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: 256,
+                child: TextField(
+                  controller: _confirmController,
+                  obscureText: _obscureConfirm,
+                  onChanged: (_) {
+                    if (_error.isNotEmpty) setState(() => _error = '');
+                  },
+                  onSubmitted: (_) => _submit(),
+                  decoration: InputDecoration(
+                    hintText: 'Re-enter your passcode',
+                    hintStyle: TextStyle(color: subtextColor),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                          _obscureConfirm
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                          color: subtextColor),
+                      onPressed: () => setState(
+                          () => _obscureConfirm = !_obscureConfirm),
+                    ),
+                    enabledBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: subtextColor)),
+                    focusedBorder: UnderlineInputBorder(
+                        borderSide:
+                            BorderSide(color: accentColor, width: 2)),
+                  ),
+                  style: TextStyle(fontSize: 16, color: textColor),
+                ),
+              ),
+              if (_error.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: SizedBox(
+                    width: 256,
+                    child: Text(_error,
+                        style: TextStyle(fontSize: 13, color: errorColor),
+                        textAlign: TextAlign.center),
+                  ),
+                ),
+              const SizedBox(height: 19),
+              SizedBox(
+                width: 300,
+                height: 42,
+                child: FilledButton(
+                  onPressed: _loading ? null : _submit,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: accentColor,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6)),
+                  ),
+                  child: _loading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : const Text('Create',
+                          style:
+                              TextStyle(fontSize: 15, color: Colors.white)),
+                ),
+              ),
+              const SizedBox(height: 35),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── LocalPasscodeCheck ──
+
+class _LocalPasscodeCheck extends StatefulWidget {
+  final String configDir;
+  final VoidCallback onSuccess;
+
+  const _LocalPasscodeCheck({
+    required this.configDir,
+    required this.onSuccess,
+  });
+
+  @override
+  State<_LocalPasscodeCheck> createState() => _LocalPasscodeCheckState();
+}
+
+class _LocalPasscodeCheckState extends State<_LocalPasscodeCheck> {
+  final _controller = TextEditingController();
+  final _focusNode = FocusNode();
+  bool _obscure = true;
+  String _error = '';
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _focusNode.requestFocus());
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final entered = _controller.text;
+    if (entered.isEmpty) {
+      setState(() => _error = 'Please enter your passcode');
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _error = '';
+    });
+
+    final data = await _readPasscodeData(widget.configDir);
+    final storedHash = data['hash'] as String? ?? '';
+
+    if (!mounted) return;
+
+    if (_hashPasscode(entered) == storedHash) {
+      widget.onSuccess();
+    } else {
+      setState(() {
+        _loading = false;
+        _error = 'Wrong passcode';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor =
+        isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final errorColor =
+        isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F);
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: bgColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: textColor),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text(
+          'Passcode Lock',
+          style: TextStyle(
+              fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
+        ),
+      ),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 40),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 100,
+                height: 100,
+                margin: const EdgeInsets.only(top: 19, bottom: 5),
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.lock_outline, size: 48, color: accentColor),
+              ),
+              const SizedBox(height: 19),
+              Text(
+                'Enter your passcode',
+                style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: textColor),
+              ),
+              const SizedBox(height: 15),
+              SizedBox(
+                width: 256,
+                child: TextField(
+                  controller: _controller,
+                  focusNode: _focusNode,
+                  obscureText: _obscure,
+                  onChanged: (_) {
+                    if (_error.isNotEmpty) setState(() => _error = '');
+                  },
+                  onSubmitted: (_) => _submit(),
+                  decoration: InputDecoration(
+                    hintText: 'Enter your passcode',
+                    hintStyle: TextStyle(color: subtextColor),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                          _obscure
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                          color: subtextColor),
+                      onPressed: () =>
+                          setState(() => _obscure = !_obscure),
+                    ),
+                    enabledBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: subtextColor)),
+                    focusedBorder: UnderlineInputBorder(
+                        borderSide:
+                            BorderSide(color: accentColor, width: 2)),
+                  ),
+                  style: TextStyle(fontSize: 16, color: textColor),
+                ),
+              ),
+              const SizedBox(height: 61),
+              if (_error.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: SizedBox(
+                    width: 256,
+                    child: Text(_error,
+                        style: TextStyle(fontSize: 13, color: errorColor),
+                        textAlign: TextAlign.center),
+                  ),
+                ),
+              const SizedBox(height: 19),
+              SizedBox(
+                width: 300,
+                height: 42,
+                child: FilledButton(
+                  onPressed: _loading ? null : _submit,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: accentColor,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6)),
+                  ),
+                  child: _loading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : const Text('Next',
+                          style:
+                              TextStyle(fontSize: 15, color: Colors.white)),
+                ),
+              ),
+              const SizedBox(height: 35),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── LocalPasscodeManage ──
+
+class _LocalPasscodeManage extends StatefulWidget {
+  final String configDir;
+  final VoidCallback onChanged;
+
+  const _LocalPasscodeManage({
+    required this.configDir,
+    required this.onChanged,
+  });
+
+  @override
+  State<_LocalPasscodeManage> createState() => _LocalPasscodeManageState();
+}
+
+class _LocalPasscodeManageState extends State<_LocalPasscodeManage> {
+  int _autoLockSeconds = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAutoLock();
+  }
+
+  Future<void> _loadAutoLock() async {
+    final data = await _readPasscodeData(widget.configDir);
+    if (!mounted) return;
+    setState(
+        () => _autoLockSeconds = data['autoLockSeconds'] as int? ?? 0);
+  }
+
+  String _formatAutoLock(int seconds) {
+    if (seconds <= 0) return 'Disabled';
+    if (seconds < 60) return '$seconds seconds';
+    if (seconds == 60) return '1 minute';
+    if (seconds == 300) return '5 minutes';
+    if (seconds == 3600) return '1 hour';
+    if (seconds == 18000) return '5 hours';
+    final h = seconds ~/ 3600;
+    final m = (seconds % 3600) ~/ 60;
+    if (h > 0 && m > 0) return '${h}h ${m}m';
+    if (h > 0) return '$h hour${h > 1 ? 's' : ''}';
+    return '$m minute${m > 1 ? 's' : ''}';
+  }
+
+  void _openAutoLock() async {
+    final result = await showDialog<int>(
+      context: context,
+      builder: (ctx) => _AutoLockBox(currentSeconds: _autoLockSeconds),
+    );
+    if (result == null || !mounted) return;
+
+    final data = await _readPasscodeData(widget.configDir);
+    data['autoLockSeconds'] = result;
+    await _writePasscodeData(widget.configDir, data);
+    setState(() => _autoLockSeconds = result);
+  }
+
+  void _changePasscode() {
+    Navigator.of(context).push(settingsPageRoute(
+      _LocalPasscodeCreate(
+        configDir: widget.configDir,
+        onCreated: () {
+          widget.onChanged();
+          Navigator.of(context).pop();
+        },
+      ),
+    ));
+  }
+
+  void _turnOff() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        final isDark = theme.brightness == Brightness.dark;
+        final textColor =
+            isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+        return AlertDialog(
+          title: Text('Turn Off Passcode',
+              style: TextStyle(color: textColor)),
+          content: Text(
+              'Are you sure you want to turn off the passcode?',
+              style: TextStyle(color: textColor)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: Text('Turn Off',
+                  style: TextStyle(
+                      color: isDark
+                          ? const Color(0xFFE53935)
+                          : const Color(0xFFD32F2F))),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirm != true || !mounted) return;
+
+    final file = File('${widget.configDir}/local_passcode.json');
+    if (await file.exists()) await file.delete();
+    widget.onChanged();
+    if (!mounted) return;
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor =
+        isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final hoverBg =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+    final errorColor =
+        isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F);
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: bgColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: textColor),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text(
+          'Passcode Lock',
+          style: TextStyle(
+              fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
+        ),
+      ),
+      body: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          const SizedBox(height: 8),
+          _PrivacyIconRow(
+            icon: Icons.lock_outline,
+            label: 'Change Passcode',
+            rightLabel: '',
+            textColor: textColor,
+            subtextColor: subtextColor,
+            hoverBg: hoverBg,
+            onTap: _changePasscode,
+          ),
+          _PrivacyIconRow(
+            icon: Icons.timer_outlined,
+            label: 'Auto-Lock',
+            rightLabel: _formatAutoLock(_autoLockSeconds),
+            textColor: textColor,
+            subtextColor: subtextColor,
+            hoverBg: hoverBg,
+            onTap: _openAutoLock,
+          ),
+          const SizedBox(height: 7),
+          Container(
+            height: 1,
+            color: isDark
+                ? const Color(0xFF101921)
+                : const Color(0xFFF1F1F1),
+          ),
+          const SizedBox(height: 7),
+          InkWell(
+            onTap: _turnOff,
+            hoverColor: hoverBg,
+            child: Padding(
+              padding: SettingsStyle.iconRowPadding,
+              child: Row(
+                children: [
+                  Icon(Icons.lock_open, size: 24, color: errorColor),
+                  const SizedBox(width: SettingsStyle.iconGap),
+                  Text(
+                    'Turn Off Passcode',
+                    style: TextStyle(fontSize: 14, color: errorColor),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── AutoLockBox Dialog ──
+
+class _AutoLockBox extends StatefulWidget {
+  final int currentSeconds;
+
+  const _AutoLockBox({required this.currentSeconds});
+
+  @override
+  State<_AutoLockBox> createState() => _AutoLockBoxState();
+}
+
+class _AutoLockBoxState extends State<_AutoLockBox> {
+  late int _selected;
+  final _hoursController = TextEditingController();
+  final _minutesController = TextEditingController();
+  static const _presets = [0, 60, 300, 3600, 18000];
+  static const _customSentinel = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_presets.contains(widget.currentSeconds)) {
+      _selected = widget.currentSeconds;
+    } else {
+      _selected = _customSentinel;
+      final h = widget.currentSeconds ~/ 3600;
+      final m = (widget.currentSeconds % 3600) ~/ 60;
+      _hoursController.text = h.toString().padLeft(2, '0');
+      _minutesController.text = m.toString().padLeft(2, '0');
+    }
+  }
+
+  @override
+  void dispose() {
+    _hoursController.dispose();
+    _minutesController.dispose();
+    super.dispose();
+  }
+
+  int _resolveSeconds() {
+    if (_selected != _customSentinel) return _selected;
+    final h = int.tryParse(_hoursController.text) ?? 0;
+    final m = int.tryParse(_minutesController.text) ?? 10;
+    return h * 3600 + m * 60;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+
+    final labels = {
+      0: 'Disabled',
+      60: '1 minute',
+      300: '5 minutes',
+      3600: '1 hour',
+      18000: '5 hours',
+      _customSentinel: 'Custom',
+    };
+
+    return AlertDialog(
+      title: Text('Auto-Lock', style: TextStyle(color: textColor)),
+      contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final entry in labels.entries)
+              RadioListTile<int>(
+                value: entry.key,
+                groupValue: _selected,
+                activeColor: accentColor,
+                contentPadding: EdgeInsets.zero,
+                title: Text(entry.value,
+                    style: TextStyle(fontSize: 14, color: textColor)),
+                onChanged: (v) => setState(() => _selected = v!),
+              ),
+            if (_selected == _customSentinel) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  SizedBox(
+                    width: 60,
+                    child: TextField(
+                      controller: _hoursController,
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      decoration: InputDecoration(
+                        hintText: 'HH',
+                        hintStyle: TextStyle(color: subtextColor),
+                        border: const OutlineInputBorder(),
+                      ),
+                      style: TextStyle(fontSize: 16, color: textColor),
+                    ),
+                  ),
+                  Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8),
+                    child: Text(':',
+                        style:
+                            TextStyle(fontSize: 20, color: textColor)),
+                  ),
+                  SizedBox(
+                    width: 60,
+                    child: TextField(
+                      controller: _minutesController,
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      decoration: InputDecoration(
+                        hintText: 'MM',
+                        hintStyle: TextStyle(color: subtextColor),
+                        border: const OutlineInputBorder(),
+                      ),
+                      style: TextStyle(fontSize: 16, color: textColor),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () =>
+              Navigator.of(context).pop(_resolveSeconds()),
+          child: const Text('Save'),
         ),
       ],
     );
