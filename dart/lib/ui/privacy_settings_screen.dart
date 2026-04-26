@@ -545,6 +545,14 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
       hasFallbackPhoto = await engine.hasFallbackPhoto(accountId);
     }
 
+    bool hasBirthday = false;
+    if (key == 'birthday') {
+      try {
+        final bd = await engine.getSelfBirthday(accountId);
+        hasBirthday = bd.day > 0 && bd.month > 0;
+      } catch (_) {}
+    }
+
     final isPremium = appState.activeAccount?.isPremium ?? false;
 
     if (!mounted) return;
@@ -564,6 +572,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
         isPremium: isPremium,
         initialHideReadMarks: hideReadMarks,
         initialHasFallbackPhoto: hasFallbackPhoto,
+        initialHasBirthday: hasBirthday,
         onSaved: (newOption, {String? addedByPhone, String? callsP2P}) {
           setState(() {
             _privacySettings[key] = {
@@ -847,6 +856,7 @@ class _EditPrivacyBox extends StatefulWidget {
   final bool isPremium;
   final bool initialHideReadMarks;
   final bool initialHasFallbackPhoto;
+  final bool initialHasBirthday;
 
   final String userName;
 
@@ -864,6 +874,7 @@ class _EditPrivacyBox extends StatefulWidget {
     this.isPremium = false,
     this.initialHideReadMarks = false,
     this.initialHasFallbackPhoto = false,
+    this.initialHasBirthday = false,
   });
 
   @override
@@ -880,12 +891,15 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
   bool _confirmedRestriction = false;
   bool _uploadingFallback = false;
 
+  late bool _hasBirthday;
+
   bool get _isPhoneNumber => widget.privacyKey == 'phone_number';
   bool get _isLastSeen => widget.privacyKey == 'last_seen';
   bool get _isProfilePhoto => widget.privacyKey == 'profile_photo';
   bool get _isForwards => widget.privacyKey == 'forwards';
   bool get _isCalls => widget.privacyKey == 'calls';
   bool get _isVoiceMessages => widget.privacyKey == 'voice_messages';
+  bool get _isBirthday => widget.privacyKey == 'birthday';
 
   @override
   void initState() {
@@ -895,6 +909,7 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
     _callsP2POption = widget.initialCallsP2POption ?? 'everyone';
     _hideReadMarks = widget.initialHideReadMarks;
     _hasFallbackPhoto = widget.initialHasFallbackPhoto;
+    _hasBirthday = widget.initialHasBirthday;
     _confirmedRestriction = widget.currentOption != 'everyone';
   }
 
@@ -1001,6 +1016,38 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
         ],
       ),
     );
+  }
+
+  Future<void> _pickBirthday() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime(now.year - 18, now.month, now.day),
+      firstDate: DateTime(1900),
+      lastDate: now,
+    );
+    if (picked == null || !mounted) return;
+    try {
+      await widget.engine.updateBirthday(
+        widget.accountId, picked.day, picked.month, picked.year,
+      );
+      if (mounted) {
+        setState(() => _hasBirthday = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Birthday saved'),
+            duration: Duration(milliseconds: 1500),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to set birthday: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _save() async {
@@ -1208,6 +1255,20 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
               ),
             ),
             if (_isForwards) _buildForwardPreview(isDark, textColor, subtextColor),
+            if (_isBirthday && !_hasBirthday)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 8, 22, 0),
+                child: GestureDetector(
+                  onTap: _pickBirthday,
+                  child: Text(
+                    'Set your birthday',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: accentColor,
+                    ),
+                  ),
+                ),
+              ),
             const SizedBox(height: 4),
             ...widget.options.map((opt) {
               final isPremiumLocked = _isVoiceMessages && !widget.isPremium && opt != 'everyone';

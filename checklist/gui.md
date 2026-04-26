@@ -648,7 +648,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 16.2 Security Section
 
 ### 16.3 Privacy Section
-- [ ] Birthday Privacy: "set your birthday" link if unset — spec §16.3.8
 - [ ] Gifts (Auto-Save): "Show Icon" Premium-locked toggle, "Accepted Types" subsection with five Premium-locked toggles (Limited/Unlimited/Unique/From Channels/Premium) — spec §16.3.9 & §16.3.9.1
 - [ ] Bio / Saved Music / Groups & Channels: standard privacy boxes, Groups+Channels has Premiums toggle in Always Allow — spec §16.3.10–12
 
