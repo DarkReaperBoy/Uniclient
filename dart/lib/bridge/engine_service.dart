@@ -320,8 +320,38 @@ class EngineService {
     return resp.folders.map(_folderInfoFromProto).toList();
   }
 
-  /// Delete a folder by its ID. The underlying core handles the platform-
-  /// specific API call (Telegram uses filter ID, Bale/Rubika use their IDs).
+  Future<FolderInfo?> createFolder(String accountId, String name, List<String> chatIds, {
+    bool contacts = false,
+    bool nonContacts = false,
+    bool groups = false,
+    bool channels = false,
+    bool bots = false,
+  }) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'name': name,
+      'chat_ids': chatIds,
+      'contacts': contacts,
+      'non_contacts': nonContacts,
+      'groups': groups,
+      'channels': channels,
+      'bots': bots,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'CreateFolder', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      final m = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return FolderInfo(
+        id: m['ID'] as String? ?? '',
+        name: m['Name'] as String? ?? '',
+        chatIds: (m['ChatIDs'] as List<dynamic>?)?.cast<String>() ?? [],
+      );
+    } catch (e) {
+      Debug.error('ENGINE', 'createFolder failed', e);
+      return null;
+    }
+  }
+
   Future<void> deleteFolder(String accountId, String folderId) async {
     final req = epb.EngineDeleteFolderRequest()
       ..accountId = accountId

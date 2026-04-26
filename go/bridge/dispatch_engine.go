@@ -712,6 +712,33 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(resp)
 
+	case "CreateFolder":
+		var params struct {
+			AccountID   string   `json:"account_id"`
+			Name        string   `json:"name"`
+			ChatIDs     []string `json:"chat_ids"`
+			Contacts    bool     `json:"contacts"`
+			NonContacts bool     `json:"non_contacts"`
+			Groups      bool     `json:"groups"`
+			Channels    bool     `json:"channels"`
+			Bots        bool     `json:"bots"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		opts := &engine.CreateFolderOpts{
+			Contacts:    params.Contacts,
+			NonContacts: params.NonContacts,
+			Groups:      params.Groups,
+			Channels:    params.Channels,
+			Bots:        params.Bots,
+		}
+		fi, err := e.CreateFolder(params.AccountID, params.Name, params.ChatIDs, opts)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(fi)
+
 	case "DeleteFolder":
 		var req pb.EngineDeleteFolderRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

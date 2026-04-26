@@ -728,6 +728,66 @@ func (e *Engine) DeleteFolder(accountID, folderID string) error {
 	return fmt.Errorf("core does not support folder deletion")
 }
 
+// CreateFolderOpts contains filter flags for folder creation.
+type CreateFolderOpts struct {
+	Contacts    bool
+	NonContacts bool
+	Groups      bool
+	Channels    bool
+	Bots        bool
+}
+
+// CreateFolder creates a new folder via the underlying core.
+func (e *Engine) CreateFolder(accountID, name string, chatIDs []string, opts *CreateFolderOpts) (*FolderInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+
+	// Try extended creator (supports filter flags) first.
+	type folderCreatorEx interface {
+		CreateFolderWithFlags(name string, chatIDs []string, contacts, nonContacts, groups, channels, bots bool) (*cores.Folder, error)
+	}
+	if opts != nil {
+		if fc, ok := acc.Core.(folderCreatorEx); ok {
+			f, err := fc.CreateFolderWithFlags(name, chatIDs, opts.Contacts, opts.NonContacts, opts.Groups, opts.Channels, opts.Bots)
+			if err != nil {
+				return nil, err
+			}
+			return &FolderInfo{
+				ID:          f.ID,
+				Name:        f.Name,
+				ChatIDs:     f.ChatIDs,
+				Contacts:    f.Contacts,
+				NonContacts: f.NonContacts,
+				Groups:      f.Groups,
+				Channels:    f.Channels,
+				Bots:        f.Bots,
+			}, nil
+		}
+	}
+
+	// Fallback to basic creator.
+	type folderCreator interface {
+		CreateFolder(name string, chatIDs []string) (*cores.Folder, error)
+	}
+	fc, ok := acc.Core.(folderCreator)
+	if !ok {
+		return nil, fmt.Errorf("core does not support folder creation")
+	}
+
+	f, err := fc.CreateFolder(name, chatIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	return &FolderInfo{
+		ID:      f.ID,
+		Name:    f.Name,
+		ChatIDs: f.ChatIDs,
+	}, nil
+}
+
 // emitChatUpdate reads the current chat state from DB and emits an update event.
 func (e *Engine) emitChatUpdate(accountID, chatID string) {
 	row := e.db.QueryRow(

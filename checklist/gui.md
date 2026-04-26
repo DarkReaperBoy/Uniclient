@@ -686,7 +686,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 18.3 Existing Folders List
 
 ### 18.4 Create New Folder
-- [ ] "Create New Folder" button (settingsButtonActive, settingsIconAdd): check folder limit (show FiltersLimitBox if reached), opens EditFilterBox — spec §18.4
 
 ### 18.5 Recommended Folders
 - [ ] SlideWrap (visible when suggestions > 0 AND count < limit): divider + "Recommended folders" subtitle, each as FilterRowButton in Suggested state (no icon, title + server description, "Add" button 26px full radius) — spec §18.5

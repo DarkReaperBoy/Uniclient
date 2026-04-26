@@ -320,6 +320,26 @@ class ChatState extends ChangeNotifier {
     await loadFoldersForAccount(accountId);
   }
 
+  Future<FolderInfo?> createFolder(String accountId, String name, List<String> chatIds, {
+    bool contacts = false,
+    bool nonContacts = false,
+    bool groups = false,
+    bool channels = false,
+    bool bots = false,
+  }) async {
+    final result = await _engine.createFolder(accountId, name, chatIds,
+      contacts: contacts,
+      nonContacts: nonContacts,
+      groups: groups,
+      channels: channels,
+      bots: bots,
+    );
+    if (result != null) {
+      await loadFoldersForAccount(accountId);
+    }
+    return result;
+  }
+
   /// Reorder folders locally (drag-and-drop in folder sidebar).
   void reorderFolders(int oldIndex, int newIndex) {
     if (oldIndex < 0 || oldIndex >= _folders.length) return;

@@ -110,6 +110,122 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
     });
   }
 
+  static const int _folderLimitFree = 10;
+  static const int _folderLimitPremium = 20;
+
+  void _onCreateFolder(bool isDark, Color accentColor) {
+    final currentCount = _folders.length;
+    final limit = _folderLimitFree;
+    if (currentCount >= limit) {
+      _showFiltersLimitBox(isDark, currentCount, limit);
+      return;
+    }
+    _showEditFilterBox(isDark, accentColor);
+  }
+
+  void _showFiltersLimitBox(bool isDark, int current, int limit) {
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bgColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        title: Text(
+          'Folder Limit Reached',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            color: textColor,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Column(
+                children: [
+                  Text(
+                    '$current / $limit',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: accentColor,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(3),
+                    child: LinearProgressIndicator(
+                      value: current / _folderLimitPremium,
+                      backgroundColor: isDark
+                          ? const Color(0xFF2B3A48)
+                          : const Color(0xFFE0E0E0),
+                      valueColor: AlwaysStoppedAnimation(accentColor),
+                      minHeight: 6,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Text(
+              'You have reached the limit of $limit folders. '
+              'Remove an existing folder to create a new one.',
+              style: TextStyle(fontSize: 14, color: subtextColor),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('OK', style: TextStyle(color: accentColor)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditFilterBox(bool isDark, Color accentColor) {
+    showDialog<FolderInfo>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _EditFilterBox(
+        isDark: isDark,
+        accentColor: accentColor,
+      ),
+    ).then((result) {
+      if (result != null && mounted) {
+        final appState = context.read<AppState>();
+        final account = appState.activeAccount;
+        if (account == null) return;
+        final chatState = context.read<ChatState>();
+        chatState.createFolder(
+          account.id, result.name, result.chatIds,
+          contacts: result.contacts,
+          nonContacts: result.nonContacts,
+          groups: result.groups,
+          channels: result.channels,
+          bots: result.bots,
+        ).then((_) {
+          if (mounted) {
+            chatState.loadFoldersForAccount(account.id).then((_) {
+              if (mounted) {
+                setState(() {
+                  _folders = List.of(chatState.folders);
+                });
+              }
+            });
+          }
+        });
+      }
+    });
+  }
+
   int _countChatsInFolder(FolderInfo folder) {
     int count = folder.chatIds.length;
     if (folder.contacts) count++;
@@ -194,7 +310,7 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
             isDark: isDark,
             accentColor: accentColor,
             hoverColor: hoverColor,
-            onTap: () {},
+            onTap: () => _onCreateFolder(isDark, accentColor),
           ),
 
           // Divider between folders and recommended
@@ -869,6 +985,354 @@ class _RadioRow extends StatelessWidget {
                 style: TextStyle(fontSize: 14, color: textColor),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EditFilterBox extends StatefulWidget {
+  final bool isDark;
+  final Color accentColor;
+
+  const _EditFilterBox({
+    required this.isDark,
+    required this.accentColor,
+  });
+
+  @override
+  State<_EditFilterBox> createState() => _EditFilterBoxState();
+}
+
+class _EditFilterBoxState extends State<_EditFilterBox> {
+  final _nameController = TextEditingController();
+  bool _contacts = false;
+  bool _nonContacts = false;
+  bool _groups = false;
+  bool _channels = false;
+  bool _bots = false;
+  bool _userTyped = false;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  void _updateAutoTitle() {
+    if (_userTyped) return;
+    String auto = '';
+    if (_contacts && !_nonContacts && !_groups && !_channels && !_bots) {
+      auto = 'Contacts';
+    } else if (_nonContacts && !_contacts && !_groups && !_channels && !_bots) {
+      auto = 'Non-Contacts';
+    } else if (_groups && !_contacts && !_nonContacts && !_channels && !_bots) {
+      auto = 'Groups';
+    } else if (_channels && !_contacts && !_nonContacts && !_groups && !_bots) {
+      auto = 'Channels';
+    } else if (_bots && !_contacts && !_nonContacts && !_groups && !_channels) {
+      auto = 'Bots';
+    }
+    if (auto.length > 12) auto = auto.substring(0, 12);
+    _nameController.text = auto;
+  }
+
+  void _onToggle(String key, bool value) {
+    setState(() {
+      switch (key) {
+        case 'contacts':
+          _contacts = value;
+        case 'nonContacts':
+          _nonContacts = value;
+        case 'groups':
+          _groups = value;
+        case 'channels':
+          _channels = value;
+        case 'bots':
+          _bots = value;
+      }
+      _updateAutoTitle();
+    });
+  }
+
+  void _onCreate() {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a folder name.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    if (!_contacts && !_nonContacts && !_groups && !_channels && !_bots) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select at least one chat type to include.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    Navigator.of(context).pop(FolderInfo(
+      name: name,
+      contacts: _contacts,
+      nonContacts: _nonContacts,
+      groups: _groups,
+      channels: _channels,
+      bots: _bots,
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = widget.isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor =
+        widget.isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final inputBg =
+        widget.isDark ? const Color(0xFF242F3D) : const Color(0xFFF1F1F1);
+    final charCount = _nameController.text.characters.length;
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: SizedBox(
+        width: 364,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 18, 22, 0),
+              child: Text(
+                'New Folder',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: textColor,
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 22),
+              child: Stack(
+                children: [
+                  TextField(
+                    controller: _nameController,
+                    maxLength: 12,
+                    onChanged: (v) {
+                      if (!_userTyped && v.isNotEmpty) _userTyped = true;
+                      if (v.isEmpty) _userTyped = false;
+                      setState(() {});
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Folder name',
+                      hintStyle: TextStyle(color: subtextColor),
+                      counterText: '',
+                      filled: true,
+                      fillColor: inputBg,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.fromLTRB(14, 12, 90, 12),
+                    ),
+                    style: TextStyle(fontSize: 14, color: textColor),
+                  ),
+                  Positioned(
+                    right: 14,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: Text(
+                        '$charCount/12',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: charCount >= 12
+                              ? const Color(0xFFE53935)
+                              : subtextColor,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 0, 22, 4),
+              child: Text(
+                'Included Chats',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: widget.accentColor,
+                ),
+              ),
+            ),
+            _TypeToggleRow(
+              label: 'Contacts',
+              icon: Icons.person,
+              color: const Color(0xFF7bc862),
+              value: _contacts,
+              isDark: widget.isDark,
+              textColor: textColor,
+              onChanged: (v) => _onToggle('contacts', v),
+            ),
+            _TypeToggleRow(
+              label: 'Non-Contacts',
+              icon: Icons.person_outline,
+              color: const Color(0xFF6ec9cb),
+              value: _nonContacts,
+              isDark: widget.isDark,
+              textColor: textColor,
+              onChanged: (v) => _onToggle('nonContacts', v),
+            ),
+            _TypeToggleRow(
+              label: 'Groups',
+              icon: Icons.group,
+              color: const Color(0xFF7bc862),
+              value: _groups,
+              isDark: widget.isDark,
+              textColor: textColor,
+              onChanged: (v) => _onToggle('groups', v),
+            ),
+            _TypeToggleRow(
+              label: 'Channels',
+              icon: Icons.campaign,
+              color: const Color(0xFFe17076),
+              value: _channels,
+              isDark: widget.isDark,
+              textColor: textColor,
+              onChanged: (v) => _onToggle('channels', v),
+            ),
+            _TypeToggleRow(
+              label: 'Bots',
+              icon: Icons.smart_toy,
+              color: const Color(0xFFa695e7),
+              value: _bots,
+              isDark: widget.isDark,
+              textColor: textColor,
+              onChanged: (v) => _onToggle('bots', v),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 4, 22, 0),
+              child: Text(
+                'Choose chats and types of chats that will appear in this folder.',
+                style: TextStyle(fontSize: 13, color: subtextColor),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 0, 22, 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(color: subtextColor, fontSize: 14),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: _onCreate,
+                    style: TextButton.styleFrom(
+                      backgroundColor: widget.accentColor,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                    child: const Text(
+                      'Create',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TypeToggleRow extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final bool value;
+  final bool isDark;
+  final Color textColor;
+  final ValueChanged<bool> onChanged;
+
+  const _TypeToggleRow({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.value,
+    required this.isDark,
+    required this.textColor,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hoverColor =
+        isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => onChanged(!value),
+        hoverColor: hoverColor,
+        child: SizedBox(
+          height: 44,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 0, 22, 0),
+            child: Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [color, color.withValues(alpha: 0.8)],
+                    ),
+                  ),
+                  child: Icon(icon, size: 18, color: Colors.white),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(fontSize: 14, color: textColor),
+                  ),
+                ),
+                Checkbox(
+                  value: value,
+                  onChanged: (v) => onChanged(v ?? false),
+                  activeColor: isDark
+                      ? const Color(0xFF6AB3F3)
+                      : const Color(0xFF40A7E3),
+                ),
+              ],
+            ),
           ),
         ),
       ),

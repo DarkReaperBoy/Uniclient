@@ -9240,6 +9240,64 @@ func (t *TelegramCore) CreateFolder(name string, chatIDs []string) (*Folder, err
 	}, nil
 }
 
+// CreateFolderWithFlags creates a new chat folder with type filter flags.
+func (t *TelegramCore) CreateFolderWithFlags(name string, chatIDs []string, contacts, nonContacts, groups, channels, bots bool) (*Folder, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+
+	var peers []tg.InputPeerClass
+	for _, cid := range chatIDs {
+		peer, err := t.resolvePeer(cid)
+		if err != nil {
+			continue
+		}
+		inputPeer, _ := t.toInputPeer(peer)
+		peers = append(peers, inputPeer)
+	}
+
+	filterID := int(time.Now().Unix()%200) + 20
+
+	titleRunes := []rune(name)
+	if len(titleRunes) > 12 {
+		titleRunes = titleRunes[:12]
+	}
+	filter := &tg.DialogFilter{
+		ID:           filterID,
+		Title:        tg.TextWithEntities{Text: string(titleRunes), Entities: []tg.MessageEntityClass{}},
+		Contacts:     contacts,
+		NonContacts:  nonContacts,
+		Groups:       groups,
+		Broadcasts:   channels,
+		Bots:         bots,
+		IncludePeers: peers,
+		PinnedPeers:  []tg.InputPeerClass{},
+		ExcludePeers: []tg.InputPeerClass{},
+	}
+	filter.SetFlags()
+
+	_, err := t.api.MessagesUpdateDialogFilter(t.ctx, &tg.MessagesUpdateDialogFilterRequest{
+		ID:     filterID,
+		Filter: filter,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create folder: %w", err)
+	}
+
+	return &Folder{
+		ID:          strconv.Itoa(filterID),
+		Name:        name,
+		ChatIDs:     chatIDs,
+		Contacts:    contacts,
+		NonContacts: nonContacts,
+		Groups:      groups,
+		Channels:    channels,
+		Bots:        bots,
+	}, nil
+}
+
 // OnUpdate registers a callback to receive real-time updates from Telegram.
 func (t *TelegramCore) OnUpdate(handler func(Update)) {
 	t.updateMu.Lock()
