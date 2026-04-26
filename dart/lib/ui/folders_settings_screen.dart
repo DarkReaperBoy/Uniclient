@@ -1154,6 +1154,12 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
     _PreviewTypeInfo('bots', 'Bots', Icons.smart_toy, Color(0xFFa695e7)),
   ];
 
+  static const _allExcludeTypes = <_PreviewTypeInfo>[
+    _PreviewTypeInfo('excludeMuted', 'Muted', Icons.volume_off, Color(0xFFa695e7)),
+    _PreviewTypeInfo('excludeArchived', 'Archived', Icons.archive, Color(0xFF7bc862)),
+    _PreviewTypeInfo('excludeRead', 'Read', Icons.done_all, Color(0xFF6ec9cb)),
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -1298,6 +1304,40 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
 
   void _removeIncludeType(String key) {
     _onToggle(key, false);
+  }
+
+  List<_PreviewTypeInfo> _buildExcludeTypeList() {
+    final list = <_PreviewTypeInfo>[];
+    if (_excludeMuted) list.add(_allExcludeTypes[0]);
+    if (_excludeArchived) list.add(_allExcludeTypes[1]);
+    if (_excludeRead) list.add(_allExcludeTypes[2]);
+    return list;
+  }
+
+  void _removeExcludeType(String key) {
+    _onToggle(key, false);
+  }
+
+  void _openExcludeTypePicker() {
+    showDialog<Map<String, bool>>(
+      context: context,
+      builder: (ctx) => _ExcludeTypePicker(
+        isDark: widget.isDark,
+        accentColor: widget.accentColor,
+        excludeMuted: _excludeMuted,
+        excludeArchived: _excludeArchived,
+        excludeRead: _excludeRead,
+      ),
+    ).then((result) {
+      if (result != null && mounted) {
+        setState(() {
+          _excludeMuted = result['excludeMuted'] ?? _excludeMuted;
+          _excludeArchived = result['excludeArchived'] ?? _excludeArchived;
+          _excludeRead = result['excludeRead'] ?? _excludeRead;
+          _updateAutoTitle();
+        });
+      }
+    });
   }
 
   void _openIncludeTypePicker() {
@@ -1524,32 +1564,16 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
                             ),
                           ),
                         ),
-                        _TypeToggleRow(
-                          label: 'Muted',
-                          icon: Icons.volume_off,
-                          color: const Color(0xFFa695e7),
-                          value: _excludeMuted,
+                        _RemoveChatsButton(
                           isDark: widget.isDark,
-                          textColor: textColor,
-                          onChanged: (v) => _onToggle('excludeMuted', v),
+                          accentColor: widget.accentColor,
+                          onTap: _openExcludeTypePicker,
                         ),
-                        _TypeToggleRow(
-                          label: 'Archived',
-                          icon: Icons.archive,
-                          color: const Color(0xFF7bc862),
-                          value: _excludeArchived,
+                        _FilterChatsPreview(
+                          types: _buildExcludeTypeList(),
                           isDark: widget.isDark,
                           textColor: textColor,
-                          onChanged: (v) => _onToggle('excludeArchived', v),
-                        ),
-                        _TypeToggleRow(
-                          label: 'Read',
-                          icon: Icons.done_all,
-                          color: const Color(0xFF6ec9cb),
-                          value: _excludeRead,
-                          isDark: widget.isDark,
-                          textColor: textColor,
-                          onChanged: (v) => _onToggle('excludeRead', v),
+                          onRemove: _removeExcludeType,
                         ),
                         Padding(
                           padding: const EdgeInsets.fromLTRB(22, 4, 22, 0),
@@ -1914,6 +1938,58 @@ class _AddChatsButton extends StatelessWidget {
   }
 }
 
+class _RemoveChatsButton extends StatelessWidget {
+  final bool isDark;
+  final Color accentColor;
+  final VoidCallback onTap;
+
+  const _RemoveChatsButton({
+    required this.isDark,
+    required this.accentColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hoverColor = isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        hoverColor: hoverColor,
+        child: SizedBox(
+          height: 44,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(13, 0, 22, 0),
+            child: Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: accentColor,
+                  ),
+                  child: const Icon(Icons.remove, size: 18, color: Colors.white),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Remove Chats',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: accentColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _FilterChatsPreview extends StatelessWidget {
   final List<_PreviewTypeInfo> types;
   final bool isDark;
@@ -2202,6 +2278,171 @@ class _IncludeTypePickerState extends State<_IncludeTypePicker> {
                       'groups': _groups,
                       'channels': _channels,
                       'bots': _bots,
+                    }),
+                    style: TextButton.styleFrom(
+                      backgroundColor: widget.accentColor,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                    child: const Text(
+                      'Done',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ExcludeTypePicker extends StatefulWidget {
+  final bool isDark;
+  final Color accentColor;
+  final bool excludeMuted;
+  final bool excludeArchived;
+  final bool excludeRead;
+
+  const _ExcludeTypePicker({
+    required this.isDark,
+    required this.accentColor,
+    required this.excludeMuted,
+    required this.excludeArchived,
+    required this.excludeRead,
+  });
+
+  @override
+  State<_ExcludeTypePicker> createState() => _ExcludeTypePickerState();
+}
+
+class _ExcludeTypePickerState extends State<_ExcludeTypePicker> {
+  late bool _excludeMuted;
+  late bool _excludeArchived;
+  late bool _excludeRead;
+
+  @override
+  void initState() {
+    super.initState();
+    _excludeMuted = widget.excludeMuted;
+    _excludeArchived = widget.excludeArchived;
+    _excludeRead = widget.excludeRead;
+  }
+
+  int get _selectedCount {
+    int c = 0;
+    if (_excludeMuted) c++;
+    if (_excludeArchived) c++;
+    if (_excludeRead) c++;
+    return c;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = widget.isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = widget.isDark
+        ? const Color(0xFFF5F5F5)
+        : const Color(0xFF000000);
+    final subtextColor = widget.isDark
+        ? const Color(0xFF6C7883)
+        : const Color(0xFF999999);
+    final headerBg = widget.isDark
+        ? const Color(0xFF202B36)
+        : const Color(0xFFF1F1F1);
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: SizedBox(
+        width: 364,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 18, 22, 14),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Exclude Chats',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '$_selectedCount/3',
+                    style: TextStyle(fontSize: 13, color: subtextColor),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              color: headerBg,
+              padding: const EdgeInsets.fromLTRB(22, 6, 22, 6),
+              child: Text(
+                'Chat types',
+                style: TextStyle(fontSize: 13, color: subtextColor),
+              ),
+            ),
+            _TypeToggleRow(
+              label: 'Muted',
+              icon: Icons.volume_off,
+              color: const Color(0xFFa695e7),
+              value: _excludeMuted,
+              isDark: widget.isDark,
+              textColor: textColor,
+              onChanged: (v) => setState(() => _excludeMuted = v),
+            ),
+            _TypeToggleRow(
+              label: 'Archived',
+              icon: Icons.archive,
+              color: const Color(0xFF7bc862),
+              value: _excludeArchived,
+              isDark: widget.isDark,
+              textColor: textColor,
+              onChanged: (v) => setState(() => _excludeArchived = v),
+            ),
+            _TypeToggleRow(
+              label: 'Read',
+              icon: Icons.done_all,
+              color: const Color(0xFF6ec9cb),
+              value: _excludeRead,
+              isDark: widget.isDark,
+              textColor: textColor,
+              onChanged: (v) => setState(() => _excludeRead = v),
+            ),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 0, 22, 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(color: subtextColor, fontSize: 14),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop({
+                      'excludeMuted': _excludeMuted,
+                      'excludeArchived': _excludeArchived,
+                      'excludeRead': _excludeRead,
                     }),
                     style: TextButton.styleFrom(
                       backgroundColor: widget.accentColor,

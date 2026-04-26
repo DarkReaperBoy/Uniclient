@@ -690,7 +690,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 18.5 Recommended Folders
 
 ### 18.6 Edit Filter Box
-- [ ] Excluded Chats section (hidden when chatlist=true): "Remove Chats" button, same preview widget, 3 exclude types (Muted purple/Archived green/Read cyan), footer — spec §18.6.3
 - [ ] Tag Color section (Premium-gated): "Tag Color" subtitle + inline tag preview badge, 8 circular 30px chips evenly spaced, colors 0–6 from palette, color 7 = "no tag" (X icon, historyPeerArchiveUserpicBg), selection ring with 120ms color crossfade, non-Premium→PremiumPreviewBox(FilterTags), footer — spec §18.6.4 & §18.6.4.1
 - [ ] Shareable Link section: "Share Folder"/"Invite Links" title, Create/Add Link buttons, link rows (52px, green circle, name+status+three-dots), context menu (Copy/Share/QR/Name it/Delete), validation on create (no exclusions or rule flags) — spec §18.6.5 & §18.6.5.1
 - [ ] Save validation: empty/overlong title → showError+scroll to top; no include types + no chats → toast; all types+NoArchived+no specific chats → toast — spec §18.6.6
