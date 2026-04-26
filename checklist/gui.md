@@ -688,7 +688,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 18.4 Create New Folder
 
 ### 18.5 Recommended Folders
-- [ ] SlideWrap (visible when suggestions > 0 AND count < limit): divider + "Recommended folders" subtitle, each as FilterRowButton in Suggested state (no icon, title + server description, "Add" button 26px full radius) — spec §18.5
 
 ### 18.6 Edit Filter Box
 - [ ] GenericBox 364px "New Folder"/"Edit Folder": closeByOutsideClick=false, Create/Save + Cancel buttons — spec §18.6

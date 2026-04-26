@@ -973,6 +973,26 @@ class FolderInfo {
   });
 }
 
+class SuggestedFolderInfo {
+  final String name;
+  final String description;
+  final bool contacts;
+  final bool nonContacts;
+  final bool groups;
+  final bool channels;
+  final bool bots;
+
+  const SuggestedFolderInfo({
+    this.name = '',
+    this.description = '',
+    this.contacts = false,
+    this.nonContacts = false,
+    this.groups = false,
+    this.channels = false,
+    this.bots = false,
+  });
+}
+
 // ── Search result ──
 class SearchResult {
   final String accountId;

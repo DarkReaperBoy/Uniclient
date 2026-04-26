@@ -14005,6 +14005,53 @@ func (t *TelegramCore) GetSuggestedFoldersCount() (int, error) {
 	return len(result), nil
 }
 
+// GetSuggestedFolders returns the list of suggested chat folders from the server.
+func (t *TelegramCore) GetSuggestedFolders() ([]SuggestedFolder, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return nil, ErrAuth }
+	result, err := t.api.MessagesGetSuggestedDialogFilters(t.ctx)
+	if err != nil { return nil, err }
+
+	var suggestions []SuggestedFolder
+	for _, s := range result {
+		var folder Folder
+		switch filter := s.Filter.(type) {
+		case *tg.DialogFilter:
+			folder = Folder{
+				Name:            filter.Title.Text,
+				Contacts:        filter.Contacts,
+				NonContacts:     filter.NonContacts,
+				Groups:          filter.Groups,
+				Channels:        filter.Broadcasts,
+				Bots:            filter.Bots,
+				ExcludeMuted:    filter.ExcludeMuted,
+				ExcludeRead:     filter.ExcludeRead,
+				ExcludeArchived: filter.ExcludeArchived,
+			}
+			for _, p := range filter.IncludePeers {
+				folder.ChatIDs = append(folder.ChatIDs, inputPeerToID(p))
+			}
+			for _, p := range filter.ExcludePeers {
+				folder.ExcludeChatIDs = append(folder.ExcludeChatIDs, inputPeerToID(p))
+			}
+		case *tg.DialogFilterChatlist:
+			folder = Folder{
+				Name: filter.Title.Text,
+			}
+			for _, p := range filter.IncludePeers {
+				folder.ChatIDs = append(folder.ChatIDs, inputPeerToID(p))
+			}
+		default:
+			continue
+		}
+		suggestions = append(suggestions, SuggestedFolder{
+			Filter:      folder,
+			Description: s.Description,
+		})
+	}
+	return suggestions, nil
+}
+
 // GetPeerSettingsCheck returns action bar settings for a peer.
 func (t *TelegramCore) GetPeerSettingsCheck(chatID string) error {
 	inputPeer, unlock, err := t.withPeer(chatID)

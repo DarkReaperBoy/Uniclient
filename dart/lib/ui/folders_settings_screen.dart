@@ -18,7 +18,7 @@ class FoldersSettingsScreen extends StatefulWidget {
 
 class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
   List<FolderInfo> _folders = [];
-  List<FolderInfo> _recommended = [];
+  List<SuggestedFolderInfo> _recommended = [];
   bool _showTags = false;
   bool _useVerticalTabs = true;
   bool _loaded = false;
@@ -41,10 +41,17 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
     final account = appState.activeAccount;
     if (account == null) return;
     final chatState = context.read<ChatState>();
+    final engine = context.read<EngineService>();
     setState(() {
       _folders = List.of(chatState.folders);
       _loaded = true;
     });
+    try {
+      final suggestions = await engine.getSuggestedFolders(account.id);
+      if (mounted) {
+        setState(() => _recommended = suggestions);
+      }
+    } catch (_) {}
   }
 
   Future<void> _saveChanges() async {
@@ -190,6 +197,35 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
     );
   }
 
+  void _addRecommendedFolder(int index) {
+    final suggestion = _recommended[index];
+    final appState = context.read<AppState>();
+    final account = appState.activeAccount;
+    if (account == null) return;
+    final chatState = context.read<ChatState>();
+    setState(() {
+      _recommended = List.of(_recommended)..removeAt(index);
+    });
+    chatState.createFolder(
+      account.id,
+      suggestion.name,
+      const [],
+      contacts: suggestion.contacts,
+      nonContacts: suggestion.nonContacts,
+      groups: suggestion.groups,
+      channels: suggestion.channels,
+      bots: suggestion.bots,
+    ).then((_) {
+      if (mounted) {
+        chatState.loadFoldersForAccount(account.id).then((_) {
+          if (mounted) {
+            setState(() => _folders = List.of(chatState.folders));
+          }
+        });
+      }
+    });
+  }
+
   void _showEditFilterBox(bool isDark, Color accentColor) {
     showDialog<FolderInfo>(
       context: context,
@@ -318,26 +354,36 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
           Container(height: 1, color: dividerBg),
           const SizedBox(height: 7),
 
-          // §18.5 Recommended Folders
-          if (_recommended.isNotEmpty) ...[
-            _SectionTitle(
-              text: 'Recommended folders',
-              color: sectionTitleColor,
-            ),
-            for (final rec in _recommended)
-              _RecommendedRow(
-                folder: rec,
-                isDark: isDark,
-                hoverColor: hoverColor,
-                textColor: textColor,
-                subtextColor: subtextColor,
-                accentColor: accentColor,
-                onAdd: () {},
-              ),
-            const SizedBox(height: 7),
-            Container(height: 1, color: dividerBg),
-            const SizedBox(height: 7),
-          ],
+          // §18.5 Recommended Folders — visible when suggestions > 0 AND count < limit
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: (_recommended.isNotEmpty && _folders.length < _folderLimitFree)
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _SectionTitle(
+                        text: 'Recommended folders',
+                        color: sectionTitleColor,
+                      ),
+                      for (int i = 0; i < _recommended.length; i++)
+                        _RecommendedRow(
+                          suggestion: _recommended[i],
+                          isDark: isDark,
+                          hoverColor: hoverColor,
+                          textColor: textColor,
+                          subtextColor: subtextColor,
+                          accentColor: accentColor,
+                          onAdd: () => _addRecommendedFolder(i),
+                        ),
+                      const SizedBox(height: 7),
+                      Container(height: 1, color: dividerBg),
+                      const SizedBox(height: 7),
+                    ],
+                  )
+                : const SizedBox.shrink(),
+          ),
 
           // §18.11 Show Folder Tags toggle
           _TagsToggle(
@@ -753,9 +799,9 @@ class _CreateFolderButton extends StatelessWidget {
   }
 }
 
-// §18.5 Recommended folder row
+// §18.5 Recommended folder row — FilterRowButton in Suggested state
 class _RecommendedRow extends StatelessWidget {
-  final FolderInfo folder;
+  final SuggestedFolderInfo suggestion;
   final bool isDark;
   final Color hoverColor;
   final Color textColor;
@@ -764,7 +810,7 @@ class _RecommendedRow extends StatelessWidget {
   final VoidCallback onAdd;
 
   const _RecommendedRow({
-    required this.folder,
+    required this.suggestion,
     required this.isDark,
     required this.hoverColor,
     required this.textColor,
@@ -783,7 +829,7 @@ class _RecommendedRow extends StatelessWidget {
         child: SizedBox(
           height: 52,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 10, 0),
+            padding: const EdgeInsets.fromLTRB(22, 0, 10, 0),
             child: Row(
               children: [
                 Expanded(
@@ -792,7 +838,7 @@ class _RecommendedRow extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        folder.name,
+                        suggestion.name,
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -801,26 +847,42 @@ class _RecommendedRow extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
+                      if (suggestion.description.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          suggestion.description,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: subtextColor,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ],
                   ),
                 ),
-                TextButton(
-                  onPressed: onAdd,
-                  style: TextButton.styleFrom(
-                    minimumSize: const Size(50, 26),
-                    maximumSize: const Size(70, 26),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(13),
+                const SizedBox(width: 8),
+                SizedBox(
+                  height: 26,
+                  child: TextButton(
+                    onPressed: onAdd,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                      backgroundColor: accentColor,
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                    backgroundColor: accentColor,
-                  ),
-                  child: const Text(
-                    'Add',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                    child: const Text(
+                      'Add',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),

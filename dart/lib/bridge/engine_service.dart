@@ -352,6 +352,31 @@ class EngineService {
     }
   }
 
+  Future<List<SuggestedFolderInfo>> getSuggestedFolders(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetSuggestedFolders', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return [];
+      final list = json.decode(utf8.decode(respBytes)) as List<dynamic>?;
+      if (list == null) return [];
+      return list.map((e) {
+        final m = e as Map<String, dynamic>;
+        return SuggestedFolderInfo(
+          name: m['name'] as String? ?? '',
+          description: m['description'] as String? ?? '',
+          contacts: m['contacts'] as bool? ?? false,
+          nonContacts: m['non_contacts'] as bool? ?? false,
+          groups: m['groups'] as bool? ?? false,
+          channels: m['channels'] as bool? ?? false,
+          bots: m['bots'] as bool? ?? false,
+        );
+      }).toList();
+    } catch (e) {
+      Debug.error('ENGINE', 'getSuggestedFolders failed', e);
+      return [];
+    }
+  }
+
   Future<void> deleteFolder(String accountId, String folderId) async {
     final req = epb.EngineDeleteFolderRequest()
       ..accountId = accountId

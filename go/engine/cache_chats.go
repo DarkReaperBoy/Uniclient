@@ -685,6 +685,50 @@ func (e *Engine) GetFolders(accountID string) ([]FolderInfo, error) {
 	return result, nil
 }
 
+type SuggestedFolderInfo struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Contacts    bool   `json:"contacts,omitempty"`
+	NonContacts bool   `json:"non_contacts,omitempty"`
+	Groups      bool   `json:"groups,omitempty"`
+	Channels    bool   `json:"channels,omitempty"`
+	Bots        bool   `json:"bots,omitempty"`
+}
+
+func (e *Engine) GetSuggestedFolders(accountID string) ([]SuggestedFolderInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+
+	type suggestedLister interface {
+		GetSuggestedFolders() ([]cores.SuggestedFolder, error)
+	}
+	sl, ok := acc.Core.(suggestedLister)
+	if !ok {
+		return nil, nil
+	}
+
+	suggestions, err := sl.GetSuggestedFolders()
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]SuggestedFolderInfo, len(suggestions))
+	for i, s := range suggestions {
+		result[i] = SuggestedFolderInfo{
+			Name:        s.Filter.Name,
+			Description: s.Description,
+			Contacts:    s.Filter.Contacts,
+			NonContacts: s.Filter.NonContacts,
+			Groups:      s.Filter.Groups,
+			Channels:    s.Filter.Channels,
+			Bots:        s.Filter.Bots,
+		}
+	}
+	return result, nil
+}
+
 // DeleteFolder deletes a chat folder via the underlying core.
 func (e *Engine) DeleteFolder(accountID, folderID string) error {
 	acc, ok := e.getAccount(accountID)

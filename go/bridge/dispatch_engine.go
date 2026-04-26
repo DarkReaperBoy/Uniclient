@@ -749,6 +749,19 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, nil
 
+	case "GetSuggestedFolders":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		suggestions, err := e.GetSuggestedFolders(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(suggestions)
+
 	// ── Config ──
 
 	case "GetConfig":

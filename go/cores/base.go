@@ -411,6 +411,11 @@ type Folder struct {
 	ExcludeArchived bool    `json:"exclude_archived,omitempty"`
 }
 
+type SuggestedFolder struct {
+	Filter      Folder `json:"filter"`
+	Description string `json:"description"`
+}
+
 // Session represents an active login session on a device.
 type Session struct {
 	ID         string    `json:"id"`
