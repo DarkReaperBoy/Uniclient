@@ -1765,6 +1765,52 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.SetDefaultHistoryTTL(params.AccountID, params.Period)
 
+	case "GetAccountTTL":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		days, err := e.GetAccountTTL(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]int{"days": days})
+
+	case "SetAccountTTL":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Days      int    `json:"days"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SetAccountTTL(params.AccountID, params.Days)
+
+	case "GetTopPeersEnabled":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		enabled, err := e.GetTopPeersEnabled(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]bool{"enabled": enabled})
+
+	case "ToggleTopPeers":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Enabled   bool   `json:"enabled"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.ToggleTopPeers(params.AccountID, params.Enabled)
+
 	case "GetCloudPasswordState":
 		var params struct {
 			AccountID string `json:"account_id"`

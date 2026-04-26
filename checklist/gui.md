@@ -651,11 +651,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 
 ### 16.5 Bots and Websites
 
-### 16.6–16.8 File Confirmations, Frequent Contacts, Self-Destruction
-- [ ] File Confirmations section (conditional): multi-line extensions input (max 10240 chars / 1024 entries), "Show IP in WebRTC calls" toggle — spec §16.6 & §16.6.1
-- [ ] "Suggest Frequent Contacts" toggle — spec §16.7
-- [ ] "If away for…" button, SelfDestructionBox (radios 1/3/6/12/18/24 months, info label, Save+Cancel) — spec §16.8 & §16.8.1
-
 ### 16.9 Blocked Users Screen
 - [ ] "Block User" top button (opens peer picker, already-blocked disabled), blocked peer list (photo+name+status+"Unblock" link), empty state (Lottie, title, desc, 240px min height) — spec §16.9
 

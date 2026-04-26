@@ -51,6 +51,10 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
   bool _archiveKeepFolders = false;
   bool _archiveLoaded = false;
 
+  int _accountTTLDays = 0;
+  bool _topPeersEnabled = true;
+  bool _topPeersLoaded = false;
+
   @override
   void initState() {
     super.initState();
@@ -63,6 +67,8 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     _fetchAllPrivacy();
     _fetchMessagesPrivacy();
     _fetchArchiveSettings();
+    _fetchAccountTTL();
+    _fetchTopPeers();
     _pollTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       _fetchPasswordState();
     });
@@ -221,6 +227,31 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
       _archiveKeepUnmuted = result.keepArchivedUnmuted;
       _archiveKeepFolders = result.keepArchivedFolders;
       _archiveLoaded = true;
+    });
+  }
+
+  Future<void> _fetchAccountTTL() async {
+    if (!mounted) return;
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+    final days = await engine.getAccountTTL(accountId);
+    if (!mounted) return;
+    setState(() => _accountTTLDays = days);
+  }
+
+  Future<void> _fetchTopPeers() async {
+    if (!mounted) return;
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+    final enabled = await engine.getTopPeersEnabled(accountId);
+    if (!mounted) return;
+    setState(() {
+      _topPeersEnabled = enabled;
+      _topPeersLoaded = true;
     });
   }
 
@@ -843,7 +874,86 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     Color accentColor,
     Color hoverBg,
   ) {
-    return [];
+    return [
+      const SizedBox(height: 14),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(22, 0, 22, 4),
+        child: Text(
+          'File Confirmations',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: isDark ? const Color(0xFF6C7883) : const Color(0xFF999999),
+          ),
+        ),
+      ),
+      InkWell(
+        onTap: () => _openFileExtensionsDialog(),
+        hoverColor: hoverBg,
+        child: Padding(
+          padding: SettingsStyle.noIconPadding,
+          child: Text(
+            'No-Warning Extensions',
+            style: TextStyle(fontSize: 14, color: textColor),
+          ),
+        ),
+      ),
+    ];
+  }
+
+  void _openFileExtensionsDialog() {
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    final controller = TextEditingController();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF17212B) : Colors.white,
+        title: Text('No-Warning Extensions', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
+        content: SizedBox(
+          width: 300,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Enter file extensions (space-separated) that should open without a confirmation dialog.',
+                style: TextStyle(fontSize: 13, color: subtextColor, height: 1.4),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                maxLines: 4,
+                maxLength: 10240,
+                style: TextStyle(fontSize: 14, color: textColor),
+                decoration: InputDecoration(
+                  hintText: 'txt log md pdf',
+                  hintStyle: TextStyle(color: subtextColor),
+                  border: const OutlineInputBorder(),
+                  contentPadding: const EdgeInsets.all(12),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
   }
 
   List<Widget> _buildTopPeersSection(
@@ -853,7 +963,67 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     Color accentColor,
     Color hoverBg,
   ) {
-    return [];
+    return [
+      InkWell(
+        onTap: () {
+          final newVal = !_topPeersEnabled;
+          setState(() => _topPeersEnabled = newVal);
+          final engine = context.read<EngineService>();
+          final accountId = context.read<AppState>().activeAccountId;
+          if (accountId.isNotEmpty) {
+            engine.toggleTopPeers(accountId, newVal);
+          }
+        },
+        hoverColor: hoverBg,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Suggest Frequent Contacts',
+                  style: TextStyle(fontSize: 14, color: textColor),
+                ),
+              ),
+              SizedBox(
+                width: 36,
+                height: 20,
+                child: Switch(
+                  value: _topPeersEnabled,
+                  onChanged: (v) {
+                    setState(() => _topPeersEnabled = v);
+                    final engine = context.read<EngineService>();
+                    final accountId = context.read<AppState>().activeAccountId;
+                    if (accountId.isNotEmpty) {
+                      engine.toggleTopPeers(accountId, v);
+                    }
+                  },
+                  activeColor: accentColor,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
+        child: Text(
+          'Display people you message frequently at the top of the search section for quick access.',
+          style: TextStyle(fontSize: 13, color: subtextColor, height: 1.4),
+        ),
+      ),
+    ];
+  }
+
+  String _formatAccountTTL(int days) {
+    if (days <= 0) return '...';
+    if (days <= 31) return '1 month';
+    if (days <= 92) return '3 months';
+    if (days <= 183) return '6 months';
+    if (days <= 366) return '12 months';
+    if (days <= 549) return '18 months';
+    return '24 months';
   }
 
   List<Widget> _buildSelfDestructionSection(
@@ -862,7 +1032,125 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     Color subtextColor,
     Color hoverBg,
   ) {
-    return [];
+    return [
+      const SizedBox(height: 14),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(22, 0, 22, 4),
+        child: Text(
+          'Delete my account',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: isDark ? const Color(0xFF6C7883) : const Color(0xFF999999),
+          ),
+        ),
+      ),
+      InkWell(
+        onTap: _openSelfDestructionBox,
+        hoverColor: hoverBg,
+        child: Padding(
+          padding: SettingsStyle.noIconPadding,
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'If away for...',
+                  style: TextStyle(fontSize: 14, color: textColor),
+                ),
+              ),
+              Text(
+                _formatAccountTTL(_accountTTLDays),
+                style: TextStyle(fontSize: 14, color: subtextColor),
+              ),
+            ],
+          ),
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(22, 4, 22, 8),
+        child: Text(
+          'If you do not come online at least once within this period, your account will be deleted along with all groups, messages and contacts.',
+          style: TextStyle(fontSize: 13, color: subtextColor, height: 1.4),
+        ),
+      ),
+    ];
+  }
+
+  void _openSelfDestructionBox() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+
+    final options = <int>[30, 90, 180, 365, 548, 720];
+    final labels = <String>[
+      '1 month', '3 months', '6 months',
+      '12 months', '18 months', '24 months',
+    ];
+
+    int selected = _accountTTLDays;
+    int closest = options.first;
+    int minDist = (selected - closest).abs();
+    for (final o in options) {
+      final d = (selected - o).abs();
+      if (d < minDist) {
+        minDist = d;
+        closest = o;
+      }
+    }
+    selected = closest;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: isDark ? const Color(0xFF17212B) : Colors.white,
+          title: Text('Self-Destruction', style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600)),
+          content: SizedBox(
+            width: 300,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'If you do not come online at least once within this period, your account will be deleted along with all groups, messages and contacts.',
+                  style: TextStyle(fontSize: 13, color: subtextColor, height: 1.4),
+                ),
+                const SizedBox(height: 16),
+                ...List.generate(options.length, (i) => RadioListTile<int>(
+                  value: options[i],
+                  groupValue: selected,
+                  onChanged: (v) => setDialogState(() => selected = v!),
+                  title: Text(labels[i], style: TextStyle(fontSize: 14, color: textColor)),
+                  activeColor: accentColor,
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                )),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                setState(() => _accountTTLDays = selected);
+                final engine = context.read<EngineService>();
+                final accountId = context.read<AppState>().activeAccountId;
+                if (accountId.isNotEmpty) {
+                  engine.setAccountTTL(accountId, selected);
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

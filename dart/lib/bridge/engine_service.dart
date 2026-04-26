@@ -1700,6 +1700,48 @@ class EngineService {
     await _callAsync('__engine', 'SetDefaultHistoryTTL', Uint8List.fromList(payload));
   }
 
+  Future<int> getAccountTTL(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetAccountTTL', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return 0;
+      final resp = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return resp['days'] as int? ?? 0;
+    } catch (e) {
+      Debug.error('ENGINE', 'getAccountTTL failed', e);
+      return 0;
+    }
+  }
+
+  Future<void> setAccountTTL(String accountId, int days) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'days': days,
+    }));
+    await _callAsync('__engine', 'SetAccountTTL', Uint8List.fromList(payload));
+  }
+
+  Future<bool> getTopPeersEnabled(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetTopPeersEnabled', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return true;
+      final resp = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return resp['enabled'] as bool? ?? true;
+    } catch (e) {
+      Debug.error('ENGINE', 'getTopPeersEnabled failed', e);
+      return true;
+    }
+  }
+
+  Future<void> toggleTopPeers(String accountId, bool enabled) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'enabled': enabled,
+    }));
+    await _callAsync('__engine', 'ToggleTopPeers', Uint8List.fromList(payload));
+  }
+
   // ── Cloud Password (2FA) ──
 
   Future<Map<String, dynamic>?> getCloudPasswordState(String accountId) async {

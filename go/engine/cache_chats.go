@@ -477,6 +477,71 @@ func (e *Engine) SetDefaultHistoryTTL(accountID string, period int) error {
 	return err
 }
 
+func (e *Engine) GetAccountTTL(accountID string) (int, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return 0, fmt.Errorf("account not found: %s", accountID)
+	}
+	type accountTTLGetter interface {
+		GetAccountTTL() (int, error)
+	}
+	g, ok := acc.Core.(accountTTLGetter)
+	if !ok {
+		return 0, fmt.Errorf("platform does not support account TTL")
+	}
+	return g.GetAccountTTL()
+}
+
+func (e *Engine) SetAccountTTL(accountID string, days int) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	type accountTTLSetter interface {
+		SetAccountTTL(days int) error
+	}
+	s, ok := acc.Core.(accountTTLSetter)
+	if !ok {
+		return fmt.Errorf("platform does not support account TTL")
+	}
+	return s.SetAccountTTL(days)
+}
+
+func (e *Engine) GetTopPeersEnabled(accountID string) (bool, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return false, fmt.Errorf("account not found: %s", accountID)
+	}
+	type topPeersGetter interface {
+		GetTopPeersCount() (int, error)
+	}
+	g, ok := acc.Core.(topPeersGetter)
+	if !ok {
+		return false, fmt.Errorf("platform does not support top peers")
+	}
+	count, err := g.GetTopPeersCount()
+	if err != nil {
+		return false, err
+	}
+	return count >= 0, nil
+}
+
+func (e *Engine) ToggleTopPeers(accountID string, enabled bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	type topPeersToggler interface {
+		ContactsToggleTopPeers(enabled bool) (bool, error)
+	}
+	t, ok := acc.Core.(topPeersToggler)
+	if !ok {
+		return fmt.Errorf("platform does not support top peers")
+	}
+	_, err := t.ContactsToggleTopPeers(enabled)
+	return err
+}
+
 // PinChat sets the pinned state for a chat.
 func (e *Engine) PinChat(accountID, chatID string, pinned bool) error {
 	_, err := e.db.Exec(
