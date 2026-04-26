@@ -718,7 +718,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 19.7–19.9 Terminate All / Rename / Auto-Terminate
 
 ### 19.10–19.12 Power Saving Box
-- [ ] Power Saving GenericBox (364px): 11 toggles in groups (Stickers: Panel+Messages; Emoji: Panel+Reactions+Messages+Status; Chat: Background+Spoiler+Effects; Calls; Interface Animations), powerSavingButton style (57/8/22/8 padding, 20px iconLeft), category headers, sub-items powerSavingButtonNoIcon (22/8/22/8) — spec §19.10–11
 - [ ] Automatic Power Saving toggle (OS battery status conditional): ON + battery saver active → overlay (boxBg alpha 96) over controls (OK still clickable), 3s toast on overlay click, overlay removes when OS exits battery saver — spec §19.12 & §19.12.1
 
 ### 19.13–19.14 Language Box

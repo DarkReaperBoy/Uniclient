@@ -1542,11 +1542,14 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
     final iconColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
 
+    final screenHeight = MediaQuery.of(context).size.height;
+    final maxDialogHeight = screenHeight - 48;
     return Dialog(
       backgroundColor: bgColor,
+      clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 364),
+        constraints: BoxConstraints(maxWidth: 364, maxHeight: maxDialogHeight),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1650,17 +1653,23 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
     );
   }
 
+  // powerSavingButton: padding 57/8/22/8, iconLeft 20px
+  static const _psIconPad = EdgeInsets.fromLTRB(20, 8, 22, 8);
+  static const double _psIconGap = 13; // 20 + 24 + 13 = 57px text start
+  // powerSavingButtonNoIcon: padding 22/8/22/8
+  static const _psPlainPad = EdgeInsets.fromLTRB(22, 8, 22, 8);
+
   Widget _iconToggle(String label, IconData icon, int flag,
       Color textColor, Color iconColor, Color accentColor) {
     final on = !_flag(flag);
     return InkWell(
       onTap: () => _toggle(flag),
       child: Padding(
-        padding: SettingsStyle.iconRowPadding,
+        padding: _psIconPad,
         child: Row(
           children: [
             Icon(icon, size: 24, color: iconColor),
-            const SizedBox(width: 16),
+            const SizedBox(width: _psIconGap),
             Expanded(
               child: Text(label,
                   style: TextStyle(fontSize: SettingsStyle.buttonFontSize, color: textColor)),
@@ -1682,7 +1691,7 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
     return InkWell(
       onTap: () => _toggle(flag),
       child: Padding(
-        padding: SettingsStyle.noIconPadding,
+        padding: _psPlainPad,
         child: Row(
           children: [
             Expanded(
