@@ -1305,6 +1305,15 @@ class EngineService {
     await _callAsync('__engine', 'SetArchiveSettings', Uint8List.fromList(payload));
   }
 
+  Future<void> clearPaymentInfo(String accountId, {required bool clearCredentials, required bool clearShipping}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'clear_credentials': clearCredentials,
+      'clear_shipping': clearShipping,
+    }));
+    await _callAsync('__engine', 'ClearPaymentInfo', Uint8List.fromList(payload));
+  }
+
   Future<bool> getHideReadMarks(String accountId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

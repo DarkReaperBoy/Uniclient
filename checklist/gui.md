@@ -650,7 +650,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 16.3 Privacy Section
 
 ### 16.5 Bots and Websites
-- [ ] "Clear Payment and Shipping Info" button, ClearPaymentInfoBox (two default-checked checkboxes, red "Clear" button disabled when both unchecked) — spec §16.5 & §16.5.1
 
 ### 16.6–16.8 File Confirmations, Frequent Contacts, Self-Destruction
 - [ ] File Confirmations section (conditional): multi-line extensions input (max 10240 chars / 1024 entries), "Show IP in WebRTC calls" toggle — spec §16.6 & §16.6.1

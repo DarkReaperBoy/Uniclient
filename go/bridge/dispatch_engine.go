@@ -1448,6 +1448,17 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.SetArchiveSettings(params.AccountID, params.ArchiveAndMute, params.KeepArchivedUnmuted, params.KeepArchivedFolders)
 
+	case "ClearPaymentInfo":
+		var params struct {
+			AccountID        string `json:"account_id"`
+			ClearCredentials bool   `json:"clear_credentials"`
+			ClearShipping    bool   `json:"clear_shipping"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.ClearPaymentInfo(params.AccountID, params.ClearCredentials, params.ClearShipping)
+
 	case "GetHideReadMarks":
 		var params struct {
 			AccountID string `json:"account_id"`

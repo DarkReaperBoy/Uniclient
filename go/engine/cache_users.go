@@ -760,6 +760,22 @@ func (e *Engine) SetArchiveSettings(accountID string, archiveAndMute, keepArchiv
 	return s.SetArchiveSettings(archiveAndMute, keepArchivedUnmuted, keepArchivedFolders)
 }
 
+type paymentInfoClearer interface {
+	ClearPaymentInfo(clearCredentials, clearShipping bool) error
+}
+
+func (e *Engine) ClearPaymentInfo(accountID string, clearCredentials, clearShipping bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not connected", accountID)
+	}
+	c, ok := acc.Core.(paymentInfoClearer)
+	if !ok {
+		return fmt.Errorf("platform does not support clearing payment info")
+	}
+	return c.ClearPaymentInfo(clearCredentials, clearShipping)
+}
+
 type hideReadMarksGetter interface {
 	GetHideReadMarks() (bool, error)
 }

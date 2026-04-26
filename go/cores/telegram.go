@@ -19386,3 +19386,20 @@ func (t *TelegramCore) TerminateSession(sessionID string) error {
 	_, err = t.api.AccountResetAuthorization(t.ctx, hash)
 	return err
 }
+
+func (t *TelegramCore) ClearPaymentInfo(clearCredentials, clearShipping bool) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+	req := &tg.PaymentsClearSavedInfoRequest{}
+	if clearCredentials {
+		req.SetCredentials(true)
+	}
+	if clearShipping {
+		req.SetInfo(true)
+	}
+	_, err := t.api.PaymentsClearSavedInfo(t.ctx, req)
+	return err
+}

@@ -791,7 +791,49 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     Color subtextColor,
     Color hoverBg,
   ) {
-    return [];
+    return [
+      InkWell(
+        onTap: () => _showClearPaymentInfoBox(isDark),
+        hoverColor: hoverBg,
+        child: Padding(
+          padding: SettingsStyle.noIconPadding,
+          child: Text(
+            'Clear Payment and Shipping Info',
+            style: TextStyle(fontSize: 14, color: textColor),
+          ),
+        ),
+      ),
+    ];
+  }
+
+  Future<void> _showClearPaymentInfoBox(bool isDark) async {
+    final result = await showDialog<({bool credentials, bool shipping})>(
+      context: context,
+      builder: (ctx) => _ClearPaymentInfoBox(isDark: isDark),
+    );
+    if (result == null) return;
+    if (!result.credentials && !result.shipping) return;
+
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    if (accountId.isEmpty) return;
+
+    try {
+      await engine.clearPaymentInfo(
+        accountId,
+        clearCredentials: result.credentials,
+        clearShipping: result.shipping,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Payment info cleared.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to clear: $e')),
+      );
+    }
   }
 
   List<Widget> _buildConfirmationExtensionsSection(
@@ -4601,6 +4643,84 @@ class _MessagesPrivacyBoxState extends State<_MessagesPrivacyBox> {
           child: Text(
             'You receive ${commissionPct.toStringAsFixed(0)}% \u2014 about ${_usdEstimate(_chargeStars)} per message.',
             style: TextStyle(fontSize: 12, color: subtextColor, height: 1.4),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ClearPaymentInfoBox extends StatefulWidget {
+  final bool isDark;
+  const _ClearPaymentInfoBox({required this.isDark});
+
+  @override
+  State<_ClearPaymentInfoBox> createState() => _ClearPaymentInfoBoxState();
+}
+
+class _ClearPaymentInfoBoxState extends State<_ClearPaymentInfoBox> {
+  bool _shipping = true;
+  bool _payment = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final canClear = _shipping || _payment;
+
+    return AlertDialog(
+      backgroundColor: bgColor,
+      title: Text(
+        'Clear Payment and Shipping Info',
+        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
+      ),
+      contentPadding: const EdgeInsets.fromLTRB(0, 12, 0, 0),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CheckboxListTile(
+            value: _shipping,
+            onChanged: (v) => setState(() => _shipping = v ?? false),
+            title: Text('Shipping info', style: TextStyle(fontSize: 14, color: textColor)),
+            controlAffinity: ListTileControlAffinity.leading,
+            dense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          ),
+          CheckboxListTile(
+            value: _payment,
+            onChanged: (v) => setState(() => _payment = v ?? false),
+            title: Text('Payment info', style: TextStyle(fontSize: 14, color: textColor)),
+            controlAffinity: ListTileControlAffinity.leading,
+            dense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+            child: Text(
+              'You can clear your payment and shipping info — like your address and card details — that you have saved with Telegram.',
+              style: TextStyle(fontSize: 13, color: subtextColor, height: 1.4),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(null),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: canClear
+              ? () => Navigator.of(context).pop((credentials: _payment, shipping: _shipping))
+              : null,
+          child: Text(
+            'Clear',
+            style: TextStyle(
+              color: canClear ? Colors.red : Colors.grey,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ],
