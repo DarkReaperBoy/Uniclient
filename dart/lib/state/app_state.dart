@@ -46,6 +46,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   int _downloadPathMode = 0; // 0=default, 1=temp, 2=custom
   String _customDownloadPath = '';
   bool _askDownloadPath = false;
+  List<Map<String, dynamic>> _recentDownloads = [];
   bool _editingTheme = false;
   List<String> _accountOrder = []; // persisted display order of account IDs
   final List<StreamSubscription<dynamic>> _subs = [];
@@ -144,6 +145,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   int get downloadPathMode => _downloadPathMode;
   String get customDownloadPath => _customDownloadPath;
   bool get askDownloadPath => _askDownloadPath;
+  List<Map<String, dynamic>> get recentDownloads => List.unmodifiable(_recentDownloads);
 
   bool setShowTrayIcon(bool v) {
     if (!v && !_showTaskbarIcon) return false;
@@ -240,6 +242,34 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setAskDownloadPath(bool v) {
     if (_askDownloadPath == v) return;
     _askDownloadPath = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void addRecentDownload(String fileName, String filePath, int sizeBytes) {
+    _recentDownloads.insert(0, {
+      'name': fileName,
+      'path': filePath,
+      'size': sizeBytes,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    });
+    if (_recentDownloads.length > 100) {
+      _recentDownloads = _recentDownloads.sublist(0, 100);
+    }
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void removeRecentDownload(int index) {
+    if (index < 0 || index >= _recentDownloads.length) return;
+    _recentDownloads.removeAt(index);
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void clearRecentDownloads() {
+    if (_recentDownloads.isEmpty) return;
+    _recentDownloads.clear();
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -609,6 +639,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _downloadPathMode = data['downloadPathMode'] as int? ?? 0;
       _customDownloadPath = data['customDownloadPath'] as String? ?? '';
       _askDownloadPath = data['askDownloadPath'] as bool? ?? false;
+      final dl = data['recentDownloads'] as List<dynamic>?;
+      if (dl != null) _recentDownloads = dl.cast<Map<String, dynamic>>();
       final order = data['accountOrder'] as List<dynamic>?;
       if (order != null) _accountOrder = order.cast<String>();
     } catch (_) {}
@@ -643,6 +675,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'downloadPathMode': _downloadPathMode,
         'customDownloadPath': _customDownloadPath,
         'askDownloadPath': _askDownloadPath,
+        'recentDownloads': _recentDownloads,
       }));
     } catch (_) {}
   }

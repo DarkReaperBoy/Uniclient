@@ -2310,6 +2310,12 @@ class _ChatViewState extends State<ChatView>
         counter++;
       }
       await sourceFile.copy(destPath);
+      final stat = await File(destPath).stat();
+      if (mounted) {
+        context.read<AppState>().addRecentDownload(
+          fileName, destPath, stat.size,
+        );
+      }
       saved++;
     }
     _modifySelection(() => _selectedMsgIds.clear());

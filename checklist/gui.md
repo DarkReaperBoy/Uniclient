@@ -662,7 +662,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 <!-- dart/lib/ui/advanced_settings_screen.dart -->
 
 ### 17.2 Data and Storage
-- [ ] Recent Downloads button (menuIconDownload), "Always ask download path" toggle (hides download path when ON) — spec §17.2.4–5
 
 ### 17.3 Automatic Media Download
 - [ ] Three buttons (Private/Groups/Channels), AutoDownloadBox (boxWidth): Download section (Photos/Files toggles + size slider default 10MB), Auto-play section (Video messages/Videos/GIFs toggles + size slider default 50MB), "N MB" label — spec §17.3 & §17.3.1

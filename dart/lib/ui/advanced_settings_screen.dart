@@ -252,7 +252,10 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         subtextColor: subtextColor,
         iconColor: iconColor,
         hoverBg: hoverBg,
-        onTap: () {},
+        onTap: () => showDialog(
+          context: context,
+          builder: (_) => const _RecentDownloadsBox(),
+        ),
       ),
       _AdvancedToggleRow(
         label: 'Ask download path for each file',
@@ -2632,6 +2635,203 @@ class _EditProxyDialogState extends State<_EditProxyDialog> {
               child: Text(
                 label,
                 style: TextStyle(fontSize: 14, color: textColor),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RecentDownloadsBox extends StatelessWidget {
+  const _RecentDownloadsBox();
+
+  String _formatSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    final kb = bytes / 1024;
+    if (kb < 1024) return '${kb.toStringAsFixed(1)} KB';
+    final mb = kb / 1024;
+    if (mb < 1024) return '${mb.toStringAsFixed(1)} MB';
+    final gb = mb / 1024;
+    return '${gb.toStringAsFixed(1)} GB';
+  }
+
+  String _formatDate(int ms) {
+    final dt = DateTime.fromMillisecondsSinceEpoch(ms);
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
+    if (diff.inDays < 1) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    return '${dt.day}.${dt.month.toString().padLeft(2, '0')}.${dt.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFE0E0E0);
+    final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    final appState = context.watch<AppState>();
+    final downloads = appState.recentDownloads;
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 364, maxHeight: 480),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 18, 12, 0),
+              child: Row(
+                children: [
+                  Text(
+                    'Recent Downloads',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                      color: textColor,
+                    ),
+                  ),
+                  const Spacer(),
+                  if (downloads.isNotEmpty)
+                    TextButton(
+                      onPressed: () => appState.clearRecentDownloads(),
+                      child: Text(
+                        'Clear all',
+                        style: TextStyle(fontSize: 13, color: accentColor),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: dividerColor),
+            if (downloads.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 22),
+                child: Column(
+                  children: [
+                    Icon(Icons.download_done, size: 48, color: subtextColor),
+                    const SizedBox(height: 12),
+                    Text(
+                      'No recent downloads',
+                      style: TextStyle(fontSize: 14, color: subtextColor),
+                    ),
+                  ],
+                ),
+              )
+            else
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  itemCount: downloads.length,
+                  separatorBuilder: (_, __) => Divider(
+                    height: 1,
+                    indent: 56,
+                    color: dividerColor,
+                  ),
+                  itemBuilder: (ctx, i) {
+                    final dl = downloads[i];
+                    final name = dl['name'] as String? ?? '';
+                    final path = dl['path'] as String? ?? '';
+                    final size = dl['size'] as int? ?? 0;
+                    final ts = dl['timestamp'] as int? ?? 0;
+                    final ext = name.contains('.')
+                        ? name.split('.').last.toUpperCase()
+                        : '';
+
+                    return InkWell(
+                      hoverColor: hoverBg,
+                      onTap: () {
+                        Process.run('xdg-open', [path]);
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 8,
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: accentColor.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                ext.length > 4 ? ext.substring(0, 4) : ext,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: accentColor,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    name,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                      color: textColor,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '${_formatSize(size)} · ${_formatDate(ts)}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: subtextColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: Icon(Icons.close, size: 16, color: subtextColor),
+                              onPressed: () => appState.removeRecentDownload(i),
+                              splashRadius: 16,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(
+                                minWidth: 28, minHeight: 28,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            Divider(height: 1, color: dividerColor),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(
+                    'OK',
+                    style: TextStyle(fontSize: 14, color: accentColor),
+                  ),
+                ),
               ),
             ),
           ],
