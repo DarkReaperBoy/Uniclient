@@ -646,8 +646,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 <!-- dart/lib/ui/privacy_settings_screen.dart -->
 
 ### 16.2 Security Section
-- [ ] Blocked Users button (menuIconBlock): right-label = count or "None" — spec §16.2.6
-- [ ] Active Sessions button (menuIconDevices): right-label = session count — spec §16.2.7
 
 ### 16.3 Privacy Section
 - [ ] Privacy section: settingsButtonNoIcon rows for each privacy setting, right-label = base value + exception counts, EditPrivacyBox (364px) with radio options (Everyone/My Contacts/Close Friends/Nobody), Premium-locked options with 14px lock, "Always Allow"/"Never Allow" exception buttons, PeerListBox for exceptions, Premium Users toggle, Save+Cancel — spec §16.3 & §16.3.0

@@ -36,6 +36,9 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
   List<Map<String, dynamic>> _passkeys = [];
   bool _passkeysLoaded = false;
 
+  int _blockedCount = -1;
+  int _sessionsCount = -1;
+
   @override
   void initState() {
     super.initState();
@@ -43,6 +46,8 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     _fetchGlobalTTL();
     _loadPasscodeState();
     _fetchPasskeys();
+    _fetchBlockedCount();
+    _fetchSessionsCount();
     _pollTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       _fetchPasswordState();
     });
@@ -130,6 +135,30 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
       _passkeys = list;
       _passkeysLoaded = true;
     });
+  }
+
+  Future<void> _fetchBlockedCount() async {
+    if (!mounted) return;
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+
+    final count = await engine.getBlockedUsersCount(accountId);
+    if (!mounted) return;
+    setState(() => _blockedCount = count);
+  }
+
+  Future<void> _fetchSessionsCount() async {
+    if (!mounted) return;
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+
+    final count = await engine.getSessionsCount(accountId);
+    if (!mounted) return;
+    setState(() => _sessionsCount = count);
   }
 
   String get _passkeysLabel {
@@ -390,7 +419,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
       _PrivacyIconRow(
         icon: Icons.block,
         label: 'Blocked Users',
-        rightLabel: 'None',
+        rightLabel: _blockedCount < 0 ? '...' : (_blockedCount == 0 ? 'None' : '$_blockedCount'),
         textColor: textColor,
         subtextColor: subtextColor,
         hoverBg: hoverBg,
@@ -399,7 +428,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
       _PrivacyIconRow(
         icon: Icons.devices,
         label: 'Active Sessions',
-        rightLabel: '1',
+        rightLabel: _sessionsCount < 0 ? '...' : '$_sessionsCount',
         textColor: textColor,
         subtextColor: subtextColor,
         hoverBg: hoverBg,

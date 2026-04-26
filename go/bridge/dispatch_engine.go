@@ -1709,6 +1709,32 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(list)
 
+	case "GetBlockedUsers":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		users, err := e.GetBlockedUsers(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(users)
+
+	case "GetSessions":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		sessions, err := e.GetSessions(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(sessions)
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}

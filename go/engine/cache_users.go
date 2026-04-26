@@ -897,3 +897,19 @@ func (e *Engine) GetPasskeyList(accountID string) ([]cores.PasskeyInfo, error) {
 	}
 	return p.GetPasskeyList()
 }
+
+func (e *Engine) GetBlockedUsers(accountID string) ([]cores.User, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account not found")
+	}
+	return acc.Core.GetBlockedUsers()
+}
+
+func (e *Engine) GetSessions(accountID string) ([]cores.Session, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account not found")
+	}
+	return acc.Core.GetSessions()
+}

@@ -1664,6 +1664,38 @@ class EngineService {
     }
   }
 
+  // ── Blocked Users ──
+
+  Future<int> getBlockedUsersCount(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetBlockedUsers', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return 0;
+      final decoded = json.decode(utf8.decode(respBytes));
+      if (decoded is List) return decoded.length;
+      return 0;
+    } catch (e) {
+      Debug.error('ENGINE', 'getBlockedUsersCount failed', e);
+      return 0;
+    }
+  }
+
+  // ── Sessions ──
+
+  Future<int> getSessionsCount(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetSessions', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return 0;
+      final decoded = json.decode(utf8.decode(respBytes));
+      if (decoded is List) return decoded.length;
+      return 0;
+    } catch (e) {
+      Debug.error('ENGINE', 'getSessionsCount failed', e);
+      return 0;
+    }
+  }
+
   // ── Shutdown ──
 
   void shutdown() {
