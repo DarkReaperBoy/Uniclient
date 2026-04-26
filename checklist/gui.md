@@ -649,9 +649,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 
 ### 16.3 Privacy Section
 
-### 16.4 Archive and Mute
-- [ ] Conditional (Premium or showArchiveAndMute): "Archive and Mute" toggle — spec §16.4
-
 ### 16.5 Bots and Websites
 - [ ] "Clear Payment and Shipping Info" button, ClearPaymentInfoBox (two default-checked checkboxes, red "Clear" button disabled when both unchecked) — spec §16.5 & §16.5.1
 

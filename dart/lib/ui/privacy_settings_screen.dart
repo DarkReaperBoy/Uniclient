@@ -46,6 +46,11 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
   String _messagesPrivacyOption = 'everyone';
   int _messagesChargeStars = 0;
 
+  bool _archiveAndMute = false;
+  bool _archiveKeepUnmuted = false;
+  bool _archiveKeepFolders = false;
+  bool _archiveLoaded = false;
+
   @override
   void initState() {
     super.initState();
@@ -57,6 +62,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     _fetchSessionsCount();
     _fetchAllPrivacy();
     _fetchMessagesPrivacy();
+    _fetchArchiveSettings();
     _pollTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       _fetchPasswordState();
     });
@@ -199,6 +205,22 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     setState(() {
       _messagesPrivacyOption = result.option;
       _messagesChargeStars = result.chargeStars;
+    });
+  }
+
+  Future<void> _fetchArchiveSettings() async {
+    if (!mounted) return;
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+    final result = await engine.getArchiveSettings(accountId);
+    if (!mounted) return;
+    setState(() {
+      _archiveAndMute = result.archiveAndMute;
+      _archiveKeepUnmuted = result.keepArchivedUnmuted;
+      _archiveKeepFolders = result.keepArchivedFolders;
+      _archiveLoaded = true;
     });
   }
 
@@ -699,7 +721,68 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     Color accentColor,
     Color hoverBg,
   ) {
-    return [];
+    if (!_archiveLoaded) return [];
+    return [
+      InkWell(
+        onTap: () {
+          final newVal = !_archiveAndMute;
+          setState(() => _archiveAndMute = newVal);
+          final engine = context.read<EngineService>();
+          final accountId = context.read<AppState>().activeAccountId;
+          if (accountId.isNotEmpty) {
+            engine.setArchiveSettings(
+              accountId,
+              archiveAndMute: newVal,
+              keepArchivedUnmuted: _archiveKeepUnmuted,
+              keepArchivedFolders: _archiveKeepFolders,
+            );
+          }
+        },
+        hoverColor: hoverBg,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Archive and Mute',
+                  style: TextStyle(fontSize: 14, color: textColor),
+                ),
+              ),
+              SizedBox(
+                width: 36,
+                height: 20,
+                child: Switch(
+                  value: _archiveAndMute,
+                  onChanged: (v) {
+                    setState(() => _archiveAndMute = v);
+                    final engine = context.read<EngineService>();
+                    final accountId = context.read<AppState>().activeAccountId;
+                    if (accountId.isNotEmpty) {
+                      engine.setArchiveSettings(
+                        accountId,
+                        archiveAndMute: v,
+                        keepArchivedUnmuted: _archiveKeepUnmuted,
+                        keepArchivedFolders: _archiveKeepFolders,
+                      );
+                    }
+                  },
+                  activeColor: accentColor,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(22, 0, 22, 6),
+        child: Text(
+          'Automatically archive and mute new chats from non-contacts.',
+          style: TextStyle(fontSize: 13, color: subtextColor),
+        ),
+      ),
+    ];
   }
 
   List<Widget> _buildBotsAndWebsitesSection(
