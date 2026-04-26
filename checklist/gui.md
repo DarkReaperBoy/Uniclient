@@ -716,7 +716,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 19.6 Session Detail View (SessionInfoBox)
 
 ### 19.7–19.9 Terminate All / Rename / Auto-Terminate
-- [ ] "If Inactive For" button (settingsButtonNoIcon): SelfDestructionBox(Sessions) with radios (1 week/1/3/6/12 months), description above, autolockButton style, Save+Cancel — spec §19.9 & §19.9.1
 
 ### 19.10–19.12 Power Saving Box
 - [ ] Power Saving GenericBox (364px): 11 toggles in groups (Stickers: Panel+Messages; Emoji: Panel+Reactions+Messages+Status; Chat: Background+Spoiler+Effects; Calls; Interface Animations), powerSavingButton style (57/8/22/8 padding, 20px iconLeft), category headers, sub-items powerSavingButtonNoIcon (22/8/22/8) — spec §19.10–11

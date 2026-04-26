@@ -2046,6 +2046,29 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.TerminateAllOtherSessions(params.AccountID)
 
+	case "GetSessionAutoTerminateDays":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		days, err := e.GetSessionAutoTerminateDays(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]int{"days": days})
+
+	case "SetSessionAutoTerminateDays":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Days      int    `json:"days"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SetSessionAutoTerminateDays(params.AccountID, params.Days)
+
 	case "GetPrivacySetting":
 		var params struct {
 			AccountID string `json:"account_id"`

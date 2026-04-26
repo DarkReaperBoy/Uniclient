@@ -1082,3 +1082,35 @@ func (e *Engine) TerminateAllOtherSessions(accountID string) error {
 	}
 	return nil
 }
+
+type sessionAutoTerminateGetter interface {
+	GetSessionAutoTerminateDays() (int, error)
+}
+
+type sessionAutoTerminateSetter interface {
+	SetSessionAutoTerminateDays(days int) error
+}
+
+func (e *Engine) GetSessionAutoTerminateDays(accountID string) (int, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return 0, fmt.Errorf("account not found")
+	}
+	g, ok := acc.Core.(sessionAutoTerminateGetter)
+	if !ok {
+		return 0, fmt.Errorf("not supported")
+	}
+	return g.GetSessionAutoTerminateDays()
+}
+
+func (e *Engine) SetSessionAutoTerminateDays(accountID string, days int) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found")
+	}
+	s, ok := acc.Core.(sessionAutoTerminateSetter)
+	if !ok {
+		return fmt.Errorf("not supported")
+	}
+	return s.SetSessionAutoTerminateDays(days)
+}

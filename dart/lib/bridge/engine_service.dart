@@ -2097,6 +2097,33 @@ class EngineService {
     }
   }
 
+  Future<int> getSessionAutoTerminateDays(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetSessionAutoTerminateDays', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return 0;
+      final decoded = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return decoded['days'] as int? ?? 0;
+    } catch (e) {
+      Debug.error('ENGINE', 'getSessionAutoTerminateDays failed', e);
+      return 0;
+    }
+  }
+
+  Future<bool> setSessionAutoTerminateDays(String accountId, int days) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'days': days,
+    }));
+    try {
+      await _callAsync('__engine', 'SetSessionAutoTerminateDays', Uint8List.fromList(payload));
+      return true;
+    } catch (e) {
+      Debug.error('ENGINE', 'setSessionAutoTerminateDays failed', e);
+      return false;
+    }
+  }
+
   // ── Privacy Settings ──
 
   Future<Map<String, dynamic>?> getPrivacySetting(String accountId, String key) async {

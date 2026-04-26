@@ -11426,6 +11426,29 @@ func (t *TelegramCore) GetActiveSessions() ([]ActiveSession, error) {
 	return sessions, nil
 }
 
+func (t *TelegramCore) GetSessionAutoTerminateDays() (int, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return 0, ErrAuth
+	}
+	result, err := t.api.AccountGetAuthorizations(t.ctx)
+	if err != nil {
+		return 0, err
+	}
+	return result.AuthorizationTTLDays, nil
+}
+
+func (t *TelegramCore) SetSessionAutoTerminateDays(days int) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+	_, err := t.api.AccountSetAuthorizationTTL(t.ctx, days)
+	return err
+}
+
 // SetGroupPermissions sets default permissions for a group/supergroup.
 func (t *TelegramCore) SetGroupPermissions(chatID string, rights tg.ChatBannedRights) error {
 	inputPeer, unlock, err := t.withPeer(chatID)

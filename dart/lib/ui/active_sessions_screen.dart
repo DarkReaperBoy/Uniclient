@@ -92,12 +92,14 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
   bool _loading = true;
   Timer? _refreshTimer;
   String _customDeviceModel = '';
+  int _autoTerminateDays = 0;
 
   @override
   void initState() {
     super.initState();
     _loadCustomDeviceModel();
     _loadSessions();
+    _loadAutoTerminateDays();
     _refreshTimer = Timer.periodic(const Duration(seconds: 60), (_) => _loadSessions());
   }
 
@@ -162,6 +164,138 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
         _sessions.removeWhere((s) => s['is_current'] != true);
       });
     }
+  }
+
+  Future<void> _loadAutoTerminateDays() async {
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+    final days = await engine.getSessionAutoTerminateDays(accountId);
+    if (!mounted) return;
+    setState(() => _autoTerminateDays = days);
+  }
+
+  String _formatDaysLabel(int days) {
+    if (days <= 0) return '';
+    if (days == 7) return '1 week';
+    if (days < 30) return '$days days';
+    final months = days ~/ 30;
+    if (months == 1) return '1 month';
+    return '$months months';
+  }
+
+  void _showAutoTerminateDialog() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222);
+    final subtextColor = isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+
+    final options = [7, 30, 90, 180, 365];
+    int selected = _autoTerminateDays;
+    if (!options.contains(selected)) {
+      selected = options.first;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => Dialog(
+          backgroundColor: bgColor,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          child: SizedBox(
+            width: 320,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 18, 22, 0),
+                  child: Text(
+                    'If Inactive For',
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 10, 22, 14),
+                  child: Text(
+                    'If you don\'t connect from a device for this period, the session on that device will be terminated.',
+                    style: TextStyle(color: subtextColor, fontSize: 13, height: 1.4),
+                  ),
+                ),
+                for (final days in options)
+                  InkWell(
+                    onTap: () => setDialogState(() => selected = days),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: Radio<int>(
+                              value: days,
+                              groupValue: selected,
+                              onChanged: (v) => setDialogState(() => selected = v!),
+                              activeColor: accentColor,
+                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Text(
+                            _formatDaysLabel(days),
+                            style: TextStyle(color: textColor, fontSize: 14),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: Text(
+                          'Cancel',
+                          style: TextStyle(color: subtextColor),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      TextButton(
+                        onPressed: () async {
+                          Navigator.pop(ctx);
+                          final engine = context.read<EngineService>();
+                          final appState = context.read<AppState>();
+                          final ok = await engine.setSessionAutoTerminateDays(
+                            appState.activeAccountId, selected,
+                          );
+                          if (ok && mounted) {
+                            setState(() => _autoTerminateDays = selected);
+                          }
+                        },
+                        child: Text(
+                          'Save',
+                          style: TextStyle(color: accentColor, fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _showTerminateConfirmation(String sessionId, String deviceName) {
@@ -534,6 +668,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                   _buildOtherSessionsList(textColor, subtextColor, dividerColor, accentColor),
                 if (_otherSessions.isEmpty && _incompleteSessions.isEmpty)
                   _buildEmptyPlaceholder(subtextColor),
+                _buildAutoTerminateButton(textColor, subtextColor, dividerColor, accentColor),
               ],
             ),
     );
@@ -710,6 +845,42 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
             style: TextStyle(color: subtextColor, fontSize: 13),
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildAutoTerminateButton(
+    Color textColor,
+    Color subtextColor,
+    Color dividerColor,
+    Color accentColor,
+  ) {
+    final label = _autoTerminateDays > 0 ? _formatDaysLabel(_autoTerminateDays) : '';
+    return Column(
+      children: [
+        Container(height: 1, color: dividerColor),
+        InkWell(
+          onTap: _showAutoTerminateDialog,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 14, 22, 14),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'If Inactive For',
+                    style: TextStyle(color: textColor, fontSize: 14),
+                  ),
+                ),
+                if (label.isNotEmpty)
+                  Text(
+                    label,
+                    style: TextStyle(color: accentColor, fontSize: 14),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        Container(height: 1, color: dividerColor),
       ],
     );
   }
