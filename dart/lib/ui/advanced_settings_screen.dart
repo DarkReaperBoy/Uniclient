@@ -240,7 +240,10 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         subtextColor: subtextColor,
         iconColor: iconColor,
         hoverBg: hoverBg,
-        onTap: () {},
+        onTap: () => showDialog(
+          context: context,
+          builder: (_) => const _LocalStorageBox(),
+        ),
       ),
       _AdvancedIconButtonRow(
         icon: Icons.download,
@@ -1150,6 +1153,305 @@ class _AutoDownloadBoxState extends State<_AutoDownloadBox> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _LocalStorageBox extends StatefulWidget {
+  const _LocalStorageBox();
+
+  @override
+  State<_LocalStorageBox> createState() => _LocalStorageBoxState();
+}
+
+class _LocalStorageBoxState extends State<_LocalStorageBox> {
+  int _totalSizeIdx = 9;
+  int _mediaSizeIdx = 8;
+  int _timeLimitIdx = 15;
+
+  static const _totalSizeSteps = <int>[
+    200, 500, 1024, 2048, 3072, 4096, 5120, 6144,
+    7168, 8192, 10240, 15360, 20480, 25600, 30720, 40960, 51200, 0,
+  ];
+
+  static const _mediaSizeSteps = <int>[
+    100, 200, 500, 1024, 1536, 2048, 3072, 4096,
+    5120, 6144, 7168, 8192, 10240, 15360, 20480, 25600, 30720, 51200,
+  ];
+
+  static const _timeLimitLabels = <String>[
+    '1 week', '2 weeks', '3 weeks',
+    '1 month', '2 months', '3 months', '4 months', '5 months',
+    '6 months', '7 months', '8 months', '9 months', '10 months',
+    '11 months', '12 months', 'Forever',
+  ];
+
+  static const _tagNames = [
+    'Images', 'Stickers', 'Voice Messages',
+    'Video Messages', 'Animations', 'Media Cache',
+  ];
+
+  final _tagSizes = List<int>.filled(6, 0);
+
+  String _formatMb(int mb) {
+    if (mb == 0) return '∞';
+    if (mb >= 1024) {
+      final gb = mb / 1024;
+      return gb == gb.roundToDouble()
+          ? '${gb.round()} GB'
+          : '${gb.toStringAsFixed(1)} GB';
+    }
+    return '$mb MB';
+  }
+
+  int get _totalDataSize => _tagSizes.fold(0, (a, b) => a + b);
+
+  String _formatBytes(int bytes) {
+    if (bytes == 0) return '0 B';
+    if (bytes < 1024) return '$bytes B';
+    final kb = bytes / 1024;
+    if (kb < 1024) return '${kb.toStringAsFixed(1)} KB';
+    final mb = kb / 1024;
+    if (mb < 1024) return '${mb.toStringAsFixed(1)} MB';
+    final gb = mb / 1024;
+    return '${gb.toStringAsFixed(1)} GB';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final dividerColor =
+        isDark ? const Color(0xFF101921) : const Color(0xFFE0E0E0);
+    final clearColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 320),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 18, 22, 4),
+              child: Text(
+                'Local Storage',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: textColor,
+                ),
+              ),
+            ),
+            _summaryRow(textColor, subtextColor, clearColor),
+            Divider(height: 1, color: dividerColor, indent: 22, endIndent: 22),
+            const SizedBox(height: 8),
+            _sliderSection(
+              'Total size limit',
+              _totalSizeIdx,
+              _totalSizeSteps.length - 1,
+              _formatMb(_totalSizeSteps[_totalSizeIdx]),
+              (v) {
+                setState(() {
+                  _totalSizeIdx = v;
+                  if (_totalSizeSteps[v] != 0 &&
+                      (_mediaSizeSteps[_mediaSizeIdx] == 0 ||
+                          _mediaSizeSteps[_mediaSizeIdx] > _totalSizeSteps[v])) {
+                    for (var i = _mediaSizeSteps.length - 1; i >= 0; i--) {
+                      if (_mediaSizeSteps[i] <= _totalSizeSteps[v]) {
+                        _mediaSizeIdx = i;
+                        break;
+                      }
+                    }
+                  }
+                });
+              },
+              textColor,
+              subtextColor,
+              accentColor,
+            ),
+            _sliderSection(
+              'Media cache size limit',
+              _mediaSizeIdx,
+              _mediaSizeSteps.length - 1,
+              _formatMb(_mediaSizeSteps[_mediaSizeIdx]),
+              (v) {
+                setState(() {
+                  if (_totalSizeSteps[_totalSizeIdx] != 0 &&
+                      _mediaSizeSteps[v] > _totalSizeSteps[_totalSizeIdx]) {
+                    return;
+                  }
+                  _mediaSizeIdx = v;
+                });
+              },
+              textColor,
+              subtextColor,
+              accentColor,
+            ),
+            _sliderSection(
+              'Keep media',
+              _timeLimitIdx,
+              _timeLimitLabels.length - 1,
+              _timeLimitLabels[_timeLimitIdx],
+              (v) => setState(() => _timeLimitIdx = v),
+              textColor,
+              subtextColor,
+              accentColor,
+            ),
+            Divider(height: 1, color: dividerColor, indent: 22, endIndent: 22),
+            const SizedBox(height: 4),
+            for (var i = 0; i < _tagNames.length; i++)
+              _tagRow(i, textColor, subtextColor, clearColor),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 0, 22, 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('OK',
+                        style: TextStyle(color: accentColor, fontSize: 14)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _summaryRow(Color textColor, Color subtextColor, Color clearColor) {
+    return SizedBox(
+      height: 50,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 22),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text('All data',
+                      style: TextStyle(fontSize: 14, color: textColor)),
+                  Text(_formatBytes(_totalDataSize),
+                      style: TextStyle(fontSize: 12, color: subtextColor)),
+                ],
+              ),
+            ),
+            TextButton(
+              onPressed: _totalDataSize > 0
+                  ? () {
+                      setState(() {
+                        for (var i = 0; i < _tagSizes.length; i++) {
+                          _tagSizes[i] = 0;
+                        }
+                      });
+                    }
+                  : null,
+              child: Text('Clear All',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: _totalDataSize > 0
+                        ? clearColor
+                        : clearColor.withValues(alpha: 0.4),
+                  )),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sliderSection(
+    String label,
+    int index,
+    int max,
+    String valueLabel,
+    ValueChanged<int> onChanged,
+    Color textColor,
+    Color subtextColor,
+    Color accentColor,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 4, 22, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(label,
+                  style: TextStyle(fontSize: 13, color: subtextColor)),
+              const Spacer(),
+              Text(valueLabel,
+                  style: TextStyle(fontSize: 13, color: accentColor)),
+            ],
+          ),
+          SliderTheme(
+            data: SliderThemeData(
+              thumbShape:
+                  const RoundSliderThumbShape(enabledThumbRadius: 7.5),
+              activeTrackColor: accentColor,
+              inactiveTrackColor: accentColor.withValues(alpha: 0.24),
+              thumbColor: accentColor,
+              overlayColor: accentColor.withValues(alpha: 0.12),
+              trackHeight: 2,
+            ),
+            child: Slider(
+              value: index.toDouble(),
+              min: 0,
+              max: max.toDouble(),
+              divisions: max,
+              onChanged: (v) => onChanged(v.round()),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _tagRow(int tagIdx, Color textColor, Color subtextColor, Color clearColor) {
+    final size = _tagSizes[tagIdx];
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 2),
+      child: SizedBox(
+        height: 36,
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(_tagNames[tagIdx],
+                  style: TextStyle(fontSize: 14, color: textColor)),
+            ),
+            Text(_formatBytes(size),
+                style: TextStyle(fontSize: 12, color: subtextColor)),
+            if (size > 0) ...[
+              const SizedBox(width: 8),
+              InkWell(
+                borderRadius: BorderRadius.circular(4),
+                onTap: () => setState(() => _tagSizes[tagIdx] = 0),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  child: Text('Clear',
+                      style: TextStyle(fontSize: 13, color: clearColor)),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

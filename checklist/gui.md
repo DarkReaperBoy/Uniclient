@@ -662,7 +662,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 <!-- dart/lib/ui/advanced_settings_screen.dart -->
 
 ### 17.2 Data and Storage
-- [ ] LocalStorageBox (320px): summary row (50px, "All data" + size + "Clear All"), total cache slider (18 positions), media cache slider (18 positions, linked to total), time limit slider (16 positions), per-tag rows (Images/Stickers/Voice/Video/Animations/Media cache each with size + "Clear" button), OK button — spec §17.2.3 & §17.2.3.2
 - [ ] Recent Downloads button (menuIconDownload), "Always ask download path" toggle (hides download path when ON) — spec §17.2.4–5
 
 ### 17.3 Automatic Media Download
