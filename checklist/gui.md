@@ -690,7 +690,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 18.5 Recommended Folders
 
 ### 18.6 Edit Filter Box
-- [ ] Save validation: empty/overlong title → showError+scroll to top; no include types + no chats → toast; all types+NoArchived+no specific chats → toast — spec §18.6.6
 
 ### 18.7 Include/Exclude Picker
 - [ ] PeerListBox with EditFilterChatsListController: "Include/Exclude Chats" title, closeByOutsideClick=false, "Chat types" subtitle (searchedBarBg, 28px), 44px type rows with gradient circle + checkbox, include types (NewChats/ExistingChats/Contacts/NonContacts/Groups/Channels/Bots), exclude types (NoMuted/NoRead/NoArchived), "{selected}/{limit}" counter — spec §18.7

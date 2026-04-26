@@ -1135,7 +1135,9 @@ class _EditFilterBox extends StatefulWidget {
 
 class _EditFilterBoxState extends State<_EditFilterBox> {
   final _nameController = TextEditingController();
+  final _scrollController = ScrollController();
   final _iconToggleKey = GlobalKey();
+  String? _nameError;
   bool _contacts = false;
   bool _nonContacts = false;
   bool _groups = false;
@@ -1204,6 +1206,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
   @override
   void dispose() {
     _nameController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -1463,18 +1466,25 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
 
   void _onSave() {
     final name = _nameController.text.trim();
+    final hasIncludeTypes =
+        _contacts || _nonContacts || _groups || _channels || _bots;
+    final hasIncludeChats =
+        widget.existingFolder?.chatIds.isNotEmpty ?? false;
+
     if (name.isEmpty || name.characters.length > 12) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(name.isEmpty
-              ? 'Please enter a folder name.'
-              : 'Folder name must be 12 characters or less.'),
-          duration: const Duration(seconds: 2),
-        ),
+      setState(() {
+        _nameError = name.isEmpty
+            ? 'Please enter a folder name.'
+            : 'Folder name must be 12 characters or less.';
+      });
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
       );
       return;
     }
-    if (!_contacts && !_nonContacts && !_groups && !_channels && !_bots) {
+    if (!hasIncludeTypes && !hasIncludeChats) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("The folder can't be empty."),
@@ -1484,7 +1494,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
       return;
     }
     if (_contacts && _nonContacts && _groups && _channels && _bots &&
-        _excludeArchived && widget.existingFolder?.chatIds.isEmpty != false) {
+        _excludeArchived && !hasIncludeChats) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('This folder would include all your chats.'),
@@ -1553,67 +1563,98 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
               const SizedBox(height: 14),
               Flexible(
                 child: SingleChildScrollView(
+                  controller: _scrollController,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 22),
-                        child: Stack(
-                          clipBehavior: Clip.none,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            TextField(
-                              controller: _nameController,
-                              maxLength: 12,
-                              autofocus: !widget.isEditMode,
-                              onChanged: (v) {
-                                if (!_userTyped && v.isNotEmpty) _userTyped = true;
-                                if (v.isEmpty) _userTyped = false;
-                                setState(() {});
-                              },
-                              decoration: InputDecoration(
-                                hintText: 'Folder name',
-                                hintStyle: TextStyle(color: subtextColor),
-                                counterText: '',
-                                filled: true,
-                                fillColor: inputBg,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide.none,
+                            Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                TextField(
+                                  controller: _nameController,
+                                  maxLength: 12,
+                                  autofocus: !widget.isEditMode,
+                                  onChanged: (v) {
+                                    if (!_userTyped && v.isNotEmpty) _userTyped = true;
+                                    if (v.isEmpty) _userTyped = false;
+                                    if (_nameError != null) _nameError = null;
+                                    setState(() {});
+                                  },
+                                  decoration: InputDecoration(
+                                    hintText: 'Folder name',
+                                    hintStyle: TextStyle(color: subtextColor),
+                                    counterText: '',
+                                    filled: true,
+                                    fillColor: inputBg,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide.none,
+                                    ),
+                                    enabledBorder: _nameError != null
+                                        ? OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(8),
+                                            borderSide: const BorderSide(
+                                              color: Color(0xFFE53935),
+                                              width: 1.5,
+                                            ),
+                                          )
+                                        : OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(8),
+                                            borderSide: BorderSide.none,
+                                          ),
+                                    contentPadding: const EdgeInsets.fromLTRB(14, 12, 87, 12),
+                                  ),
+                                  style: TextStyle(fontSize: 14, color: textColor),
                                 ),
-                                contentPadding: const EdgeInsets.fromLTRB(14, 12, 87, 12),
-                              ),
-                              style: TextStyle(fontSize: 14, color: textColor),
+                                Positioned(
+                                  right: 46,
+                                  top: 0,
+                                  bottom: 0,
+                                  child: Center(
+                                    child: Text(
+                                      '$charCount/12',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: charCount >= 12
+                                            ? const Color(0xFFE53935)
+                                            : subtextColor,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Positioned(
+                                  right: 4,
+                                  top: 0,
+                                  bottom: 0,
+                                  child: Center(
+                                    child: _FilterIconToggle(
+                                      key: _iconToggleKey,
+                                      iconName: _effectiveIconName,
+                                      isDark: widget.isDark,
+                                      onTap: _showIconPicker,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                            Positioned(
-                              right: 46,
-                              top: 0,
-                              bottom: 0,
-                              child: Center(
+                            if (_nameError != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
                                 child: Text(
-                                  '$charCount/12',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: charCount >= 12
-                                        ? const Color(0xFFE53935)
-                                        : subtextColor,
+                                  _nameError!,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFFE53935),
                                   ),
                                 ),
                               ),
-                            ),
-                            Positioned(
-                              right: 4,
-                              top: 0,
-                              bottom: 0,
-                              child: Center(
-                                child: _FilterIconToggle(
-                                  key: _iconToggleKey,
-                                  iconName: _effectiveIconName,
-                                  isDark: widget.isDark,
-                                  onTap: _showIconPicker,
-                                ),
-                              ),
-                            ),
                           ],
                         ),
                       ),
