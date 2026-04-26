@@ -692,7 +692,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 18.6 Edit Filter Box
 
 ### 18.7 Include/Exclude Picker
-- [ ] PeerListBox with EditFilterChatsListController: "Include/Exclude Chats" title, closeByOutsideClick=false, "Chat types" subtitle (searchedBarBg, 28px), 44px type rows with gradient circle + checkbox, include types (NewChats/ExistingChats/Contacts/NonContacts/Groups/Channels/Bots), exclude types (NoMuted/NoRead/NoArchived), "{selected}/{limit}" counter — spec §18.7
 
 ### 18.8 Filter Icon Picker Panel
 - [ ] 6×5 grid (44×42px cells), padding 10/36/10/8 (36px top for header), "Folder Icon" header at (18,14), 30 icons in spec order, normal/hover/active colors, panel bg (dialogsBg large rounded corners), hover highlight (StickerHoverCorners), PanelAnimation TopRight show, 300ms hide-after-leave, (-2,-1) anchor offset, click fires _chosen, auto-icon selection by filter types — spec §18.8 & §18.8.1

@@ -945,6 +945,8 @@ class FolderInfo {
   final bool groups;
   final bool channels;
   final bool bots;
+  final bool newChats;
+  final bool existingChats;
   final bool excludeMuted;
   final bool excludeRead;
   final bool excludeArchived;
@@ -965,6 +967,8 @@ class FolderInfo {
     this.groups = false,
     this.channels = false,
     this.bots = false,
+    this.newChats = false,
+    this.existingChats = false,
     this.excludeMuted = false,
     this.excludeRead = false,
     this.excludeArchived = false,

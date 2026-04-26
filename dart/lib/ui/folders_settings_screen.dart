@@ -1143,6 +1143,8 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
   bool _groups = false;
   bool _channels = false;
   bool _bots = false;
+  bool _newChats = false;
+  bool _existingChats = false;
   bool _excludeMuted = false;
   bool _excludeRead = false;
   bool _excludeArchived = false;
@@ -1153,6 +1155,8 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
   bool _loadingLinks = false;
 
   static const _allIncludeTypes = <_PreviewTypeInfo>[
+    _PreviewTypeInfo('newChats', 'New Chats', Icons.fiber_new, Color(0xFF7bc862)),
+    _PreviewTypeInfo('existingChats', 'Existing Chats', Icons.chat_bubble, Color(0xFF40a7e3)),
     _PreviewTypeInfo('contacts', 'Contacts', Icons.person, Color(0xFF7bc862)),
     _PreviewTypeInfo('nonContacts', 'Non-Contacts', Icons.person_outline, Color(0xFF6ec9cb)),
     _PreviewTypeInfo('groups', 'Groups', Icons.group, Color(0xFF7bc862)),
@@ -1177,6 +1181,8 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
       _groups = f.groups;
       _channels = f.channels;
       _bots = f.bots;
+      _newChats = f.newChats;
+      _existingChats = f.existingChats;
       _excludeMuted = f.excludeMuted;
       _excludeRead = f.excludeRead;
       _excludeArchived = f.excludeArchived;
@@ -1297,6 +1303,10 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
   void _onToggle(String key, bool value) {
     setState(() {
       switch (key) {
+        case 'newChats':
+          _newChats = value;
+        case 'existingChats':
+          _existingChats = value;
         case 'contacts':
           _contacts = value;
         case 'nonContacts':
@@ -1320,11 +1330,16 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
 
   List<_PreviewTypeInfo> _buildIncludeTypeList() {
     final list = <_PreviewTypeInfo>[];
-    if (_contacts) list.add(_allIncludeTypes[0]);
-    if (_nonContacts) list.add(_allIncludeTypes[1]);
-    if (_groups) list.add(_allIncludeTypes[2]);
-    if (_channels) list.add(_allIncludeTypes[3]);
-    if (_bots) list.add(_allIncludeTypes[4]);
+    final isChatList = widget.existingFolder?.isChatList ?? false;
+    if (isChatList) {
+      if (_newChats) list.add(_allIncludeTypes[0]);
+      if (_existingChats) list.add(_allIncludeTypes[1]);
+    }
+    if (_contacts) list.add(_allIncludeTypes[2]);
+    if (_nonContacts) list.add(_allIncludeTypes[3]);
+    if (_groups) list.add(_allIncludeTypes[4]);
+    if (_channels) list.add(_allIncludeTypes[5]);
+    if (_bots) list.add(_allIncludeTypes[6]);
     return list;
   }
 
@@ -1419,6 +1434,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
   void _openExcludeTypePicker() {
     showDialog<Map<String, bool>>(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) => _ExcludeTypePicker(
         isDark: widget.isDark,
         accentColor: widget.accentColor,
@@ -1439,11 +1455,16 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
   }
 
   void _openIncludeTypePicker() {
+    final isChatList = widget.existingFolder?.isChatList ?? false;
     showDialog<Map<String, bool>>(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) => _IncludeTypePicker(
         isDark: widget.isDark,
         accentColor: widget.accentColor,
+        isChatList: isChatList,
+        newChats: _newChats,
+        existingChats: _existingChats,
         contacts: _contacts,
         nonContacts: _nonContacts,
         groups: _groups,
@@ -1453,6 +1474,8 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
     ).then((result) {
       if (result != null && mounted) {
         setState(() {
+          _newChats = result['newChats'] ?? _newChats;
+          _existingChats = result['existingChats'] ?? _existingChats;
           _contacts = result['contacts'] ?? _contacts;
           _nonContacts = result['nonContacts'] ?? _nonContacts;
           _groups = result['groups'] ?? _groups;
@@ -1467,7 +1490,8 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
   void _onSave() {
     final name = _nameController.text.trim();
     final hasIncludeTypes =
-        _contacts || _nonContacts || _groups || _channels || _bots;
+        _contacts || _nonContacts || _groups || _channels || _bots ||
+        _newChats || _existingChats;
     final hasIncludeChats =
         widget.existingFolder?.chatIds.isNotEmpty ?? false;
 
@@ -1515,6 +1539,8 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
       groups: _groups,
       channels: _channels,
       bots: _bots,
+      newChats: _newChats,
+      existingChats: _existingChats,
       excludeMuted: _excludeMuted,
       excludeRead: _excludeRead,
       excludeArchived: _excludeArchived,
@@ -2756,6 +2782,9 @@ class _PreviewRowState extends State<_PreviewRow> {
 class _IncludeTypePicker extends StatefulWidget {
   final bool isDark;
   final Color accentColor;
+  final bool isChatList;
+  final bool newChats;
+  final bool existingChats;
   final bool contacts;
   final bool nonContacts;
   final bool groups;
@@ -2765,6 +2794,9 @@ class _IncludeTypePicker extends StatefulWidget {
   const _IncludeTypePicker({
     required this.isDark,
     required this.accentColor,
+    required this.isChatList,
+    required this.newChats,
+    required this.existingChats,
     required this.contacts,
     required this.nonContacts,
     required this.groups,
@@ -2777,6 +2809,8 @@ class _IncludeTypePicker extends StatefulWidget {
 }
 
 class _IncludeTypePickerState extends State<_IncludeTypePicker> {
+  late bool _newChats;
+  late bool _existingChats;
   late bool _contacts;
   late bool _nonContacts;
   late bool _groups;
@@ -2786,6 +2820,8 @@ class _IncludeTypePickerState extends State<_IncludeTypePicker> {
   @override
   void initState() {
     super.initState();
+    _newChats = widget.newChats;
+    _existingChats = widget.existingChats;
     _contacts = widget.contacts;
     _nonContacts = widget.nonContacts;
     _groups = widget.groups;
@@ -2795,6 +2831,10 @@ class _IncludeTypePickerState extends State<_IncludeTypePicker> {
 
   int get _selectedCount {
     int c = 0;
+    if (widget.isChatList) {
+      if (_newChats) c++;
+      if (_existingChats) c++;
+    }
     if (_contacts) c++;
     if (_nonContacts) c++;
     if (_groups) c++;
@@ -2802,6 +2842,8 @@ class _IncludeTypePickerState extends State<_IncludeTypePicker> {
     if (_bots) c++;
     return c;
   }
+
+  int get _limit => widget.isChatList ? 7 : 5;
 
   @override
   Widget build(BuildContext context) {
@@ -2812,9 +2854,12 @@ class _IncludeTypePickerState extends State<_IncludeTypePicker> {
     final subtextColor = widget.isDark
         ? const Color(0xFF6C7883)
         : const Color(0xFF999999);
-    final headerBg = widget.isDark
-        ? const Color(0xFF202B36)
-        : const Color(0xFFF1F1F1);
+    final searchedBarBg = widget.isDark
+        ? const Color(0xFF213240)
+        : const Color(0xFFE2E7EB);
+    final searchedBarFg = widget.isDark
+        ? const Color(0xFF6C818D)
+        : const Color(0xFF88949E);
 
     return Dialog(
       backgroundColor: bgColor,
@@ -2840,20 +2885,46 @@ class _IncludeTypePickerState extends State<_IncludeTypePicker> {
                     ),
                   ),
                   Text(
-                    '$_selectedCount/5',
+                    '$_selectedCount/$_limit',
                     style: TextStyle(fontSize: 13, color: subtextColor),
                   ),
                 ],
               ),
             ),
             Container(
-              color: headerBg,
-              padding: const EdgeInsets.fromLTRB(22, 6, 22, 6),
+              height: 28,
+              color: searchedBarBg,
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.symmetric(horizontal: 22),
               child: Text(
                 'Chat types',
-                style: TextStyle(fontSize: 13, color: subtextColor),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: searchedBarFg,
+                ),
               ),
             ),
+            if (widget.isChatList) ...[
+              _TypeToggleRow(
+                label: 'New Chats',
+                icon: Icons.fiber_new,
+                color: const Color(0xFF7bc862),
+                value: _newChats,
+                isDark: widget.isDark,
+                textColor: textColor,
+                onChanged: (v) => setState(() => _newChats = v),
+              ),
+              _TypeToggleRow(
+                label: 'Existing Chats',
+                icon: Icons.chat_bubble,
+                color: const Color(0xFF40a7e3),
+                value: _existingChats,
+                isDark: widget.isDark,
+                textColor: textColor,
+                onChanged: (v) => setState(() => _existingChats = v),
+              ),
+            ],
             _TypeToggleRow(
               label: 'Contacts',
               icon: Icons.person,
@@ -2915,6 +2986,8 @@ class _IncludeTypePickerState extends State<_IncludeTypePicker> {
                   const SizedBox(width: 8),
                   TextButton(
                     onPressed: () => Navigator.of(context).pop({
+                      'newChats': _newChats,
+                      'existingChats': _existingChats,
                       'contacts': _contacts,
                       'nonContacts': _nonContacts,
                       'groups': _groups,
@@ -2997,9 +3070,12 @@ class _ExcludeTypePickerState extends State<_ExcludeTypePicker> {
     final subtextColor = widget.isDark
         ? const Color(0xFF6C7883)
         : const Color(0xFF999999);
-    final headerBg = widget.isDark
-        ? const Color(0xFF202B36)
-        : const Color(0xFFF1F1F1);
+    final searchedBarBg = widget.isDark
+        ? const Color(0xFF213240)
+        : const Color(0xFFE2E7EB);
+    final searchedBarFg = widget.isDark
+        ? const Color(0xFF6C818D)
+        : const Color(0xFF88949E);
 
     return Dialog(
       backgroundColor: bgColor,
@@ -3032,11 +3108,17 @@ class _ExcludeTypePickerState extends State<_ExcludeTypePicker> {
               ),
             ),
             Container(
-              color: headerBg,
-              padding: const EdgeInsets.fromLTRB(22, 6, 22, 6),
+              height: 28,
+              color: searchedBarBg,
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.symmetric(horizontal: 22),
               child: Text(
                 'Chat types',
-                style: TextStyle(fontSize: 13, color: subtextColor),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: searchedBarFg,
+                ),
               ),
             ),
             _TypeToggleRow(
