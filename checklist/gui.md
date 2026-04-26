@@ -659,10 +659,7 @@ Spec file: `research/telegram_desktop_ui.md`.
 
 ## §17 — Settings: Data, Storage & Advanced
 
-<!-- dart/lib/ui/settings_screen.dart (nav row only); sub-page not yet created -->
-
-### 17.1 Advanced Page Structure
-- [ ] "Advanced" (Data and Storage) sub-page with subsections in spec order, each separated by skip+divider+skip, SlideWraps for conditional sections — spec §17.1
+<!-- dart/lib/ui/advanced_settings_screen.dart -->
 
 ### 17.2 Data and Storage
 - [ ] Connection Type button (menuIconNetwork): dynamic right-label (TCP/Connecting/proxy), ProxiesBox (364px) with IPv6 toggle, radio group (Disabled/System/Custom), proxy-for-calls SlideWrap, share-list button, import/delete top-right menu, Add button, ProxyRow (radio + title semibold + status colors: Online/Available/Checking/Unavailable), context menu (Edit/Share/QR/Delete), keyboard Ctrl+C/V — spec §17.2.1 & §17.2.1.2–4
