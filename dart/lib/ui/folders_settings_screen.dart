@@ -63,7 +63,6 @@ class FoldersSettingsScreen extends StatefulWidget {
 class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
   List<FolderInfo> _folders = [];
   List<SuggestedFolderInfo> _recommended = [];
-  bool _showTags = false;
   bool _useVerticalTabs = true;
   bool _loaded = false;
   final List<String> _pendingRemovals = [];
@@ -381,7 +380,7 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
               folder: _folders[i],
               isRemoved: _pendingRemovals.contains(_folders[i].id),
               chatCount: _countChatsInFolder(_folders[i]),
-              showTags: _showTags,
+              showTags: context.read<ChatState>().showFolderTags,
               isDark: isDark,
               hoverColor: hoverColor,
               textColor: textColor,
@@ -437,12 +436,16 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
 
           // §18.11 Show Folder Tags toggle
           _TagsToggle(
-            value: _showTags,
+            value: context.read<ChatState>().showFolderTags,
+            isPremium: context.read<AppState>().activeAccount?.isPremium ?? false,
             isDark: isDark,
             textColor: textColor,
             subtextColor: subtextColor,
             hoverColor: hoverColor,
-            onChanged: (v) => setState(() => _showTags = v),
+            onChanged: (v) {
+              context.read<ChatState>().showFolderTags = v;
+              setState(() {});
+            },
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(22, 4, 22, 12),
@@ -946,8 +949,9 @@ class _RecommendedRow extends StatelessWidget {
 }
 
 // §18.11 Show Folder Tags toggle
-class _TagsToggle extends StatelessWidget {
+class _TagsToggle extends StatefulWidget {
   final bool value;
+  final bool isPremium;
   final bool isDark;
   final Color textColor;
   final Color subtextColor;
@@ -956,6 +960,7 @@ class _TagsToggle extends StatelessWidget {
 
   const _TagsToggle({
     required this.value,
+    required this.isPremium,
     required this.isDark,
     required this.textColor,
     required this.subtextColor,
@@ -964,31 +969,109 @@ class _TagsToggle extends StatelessWidget {
   });
 
   @override
+  State<_TagsToggle> createState() => _TagsToggleState();
+}
+
+class _TagsToggleState extends State<_TagsToggle> {
+  Timer? _debounce;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _onToggle(bool v) {
+    if (!widget.isPremium) {
+      _showPremiumPreview();
+      return;
+    }
+    widget.onChanged(v);
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      // Debounced server request would go here.
+    });
+  }
+
+  void _showPremiumPreview() {
+    final bgColor = widget.isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = widget.isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = widget.isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bgColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        title: Row(
+          children: [
+            Icon(Icons.workspace_premium, color: accentColor, size: 24),
+            const SizedBox(width: 10),
+            Text(
+              'Folder Tags',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+                color: textColor,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Show folder names as colored tags next to unread counters in the chat list.\n\n'
+          'This is a Premium feature.',
+          style: TextStyle(fontSize: 14, color: subtextColor),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('OK', style: TextStyle(color: accentColor)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final accentColor = widget.isDark
+        ? const Color(0xFF6AB3F3)
+        : const Color(0xFF40A7E3);
+    final lockColor = widget.isDark
+        ? const Color(0xFF6C7883)
+        : const Color(0xFF999999);
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => onChanged(!value),
-        hoverColor: hoverColor,
+        onTap: () => _onToggle(!widget.value),
+        hoverColor: widget.hoverColor,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(22, 10, 22, 8),
           child: Row(
             children: [
               Expanded(
-                child: Text(
-                  'Show Folder Tags',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: textColor,
-                  ),
+                child: Row(
+                  children: [
+                    Text(
+                      'Show Folder Tags',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: widget.textColor,
+                      ),
+                    ),
+                    if (!widget.isPremium) ...[
+                      const SizedBox(width: 6),
+                      Icon(Icons.lock, size: 16, color: lockColor),
+                    ],
+                  ],
                 ),
               ),
               Switch(
-                value: value,
-                onChanged: onChanged,
-                activeColor: isDark
-                    ? const Color(0xFF6AB3F3)
-                    : const Color(0xFF40A7E3),
+                value: widget.value,
+                onChanged: _onToggle,
+                activeColor: accentColor,
               ),
             ],
           ),

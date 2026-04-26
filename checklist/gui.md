@@ -700,7 +700,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 18.10 Chatlist Folder Removal Dialog
 
 ### 18.11 Folder Tags Toggle
-- [ ] "Show Folder Tags" settingsButtonNoIconLocked with toggle: non-Premium→PremiumPreviewBox(FilterTags), Premium→500ms debounce request, tag toggle drives 120ms color dot animations on all folder rows — spec §18.11
 
 ### 18.12 Tab View Section
 - [ ] Visible only ≥452px width: two radios (Side panel / Top bar, settingsCheckbox margins 22/5/10/5), sidebar mode (72px wide, vertical tabs, long-press drag reorder), top-bar mode (horizontal strip, horizontal-scroll overflow), drag threshold ~10px, 150ms shift animation, auto-scroll factor 0.05 near edge, pinned interval for "All chats" tab — spec §18.12 & §18.12.1

@@ -40,6 +40,7 @@ class ChatState extends ChangeNotifier {
   List<FolderInfo> _folders = [];
   String _foldersForAccount = ''; // which account the current _folders belong to
   String? _activeFolderId; // null = "All Chats"
+  bool _showFolderTags = false;
 
   /// Callback for showing in-app notifications (set by UI layer).
   void Function(String senderName, String text, String chatTitle)? onNotification;
@@ -198,6 +199,13 @@ class ChatState extends ChangeNotifier {
 
   /// Whether any folders exist (controls folder sidebar visibility).
   bool get hasFolders => _folders.isNotEmpty;
+
+  bool get showFolderTags => _showFolderTags;
+  set showFolderTags(bool v) {
+    if (_showFolderTags == v) return;
+    _showFolderTags = v;
+    notifyListeners();
+  }
 
   /// Chats filtered by platform (empty = all).
   /// Account IDs use a 4-char prefix of the platform name (e.g. "tele_abc123"
