@@ -5,10 +5,12 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../models/engine_models.dart';
+import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 import '../state/auth_state.dart';
 import '../state/chat_state.dart';
 import 'advanced_settings_screen.dart';
+import 'language_box.dart';
 import 'chat_settings_screen.dart';
 import 'confirm_box.dart';
 import 'folders_settings_screen.dart';
@@ -302,7 +304,16 @@ class SettingsScreen extends StatelessWidget {
                     : const Color(0xFF40A7E3),
               ),
             ),
-            onTap: () {},
+            onTap: () => showDialog(
+              context: context,
+              builder: (_) => MultiProvider(
+                providers: [
+                  ChangeNotifierProvider.value(value: context.read<AppState>()),
+                  Provider.value(value: context.read<EngineService>()),
+                ],
+                child: const LanguageBox(),
+              ),
+            ),
           ),
           // §14.4: Interface scale.
           const SizedBox(height: 7),

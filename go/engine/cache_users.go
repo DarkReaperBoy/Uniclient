@@ -1114,3 +1114,38 @@ func (e *Engine) SetSessionAutoTerminateDays(accountID string, days int) error {
 	}
 	return s.SetSessionAutoTerminateDays(days)
 }
+
+type LanguageInfo struct {
+	LangCode   string `json:"lang_code"`
+	Name       string `json:"name"`
+	NativeName string `json:"native_name"`
+	Official   bool   `json:"official"`
+	Rtl        bool   `json:"rtl"`
+	Beta       bool   `json:"beta"`
+}
+
+func (e *Engine) GetLanguages(accountID string) ([]LanguageInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account not found")
+	}
+	if tc, ok := acc.Core.(*cores.TelegramCore); ok {
+		langs, err := tc.LangpackGetLanguages("tdesktop")
+		if err != nil {
+			return nil, err
+		}
+		result := make([]LanguageInfo, 0, len(langs))
+		for _, l := range langs {
+			result = append(result, LanguageInfo{
+				LangCode:   l.LangCode,
+				Name:       l.Name,
+				NativeName: l.NativeName,
+				Official:   l.Official,
+				Rtl:        l.Rtl,
+				Beta:       l.Beta,
+			})
+		}
+		return result, nil
+	}
+	return nil, fmt.Errorf("not supported")
+}

@@ -2124,7 +2124,23 @@ class EngineService {
     }
   }
 
-  // ── Privacy Settings ──
+  // ── Language Pack ──
+
+  Future<List<Map<String, dynamic>>> getLanguages(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetLanguages', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return [];
+      final decoded = json.decode(utf8.decode(respBytes));
+      if (decoded is List) return decoded.cast<Map<String, dynamic>>();
+      return [];
+    } catch (e) {
+      Debug.error('ENGINE', 'getLanguages failed', e);
+      return [];
+    }
+  }
+
+  // ─�� Privacy Settings ──
 
   Future<Map<String, dynamic>?> getPrivacySetting(String accountId, String key) async {
     final payload = utf8.encode(json.encode({'account_id': accountId, 'key': key}));

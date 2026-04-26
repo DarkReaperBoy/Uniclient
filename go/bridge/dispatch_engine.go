@@ -2069,6 +2069,19 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.SetSessionAutoTerminateDays(params.AccountID, params.Days)
 
+	case "GetLanguages":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		langs, err := e.GetLanguages(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(langs)
+
 	case "GetPrivacySetting":
 		var params struct {
 			AccountID string `json:"account_id"`
