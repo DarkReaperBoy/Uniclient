@@ -555,6 +555,11 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
 
     final isPremium = appState.activeAccount?.isPremium ?? false;
 
+    bool initialAllowPremium = false;
+    if (key == 'chat_invite') {
+      initialAllowPremium = current?['allow_premium'] as bool? ?? false;
+    }
+
     if (!mounted) return;
 
     showDialog<void>(
@@ -573,6 +578,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
         initialHideReadMarks: hideReadMarks,
         initialHasFallbackPhoto: hasFallbackPhoto,
         initialHasBirthday: hasBirthday,
+        initialAllowPremium: initialAllowPremium,
         onSaved: (newOption, {String? addedByPhone, String? callsP2P}) {
           setState(() {
             _privacySettings[key] = {
@@ -859,6 +865,7 @@ class _EditPrivacyBox extends StatefulWidget {
   final bool initialHasBirthday;
 
   final String userName;
+  final bool initialAllowPremium;
 
   const _EditPrivacyBox({
     required this.title,
@@ -875,6 +882,7 @@ class _EditPrivacyBox extends StatefulWidget {
     this.initialHideReadMarks = false,
     this.initialHasFallbackPhoto = false,
     this.initialHasBirthday = false,
+    this.initialAllowPremium = false,
   });
 
   @override
@@ -901,6 +909,9 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
   bool get _isVoiceMessages => widget.privacyKey == 'voice_messages';
   bool get _isBirthday => widget.privacyKey == 'birthday';
   bool get _isGifts => widget.privacyKey == 'gifts';
+  bool get _isChatInvite => widget.privacyKey == 'chat_invite';
+
+  late bool _allowPremium;
 
   bool _giftShowIcon = true;
   bool _giftAcceptLimited = true;
@@ -918,6 +929,7 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
     _hideReadMarks = widget.initialHideReadMarks;
     _hasFallbackPhoto = widget.initialHasFallbackPhoto;
     _hasBirthday = widget.initialHasBirthday;
+    _allowPremium = widget.initialAllowPremium;
     _confirmedRestriction = widget.currentOption != 'everyone';
   }
 
@@ -1121,6 +1133,7 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
         widget.accountId,
         widget.privacyKey,
         _selected,
+        allowPremium: _isChatInvite && _allowPremium,
       );
       if (_isPhoneNumber && _selected == 'nobody') {
         await widget.engine.setPrivacySetting(
@@ -1314,7 +1327,9 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
                         ? 'Who can send you voice messages?'
                         : _isGifts
                             ? 'Who can send you gifts with auto-save?'
-                            : 'Who can see your ${widget.title.toLowerCase()}?',
+                            : _isChatInvite
+                                ? 'Who can add you to group chats and channels?'
+                                : 'Who can see your ${widget.title.toLowerCase()}?',
                 style: TextStyle(fontSize: 13, color: subtextColor),
               ),
             ),
@@ -1739,10 +1754,43 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
             Padding(
               padding: const EdgeInsets.fromLTRB(22, 8, 22, 4),
               child: Text(
-                'You can add users or groups who will always or never be able to see your ${widget.title.toLowerCase()}, regardless of the setting above.',
+                _isChatInvite
+                    ? 'You can add users or groups who will always or never be able to add you to groups and channels, regardless of the setting above.'
+                    : 'You can add users or groups who will always or never be able to see your ${widget.title.toLowerCase()}, regardless of the setting above.',
                 style: TextStyle(fontSize: 13, color: subtextColor),
               ),
             ),
+            if (_isChatInvite) ...[
+              InkWell(
+                onTap: () => setState(() => _allowPremium = !_allowPremium),
+                hoverColor: hoverBg,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
+                  child: Row(
+                    children: [
+                      Icon(Icons.star, size: 18, color: const Color(0xFFFFA726)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Always Allow Premium Users',
+                          style: TextStyle(fontSize: 14, color: textColor),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 36,
+                        height: 20,
+                        child: Switch(
+                          value: _allowPremium,
+                          onChanged: (v) => setState(() => _allowPremium = v),
+                          activeColor: accentColor,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),

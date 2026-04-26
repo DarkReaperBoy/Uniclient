@@ -648,7 +648,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 16.2 Security Section
 
 ### 16.3 Privacy Section
-- [ ] Bio / Saved Music / Groups & Channels: standard privacy boxes, Groups+Channels has Premiums toggle in Always Allow — spec §16.3.10–12
 
 ### 16.4 Archive and Mute
 - [ ] Conditional (Premium or showArchiveAndMute): "Archive and Mute" toggle — spec §16.4

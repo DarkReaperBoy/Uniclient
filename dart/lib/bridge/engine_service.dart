@@ -1813,13 +1813,14 @@ class EngineService {
     }
   }
 
-  Future<void> setPrivacySetting(String accountId, String key, String option, {List<String> alwaysIds = const [], List<String> neverIds = const []}) async {
+  Future<void> setPrivacySetting(String accountId, String key, String option, {List<String> alwaysIds = const [], List<String> neverIds = const [], bool allowPremium = false}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'key': key,
       'option': option,
       'always_ids': alwaysIds,
       'never_ids': neverIds,
+      'allow_premium': allowPremium,
     }));
     await _callAsync('__engine', 'SetPrivacySetting', Uint8List.fromList(payload));
   }

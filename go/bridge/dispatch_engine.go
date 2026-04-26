@@ -1851,16 +1851,17 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	case "SetPrivacySetting":
 		var params struct {
-			AccountID string `json:"account_id"`
-			Key       string `json:"key"`
-			Option    string `json:"option"`
-			AlwaysIDs []string `json:"always_ids"`
-			NeverIDs  []string `json:"never_ids"`
+			AccountID    string   `json:"account_id"`
+			Key          string   `json:"key"`
+			Option       string   `json:"option"`
+			AlwaysIDs    []string `json:"always_ids"`
+			NeverIDs     []string `json:"never_ids"`
+			AllowPremium bool     `json:"allow_premium"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		return nil, setPrivacySetting(e, params.AccountID, params.Key, params.Option, params.AlwaysIDs, params.NeverIDs)
+		return nil, setPrivacySetting(e, params.AccountID, params.Key, params.Option, params.AlwaysIDs, params.NeverIDs, params.AllowPremium)
 
 	case "GetAllPrivacySettings":
 		var params struct {
@@ -1960,7 +1961,7 @@ func getPrivacySetting(e *engine.Engine, accountID, key string) ([]byte, error) 
 	return json.Marshal(parsePrivacyRules(rules))
 }
 
-func setPrivacySetting(e *engine.Engine, accountID, key, option string, alwaysIDs, neverIDs []string) error {
+func setPrivacySetting(e *engine.Engine, accountID, key, option string, alwaysIDs, neverIDs []string, allowPremium bool) error {
 	acc := e.GetAccountCore(accountID)
 	if acc == nil {
 		return fmt.Errorf("account not found")
@@ -2005,6 +2006,9 @@ func setPrivacySetting(e *engine.Engine, accountID, key, option string, alwaysID
 		if len(users) > 0 {
 			rules = append(rules, &tg.InputPrivacyValueDisallowUsers{Users: users})
 		}
+	}
+	if allowPremium {
+		rules = append(rules, &tg.InputPrivacyValueAllowPremium{})
 	}
 	return tgCore.SetPrivacy(inputKey, rules)
 }
