@@ -648,7 +648,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 16.2 Security Section
 
 ### 16.3 Privacy Section
-- [ ] Privacy section: settingsButtonNoIcon rows for each privacy setting, right-label = base value + exception counts, EditPrivacyBox (364px) with radio options (Everyone/My Contacts/Close Friends/Nobody), Premium-locked options with 14px lock, "Always Allow"/"Never Allow" exception buttons, PeerListBox for exceptions, Premium Users toggle, Save+Cancel — spec §16.3 & §16.3.0
 - [ ] Phone Number Privacy: Everyone/My Contacts/Nobody, "Nobody"→"Who can find me" sub-section (Everyone/Contacts), phone-link warning — spec §16.3.1
 - [ ] Last Seen & Online: first-time confirmation dialog, "Hide Read Time" toggle (non-Everyone only), non-Premium Premium button — spec §16.3.2
 - [ ] Profile Photo: Set/Update Public Photo button (ellipse crop), Remove Public Photo (red, when exists) — spec §16.3.3

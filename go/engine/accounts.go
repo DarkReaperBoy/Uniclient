@@ -347,6 +347,14 @@ func (e *Engine) getAccount(accountID string) (*Account, bool) {
 	return acc, ok
 }
 
+func (e *Engine) GetAccountCore(accountID string) cores.Core {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil
+	}
+	return acc.Core
+}
+
 // setConnState updates an account's connection state.
 func (e *Engine) setConnState(accountID string, state ConnState) {
 	e.accountsMu.Lock()

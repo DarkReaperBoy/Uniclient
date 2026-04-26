@@ -1696,6 +1696,43 @@ class EngineService {
     }
   }
 
+  // ── Privacy Settings ──
+
+  Future<Map<String, dynamic>?> getPrivacySetting(String accountId, String key) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId, 'key': key}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetPrivacySetting', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    } catch (e) {
+      Debug.error('ENGINE', 'getPrivacySetting($key) failed', e);
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> getAllPrivacySettings(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetAllPrivacySettings', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    } catch (e) {
+      Debug.error('ENGINE', 'getAllPrivacySettings failed', e);
+      return null;
+    }
+  }
+
+  Future<void> setPrivacySetting(String accountId, String key, String option, {List<String> alwaysIds = const [], List<String> neverIds = const []}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'key': key,
+      'option': option,
+      'always_ids': alwaysIds,
+      'never_ids': neverIds,
+    }));
+    await _callAsync('__engine', 'SetPrivacySetting', Uint8List.fromList(payload));
+  }
+
   // ── Shutdown ──
 
   void shutdown() {

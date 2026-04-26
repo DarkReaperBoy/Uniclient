@@ -39,6 +39,9 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
   int _blockedCount = -1;
   int _sessionsCount = -1;
 
+  Map<String, Map<String, dynamic>> _privacySettings = {};
+  bool _privacyLoaded = false;
+
   @override
   void initState() {
     super.initState();
@@ -48,6 +51,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     _fetchPasskeys();
     _fetchBlockedCount();
     _fetchSessionsCount();
+    _fetchAllPrivacy();
     _pollTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       _fetchPasswordState();
     });
@@ -159,6 +163,54 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     final count = await engine.getSessionsCount(accountId);
     if (!mounted) return;
     setState(() => _sessionsCount = count);
+  }
+
+  Future<void> _fetchAllPrivacy() async {
+    if (!mounted) return;
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+
+    final result = await engine.getAllPrivacySettings(accountId);
+    if (!mounted) return;
+    if (result != null) {
+      setState(() {
+        _privacySettings = result.map((k, v) =>
+          MapEntry(k, v is Map<String, dynamic> ? v : <String, dynamic>{}));
+        _privacyLoaded = true;
+      });
+    }
+  }
+
+  String _privacyLabel(String key) {
+    final s = _privacySettings[key];
+    if (s == null) return '...';
+    final option = s['option'] as String? ?? 'everyone';
+    final alwaysUsers = (s['always_users'] as List?)?.length ?? 0;
+    final neverUsers = (s['never_users'] as List?)?.length ?? 0;
+    final alwaysChats = (s['always_chats'] as List?)?.length ?? 0;
+    final neverChats = (s['never_chats'] as List?)?.length ?? 0;
+    final allowPremium = s['allow_premium'] as bool? ?? false;
+    final alwaysCount = alwaysUsers + alwaysChats + (allowPremium ? 1 : 0);
+    final neverCount = neverUsers + neverChats;
+
+    String base;
+    switch (option) {
+      case 'everyone': base = 'Everyone'; break;
+      case 'contacts': base = 'My Contacts'; break;
+      case 'close_friends': base = 'Close Friends'; break;
+      case 'nobody': base = 'Nobody'; break;
+      default: base = option;
+    }
+    if (alwaysCount > 0 && neverCount > 0) {
+      return '$base (+$alwaysCount, -$neverCount)';
+    } else if (alwaysCount > 0) {
+      return '$base (+$alwaysCount)';
+    } else if (neverCount > 0) {
+      return '$base (-$neverCount)';
+    }
+    return base;
   }
 
   String get _passkeysLabel {
@@ -437,6 +489,36 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     ];
   }
 
+  void _openPrivacyEditor(String key, String title, List<String> options) {
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+
+    final current = _privacySettings[key];
+    final currentOption = current?['option'] as String? ?? 'everyone';
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => _EditPrivacyBox(
+        title: title,
+        privacyKey: key,
+        options: options,
+        currentOption: currentOption,
+        accountId: accountId,
+        engine: engine,
+        onSaved: (newOption) {
+          setState(() {
+            _privacySettings[key] = {
+              ...?_privacySettings[key],
+              'option': newOption,
+            };
+          });
+        },
+      ),
+    );
+  }
+
   List<Widget> _buildPrivacySection(
     bool isDark,
     Color sectionTitleColor,
@@ -445,6 +527,20 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     Color accentColor,
     Color hoverBg,
   ) {
+    const privacyItems = <Map<String, dynamic>>[
+      {'key': 'phone_number', 'label': 'Phone Number', 'options': ['everyone', 'contacts', 'nobody']},
+      {'key': 'last_seen', 'label': 'Last Seen & Online', 'options': ['everyone', 'contacts', 'close_friends', 'nobody']},
+      {'key': 'profile_photo', 'label': 'Profile Photo', 'options': ['everyone', 'contacts', 'close_friends', 'nobody']},
+      {'key': 'forwards', 'label': 'Forwarded Messages', 'options': ['everyone', 'contacts', 'close_friends', 'nobody']},
+      {'key': 'calls', 'label': 'Calls', 'options': ['everyone', 'contacts', 'nobody']},
+      {'key': 'voice_messages', 'label': 'Voice Messages', 'options': ['everyone', 'contacts', 'nobody']},
+      {'key': 'birthday', 'label': 'Birthday', 'options': ['everyone', 'contacts', 'close_friends', 'nobody']},
+      {'key': 'gifts', 'label': 'Gifts', 'options': ['everyone', 'contacts', 'close_friends', 'nobody']},
+      {'key': 'about', 'label': 'Bio', 'options': ['everyone', 'contacts', 'nobody']},
+      {'key': 'saved_music', 'label': 'Saved Music', 'options': ['everyone', 'contacts', 'nobody']},
+      {'key': 'chat_invite', 'label': 'Groups & Channels', 'options': ['everyone', 'contacts', 'nobody']},
+    ];
+
     return [
       Padding(
         padding: const EdgeInsets.fromLTRB(22, 10, 22, 4),
@@ -457,94 +553,18 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
           ),
         ),
       ),
-      _PrivacyRow(
-        label: 'Phone Number',
-        rightLabel: 'My Contacts',
+      ...privacyItems.map((item) => _PrivacyRow(
+        label: item['label'] as String,
+        rightLabel: _privacyLabel(item['key'] as String),
         textColor: textColor,
         subtextColor: subtextColor,
         hoverBg: hoverBg,
-        onTap: () {},
-      ),
-      _PrivacyRow(
-        label: 'Last Seen & Online',
-        rightLabel: 'Everyone',
-        textColor: textColor,
-        subtextColor: subtextColor,
-        hoverBg: hoverBg,
-        onTap: () {},
-      ),
-      _PrivacyRow(
-        label: 'Profile Photo',
-        rightLabel: 'Everyone',
-        textColor: textColor,
-        subtextColor: subtextColor,
-        hoverBg: hoverBg,
-        onTap: () {},
-      ),
-      _PrivacyRow(
-        label: 'Forwarded Messages',
-        rightLabel: 'Everyone',
-        textColor: textColor,
-        subtextColor: subtextColor,
-        hoverBg: hoverBg,
-        onTap: () {},
-      ),
-      _PrivacyRow(
-        label: 'Calls',
-        rightLabel: 'Everyone',
-        textColor: textColor,
-        subtextColor: subtextColor,
-        hoverBg: hoverBg,
-        onTap: () {},
-      ),
-      _PrivacyRow(
-        label: 'Voice Messages',
-        rightLabel: 'Everyone',
-        textColor: textColor,
-        subtextColor: subtextColor,
-        hoverBg: hoverBg,
-        onTap: () {},
-      ),
-      _PrivacyRow(
-        label: 'Messages',
-        rightLabel: 'Everyone',
-        textColor: textColor,
-        subtextColor: subtextColor,
-        hoverBg: hoverBg,
-        onTap: () {},
-      ),
-      _PrivacyRow(
-        label: 'Birthday',
-        rightLabel: 'Contacts',
-        textColor: textColor,
-        subtextColor: subtextColor,
-        hoverBg: hoverBg,
-        onTap: () {},
-      ),
-      _PrivacyRow(
-        label: 'Gifts',
-        rightLabel: 'Everyone',
-        textColor: textColor,
-        subtextColor: subtextColor,
-        hoverBg: hoverBg,
-        onTap: () {},
-      ),
-      _PrivacyRow(
-        label: 'Bio',
-        rightLabel: 'Everyone',
-        textColor: textColor,
-        subtextColor: subtextColor,
-        hoverBg: hoverBg,
-        onTap: () {},
-      ),
-      _PrivacyRow(
-        label: 'Groups & Channels',
-        rightLabel: 'Everyone',
-        textColor: textColor,
-        subtextColor: subtextColor,
-        hoverBg: hoverBg,
-        onTap: () {},
-      ),
+        onTap: () => _openPrivacyEditor(
+          item['key'] as String,
+          item['label'] as String,
+          (item['options'] as List).cast<String>(),
+        ),
+      )),
     ];
   }
 
@@ -694,6 +714,187 @@ class _PrivacyRow extends StatelessWidget {
               style: TextStyle(
                 fontSize: 14,
                 color: subtextColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── EditPrivacyBox Dialog ──
+
+class _EditPrivacyBox extends StatefulWidget {
+  final String title;
+  final String privacyKey;
+  final List<String> options;
+  final String currentOption;
+  final String accountId;
+  final EngineService engine;
+  final void Function(String newOption) onSaved;
+
+  const _EditPrivacyBox({
+    required this.title,
+    required this.privacyKey,
+    required this.options,
+    required this.currentOption,
+    required this.accountId,
+    required this.engine,
+    required this.onSaved,
+  });
+
+  @override
+  State<_EditPrivacyBox> createState() => _EditPrivacyBoxState();
+}
+
+class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
+  late String _selected;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = widget.currentOption;
+  }
+
+  String _optionLabel(String opt) {
+    switch (opt) {
+      case 'everyone': return 'Everyone';
+      case 'contacts': return 'My Contacts';
+      case 'close_friends': return 'Close Friends';
+      case 'nobody': return 'Nobody';
+      default: return opt;
+    }
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    try {
+      await widget.engine.setPrivacySetting(
+        widget.accountId,
+        widget.privacyKey,
+        _selected,
+      );
+      widget.onSaved(_selected);
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFF1F1F1);
+    final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 364, minWidth: 280),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 18, 22, 4),
+              child: Text(
+                widget.title,
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: textColor,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 8, 22, 4),
+              child: Text(
+                'Who can see your ${widget.title.toLowerCase()}?',
+                style: TextStyle(fontSize: 13, color: subtextColor),
+              ),
+            ),
+            const SizedBox(height: 4),
+            ...widget.options.map((opt) {
+              final selected = opt == _selected;
+              return InkWell(
+                onTap: () => setState(() => _selected = opt),
+                hoverColor: hoverBg,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 10, 22, 8),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: Radio<String>(
+                          value: opt,
+                          groupValue: _selected,
+                          onChanged: (v) {
+                            if (v != null) setState(() => _selected = v);
+                          },
+                          activeColor: accentColor,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Text(
+                        _optionLabel(opt),
+                        style: TextStyle(fontSize: 14, color: textColor),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 8, 22, 0),
+              child: Divider(height: 1, color: dividerColor),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 8, 22, 4),
+              child: Text(
+                'You can add users or groups who will always or never be able to see your ${widget.title.toLowerCase()}, regardless of the setting above.',
+                style: TextStyle(fontSize: 13, color: subtextColor),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('Cancel', style: TextStyle(color: accentColor)),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: _saving ? null : _save,
+                    child: _saving
+                      ? SizedBox(
+                          width: 16, height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2, color: accentColor,
+                          ),
+                        )
+                      : Text('Save', style: TextStyle(color: accentColor)),
+                  ),
+                ],
               ),
             ),
           ],

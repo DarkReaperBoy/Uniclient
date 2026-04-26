@@ -3,11 +3,14 @@ package bridge
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
+	"github.com/gotd/td/tg"
 	"google.golang.org/protobuf/proto"
 
+	"uniclient/cores"
 	"uniclient/engine"
 	pb "uniclient/proto"
 )
@@ -1735,9 +1738,201 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(sessions)
 
+	case "GetPrivacySetting":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Key       string `json:"key"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return getPrivacySetting(e, params.AccountID, params.Key)
+
+	case "SetPrivacySetting":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Key       string `json:"key"`
+			Option    string `json:"option"`
+			AlwaysIDs []string `json:"always_ids"`
+			NeverIDs  []string `json:"never_ids"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, setPrivacySetting(e, params.AccountID, params.Key, params.Option, params.AlwaysIDs, params.NeverIDs)
+
+	case "GetAllPrivacySettings":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return getAllPrivacySettings(e, params.AccountID)
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}
+}
+
+var privacyKeyMap = map[string]tg.InputPrivacyKeyClass{
+	"phone_number":    &tg.InputPrivacyKeyPhoneNumber{},
+	"last_seen":       &tg.InputPrivacyKeyStatusTimestamp{},
+	"profile_photo":   &tg.InputPrivacyKeyProfilePhoto{},
+	"forwards":        &tg.InputPrivacyKeyForwards{},
+	"calls":           &tg.InputPrivacyKeyPhoneCall{},
+	"calls_p2p":       &tg.InputPrivacyKeyPhoneP2P{},
+	"voice_messages":  &tg.InputPrivacyKeyVoiceMessages{},
+	"chat_invite":     &tg.InputPrivacyKeyChatInvite{},
+	"birthday":        &tg.InputPrivacyKeyBirthday{},
+	"gifts":           &tg.InputPrivacyKeyStarGiftsAutoSave{},
+	"about":           &tg.InputPrivacyKeyAbout{},
+	"added_by_phone":  &tg.InputPrivacyKeyAddedByPhone{},
+	"saved_music":     &tg.InputPrivacyKeySavedMusic{},
+}
+
+type privacyResult struct {
+	Option       string   `json:"option"`
+	AlwaysUsers  []string `json:"always_users"`
+	NeverUsers   []string `json:"never_users"`
+	AlwaysChats  []string `json:"always_chats"`
+	NeverChats   []string `json:"never_chats"`
+	AllowPremium bool     `json:"allow_premium"`
+}
+
+func parsePrivacyRules(rules []tg.PrivacyRuleClass) *privacyResult {
+	res := &privacyResult{Option: "everyone"}
+	for _, r := range rules {
+		switch v := r.(type) {
+		case *tg.PrivacyValueAllowAll:
+			res.Option = "everyone"
+		case *tg.PrivacyValueAllowContacts:
+			res.Option = "contacts"
+		case *tg.PrivacyValueAllowCloseFriends:
+			res.Option = "close_friends"
+		case *tg.PrivacyValueDisallowAll:
+			res.Option = "nobody"
+		case *tg.PrivacyValueAllowUsers:
+			for _, id := range v.Users {
+				res.AlwaysUsers = append(res.AlwaysUsers, strconv.FormatInt(id, 10))
+			}
+		case *tg.PrivacyValueDisallowUsers:
+			for _, id := range v.Users {
+				res.NeverUsers = append(res.NeverUsers, strconv.FormatInt(id, 10))
+			}
+		case *tg.PrivacyValueAllowChatParticipants:
+			for _, id := range v.Chats {
+				res.AlwaysChats = append(res.AlwaysChats, strconv.FormatInt(id, 10))
+			}
+		case *tg.PrivacyValueDisallowChatParticipants:
+			for _, id := range v.Chats {
+				res.NeverChats = append(res.NeverChats, strconv.FormatInt(id, 10))
+			}
+		case *tg.PrivacyValueAllowPremium:
+			res.AllowPremium = true
+		}
+	}
+	if res.AlwaysUsers == nil { res.AlwaysUsers = []string{} }
+	if res.NeverUsers == nil { res.NeverUsers = []string{} }
+	if res.AlwaysChats == nil { res.AlwaysChats = []string{} }
+	if res.NeverChats == nil { res.NeverChats = []string{} }
+	return res
+}
+
+func getPrivacySetting(e *engine.Engine, accountID, key string) ([]byte, error) {
+	acc := e.GetAccountCore(accountID)
+	if acc == nil {
+		return nil, fmt.Errorf("account not found")
+	}
+	tgCore, ok := acc.(*cores.TelegramCore)
+	if !ok {
+		return json.Marshal(&privacyResult{Option: "everyone", AlwaysUsers: []string{}, NeverUsers: []string{}, AlwaysChats: []string{}, NeverChats: []string{}})
+	}
+	inputKey, ok := privacyKeyMap[key]
+	if !ok {
+		return nil, fmt.Errorf("unknown privacy key: %s", key)
+	}
+	rules, err := tgCore.GetPrivacy(inputKey)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(parsePrivacyRules(rules))
+}
+
+func setPrivacySetting(e *engine.Engine, accountID, key, option string, alwaysIDs, neverIDs []string) error {
+	acc := e.GetAccountCore(accountID)
+	if acc == nil {
+		return fmt.Errorf("account not found")
+	}
+	tgCore, ok := acc.(*cores.TelegramCore)
+	if !ok {
+		return fmt.Errorf("privacy settings not supported for this platform")
+	}
+	inputKey, ok := privacyKeyMap[key]
+	if !ok {
+		return fmt.Errorf("unknown privacy key: %s", key)
+	}
+	var rules []tg.InputPrivacyRuleClass
+	switch option {
+	case "everyone":
+		rules = append(rules, &tg.InputPrivacyValueAllowAll{})
+	case "contacts":
+		rules = append(rules, &tg.InputPrivacyValueAllowContacts{})
+	case "close_friends":
+		rules = append(rules, &tg.InputPrivacyValueAllowCloseFriends{})
+	case "nobody":
+		rules = append(rules, &tg.InputPrivacyValueDisallowAll{})
+	}
+	if len(alwaysIDs) > 0 {
+		var users []tg.InputUserClass
+		for _, idStr := range alwaysIDs {
+			id, err := strconv.ParseInt(idStr, 10, 64)
+			if err != nil { continue }
+			users = append(users, &tg.InputUser{UserID: id})
+		}
+		if len(users) > 0 {
+			rules = append(rules, &tg.InputPrivacyValueAllowUsers{Users: users})
+		}
+	}
+	if len(neverIDs) > 0 {
+		var users []tg.InputUserClass
+		for _, idStr := range neverIDs {
+			id, err := strconv.ParseInt(idStr, 10, 64)
+			if err != nil { continue }
+			users = append(users, &tg.InputUser{UserID: id})
+		}
+		if len(users) > 0 {
+			rules = append(rules, &tg.InputPrivacyValueDisallowUsers{Users: users})
+		}
+	}
+	return tgCore.SetPrivacy(inputKey, rules)
+}
+
+func getAllPrivacySettings(e *engine.Engine, accountID string) ([]byte, error) {
+	keys := []string{"phone_number", "last_seen", "profile_photo", "forwards", "calls", "voice_messages", "chat_invite", "birthday", "gifts", "about", "saved_music"}
+	result := make(map[string]*privacyResult)
+	acc := e.GetAccountCore(accountID)
+	if acc == nil {
+		return nil, fmt.Errorf("account not found")
+	}
+	tgCore, ok := acc.(*cores.TelegramCore)
+	if !ok {
+		for _, k := range keys {
+			result[k] = &privacyResult{Option: "everyone", AlwaysUsers: []string{}, NeverUsers: []string{}, AlwaysChats: []string{}, NeverChats: []string{}}
+		}
+		return json.Marshal(result)
+	}
+	for _, k := range keys {
+		inputKey, ok := privacyKeyMap[k]
+		if !ok { continue }
+		rules, err := tgCore.GetPrivacy(inputKey)
+		if err != nil {
+			result[k] = &privacyResult{Option: "everyone", AlwaysUsers: []string{}, NeverUsers: []string{}, AlwaysChats: []string{}, NeverChats: []string{}}
+			continue
+		}
+		result[k] = parsePrivacyRules(rules)
+	}
+	return json.Marshal(result)
 }
 
 // --- Proto converters ---
