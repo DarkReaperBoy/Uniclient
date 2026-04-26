@@ -718,7 +718,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 19.7–19.9 Terminate All / Rename / Auto-Terminate
 
 ### 19.10–19.12 Power Saving Box
-- [ ] Automatic Power Saving toggle (OS battery status conditional): ON + battery saver active → overlay (boxBg alpha 96) over controls (OK still clickable), 3s toast on overlay click, overlay removes when OS exits battery saver — spec §19.12 & §19.12.1
 
 ### 19.13–19.14 Language Box
 - [ ] Language box (320px, max 492px list height): title "Language" — spec §19.13

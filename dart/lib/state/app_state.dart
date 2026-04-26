@@ -76,6 +76,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   static const kPowerSavingCalls         = 1 << 10;
   static const kPowerSavingAnimations    = 1 << 11;
   int _powerSavingFlags = 0;
+  bool _autoPowerSaving = false;
 
   /// Callback for showing connection-state notifications (set by UI layer).
   void Function(String text, IconData icon, Color color)? onConnStateNotification;
@@ -384,6 +385,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   int get powerSavingFlags => _powerSavingFlags;
   bool powerSaving(int flag) => _powerSavingFlags & flag != 0;
+  bool get autoPowerSaving => _autoPowerSaving;
+
+  void setAutoPowerSaving(bool v) {
+    if (v == _autoPowerSaving) return;
+    _autoPowerSaving = v;
+    _saveWindowPrefs();
+    notifyListeners();
+  }
 
   void setPowerSaving(int flag, bool on) {
     final updated = on
@@ -649,6 +658,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _systemDarkMode = data['systemDarkMode'] as bool? ?? false;
       _recordVideoMessages = data['recordVideoMessages'] as bool? ?? false;
       _powerSavingFlags = data['powerSavingFlags'] as int? ?? 0;
+      _autoPowerSaving = data['autoPowerSaving'] as bool? ?? false;
       _showChatNameInTitle = data['showChatNameInTitle'] as bool? ?? true;
       _showAccountNameInTitle = data['showAccountNameInTitle'] as bool? ?? true;
       _showUnreadCountInTitle = data['showUnreadCountInTitle'] as bool? ?? true;
@@ -689,6 +699,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'systemDarkMode': _systemDarkMode,
         'recordVideoMessages': _recordVideoMessages,
         'powerSavingFlags': _powerSavingFlags,
+        'autoPowerSaving': _autoPowerSaving,
         'accountOrder': _accountOrder,
         'showChatNameInTitle': _showChatNameInTitle,
         'showAccountNameInTitle': _showAccountNameInTitle,

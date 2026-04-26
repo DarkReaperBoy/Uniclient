@@ -1513,12 +1513,54 @@ class PowerSavingBox extends StatefulWidget {
 
 class _PowerSavingBoxState extends State<PowerSavingBox> {
   late int _flags;
+  late bool _autoEnabled;
+  bool _hasBattery = false;
+  bool _osPowerSaver = false;
+  final GlobalKey _controlsKey = GlobalKey();
 
   @override
   void initState() {
     super.initState();
-    _flags = context.read<AppState>().powerSavingFlags;
+    final appState = context.read<AppState>();
+    _flags = appState.powerSavingFlags;
+    _autoEnabled = appState.autoPowerSaving;
+    _detectBattery();
   }
+
+  Future<void> _detectBattery() async {
+    if (!Platform.isLinux) return;
+    try {
+      final psDir = Directory('/sys/class/power_supply');
+      if (!psDir.existsSync()) return;
+      for (final entry in psDir.listSync()) {
+        final typeFile = File('${entry.path}/type');
+        if (typeFile.existsSync()) {
+          final type = typeFile.readAsStringSync().trim();
+          if (type == 'Battery') {
+            if (!mounted) return;
+            setState(() => _hasBattery = true);
+            _checkPowerSaverMode();
+            return;
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _checkPowerSaverMode() async {
+    if (!Platform.isLinux) return;
+    try {
+      final result = await Process.run('powerprofilesctl', ['get']);
+      if (!mounted) return;
+      final profile = (result.stdout as String).trim();
+      setState(() => _osPowerSaver = profile == 'power-saver');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _osPowerSaver = false);
+    }
+  }
+
+  bool get _overlayActive => _autoEnabled && _osPowerSaver;
 
   bool _flag(int bit) => _flags & bit != 0;
 
@@ -1526,6 +1568,17 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
     setState(() {
       _flags = _flags ^ bit;
     });
+  }
+
+  void _showForceDisabledToast() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Turn off your device\'s power saving mode to change these settings',
+        ),
+        duration: Duration(seconds: 3),
+      ),
+    );
   }
 
   @override
@@ -1541,6 +1594,7 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
         isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
     final iconColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final overlayColor = bgColor.withAlpha(96);
 
     final screenHeight = MediaQuery.of(context).size.height;
     final maxDialogHeight = screenHeight - 48;
@@ -1571,35 +1625,57 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _header('Stickers', headerColor),
-                    _iconToggle('Stickers in Panel', Icons.sticky_note_2,
-                        AppState.kPowerSavingStickersPanel, textColor, iconColor, accentColor),
-                    _plainToggle('Stickers in Messages',
-                        AppState.kPowerSavingStickersChat, textColor, accentColor),
-                    const SizedBox(height: 8),
-                    _header('Emoji', headerColor),
-                    _iconToggle('Emoji in Panel', Icons.emoji_emotions,
-                        AppState.kPowerSavingEmojiPanel, textColor, iconColor, accentColor),
-                    _plainToggle('Emoji Reactions',
-                        AppState.kPowerSavingEmojiReactions, textColor, accentColor),
-                    _plainToggle('Emoji in Messages',
-                        AppState.kPowerSavingEmojiChat, textColor, accentColor),
-                    _plainToggle('Emoji Status',
-                        AppState.kPowerSavingEmojiStatus, textColor, accentColor),
-                    const SizedBox(height: 8),
-                    _header('Chat', headerColor),
-                    _iconToggle('Chat Background', Icons.chat_bubble_outline,
-                        AppState.kPowerSavingChatBackground, textColor, iconColor, accentColor),
-                    _plainToggle('Spoiler Effect',
-                        AppState.kPowerSavingChatSpoiler, textColor, accentColor),
-                    _plainToggle('Message Effects',
-                        AppState.kPowerSavingChatEffects, textColor, accentColor),
-                    const SizedBox(height: 8),
-                    _iconToggle('Calls', Icons.phone,
-                        AppState.kPowerSavingCalls, textColor, iconColor, accentColor),
-                    _iconToggle('Interface Animations', Icons.play_circle_outline,
-                        AppState.kPowerSavingAnimations, textColor, iconColor, accentColor),
-                    const SizedBox(height: 8),
+                    if (_hasBattery) ...[
+                      _autoToggle(textColor, accentColor),
+                      const SizedBox(height: 8),
+                    ],
+                    Stack(
+                      children: [
+                        Column(
+                          key: _controlsKey,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _header('Stickers', headerColor),
+                            _iconToggle('Stickers in Panel', Icons.sticky_note_2,
+                                AppState.kPowerSavingStickersPanel, textColor, iconColor, accentColor),
+                            _plainToggle('Stickers in Messages',
+                                AppState.kPowerSavingStickersChat, textColor, accentColor),
+                            const SizedBox(height: 8),
+                            _header('Emoji', headerColor),
+                            _iconToggle('Emoji in Panel', Icons.emoji_emotions,
+                                AppState.kPowerSavingEmojiPanel, textColor, iconColor, accentColor),
+                            _plainToggle('Emoji Reactions',
+                                AppState.kPowerSavingEmojiReactions, textColor, accentColor),
+                            _plainToggle('Emoji in Messages',
+                                AppState.kPowerSavingEmojiChat, textColor, accentColor),
+                            _plainToggle('Emoji Status',
+                                AppState.kPowerSavingEmojiStatus, textColor, accentColor),
+                            const SizedBox(height: 8),
+                            _header('Chat', headerColor),
+                            _iconToggle('Chat Background', Icons.chat_bubble_outline,
+                                AppState.kPowerSavingChatBackground, textColor, iconColor, accentColor),
+                            _plainToggle('Spoiler Effect',
+                                AppState.kPowerSavingChatSpoiler, textColor, accentColor),
+                            _plainToggle('Message Effects',
+                                AppState.kPowerSavingChatEffects, textColor, accentColor),
+                            const SizedBox(height: 8),
+                            _iconToggle('Calls', Icons.phone,
+                                AppState.kPowerSavingCalls, textColor, iconColor, accentColor),
+                            _iconToggle('Interface Animations', Icons.play_circle_outline,
+                                AppState.kPowerSavingAnimations, textColor, iconColor, accentColor),
+                            const SizedBox(height: 8),
+                          ],
+                        ),
+                        if (_overlayActive)
+                          Positioned.fill(
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: _showForceDisabledToast,
+                              child: ColoredBox(color: overlayColor),
+                            ),
+                          ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -1618,6 +1694,9 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
                   TextButton(
                     onPressed: () {
                       final appState = context.read<AppState>();
+                      if (_autoEnabled != appState.autoPowerSaving) {
+                        appState.setAutoPowerSaving(_autoEnabled);
+                      }
                       final old = appState.powerSavingFlags;
                       final changed = old ^ _flags;
                       for (var bit = 0; bit < 12; bit++) {
@@ -1639,6 +1718,29 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
     );
   }
 
+  Widget _autoToggle(Color textColor, Color accentColor) {
+    return InkWell(
+      onTap: () => setState(() => _autoEnabled = !_autoEnabled),
+      child: Padding(
+        padding: _psPlainPad,
+        child: Row(
+          children: [
+            Expanded(
+              child: Text('Automatic Power Saving',
+                  style: TextStyle(fontSize: SettingsStyle.buttonFontSize, color: textColor)),
+            ),
+            Switch(
+              value: _autoEnabled,
+              onChanged: (v) => setState(() => _autoEnabled = v),
+              activeColor: accentColor,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _header(String text, Color color) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(22, 8, 22, 4),
@@ -1653,10 +1755,8 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
     );
   }
 
-  // powerSavingButton: padding 57/8/22/8, iconLeft 20px
   static const _psIconPad = EdgeInsets.fromLTRB(20, 8, 22, 8);
-  static const double _psIconGap = 13; // 20 + 24 + 13 = 57px text start
-  // powerSavingButtonNoIcon: padding 22/8/22/8
+  static const double _psIconGap = 13;
   static const _psPlainPad = EdgeInsets.fromLTRB(22, 8, 22, 8);
 
   Widget _iconToggle(String label, IconData icon, int flag,
