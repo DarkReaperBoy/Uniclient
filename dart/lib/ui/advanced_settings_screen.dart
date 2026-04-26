@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
@@ -216,7 +217,10 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         subtextColor: subtextColor,
         iconColor: iconColor,
         hoverBg: hoverBg,
-        onTap: () {},
+        onTap: () => showDialog(
+          context: context,
+          builder: (_) => const _ProxiesBox(),
+        ),
       ),
       if (!_askDownloadPath)
         _AdvancedIconButtonRow(
@@ -1259,6 +1263,992 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
               onChanged: (_) => _toggle(flag),
               activeColor: accentColor,
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// §17.2.1 ProxiesBox — 364px dialog for proxy management.
+enum _ProxyType { http, socks5, mtproto }
+
+enum _ProxyMode { disabled, system, custom }
+
+enum _ProxyStatus { online, available, checking, unavailable }
+
+class _ProxyEntry {
+  _ProxyType type;
+  String host;
+  int port;
+  String username;
+  String password;
+  String secret;
+  _ProxyStatus status;
+  int pingMs;
+  bool deleted;
+
+  _ProxyEntry({
+    required this.type,
+    required this.host,
+    required this.port,
+    this.username = '',
+    this.password = '',
+    this.secret = '',
+    this.status = _ProxyStatus.checking,
+    this.pingMs = 0,
+    this.deleted = false,
+  });
+
+  String get typeLabel => switch (type) {
+        _ProxyType.http => 'HTTP',
+        _ProxyType.socks5 => 'SOCKS5',
+        _ProxyType.mtproto => 'MTPROTO',
+      };
+
+  String get title => '$typeLabel $host:$port';
+
+  bool get supportsCalls => type != _ProxyType.mtproto;
+
+  bool get isShareable => !deleted;
+}
+
+class _ProxiesBox extends StatefulWidget {
+  const _ProxiesBox();
+
+  @override
+  State<_ProxiesBox> createState() => _ProxiesBoxState();
+}
+
+class _ProxiesBoxState extends State<_ProxiesBox> {
+  _ProxyMode _mode = _ProxyMode.disabled;
+  bool _ipv6 = false;
+  bool _proxyForCalls = false;
+  final List<_ProxyEntry> _proxies = [];
+  int _selectedIndex = -1;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final dividerColor =
+        isDark ? const Color(0xFF101921) : const Color(0xFFE0E0E0);
+    final hoverBg =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    final hasShareable = _proxies.any((p) => p.isShareable);
+    final showCallsToggle =
+        _mode == _ProxyMode.custom &&
+        _selectedIndex >= 0 &&
+        _selectedIndex < _proxies.length &&
+        _proxies[_selectedIndex].supportsCalls;
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 364),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Title bar with menu toggle
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 18, 8, 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Connection type',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
+                      ),
+                    ),
+                  ),
+                  PopupMenuButton<String>(
+                    icon: Icon(Icons.more_vert, color: subtextColor, size: 20),
+                    onSelected: (v) {
+                      if (v == 'import') _importFromClipboard();
+                      if (v == 'delete_all') _deleteAllProxies();
+                    },
+                    itemBuilder: (_) => [
+                      PopupMenuItem(
+                        value: 'import',
+                        child: Text('Import from clipboard',
+                            style: TextStyle(fontSize: 14, color: textColor)),
+                      ),
+                      PopupMenuItem(
+                        value: 'delete_all',
+                        child: Text('Delete all',
+                            style: TextStyle(
+                                fontSize: 14, color: theme.colorScheme.error)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // IPv6 checkbox
+            InkWell(
+              onTap: () => setState(() => _ipv6 = !_ipv6),
+              hoverColor: hoverBg,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(22, 8, 22, 5),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: Checkbox(
+                        value: _ipv6,
+                        onChanged: (v) => setState(() => _ipv6 = v ?? false),
+                        activeColor: accentColor,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        'Try connecting through IPv6',
+                        style: TextStyle(fontSize: 14, color: textColor),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Radio group: Disabled / System / Custom
+            _proxyRadio('Disabled', _ProxyMode.disabled, textColor, accentColor,
+                hoverBg),
+            _proxyRadio('Use system settings', _ProxyMode.system, textColor,
+                accentColor, hoverBg),
+            _proxyRadio('Use custom proxy', _ProxyMode.custom, textColor,
+                accentColor, hoverBg),
+
+            // "Use proxy for calls" toggle (conditional)
+            AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
+              child: showCallsToggle
+                  ? InkWell(
+                      onTap: () =>
+                          setState(() => _proxyForCalls = !_proxyForCalls),
+                      hoverColor: hoverBg,
+                      child: Padding(
+                        padding: SettingsStyle.noIconPadding,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Use proxy for calls',
+                                style:
+                                    TextStyle(fontSize: 14, color: textColor),
+                              ),
+                            ),
+                            Switch(
+                              value: _proxyForCalls,
+                              onChanged: (v) =>
+                                  setState(() => _proxyForCalls = v),
+                              activeColor: accentColor,
+                              materialTapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+
+            // Divider text
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 4, 22, 8),
+              child: Text(
+                'You can add several proxy servers to be used if the previous one is unavailable.',
+                style: TextStyle(fontSize: 13, color: subtextColor),
+              ),
+            ),
+
+            // Share list button (visible when shareable entries exist)
+            if (hasShareable)
+              InkWell(
+                onTap: _shareList,
+                hoverColor: hoverBg,
+                child: Padding(
+                  padding: SettingsStyle.iconRowPadding,
+                  child: Row(
+                    children: [
+                      Icon(Icons.share, size: 24, color: subtextColor),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Text(
+                          'Share proxy list',
+                          style: TextStyle(fontSize: 14, color: textColor),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+            Divider(height: 1, color: dividerColor, indent: 0, endIndent: 0),
+
+            // Proxy list or empty state
+            if (_proxies.isEmpty)
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 22, vertical: 20),
+                child: Center(
+                  child: Text(
+                    'You have no saved proxies yet.',
+                    style: TextStyle(fontSize: 14, color: subtextColor),
+                  ),
+                ),
+              )
+            else
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 300),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _proxies.length,
+                  itemBuilder: (ctx, i) => _buildProxyRow(i, isDark),
+                ),
+              ),
+
+            const SizedBox(height: 4),
+
+            // Add proxy button
+            InkWell(
+              onTap: _addProxy,
+              hoverColor: hoverBg,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
+                child: Row(
+                  children: [
+                    Icon(Icons.add_circle_outline,
+                        size: 24, color: accentColor),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        'Add proxy',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: accentColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _proxyRadio(String label, _ProxyMode mode, Color textColor,
+      Color accentColor, Color hoverBg) {
+    return InkWell(
+      onTap: () => setState(() => _mode = mode),
+      hoverColor: hoverBg,
+      child: Padding(
+        padding: SettingsStyle.sendTypePadding,
+        child: Row(
+          children: [
+            SizedBox(
+              width: 22,
+              height: 22,
+              child: Radio<_ProxyMode>(
+                value: mode,
+                groupValue: _mode,
+                onChanged: (v) => setState(() => _mode = v!),
+                activeColor: accentColor,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(fontSize: 14, color: textColor),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProxyRow(int index, bool isDark) {
+    final proxy = _proxies[index];
+    final theme = Theme.of(context);
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final hoverBg =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    final statusColor = switch (proxy.status) {
+      _ProxyStatus.online => const Color(0xFF4CAF50),
+      _ProxyStatus.available => accentColor,
+      _ProxyStatus.checking => subtextColor,
+      _ProxyStatus.unavailable => theme.colorScheme.error,
+    };
+    final statusText = switch (proxy.status) {
+      _ProxyStatus.online => 'Online',
+      _ProxyStatus.available => '${proxy.pingMs} ms',
+      _ProxyStatus.checking => 'Checking...',
+      _ProxyStatus.unavailable => 'Unavailable',
+    };
+
+    final isSelected = _mode == _ProxyMode.custom && _selectedIndex == index;
+    final opacity = proxy.deleted ? 0.4 : 1.0;
+
+    return Opacity(
+      opacity: opacity,
+      child: InkWell(
+        onTap: () {
+          if (proxy.deleted) return;
+          setState(() {
+            _selectedIndex = index;
+            _mode = _ProxyMode.custom;
+          });
+        },
+        hoverColor: hoverBg,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 8, 8, 8),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 22,
+                height: 22,
+                child: Radio<int>(
+                  value: index,
+                  groupValue:
+                      _mode == _ProxyMode.custom ? _selectedIndex : -1,
+                  onChanged: proxy.deleted
+                      ? null
+                      : (v) => setState(() {
+                            _selectedIndex = v!;
+                            _mode = _ProxyMode.custom;
+                          }),
+                  activeColor: accentColor,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      proxy.title,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      statusText,
+                      style: TextStyle(fontSize: 13, color: statusColor),
+                    ),
+                  ],
+                ),
+              ),
+              PopupMenuButton<String>(
+                icon: Icon(Icons.more_vert, color: subtextColor, size: 20),
+                onSelected: (v) => _onProxyAction(index, v),
+                itemBuilder: (_) => [
+                  PopupMenuItem(
+                    value: 'edit',
+                    child: Row(
+                      children: [
+                        Icon(Icons.edit, size: 20, color: subtextColor),
+                        const SizedBox(width: 12),
+                        Text('Edit',
+                            style: TextStyle(fontSize: 14, color: textColor)),
+                      ],
+                    ),
+                  ),
+                  if (proxy.isShareable) ...[
+                    PopupMenuItem(
+                      value: 'share',
+                      child: Row(
+                        children: [
+                          Icon(Icons.share, size: 20, color: subtextColor),
+                          const SizedBox(width: 12),
+                          Text('Share',
+                              style:
+                                  TextStyle(fontSize: 14, color: textColor)),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'qr',
+                      child: Row(
+                        children: [
+                          Icon(Icons.qr_code, size: 20, color: subtextColor),
+                          const SizedBox(width: 12),
+                          Text('QR Code',
+                              style:
+                                  TextStyle(fontSize: 14, color: textColor)),
+                        ],
+                      ),
+                    ),
+                  ],
+                  PopupMenuItem(
+                    value: proxy.deleted ? 'restore' : 'delete',
+                    child: Row(
+                      children: [
+                        Icon(
+                          proxy.deleted ? Icons.restore : Icons.delete,
+                          size: 20,
+                          color: proxy.deleted
+                              ? subtextColor
+                              : theme.colorScheme.error,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          proxy.deleted ? 'Restore' : 'Delete',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: proxy.deleted
+                                ? textColor
+                                : theme.colorScheme.error,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _onProxyAction(int index, String action) {
+    switch (action) {
+      case 'edit':
+        _editProxy(index);
+      case 'share':
+        final p = _proxies[index];
+        Clipboard.setData(ClipboardData(text: _proxyToUrl(p)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Proxy link copied to clipboard')),
+        );
+      case 'qr':
+        final p = _proxies[index];
+        _showQrDialog(p);
+      case 'delete':
+        setState(() => _proxies[index].deleted = true);
+      case 'restore':
+        setState(() => _proxies[index].deleted = false);
+    }
+  }
+
+  String _proxyToUrl(_ProxyEntry p) {
+    final scheme = switch (p.type) {
+      _ProxyType.socks5 => 'tg://socks?server=${p.host}&port=${p.port}',
+      _ProxyType.http =>
+        'tg://proxy?server=${p.host}&port=${p.port}&type=http',
+      _ProxyType.mtproto =>
+        'tg://proxy?server=${p.host}&port=${p.port}&secret=${p.secret}',
+    };
+    return scheme;
+  }
+
+  void _showQrDialog(_ProxyEntry proxy) {
+    final url = _proxyToUrl(proxy);
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Proxy QR Code'),
+        content: SizedBox(
+          width: 200,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 180,
+                height: 180,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Center(
+                  child: Icon(Icons.qr_code, size: 120, color: Colors.black54),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SelectableText(
+                url,
+                style: const TextStyle(fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: url));
+              Navigator.of(context).pop();
+            },
+            child: const Text('Copy Link'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _addProxy() async {
+    final result = await showDialog<_ProxyEntry>(
+      context: context,
+      builder: (_) => const _EditProxyDialog(),
+    );
+    if (result != null && mounted) {
+      setState(() {
+        _proxies.add(result);
+        _selectedIndex = _proxies.length - 1;
+        _mode = _ProxyMode.custom;
+      });
+    }
+  }
+
+  void _editProxy(int index) async {
+    final result = await showDialog<_ProxyEntry>(
+      context: context,
+      builder: (_) => _EditProxyDialog(existing: _proxies[index]),
+    );
+    if (result != null && mounted) {
+      setState(() => _proxies[index] = result);
+    }
+  }
+
+  void _importFromClipboard() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    if (data?.text == null || !mounted) return;
+    final text = data!.text!;
+    final urls = RegExp(r'tg://(?:socks|proxy)\?[^\s]+').allMatches(text);
+    var added = 0;
+    for (final match in urls) {
+      final parsed = _parseProxyUrl(match.group(0)!);
+      if (parsed != null) {
+        _proxies.add(parsed);
+        added++;
+      }
+    }
+    if (added > 0 && mounted) {
+      setState(() {
+        _selectedIndex = _proxies.length - 1;
+        _mode = _ProxyMode.custom;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Imported $added proxy(ies)')),
+      );
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No valid proxy URLs found')),
+      );
+    }
+  }
+
+  _ProxyEntry? _parseProxyUrl(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return null;
+    final host = uri.queryParameters['server'] ?? '';
+    final port = int.tryParse(uri.queryParameters['port'] ?? '') ?? 0;
+    if (host.isEmpty || port == 0) return null;
+
+    if (uri.host == 'socks' || url.contains('tg://socks')) {
+      return _ProxyEntry(type: _ProxyType.socks5, host: host, port: port);
+    }
+    final secret = uri.queryParameters['secret'] ?? '';
+    if (secret.isNotEmpty) {
+      return _ProxyEntry(
+          type: _ProxyType.mtproto, host: host, port: port, secret: secret);
+    }
+    return _ProxyEntry(type: _ProxyType.http, host: host, port: port);
+  }
+
+  void _deleteAllProxies() {
+    if (_proxies.isEmpty) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete all proxies?'),
+        content: const Text('This will remove all proxy entries.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              setState(() {
+                _proxies.clear();
+                _selectedIndex = -1;
+                if (_mode == _ProxyMode.custom) _mode = _ProxyMode.disabled;
+              });
+            },
+            child: Text('Delete',
+                style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _shareList() {
+    final urls =
+        _proxies.where((p) => p.isShareable).map(_proxyToUrl).join('\n');
+    Clipboard.setData(ClipboardData(text: urls));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Proxy list copied to clipboard')),
+    );
+  }
+}
+
+// §17.2.1 Edit Proxy Dialog — 364px dialog.
+class _EditProxyDialog extends StatefulWidget {
+  final _ProxyEntry? existing;
+
+  const _EditProxyDialog({this.existing});
+
+  @override
+  State<_EditProxyDialog> createState() => _EditProxyDialogState();
+}
+
+class _EditProxyDialogState extends State<_EditProxyDialog> {
+  _ProxyType _type = _ProxyType.socks5;
+  late final TextEditingController _hostCtrl;
+  late final TextEditingController _portCtrl;
+  late final TextEditingController _userCtrl;
+  late final TextEditingController _passCtrl;
+  late final TextEditingController _secretCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing;
+    _type = e?.type ?? _ProxyType.socks5;
+    _hostCtrl = TextEditingController(text: e?.host ?? '');
+    _portCtrl =
+        TextEditingController(text: e != null && e.port > 0 ? '${e.port}' : '');
+    _userCtrl = TextEditingController(text: e?.username ?? '');
+    _passCtrl = TextEditingController(text: e?.password ?? '');
+    _secretCtrl = TextEditingController(text: e?.secret ?? '');
+  }
+
+  @override
+  void dispose() {
+    _hostCtrl.dispose();
+    _portCtrl.dispose();
+    _userCtrl.dispose();
+    _passCtrl.dispose();
+    _secretCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onHostChanged(String value) {
+    // Smart paste: "host:port" auto-split
+    if (value.contains(':') && _portCtrl.text.isEmpty) {
+      final parts = value.split(':');
+      if (parts.length == 2) {
+        final port = int.tryParse(parts[1]);
+        if (port != null && port > 0 && port <= 65535) {
+          _hostCtrl.text = parts[0];
+          _hostCtrl.selection =
+              TextSelection.collapsed(offset: parts[0].length);
+          _portCtrl.text = parts[1];
+        }
+      }
+    }
+  }
+
+  void _save() {
+    final host = _hostCtrl.text.trim();
+    final port = int.tryParse(_portCtrl.text.trim()) ?? 0;
+    if (host.isEmpty || port <= 0 || port > 65535) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid host and port')),
+      );
+      return;
+    }
+    Navigator.of(context).pop(_ProxyEntry(
+      type: _type,
+      host: host,
+      port: port,
+      username: _userCtrl.text.trim(),
+      password: _passCtrl.text.trim(),
+      secret: _secretCtrl.text.trim(),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final hoverBg =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+    final fieldBg = isDark ? const Color(0xFF17212B) : const Color(0xFFF5F5F5);
+    final isEditing = widget.existing != null;
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 364),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 18, 22, 12),
+              child: Text(
+                isEditing ? 'Edit proxy' : 'Add proxy',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: textColor,
+                ),
+              ),
+            ),
+
+            // Type radio group
+            _typeRadio('SOCKS5', _ProxyType.socks5, textColor, accentColor,
+                hoverBg),
+            _typeRadio(
+                'HTTP', _ProxyType.http, textColor, accentColor, hoverBg),
+            _typeRadio('MTPROTO', _ProxyType.mtproto, textColor, accentColor,
+                hoverBg),
+            const SizedBox(height: 8),
+
+            // Host + Port row
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 22),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: TextField(
+                      controller: _hostCtrl,
+                      onChanged: _onHostChanged,
+                      decoration: InputDecoration(
+                        hintText: 'Hostname',
+                        hintStyle: TextStyle(color: subtextColor, fontSize: 14),
+                        filled: true,
+                        fillColor: fieldBg,
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(6),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                      style: TextStyle(fontSize: 14, color: textColor),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 55,
+                    child: TextField(
+                      controller: _portCtrl,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: InputDecoration(
+                        hintText: 'Port',
+                        hintStyle: TextStyle(color: subtextColor, fontSize: 14),
+                        filled: true,
+                        fillColor: fieldBg,
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(6),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                      style: TextStyle(fontSize: 14, color: textColor),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // Credentials (HTTP/SOCKS5) or Secret (MTPROTO)
+            if (_type != _ProxyType.mtproto) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 22),
+                child: TextField(
+                  controller: _userCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'Username (optional)',
+                    hintStyle: TextStyle(color: subtextColor, fontSize: 14),
+                    filled: true,
+                    fillColor: fieldBg,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  style: TextStyle(fontSize: 14, color: textColor),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 22),
+                child: TextField(
+                  controller: _passCtrl,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    hintText: 'Password (optional)',
+                    hintStyle: TextStyle(color: subtextColor, fontSize: 14),
+                    filled: true,
+                    fillColor: fieldBg,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  style: TextStyle(fontSize: 14, color: textColor),
+                ),
+              ),
+            ] else ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 22),
+                child: TextField(
+                  controller: _secretCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'Secret',
+                    hintStyle: TextStyle(color: subtextColor, fontSize: 14),
+                    filled: true,
+                    fillColor: fieldBg,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  style: TextStyle(fontSize: 14, color: textColor),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 0, 22, 0),
+                child: Text(
+                  'This proxy may display a sponsored channel in your chat list. This is done by the proxy provider, not by Telegram.',
+                  style: TextStyle(fontSize: 13, color: subtextColor),
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 12),
+
+            // Save / Cancel buttons
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 0, 22, 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('Cancel',
+                        style: TextStyle(color: accentColor, fontSize: 14)),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: _save,
+                    child: Text(isEditing ? 'Save' : 'Add',
+                        style: TextStyle(color: accentColor, fontSize: 14)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _typeRadio(String label, _ProxyType type, Color textColor,
+      Color accentColor, Color hoverBg) {
+    return InkWell(
+      onTap: () => setState(() => _type = type),
+      hoverColor: hoverBg,
+      child: Padding(
+        padding: SettingsStyle.sendTypePadding,
+        child: Row(
+          children: [
+            SizedBox(
+              width: 22,
+              height: 22,
+              child: Radio<_ProxyType>(
+                value: type,
+                groupValue: _type,
+                onChanged: (v) => setState(() => _type = v!),
+                activeColor: accentColor,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(fontSize: 14, color: textColor),
+              ),
             ),
           ],
         ),

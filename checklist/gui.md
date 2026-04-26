@@ -662,8 +662,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 <!-- dart/lib/ui/advanced_settings_screen.dart -->
 
 ### 17.2 Data and Storage
-- [ ] Connection Type button (menuIconNetwork): dynamic right-label (TCP/Connecting/proxy), ProxiesBox (364px) with IPv6 toggle, radio group (Disabled/System/Custom), proxy-for-calls SlideWrap, share-list button, import/delete top-right menu, Add button, ProxyRow (radio + title semibold + status colors: Online/Available/Checking/Unavailable), context menu (Edit/Share/QR/Delete), keyboard Ctrl+C/V — spec §17.2.1 & §17.2.1.2–4
-- [ ] Edit Proxy Dialog: 364px, type radio, host(160px)+port(55px), credentials, smart paste "host:port", MTPROTO sponsor warning — spec §17.2.1
 - [ ] Download Path button (menuIconShowInFolder): right-label = Default/Temp/custom, hidden when "Always ask" ON — spec §17.2.2
 - [ ] LocalStorageBox (320px): summary row (50px, "All data" + size + "Clear All"), total cache slider (18 positions), media cache slider (18 positions, linked to total), time limit slider (16 positions), per-tag rows (Images/Stickers/Voice/Video/Animations/Media cache each with size + "Clear" button), OK button — spec §17.2.3 & §17.2.3.2
 - [ ] Recent Downloads button (menuIconDownload), "Always ask download path" toggle (hides download path when ON) — spec §17.2.4–5
