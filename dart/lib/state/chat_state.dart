@@ -340,6 +340,31 @@ class ChatState extends ChangeNotifier {
     return result;
   }
 
+  Future<void> editFolder(String accountId, String folderId, String name, List<String> chatIds, {
+    bool contacts = false,
+    bool nonContacts = false,
+    bool groups = false,
+    bool channels = false,
+    bool bots = false,
+    bool excludeMuted = false,
+    bool excludeRead = false,
+    bool excludeArchived = false,
+    List<String> excludeChatIds = const [],
+  }) async {
+    await _engine.editFolder(accountId, folderId, name, chatIds,
+      contacts: contacts,
+      nonContacts: nonContacts,
+      groups: groups,
+      channels: channels,
+      bots: bots,
+      excludeMuted: excludeMuted,
+      excludeRead: excludeRead,
+      excludeArchived: excludeArchived,
+      excludeChatIds: excludeChatIds,
+    );
+    await loadFoldersForAccount(accountId);
+  }
+
   /// Reorder folders locally (drag-and-drop in folder sidebar).
   void reorderFolders(int oldIndex, int newIndex) {
     if (oldIndex < 0 || oldIndex >= _folders.length) return;

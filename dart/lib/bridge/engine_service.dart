@@ -377,6 +377,40 @@ class EngineService {
     }
   }
 
+  Future<void> editFolder(String accountId, String folderId, String name, List<String> chatIds, {
+    bool contacts = false,
+    bool nonContacts = false,
+    bool groups = false,
+    bool channels = false,
+    bool bots = false,
+    bool excludeMuted = false,
+    bool excludeRead = false,
+    bool excludeArchived = false,
+    List<String> excludeChatIds = const [],
+  }) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'folder_id': folderId,
+      'name': name,
+      'chat_ids': chatIds,
+      'contacts': contacts,
+      'non_contacts': nonContacts,
+      'groups': groups,
+      'channels': channels,
+      'bots': bots,
+      'exclude_muted': excludeMuted,
+      'exclude_read': excludeRead,
+      'exclude_archived': excludeArchived,
+      'exclude_chat_ids': excludeChatIds,
+    }));
+    try {
+      await _callAsync('__engine', 'EditFolder', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'editFolder failed', e);
+      rethrow;
+    }
+  }
+
   Future<void> deleteFolder(String accountId, String folderId) async {
     final req = epb.EngineDeleteFolderRequest()
       ..accountId = accountId

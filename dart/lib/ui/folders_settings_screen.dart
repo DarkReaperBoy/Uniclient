@@ -226,13 +226,14 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
     });
   }
 
-  void _showEditFilterBox(bool isDark, Color accentColor) {
+  void _showEditFilterBox(bool isDark, Color accentColor, {FolderInfo? existingFolder}) {
     showDialog<FolderInfo>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => _EditFilterBox(
         isDark: isDark,
         accentColor: accentColor,
+        existingFolder: existingFolder,
       ),
     ).then((result) {
       if (result != null && mounted) {
@@ -240,24 +241,43 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
         final account = appState.activeAccount;
         if (account == null) return;
         final chatState = context.read<ChatState>();
-        chatState.createFolder(
-          account.id, result.name, result.chatIds,
-          contacts: result.contacts,
-          nonContacts: result.nonContacts,
-          groups: result.groups,
-          channels: result.channels,
-          bots: result.bots,
-        ).then((_) {
-          if (mounted) {
-            chatState.loadFoldersForAccount(account.id).then((_) {
-              if (mounted) {
-                setState(() {
-                  _folders = List.of(chatState.folders);
-                });
-              }
-            });
-          }
-        });
+        if (existingFolder != null) {
+          chatState.editFolder(
+            account.id, existingFolder.id, result.name, result.chatIds,
+            contacts: result.contacts,
+            nonContacts: result.nonContacts,
+            groups: result.groups,
+            channels: result.channels,
+            bots: result.bots,
+            excludeMuted: result.excludeMuted,
+            excludeRead: result.excludeRead,
+            excludeArchived: result.excludeArchived,
+            excludeChatIds: result.excludeChatIds,
+          ).then((_) {
+            if (mounted) {
+              setState(() => _folders = List.of(chatState.folders));
+            }
+          });
+        } else {
+          chatState.createFolder(
+            account.id, result.name, result.chatIds,
+            contacts: result.contacts,
+            nonContacts: result.nonContacts,
+            groups: result.groups,
+            channels: result.channels,
+            bots: result.bots,
+          ).then((_) {
+            if (mounted) {
+              chatState.loadFoldersForAccount(account.id).then((_) {
+                if (mounted) {
+                  setState(() {
+                    _folders = List.of(chatState.folders);
+                  });
+                }
+              });
+            }
+          });
+        }
       }
     });
   }
@@ -338,7 +358,7 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
               subtextColor: subtextColor,
               onRemove: () => _removeFolder(i),
               onRestore: () => _restoreFolder(_folders[i].id),
-              onTap: () {},
+              onTap: () => _showEditFilterBox(isDark, accentColor, existingFolder: _folders[i]),
             ),
 
           // §18.4 Create New Folder button
@@ -1057,11 +1077,15 @@ class _RadioRow extends StatelessWidget {
 class _EditFilterBox extends StatefulWidget {
   final bool isDark;
   final Color accentColor;
+  final FolderInfo? existingFolder;
 
   const _EditFilterBox({
     required this.isDark,
     required this.accentColor,
+    this.existingFolder,
   });
+
+  bool get isEditMode => existingFolder != null;
 
   @override
   State<_EditFilterBox> createState() => _EditFilterBoxState();
@@ -1074,7 +1098,28 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
   bool _groups = false;
   bool _channels = false;
   bool _bots = false;
+  bool _excludeMuted = false;
+  bool _excludeRead = false;
+  bool _excludeArchived = false;
   bool _userTyped = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final f = widget.existingFolder;
+    if (f != null) {
+      _nameController.text = f.name;
+      _contacts = f.contacts;
+      _nonContacts = f.nonContacts;
+      _groups = f.groups;
+      _channels = f.channels;
+      _bots = f.bots;
+      _excludeMuted = f.excludeMuted;
+      _excludeRead = f.excludeRead;
+      _excludeArchived = f.excludeArchived;
+      _userTyped = f.name.isNotEmpty;
+    }
+  }
 
   @override
   void dispose() {
@@ -1113,18 +1158,26 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
           _channels = value;
         case 'bots':
           _bots = value;
+        case 'excludeMuted':
+          _excludeMuted = value;
+        case 'excludeRead':
+          _excludeRead = value;
+        case 'excludeArchived':
+          _excludeArchived = value;
       }
       _updateAutoTitle();
     });
   }
 
-  void _onCreate() {
+  void _onSave() {
     final name = _nameController.text.trim();
-    if (name.isEmpty) {
+    if (name.isEmpty || name.characters.length > 12) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a folder name.'),
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: Text(name.isEmpty
+              ? 'Please enter a folder name.'
+              : 'Folder name must be 12 characters or less.'),
+          duration: const Duration(seconds: 2),
         ),
       );
       return;
@@ -1132,19 +1185,38 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
     if (!_contacts && !_nonContacts && !_groups && !_channels && !_bots) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please select at least one chat type to include.'),
+          content: Text("The folder can't be empty."),
           duration: Duration(seconds: 2),
         ),
       );
       return;
     }
+    if (_contacts && _nonContacts && _groups && _channels && _bots &&
+        _excludeArchived && widget.existingFolder?.chatIds.isEmpty != false) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This folder would include all your chats.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    final existing = widget.existingFolder;
     Navigator.of(context).pop(FolderInfo(
+      id: existing?.id ?? '',
       name: name,
+      chatIds: existing?.chatIds ?? const [],
+      excludeChatIds: existing?.excludeChatIds ?? const [],
+      pinnedChatIds: existing?.pinnedChatIds ?? const [],
       contacts: _contacts,
       nonContacts: _nonContacts,
       groups: _groups,
       channels: _channels,
       bots: _bots,
+      excludeMuted: _excludeMuted,
+      excludeRead: _excludeRead,
+      excludeArchived: _excludeArchived,
+      isChatList: existing?.isChatList ?? false,
     ));
   }
 
@@ -1159,173 +1231,239 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
         widget.isDark ? const Color(0xFF242F3D) : const Color(0xFFF1F1F1);
     final charCount = _nameController.text.characters.length;
 
+    final isChatList = widget.existingFolder?.isChatList ?? false;
+
     return Dialog(
       backgroundColor: bgColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       child: SizedBox(
         width: 364,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(22, 18, 22, 0),
-              child: Text(
-                'New Folder',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w600,
-                  color: textColor,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 18, 22, 0),
+                child: Text(
+                  widget.isEditMode ? 'Edit Folder' : 'New Folder',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 14),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 22),
-              child: Stack(
-                children: [
-                  TextField(
-                    controller: _nameController,
-                    maxLength: 12,
-                    onChanged: (v) {
-                      if (!_userTyped && v.isNotEmpty) _userTyped = true;
-                      if (v.isEmpty) _userTyped = false;
-                      setState(() {});
-                    },
-                    decoration: InputDecoration(
-                      hintText: 'Folder name',
-                      hintStyle: TextStyle(color: subtextColor),
-                      counterText: '',
-                      filled: true,
-                      fillColor: inputBg,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide.none,
+              const SizedBox(height: 14),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 22),
+                        child: Stack(
+                          children: [
+                            TextField(
+                              controller: _nameController,
+                              maxLength: 12,
+                              autofocus: !widget.isEditMode,
+                              onChanged: (v) {
+                                if (!_userTyped && v.isNotEmpty) _userTyped = true;
+                                if (v.isEmpty) _userTyped = false;
+                                setState(() {});
+                              },
+                              decoration: InputDecoration(
+                                hintText: 'Folder name',
+                                hintStyle: TextStyle(color: subtextColor),
+                                counterText: '',
+                                filled: true,
+                                fillColor: inputBg,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide.none,
+                                ),
+                                contentPadding: const EdgeInsets.fromLTRB(14, 12, 90, 12),
+                              ),
+                              style: TextStyle(fontSize: 14, color: textColor),
+                            ),
+                            Positioned(
+                              right: 14,
+                              top: 0,
+                              bottom: 0,
+                              child: Center(
+                                child: Text(
+                                  '$charCount/12',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: charCount >= 12
+                                        ? const Color(0xFFE53935)
+                                        : subtextColor,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      contentPadding: const EdgeInsets.fromLTRB(14, 12, 90, 12),
-                    ),
-                    style: TextStyle(fontSize: 14, color: textColor),
+                      const SizedBox(height: 16),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(22, 0, 22, 4),
+                        child: Text(
+                          'Included Chats',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: widget.accentColor,
+                          ),
+                        ),
+                      ),
+                      _TypeToggleRow(
+                        label: 'Contacts',
+                        icon: Icons.person,
+                        color: const Color(0xFF7bc862),
+                        value: _contacts,
+                        isDark: widget.isDark,
+                        textColor: textColor,
+                        onChanged: (v) => _onToggle('contacts', v),
+                      ),
+                      _TypeToggleRow(
+                        label: 'Non-Contacts',
+                        icon: Icons.person_outline,
+                        color: const Color(0xFF6ec9cb),
+                        value: _nonContacts,
+                        isDark: widget.isDark,
+                        textColor: textColor,
+                        onChanged: (v) => _onToggle('nonContacts', v),
+                      ),
+                      _TypeToggleRow(
+                        label: 'Groups',
+                        icon: Icons.group,
+                        color: const Color(0xFF7bc862),
+                        value: _groups,
+                        isDark: widget.isDark,
+                        textColor: textColor,
+                        onChanged: (v) => _onToggle('groups', v),
+                      ),
+                      _TypeToggleRow(
+                        label: 'Channels',
+                        icon: Icons.campaign,
+                        color: const Color(0xFFe17076),
+                        value: _channels,
+                        isDark: widget.isDark,
+                        textColor: textColor,
+                        onChanged: (v) => _onToggle('channels', v),
+                      ),
+                      _TypeToggleRow(
+                        label: 'Bots',
+                        icon: Icons.smart_toy,
+                        color: const Color(0xFFa695e7),
+                        value: _bots,
+                        isDark: widget.isDark,
+                        textColor: textColor,
+                        onChanged: (v) => _onToggle('bots', v),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(22, 4, 22, 0),
+                        child: Text(
+                          'Choose chats and types of chats that will appear in this folder.',
+                          style: TextStyle(fontSize: 13, color: subtextColor),
+                        ),
+                      ),
+                      if (!isChatList) ...[
+                        const SizedBox(height: 16),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(22, 0, 22, 4),
+                          child: Text(
+                            'Excluded Chats',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: widget.accentColor,
+                            ),
+                          ),
+                        ),
+                        _TypeToggleRow(
+                          label: 'Muted',
+                          icon: Icons.volume_off,
+                          color: const Color(0xFFa695e7),
+                          value: _excludeMuted,
+                          isDark: widget.isDark,
+                          textColor: textColor,
+                          onChanged: (v) => _onToggle('excludeMuted', v),
+                        ),
+                        _TypeToggleRow(
+                          label: 'Archived',
+                          icon: Icons.archive,
+                          color: const Color(0xFF7bc862),
+                          value: _excludeArchived,
+                          isDark: widget.isDark,
+                          textColor: textColor,
+                          onChanged: (v) => _onToggle('excludeArchived', v),
+                        ),
+                        _TypeToggleRow(
+                          label: 'Read',
+                          icon: Icons.done_all,
+                          color: const Color(0xFF6ec9cb),
+                          value: _excludeRead,
+                          isDark: widget.isDark,
+                          textColor: textColor,
+                          onChanged: (v) => _onToggle('excludeRead', v),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(22, 4, 22, 0),
+                          child: Text(
+                            'Choose chats and types of chats that will never appear in this folder.',
+                            style: TextStyle(fontSize: 13, color: subtextColor),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                  Positioned(
-                    right: 14,
-                    top: 0,
-                    bottom: 0,
-                    child: Center(
+                ),
+              ),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 0, 22, 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
                       child: Text(
-                        '$charCount/12',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: charCount >= 12
-                              ? const Color(0xFFE53935)
-                              : subtextColor,
+                        'Cancel',
+                        style: TextStyle(color: subtextColor, fontSize: 14),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: _onSave,
+                      style: TextButton.styleFrom(
+                        backgroundColor: widget.accentColor,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      child: Text(
+                        widget.isEditMode ? 'Save' : 'Create',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(22, 0, 22, 4),
-              child: Text(
-                'Included Chats',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: widget.accentColor,
+                  ],
                 ),
               ),
-            ),
-            _TypeToggleRow(
-              label: 'Contacts',
-              icon: Icons.person,
-              color: const Color(0xFF7bc862),
-              value: _contacts,
-              isDark: widget.isDark,
-              textColor: textColor,
-              onChanged: (v) => _onToggle('contacts', v),
-            ),
-            _TypeToggleRow(
-              label: 'Non-Contacts',
-              icon: Icons.person_outline,
-              color: const Color(0xFF6ec9cb),
-              value: _nonContacts,
-              isDark: widget.isDark,
-              textColor: textColor,
-              onChanged: (v) => _onToggle('nonContacts', v),
-            ),
-            _TypeToggleRow(
-              label: 'Groups',
-              icon: Icons.group,
-              color: const Color(0xFF7bc862),
-              value: _groups,
-              isDark: widget.isDark,
-              textColor: textColor,
-              onChanged: (v) => _onToggle('groups', v),
-            ),
-            _TypeToggleRow(
-              label: 'Channels',
-              icon: Icons.campaign,
-              color: const Color(0xFFe17076),
-              value: _channels,
-              isDark: widget.isDark,
-              textColor: textColor,
-              onChanged: (v) => _onToggle('channels', v),
-            ),
-            _TypeToggleRow(
-              label: 'Bots',
-              icon: Icons.smart_toy,
-              color: const Color(0xFFa695e7),
-              value: _bots,
-              isDark: widget.isDark,
-              textColor: textColor,
-              onChanged: (v) => _onToggle('bots', v),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(22, 4, 22, 0),
-              child: Text(
-                'Choose chats and types of chats that will appear in this folder.',
-                style: TextStyle(fontSize: 13, color: subtextColor),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(22, 0, 22, 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(
-                      'Cancel',
-                      style: TextStyle(color: subtextColor, fontSize: 14),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  TextButton(
-                    onPressed: _onCreate,
-                    style: TextButton.styleFrom(
-                      backgroundColor: widget.accentColor,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 8),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                    ),
-                    child: const Text(
-                      'Create',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
