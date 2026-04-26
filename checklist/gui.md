@@ -664,7 +664,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 17.2 Data and Storage
 
 ### 17.3 Automatic Media Download
-- [ ] Three buttons (Private/Groups/Channels), AutoDownloadBox (boxWidth): Download section (Photos/Files toggles + size slider default 10MB), Auto-play section (Video messages/Videos/GIFs toggles + size slider default 50MB), "N MB" label — spec §17.3 & §17.3.1
 
 ### 17.4–17.6 Window Title, Close Behavior, System Integration
 - [ ] Window Title: "Chat name" / "Account name" (SlideWrap, 2+ accounts) / "Total count" checkboxes (settingsCheckbox + settingsCheckboxPadding) — spec §17.4
