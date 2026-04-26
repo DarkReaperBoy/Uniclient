@@ -792,6 +792,54 @@ func (e *Engine) SetHideReadMarks(accountID string, hide bool) error {
 	return s.SetHideReadMarks(hide)
 }
 
+type messagesPrivacyGetter interface {
+	GetMessagesPrivacy() (option string, chargeStars int64, err error)
+}
+
+type messagesPrivacySetter interface {
+	SetMessagesPrivacy(option string, chargeStars int64) error
+}
+
+type paidMessagesConfigGetter interface {
+	GetPaidMessagesConfig() (maxStars int64, commissionPermille int32, withdrawRate float64, err error)
+}
+
+func (e *Engine) GetMessagesPrivacy(accountID string) (string, int64, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return "", 0, fmt.Errorf("account %q not connected", accountID)
+	}
+	g, ok := acc.Core.(messagesPrivacyGetter)
+	if !ok {
+		return "", 0, fmt.Errorf("platform does not support messages privacy")
+	}
+	return g.GetMessagesPrivacy()
+}
+
+func (e *Engine) SetMessagesPrivacy(accountID, option string, chargeStars int64) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not connected", accountID)
+	}
+	s, ok := acc.Core.(messagesPrivacySetter)
+	if !ok {
+		return fmt.Errorf("platform does not support messages privacy")
+	}
+	return s.SetMessagesPrivacy(option, chargeStars)
+}
+
+func (e *Engine) GetPaidMessagesConfig(accountID string) (int64, int32, float64, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return 0, 0, 0, fmt.Errorf("account %q not connected", accountID)
+	}
+	g, ok := acc.Core.(paidMessagesConfigGetter)
+	if !ok {
+		return 10000, 150, 0.013, nil
+	}
+	return g.GetPaidMessagesConfig()
+}
+
 type cloudThemesFetcher interface {
 	GetCloudThemes() ([]cores.CloudThemeInfo, error)
 }

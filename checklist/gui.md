@@ -648,7 +648,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 16.2 Security Section
 
 ### 16.3 Privacy Section
-- [ ] Messages from Non-Contacts: three radios (Everyone/Contacts+Premium/Charge Stars), Charge Stars reveals star price slider (step scheme: 1/10/100), star preview label, commission/USD info updates live — spec §16.3.7 & §16.3.7.1
 - [ ] Birthday Privacy: "set your birthday" link if unset — spec §16.3.8
 - [ ] Gifts (Auto-Save): "Show Icon" Premium-locked toggle, "Accepted Types" subsection with five Premium-locked toggles (Limited/Unlimited/Unique/From Channels/Premium) — spec §16.3.9 & §16.3.9.1
 - [ ] Bio / Saved Music / Groups & Channels: standard privacy boxes, Groups+Channels has Premiums toggle in Always Allow — spec §16.3.10–12

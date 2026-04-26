@@ -1327,6 +1327,46 @@ class EngineService {
     await _callAsync('__engine', 'SetHideReadMarks', Uint8List.fromList(payload));
   }
 
+  Future<({String option, int chargeStars})> getMessagesPrivacy(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetMessagesPrivacy', Uint8List.fromList(payload));
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return (
+        option: data['option'] as String? ?? 'everyone',
+        chargeStars: (data['charge_stars'] as num?)?.toInt() ?? 0,
+      );
+    } catch (e) {
+      Debug.error('ENGINE', 'getMessagesPrivacy failed', e);
+      return (option: 'everyone', chargeStars: 0);
+    }
+  }
+
+  Future<void> setMessagesPrivacy(String accountId, {required String option, int chargeStars = 0}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'option': option,
+      'charge_stars': chargeStars,
+    }));
+    await _callAsync('__engine', 'SetMessagesPrivacy', Uint8List.fromList(payload));
+  }
+
+  Future<({int maxStars, int commissionPermille, double withdrawRate})> getPaidMessagesConfig(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetPaidMessagesConfig', Uint8List.fromList(payload));
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return (
+        maxStars: (data['max_stars'] as num?)?.toInt() ?? 10000,
+        commissionPermille: (data['commission_permille'] as num?)?.toInt() ?? 150,
+        withdrawRate: (data['withdraw_rate'] as num?)?.toDouble() ?? 0.013,
+      );
+    } catch (e) {
+      Debug.error('ENGINE', 'getPaidMessagesConfig failed', e);
+      return (maxStars: 10000, commissionPermille: 150, withdrawRate: 0.013);
+    }
+  }
+
   Future<List<CloudThemeInfo>> getCloudThemes(String accountId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

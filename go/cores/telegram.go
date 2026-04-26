@@ -14236,6 +14236,69 @@ func (t *TelegramCore) SetHideReadMarks(hide bool) error {
 	return err
 }
 
+func (t *TelegramCore) GetMessagesPrivacy() (option string, chargeStars int64, err error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return "", 0, ErrAuth }
+	s, err := t.api.AccountGetGlobalPrivacySettings(t.ctx)
+	if err != nil { return "", 0, err }
+	stars, _ := s.GetNoncontactPeersPaidStars()
+	if stars > 0 {
+		return "charge_stars", stars, nil
+	}
+	if s.NewNoncontactPeersRequirePremium {
+		return "contacts_premium", 0, nil
+	}
+	return "everyone", 0, nil
+}
+
+func (t *TelegramCore) SetMessagesPrivacy(option string, chargeStars int64) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	s, err := t.api.AccountGetGlobalPrivacySettings(t.ctx)
+	if err != nil { return err }
+	switch option {
+	case "everyone":
+		s.SetNewNoncontactPeersRequirePremium(false)
+		s.SetNoncontactPeersPaidStars(0)
+	case "contacts_premium":
+		s.SetNewNoncontactPeersRequirePremium(true)
+		s.SetNoncontactPeersPaidStars(0)
+	case "charge_stars":
+		s.SetNewNoncontactPeersRequirePremium(true)
+		if chargeStars < 1 { chargeStars = 1 }
+		s.SetNoncontactPeersPaidStars(chargeStars)
+	}
+	_, err = t.api.AccountSetGlobalPrivacySettings(t.ctx, *s)
+	return err
+}
+
+func (t *TelegramCore) GetPaidMessagesConfig() (maxStars int64, commissionPermille int32, withdrawRate float64, err error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return 0, 0, 0, ErrAuth }
+	result, err := t.api.HelpGetAppConfig(t.ctx, 0)
+	if err != nil { return 0, 0, 0, err }
+	cfg, ok := result.(*tg.HelpAppConfig)
+	if !ok { return 10000, 150, 0.013, nil }
+	maxStars = 10000
+	commissionPermille = 150
+	withdrawRate = 0.013
+	if jv := cfg.Config; jv != nil {
+		if obj, ok2 := jv.(*tg.JSONObject); ok2 {
+			for _, kv := range obj.Value {
+				switch kv.Key {
+				case "paid_message_stars_max":
+					if n, ok3 := kv.Value.(*tg.JSONNumber); ok3 { maxStars = int64(n.Value) }
+				case "paid_message_commission_permille":
+					if n, ok3 := kv.Value.(*tg.JSONNumber); ok3 { commissionPermille = int32(n.Value) }
+				case "stars_usd_withdraw_rate_x1000":
+					if n, ok3 := kv.Value.(*tg.JSONNumber); ok3 { withdrawRate = n.Value / 1000.0 }
+				}
+			}
+		}
+	}
+	return maxStars, commissionPermille, withdrawRate, nil
+}
+
 // GetReactionsList returns the list of available message reactions.
 func (t *TelegramCore) GetReactionsList(chatID, msgID string, limit int) (int, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)

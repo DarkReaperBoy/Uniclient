@@ -1473,6 +1473,50 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.SetHideReadMarks(params.AccountID, params.HideReadMarks)
 
+	case "GetMessagesPrivacy":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		option, chargeStars, err := e.GetMessagesPrivacy(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]interface{}{
+			"option":       option,
+			"charge_stars": chargeStars,
+		})
+
+	case "SetMessagesPrivacy":
+		var params struct {
+			AccountID   string `json:"account_id"`
+			Option      string `json:"option"`
+			ChargeStars int64  `json:"charge_stars"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SetMessagesPrivacy(params.AccountID, params.Option, params.ChargeStars)
+
+	case "GetPaidMessagesConfig":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		maxStars, commissionPermille, withdrawRate, err := e.GetPaidMessagesConfig(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]interface{}{
+			"max_stars":              maxStars,
+			"commission_permille":    commissionPermille,
+			"withdraw_rate":          withdrawRate,
+		})
+
 	case "GetCloudThemes":
 		var params struct {
 			AccountID string `json:"account_id"`

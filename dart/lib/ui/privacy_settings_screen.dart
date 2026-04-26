@@ -43,6 +43,9 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
   Map<String, Map<String, dynamic>> _privacySettings = {};
   bool _privacyLoaded = false;
 
+  String _messagesPrivacyOption = 'everyone';
+  int _messagesChargeStars = 0;
+
   @override
   void initState() {
     super.initState();
@@ -53,6 +56,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     _fetchBlockedCount();
     _fetchSessionsCount();
     _fetchAllPrivacy();
+    _fetchMessagesPrivacy();
     _pollTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       _fetchPasswordState();
     });
@@ -181,6 +185,28 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
           MapEntry(k, v is Map<String, dynamic> ? v : <String, dynamic>{}));
         _privacyLoaded = true;
       });
+    }
+  }
+
+  Future<void> _fetchMessagesPrivacy() async {
+    if (!mounted) return;
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+    final result = await engine.getMessagesPrivacy(accountId);
+    if (!mounted) return;
+    setState(() {
+      _messagesPrivacyOption = result.option;
+      _messagesChargeStars = result.chargeStars;
+    });
+  }
+
+  String _messagesPrivacyLabel() {
+    switch (_messagesPrivacyOption) {
+      case 'contacts_premium': return 'Contacts & Premium';
+      case 'charge_stars': return '⭐ $_messagesChargeStars';
+      default: return 'Everyone';
     }
   }
 
@@ -562,6 +588,38 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     );
   }
 
+  void _openMessagesPrivacyEditor() async {
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+
+    final isPremium = appState.activeAccount?.isPremium ?? false;
+    final config = await engine.getPaidMessagesConfig(accountId);
+
+    if (!mounted) return;
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => _MessagesPrivacyBox(
+        currentOption: _messagesPrivacyOption,
+        currentChargeStars: _messagesChargeStars,
+        accountId: accountId,
+        engine: engine,
+        isPremium: isPremium,
+        maxStars: config.maxStars,
+        commissionPermille: config.commissionPermille,
+        withdrawRate: config.withdrawRate,
+        onSaved: (option, stars) {
+          setState(() {
+            _messagesPrivacyOption = option;
+            _messagesChargeStars = stars;
+          });
+        },
+      ),
+    );
+  }
+
   List<Widget> _buildPrivacySection(
     bool isDark,
     Color sectionTitleColor,
@@ -608,6 +666,14 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
           (item['options'] as List).cast<String>(),
         ),
       )),
+      _PrivacyRow(
+        label: 'Messages',
+        rightLabel: _messagesPrivacyLabel(),
+        textColor: textColor,
+        subtextColor: subtextColor,
+        hoverBg: hoverBg,
+        onTap: _openMessagesPrivacyEditor,
+      ),
     ];
   }
 
@@ -3842,6 +3908,359 @@ class _ManageRow extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── Messages Privacy Box (Non-Contacts) ──
+
+class _MessagesPrivacyBox extends StatefulWidget {
+  final String currentOption;
+  final int currentChargeStars;
+  final String accountId;
+  final EngineService engine;
+  final bool isPremium;
+  final int maxStars;
+  final int commissionPermille;
+  final double withdrawRate;
+  final void Function(String option, int stars) onSaved;
+
+  const _MessagesPrivacyBox({
+    required this.currentOption,
+    required this.currentChargeStars,
+    required this.accountId,
+    required this.engine,
+    required this.isPremium,
+    required this.maxStars,
+    required this.commissionPermille,
+    required this.withdrawRate,
+    required this.onSaved,
+  });
+
+  @override
+  State<_MessagesPrivacyBox> createState() => _MessagesPrivacyBoxState();
+}
+
+class _MessagesPrivacyBoxState extends State<_MessagesPrivacyBox> {
+  late String _selected;
+  late int _chargeStars;
+  late List<int> _starsValues;
+  late int _sliderIndex;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = widget.currentOption;
+    _chargeStars = widget.currentChargeStars > 0 ? widget.currentChargeStars : 1;
+    _starsValues = _buildStarsValues(widget.maxStars);
+    _sliderIndex = _findClosestIndex(_chargeStars);
+  }
+
+  List<int> _buildStarsValues(int max) {
+    final values = <int>[];
+    for (var i = 1; i < 100 && i <= max; i++) values.add(i);
+    for (var i = 100; i < 1000 && i <= max; i += 10) values.add(i);
+    for (var i = 1000; i <= max; i += 100) values.add(i);
+    if (values.isEmpty) values.add(1);
+    return values;
+  }
+
+  int _findClosestIndex(int value) {
+    var best = 0;
+    var bestDist = (value - _starsValues[0]).abs();
+    for (var i = 1; i < _starsValues.length; i++) {
+      final dist = (value - _starsValues[i]).abs();
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = i;
+      }
+    }
+    return best;
+  }
+
+  String _formatStarCount(int count) {
+    if (count >= 1000) {
+      final k = count / 1000.0;
+      return k == k.truncateToDouble() ? '${k.toInt()}K' : '${k.toStringAsFixed(1)}K';
+    }
+    return count.toString();
+  }
+
+  String _usdEstimate(int stars) {
+    final usd = stars * widget.withdrawRate;
+    if (usd < 0.01) return '\$0.01';
+    return '\$${usd.toStringAsFixed(2)}';
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    try {
+      final stars = _selected == 'charge_stars' ? _chargeStars : 0;
+      await widget.engine.setMessagesPrivacy(
+        widget.accountId,
+        option: _selected,
+        chargeStars: stars,
+      );
+      widget.onSaved(_selected, stars);
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFF1F1F1);
+    final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    const options = [
+      ('everyone', 'Everyone'),
+      ('contacts_premium', 'Contacts & Premium'),
+      ('charge_stars', 'Charge Stars'),
+    ];
+
+    final commissionPct = (1000 - widget.commissionPermille) / 10.0;
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 364, minWidth: 280),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 18, 22, 4),
+                child: Text(
+                  'Messages',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 8, 22, 4),
+                child: Text(
+                  'Who can send you messages?',
+                  style: TextStyle(fontSize: 13, color: subtextColor),
+                ),
+              ),
+              const SizedBox(height: 4),
+              ...options.map((opt) {
+                final key = opt.$1;
+                final label = opt.$2;
+                final isPremiumLocked = !widget.isPremium && key != 'everyone';
+                return InkWell(
+                  onTap: () {
+                    if (isPremiumLocked) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Subscribe to Telegram Premium to restrict who can send you messages.'),
+                          duration: Duration(seconds: 3),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    } else {
+                      setState(() => _selected = key);
+                    }
+                  },
+                  hoverColor: hoverBg,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(22, 10, 22, 8),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: Radio<String>(
+                            value: key,
+                            groupValue: _selected,
+                            onChanged: (v) {
+                              if (v != null && !isPremiumLocked) {
+                                setState(() => _selected = v);
+                              }
+                            },
+                            activeColor: accentColor,
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Text(
+                            label,
+                            style: TextStyle(fontSize: 14, color: textColor),
+                          ),
+                        ),
+                        if (isPremiumLocked)
+                          Icon(Icons.lock, size: 16, color: subtextColor),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+              AnimatedSize(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutCubic,
+                alignment: Alignment.topCenter,
+                child: _selected == 'charge_stars'
+                  ? _buildChargeStarsSection(
+                      isDark, textColor, subtextColor, accentColor,
+                      dividerColor, hoverBg, commissionPct)
+                  : const SizedBox.shrink(),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 8, 22, 0),
+                child: Divider(height: 1, color: dividerColor),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 8, 22, 4),
+                child: Text(
+                  'You can restrict who sends you messages. Non-contacts will need to pay stars to message you.',
+                  style: TextStyle(fontSize: 12, color: subtextColor, height: 1.4),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text('Cancel', style: TextStyle(color: accentColor)),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: _saving ? null : _save,
+                      child: _saving
+                        ? SizedBox(
+                            width: 16, height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2, color: accentColor,
+                            ),
+                          )
+                        : Text('Save', style: TextStyle(color: accentColor)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChargeStarsSection(
+    bool isDark,
+    Color textColor,
+    Color subtextColor,
+    Color accentColor,
+    Color dividerColor,
+    Color hoverBg,
+    double commissionPct,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 8, 22, 0),
+          child: Divider(height: 1, color: dividerColor),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 12, 22, 4),
+          child: Text(
+            'Star Price per Message',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: textColor,
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 8, 22, 0),
+          child: Center(
+            child: Text(
+              '\u2B50 $_chargeStars',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: accentColor,
+              ),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 8, 22, 0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _formatStarCount(_starsValues.first),
+                style: TextStyle(fontSize: 12, color: subtextColor),
+              ),
+              Text(
+                _formatStarCount(_starsValues.last),
+                style: TextStyle(fontSize: 12, color: subtextColor),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(10, 0, 10, 0),
+          child: SliderTheme(
+            data: SliderThemeData(
+              activeTrackColor: accentColor,
+              inactiveTrackColor: isDark
+                  ? const Color(0xFF3A4A5C)
+                  : const Color(0xFFD4DEE6),
+              thumbColor: accentColor,
+              overlayColor: accentColor.withValues(alpha: 0.12),
+              trackHeight: 3,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7.5),
+            ),
+            child: Slider(
+              value: _sliderIndex.toDouble(),
+              min: 0,
+              max: (_starsValues.length - 1).toDouble(),
+              divisions: _starsValues.length - 1,
+              onChanged: (v) {
+                final idx = v.round();
+                setState(() {
+                  _sliderIndex = idx;
+                  _chargeStars = _starsValues[idx];
+                });
+              },
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 0, 22, 4),
+          child: Text(
+            'You receive ${commissionPct.toStringAsFixed(0)}% \u2014 about ${_usdEstimate(_chargeStars)} per message.',
+            style: TextStyle(fontSize: 12, color: subtextColor, height: 1.4),
+          ),
+        ),
+      ],
     );
   }
 }
