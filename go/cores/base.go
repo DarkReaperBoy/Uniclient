@@ -427,15 +427,16 @@ type ChatlistInviteLink struct {
 
 // Session represents an active login session on a device.
 type Session struct {
-	ID         string    `json:"id"`
-	Device     string    `json:"device"`
-	Platform   string    `json:"platform"`
-	AppName    string    `json:"app_name,omitempty"`
-	AppVersion string    `json:"app_version,omitempty"`
-	IP         string    `json:"ip,omitempty"`
-	Location   string    `json:"location,omitempty"`
-	LastActive time.Time `json:"last_active"`
-	IsCurrent  bool      `json:"is_current"`
+	ID              string    `json:"id"`
+	Device          string    `json:"device"`
+	Platform        string    `json:"platform"`
+	AppName         string    `json:"app_name,omitempty"`
+	AppVersion      string    `json:"app_version,omitempty"`
+	IP              string    `json:"ip,omitempty"`
+	Location        string    `json:"location,omitempty"`
+	LastActive      time.Time `json:"last_active"`
+	IsCurrent       bool      `json:"is_current"`
+	PasswordPending bool      `json:"password_pending,omitempty"`
 }
 
 // Update represents a real-time event pushed from the platform to the client.

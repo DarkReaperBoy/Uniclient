@@ -129,7 +129,17 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
   }
 
   List<Map<String, dynamic>> get _otherSessions {
-    return _sessions.where((s) => s['is_current'] != true).toList();
+    return _sessions.where((s) => s['is_current'] != true && s['password_pending'] != true).toList();
+  }
+
+  List<Map<String, dynamic>> get _incompleteSessions {
+    final list = _sessions.where((s) => s['password_pending'] == true).toList();
+    list.sort((a, b) {
+      final aDate = a['last_active'] as String? ?? '';
+      final bDate = b['last_active'] as String? ?? '';
+      return bDate.compareTo(aDate);
+    });
+    return list;
   }
 
   Future<void> _terminateSession(String sessionId) async {
@@ -188,6 +198,11 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
         backgroundColor: isDark ? const Color(0xFF1E2C3A) : Colors.white,
         title: const Text('Terminate All Other Sessions'),
         content: const Text('Are you sure you want to terminate all other sessions?'),
+        titleTextStyle: TextStyle(
+          color: isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222),
+          fontSize: 17,
+          fontWeight: FontWeight.w600,
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -510,11 +525,14 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
           : ListView(
               children: [
                 _buildCurrentSession(textColor, subtextColor, accentColor, dividerColor),
-                if (_otherSessions.isNotEmpty) ...[
+                if (_otherSessions.isNotEmpty || _incompleteSessions.isNotEmpty) ...[
                   _buildTerminateAllButton(dividerColor),
-                  _buildOtherSessionsList(textColor, subtextColor, dividerColor, accentColor),
                 ],
-                if (_otherSessions.isEmpty)
+                if (_incompleteSessions.isNotEmpty)
+                  _buildIncompleteSessionsList(textColor, subtextColor, dividerColor, accentColor),
+                if (_otherSessions.isNotEmpty)
+                  _buildOtherSessionsList(textColor, subtextColor, dividerColor, accentColor),
+                if (_otherSessions.isEmpty && _incompleteSessions.isEmpty)
                   _buildEmptyPlaceholder(subtextColor),
               ],
             ),
@@ -583,6 +601,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
           child: const Padding(
             padding: EdgeInsets.symmetric(horizontal: 22, vertical: 12),
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(Icons.block, color: Colors.red, size: 22),
                 SizedBox(width: 16),
@@ -599,6 +618,52 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
           ),
         ),
         Container(height: 1, color: dividerColor),
+      ],
+    );
+  }
+
+  Widget _buildIncompleteSessionsList(
+    Color textColor,
+    Color subtextColor,
+    Color dividerColor,
+    Color accentColor,
+  ) {
+    final incomplete = _incompleteSessions;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 14, 22, 8),
+          child: Text(
+            'Incomplete Login Attempts',
+            style: TextStyle(
+              color: accentColor,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        for (final session in incomplete)
+          _SessionRow(
+            session: session,
+            textColor: textColor,
+            subtextColor: subtextColor,
+            formatDate: _formatActiveDate,
+            showTerminate: true,
+            onTerminate: () => _showTerminateConfirmation(
+              session['id'] as String? ?? '',
+              session['device'] as String? ?? 'Unknown',
+            ),
+            onTap: () => _showSessionInfoBox(session),
+          ),
+        Container(height: 1, color: dividerColor),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
+          child: Text(
+            'These attempts had the correct login code, but no password was provided. If these attempts weren\'t made by you, you can terminate them and change your 2FA password.',
+            style: TextStyle(color: subtextColor, fontSize: 13),
+          ),
+        ),
       ],
     );
   }

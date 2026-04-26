@@ -716,7 +716,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 19.6 Session Detail View (SessionInfoBox)
 
 ### 19.7–19.9 Terminate All / Rename / Auto-Terminate
-- [ ] "Terminate All Other Sessions" button (infoBlockButton, visible when >0), confirmation dialog with red Terminate button — spec §19.7
 - [ ] "If Inactive For" button (settingsButtonNoIcon): SelfDestructionBox(Sessions) with radios (1 week/1/3/6/12 months), description above, autolockButton style, Save+Cancel — spec §19.9 & §19.9.1
 
 ### 19.10–19.12 Power Saving Box

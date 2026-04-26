@@ -11381,16 +11381,17 @@ func (t *TelegramCore) ClearDraft(chatID string) error {
 
 // ActiveSession represents a logged-in session.
 type ActiveSession struct {
-	Hash        int64  `json:"hash"`
-	Device      string `json:"device"`
-	Platform    string `json:"platform"`
-	AppName     string `json:"app_name"`
-	AppVersion  string `json:"app_version"`
-	IP          string `json:"ip"`
-	Country     string `json:"country"`
-	DateCreated int    `json:"date_created"`
-	DateActive  int    `json:"date_active"`
-	IsCurrent   bool   `json:"is_current"`
+	Hash            int64  `json:"hash"`
+	Device          string `json:"device"`
+	Platform        string `json:"platform"`
+	AppName         string `json:"app_name"`
+	AppVersion      string `json:"app_version"`
+	IP              string `json:"ip"`
+	Country         string `json:"country"`
+	DateCreated     int    `json:"date_created"`
+	DateActive      int    `json:"date_active"`
+	IsCurrent       bool   `json:"is_current"`
+	PasswordPending bool   `json:"password_pending"`
 }
 
 // GetActiveSessions returns all active login sessions.
@@ -11409,16 +11410,17 @@ func (t *TelegramCore) GetActiveSessions() ([]ActiveSession, error) {
 	var sessions []ActiveSession
 	for _, a := range result.Authorizations {
 		sessions = append(sessions, ActiveSession{
-			Hash:        a.Hash,
-			Device:      a.DeviceModel,
-			Platform:    a.SystemVersion,
-			AppName:     a.AppName,
-			AppVersion:  a.AppVersion,
-			IP:          a.IP,
-			Country:     a.Country,
-			DateCreated: a.DateCreated,
-			DateActive:  a.DateActive,
-			IsCurrent:   a.Current,
+			Hash:            a.Hash,
+			Device:          a.DeviceModel,
+			Platform:        a.SystemVersion,
+			AppName:         a.AppName,
+			AppVersion:      a.AppVersion,
+			IP:              a.IP,
+			Country:         a.Country,
+			DateCreated:     a.DateCreated,
+			DateActive:      a.DateActive,
+			IsCurrent:       a.Current,
+			PasswordPending: a.PasswordPending,
 		})
 	}
 	return sessions, nil
@@ -19490,15 +19492,16 @@ func (t *TelegramCore) GetSessions() ([]Session, error) {
 	var result []Session
 	for _, s := range sessions {
 		result = append(result, Session{
-			ID:         strconv.FormatInt(s.Hash, 10),
-			Device:     s.Device,
-			Platform:   s.Platform,
-			AppName:    s.AppName,
-			AppVersion: s.AppVersion,
-			IP:         s.IP,
-			Location:   s.Country,
-			LastActive: time.Unix(int64(s.DateActive), 0),
-			IsCurrent:  s.IsCurrent,
+			ID:              strconv.FormatInt(s.Hash, 10),
+			Device:          s.Device,
+			Platform:        s.Platform,
+			AppName:         s.AppName,
+			AppVersion:      s.AppVersion,
+			IP:              s.IP,
+			Location:        s.Country,
+			LastActive:      time.Unix(int64(s.DateActive), 0),
+			IsCurrent:       s.IsCurrent,
+			PasswordPending: s.PasswordPending,
 		})
 	}
 	return result, nil
