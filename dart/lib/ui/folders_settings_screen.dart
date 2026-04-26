@@ -1145,6 +1145,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
   bool _excludeArchived = false;
   bool _userTyped = false;
   String? _selectedIconName;
+  int _colorIndex = -1;
 
   static const _allIncludeTypes = <_PreviewTypeInfo>[
     _PreviewTypeInfo('contacts', 'Contacts', Icons.person, Color(0xFF7bc862)),
@@ -1175,6 +1176,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
       _excludeRead = f.excludeRead;
       _excludeArchived = f.excludeArchived;
       _userTyped = f.name.isNotEmpty;
+      _colorIndex = f.colorIndex;
     }
   }
 
@@ -1413,6 +1415,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
       excludeMuted: _excludeMuted,
       excludeRead: _excludeRead,
       excludeArchived: _excludeArchived,
+      colorIndex: _colorIndex,
       isChatList: existing?.isChatList ?? false,
     ));
   }
@@ -1583,6 +1586,14 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
                           ),
                         ),
                       ],
+                      const SizedBox(height: 16),
+                      _TagColorSection(
+                        isDark: widget.isDark,
+                        accentColor: widget.accentColor,
+                        selectedIndex: _colorIndex,
+                        folderName: _nameController.text.trim(),
+                        onSelect: (idx) => setState(() => _colorIndex = idx),
+                      ),
                     ],
                   ),
                 ),
@@ -1629,6 +1640,274 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
       ),
     );
   }
+}
+
+class _TagColorSection extends StatelessWidget {
+  final bool isDark;
+  final Color accentColor;
+  final int selectedIndex;
+  final String folderName;
+  final ValueChanged<int> onSelect;
+
+  static const _tagColors = [
+    Color(0xFFe17076), // 0 red
+    Color(0xFF7bc862), // 1 green
+    Color(0xFFe5ca77), // 2 yellow
+    Color(0xFF65aadd), // 3 blue
+    Color(0xFFa695e7), // 4 purple
+    Color(0xFFee7aae), // 5 pink
+    Color(0xFF6ec9cb), // 6 cyan
+  ];
+
+  const _TagColorSection({
+    required this.isDark,
+    required this.accentColor,
+    required this.selectedIndex,
+    required this.folderName,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final noTagColor =
+        isDark ? const Color(0xFF4E5B65) : const Color(0xFF9DA4AD);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 0, 22, 4),
+          child: Row(
+            children: [
+              Text(
+                'Tag Color',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: accentColor,
+                ),
+              ),
+              if (selectedIndex >= 0 && selectedIndex <= 6) ...[
+                const SizedBox(width: 14),
+                _TagPreviewBadge(
+                  color: _tagColors[selectedIndex],
+                  name: folderName.isEmpty ? 'Folder' : folderName,
+                  isDark: isDark,
+                ),
+              ],
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 8, 22, 0),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              const chipCount = 8;
+              const chipSize = 30.0;
+              final totalWidth = constraints.maxWidth;
+              final gap = (totalWidth - chipCount * chipSize) / (chipCount - 1);
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: List.generate(chipCount, (i) {
+                  final isNoTag = i == 7;
+                  final chipColor = isNoTag ? noTagColor : _tagColors[i];
+                  final isSelected = selectedIndex == i;
+                  return _TagColorChip(
+                    color: chipColor,
+                    isNoTag: isNoTag,
+                    isSelected: isSelected,
+                    isDark: isDark,
+                    onTap: () => onSelect(isSelected ? -1 : i),
+                  );
+                }),
+              );
+            },
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 8, 22, 0),
+          child: Text(
+            'Choose a color for the folder tag.',
+            style: TextStyle(fontSize: 13, color: subtextColor),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TagPreviewBadge extends StatelessWidget {
+  final Color color;
+  final String name;
+  final bool isDark;
+
+  const _TagPreviewBadge({
+    required this.color,
+    required this.name,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        name,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+}
+
+class _TagColorChip extends StatefulWidget {
+  final Color color;
+  final bool isNoTag;
+  final bool isSelected;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _TagColorChip({
+    required this.color,
+    required this.isNoTag,
+    required this.isSelected,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  State<_TagColorChip> createState() => _TagColorChipState();
+}
+
+class _TagColorChipState extends State<_TagColorChip>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _anim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+      value: widget.isSelected ? 1.0 : 0.0,
+    );
+  }
+
+  @override
+  void didUpdateWidget(_TagColorChip oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isSelected != oldWidget.isSelected) {
+      if (widget.isSelected) {
+        _anim.forward();
+      } else {
+        _anim.reverse();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _anim.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: widget.onTap,
+      child: AnimatedBuilder(
+        animation: _anim,
+        builder: (context, child) {
+          final t = _anim.value;
+          return SizedBox(
+            width: 30,
+            height: 30,
+            child: CustomPaint(
+              painter: _TagChipPainter(
+                color: widget.color,
+                isNoTag: widget.isNoTag,
+                selectionProgress: t,
+                isDark: widget.isDark,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _TagChipPainter extends CustomPainter {
+  final Color color;
+  final bool isNoTag;
+  final double selectionProgress;
+  final bool isDark;
+
+  _TagChipPainter({
+    required this.color,
+    required this.isNoTag,
+    required this.selectionProgress,
+    required this.isDark,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+
+    if (selectionProgress > 0) {
+      final ringPaint = Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0;
+      final ringRadius = radius;
+      canvas.drawCircle(center, ringRadius, ringPaint);
+
+      final fillRadius = radius - 2.0 - 2.0;
+      final fillPaint = Paint()..color = color;
+      canvas.drawCircle(center, fillRadius, fillPaint);
+    } else {
+      final fillPaint = Paint()..color = color;
+      canvas.drawCircle(center, radius, fillPaint);
+    }
+
+    if (isNoTag) {
+      final xPaint = Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0
+        ..strokeCap = StrokeCap.round;
+      const xSize = 6.0;
+      canvas.drawLine(
+        center + const Offset(-xSize / 2, -xSize / 2),
+        center + const Offset(xSize / 2, xSize / 2),
+        xPaint,
+      );
+      canvas.drawLine(
+        center + const Offset(xSize / 2, -xSize / 2),
+        center + const Offset(-xSize / 2, xSize / 2),
+        xPaint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_TagChipPainter old) =>
+      color != old.color ||
+      isNoTag != old.isNoTag ||
+      selectionProgress != old.selectionProgress;
 }
 
 class _FilterIconToggle extends StatefulWidget {
