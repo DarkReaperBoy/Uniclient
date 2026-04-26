@@ -147,82 +147,36 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
 
   static const int _folderLimitFree = 10;
   static const int _folderLimitPremium = 20;
+  static const int _chatsPerFolderFree = 100;
+  static const int _chatsPerFolderPremium = 200;
+  static const int _shareableFoldersFree = 2;
+  static const int _shareableFoldersPremium = 20;
+  static const int _linksPerFolderFree = 3;
+  static const int _linksPerFolderPremium = 20;
 
   void _onCreateFolder(bool isDark, Color accentColor) {
+    final isPremium = context.read<AppState>().activeAccount?.isPremium ?? false;
     final currentCount = _folders.length;
-    final limit = _folderLimitFree;
+    final limit = isPremium ? _folderLimitPremium : _folderLimitFree;
     if (currentCount >= limit) {
-      _showFiltersLimitBox(isDark, currentCount, limit);
+      showDialog(
+        context: context,
+        builder: (_) => _SimpleLimitBox(
+          isDark: isDark,
+          title: 'Folder Limit Reached',
+          current: currentCount,
+          limitFree: _folderLimitFree,
+          limitPremium: _folderLimitPremium,
+          isPremium: isPremium,
+          icon: Icons.folder_outlined,
+          description: isPremium
+              ? 'You have reached the limit of $limit folders. Remove an existing folder to create a new one.'
+              : 'You have reached the limit of $limit folders. Subscribe to Premium to increase the limit to $_folderLimitPremium.',
+        ),
+      );
       return;
     }
     _showEditFilterBox(isDark, accentColor);
-  }
-
-  void _showFiltersLimitBox(bool isDark, int current, int limit) {
-    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
-    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor = isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: bgColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        title: Text(
-          'Folder Limit Reached',
-          style: TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w600,
-            color: textColor,
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Column(
-                children: [
-                  Text(
-                    '$current / $limit',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: accentColor,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(3),
-                    child: LinearProgressIndicator(
-                      value: current / _folderLimitPremium,
-                      backgroundColor: isDark
-                          ? const Color(0xFF2B3A48)
-                          : const Color(0xFFE0E0E0),
-                      valueColor: AlwaysStoppedAnimation(accentColor),
-                      minHeight: 6,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Text(
-              'You have reached the limit of $limit folders. '
-              'Remove an existing folder to create a new one.',
-              style: TextStyle(fontSize: 14, color: subtextColor),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('OK', style: TextStyle(color: accentColor)),
-          ),
-        ],
-      ),
-    );
   }
 
   void _addRecommendedFolder(int index) {
@@ -407,7 +361,7 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
             duration: const Duration(milliseconds: 200),
             curve: Curves.easeOutCubic,
             alignment: Alignment.topCenter,
-            child: (_recommended.isNotEmpty && _folders.length < _folderLimitFree)
+            child: (_recommended.isNotEmpty && _folders.length < ((context.read<AppState>().activeAccount?.isPremium ?? false) ? _folderLimitPremium : _folderLimitFree))
                 ? Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1460,8 +1414,57 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
     if (f == null || f.id.isEmpty) return;
     final folderId = int.tryParse(f.id);
     if (folderId == null) return;
-    final engine = context.read<EngineService>();
     final appState = context.read<AppState>();
+    final isPremium = appState.activeAccount?.isPremium ?? false;
+    final isDark = widget.isDark;
+
+    final chatState = context.read<ChatState>();
+    final shareableCount = chatState.folders.where((fo) => fo.isChatList).length;
+    final shareLimit = isPremium
+        ? _FoldersSettingsScreenState._shareableFoldersPremium
+        : _FoldersSettingsScreenState._shareableFoldersFree;
+    if (!f.isChatList && shareableCount >= shareLimit) {
+      showDialog(
+        context: context,
+        builder: (_) => _SimpleLimitBox(
+          isDark: isDark,
+          title: 'Shareable Folder Limit',
+          current: shareableCount,
+          limitFree: _FoldersSettingsScreenState._shareableFoldersFree,
+          limitPremium: _FoldersSettingsScreenState._shareableFoldersPremium,
+          isPremium: isPremium,
+          icon: Icons.share_outlined,
+          description: isPremium
+              ? 'You have $shareableCount shareable folders, the maximum is $shareLimit.'
+              : 'You can share up to $shareLimit folders for free. Subscribe to Premium for up to ${_FoldersSettingsScreenState._shareableFoldersPremium}.',
+        ),
+      );
+      return;
+    }
+
+    final linkLimit = isPremium
+        ? _FoldersSettingsScreenState._linksPerFolderPremium
+        : _FoldersSettingsScreenState._linksPerFolderFree;
+    if (_inviteLinks.length >= linkLimit) {
+      showDialog(
+        context: context,
+        builder: (_) => _SimpleLimitBox(
+          isDark: isDark,
+          title: 'Link Limit Reached',
+          current: _inviteLinks.length,
+          limitFree: _FoldersSettingsScreenState._linksPerFolderFree,
+          limitPremium: _FoldersSettingsScreenState._linksPerFolderPremium,
+          isPremium: isPremium,
+          icon: Icons.link,
+          description: isPremium
+              ? 'This folder has ${_inviteLinks.length} links, the maximum is $linkLimit.'
+              : 'You can create up to $linkLimit links per folder for free. Subscribe to Premium for up to ${_FoldersSettingsScreenState._linksPerFolderPremium}.',
+        ),
+      );
+      return;
+    }
+
+    final engine = context.read<EngineService>();
     final accountId = appState.activeAccount?.id ?? '';
     if (accountId.isEmpty) return;
     engine.createFolderInviteLink(accountId, folderId, f.name, f.chatIds).then((url) {
@@ -1635,6 +1638,29 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
       return;
     }
     final existing = widget.existingFolder;
+    final chatCount = existing?.chatIds.length ?? 0;
+    final isPremium = context.read<AppState>().activeAccount?.isPremium ?? false;
+    final chatLimit = isPremium
+        ? _FoldersSettingsScreenState._chatsPerFolderPremium
+        : _FoldersSettingsScreenState._chatsPerFolderFree;
+    if (chatCount > chatLimit) {
+      showDialog(
+        context: context,
+        builder: (_) => _SimpleLimitBox(
+          isDark: widget.isDark,
+          title: 'Chat Limit Reached',
+          current: chatCount,
+          limitFree: _FoldersSettingsScreenState._chatsPerFolderFree,
+          limitPremium: _FoldersSettingsScreenState._chatsPerFolderPremium,
+          isPremium: isPremium,
+          icon: Icons.chat_outlined,
+          description: isPremium
+              ? 'This folder contains $chatCount chats, exceeding the limit of $chatLimit.'
+              : 'This folder contains $chatCount chats, exceeding the free limit of $chatLimit. Subscribe to Premium for up to ${_FoldersSettingsScreenState._chatsPerFolderPremium}.',
+        ),
+      );
+      return;
+    }
     Navigator.of(context).pop(FolderInfo(
       id: existing?.id ?? '',
       name: name,
@@ -4113,4 +4139,245 @@ class _ChatlistFolderRemovalDialogState
       ),
     );
   }
+}
+
+class _SimpleLimitBox extends StatefulWidget {
+  final bool isDark;
+  final String title;
+  final int current;
+  final int limitFree;
+  final int limitPremium;
+  final bool isPremium;
+  final IconData icon;
+  final String description;
+
+  const _SimpleLimitBox({
+    required this.isDark,
+    required this.title,
+    required this.current,
+    required this.limitFree,
+    required this.limitPremium,
+    required this.isPremium,
+    required this.icon,
+    required this.description,
+  });
+
+  @override
+  State<_SimpleLimitBox> createState() => _SimpleLimitBoxState();
+}
+
+class _SimpleLimitBoxState extends State<_SimpleLimitBox>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _animController;
+  late final Animation<double> _barAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    final target = widget.current / widget.limitPremium;
+    _barAnimation = Tween<double>(begin: 0, end: target.clamp(0.0, 1.0))
+        .animate(CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic));
+    _animController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = widget.isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = widget.isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = widget.isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
+    final premiumColor = const Color(0xFFCB7DFF);
+    final trackBg = widget.isDark ? const Color(0xFF2B3A48) : const Color(0xFFE0E0E0);
+    final limit = widget.isPremium ? widget.limitPremium : widget.limitFree;
+    final freeRatio = widget.limitFree / widget.limitPremium;
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: SizedBox(
+        width: 364,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 22, 22, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(widget.icon, size: 48, color: accentColor),
+              const SizedBox(height: 12),
+              Text(
+                widget.title,
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
+              ),
+              const SizedBox(height: 16),
+              AnimatedBuilder(
+                animation: _barAnimation,
+                builder: (context, _) {
+                  return Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '${widget.current}',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: widget.current >= limit ? const Color(0xFFE53935) : accentColor,
+                            ),
+                          ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (!widget.isPremium) ...[
+                                Icon(Icons.workspace_premium, size: 16, color: premiumColor),
+                                const SizedBox(width: 4),
+                              ],
+                              Text(
+                                '$limit',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: subtextColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        height: 6,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(3),
+                          child: CustomPaint(
+                            size: const Size(double.infinity, 6),
+                            painter: _LimitBarPainter(
+                              progress: _barAnimation.value,
+                              freeRatio: freeRatio,
+                              isPremium: widget.isPremium,
+                              accentColor: accentColor,
+                              premiumColor: premiumColor,
+                              trackBg: trackBg,
+                              overLimit: widget.current >= limit,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (!widget.isPremium) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            SizedBox(
+                              width: freeRatio * 320,
+                              child: Text(
+                                'Free',
+                                style: TextStyle(fontSize: 11, color: subtextColor),
+                                textAlign: TextAlign.right,
+                              ),
+                            ),
+                            const Spacer(),
+                            Text(
+                              'Premium',
+                              style: TextStyle(fontSize: 11, color: premiumColor),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+              Text(
+                widget.description,
+                style: TextStyle(fontSize: 14, color: subtextColor),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              if (!widget.isPremium)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 38,
+                    child: FilledButton.icon(
+                      icon: const Icon(Icons.workspace_premium, size: 18),
+                      label: const Text('Increase Limit', style: TextStyle(fontSize: 14)),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: premiumColor,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ),
+                ),
+              SizedBox(
+                width: double.infinity,
+                height: 38,
+                child: TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text('OK', style: TextStyle(color: accentColor, fontSize: 14)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LimitBarPainter extends CustomPainter {
+  final double progress;
+  final double freeRatio;
+  final bool isPremium;
+  final Color accentColor;
+  final Color premiumColor;
+  final Color trackBg;
+  final bool overLimit;
+
+  _LimitBarPainter({
+    required this.progress,
+    required this.freeRatio,
+    required this.isPremium,
+    required this.accentColor,
+    required this.premiumColor,
+    required this.trackBg,
+    required this.overLimit,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final trackPaint = Paint()..color = trackBg;
+    final rr = RRect.fromLTRBR(0, 0, size.width, size.height, const Radius.circular(3));
+    canvas.drawRRect(rr, trackPaint);
+
+    if (progress <= 0) return;
+    final barWidth = size.width * progress;
+    final barColor = overLimit ? const Color(0xFFE53935) : accentColor;
+    final barPaint = Paint()..color = barColor;
+    final barRr = RRect.fromLTRBR(0, 0, barWidth, size.height, const Radius.circular(3));
+    canvas.drawRRect(barRr, barPaint);
+
+    if (!isPremium && progress > freeRatio) {
+      final freeWidth = size.width * freeRatio;
+      final premiumPaint = Paint()..color = premiumColor.withValues(alpha: 0.6);
+      final premRr = RRect.fromLTRBR(freeWidth, 0, barWidth, size.height, Radius.zero);
+      canvas.drawRRect(premRr, premiumPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_LimitBarPainter old) =>
+      progress != old.progress || overLimit != old.overLimit;
 }

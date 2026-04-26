@@ -704,7 +704,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 18.12 Tab View Section
 
 ### 18.13 Premium Limits
-- [ ] Enforce folder limits (10 free/20 premium total; 100/200 chats per folder; 2/20 shareable; 3/20 links per folder), FiltersLimitBox / FilterChatsLimitBox / ShareableFiltersLimitBox / FilterLinksLimitBox each with animated infographic + Premium icon + description — spec §18.13
 
 ---
 
