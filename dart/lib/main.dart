@@ -410,6 +410,8 @@ class _UniClientAppState extends State<UniClientApp>
           final dy = (cmd['dy'] as num?)?.toDouble() ?? 0;
           _dispatchScroll(x, y, dx, dy);
 
+
+
         case 'type':
           // Type text into focused field: {"action":"type","text":"hello"}
           final text = cmd['text'] as String? ?? '';

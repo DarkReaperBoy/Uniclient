@@ -636,7 +636,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 15.8–15.10 Events, Calls, Badge Counter
 
 ### 15.11 System Integration (Native Notifications)
-- [ ] Native notifications toggle (hidden if platform unsupported); Windows Focus Mode toggle; multi-display radio selector (shown when multiple monitors) — spec §15.11 & §15.11.1 & §15.11.2
 - [ ] Interactive monitor widget (280×160px): five clickable corners, 64×16px sample notification bars at selected corner (full opacity) and others (0.5 opacity), 150ms per-bar fade, 3×3 hit-test grid, hover spawns real sample notification windows at screen coordinates — spec §15.11.3 & §15.11.3.1
 - [ ] Notification count segmented slider: 5 positions (1–5), default 3, selecting animates monitor widget bars — spec §15.11.4
 
@@ -1574,4 +1573,4 @@ Status key: `[ ]` not started · `[x]` done
 - [ ] Info panel scroll doesn't work via flutter_interact.sh scroll events — scroll goes to chat list instead of info panel CustomScrollView. Affects both desktop (third column) and mobile (full screen) modes. The SliverPersistentHeader cover never compresses.
 - [ ] GIF tab inline search broken: GetInlineBotResults passes string "gif" as bot ID but engine expects numeric ID. Error: `invalid ID "gif": strconv.ParseInt: parsing "gif": invalid syntax`. Affects both manual text search and category emoji search.
 - [ ] Chat Settings page scroll broken via flutter_interact.sh — PointerScrollEvent dispatched at various y positions doesn't cause ListView to scroll. Scrollbar error "ScrollController has no ScrollPosition attached" in logs. ListView has `primary: true` but scroll still doesn't work via debug dispatch. Affects testing of items below viewport (quick action radios).
-- [ ] Notifications page scroll broken — Channels and Reactions split-toggle rows are below viewport (~y=775) but ListView doesn't scroll via flutter_interact.sh. Same class of bug as Chat Settings scroll issue. Affects testing of Channels/Reactions per-type sub-page navigation.
+- [ ] Notifications page scroll broken — Channels and Reactions split-toggle rows are below viewport (~y=775) but ListView doesn't scroll via flutter_interact.sh. Same class of bug as Chat Settings scroll issue. Affects testing of Channels/Reactions per-type sub-page navigation. PARTIAL FIX: ScrollController explicitly assigned to both Scrollbar and ListView (no longer uses primary:true), but flutter_interact.sh PointerScrollEvent dispatch still doesn't scroll the page. OS-level ydotool scroll works as a workaround.

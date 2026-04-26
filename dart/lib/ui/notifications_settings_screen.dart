@@ -1,5 +1,9 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 
@@ -19,6 +23,14 @@ class NotificationsSettingsScreen extends StatefulWidget {
 
 class _NotificationsSettingsScreenState
     extends State<NotificationsSettingsScreen> {
+  final _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   bool _allAccountsNotify = true;
   bool _desktopNotify = true;
   bool _flashBounce = true;
@@ -43,6 +55,10 @@ class _NotificationsSettingsScreenState
   bool _includeMutedChats = true;
   bool _includeMutedInFolders = true;
   bool _countUnreadMessages = true;
+
+  // §15.11 System Integration (Native Notifications)
+  bool _useNativeNotifications = true;
+  int _selectedDisplayIndex = 0; // 0 = Default
 
   @override
   Widget build(BuildContext context) {
@@ -79,6 +95,8 @@ class _NotificationsSettingsScreenState
           hoverBg),
       _buildBadgeCounterSection(isDark, sectionTitleColor, textColor,
           accentColor, hoverBg, chatState.hasFolders),
+      _buildSystemIntegrationSection(isDark, sectionTitleColor, textColor,
+          subtextColor, accentColor, hoverBg),
     ];
 
     final children = <Widget>[];
@@ -117,8 +135,9 @@ class _NotificationsSettingsScreenState
         ),
       ),
       body: Scrollbar(
+        controller: _scrollController,
         child: ListView(
-          primary: true,
+          controller: _scrollController,
           padding: EdgeInsets.zero,
           children: children,
         ),
@@ -468,6 +487,161 @@ class _NotificationsSettingsScreenState
         hoverBg: hoverBg,
       ),
     ];
+  }
+
+  /// §15.11 System Integration (Native Notifications)
+  List<Widget> _buildSystemIntegrationSection(
+    bool isDark,
+    Color sectionTitleColor,
+    Color textColor,
+    Color subtextColor,
+    Color accentColor,
+    Color hoverBg,
+  ) {
+    final isWindows = !kIsWeb && Platform.isWindows;
+    final displays = ui.PlatformDispatcher.instance.displays.toList();
+    final hasMultipleDisplays = displays.length > 1;
+
+    return [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(22, 10, 22, 4),
+        child: Text(
+          'System Integration',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: sectionTitleColor,
+          ),
+        ),
+      ),
+      _NoIconToggleRow(
+        label: 'Use native notifications',
+        value: _useNativeNotifications,
+        onChanged: (v) => setState(() => _useNativeNotifications = v),
+        textColor: textColor,
+        accentColor: accentColor,
+        hoverBg: hoverBg,
+      ),
+      if (!_useNativeNotifications) ...[
+        if (isWindows)
+          _NoIconToggleRow(
+            label: 'Respect system Focus mode',
+            value: false,
+            onChanged: (_) {},
+            textColor: textColor,
+            accentColor: accentColor,
+            hoverBg: hoverBg,
+          ),
+        if (hasMultipleDisplays) ...[
+          const SizedBox(height: 7),
+          Container(
+            height: 1,
+            color: isDark
+                ? const Color(0xFF101921)
+                : const Color(0xFFF1F1F1),
+          ),
+          const SizedBox(height: 7),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 4, 22, 4),
+            child: Text(
+              'Notification display',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: sectionTitleColor,
+              ),
+            ),
+          ),
+          _DisplayRadioRow(
+            label: 'Default',
+            value: 0,
+            groupValue: _selectedDisplayIndex,
+            onChanged: (v) =>
+                setState(() => _selectedDisplayIndex = v ?? 0),
+            textColor: textColor,
+            accentColor: accentColor,
+            hoverBg: hoverBg,
+          ),
+          for (var i = 0; i < displays.length; i++)
+            _DisplayRadioRow(
+              label:
+                  'Display ${i + 1} (${displays[i].size.width.toInt()}\u00D7${displays[i].size.height.toInt()})',
+              value: i + 1,
+              groupValue: _selectedDisplayIndex,
+              onChanged: (v) =>
+                  setState(() => _selectedDisplayIndex = v ?? 0),
+              textColor: textColor,
+              accentColor: accentColor,
+              hoverBg: hoverBg,
+            ),
+        ],
+      ],
+    ];
+  }
+}
+
+class _DisplayRadioRow extends StatelessWidget {
+  final String label;
+  final int value;
+  final int groupValue;
+  final ValueChanged<int?> onChanged;
+  final Color textColor;
+  final Color accentColor;
+  final Color hoverBg;
+
+  const _DisplayRadioRow({
+    required this.label,
+    required this.value,
+    required this.groupValue,
+    required this.onChanged,
+    required this.textColor,
+    required this.accentColor,
+    required this.hoverBg,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isSelected = value == groupValue;
+    return InkWell(
+      onTap: () => onChanged(value),
+      hoverColor: hoverBg,
+      splashColor: hoverBg.withValues(alpha: 0.5),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+        child: SizedBox(
+          height: 44,
+          child: Row(
+            children: [
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: Radio<int>(
+                  value: value,
+                  groupValue: groupValue,
+                  onChanged: onChanged,
+                  activeColor: accentColor,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: textColor,
+                    fontWeight:
+                        isSelected ? FontWeight.w500 : FontWeight.normal,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
