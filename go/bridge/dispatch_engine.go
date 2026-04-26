@@ -1496,6 +1496,38 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.UploadProfilePhoto(params.AccountID, params.FilePath)
 
+	case "UploadFallbackPhoto":
+		var params struct {
+			AccountID string `json:"account_id"`
+			FilePath  string `json:"file_path"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.UploadFallbackPhoto(params.AccountID, params.FilePath)
+
+	case "DeleteFallbackPhoto":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.DeleteFallbackPhoto(params.AccountID)
+
+	case "HasFallbackPhoto":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		has, err := e.HasFallbackPhoto(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]bool{"has": has})
+
 	case "SendInlineBotResult":
 		var params struct {
 			AccountID string `json:"account_id"`

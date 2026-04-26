@@ -133,6 +133,12 @@ type profilePhotoUploader interface {
 	UploadProfilePhoto(pngData []byte) error
 }
 
+type fallbackPhotoManager interface {
+	UploadFallbackPhoto(pngData []byte) error
+	DeleteFallbackPhoto() error
+	HasFallbackPhoto() (bool, error)
+}
+
 type selfBioGetter interface {
 	GetSelfBio() (string, error)
 }
@@ -211,6 +217,46 @@ func (e *Engine) UploadProfilePhoto(accountID, filePath string) error {
 		return fmt.Errorf("read photo: %w", err)
 	}
 	return upl.UploadProfilePhoto(data)
+}
+
+func (e *Engine) UploadFallbackPhoto(accountID, filePath string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not connected", accountID)
+	}
+	fm, ok := acc.Core.(fallbackPhotoManager)
+	if !ok {
+		return fmt.Errorf("platform does not support fallback photo")
+	}
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("read photo: %w", err)
+	}
+	return fm.UploadFallbackPhoto(data)
+}
+
+func (e *Engine) DeleteFallbackPhoto(accountID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not connected", accountID)
+	}
+	fm, ok := acc.Core.(fallbackPhotoManager)
+	if !ok {
+		return fmt.Errorf("platform does not support fallback photo")
+	}
+	return fm.DeleteFallbackPhoto()
+}
+
+func (e *Engine) HasFallbackPhoto(accountID string) (bool, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return false, fmt.Errorf("account %q not connected", accountID)
+	}
+	fm, ok := acc.Core.(fallbackPhotoManager)
+	if !ok {
+		return false, nil
+	}
+	return fm.HasFallbackPhoto()
 }
 
 // MemberInfo is the member data returned to the UI for a chat member list.

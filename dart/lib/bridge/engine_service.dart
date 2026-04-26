@@ -1351,6 +1351,35 @@ class EngineService {
     await _callAsync('__engine', 'UploadProfilePhoto', Uint8List.fromList(payload));
   }
 
+  Future<void> uploadFallbackPhoto(String accountId, String filePath) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'file_path': filePath,
+    }));
+    await _callAsync('__engine', 'UploadFallbackPhoto', Uint8List.fromList(payload));
+  }
+
+  Future<void> deleteFallbackPhoto(String accountId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+    }));
+    await _callAsync('__engine', 'DeleteFallbackPhoto', Uint8List.fromList(payload));
+  }
+
+  Future<bool> hasFallbackPhoto(String accountId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'HasFallbackPhoto', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return false;
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return data['has'] as bool? ?? false;
+    } catch (e) {
+      return false;
+    }
+  }
+
   Future<int?> sendInlineBotResult(String accountId, String chatId, int queryId, String resultId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

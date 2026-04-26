@@ -648,7 +648,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 16.2 Security Section
 
 ### 16.3 Privacy Section
-- [ ] Profile Photo: Set/Update Public Photo button (ellipse crop), Remove Public Photo (red, when exists) — spec §16.3.3
 - [ ] Forwarded Messages: live forwarded message preview bubble matching user theme, "Forwarded from" header with user's name, tooltip (toastBg/toastFg with 7px arrow) changes per option — spec §16.3.4 & §16.3.4.1
 - [ ] Calls Privacy: P2P sub-section (menuIconNetwork) opens second EditPrivacyBox — spec §16.3.5
 - [ ] Voice Messages: Premium-locked options revert to Everyone with promo toast for non-Premium — spec §16.3.6

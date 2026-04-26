@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -508,6 +509,11 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
       hideReadMarks = await engine.getHideReadMarks(accountId);
     }
 
+    bool hasFallbackPhoto = false;
+    if (key == 'profile_photo') {
+      hasFallbackPhoto = await engine.hasFallbackPhoto(accountId);
+    }
+
     final isPremium = appState.activeAccount?.isPremium ?? false;
 
     if (!mounted) return;
@@ -524,6 +530,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
         initialAddedByPhoneOption: addedByPhoneOption,
         isPremium: isPremium,
         initialHideReadMarks: hideReadMarks,
+        initialHasFallbackPhoto: hasFallbackPhoto,
         onSaved: (newOption, {String? addedByPhone}) {
           setState(() {
             _privacySettings[key] = {
@@ -759,6 +766,7 @@ class _EditPrivacyBox extends StatefulWidget {
   final String? initialAddedByPhoneOption;
   final bool isPremium;
   final bool initialHideReadMarks;
+  final bool initialHasFallbackPhoto;
 
   const _EditPrivacyBox({
     required this.title,
@@ -771,6 +779,7 @@ class _EditPrivacyBox extends StatefulWidget {
     this.initialAddedByPhoneOption,
     this.isPremium = false,
     this.initialHideReadMarks = false,
+    this.initialHasFallbackPhoto = false,
   });
 
   @override
@@ -781,11 +790,14 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
   late String _selected;
   late String _addedByPhoneOption;
   late bool _hideReadMarks;
+  late bool _hasFallbackPhoto;
   bool _saving = false;
   bool _confirmedRestriction = false;
+  bool _uploadingFallback = false;
 
   bool get _isPhoneNumber => widget.privacyKey == 'phone_number';
   bool get _isLastSeen => widget.privacyKey == 'last_seen';
+  bool get _isProfilePhoto => widget.privacyKey == 'profile_photo';
 
   @override
   void initState() {
@@ -793,6 +805,7 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
     _selected = widget.currentOption;
     _addedByPhoneOption = widget.initialAddedByPhoneOption ?? 'everyone';
     _hideReadMarks = widget.initialHideReadMarks;
+    _hasFallbackPhoto = widget.initialHasFallbackPhoto;
     _confirmedRestriction = widget.currentOption != 'everyone';
   }
 
@@ -896,6 +909,69 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
     }
   }
 
+  Future<void> _pickFallbackPhoto() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final path = result.files.first.path;
+    if (path == null) return;
+    if (!mounted) return;
+
+    setState(() => _uploadingFallback = true);
+    try {
+      await widget.engine.uploadFallbackPhoto(widget.accountId, path);
+      if (mounted) {
+        setState(() {
+          _hasFallbackPhoto = true;
+          _uploadingFallback = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Public photo updated'),
+            duration: Duration(milliseconds: 1500),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _uploadingFallback = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to set public photo: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _removeFallbackPhoto() async {
+    setState(() => _uploadingFallback = true);
+    try {
+      await widget.engine.deleteFallbackPhoto(widget.accountId);
+      if (mounted) {
+        setState(() {
+          _hasFallbackPhoto = false;
+          _uploadingFallback = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Public photo removed'),
+            duration: Duration(milliseconds: 1500),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _uploadingFallback = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to remove public photo: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -968,6 +1044,54 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
                 ),
               );
             }),
+            if (_isProfilePhoto) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 8, 22, 0),
+                child: Divider(height: 1, color: dividerColor),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 12, 22, 4),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 36,
+                  child: TextButton(
+                    onPressed: _uploadingFallback ? null : _pickFallbackPhoto,
+                    style: TextButton.styleFrom(
+                      foregroundColor: accentColor,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    ),
+                    child: _uploadingFallback
+                      ? SizedBox(
+                          width: 16, height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: accentColor),
+                        )
+                      : Text(
+                          _hasFallbackPhoto ? 'Update Public Photo' : 'Set Public Photo',
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                  ),
+                ),
+              ),
+              if (_hasFallbackPhoto)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 0, 22, 4),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 36,
+                    child: TextButton(
+                      onPressed: _uploadingFallback ? null : _removeFallbackPhoto,
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFFE53935),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      ),
+                      child: const Text(
+                        'Remove Public Photo',
+                        style: TextStyle(fontSize: 14),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
             if (_isPhoneNumber && _selected == 'nobody') ...[
               Padding(
                 padding: const EdgeInsets.fromLTRB(22, 8, 22, 0),

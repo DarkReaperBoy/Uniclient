@@ -13991,6 +13991,45 @@ func (t *TelegramCore) UploadProfilePhoto(pngData []byte) error {
 	return err
 }
 
+// UploadFallbackPhoto uploads a public fallback photo visible to non-contacts.
+func (t *TelegramCore) UploadFallbackPhoto(pngData []byte) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	u := uploader.NewUploader(t.api)
+	upload, err := u.Upload(t.ctx, uploader.NewUpload("fallback.png", io.NopCloser(bytes.NewReader(pngData)), int64(len(pngData))))
+	if err != nil { return fmt.Errorf("upload: %w", err) }
+	req := &tg.PhotosUploadProfilePhotoRequest{File: upload}
+	req.SetFallback(true)
+	_, err = t.api.PhotosUploadProfilePhoto(t.ctx, req)
+	return err
+}
+
+// DeleteFallbackPhoto removes the public fallback photo.
+func (t *TelegramCore) DeleteFallbackPhoto() error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	result, err := t.api.UsersGetFullUser(t.ctx, &tg.InputUser{UserID: t.selfID, AccessHash: 0})
+	if err != nil { return err }
+	fp, ok := result.FullUser.GetFallbackPhoto()
+	if !ok { return nil }
+	ph, ok := fp.(*tg.Photo)
+	if !ok { return nil }
+	_, err = t.api.PhotosDeletePhotos(t.ctx, []tg.InputPhotoClass{
+		&tg.InputPhoto{ID: ph.ID, AccessHash: ph.AccessHash, FileReference: ph.FileReference},
+	})
+	return err
+}
+
+// HasFallbackPhoto checks if the user has a public fallback photo set.
+func (t *TelegramCore) HasFallbackPhoto() (bool, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return false, ErrAuth }
+	result, err := t.api.UsersGetFullUser(t.ctx, &tg.InputUser{UserID: t.selfID, AccessHash: 0})
+	if err != nil { return false, err }
+	_, ok := result.FullUser.GetFallbackPhoto()
+	return ok, nil
+}
+
 // GetDialogUnreadMarksCount returns the number of unread-marked dialogs.
 func (t *TelegramCore) GetDialogUnreadMarksCount() (int, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
