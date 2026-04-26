@@ -444,6 +444,39 @@ func (e *Engine) SetHistoryTTL(accountID, chatID string, period int) error {
 	return nil
 }
 
+// GetDefaultHistoryTTL returns the global auto-delete timer for new chats.
+func (e *Engine) GetDefaultHistoryTTL(accountID string) (int, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return 0, fmt.Errorf("account not found: %s", accountID)
+	}
+	type globalTTLGetter interface {
+		GetDefaultHistoryTTL() (int, error)
+	}
+	g, ok := acc.Core.(globalTTLGetter)
+	if !ok {
+		return 0, fmt.Errorf("platform does not support global TTL")
+	}
+	return g.GetDefaultHistoryTTL()
+}
+
+// SetDefaultHistoryTTL sets the global auto-delete timer for new chats.
+func (e *Engine) SetDefaultHistoryTTL(accountID string, period int) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	type globalTTLSetter interface {
+		MessagesSetDefaultHistoryTTL(period int) (bool, error)
+	}
+	s, ok := acc.Core.(globalTTLSetter)
+	if !ok {
+		return fmt.Errorf("platform does not support global TTL")
+	}
+	_, err := s.MessagesSetDefaultHistoryTTL(period)
+	return err
+}
+
 // PinChat sets the pinned state for a chat.
 func (e *Engine) PinChat(accountID, chatID string, pinned bool) error {
 	_, err := e.db.Exec(

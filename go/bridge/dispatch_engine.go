@@ -1627,6 +1627,29 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return []byte{}, nil
 
+	case "GetDefaultHistoryTTL":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		ttl, err := e.GetDefaultHistoryTTL(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]int{"period": ttl})
+
+	case "SetDefaultHistoryTTL":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Period    int    `json:"period"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SetDefaultHistoryTTL(params.AccountID, params.Period)
+
 	case "GetCloudPasswordState":
 		var params struct {
 			AccountID string `json:"account_id"`

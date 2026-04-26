@@ -1577,6 +1577,29 @@ class EngineService {
     _callRaw('__engine', 'UpdateConfig', req.writeToBuffer());
   }
 
+  // ── Global TTL (Auto-Delete Messages) ──
+
+  Future<int> getDefaultHistoryTTL(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetDefaultHistoryTTL', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return 0;
+      final resp = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return resp['period'] as int? ?? 0;
+    } catch (e) {
+      Debug.error('ENGINE', 'getDefaultHistoryTTL failed', e);
+      return 0;
+    }
+  }
+
+  Future<void> setDefaultHistoryTTL(String accountId, int period) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'period': period,
+    }));
+    await _callAsync('__engine', 'SetDefaultHistoryTTL', Uint8List.fromList(payload));
+  }
+
   // ── Cloud Password (2FA) ──
 
   Future<Map<String, dynamic>?> getCloudPasswordState(String accountId) async {

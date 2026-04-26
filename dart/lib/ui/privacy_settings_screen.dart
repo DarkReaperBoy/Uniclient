@@ -25,10 +25,13 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
   String _unconfirmedEmail = '';
   int _pendingResetDate = 0;
 
+  int _globalTTL = 0;
+
   @override
   void initState() {
     super.initState();
     _fetchPasswordState();
+    _fetchGlobalTTL();
     _pollTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       _fetchPasswordState();
     });
@@ -71,6 +74,41 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
         _2faLabel = 'Off';
       }
     });
+  }
+
+  Future<void> _fetchGlobalTTL() async {
+    if (!mounted) return;
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+
+    final ttl = await engine.getDefaultHistoryTTL(accountId);
+    if (!mounted) return;
+    setState(() => _globalTTL = ttl);
+  }
+
+  String _formatTTL(int seconds) {
+    if (seconds <= 0) return 'Off';
+    if (seconds < 86400) return '${seconds ~/ 3600} hours';
+    if (seconds == 86400) return '1 day';
+    if (seconds == 604800) return '1 week';
+    if (seconds == 2678400) return '1 month';
+    final days = seconds ~/ 86400;
+    if (days < 7) return '$days days';
+    if (days < 30) return '${days ~/ 7} weeks';
+    return '${days ~/ 30} months';
+  }
+
+  void _openGlobalTTL() {
+    Navigator.of(context).push(settingsPageRoute(
+      _GlobalTTLScreen(
+        currentTTL: _globalTTL,
+        onChanged: (newTTL) {
+          setState(() => _globalTTL = newTTL);
+        },
+      ),
+    ));
   }
 
   void _openTwoStepVerification() {
@@ -228,11 +266,11 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
       _PrivacyIconRow(
         icon: Icons.timer_outlined,
         label: 'Auto-Delete Messages',
-        rightLabel: 'Off',
+        rightLabel: _formatTTL(_globalTTL),
         textColor: textColor,
         subtextColor: subtextColor,
         hoverBg: hoverBg,
-        onTap: () {},
+        onTap: _openGlobalTTL,
       ),
       _PrivacyIconRow(
         icon: Icons.lock,
@@ -1550,6 +1588,338 @@ class _CloudPasswordManage extends StatelessWidget {
         );
       }
     }
+  }
+}
+
+// ── §16.2.2 Global TTL (Auto-Delete Messages) ──
+
+class _GlobalTTLScreen extends StatefulWidget {
+  final int currentTTL;
+  final ValueChanged<int> onChanged;
+
+  const _GlobalTTLScreen({required this.currentTTL, required this.onChanged});
+
+  @override
+  State<_GlobalTTLScreen> createState() => _GlobalTTLScreenState();
+}
+
+class _GlobalTTLScreenState extends State<_GlobalTTLScreen> {
+  static const _presets = [0, 86400, 604800, 2678400];
+  late int _selectedTTL;
+  late List<int> _options;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedTTL = widget.currentTTL;
+    _options = _buildOptions(widget.currentTTL);
+  }
+
+  List<int> _buildOptions(int current) {
+    final opts = List<int>.from(_presets);
+    if (current > 0 && !opts.contains(current)) {
+      opts.add(current);
+      opts.sort();
+    }
+    return opts;
+  }
+
+  String _formatPeriod(int seconds) {
+    if (seconds <= 0) return 'Off';
+    if (seconds == 86400) return '1 day';
+    if (seconds == 604800) return '1 week';
+    if (seconds == 2678400) return '1 month';
+    if (seconds < 86400) return '${seconds ~/ 3600} hours';
+    final days = seconds ~/ 86400;
+    if (days < 7) return '$days days';
+    if (days < 30) return '${days ~/ 7} weeks';
+    return '${days ~/ 30} months';
+  }
+
+  Future<void> _selectTTL(int period) async {
+    if (_saving) return;
+    final wasZero = _selectedTTL == 0;
+    final goingNonZero = period > 0;
+
+    if (wasZero && goingNonZero) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Auto-Delete Messages'),
+          content: Text(
+            'Are you sure you want to enable auto-delete with a timer of ${_formatPeriod(period)}? '
+            'All new messages in chats you start will be automatically deleted after this period.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Enable'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+
+    setState(() {
+      _saving = true;
+      _selectedTTL = period;
+    });
+
+    try {
+      final engine = context.read<EngineService>();
+      final appState = context.read<AppState>();
+      await engine.setDefaultHistoryTTL(appState.activeAccountId, period);
+      widget.onChanged(period);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed: ${e.toString().replaceFirst("Exception: ", "")}'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  void _openCustomPeriod() async {
+    final result = await showDialog<int>(
+      context: context,
+      builder: (ctx) => _CustomTTLDialog(currentTTL: _selectedTTL),
+    );
+    if (result != null && result != _selectedTTL) {
+      setState(() => _options = _buildOptions(result));
+      _selectTTL(result);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final dividerBg = isDark ? const Color(0xFF101921) : const Color(0xFFF1F1F1);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: bgColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: textColor),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text(
+          'Auto-Delete Messages',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            color: textColor,
+          ),
+        ),
+      ),
+      body: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          Container(
+            color: dividerBg,
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: Center(
+              child: Icon(
+                Icons.timer_outlined,
+                size: 100,
+                color: accentColor,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
+            child: Text(
+              'Auto-delete timer',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: accentColor,
+              ),
+            ),
+          ),
+          for (final period in _options)
+            _TTLRadioRow(
+              label: _formatPeriod(period),
+              selected: _selectedTTL == period,
+              textColor: textColor,
+              accentColor: accentColor,
+              hoverBg: hoverBg,
+              onTap: () => _selectTTL(period),
+            ),
+          const SizedBox(height: 4),
+          InkWell(
+            onTap: _openCustomPeriod,
+            hoverColor: hoverBg,
+            child: Padding(
+              padding: SettingsStyle.noIconPadding,
+              child: Text(
+                'Set Custom Period',
+                style: TextStyle(
+                  fontSize: SettingsStyle.buttonFontSize,
+                  color: accentColor,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 7),
+          Container(height: 1, color: dividerBg),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 12, 22, 12),
+            child: Text(
+              'If enabled, all new messages in chats you start will be '
+              'automatically deleted for everyone after the selected period of time.',
+              style: TextStyle(fontSize: 13, color: subtextColor),
+            ),
+          ),
+          if (_saving)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TTLRadioRow extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final Color textColor;
+  final Color accentColor;
+  final Color hoverBg;
+  final VoidCallback onTap;
+
+  const _TTLRadioRow({
+    required this.label,
+    required this.selected,
+    required this.textColor,
+    required this.accentColor,
+    required this.hoverBg,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      hoverColor: hoverBg,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(22, 10, 22, 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: SettingsStyle.buttonFontSize,
+                  color: textColor,
+                ),
+              ),
+            ),
+            Container(
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: selected ? accentColor : textColor.withValues(alpha: 0.4),
+                  width: selected ? 7 : 2,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CustomTTLDialog extends StatefulWidget {
+  final int currentTTL;
+
+  const _CustomTTLDialog({required this.currentTTL});
+
+  @override
+  State<_CustomTTLDialog> createState() => _CustomTTLDialogState();
+}
+
+class _CustomTTLDialogState extends State<_CustomTTLDialog> {
+  final _daysController = TextEditingController();
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.currentTTL > 0) {
+      _daysController.text = (widget.currentTTL ~/ 86400).toString();
+    }
+  }
+
+  @override
+  void dispose() {
+    _daysController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Set Custom Period'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _daysController,
+            keyboardType: TextInputType.number,
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: 'Number of days',
+              errorText: _error,
+              border: const OutlineInputBorder(),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () {
+            final days = int.tryParse(_daysController.text.trim());
+            if (days == null || days < 1 || days > 365) {
+              setState(() => _error = 'Enter a number between 1 and 365');
+              return;
+            }
+            Navigator.of(context).pop(days * 86400);
+          },
+          child: const Text('Set'),
+        ),
+      ],
+    );
   }
 }
 
