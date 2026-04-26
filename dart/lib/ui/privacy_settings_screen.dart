@@ -527,6 +527,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
         currentOption: currentOption,
         accountId: accountId,
         engine: engine,
+        userName: appState.activeAccount?.displayName ?? '',
         initialAddedByPhoneOption: addedByPhoneOption,
         isPremium: isPremium,
         initialHideReadMarks: hideReadMarks,
@@ -768,6 +769,8 @@ class _EditPrivacyBox extends StatefulWidget {
   final bool initialHideReadMarks;
   final bool initialHasFallbackPhoto;
 
+  final String userName;
+
   const _EditPrivacyBox({
     required this.title,
     required this.privacyKey,
@@ -776,6 +779,7 @@ class _EditPrivacyBox extends StatefulWidget {
     required this.accountId,
     required this.engine,
     required this.onSaved,
+    this.userName = '',
     this.initialAddedByPhoneOption,
     this.isPremium = false,
     this.initialHideReadMarks = false,
@@ -798,6 +802,7 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
   bool get _isPhoneNumber => widget.privacyKey == 'phone_number';
   bool get _isLastSeen => widget.privacyKey == 'last_seen';
   bool get _isProfilePhoto => widget.privacyKey == 'profile_photo';
+  bool get _isForwards => widget.privacyKey == 'forwards';
 
   @override
   void initState() {
@@ -817,6 +822,101 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
       case 'nobody': return 'Nobody';
       default: return opt;
     }
+  }
+
+  String _forwardTooltipText() {
+    switch (_selected) {
+      case 'everyone':
+        return 'Users who forward your messages will have a link to your profile added to the message.';
+      case 'nobody':
+        return 'Users who forward your messages will have your name displayed, but it won\'t be clickable.';
+      default:
+        return 'Users who forward your messages will have a clickable link, but only your contacts will be able to open your profile.';
+    }
+  }
+
+  Widget _buildForwardPreview(bool isDark, Color textColor, Color subtextColor) {
+    final name = widget.userName.isNotEmpty ? widget.userName : 'You';
+    final bubbleBg = isDark
+        ? const Color(0xFF2B5278)
+        : const Color(0xFFEFFDDE);
+    final fwdColor = isDark
+        ? const Color(0xFF6BBFFF)
+        : const Color(0xFF3A8BD1);
+    final bodyColor = isDark
+        ? const Color(0xFFF5F5F5)
+        : const Color(0xFF000000);
+
+    const toastBg = Color(0xB2000000);
+    const toastFg = Color(0xFFFFFFFF);
+    const arrowSize = 7.0;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 12, 22, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Container(
+            constraints: const BoxConstraints(maxWidth: 300),
+            decoration: BoxDecoration(
+              color: bubbleBg,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(6),
+                bottomLeft: Radius.circular(16),
+                bottomRight: Radius.circular(16),
+              ),
+            ),
+            padding: const EdgeInsets.fromLTRB(11, 8, 11, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Forwarded from $name',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                    color: fwdColor,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'This is how your forwarded messages will look.',
+                  style: TextStyle(fontSize: 14, color: bodyColor),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 24),
+              child: Column(
+                children: [
+                  CustomPaint(
+                    size: const Size(arrowSize * 2, arrowSize),
+                    painter: _TooltipArrowPainter(color: toastBg),
+                  ),
+                  Container(
+                    constraints: const BoxConstraints(maxWidth: 260),
+                    decoration: BoxDecoration(
+                      color: toastBg,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    child: Text(
+                      _forwardTooltipText(),
+                      style: const TextStyle(fontSize: 12, color: toastFg, height: 1.3),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _save() async {
@@ -1007,10 +1107,13 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
             Padding(
               padding: const EdgeInsets.fromLTRB(22, 8, 22, 4),
               child: Text(
-                'Who can see your ${widget.title.toLowerCase()}?',
+                _isForwards
+                    ? 'Who can add a link to your account when forwarding your messages?'
+                    : 'Who can see your ${widget.title.toLowerCase()}?',
                 style: TextStyle(fontSize: 13, color: subtextColor),
               ),
             ),
+            if (_isForwards) _buildForwardPreview(isDark, textColor, subtextColor),
             const SizedBox(height: 4),
             ...widget.options.map((opt) {
               return InkWell(
@@ -1272,6 +1375,25 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
       ),
     );
   }
+}
+
+class _TooltipArrowPainter extends CustomPainter {
+  final Color color;
+  _TooltipArrowPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color;
+    final path = Path()
+      ..moveTo(0, size.height)
+      ..lineTo(size.width / 2, 0)
+      ..lineTo(size.width, size.height)
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _TooltipArrowPainter old) => old.color != color;
 }
 
 // ── Cloud Password Mode Enum ──
