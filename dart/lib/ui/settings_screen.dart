@@ -12,6 +12,7 @@ import 'advanced_settings_screen.dart';
 import 'chat_settings_screen.dart';
 import 'confirm_box.dart';
 import 'folders_settings_screen.dart';
+import 'active_sessions_screen.dart';
 import 'my_profile_page.dart';
 import 'notifications_settings_screen.dart';
 import 'privacy_settings_screen.dart';
@@ -264,7 +265,11 @@ class SettingsScreen extends StatelessWidget {
             iconBg: const Color(0xFFFFA726),
             label: 'Devices',
             isDark: isDark,
-            onTap: () {},
+            onTap: () {
+              Navigator.of(context).push(
+                settingsPageRoute(const ActiveSessionsScreen()),
+              );
+            },
           ),
           const SizedBox(height: 7),
           Container(height: 1, color: dividerColor),

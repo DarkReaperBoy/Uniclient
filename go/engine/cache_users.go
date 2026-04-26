@@ -1055,3 +1055,30 @@ func (e *Engine) GetSessions(accountID string) ([]cores.Session, error) {
 	}
 	return acc.Core.GetSessions()
 }
+
+func (e *Engine) TerminateSession(accountID, sessionID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found")
+	}
+	return acc.Core.TerminateSession(sessionID)
+}
+
+func (e *Engine) TerminateAllOtherSessions(accountID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found")
+	}
+	sessions, err := acc.Core.GetSessions()
+	if err != nil {
+		return err
+	}
+	for _, s := range sessions {
+		if !s.IsCurrent {
+			if err := acc.Core.TerminateSession(s.ID); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}

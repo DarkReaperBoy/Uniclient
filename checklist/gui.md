@@ -712,7 +712,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 <!-- dart/lib/ui/settings_screen.dart (nav rows only); sub-pages not yet created -->
 
 ### 19.1–19.4 Active Sessions Page
-- [ ] Active Sessions page (menuIconDevices): auto-refresh 60s, loading spinner state, six conditional zones — spec §19.1
 - [ ] Current session display: "This device" header with "Rename" link (defaultLinkButton), 84px row with 42px gradient-circle photo + platform icon, name (msgNameFont 13px semibold), status, location "{location} . {active_date}", no terminate button — spec §19.2 & §19.2.1–2
 - [ ] Device type detection: classify by API ID then keyword, 13 types with gradient pairs (Windows/Mac/Other green, Ubuntu orange, Linux purple, iPhone/iPad cyan, Android red, Web/Chrome/Edge/Firefox/Safari pink), all icons white historyPeerUserpicFg — spec §19.3
 - [ ] Other sessions list: "Active sessions" header (14px top skip), 84px rows, 34×34px terminate button (top 8px/right 11px), row click→SessionInfoBox, terminate→confirmation, footer divider text, no between-row hairlines — spec §19.4 & §19.4.1

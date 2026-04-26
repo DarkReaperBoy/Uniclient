@@ -2058,6 +2058,45 @@ class EngineService {
     }
   }
 
+  Future<List<Map<String, dynamic>>> getSessions(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetSessions', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return [];
+      final decoded = json.decode(utf8.decode(respBytes));
+      if (decoded is List) return decoded.cast<Map<String, dynamic>>();
+      return [];
+    } catch (e) {
+      Debug.error('ENGINE', 'getSessions failed', e);
+      return [];
+    }
+  }
+
+  Future<bool> terminateSession(String accountId, String sessionId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'session_id': sessionId,
+    }));
+    try {
+      await _callAsync('__engine', 'TerminateSession', Uint8List.fromList(payload));
+      return true;
+    } catch (e) {
+      Debug.error('ENGINE', 'terminateSession failed', e);
+      return false;
+    }
+  }
+
+  Future<bool> terminateAllOtherSessions(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      await _callAsync('__engine', 'TerminateAllOtherSessions', Uint8List.fromList(payload));
+      return true;
+    } catch (e) {
+      Debug.error('ENGINE', 'terminateAllOtherSessions failed', e);
+      return false;
+    }
+  }
+
   // ── Privacy Settings ──
 
   Future<Map<String, dynamic>?> getPrivacySetting(String accountId, String key) async {

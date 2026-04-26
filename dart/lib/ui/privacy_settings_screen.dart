@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
+import 'active_sessions_screen.dart';
 import 'settings_style.dart';
 
 class PrivacySettingsScreen extends StatefulWidget {
@@ -583,7 +584,11 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
         textColor: textColor,
         subtextColor: subtextColor,
         hoverBg: hoverBg,
-        onTap: () {},
+        onTap: () {
+          Navigator.of(context).push(
+            settingsPageRoute(const ActiveSessionsScreen()),
+          );
+        },
       ),
     ];
   }
