@@ -47,6 +47,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   String _customDownloadPath = '';
   bool _askDownloadPath = false;
   List<Map<String, dynamic>> _recentDownloads = [];
+  Map<String, bool> _experimentalFlags = {};
   bool _editingTheme = false;
   List<String> _accountOrder = []; // persisted display order of account IDs
   final List<StreamSubscription<dynamic>> _subs = [];
@@ -394,6 +395,33 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  Map<String, bool> get experimentalFlags => Map.unmodifiable(_experimentalFlags);
+
+  void setExperimentalFlag(String key, bool value) {
+    if (_experimentalFlags[key] == value) return;
+    if (value) {
+      _experimentalFlags[key] = true;
+    } else {
+      _experimentalFlags.remove(key);
+    }
+    _saveWindowPrefs();
+    notifyListeners();
+  }
+
+  void setExperimentalFlags(Map<String, bool> flags) {
+    _experimentalFlags = Map<String, bool>.from(flags);
+    _experimentalFlags.removeWhere((_, v) => !v);
+    _saveWindowPrefs();
+    notifyListeners();
+  }
+
+  void resetExperimentalFlags() {
+    if (_experimentalFlags.isEmpty) return;
+    _experimentalFlags.clear();
+    _saveWindowPrefs();
+    notifyListeners();
+  }
+
   ThemeMode get themeMode => switch (_config.theme) {
     'light' => ThemeMode.light,
     'system' => ThemeMode.system,
@@ -641,6 +669,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _askDownloadPath = data['askDownloadPath'] as bool? ?? false;
       final dl = data['recentDownloads'] as List<dynamic>?;
       if (dl != null) _recentDownloads = dl.cast<Map<String, dynamic>>();
+      final expFlags = data['experimentalFlags'] as Map<String, dynamic>?;
+      if (expFlags != null) {
+        _experimentalFlags = expFlags.map((k, v) => MapEntry(k, v == true));
+        _experimentalFlags.removeWhere((_, v) => !v);
+      }
       final order = data['accountOrder'] as List<dynamic>?;
       if (order != null) _accountOrder = order.cast<String>();
     } catch (_) {}
@@ -676,6 +709,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'customDownloadPath': _customDownloadPath,
         'askDownloadPath': _askDownloadPath,
         'recentDownloads': _recentDownloads,
+        'experimentalFlags': _experimentalFlags,
       }));
     } catch (_) {}
   }

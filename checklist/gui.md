@@ -666,23 +666,14 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 17.3 Automatic Media Download
 
 ### 17.4–17.6 Window Title, Close Behavior, System Integration
-- [ ] Window Title: "Chat name" / "Account name" (SlideWrap, 2+ accounts) / "Total count" checkboxes (settingsCheckbox + settingsCheckboxPadding) — spec §17.4
-- [ ] Window Close Behavior (Linux/BSD only): three radio options (Run in Background/Close to Taskbar/Quit), settingsSendType style, hidden when tray unavailable — spec §17.5
-- [ ] System Integration: tray/taskbar interlocked checkboxes (at least one required), monochrome tray (slide-animated), launch at startup, start minimized (nested, forced off with passcode), Add to Send To (Windows), macOS-specific items, Windows native notifications toggle — spec §17.6 & §17.6.1–4
 
 ### 17.7 Performance
-- [ ] PowerSavingBox (364px): 11 toggle flags in groups (Stickers: Panel+Chat; Emoji: Panel+Reactions+Chat+Status; Chat: Background+Spoiler+Effects; Calls; Interface Animations), category headers, powerSavingButton style, forced-disable overlay (boxBg alpha 96) with 3000ms toast — spec §17.7.1 & §17.7.1.1
-- [ ] Hardware-accelerated video toggle (SlideWrap/platform), ANGLE Backend button (Windows, 5 options, restart dialog), OpenGL toggle (Linux/Windows, restart dialog) — spec §17.7.2–4
 
 ### 17.8–17.9 Spellchecker, Screen Reader
-- [ ] Spellchecker: Enable toggle (system/custom label), auto-download dictionaries toggle (visible when custom ON), Manage Dictionaries button with count — spec §17.8
-- [ ] Screen Reader: shown only when reader detected and mode disabled, "Disable screen reader mode" toggle — spec §17.9
 
 ### 17.10 Software Update
-- [ ] Auto-update toggle (settingsUpdateToggle) with state label (current version / checking / downloading+progress / ready / latest / failed), "Install beta" toggle (hidden for alpha/during download), "Check for updates" button, "Update Telegram" install-ready overlay button, retry timer 10s — spec §17.10 & §17.10.1–3
 
 ### 17.11 Export & Experimental
-- [ ] "Export Telegram Data" button (menuIconExport), "Experimental Settings" button (menuIconExperimental); Experimental box: top warning label, Reset button (only when flags changed), toggle rows, flags from registry, base64url import/export via clipboard (`tdesktop-flags:` prefix), error toasts — spec §17.11 & §17.11.1–3
 
 ---
 

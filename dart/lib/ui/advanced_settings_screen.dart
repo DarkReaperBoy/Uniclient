@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -728,8 +729,51 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     return _buildSoftwareUpdate(isDark);
   }
 
-  // §14.7.11: Export Telegram Data, Experimental Settings.
-  List<Widget> _buildExportData(bool isDark) => const [];
+  List<Widget> _buildExportData(bool isDark) {
+    final appState = context.read<AppState>();
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final iconColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final hoverBg =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    return [
+      _AdvancedIconButtonRow(
+        icon: Icons.file_upload_outlined,
+        label: 'Export Telegram Data',
+        textColor: textColor,
+        subtextColor: subtextColor,
+        iconColor: iconColor,
+        hoverBg: hoverBg,
+        onTap: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Data export is managed by Telegram servers. Visit Settings > Privacy in the official app.'),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        },
+      ),
+      _AdvancedIconButtonRow(
+        icon: Icons.science_outlined,
+        label: 'Experimental Settings',
+        textColor: textColor,
+        subtextColor: subtextColor,
+        iconColor: iconColor,
+        hoverBg: hoverBg,
+        onTap: () => showDialog(
+          context: context,
+          builder: (_) => ChangeNotifierProvider.value(
+            value: appState,
+            child: const ExperimentalSettingsBox(),
+          ),
+        ),
+      ),
+    ];
+  }
 }
 
 /// settingsButton style row: 24px icon at 20px left, label at 60px, optional right-label.
@@ -2897,6 +2941,267 @@ class _DownloadPathOption extends StatelessWidget {
                     ),
                 ],
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+const _experimentalFlagDefs = <(String, String)>[
+  ('tabbed_emoji_panel', 'Use tabbed emoji/sticker panel'),
+  ('forum_chat_list', 'Show forum topics in chat list'),
+  ('dialogs_mute_icon', 'Show mute icon in dialogs'),
+  ('fractional_scaling', 'Enable fractional scaling'),
+  ('profile_in_context', 'Show profile preview in context menus'),
+  ('peer_id_display', 'Show peer IDs and channel info'),
+  ('large_bubble_radius', 'Use large message bubble radius'),
+  ('autoplay_gifs', 'Autoplay GIFs and stickers'),
+  ('webview_debug', 'Enable webview debugging'),
+  ('notification_custom', 'Custom notification sounds'),
+  ('freetype_rendering', 'Use FreeType font rendering'),
+  ('ipv6_preferred', 'Prefer IPv6 connections'),
+  ('smooth_scrolling', 'Use smooth scrolling'),
+  ('message_draft_visible', 'Show message drafts in dialogs'),
+];
+
+const _flagsPrefix = 'tdesktop-flags:';
+
+class ExperimentalSettingsBox extends StatefulWidget {
+  const ExperimentalSettingsBox({super.key});
+
+  @override
+  State<ExperimentalSettingsBox> createState() =>
+      _ExperimentalSettingsBoxState();
+}
+
+class _ExperimentalSettingsBoxState extends State<ExperimentalSettingsBox> {
+  late Map<String, bool> _flags;
+
+  @override
+  void initState() {
+    super.initState();
+    _flags = Map<String, bool>.from(context.read<AppState>().experimentalFlags);
+  }
+
+  bool _flag(String key) => _flags[key] == true;
+
+  bool get _changed {
+    for (final (key, _) in _experimentalFlagDefs) {
+      if (_flag(key)) return true;
+    }
+    return false;
+  }
+
+  void _toggle(String key) {
+    setState(() {
+      if (_flags[key] == true) {
+        _flags.remove(key);
+      } else {
+        _flags[key] = true;
+      }
+    });
+  }
+
+  void _reset() {
+    setState(() => _flags.clear());
+  }
+
+  void _export() {
+    final nonDefault = <String, bool>{};
+    for (final (key, _) in _experimentalFlagDefs) {
+      if (_flag(key)) nonDefault[key] = true;
+    }
+    if (nonDefault.isEmpty) {
+      _toast('No flags changed from default.');
+      return;
+    }
+    try {
+      final jsonBytes = utf8.encode(jsonEncode(nonDefault));
+      final compressed = zlib.encode(jsonBytes);
+      final encoded = base64Url.encode(compressed);
+      Clipboard.setData(ClipboardData(text: '$_flagsPrefix$encoded'));
+      _toast('Flags exported to clipboard.');
+    } catch (_) {
+      _toast('Failed to export flags.');
+    }
+  }
+
+  Future<void> _import() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = data?.text ?? '';
+    if (!text.startsWith(_flagsPrefix)) {
+      _toast('Clipboard does not contain valid flags data.');
+      return;
+    }
+    try {
+      final encoded = text.substring(_flagsPrefix.length);
+      final compressed = base64Url.decode(encoded);
+      final jsonBytes = zlib.decode(compressed);
+      final decoded =
+          jsonDecode(utf8.decode(jsonBytes)) as Map<String, dynamic>;
+      setState(() {
+        _flags.clear();
+        for (final entry in decoded.entries) {
+          if (entry.value == true) _flags[entry.key] = true;
+        }
+      });
+      _toast('Flags imported successfully.');
+    } catch (_) {
+      _toast('Failed to import flags — invalid data.');
+    }
+  }
+
+  void _toast(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), duration: const Duration(seconds: 2)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor =
+        isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final warningColor =
+        isDark ? const Color(0xFFE8A64A) : const Color(0xFFD4850C);
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 364, maxHeight: 520),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 18, 22, 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Experimental Settings',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
+                      ),
+                    ),
+                  ),
+                  if (_changed)
+                    TextButton(
+                      onPressed: _reset,
+                      child: Text(
+                        'Reset',
+                        style: TextStyle(fontSize: 13, color: accentColor),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 4, 22, 12),
+              child: Text(
+                'These settings are experimental and may change or be removed in future updates. Use at your own risk.',
+                style: TextStyle(fontSize: 13, color: warningColor),
+              ),
+            ),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    for (final (key, label) in _experimentalFlagDefs)
+                      _flagToggle(key, label, textColor, accentColor, isDark),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 8, 22, 12),
+              child: Row(
+                children: [
+                  TextButton(
+                    onPressed: _export,
+                    child: Text(
+                      'Export',
+                      style: TextStyle(fontSize: 14, color: accentColor),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: _import,
+                    child: Text(
+                      'Import',
+                      style: TextStyle(fontSize: 14, color: accentColor),
+                    ),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(fontSize: 14, color: subtextColor),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: () {
+                      context.read<AppState>().setExperimentalFlags(_flags);
+                      Navigator.of(context).pop();
+                    },
+                    child: Text(
+                      'Save',
+                      style: TextStyle(fontSize: 14, color: accentColor),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _flagToggle(
+    String key,
+    String label,
+    Color textColor,
+    Color accentColor,
+    bool isDark,
+  ) {
+    final hoverBg =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+    return InkWell(
+      onTap: () => _toggle(key),
+      hoverColor: hoverBg,
+      splashColor: hoverBg.withValues(alpha: 0.5),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(22, 8, 22, 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: SettingsStyle.buttonFontSize,
+                  color: textColor,
+                ),
+              ),
+            ),
+            Switch(
+              value: _flag(key),
+              onChanged: (_) => _toggle(key),
+              activeColor: accentColor,
             ),
           ],
         ),
