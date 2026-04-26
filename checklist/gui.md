@@ -681,9 +681,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 
 <!-- dart/lib/ui/settings_screen.dart (nav row only); dart/lib/ui/filter_column.dart (sidebar rendering) -->
 
-### 18.1 Folders Page Structure
-- [ ] Folders settings page: full scrollable section "Folders", request suggested filters on open, build header+folder list+recommended+tags toggle+view section, auto-save on destroy — spec §18.1
-
 ### 18.2 Animated Header
 - [ ] BoxContentDivider header: Lottie `filters` 74×74px (padding 0/17/0/5, plays once), description label (settingsFilterDividerLabel, 13px regular, windowSubTextFg, min 200px, padding 0/16/0/22, balanced wrapping) — spec §18.2 & §18.2.1
 
