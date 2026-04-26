@@ -694,7 +694,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 18.7 Include/Exclude Picker
 
 ### 18.8 Filter Icon Picker Panel
-- [ ] 6×5 grid (44×42px cells), padding 10/36/10/8 (36px top for header), "Folder Icon" header at (18,14), 30 icons in spec order, normal/hover/active colors, panel bg (dialogsBg large rounded corners), hover highlight (StickerHoverCorners), PanelAnimation TopRight show, 300ms hide-after-leave, (-2,-1) anchor offset, click fires _chosen, auto-icon selection by filter types — spec §18.8 & §18.8.1
 
 ### 18.9 Show Link Box
 - [ ] PeerListBox (inviteLinkChatList style): Lottie `cloud_filters` 74×74 header with bold folder name, InviteLinkLabel with URL + Copy + Share, chat list with select/deselect toggle, disabled rows (bots/private users/non-admin channels) with dashed circle overlay (1.5dp, 11 segments), Save/Cancel or Done buttons — spec §18.9

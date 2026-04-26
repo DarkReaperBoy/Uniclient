@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
@@ -2351,7 +2353,7 @@ class _FilterIconToggleState extends State<_FilterIconToggle> {
   }
 }
 
-class _FilterIconPanel extends StatelessWidget {
+class _FilterIconPanel extends StatefulWidget {
   final bool isDark;
   final String selectedIcon;
   final ValueChanged<String> onSelect;
@@ -2363,51 +2365,114 @@ class _FilterIconPanel extends StatelessWidget {
   });
 
   @override
+  State<_FilterIconPanel> createState() => _FilterIconPanelState();
+}
+
+class _FilterIconPanelState extends State<_FilterIconPanel>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _animCtrl;
+  late final Animation<double> _scaleAnim;
+  late final Animation<double> _fadeAnim;
+  Timer? _hideTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _animCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+    _scaleAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animCtrl, curve: Curves.easeOutCubic),
+    );
+    _fadeAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut),
+    );
+    _animCtrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    _animCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onMouseEnter() {
+    _hideTimer?.cancel();
+    _hideTimer = null;
+  }
+
+  void _onMouseExit() {
+    _hideTimer?.cancel();
+    _hideTimer = Timer(const Duration(milliseconds: 300), () {
+      if (mounted) Navigator.of(context).maybePop();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final bgColor = isDark ? const Color(0xFF17212B) : Colors.white;
-    final headerColor = isDark
+    final bgColor = widget.isDark ? const Color(0xFF17212B) : Colors.white;
+    final headerColor = widget.isDark
         ? const Color(0xFF6C7883)
         : const Color(0xFF999999);
 
-    return Material(
-      elevation: 4,
-      borderRadius: BorderRadius.circular(12),
-      color: bgColor,
-      child: SizedBox(
-        width: 284,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8, 14, 0, 6),
-                child: Text(
-                  'Folder Icon',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: headerColor,
-                  ),
-                ),
-              ),
-              for (var row = 0; row < 5; row++)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (var col = 0; col < 6; col++)
-                      _IconCell(
-                        iconName: _kFilterIconOrder[row * 6 + col],
-                        isSelected:
-                            _kFilterIconOrder[row * 6 + col] == selectedIcon,
-                        isDark: isDark,
-                        onTap: () =>
-                            onSelect(_kFilterIconOrder[row * 6 + col]),
+    return MouseRegion(
+      onEnter: (_) => _onMouseEnter(),
+      onExit: (_) => _onMouseExit(),
+      child: AnimatedBuilder(
+        animation: _animCtrl,
+        builder: (context, child) => Opacity(
+          opacity: _fadeAnim.value,
+          child: Transform(
+            alignment: Alignment.topRight,
+            // ignore: deprecated_member_use
+            transform: Matrix4.identity()..scale(_scaleAnim.value),
+            child: child,
+          ),
+        ),
+        child: Material(
+          elevation: 4,
+          borderRadius: BorderRadius.circular(12),
+          color: bgColor,
+          child: SizedBox(
+            width: 284,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 14, 0, 6),
+                    child: Text(
+                      'Folder Icon',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: headerColor,
                       ),
-                  ],
-                ),
-            ],
+                    ),
+                  ),
+                  for (var row = 0; row < 5; row++)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (var col = 0; col < 6; col++)
+                          _IconCell(
+                            iconName: _kFilterIconOrder[row * 6 + col],
+                            isSelected:
+                                _kFilterIconOrder[row * 6 + col] ==
+                                    widget.selectedIcon,
+                            isDark: widget.isDark,
+                            onTap: () => widget
+                                .onSelect(_kFilterIconOrder[row * 6 + col]),
+                          ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -2437,12 +2502,18 @@ class _IconCellState extends State<_IconCell> {
 
   @override
   Widget build(BuildContext context) {
+    // dialogsUnreadBgMuted
     final normalColor = widget.isDark
         ? const Color(0xFF3E546A)
         : const Color(0xFFBBBBBB);
+    // dialogsUnreadBgMutedOver
+    final hoverIconColor = widget.isDark
+        ? const Color(0xFF425C72)
+        : const Color(0xFFB1B1B1);
     final activeColor = widget.isDark
         ? const Color(0xFF6AB3F3)
         : const Color(0xFF40A7E3);
+    // dialogsBgOver
     final hoverBg = widget.isDark
         ? const Color(0xFF202B36)
         : const Color(0xFFF1F1F1);
@@ -2467,7 +2538,7 @@ class _IconCellState extends State<_IconCell> {
             color: widget.isSelected
                 ? activeColor
                 : _hovering
-                    ? normalColor.withValues(alpha: 0.8)
+                    ? hoverIconColor
                     : normalColor,
           ),
         ),
