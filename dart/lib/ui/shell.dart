@@ -37,6 +37,7 @@ class _UniClientShellState extends State<UniClientShell>
   // Whether dialogs column is collapsed to avatar-only mode (spec §1: below 130px).
   bool _dialogsCollapsed = false;
   bool _layoutLoaded = false;
+  bool? _lastVerticalFilters;
   bool _isDragging = false;
   // One-column section transition direction tracking (spec §1: horizontal slide + crossfade).
   bool _navForward = true;
@@ -79,6 +80,8 @@ class _UniClientShellState extends State<UniClientShell>
       _dialogsWidthRatio = (data['dialogsWidthRatio'] as num?)?.toDouble() ?? _dialogsWidthRatio;
       _thirdColumnWidth = (data['thirdColumnWidth'] as num?)?.toDouble() ?? _thirdColumnWidth;
       _dialogsCollapsed = (data['dialogsCollapsed'] as bool?) ?? _dialogsCollapsed;
+      final chatState = context.read<ChatState>();
+      chatState.useVerticalFilters = (data['useVerticalFilters'] as bool?) ?? true;
     } catch (_) {
       // Ignore corrupt/missing file.
     }
@@ -88,10 +91,12 @@ class _UniClientShellState extends State<UniClientShell>
     final path = _layoutFilePath;
     if (path.isEmpty) return;
     try {
+      final chatState = context.read<ChatState>();
       File(path).writeAsStringSync(jsonEncode({
         'dialogsWidthRatio': _dialogsWidthRatio,
         'thirdColumnWidth': _thirdColumnWidth,
         'dialogsCollapsed': _dialogsCollapsed,
+        'useVerticalFilters': chatState.useVerticalFilters,
       }));
     } catch (_) {
       // Best-effort persistence.
@@ -173,6 +178,13 @@ class _UniClientShellState extends State<UniClientShell>
       _layoutLoaded = true;
       _configDir = appState.configDir;
       _loadLayoutPrefs();
+      _lastVerticalFilters = chatState.useVerticalFilters;
+    }
+
+    // Persist when filter tab mode changes (§18.12).
+    if (_layoutLoaded && _lastVerticalFilters != chatState.useVerticalFilters) {
+      _lastVerticalFilters = chatState.useVerticalFilters;
+      _saveLayoutPrefs();
     }
 
     // Show loading while engine initializes.
@@ -216,8 +228,12 @@ class _UniClientShellState extends State<UniClientShell>
     return LayoutBuilder(
       builder: (context, constraints) {
         final windowWidth = constraints.maxWidth;
-        // Show filters sidebar when folders exist and window is wide enough.
-        final showFilters = chatState.hasFolders && windowWidth > _oneColumnBreak + _filtersWidth;
+        // Show vertical filters sidebar when folders exist, preference is sidebar
+        // mode, and window is wide enough (spec §18.12: ≥452px for sidebar to fit,
+        // but we also need room for dialogs column).
+        final showFilters = chatState.hasFolders &&
+            chatState.useVerticalFilters &&
+            windowWidth > _oneColumnBreak + _filtersWidth;
         final bodyWidth = windowWidth - (showFilters ? _filtersWidth : 0.0);
         final mode = _layoutMode(bodyWidth);
 

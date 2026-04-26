@@ -702,7 +702,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 18.11 Folder Tags Toggle
 
 ### 18.12 Tab View Section
-- [ ] Visible only ≥452px width: two radios (Side panel / Top bar, settingsCheckbox margins 22/5/10/5), sidebar mode (72px wide, vertical tabs, long-press drag reorder), top-bar mode (horizontal strip, horizontal-scroll overflow), drag threshold ~10px, 150ms shift animation, auto-scroll factor 0.05 near edge, pinned interval for "All chats" tab — spec §18.12 & §18.12.1
 
 ### 18.13 Premium Limits
 - [ ] Enforce folder limits (10 free/20 premium total; 100/200 chats per folder; 2/20 shareable; 3/20 links per folder), FiltersLimitBox / FilterChatsLimitBox / ShareableFiltersLimitBox / FilterLinksLimitBox each with animated infographic + Premium icon + description — spec §18.13

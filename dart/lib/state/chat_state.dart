@@ -41,6 +41,7 @@ class ChatState extends ChangeNotifier {
   String _foldersForAccount = ''; // which account the current _folders belong to
   String? _activeFolderId; // null = "All Chats"
   bool _showFolderTags = false;
+  bool _useVerticalFilters = true;
 
   /// Callback for showing in-app notifications (set by UI layer).
   void Function(String senderName, String text, String chatTitle)? onNotification;
@@ -204,6 +205,13 @@ class ChatState extends ChangeNotifier {
   set showFolderTags(bool v) {
     if (_showFolderTags == v) return;
     _showFolderTags = v;
+    notifyListeners();
+  }
+
+  bool get useVerticalFilters => _useVerticalFilters;
+  set useVerticalFilters(bool v) {
+    if (_useVerticalFilters == v) return;
+    _useVerticalFilters = v;
     notifyListeners();
   }
 

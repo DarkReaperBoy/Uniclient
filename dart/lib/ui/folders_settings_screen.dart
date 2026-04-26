@@ -63,7 +63,6 @@ class FoldersSettingsScreen extends StatefulWidget {
 class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
   List<FolderInfo> _folders = [];
   List<SuggestedFolderInfo> _recommended = [];
-  bool _useVerticalTabs = true;
   bool _loaded = false;
   final List<String> _pendingRemovals = [];
 
@@ -455,18 +454,31 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
             ),
           ),
 
-          const SizedBox(height: 7),
-          Container(height: 1, color: dividerBg),
-          const SizedBox(height: 7),
-
-          // §18.12 Tab View Section
-          _ViewSection(
-            useVerticalTabs: _useVerticalTabs,
-            isDark: isDark,
-            textColor: textColor,
-            accentColor: accentColor,
-            hoverColor: hoverColor,
-            onChanged: (v) => setState(() => _useVerticalTabs = v),
+          // §18.12 Tab View Section — visible only when window ≥ 452px
+          LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth < 452) return const SizedBox.shrink();
+              final chatState = context.read<ChatState>();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 7),
+                  Container(height: 1, color: dividerBg),
+                  const SizedBox(height: 7),
+                  _ViewSection(
+                    useVerticalTabs: chatState.useVerticalFilters,
+                    isDark: isDark,
+                    textColor: textColor,
+                    accentColor: accentColor,
+                    hoverColor: hoverColor,
+                    onChanged: (v) {
+                      chatState.useVerticalFilters = v;
+                      setState(() {});
+                    },
+                  ),
+                ],
+              );
+            },
           ),
 
           const SizedBox(height: 24),
