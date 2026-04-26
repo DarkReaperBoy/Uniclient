@@ -1627,6 +1627,52 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return []byte{}, nil
 
+	case "GetCloudPasswordState":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		state, err := e.GetCloudPasswordState(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(state)
+
+	case "CheckCloudPassword":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Password  string `json:"password"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.CheckCloudPassword(params.AccountID, params.Password)
+
+	case "SetCloudPassword":
+		var params struct {
+			AccountID       string `json:"account_id"`
+			CurrentPassword string `json:"current_password"`
+			NewPassword     string `json:"new_password"`
+			Hint            string `json:"hint"`
+			Email           string `json:"email"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SetCloudPassword(params.AccountID, params.CurrentPassword, params.NewPassword, params.Hint, params.Email)
+
+	case "RemoveCloudPassword":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Password  string `json:"password"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.RemoveCloudPassword(params.AccountID, params.Password)
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}

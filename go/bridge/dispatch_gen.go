@@ -58,6 +58,9 @@ func Dispatch(core interface{}, coreType string, method string, payload []byte) 
 	case "telegram":
 		c, ok := core.(*cores.TelegramCore)
 		if !ok { return nil, fmt.Errorf("invalid core type for telegram") }
+		if resp, err, handled := dispatchTelegramCloudPassword(c, method, payload); handled {
+			return resp, err
+		}
 		return dispatchTelegram(c, method, payload)
 	case "xmpp":
 		c, ok := core.(*cores.XMPPCore)

@@ -13686,6 +13686,88 @@ func (t *TelegramCore) GetPassword() (*tg.AccountPassword, error) {
 	return t.api.AccountGetPassword(t.ctx)
 }
 
+type CloudPasswordState struct {
+	HasPassword             bool   `json:"hasPassword"`
+	HasRecovery             bool   `json:"hasRecovery"`
+	Hint                    string `json:"hint"`
+	EmailUnconfirmedPattern string `json:"emailUnconfirmedPattern"`
+	PendingResetDate        int    `json:"pendingResetDate"`
+}
+
+func (t *TelegramCore) GetCloudPasswordState() (CloudPasswordState, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return CloudPasswordState{}, ErrAuth }
+	pw, err := t.api.AccountGetPassword(t.ctx)
+	if err != nil { return CloudPasswordState{}, err }
+	state := CloudPasswordState{
+		HasPassword: pw.HasPassword,
+		HasRecovery: pw.HasRecovery,
+		Hint:        pw.Hint,
+	}
+	if pattern, ok := pw.GetEmailUnconfirmedPattern(); ok {
+		state.EmailUnconfirmedPattern = pattern
+	}
+	if date, ok := pw.GetPendingResetDate(); ok {
+		state.PendingResetDate = date
+	}
+	return state, nil
+}
+
+func (t *TelegramCore) CheckCloudPassword(password string) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	pw, err := t.api.AccountGetPassword(t.ctx)
+	if err != nil { return err }
+	srpCheck, err := auth.PasswordHash([]byte(password), pw.SRPID, pw.SRPB, pw.SecureRandom, pw.CurrentAlgo)
+	if err != nil { return fmt.Errorf("SRP computation failed: %w", err) }
+	_, err = t.api.AccountGetPasswordSettings(t.ctx, srpCheck)
+	return err
+}
+
+func (t *TelegramCore) SetCloudPassword(currentPassword, newPassword, hint, email string) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	pw, err := t.api.AccountGetPassword(t.ctx)
+	if err != nil { return err }
+	var oldCheck tg.InputCheckPasswordSRPClass
+	if pw.HasPassword && currentPassword != "" {
+		check, err2 := auth.PasswordHash([]byte(currentPassword), pw.SRPID, pw.SRPB, pw.SecureRandom, pw.CurrentAlgo)
+		if err2 != nil { return fmt.Errorf("SRP computation failed: %w", err2) }
+		oldCheck = check
+	} else {
+		oldCheck = &tg.InputCheckPasswordEmpty{}
+	}
+	newSettings := &tg.AccountPasswordInputSettings{}
+	if newPassword != "" {
+		algoModPow, ok := pw.NewAlgo.(*tg.PasswordKdfAlgoSHA256SHA256PBKDF2HMACSHA512iter100000SHA256ModPow)
+		if !ok { return fmt.Errorf("unsupported new password KDF algorithm") }
+		secureRandom := make([]byte, 32)
+		if _, err := rand.Read(secureRandom); err != nil { return err }
+		algoModPow.Salt1 = append(algoModPow.Salt1, secureRandom...)
+		newHash, err := auth.NewPasswordHash([]byte(newPassword), algoModPow)
+		if err != nil { return fmt.Errorf("new password hash failed: %w", err) }
+		newSettings.SetNewAlgo(algoModPow)
+		newSettings.SetNewPasswordHash(newHash)
+		newSettings.SetHint(hint)
+	} else {
+		newSettings.SetNewAlgo(&tg.PasswordKdfAlgoUnknown{})
+		newSettings.SetNewPasswordHash([]byte{})
+		newSettings.SetHint("")
+	}
+	if email != "" {
+		newSettings.SetEmail(email)
+	}
+	_, err = t.api.AccountUpdatePasswordSettings(t.ctx, &tg.AccountUpdatePasswordSettingsRequest{
+		Password:    oldCheck,
+		NewSettings: *newSettings,
+	})
+	return err
+}
+
+func (t *TelegramCore) RemoveCloudPassword(currentPassword string) error {
+	return t.SetCloudPassword(currentPassword, "", "", "")
+}
+
 // GetGlobalPrivacy returns the current global privacy settings.
 func (t *TelegramCore) GetGlobalPrivacy() (*tg.GlobalPrivacySettings, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()

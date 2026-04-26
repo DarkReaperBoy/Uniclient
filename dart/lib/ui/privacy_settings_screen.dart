@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 import 'settings_style.dart';
 
@@ -17,11 +18,19 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
   final _scrollController = ScrollController();
   Timer? _pollTimer;
 
+  String _2faLabel = 'Loading...';
+  bool? _hasPassword;
+  bool _hasRecovery = false;
+  String _hint = '';
+  String _unconfirmedEmail = '';
+  int _pendingResetDate = 0;
+
   @override
   void initState() {
     super.initState();
+    _fetchPasswordState();
     _pollTimer = Timer.periodic(const Duration(seconds: 60), (_) {
-      _reloadPrivacyData();
+      _fetchPasswordState();
     });
   }
 
@@ -32,9 +41,78 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     super.dispose();
   }
 
-  void _reloadPrivacyData() {
+  Future<void> _fetchPasswordState() async {
     if (!mounted) return;
-    setState(() {});
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+
+    final state = await engine.getCloudPasswordState(accountId);
+    if (!mounted) return;
+
+    if (state == null) {
+      setState(() => _2faLabel = 'Off');
+      return;
+    }
+
+    setState(() {
+      _hasPassword = state['hasPassword'] as bool? ?? false;
+      _hasRecovery = state['hasRecovery'] as bool? ?? false;
+      _hint = state['hint'] as String? ?? '';
+      _unconfirmedEmail = state['emailUnconfirmedPattern'] as String? ?? '';
+      _pendingResetDate = state['pendingResetDate'] as int? ?? 0;
+
+      if (_unconfirmedEmail.isNotEmpty) {
+        _2faLabel = 'On';
+      } else if (_hasPassword!) {
+        _2faLabel = 'On';
+      } else {
+        _2faLabel = 'Off';
+      }
+    });
+  }
+
+  void _openTwoStepVerification() {
+    if (_hasPassword == null) return;
+
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+
+    if (_unconfirmedEmail.isNotEmpty) {
+      Navigator.of(context).push(settingsPageRoute(
+        _CloudPasswordEmailConfirm(
+          accountId: accountId,
+          engine: engine,
+          emailPattern: _unconfirmedEmail,
+          onDone: () {
+            _fetchPasswordState();
+            Navigator.of(context).pop();
+          },
+        ),
+      ));
+    } else if (_hasPassword == true) {
+      Navigator.of(context).push(settingsPageRoute(
+        _CloudPasswordInput(
+          accountId: accountId,
+          engine: engine,
+          mode: _CloudPasswordMode.check,
+          hint: _hint,
+          hasRecovery: _hasRecovery,
+          pendingResetDate: _pendingResetDate,
+          onSuccess: () => _fetchPasswordState(),
+        ),
+      ));
+    } else {
+      Navigator.of(context).push(settingsPageRoute(
+        _CloudPasswordStart(
+          accountId: accountId,
+          engine: engine,
+          onPasswordSet: () => _fetchPasswordState(),
+        ),
+      ));
+    }
   }
 
   @override
@@ -141,11 +219,11 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
       _PrivacyIconRow(
         icon: Icons.lock_outline,
         label: 'Two-Step Verification',
-        rightLabel: 'Off',
+        rightLabel: _2faLabel,
         textColor: textColor,
         subtextColor: subtextColor,
         hoverBg: hoverBg,
-        onTap: () {},
+        onTap: _openTwoStepVerification,
       ),
       _PrivacyIconRow(
         icon: Icons.timer_outlined,
@@ -346,6 +424,8 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
   }
 }
 
+// ── Shared widgets ──
+
 class _PrivacyIconRow extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -443,6 +523,1066 @@ class _PrivacyRow extends StatelessWidget {
                 color: subtextColor,
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Cloud Password Mode Enum ──
+
+enum _CloudPasswordMode { check, create, change }
+
+// ── CloudPasswordStart: Intro screen when no password set ──
+
+class _CloudPasswordStart extends StatelessWidget {
+  final String accountId;
+  final EngineService engine;
+  final VoidCallback onPasswordSet;
+
+  const _CloudPasswordStart({
+    required this.accountId,
+    required this.engine,
+    required this.onPasswordSet,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: bgColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: textColor),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text(
+          'Two-Step Verification',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
+        ),
+      ),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 40),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.lock_outline, size: 48, color: accentColor),
+              ),
+              const SizedBox(height: 19),
+              Text(
+                'Two-Step Verification',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Set an additional password that will be required to log in to your Telegram account.',
+                style: TextStyle(fontSize: 14, color: subtextColor, height: 1.4),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: 300,
+                height: 42,
+                child: FilledButton(
+                  onPressed: () {
+                    Navigator.of(context).pushReplacement(settingsPageRoute(
+                      _CloudPasswordInput(
+                        accountId: accountId,
+                        engine: engine,
+                        mode: _CloudPasswordMode.create,
+                        hint: '',
+                        hasRecovery: false,
+                        pendingResetDate: 0,
+                        onSuccess: onPasswordSet,
+                      ),
+                    ));
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: accentColor,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  ),
+                  child: const Text('Set Password', style: TextStyle(fontSize: 15, color: Colors.white)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── CloudPasswordInput: Password entry/create/change screen ──
+
+class _CloudPasswordInput extends StatefulWidget {
+  final String accountId;
+  final EngineService engine;
+  final _CloudPasswordMode mode;
+  final String hint;
+  final bool hasRecovery;
+  final int pendingResetDate;
+  final VoidCallback onSuccess;
+  final String? currentPassword;
+
+  const _CloudPasswordInput({
+    required this.accountId,
+    required this.engine,
+    required this.mode,
+    required this.hint,
+    required this.hasRecovery,
+    required this.pendingResetDate,
+    required this.onSuccess,
+    this.currentPassword,
+  });
+
+  @override
+  State<_CloudPasswordInput> createState() => _CloudPasswordInputState();
+}
+
+class _CloudPasswordInputState extends State<_CloudPasswordInput> {
+  final _passwordController = TextEditingController();
+  final _confirmController = TextEditingController();
+  final _passwordFocus = FocusNode();
+  bool _obscure = true;
+  bool _obscureConfirm = true;
+  String _error = '';
+  bool _loading = false;
+
+  bool get _isCreateMode => widget.mode == _CloudPasswordMode.create || widget.mode == _CloudPasswordMode.change;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _passwordFocus.requestFocus());
+  }
+
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    _confirmController.dispose();
+    _passwordFocus.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final password = _passwordController.text;
+    if (password.isEmpty) {
+      setState(() => _error = 'Please enter a password');
+      return;
+    }
+
+    if (_isCreateMode) {
+      final confirm = _confirmController.text;
+      if (confirm.isEmpty) {
+        setState(() => _error = 'Please re-enter your password');
+        return;
+      }
+      if (password != confirm) {
+        setState(() => _error = 'Passwords do not match');
+        return;
+      }
+      Navigator.of(context).pushReplacement(settingsPageRoute(
+        _CloudPasswordHint(
+          accountId: widget.accountId,
+          engine: widget.engine,
+          newPassword: password,
+          currentPassword: widget.currentPassword ?? '',
+          onSuccess: widget.onSuccess,
+        ),
+      ));
+      return;
+    }
+
+    setState(() { _loading = true; _error = ''; });
+    try {
+      await widget.engine.checkCloudPassword(widget.accountId, password);
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(settingsPageRoute(
+        _CloudPasswordManage(
+          accountId: widget.accountId,
+          engine: widget.engine,
+          currentPassword: password,
+          onChanged: widget.onSuccess,
+        ),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.toString().contains('PASSWORD_HASH_INVALID')
+            ? 'Wrong password. Please try again.'
+            : 'Error: ${e.toString().replaceFirst('Exception: ', '')}';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final errorColor = isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F);
+
+    final title = _isCreateMode ? 'Two-Step Verification' : 'Two-Step Verification';
+    final subtitle = _isCreateMode ? 'Enter a new password' : 'Enter your password';
+    final description = _isCreateMode
+        ? 'Please create a password that you will remember.'
+        : 'Your account is protected with an additional password.';
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: bgColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: textColor),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text(title, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+      ),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 40),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  _isCreateMode ? Icons.lock_outline : Icons.vpn_key,
+                  size: 48,
+                  color: accentColor,
+                ),
+              ),
+              const SizedBox(height: 19),
+              Text(subtitle, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+              const SizedBox(height: 5),
+              Text(description, style: TextStyle(fontSize: 14, color: subtextColor, height: 1.4), textAlign: TextAlign.center),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: 300,
+                child: TextField(
+                  controller: _passwordController,
+                  focusNode: _passwordFocus,
+                  obscureText: _obscure,
+                  onSubmitted: (_) => _isCreateMode ? FocusScope.of(context).nextFocus() : _submit(),
+                  decoration: InputDecoration(
+                    hintText: _isCreateMode ? 'Enter password' : 'Password',
+                    hintStyle: TextStyle(color: subtextColor),
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility, color: subtextColor),
+                      onPressed: () => setState(() => _obscure = !_obscure),
+                    ),
+                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: subtextColor)),
+                    focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: accentColor, width: 2)),
+                    errorBorder: UnderlineInputBorder(borderSide: BorderSide(color: errorColor)),
+                  ),
+                  style: TextStyle(fontSize: 15, color: textColor),
+                ),
+              ),
+              if (_isCreateMode) ...[
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: 300,
+                  child: TextField(
+                    controller: _confirmController,
+                    obscureText: _obscureConfirm,
+                    onSubmitted: (_) => _submit(),
+                    decoration: InputDecoration(
+                      hintText: 'Re-enter password',
+                      hintStyle: TextStyle(color: subtextColor),
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscureConfirm ? Icons.visibility_off : Icons.visibility, color: subtextColor),
+                        onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                      ),
+                      enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: subtextColor)),
+                      focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: accentColor, width: 2)),
+                    ),
+                    style: TextStyle(fontSize: 15, color: textColor),
+                  ),
+                ),
+              ],
+              if (widget.hint.isNotEmpty && !_isCreateMode && _error.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text('Hint: ${widget.hint}', style: TextStyle(fontSize: 13, color: subtextColor)),
+                ),
+              if (_error.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(_error, style: TextStyle(fontSize: 13, color: errorColor)),
+                ),
+              if (!_isCreateMode && widget.hasRecovery) ...[
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: () {},
+                  child: Text('Forgot password?', style: TextStyle(fontSize: 14, color: accentColor)),
+                ),
+              ],
+              const SizedBox(height: 24),
+              SizedBox(
+                width: 300,
+                height: 42,
+                child: FilledButton(
+                  onPressed: _loading ? null : _submit,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: accentColor,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  ),
+                  child: _loading
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : Text(_isCreateMode ? 'Continue' : 'Check', style: const TextStyle(fontSize: 15, color: Colors.white)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── CloudPasswordHint: Set password hint ──
+
+class _CloudPasswordHint extends StatefulWidget {
+  final String accountId;
+  final EngineService engine;
+  final String newPassword;
+  final String currentPassword;
+  final VoidCallback onSuccess;
+
+  const _CloudPasswordHint({
+    required this.accountId,
+    required this.engine,
+    required this.newPassword,
+    required this.currentPassword,
+    required this.onSuccess,
+  });
+
+  @override
+  State<_CloudPasswordHint> createState() => _CloudPasswordHintState();
+}
+
+class _CloudPasswordHintState extends State<_CloudPasswordHint> {
+  final _hintController = TextEditingController();
+  final _hintFocus = FocusNode();
+  String _error = '';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _hintFocus.requestFocus());
+  }
+
+  @override
+  void dispose() {
+    _hintController.dispose();
+    _hintFocus.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final hint = _hintController.text;
+    if (hint == widget.newPassword) {
+      setState(() => _error = 'Hint must be different from your password');
+      return;
+    }
+
+    Navigator.of(context).pushReplacement(settingsPageRoute(
+      _CloudPasswordEmail(
+        accountId: widget.accountId,
+        engine: widget.engine,
+        newPassword: widget.newPassword,
+        currentPassword: widget.currentPassword,
+        hint: hint,
+        onSuccess: widget.onSuccess,
+      ),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final errorColor = isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F);
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: bgColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: textColor),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text('Password Hint', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+      ),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 40),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.lightbulb_outline, size: 48, color: accentColor),
+              ),
+              const SizedBox(height: 19),
+              Text('Password Hint', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+              const SizedBox(height: 5),
+              Text(
+                'You can create an optional hint for your password.',
+                style: TextStyle(fontSize: 14, color: subtextColor, height: 1.4),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: 300,
+                child: TextField(
+                  controller: _hintController,
+                  focusNode: _hintFocus,
+                  onSubmitted: (_) => _submit(),
+                  decoration: InputDecoration(
+                    hintText: 'Password hint (optional)',
+                    hintStyle: TextStyle(color: subtextColor),
+                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: subtextColor)),
+                    focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: accentColor, width: 2)),
+                  ),
+                  style: TextStyle(fontSize: 15, color: textColor),
+                ),
+              ),
+              if (_error.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(_error, style: TextStyle(fontSize: 13, color: errorColor)),
+                ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: 300,
+                height: 42,
+                child: FilledButton(
+                  onPressed: _submit,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: accentColor,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  ),
+                  child: const Text('Continue', style: TextStyle(fontSize: 15, color: Colors.white)),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pushReplacement(settingsPageRoute(
+                    _CloudPasswordEmail(
+                      accountId: widget.accountId,
+                      engine: widget.engine,
+                      newPassword: widget.newPassword,
+                      currentPassword: widget.currentPassword,
+                      hint: '',
+                      onSuccess: widget.onSuccess,
+                    ),
+                  ));
+                },
+                child: Text('Skip', style: TextStyle(fontSize: 14, color: subtextColor)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── CloudPasswordEmail: Recovery email setup ──
+
+class _CloudPasswordEmail extends StatefulWidget {
+  final String accountId;
+  final EngineService engine;
+  final String newPassword;
+  final String currentPassword;
+  final String hint;
+  final VoidCallback onSuccess;
+
+  const _CloudPasswordEmail({
+    required this.accountId,
+    required this.engine,
+    required this.newPassword,
+    required this.currentPassword,
+    required this.hint,
+    required this.onSuccess,
+  });
+
+  @override
+  State<_CloudPasswordEmail> createState() => _CloudPasswordEmailState();
+}
+
+class _CloudPasswordEmailState extends State<_CloudPasswordEmail> {
+  final _emailController = TextEditingController();
+  final _emailFocus = FocusNode();
+  String _error = '';
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _emailFocus.requestFocus());
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _emailFocus.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final email = _emailController.text.trim();
+    await _setPassword(email);
+  }
+
+  Future<void> _skip() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+        return AlertDialog(
+          backgroundColor: isDark ? const Color(0xFF1E2C3A) : Colors.white,
+          title: Text('Warning', style: TextStyle(color: textColor)),
+          content: Text(
+            'If you forget your password, you will lose access to your Telegram account. Are you sure you want to skip adding a recovery email?',
+            style: TextStyle(color: textColor, height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Skip', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed == true) {
+      await _setPassword('');
+    }
+  }
+
+  Future<void> _setPassword(String email) async {
+    setState(() { _loading = true; _error = ''; });
+    try {
+      await widget.engine.setCloudPassword(
+        widget.accountId,
+        currentPassword: widget.currentPassword,
+        newPassword: widget.newPassword,
+        hint: widget.hint,
+        email: email,
+      );
+      if (!mounted) return;
+      widget.onSuccess();
+      Navigator.of(context).popUntil((route) => route.isFirst || route.settings.name == 'privacy');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(email.isNotEmpty
+                ? 'Password set. Please check your email to confirm.'
+                : 'Two-Step Verification password has been set.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.toString().replaceFirst('Exception: ', '');
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final errorColor = isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F);
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: bgColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: textColor),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text('Recovery Email', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+      ),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 40),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.email_outlined, size: 48, color: accentColor),
+              ),
+              const SizedBox(height: 19),
+              Text('Recovery Email', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+              const SizedBox(height: 5),
+              Text(
+                'Please add your valid email. It is the only way to recover a forgotten password.',
+                style: TextStyle(fontSize: 14, color: subtextColor, height: 1.4),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: 300,
+                child: TextField(
+                  controller: _emailController,
+                  focusNode: _emailFocus,
+                  keyboardType: TextInputType.emailAddress,
+                  onSubmitted: (_) => _submit(),
+                  decoration: InputDecoration(
+                    hintText: 'Recovery email',
+                    hintStyle: TextStyle(color: subtextColor),
+                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: subtextColor)),
+                    focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: accentColor, width: 2)),
+                  ),
+                  style: TextStyle(fontSize: 15, color: textColor),
+                ),
+              ),
+              if (_error.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(_error, style: TextStyle(fontSize: 13, color: errorColor)),
+                ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: 300,
+                height: 42,
+                child: FilledButton(
+                  onPressed: _loading ? null : _submit,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: accentColor,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  ),
+                  child: _loading
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Continue', style: TextStyle(fontSize: 15, color: Colors.white)),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: _loading ? null : _skip,
+                child: Text('Skip', style: TextStyle(fontSize: 14, color: subtextColor)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── CloudPasswordEmailConfirm: Confirm recovery email ──
+
+class _CloudPasswordEmailConfirm extends StatefulWidget {
+  final String accountId;
+  final EngineService engine;
+  final String emailPattern;
+  final VoidCallback onDone;
+
+  const _CloudPasswordEmailConfirm({
+    required this.accountId,
+    required this.engine,
+    required this.emailPattern,
+    required this.onDone,
+  });
+
+  @override
+  State<_CloudPasswordEmailConfirm> createState() => _CloudPasswordEmailConfirmState();
+}
+
+class _CloudPasswordEmailConfirmState extends State<_CloudPasswordEmailConfirm> {
+  final _codeController = TextEditingController();
+  final _codeFocus = FocusNode();
+  String _error = '';
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _codeFocus.requestFocus());
+  }
+
+  @override
+  void dispose() {
+    _codeController.dispose();
+    _codeFocus.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final code = _codeController.text.trim();
+    if (code.isEmpty) {
+      setState(() => _error = 'Please enter the confirmation code');
+      return;
+    }
+
+    setState(() { _loading = true; _error = ''; });
+    try {
+      await widget.engine.checkCloudPassword(widget.accountId, code);
+      if (!mounted) return;
+      widget.onDone();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.toString().replaceFirst('Exception: ', '');
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final errorColor = isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F);
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: bgColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: textColor),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text('Email Confirmation', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+      ),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 40),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.mark_email_read_outlined, size: 48, color: accentColor),
+              ),
+              const SizedBox(height: 19),
+              Text('Check Your Email', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+              const SizedBox(height: 5),
+              Text(
+                'Please enter the code we\'ve sent to ${widget.emailPattern}',
+                style: TextStyle(fontSize: 14, color: subtextColor, height: 1.4),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: 300,
+                child: TextField(
+                  controller: _codeController,
+                  focusNode: _codeFocus,
+                  keyboardType: TextInputType.number,
+                  onSubmitted: (_) => _submit(),
+                  decoration: InputDecoration(
+                    hintText: 'Code',
+                    hintStyle: TextStyle(color: subtextColor),
+                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: subtextColor)),
+                    focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: accentColor, width: 2)),
+                  ),
+                  style: TextStyle(fontSize: 15, color: textColor),
+                ),
+              ),
+              if (_error.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(_error, style: TextStyle(fontSize: 13, color: errorColor)),
+                ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: 300,
+                height: 42,
+                child: FilledButton(
+                  onPressed: _loading ? null : _submit,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: accentColor,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  ),
+                  child: _loading
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Confirm', style: TextStyle(fontSize: 15, color: Colors.white)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── CloudPasswordManage: Manage existing password ──
+
+class _CloudPasswordManage extends StatelessWidget {
+  final String accountId;
+  final EngineService engine;
+  final String currentPassword;
+  final VoidCallback onChanged;
+
+  const _CloudPasswordManage({
+    required this.accountId,
+    required this.engine,
+    required this.currentPassword,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: bgColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: textColor),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text('Two-Step Verification', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+      ),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 40),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.verified_user_outlined, size: 48, color: accentColor),
+              ),
+              const SizedBox(height: 19),
+              Text(
+                'Your password is set.',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                'You have Two-Step Verification enabled, so your account is protected with an additional password.',
+                style: TextStyle(fontSize: 14, color: subtextColor, height: 1.4),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: 300,
+                child: Column(
+                  children: [
+                    _ManageRow(
+                      icon: Icons.vpn_key,
+                      label: 'Change Password',
+                      textColor: textColor,
+                      subtextColor: subtextColor,
+                      hoverBg: hoverBg,
+                      onTap: () {
+                        Navigator.of(context).push(settingsPageRoute(
+                          _CloudPasswordInput(
+                            accountId: accountId,
+                            engine: engine,
+                            mode: _CloudPasswordMode.change,
+                            hint: '',
+                            hasRecovery: false,
+                            pendingResetDate: 0,
+                            onSuccess: onChanged,
+                            currentPassword: currentPassword,
+                          ),
+                        ));
+                      },
+                    ),
+                    _ManageRow(
+                      icon: Icons.email_outlined,
+                      label: 'Change Recovery Email',
+                      textColor: textColor,
+                      subtextColor: subtextColor,
+                      hoverBg: hoverBg,
+                      onTap: () {
+                        Navigator.of(context).push(settingsPageRoute(
+                          _CloudPasswordEmail(
+                            accountId: accountId,
+                            engine: engine,
+                            newPassword: '',
+                            currentPassword: currentPassword,
+                            hint: '',
+                            onSuccess: onChanged,
+                          ),
+                        ));
+                      },
+                    ),
+                    _ManageRow(
+                      icon: Icons.delete_outline,
+                      label: 'Disable Password',
+                      textColor: const Color(0xFFE53935),
+                      subtextColor: subtextColor,
+                      hoverBg: hoverBg,
+                      onTap: () => _confirmDisable(context),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _confirmDisable(BuildContext context) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E2C3A) : Colors.white,
+        title: Text('Disable Password', style: TextStyle(color: textColor)),
+        content: Text(
+          'Are you sure you want to disable your Two-Step Verification password?',
+          style: TextStyle(color: textColor),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Disable', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      await engine.removeCloudPassword(accountId, currentPassword);
+      onChanged();
+      if (context.mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst || route.settings.name == 'privacy');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Two-Step Verification has been disabled.'), behavior: SnackBarBehavior.floating),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed: ${e.toString().replaceFirst("Exception: ", "")}'), behavior: SnackBarBehavior.floating),
+        );
+      }
+    }
+  }
+}
+
+class _ManageRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color textColor;
+  final Color subtextColor;
+  final Color hoverBg;
+  final VoidCallback onTap;
+
+  const _ManageRow({
+    required this.icon,
+    required this.label,
+    required this.textColor,
+    required this.subtextColor,
+    required this.hoverBg,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      hoverColor: hoverBg,
+      borderRadius: BorderRadius.circular(6),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        child: Row(
+          children: [
+            Icon(icon, size: 22, color: textColor),
+            const SizedBox(width: 14),
+            Expanded(child: Text(label, style: TextStyle(fontSize: 15, color: textColor))),
           ],
         ),
       ),

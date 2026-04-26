@@ -1577,6 +1577,52 @@ class EngineService {
     _callRaw('__engine', 'UpdateConfig', req.writeToBuffer());
   }
 
+  // ── Cloud Password (2FA) ──
+
+  Future<Map<String, dynamic>?> getCloudPasswordState(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetCloudPasswordState', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    } catch (e) {
+      Debug.error('ENGINE', 'getCloudPasswordState failed', e);
+      return null;
+    }
+  }
+
+  Future<void> checkCloudPassword(String accountId, String password) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'password': password,
+    }));
+    await _callAsync('__engine', 'CheckCloudPassword', Uint8List.fromList(payload));
+  }
+
+  Future<void> setCloudPassword(String accountId, {
+    String currentPassword = '',
+    required String newPassword,
+    String hint = '',
+    String email = '',
+  }) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'current_password': currentPassword,
+      'new_password': newPassword,
+      'hint': hint,
+      'email': email,
+    }));
+    await _callAsync('__engine', 'SetCloudPassword', Uint8List.fromList(payload));
+  }
+
+  Future<void> removeCloudPassword(String accountId, String password) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'password': password,
+    }));
+    await _callAsync('__engine', 'RemoveCloudPassword', Uint8List.fromList(payload));
+  }
+
   // ── Shutdown ──
 
   void shutdown() {

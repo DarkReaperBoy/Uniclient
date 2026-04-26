@@ -817,3 +817,67 @@ func (e *Engine) SaveDefaultSendAs(accountID, chatID, peerID string) error {
 	}
 	return saver.SaveDefaultSendAs(chatID, peerID)
 }
+
+type cloudPasswordStateProvider interface {
+	GetCloudPasswordState() (cores.CloudPasswordState, error)
+}
+
+type cloudPasswordChecker interface {
+	CheckCloudPassword(password string) error
+}
+
+type cloudPasswordSetter interface {
+	SetCloudPassword(currentPassword, newPassword, hint, email string) error
+}
+
+type cloudPasswordRemover interface {
+	RemoveCloudPassword(password string) error
+}
+
+func (e *Engine) GetCloudPasswordState(accountID string) (cores.CloudPasswordState, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return cores.CloudPasswordState{}, fmt.Errorf("account not found")
+	}
+	p, ok := acc.Core.(cloudPasswordStateProvider)
+	if !ok {
+		return cores.CloudPasswordState{}, fmt.Errorf("platform does not support cloud password")
+	}
+	return p.GetCloudPasswordState()
+}
+
+func (e *Engine) CheckCloudPassword(accountID, password string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found")
+	}
+	p, ok := acc.Core.(cloudPasswordChecker)
+	if !ok {
+		return fmt.Errorf("platform does not support cloud password")
+	}
+	return p.CheckCloudPassword(password)
+}
+
+func (e *Engine) SetCloudPassword(accountID, currentPassword, newPassword, hint, email string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found")
+	}
+	p, ok := acc.Core.(cloudPasswordSetter)
+	if !ok {
+		return fmt.Errorf("platform does not support cloud password")
+	}
+	return p.SetCloudPassword(currentPassword, newPassword, hint, email)
+}
+
+func (e *Engine) RemoveCloudPassword(accountID, password string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found")
+	}
+	p, ok := acc.Core.(cloudPasswordRemover)
+	if !ok {
+		return fmt.Errorf("platform does not support cloud password")
+	}
+	return p.RemoveCloudPassword(password)
+}
