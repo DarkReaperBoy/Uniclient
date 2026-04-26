@@ -636,8 +636,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 15.8–15.10 Events, Calls, Badge Counter
 
 ### 15.11 System Integration (Native Notifications)
-- [ ] Interactive monitor widget (280×160px): five clickable corners, 64×16px sample notification bars at selected corner (full opacity) and others (0.5 opacity), 150ms per-bar fade, 3×3 hit-test grid, hover spawns real sample notification windows at screen coordinates — spec §15.11.3 & §15.11.3.1
-- [ ] Notification count segmented slider: 5 positions (1–5), default 3, selecting animates monitor widget bars — spec §15.11.4
 
 ### 15.12 Animations
 - [ ] All Notifications page animations: SlideWrap ~300ms, toggle pills, sample bar 150ms fade, mute menu color transition — spec §15.12

@@ -59,6 +59,8 @@ class _NotificationsSettingsScreenState
   // §15.11 System Integration (Native Notifications)
   bool _useNativeNotifications = true;
   int _selectedDisplayIndex = 0; // 0 = Default
+  _ScreenCorner _selectedCorner = _ScreenCorner.bottomRight;
+  int _notificationCount = 3;
 
   @override
   Widget build(BuildContext context) {
@@ -575,8 +577,449 @@ class _NotificationsSettingsScreenState
               hoverBg: hoverBg,
             ),
         ],
+        const SizedBox(height: 7),
+        Container(
+          height: 1,
+          color: isDark
+              ? const Color(0xFF101921)
+              : const Color(0xFFF1F1F1),
+        ),
+        const SizedBox(height: 7),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 4, 22, 4),
+          child: Text(
+            'Notification position',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: sectionTitleColor,
+            ),
+          ),
+        ),
+        const SizedBox(height: 7),
+        _NotificationMonitorWidget(
+          selectedCorner: _selectedCorner,
+          barCount: _notificationCount,
+          isDark: isDark,
+          onCornerChanged: (corner) =>
+              setState(() => _selectedCorner = corner),
+        ),
+        const SizedBox(height: 14),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 4, 22, 4),
+          child: Text(
+            'Notification count',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: sectionTitleColor,
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        _NotificationCountSlider(
+          count: _notificationCount,
+          isDark: isDark,
+          accentColor: accentColor,
+          onChanged: (count) =>
+              setState(() => _notificationCount = count),
+        ),
       ],
     ];
+  }
+}
+
+enum _ScreenCorner { topLeft, topCenter, topRight, bottomRight, bottomLeft }
+
+bool _isTopCorner(_ScreenCorner c) =>
+    c == _ScreenCorner.topLeft ||
+    c == _ScreenCorner.topRight ||
+    c == _ScreenCorner.topCenter;
+
+bool _isLeftCorner(_ScreenCorner c) =>
+    c == _ScreenCorner.topLeft || c == _ScreenCorner.bottomLeft;
+
+class _NotificationMonitorWidget extends StatefulWidget {
+  final _ScreenCorner selectedCorner;
+  final int barCount;
+  final bool isDark;
+  final ValueChanged<_ScreenCorner> onCornerChanged;
+
+  const _NotificationMonitorWidget({
+    required this.selectedCorner,
+    required this.barCount,
+    required this.isDark,
+    required this.onCornerChanged,
+  });
+
+  @override
+  State<_NotificationMonitorWidget> createState() =>
+      _NotificationMonitorWidgetState();
+}
+
+class _NotificationMonitorWidgetState
+    extends State<_NotificationMonitorWidget> with TickerProviderStateMixin {
+  _ScreenCorner? _hoverCorner;
+  _ScreenCorner? _pressCorner;
+  late List<AnimationController> _barControllers;
+  int _oldCount = 0;
+
+  static const _screenW = 280.0;
+  static const _screenH = 160.0;
+  static const _barW = 64.0;
+  static const _barH = 16.0;
+  static const _barSkip = 5.0;
+  static const _barTopSkip = 5.0;
+  static const _barBottomSkip = 5.0;
+  static const _barMargin = 2.0;
+  static const _maxBars = 5;
+  static const _inactiveOpacity = 0.5;
+  static const _bezelPad = 16.0;
+  static const _bezelBottom = 28.0;
+  static const _bezelRadius = 8.0;
+  static const _standW = 60.0;
+  static const _standH = 10.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _oldCount = widget.barCount;
+    _barControllers = List.generate(_maxBars, (i) {
+      final ctrl = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 150),
+        value: i < widget.barCount ? 1.0 : 0.0,
+      );
+      return ctrl;
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _NotificationMonitorWidget old) {
+    super.didUpdateWidget(old);
+    if (old.barCount != widget.barCount) {
+      for (var i = 0; i < _maxBars; i++) {
+        if (i < widget.barCount) {
+          _barControllers[i].forward();
+        } else {
+          _barControllers[i].reverse();
+        }
+      }
+      _oldCount = widget.barCount;
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final c in _barControllers) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  _ScreenCorner? _hitTest(Offset pos, Rect screenRect) {
+    if (!screenRect.contains(pos)) return null;
+    final dx = pos.dx - screenRect.left;
+    final dy = pos.dy - screenRect.top;
+    final colW = screenRect.width / 3;
+    final rowH = screenRect.height / 3;
+    final col = (dx / colW).floor().clamp(0, 2);
+    final row = (dy / rowH).floor().clamp(0, 2);
+    if (row == 0) {
+      if (col == 0) return _ScreenCorner.topLeft;
+      if (col == 1) return _ScreenCorner.topCenter;
+      return _ScreenCorner.topRight;
+    }
+    if (row == 2) {
+      if (col == 0) return _ScreenCorner.bottomLeft;
+      if (col == 2) return _ScreenCorner.bottomRight;
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final totalW = _screenW + _bezelPad * 2;
+    final totalH = _screenH + _bezelPad + _bezelBottom;
+
+    return Center(
+      child: MouseRegion(
+        cursor: _hoverCorner != null
+            ? SystemMouseCursors.click
+            : SystemMouseCursors.basic,
+        onHover: (e) {
+          final screenRect = Rect.fromLTWH(
+            _bezelPad,
+            _bezelPad,
+            _screenW,
+            _screenH,
+          );
+          final corner = _hitTest(e.localPosition, screenRect);
+          if (corner != _hoverCorner) {
+            setState(() => _hoverCorner = corner);
+          }
+        },
+        onExit: (_) {
+          if (_hoverCorner != null) {
+            setState(() => _hoverCorner = null);
+          }
+        },
+        child: GestureDetector(
+          onTapDown: (d) {
+            final screenRect = Rect.fromLTWH(
+              _bezelPad,
+              _bezelPad,
+              _screenW,
+              _screenH,
+            );
+            _pressCorner = _hitTest(d.localPosition, screenRect);
+          },
+          onTapUp: (d) {
+            final screenRect = Rect.fromLTWH(
+              _bezelPad,
+              _bezelPad,
+              _screenW,
+              _screenH,
+            );
+            final upCorner = _hitTest(d.localPosition, screenRect);
+            if (upCorner != null &&
+                upCorner == _pressCorner &&
+                upCorner != widget.selectedCorner) {
+              widget.onCornerChanged(upCorner);
+            }
+            _pressCorner = null;
+          },
+          child: AnimatedBuilder(
+            animation: Listenable.merge(_barControllers),
+            builder: (context, _) {
+              return CustomPaint(
+                size: Size(totalW, totalH),
+                painter: _MonitorPainter(
+                  selectedCorner: widget.selectedCorner,
+                  hoverCorner: _hoverCorner,
+                  barOpacities: _barControllers.map((c) => c.value).toList(),
+                  isDark: widget.isDark,
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MonitorPainter extends CustomPainter {
+  final _ScreenCorner selectedCorner;
+  final _ScreenCorner? hoverCorner;
+  final List<double> barOpacities;
+  final bool isDark;
+
+  _MonitorPainter({
+    required this.selectedCorner,
+    required this.hoverCorner,
+    required this.barOpacities,
+    required this.isDark,
+  });
+
+  static const _screenW = 280.0;
+  static const _screenH = 160.0;
+  static const _barW = 64.0;
+  static const _barH = 16.0;
+  static const _barSkip = 5.0;
+  static const _barTopSkip = 5.0;
+  static const _barBottomSkip = 5.0;
+  static const _barMargin = 2.0;
+  static const _bezelPad = 16.0;
+  static const _bezelBottom = 28.0;
+  static const _bezelRadius = 8.0;
+  static const _standW = 60.0;
+  static const _standH = 10.0;
+  static const _inactiveOpacity = 0.5;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final monitorFg = isDark ? const Color(0xFF3E546A) : const Color(0xFFBBBBBB);
+    final screenBg = isDark ? const Color(0xFF0E1621) : const Color(0xFFE8E8E8);
+    final barColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final hoverHighlight =
+        isDark ? const Color(0xFF1A2633) : const Color(0xFFD8D8D8);
+
+    final monitorRect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, 0, _screenW + _bezelPad * 2, _screenH + _bezelPad + _bezelBottom - 8),
+      Radius.circular(_bezelRadius),
+    );
+    canvas.drawRRect(monitorRect, Paint()..color = monitorFg);
+
+    final screenRect = Rect.fromLTWH(_bezelPad, _bezelPad, _screenW, _screenH);
+    canvas.drawRect(screenRect, Paint()..color = screenBg);
+
+    final standRect = RRect.fromRectAndCorners(
+      Rect.fromLTWH(
+        (size.width - _standW) / 2,
+        monitorRect.height - 2,
+        _standW,
+        _standH,
+      ),
+      bottomLeft: const Radius.circular(4),
+      bottomRight: const Radius.circular(4),
+    );
+    canvas.drawRRect(standRect, Paint()..color = monitorFg);
+
+    if (hoverCorner != null) {
+      final hRect = _cornerHitRect(hoverCorner!, screenRect);
+      canvas.drawRect(hRect, Paint()..color = hoverHighlight);
+    }
+
+    for (final corner in _ScreenCorner.values) {
+      if (corner == selectedCorner) {
+        _drawSelectedBars(canvas, corner, screenRect, barColor);
+      } else {
+        _drawInactiveBar(canvas, corner, screenRect, barColor);
+      }
+    }
+  }
+
+  Rect _cornerHitRect(_ScreenCorner corner, Rect screen) {
+    final colW = screen.width / 3;
+    final rowH = screen.height / 3;
+    switch (corner) {
+      case _ScreenCorner.topLeft:
+        return Rect.fromLTWH(screen.left, screen.top, colW, rowH);
+      case _ScreenCorner.topCenter:
+        return Rect.fromLTWH(screen.left + colW, screen.top, colW, rowH);
+      case _ScreenCorner.topRight:
+        return Rect.fromLTWH(screen.left + colW * 2, screen.top, colW, rowH);
+      case _ScreenCorner.bottomLeft:
+        return Rect.fromLTWH(screen.left, screen.top + rowH * 2, colW, rowH);
+      case _ScreenCorner.bottomRight:
+        return Rect.fromLTWH(
+            screen.left + colW * 2, screen.top + rowH * 2, colW, rowH);
+    }
+  }
+
+  Offset _barOrigin(_ScreenCorner corner, Rect screen, int index) {
+    final isLeft = _isLeftCorner(corner);
+    final isTop = _isTopCorner(corner);
+    final isCenter = corner == _ScreenCorner.topCenter;
+
+    double x;
+    if (isCenter) {
+      x = screen.left + screen.width / 2 - _barW / 2;
+    } else if (isLeft) {
+      x = screen.left + _barSkip;
+    } else {
+      x = screen.right - _barSkip - _barW;
+    }
+
+    double y;
+    if (isTop) {
+      y = screen.top + _barTopSkip + index * (_barH + _barMargin);
+    } else {
+      y = screen.bottom -
+          _barBottomSkip -
+          _barH -
+          index * (_barH + _barMargin);
+    }
+    return Offset(x, y);
+  }
+
+  void _drawSelectedBars(
+      Canvas canvas, _ScreenCorner corner, Rect screen, Color barColor) {
+    final barPaint = Paint();
+    for (var i = 0; i < barOpacities.length; i++) {
+      final opacity = barOpacities[i];
+      if (opacity <= 0.0) continue;
+      final origin = _barOrigin(corner, screen, i);
+      barPaint.color = barColor.withValues(alpha: opacity);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(origin.dx, origin.dy, _barW, _barH),
+          const Radius.circular(3),
+        ),
+        barPaint,
+      );
+    }
+  }
+
+  void _drawInactiveBar(
+      Canvas canvas, _ScreenCorner corner, Rect screen, Color barColor) {
+    final origin = _barOrigin(corner, screen, 0);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(origin.dx, origin.dy, _barW, _barH),
+        const Radius.circular(3),
+      ),
+      Paint()..color = barColor.withValues(alpha: _inactiveOpacity),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _MonitorPainter old) => true;
+}
+
+class _NotificationCountSlider extends StatelessWidget {
+  final int count;
+  final bool isDark;
+  final Color accentColor;
+  final ValueChanged<int> onChanged;
+
+  const _NotificationCountSlider({
+    required this.count,
+    required this.isDark,
+    required this.accentColor,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final activeBg =
+        isDark ? const Color(0xFF2B5278) : const Color(0xFF419FD9);
+    final inactiveBg =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 22),
+      child: Row(
+        children: List.generate(5, (i) {
+          final n = i + 1;
+          final isActive = n == count;
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => onChanged(n),
+              child: Container(
+                height: 36,
+                margin: EdgeInsets.only(right: i < 4 ? 2 : 0),
+                decoration: BoxDecoration(
+                  color: isActive ? activeBg : inactiveBg,
+                  borderRadius: BorderRadius.horizontal(
+                    left: i == 0
+                        ? const Radius.circular(6)
+                        : Radius.zero,
+                    right: i == 4
+                        ? const Radius.circular(6)
+                        : Radius.zero,
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  '$n',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: isActive ? Colors.white : subtextColor,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
   }
 }
 
