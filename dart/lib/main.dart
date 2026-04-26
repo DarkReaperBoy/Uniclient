@@ -619,8 +619,24 @@ class _UniClientAppState extends State<UniClientApp>
     });
   }
 
+  bool _scrollDeviceAdded = false;
+
   void _dispatchScroll(double x, double y, double dx, double dy) {
-    GestureBinding.instance.handlePointerEvent(PointerScrollEvent(
+    final binding = GestureBinding.instance;
+    if (!_scrollDeviceAdded) {
+      binding.handlePointerEvent(const PointerAddedEvent(
+        device: 99,
+        kind: PointerDeviceKind.mouse,
+      ));
+      _scrollDeviceAdded = true;
+    }
+    binding.handlePointerEvent(PointerHoverEvent(
+      device: 99,
+      position: Offset(x, y),
+      kind: PointerDeviceKind.mouse,
+    ));
+    binding.handlePointerEvent(PointerScrollEvent(
+      device: 99,
       position: Offset(x, y),
       scrollDelta: Offset(dx, dy),
       kind: PointerDeviceKind.mouse,

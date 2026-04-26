@@ -632,12 +632,8 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 15.6 Ringtones Box
 
 ### 15.7 Reactions Sub-Page
-- [ ] "Notifications for reactions" sub-page: two split-toggle rows (Reactions to my messages / Votes in my polls), left click (when enabled) opens Everyone/My Contacts radio dialog, "Show sender's name" toggle — spec §15.7
 
 ### 15.8–15.10 Events, Calls, Badge Counter
-- [ ] Events section: "Contact joined Telegram" toggle (menuIconInvite), "Pinned messages" toggle (menuIconPin) — spec §15.8
-- [ ] Calls section: "Accept calls on this device" toggle (menuIconCallsReceive) — spec §15.9
-- [ ] Badge Counter section: three settingsButtonNoIcon toggles (include muted / include muted in folders / count messages vs chats) — spec §15.10
 
 ### 15.11 System Integration (Native Notifications)
 - [ ] Native notifications toggle (hidden if platform unsupported); Windows Focus Mode toggle; multi-display radio selector (shown when multiple monitors) — spec §15.11 & §15.11.1 & §15.11.2

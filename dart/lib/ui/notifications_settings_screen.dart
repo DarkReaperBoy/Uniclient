@@ -32,6 +32,18 @@ class _NotificationsSettingsScreenState
   bool _channelsNotify = true;
   bool _reactionsNotify = true;
 
+  // §15.8 Events
+  bool _contactJoinedTelegram = true;
+  bool _pinnedMessages = true;
+
+  // §15.9 Calls
+  bool _acceptCallsOnDevice = true;
+
+  // §15.10 Badge Counter
+  bool _includeMutedChats = true;
+  bool _includeMutedInFolders = true;
+  bool _countUnreadMessages = true;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -52,6 +64,8 @@ class _NotificationsSettingsScreenState
     final sectionTitleColor =
         isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
 
+    final chatState = context.watch<ChatState>();
+
     final sections = <List<Widget>>[
       _buildMultiAccountSection(appState, isDark, sectionTitleColor, textColor,
           subtextColor, accentColor, hoverBg),
@@ -59,6 +73,12 @@ class _NotificationsSettingsScreenState
           accentColor, hoverBg),
       _buildNotificationsForChats(isDark, sectionTitleColor, textColor,
           subtextColor, accentColor, hoverBg),
+      _buildEventsSection(isDark, sectionTitleColor, textColor, accentColor,
+          hoverBg),
+      _buildCallsSection(isDark, sectionTitleColor, textColor, accentColor,
+          hoverBg),
+      _buildBadgeCounterSection(isDark, sectionTitleColor, textColor,
+          accentColor, hoverBg, chatState.hasFolders),
     ];
 
     final children = <Widget>[];
@@ -96,9 +116,12 @@ class _NotificationsSettingsScreenState
           ),
         ),
       ),
-      body: ListView(
-        padding: EdgeInsets.zero,
-        children: children,
+      body: Scrollbar(
+        child: ListView(
+          primary: true,
+          padding: EdgeInsets.zero,
+          children: children,
+        ),
       ),
     );
   }
@@ -237,6 +260,12 @@ class _NotificationsSettingsScreenState
   }
 
   void _openTypeSubPage(BuildContext context, _NotifType type) {
+    if (type == _NotifType.reactions) {
+      Navigator.of(context).push(
+        settingsPageRoute(const _ReactionsSubPage()),
+      );
+      return;
+    }
     Navigator.of(context).push(
       settingsPageRoute(
         _NotificationTypeSubPage(type: type),
@@ -311,6 +340,132 @@ class _NotificationsSettingsScreenState
         accentColor: accentColor,
         hoverBg: hoverBg,
         isDark: isDark,
+      ),
+    ];
+  }
+
+  List<Widget> _buildEventsSection(
+    bool isDark,
+    Color sectionTitleColor,
+    Color textColor,
+    Color accentColor,
+    Color hoverBg,
+  ) {
+    final iconColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    return [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(22, 10, 22, 4),
+        child: Text(
+          'Events',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: sectionTitleColor,
+          ),
+        ),
+      ),
+      _NotifIconToggleRow(
+        icon: Icons.person_add,
+        iconColor: iconColor,
+        label: 'Contact joined Telegram',
+        value: _contactJoinedTelegram,
+        onChanged: (v) => setState(() => _contactJoinedTelegram = v),
+        textColor: textColor,
+        accentColor: accentColor,
+        hoverBg: hoverBg,
+      ),
+      _NotifIconToggleRow(
+        icon: Icons.push_pin,
+        iconColor: iconColor,
+        label: 'Pinned messages',
+        value: _pinnedMessages,
+        onChanged: (v) => setState(() => _pinnedMessages = v),
+        textColor: textColor,
+        accentColor: accentColor,
+        hoverBg: hoverBg,
+      ),
+    ];
+  }
+
+  List<Widget> _buildCallsSection(
+    bool isDark,
+    Color sectionTitleColor,
+    Color textColor,
+    Color accentColor,
+    Color hoverBg,
+  ) {
+    final iconColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    return [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(22, 10, 22, 4),
+        child: Text(
+          'Calls',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: sectionTitleColor,
+          ),
+        ),
+      ),
+      _NotifIconToggleRow(
+        icon: Icons.call,
+        iconColor: iconColor,
+        label: 'Accept calls on this device',
+        value: _acceptCallsOnDevice,
+        onChanged: (v) => setState(() => _acceptCallsOnDevice = v),
+        textColor: textColor,
+        accentColor: accentColor,
+        hoverBg: hoverBg,
+      ),
+    ];
+  }
+
+  List<Widget> _buildBadgeCounterSection(
+    bool isDark,
+    Color sectionTitleColor,
+    Color textColor,
+    Color accentColor,
+    Color hoverBg,
+    bool hasFolders,
+  ) {
+    return [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(22, 10, 22, 4),
+        child: Text(
+          'Badge Counter',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: sectionTitleColor,
+          ),
+        ),
+      ),
+      _NoIconToggleRow(
+        label: 'Include muted chats in unread count',
+        value: _includeMutedChats,
+        onChanged: (v) => setState(() => _includeMutedChats = v),
+        textColor: textColor,
+        accentColor: accentColor,
+        hoverBg: hoverBg,
+      ),
+      if (hasFolders)
+        _NoIconToggleRow(
+          label: 'Include muted chats in folder counters',
+          value: _includeMutedInFolders,
+          onChanged: (v) => setState(() => _includeMutedInFolders = v),
+          textColor: textColor,
+          accentColor: accentColor,
+          hoverBg: hoverBg,
+        ),
+      _NoIconToggleRow(
+        label: 'Count unread messages',
+        value: _countUnreadMessages,
+        onChanged: (v) => setState(() => _countUnreadMessages = v),
+        textColor: textColor,
+        accentColor: accentColor,
+        hoverBg: hoverBg,
       ),
     ];
   }
@@ -1379,6 +1534,52 @@ class _NotifIconToggleRow extends StatelessWidget {
   }
 }
 
+class _NoIconToggleRow extends StatelessWidget {
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final Color textColor;
+  final Color accentColor;
+  final Color hoverBg;
+
+  const _NoIconToggleRow({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+    required this.textColor,
+    required this.accentColor,
+    required this.hoverBg,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => onChanged(!value),
+      hoverColor: hoverBg,
+      splashColor: hoverBg.withValues(alpha: 0.5),
+      child: Padding(
+        padding: SettingsStyle.noIconPadding,
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                    fontSize: SettingsStyle.buttonFontSize, color: textColor),
+              ),
+            ),
+            Switch(
+              value: value,
+              onChanged: onChanged,
+              activeColor: accentColor,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _SplitToggleRow extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -1391,6 +1592,7 @@ class _SplitToggleRow extends StatelessWidget {
   final Color hoverBg;
   final bool isDark;
   final int exceptionCount;
+  final String? statusOverride;
 
   const _SplitToggleRow({
     required this.icon,
@@ -1404,9 +1606,11 @@ class _SplitToggleRow extends StatelessWidget {
     required this.hoverBg,
     required this.isDark,
     this.exceptionCount = 0,
+    this.statusOverride,
   });
 
   String get _statusText {
+    if (statusOverride != null) return statusOverride!;
     if (exceptionCount == 0) return 'Click here to change';
     final state = value ? 'On' : 'Off';
     final exc = exceptionCount == 1 ? '1 exception' : '$exceptionCount exceptions';
@@ -1537,6 +1741,232 @@ class _SplitToggleRow extends StatelessWidget {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+enum _ReactionsFrom { everyone, contacts }
+
+class _ReactionsSubPage extends StatefulWidget {
+  const _ReactionsSubPage();
+
+  @override
+  State<_ReactionsSubPage> createState() => _ReactionsSubPageState();
+}
+
+class _ReactionsSubPageState extends State<_ReactionsSubPage> {
+  bool _reactionsEnabled = true;
+  _ReactionsFrom _reactionsFrom = _ReactionsFrom.everyone;
+  bool _pollVotesEnabled = true;
+  _ReactionsFrom _pollVotesFrom = _ReactionsFrom.everyone;
+  bool _showSenderName = true;
+
+  void _showFromDialog(
+    BuildContext context, {
+    required String title,
+    required _ReactionsFrom current,
+    required ValueChanged<_ReactionsFrom> onChanged,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1B2836) : const Color(0xFFFFFFFF);
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+
+    showDialog<_ReactionsFrom>(
+      context: context,
+      builder: (ctx) {
+        var selected = current;
+        return StatefulBuilder(
+          builder: (stateCtx, setDialogState) {
+            return AlertDialog(
+              backgroundColor: bgColor,
+              title: Text(
+                title,
+                style: TextStyle(
+                  color: textColor,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 17,
+                ),
+              ),
+              contentPadding: const EdgeInsets.fromLTRB(0, 16, 0, 0),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  RadioListTile<_ReactionsFrom>(
+                    title: Text('From everyone',
+                        style: TextStyle(color: textColor, fontSize: 14)),
+                    value: _ReactionsFrom.everyone,
+                    groupValue: selected,
+                    activeColor: accentColor,
+                    onChanged: (v) {
+                      setDialogState(() => selected = v!);
+                    },
+                  ),
+                  RadioListTile<_ReactionsFrom>(
+                    title: Text('From my contacts',
+                        style: TextStyle(color: textColor, fontSize: 14)),
+                    value: _ReactionsFrom.contacts,
+                    groupValue: selected,
+                    activeColor: accentColor,
+                    onChanged: (v) {
+                      setDialogState(() => selected = v!);
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: Text('Cancel', style: TextStyle(color: accentColor)),
+                ),
+                TextButton(
+                  onPressed: () {
+                    onChanged(selected);
+                    Navigator.of(ctx).pop();
+                  },
+                  child: Text('OK', style: TextStyle(color: accentColor)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final dividerColor =
+        isDark ? const Color(0xFF101921) : const Color(0xFFF1F1F1);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final hoverBg =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+    final sectionTitleColor =
+        isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
+    final iconColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: bgColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: textColor),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text(
+          'Notifications for reactions',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            color: textColor,
+          ),
+        ),
+      ),
+      body: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 10, 22, 4),
+            child: Text(
+              'Notify me about',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: sectionTitleColor,
+              ),
+            ),
+          ),
+          _SplitToggleRow(
+            icon: Icons.mark_unread_chat_alt,
+            label: 'Reactions to my messages',
+            value: _reactionsEnabled,
+            onToggle: (v) => setState(() => _reactionsEnabled = v),
+            onTap: _reactionsEnabled
+                ? () => _showFromDialog(
+                      context,
+                      title: 'Notify about reactions from',
+                      current: _reactionsFrom,
+                      onChanged: (v) =>
+                          setState(() => _reactionsFrom = v),
+                    )
+                : null,
+            statusOverride: _reactionsEnabled
+                ? (_reactionsFrom == _ReactionsFrom.everyone
+                    ? 'From everyone'
+                    : 'From my contacts')
+                : 'Disabled',
+            textColor: textColor,
+            subtextColor: subtextColor,
+            accentColor: accentColor,
+            hoverBg: hoverBg,
+            isDark: isDark,
+          ),
+          _SplitToggleRow(
+            icon: Icons.poll,
+            label: 'Votes in my polls',
+            value: _pollVotesEnabled,
+            onToggle: (v) => setState(() => _pollVotesEnabled = v),
+            onTap: _pollVotesEnabled
+                ? () => _showFromDialog(
+                      context,
+                      title: 'Notify about votes from',
+                      current: _pollVotesFrom,
+                      onChanged: (v) =>
+                          setState(() => _pollVotesFrom = v),
+                    )
+                : null,
+            statusOverride: _pollVotesEnabled
+                ? (_pollVotesFrom == _ReactionsFrom.everyone
+                    ? 'From everyone'
+                    : 'From my contacts')
+                : 'Disabled',
+            textColor: textColor,
+            subtextColor: subtextColor,
+            accentColor: accentColor,
+            hoverBg: hoverBg,
+            isDark: isDark,
+          ),
+          const SizedBox(height: 7),
+          Container(height: 1, color: dividerColor),
+          const SizedBox(height: 7),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 10, 22, 4),
+            child: Text(
+              'Settings',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: sectionTitleColor,
+              ),
+            ),
+          ),
+          _NotifIconToggleRow(
+            icon: Icons.person,
+            iconColor: iconColor,
+            label: 'Show sender\'s name',
+            value: _showSenderName,
+            onChanged: (v) => setState(() => _showSenderName = v),
+            textColor: textColor,
+            accentColor: accentColor,
+            hoverBg: hoverBg,
+          ),
+          const SizedBox(height: 32),
         ],
       ),
     );
