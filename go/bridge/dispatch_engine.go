@@ -1448,6 +1448,31 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.SetArchiveSettings(params.AccountID, params.ArchiveAndMute, params.KeepArchivedUnmuted, params.KeepArchivedFolders)
 
+	case "GetHideReadMarks":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		hide, err := e.GetHideReadMarks(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]interface{}{
+			"hide_read_marks": hide,
+		})
+
+	case "SetHideReadMarks":
+		var params struct {
+			AccountID     string `json:"account_id"`
+			HideReadMarks bool   `json:"hide_read_marks"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SetHideReadMarks(params.AccountID, params.HideReadMarks)
+
 	case "GetCloudThemes":
 		var params struct {
 			AccountID string `json:"account_id"`

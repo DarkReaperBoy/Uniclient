@@ -1305,6 +1305,28 @@ class EngineService {
     await _callAsync('__engine', 'SetArchiveSettings', Uint8List.fromList(payload));
   }
 
+  Future<bool> getHideReadMarks(String accountId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetHideReadMarks', Uint8List.fromList(payload));
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return data['hide_read_marks'] as bool? ?? false;
+    } catch (e) {
+      Debug.error('ENGINE', 'getHideReadMarks failed', e);
+      return false;
+    }
+  }
+
+  Future<void> setHideReadMarks(String accountId, {required bool hide}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'hide_read_marks': hide,
+    }));
+    await _callAsync('__engine', 'SetHideReadMarks', Uint8List.fromList(payload));
+  }
+
   Future<List<CloudThemeInfo>> getCloudThemes(String accountId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

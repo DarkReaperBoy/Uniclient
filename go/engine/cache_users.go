@@ -714,6 +714,38 @@ func (e *Engine) SetArchiveSettings(accountID string, archiveAndMute, keepArchiv
 	return s.SetArchiveSettings(archiveAndMute, keepArchivedUnmuted, keepArchivedFolders)
 }
 
+type hideReadMarksGetter interface {
+	GetHideReadMarks() (bool, error)
+}
+
+type hideReadMarksSetter interface {
+	SetHideReadMarks(hide bool) error
+}
+
+func (e *Engine) GetHideReadMarks(accountID string) (bool, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return false, fmt.Errorf("account %q not connected", accountID)
+	}
+	g, ok := acc.Core.(hideReadMarksGetter)
+	if !ok {
+		return false, fmt.Errorf("platform does not support hide read marks")
+	}
+	return g.GetHideReadMarks()
+}
+
+func (e *Engine) SetHideReadMarks(accountID string, hide bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not connected", accountID)
+	}
+	s, ok := acc.Core.(hideReadMarksSetter)
+	if !ok {
+		return fmt.Errorf("platform does not support hide read marks")
+	}
+	return s.SetHideReadMarks(hide)
+}
+
 type cloudThemesFetcher interface {
 	GetCloudThemes() ([]cores.CloudThemeInfo, error)
 }

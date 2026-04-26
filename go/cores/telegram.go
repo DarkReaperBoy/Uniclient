@@ -14179,6 +14179,24 @@ func (t *TelegramCore) SetGlobalPrivacy(settings *tg.GlobalPrivacySettings) erro
 	return err
 }
 
+func (t *TelegramCore) GetHideReadMarks() (bool, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return false, ErrAuth }
+	s, err := t.api.AccountGetGlobalPrivacySettings(t.ctx)
+	if err != nil { return false, err }
+	return s.HideReadMarks, nil
+}
+
+func (t *TelegramCore) SetHideReadMarks(hide bool) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	s, err := t.api.AccountGetGlobalPrivacySettings(t.ctx)
+	if err != nil { return err }
+	s.SetHideReadMarks(hide)
+	_, err = t.api.AccountSetGlobalPrivacySettings(t.ctx, *s)
+	return err
+}
+
 // GetReactionsList returns the list of available message reactions.
 func (t *TelegramCore) GetReactionsList(chatID, msgID string, limit int) (int, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)

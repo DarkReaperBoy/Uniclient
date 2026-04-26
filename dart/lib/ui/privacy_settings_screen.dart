@@ -489,7 +489,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     ];
   }
 
-  void _openPrivacyEditor(String key, String title, List<String> options) {
+  void _openPrivacyEditor(String key, String title, List<String> options) async {
     final engine = context.read<EngineService>();
     final appState = context.read<AppState>();
     final accountId = appState.activeAccountId;
@@ -503,6 +503,15 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
       addedByPhoneOption = _privacySettings['added_by_phone']?['option'] as String? ?? 'everyone';
     }
 
+    bool hideReadMarks = false;
+    if (key == 'last_seen') {
+      hideReadMarks = await engine.getHideReadMarks(accountId);
+    }
+
+    final isPremium = appState.activeAccount?.isPremium ?? false;
+
+    if (!mounted) return;
+
     showDialog<void>(
       context: context,
       builder: (ctx) => _EditPrivacyBox(
@@ -513,6 +522,8 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
         accountId: accountId,
         engine: engine,
         initialAddedByPhoneOption: addedByPhoneOption,
+        isPremium: isPremium,
+        initialHideReadMarks: hideReadMarks,
         onSaved: (newOption, {String? addedByPhone}) {
           setState(() {
             _privacySettings[key] = {
@@ -746,6 +757,8 @@ class _EditPrivacyBox extends StatefulWidget {
   final EngineService engine;
   final void Function(String newOption, {String? addedByPhone}) onSaved;
   final String? initialAddedByPhoneOption;
+  final bool isPremium;
+  final bool initialHideReadMarks;
 
   const _EditPrivacyBox({
     required this.title,
@@ -756,6 +769,8 @@ class _EditPrivacyBox extends StatefulWidget {
     required this.engine,
     required this.onSaved,
     this.initialAddedByPhoneOption,
+    this.isPremium = false,
+    this.initialHideReadMarks = false,
   });
 
   @override
@@ -765,15 +780,20 @@ class _EditPrivacyBox extends StatefulWidget {
 class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
   late String _selected;
   late String _addedByPhoneOption;
+  late bool _hideReadMarks;
   bool _saving = false;
+  bool _confirmedRestriction = false;
 
   bool get _isPhoneNumber => widget.privacyKey == 'phone_number';
+  bool get _isLastSeen => widget.privacyKey == 'last_seen';
 
   @override
   void initState() {
     super.initState();
     _selected = widget.currentOption;
     _addedByPhoneOption = widget.initialAddedByPhoneOption ?? 'everyone';
+    _hideReadMarks = widget.initialHideReadMarks;
+    _confirmedRestriction = widget.currentOption != 'everyone';
   }
 
   String _optionLabel(String opt) {
@@ -787,6 +807,62 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
   }
 
   Future<void> _save() async {
+    if (_isLastSeen && _selected != 'everyone' && !_confirmedRestriction && widget.currentOption == 'everyone') {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) {
+          final theme = Theme.of(ctx);
+          final isDark = theme.brightness == Brightness.dark;
+          final bgColor = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
+          final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+          final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+          final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+          return Dialog(
+            backgroundColor: bgColor,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 364),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(22, 18, 22, 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Last Seen & Online',
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'By restricting who can see your Last Seen, you won\'t be able to see other people\'s Last Seen unless they share it with you. You will still see approximate last seen.',
+                      style: TextStyle(fontSize: 13, color: subtextColor, height: 1.4),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.of(ctx).pop(false),
+                          child: Text('Cancel', style: TextStyle(color: accentColor)),
+                        ),
+                        const SizedBox(width: 8),
+                        TextButton(
+                          onPressed: () => Navigator.of(ctx).pop(true),
+                          child: Text('Continue', style: TextStyle(color: accentColor)),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
+      if (confirmed != true) return;
+      _confirmedRestriction = true;
+    }
+
     setState(() => _saving = true);
     try {
       await widget.engine.setPrivacySetting(
@@ -800,6 +876,9 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
           'added_by_phone',
           _addedByPhoneOption,
         );
+      }
+      if (_isLastSeen && _hideReadMarks != widget.initialHideReadMarks) {
+        await widget.engine.setHideReadMarks(widget.accountId, hide: _hideReadMarks);
       }
       widget.onSaved(
         _selected,
@@ -961,6 +1040,67 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
                       child: Text(
                         'Users who add your phone number to their contacts will be able to see it and find you on Telegram.',
                         style: TextStyle(fontSize: 13, color: warningColor),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            if (_isLastSeen && _selected != 'everyone') ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 8, 22, 0),
+                child: Divider(height: 1, color: dividerColor),
+              ),
+              InkWell(
+                onTap: () => setState(() => _hideReadMarks = !_hideReadMarks),
+                hoverColor: hoverBg,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Hide Read Time',
+                          style: TextStyle(fontSize: 14, color: textColor),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 36,
+                        height: 20,
+                        child: Switch(
+                          value: _hideReadMarks,
+                          onChanged: (v) => setState(() => _hideReadMarks = v),
+                          activeColor: accentColor,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 0, 22, 4),
+                child: Text(
+                  'If enabled, other users won\'t be able to see when you read their messages.',
+                  style: TextStyle(fontSize: 12, color: subtextColor),
+                ),
+              ),
+            ],
+            if (_isLastSeen && !widget.isPremium) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 8, 22, 0),
+                child: Divider(height: 1, color: dividerColor),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 10, 22, 8),
+                child: Row(
+                  children: [
+                    Icon(Icons.star, size: 18, color: const Color(0xFFFFA726)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Subscribe to Telegram Premium to hide your online status and read time from specific users.',
+                        style: TextStyle(fontSize: 12, color: subtextColor, height: 1.4),
                       ),
                     ),
                   ],
