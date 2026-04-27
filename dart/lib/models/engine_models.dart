@@ -306,6 +306,74 @@ class ChatInfo {
   DateTime get lastMsgDateTime => DateTime.fromMillisecondsSinceEpoch(lastMsgTime);
 }
 
+// ── Forum topic ──
+
+class ForumTopic {
+  final String id;
+  final String title;
+  final int colorId;
+  final int iconEmojiId;
+  final String creatorId;
+  final int creationDate;
+  final bool isClosed;
+  final bool isHidden;
+  final bool isMy;
+  final bool isPinned;
+  final int unreadCount;
+  final int unreadMentions;
+  final int unreadReactions;
+  final String topMessageId;
+  final int readInboxMaxId;
+  final int readOutboxMaxId;
+  final String parentId;
+  final bool canEdit;
+  final bool canDelete;
+  final bool canToggleClosed;
+  final bool canTogglePinned;
+
+  const ForumTopic({
+    required this.id,
+    this.title = '',
+    this.colorId = 0,
+    this.iconEmojiId = 0,
+    this.creatorId = '',
+    this.creationDate = 0,
+    this.isClosed = false,
+    this.isHidden = false,
+    this.isMy = false,
+    this.isPinned = false,
+    this.unreadCount = 0,
+    this.unreadMentions = 0,
+    this.unreadReactions = 0,
+    this.topMessageId = '',
+    this.readInboxMaxId = 0,
+    this.readOutboxMaxId = 0,
+    this.parentId = '',
+    this.canEdit = false,
+    this.canDelete = false,
+    this.canToggleClosed = false,
+    this.canTogglePinned = false,
+  });
+
+  bool get isGeneral => id == '1';
+
+  bool get hasCustomIcon => iconEmojiId != 0;
+
+  DateTime get creationDateTime =>
+      DateTime.fromMillisecondsSinceEpoch(creationDate * 1000);
+
+  static const Map<int, String> colorNames = {
+    0x6FB9F0: 'blue',
+    0xFFD67E: 'yellow',
+    0xCB86DB: 'violet',
+    0x8EEE98: 'green',
+    0xFF93B2: 'rose',
+    0xFB6F5F: 'red',
+  };
+
+  String get colorName => colorNames[colorId] ?? 'blue';
+}
+
 class VideoQuality {
   final int height;
   final int width;

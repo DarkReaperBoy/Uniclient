@@ -298,15 +298,39 @@ class EngineService {
 
   /// Fetch forum topics for a chat. Returns empty list if the platform
   /// doesn't support forum topics. Topics are cached in the engine DB.
-  Future<List<ChatInfo>> getForumTopics(String accountId, String chatId) async {
+  Future<List<ForumTopic>> getForumTopics(String accountId, String chatId) async {
     final req = epb.EngineGetForumTopicsRequest()
       ..accountId = accountId
       ..chatId = chatId;
     final respBytes = await _callAsync('__engine', 'GetForumTopics', req.writeToBuffer());
     if (respBytes.isEmpty) return [];
     final resp = epb.EngineGetForumTopicsResponse.fromBuffer(respBytes);
-    return resp.chats.map(_chatInfoFromProto).toList();
+    return resp.topics.map(_forumTopicFromProto).toList();
   }
+
+  static ForumTopic _forumTopicFromProto(epb.EngineForumTopic p) => ForumTopic(
+    id: p.id,
+    title: p.title,
+    colorId: p.colorId,
+    iconEmojiId: p.iconEmojiId.toInt(),
+    creatorId: p.creatorId,
+    creationDate: p.creationDate.toInt(),
+    isClosed: p.isClosed,
+    isHidden: p.isHidden,
+    isMy: p.isMy,
+    isPinned: p.isPinned,
+    unreadCount: p.unreadCount,
+    unreadMentions: p.unreadMentions,
+    unreadReactions: p.unreadReactions,
+    topMessageId: p.topMessageId,
+    readInboxMaxId: p.readInboxMaxId,
+    readOutboxMaxId: p.readOutboxMaxId,
+    parentId: p.parentId,
+    canEdit: p.canEdit,
+    canDelete: p.canDelete,
+    canToggleClosed: p.canToggleClosed,
+    canTogglePinned: p.canTogglePinned,
+  );
 
   // ── Folders ──
 

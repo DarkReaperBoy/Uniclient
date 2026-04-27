@@ -13054,7 +13054,7 @@ func (t *TelegramCore) EditChannelTitle(chatID string, title string) error {
 }
 
 // GetForumTopics returns the list of topics in a forum supergroup.
-func (t *TelegramCore) GetForumTopics(chatID string, limit int) ([]Dialog, error) {
+func (t *TelegramCore) GetForumTopics(chatID string, limit int) ([]ForumTopic, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return nil, ErrAuth }
 	peer, err := t.resolvePeer(chatID); if err != nil { return nil, err }
@@ -13065,13 +13065,63 @@ func (t *TelegramCore) GetForumTopics(chatID string, limit int) ([]Dialog, error
 		Peer: inputPeer, Limit: limit,
 	})
 	if err != nil { return nil, err }
-	var topics []Dialog
-	for _, topic := range result.Topics {
-		if ft, ok := topic.(*tg.ForumTopic); ok {
-			// Cache topic info for message topic buttons.
-			t.cacheForumTopic(chatID, ft.ID, ft.Title, ft.IconColor)
-			topics = append(topics, Dialog{ID: strconv.Itoa(ft.ID), Title: ft.Title, Type: ChatTypeTopic, ParentID: chatID, Platform: tgPlatform})
+
+	var canManageTopics, canDeleteMessages bool
+	for _, c := range result.Chats {
+		if ch, ok := c.(*tg.Channel); ok {
+			if rights, ok := ch.GetAdminRights(); ok {
+				canManageTopics = rights.ManageTopics
+				canDeleteMessages = rights.DeleteMessages
+			}
+			break
 		}
+	}
+
+	var topics []ForumTopic
+	for _, topic := range result.Topics {
+		ft, ok := topic.(*tg.ForumTopic)
+		if !ok {
+			continue
+		}
+		t.cacheForumTopic(chatID, ft.ID, ft.Title, ft.IconColor)
+
+		creatorID := ""
+		if ft.FromID != nil {
+			switch p := ft.FromID.(type) {
+			case *tg.PeerUser:
+				creatorID = strconv.FormatInt(p.UserID, 10)
+			case *tg.PeerChannel:
+				creatorID = strconv.FormatInt(p.ChannelID, 10)
+			case *tg.PeerChat:
+				creatorID = strconv.FormatInt(p.ChatID, 10)
+			}
+		}
+
+		isGeneral := ft.ID == 1
+		canEdit := ft.My || canManageTopics
+		topics = append(topics, ForumTopic{
+			ID:              strconv.Itoa(ft.ID),
+			Title:           ft.Title,
+			ColorID:         ft.IconColor,
+			IconEmojiID:     ft.IconEmojiID,
+			CreatorID:       creatorID,
+			CreationDate:    int64(ft.Date),
+			IsClosed:        ft.Closed,
+			IsHidden:        ft.Hidden,
+			IsMy:            ft.My,
+			IsPinned:        ft.Pinned,
+			UnreadCount:     ft.UnreadCount,
+			UnreadMentions:  ft.UnreadMentionsCount,
+			UnreadReactions: ft.UnreadReactionsCount,
+			TopMessageID:    strconv.Itoa(ft.TopMessage),
+			ReadInboxMaxID:  ft.ReadInboxMaxID,
+			ReadOutboxMaxID: ft.ReadOutboxMaxID,
+			ParentID:        chatID,
+			CanEdit:         canEdit,
+			CanDelete:       !isGeneral && (canDeleteMessages || ft.My),
+			CanToggleClosed: canEdit,
+			CanTogglePinned: canManageTopics,
+		})
 	}
 	return topics, nil
 }

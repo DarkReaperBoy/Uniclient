@@ -19901,7 +19901,7 @@ func dispatchTelegram(c *cores.TelegramCore, method string, payload []byte) ([]b
 		r1, err := c.GetForumTopics(req.ChatId, int(req.Limit))
 		if err != nil { return nil, err }
 		resp := &pbcores.TelegramGetForumTopicsResponse{
-			Result_1: DialogsToProto(r1),
+			Result_1: ForumTopicsToDialogProtos(r1),
 		}
 		return proto.Marshal(resp)
 	case "GetFullChannel":

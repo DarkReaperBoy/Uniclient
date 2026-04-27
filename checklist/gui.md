@@ -776,7 +776,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 <!-- No dart file yet — likely integrates with dart/lib/ui/chat_list_panel.dart, dart/lib/ui/chat_view.dart -->
 
 ### 22.1–22.2 Data Model & Icon System
-- [ ] ForumTopic data model: rootId/title/colorId/iconId/creatorId/creationDate/flags, General topic rootId=1, capability flags (canEdit/canDelete/canToggleClosed/canTogglePinned) — spec §22.1
 - [ ] Predefined color icons: 6 colors (blue/yellow/violet/green/rose/red), SVG bubble-with-tail (84×84 viewBox, gradient fill, gradient stroke 2.95px, highlight arc 37.5%), color selection picks SVG file not runtime hue-shift — spec §22.2 & §22.2.1
 - [ ] Default icon rendering: colored circle + first non-emoji letter (white, centered), four size variants (default 21px / normal 19px / large 26px / info 32px), DPR-aware — spec §22.2
 - [ ] General topic icon: general.svg 20×20 hash shape, recolored at paint time (dialogsTextFg/Over/Active per context), re-rendered on palette changes, no color background — spec §22.2

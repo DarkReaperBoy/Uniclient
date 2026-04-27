@@ -518,6 +518,20 @@ func DialogsToProto(ds []cores.Dialog) []*pb.Dialog {
 	return out
 }
 
+func ForumTopicsToDialogProtos(fts []cores.ForumTopic) []*pb.Dialog {
+	out := make([]*pb.Dialog, len(fts))
+	for i := range fts {
+		out[i] = &pb.Dialog{
+			Id: fts[i].ID, Title: fts[i].Title,
+			Type: pb.ChatType_CHAT_TYPE_TOPIC,
+			UnreadCount: int32(fts[i].UnreadCount),
+			IsPinned: fts[i].IsPinned,
+			ParentId: fts[i].ParentID,
+		}
+	}
+	return out
+}
+
 // --- Folder ---
 
 func FolderToProto(f *cores.Folder) *pb.Folder {

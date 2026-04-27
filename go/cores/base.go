@@ -182,6 +182,34 @@ type Dialog struct {
 	Platform            string `json:"platform"`
 }
 
+// ForumTopic represents a forum topic within a supergroup.
+type ForumTopic struct {
+	ID              string `json:"id"`               // root message ID (General = "1")
+	Title           string `json:"title"`
+	ColorID         int    `json:"color_id"`          // predefined icon color (0x6FB9F0, 0xFFD67E, etc.)
+	IconEmojiID     int64  `json:"icon_emoji_id"`     // custom emoji ID, 0 for default
+	CreatorID       string `json:"creator_id"`
+	CreationDate    int64  `json:"creation_date"`     // unix timestamp
+	IsClosed        bool   `json:"is_closed"`
+	IsHidden        bool   `json:"is_hidden"`         // only for General topic
+	IsMy            bool   `json:"is_my"`             // created by current user
+	IsPinned        bool   `json:"is_pinned"`
+	UnreadCount     int    `json:"unread_count"`
+	UnreadMentions  int    `json:"unread_mentions"`
+	UnreadReactions int    `json:"unread_reactions"`
+	TopMessageID    string `json:"top_message_id"`
+	ReadInboxMaxID  int    `json:"read_inbox_max_id"`
+	ReadOutboxMaxID int    `json:"read_outbox_max_id"`
+	ParentID        string `json:"parent_id"`         // parent supergroup ID
+	CanEdit         bool   `json:"can_edit"`
+	CanDelete       bool   `json:"can_delete"`
+	CanToggleClosed bool   `json:"can_toggle_closed"`
+	CanTogglePinned bool   `json:"can_toggle_pinned"`
+}
+
+// IsGeneral returns true if this is the General topic (ID "1").
+func (ft *ForumTopic) IsGeneral() bool { return ft.ID == "1" }
+
 // TextEntity represents a rich-text formatting entity (bold, italic, link, etc.)
 // within a message's text. Offset and Length are in UTF-16 code units to match
 // Telegram's convention; the Dart side works natively in UTF-16.

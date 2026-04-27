@@ -2697,13 +2697,221 @@ class EngineGetForumTopicsRequest extends $pb.GeneratedMessage {
   void clearChatId() => clearField(2);
 }
 
-class EngineGetForumTopicsResponse extends $pb.GeneratedMessage {
-  factory EngineGetForumTopicsResponse({
-    $core.Iterable<EngineChatInfo>? chats,
+class EngineForumTopic extends $pb.GeneratedMessage {
+  factory EngineForumTopic({
+    $core.String? id,
+    $core.String? title,
+    $core.int? colorId,
+    $fixnum.Int64? iconEmojiId,
+    $core.String? creatorId,
+    $fixnum.Int64? creationDate,
+    $core.bool? isClosed,
+    $core.bool? isHidden,
+    $core.bool? isMy,
+    $core.bool? isPinned,
+    $core.int? unreadCount,
+    $core.int? unreadMentions,
+    $core.int? unreadReactions,
+    $core.String? topMessageId,
+    $core.int? readInboxMaxId,
+    $core.int? readOutboxMaxId,
+    $core.String? parentId,
+    $core.bool? canEdit,
+    $core.bool? canDelete,
+    $core.bool? canToggleClosed,
+    $core.bool? canTogglePinned,
   }) {
     final $result = create();
-    if (chats != null) {
-      $result.chats.addAll(chats);
+    if (id != null) $result.id = id;
+    if (title != null) $result.title = title;
+    if (colorId != null) $result.colorId = colorId;
+    if (iconEmojiId != null) $result.iconEmojiId = iconEmojiId;
+    if (creatorId != null) $result.creatorId = creatorId;
+    if (creationDate != null) $result.creationDate = creationDate;
+    if (isClosed != null) $result.isClosed = isClosed;
+    if (isHidden != null) $result.isHidden = isHidden;
+    if (isMy != null) $result.isMy = isMy;
+    if (isPinned != null) $result.isPinned = isPinned;
+    if (unreadCount != null) $result.unreadCount = unreadCount;
+    if (unreadMentions != null) $result.unreadMentions = unreadMentions;
+    if (unreadReactions != null) $result.unreadReactions = unreadReactions;
+    if (topMessageId != null) $result.topMessageId = topMessageId;
+    if (readInboxMaxId != null) $result.readInboxMaxId = readInboxMaxId;
+    if (readOutboxMaxId != null) $result.readOutboxMaxId = readOutboxMaxId;
+    if (parentId != null) $result.parentId = parentId;
+    if (canEdit != null) $result.canEdit = canEdit;
+    if (canDelete != null) $result.canDelete = canDelete;
+    if (canToggleClosed != null) $result.canToggleClosed = canToggleClosed;
+    if (canTogglePinned != null) $result.canTogglePinned = canTogglePinned;
+    return $result;
+  }
+  EngineForumTopic._() : super();
+  factory EngineForumTopic.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineForumTopic.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineForumTopic', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'id')
+    ..aOS(2, _omitFieldNames ? '' : 'title')
+    ..a<$core.int>(3, _omitFieldNames ? '' : 'colorId', $pb.PbFieldType.O3)
+    ..aInt64(4, _omitFieldNames ? '' : 'iconEmojiId')
+    ..aOS(5, _omitFieldNames ? '' : 'creatorId')
+    ..aInt64(6, _omitFieldNames ? '' : 'creationDate')
+    ..aOB(7, _omitFieldNames ? '' : 'isClosed')
+    ..aOB(8, _omitFieldNames ? '' : 'isHidden')
+    ..aOB(9, _omitFieldNames ? '' : 'isMy')
+    ..aOB(10, _omitFieldNames ? '' : 'isPinned')
+    ..a<$core.int>(11, _omitFieldNames ? '' : 'unreadCount', $pb.PbFieldType.O3)
+    ..a<$core.int>(12, _omitFieldNames ? '' : 'unreadMentions', $pb.PbFieldType.O3)
+    ..a<$core.int>(13, _omitFieldNames ? '' : 'unreadReactions', $pb.PbFieldType.O3)
+    ..aOS(14, _omitFieldNames ? '' : 'topMessageId')
+    ..a<$core.int>(15, _omitFieldNames ? '' : 'readInboxMaxId', $pb.PbFieldType.O3)
+    ..a<$core.int>(16, _omitFieldNames ? '' : 'readOutboxMaxId', $pb.PbFieldType.O3)
+    ..aOS(17, _omitFieldNames ? '' : 'parentId')
+    ..aOB(18, _omitFieldNames ? '' : 'canEdit')
+    ..aOB(19, _omitFieldNames ? '' : 'canDelete')
+    ..aOB(20, _omitFieldNames ? '' : 'canToggleClosed')
+    ..aOB(21, _omitFieldNames ? '' : 'canTogglePinned')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  EngineForumTopic clone() => EngineForumTopic()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  EngineForumTopic copyWith(void Function(EngineForumTopic) updates) => super.copyWith((message) => updates(message as EngineForumTopic)) as EngineForumTopic;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineForumTopic create() => EngineForumTopic._();
+  EngineForumTopic createEmptyInstance() => create();
+  static $pb.PbList<EngineForumTopic> createRepeated() => $pb.PbList<EngineForumTopic>();
+  @$core.pragma('dart2js:noInline')
+  static EngineForumTopic getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineForumTopic>(create);
+  static EngineForumTopic? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get id => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set id($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get title => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set title($core.String v) { $_setString(1, v); }
+
+  @$pb.TagNumber(3)
+  $core.int get colorId => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set colorId($core.int v) { $_setSignedInt32(2, v); }
+
+  @$pb.TagNumber(4)
+  $fixnum.Int64 get iconEmojiId => $_getI64(3);
+  @$pb.TagNumber(4)
+  set iconEmojiId($fixnum.Int64 v) { $_setInt64(3, v); }
+
+  @$pb.TagNumber(5)
+  $core.String get creatorId => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set creatorId($core.String v) { $_setString(4, v); }
+
+  @$pb.TagNumber(6)
+  $fixnum.Int64 get creationDate => $_getI64(5);
+  @$pb.TagNumber(6)
+  set creationDate($fixnum.Int64 v) { $_setInt64(5, v); }
+
+  @$pb.TagNumber(7)
+  $core.bool get isClosed => $_getBF(6);
+  @$pb.TagNumber(7)
+  set isClosed($core.bool v) { $_setBool(6, v); }
+
+  @$pb.TagNumber(8)
+  $core.bool get isHidden => $_getBF(7);
+  @$pb.TagNumber(8)
+  set isHidden($core.bool v) { $_setBool(7, v); }
+
+  @$pb.TagNumber(9)
+  $core.bool get isMy => $_getBF(8);
+  @$pb.TagNumber(9)
+  set isMy($core.bool v) { $_setBool(8, v); }
+
+  @$pb.TagNumber(10)
+  $core.bool get isPinned => $_getBF(9);
+  @$pb.TagNumber(10)
+  set isPinned($core.bool v) { $_setBool(9, v); }
+
+  @$pb.TagNumber(11)
+  $core.int get unreadCount => $_getIZ(10);
+  @$pb.TagNumber(11)
+  set unreadCount($core.int v) { $_setSignedInt32(10, v); }
+
+  @$pb.TagNumber(12)
+  $core.int get unreadMentions => $_getIZ(11);
+  @$pb.TagNumber(12)
+  set unreadMentions($core.int v) { $_setSignedInt32(11, v); }
+
+  @$pb.TagNumber(13)
+  $core.int get unreadReactions => $_getIZ(12);
+  @$pb.TagNumber(13)
+  set unreadReactions($core.int v) { $_setSignedInt32(12, v); }
+
+  @$pb.TagNumber(14)
+  $core.String get topMessageId => $_getSZ(13);
+  @$pb.TagNumber(14)
+  set topMessageId($core.String v) { $_setString(13, v); }
+
+  @$pb.TagNumber(15)
+  $core.int get readInboxMaxId => $_getIZ(14);
+  @$pb.TagNumber(15)
+  set readInboxMaxId($core.int v) { $_setSignedInt32(14, v); }
+
+  @$pb.TagNumber(16)
+  $core.int get readOutboxMaxId => $_getIZ(15);
+  @$pb.TagNumber(16)
+  set readOutboxMaxId($core.int v) { $_setSignedInt32(15, v); }
+
+  @$pb.TagNumber(17)
+  $core.String get parentId => $_getSZ(16);
+  @$pb.TagNumber(17)
+  set parentId($core.String v) { $_setString(16, v); }
+
+  @$pb.TagNumber(18)
+  $core.bool get canEdit => $_getBF(17);
+  @$pb.TagNumber(18)
+  set canEdit($core.bool v) { $_setBool(17, v); }
+
+  @$pb.TagNumber(19)
+  $core.bool get canDelete => $_getBF(18);
+  @$pb.TagNumber(19)
+  set canDelete($core.bool v) { $_setBool(18, v); }
+
+  @$pb.TagNumber(20)
+  $core.bool get canToggleClosed => $_getBF(19);
+  @$pb.TagNumber(20)
+  set canToggleClosed($core.bool v) { $_setBool(19, v); }
+
+  @$pb.TagNumber(21)
+  $core.bool get canTogglePinned => $_getBF(20);
+  @$pb.TagNumber(21)
+  set canTogglePinned($core.bool v) { $_setBool(20, v); }
+}
+
+class EngineGetForumTopicsResponse extends $pb.GeneratedMessage {
+  factory EngineGetForumTopicsResponse({
+    $core.Iterable<EngineForumTopic>? topics,
+  }) {
+    final $result = create();
+    if (topics != null) {
+      $result.topics.addAll(topics);
     }
     return $result;
   }
@@ -2712,7 +2920,7 @@ class EngineGetForumTopicsResponse extends $pb.GeneratedMessage {
   factory EngineGetForumTopicsResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetForumTopicsResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
-    ..pc<EngineChatInfo>(1, _omitFieldNames ? '' : 'chats', $pb.PbFieldType.PM, subBuilder: EngineChatInfo.create)
+    ..pc<EngineForumTopic>(1, _omitFieldNames ? '' : 'topics', $pb.PbFieldType.PM, subBuilder: EngineForumTopic.create)
     ..hasRequiredFields = false
   ;
 
@@ -2738,7 +2946,7 @@ class EngineGetForumTopicsResponse extends $pb.GeneratedMessage {
   static EngineGetForumTopicsResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
-  $core.List<EngineChatInfo> get chats => $_getList(0);
+  $core.List<EngineForumTopic> get topics => $_getList(0);
 }
 
 class EngineCachedMessage extends $pb.GeneratedMessage {

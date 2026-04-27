@@ -320,8 +320,8 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			return nil, err
 		}
 		resp := &pb.EngineGetForumTopicsResponse{}
-		for _, c := range topics {
-			resp.Chats = append(resp.Chats, chatInfoToProto(&c))
+		for i := range topics {
+			resp.Topics = append(resp.Topics, forumTopicToProto(&topics[i]))
 		}
 		return proto.Marshal(resp)
 
@@ -2533,6 +2533,32 @@ func chatInfoToProto(c *engine.ChatInfo) *pb.EngineChatInfo {
 		StarsToSend:           int32(c.StarsToSend),
 		TtlPeriod:             int32(c.TtlPeriod),
 		EmojiStatusId:         c.EmojiStatusID,
+	}
+}
+
+func forumTopicToProto(ft *cores.ForumTopic) *pb.EngineForumTopic {
+	return &pb.EngineForumTopic{
+		Id:              ft.ID,
+		Title:           sanitizeUTF8(ft.Title),
+		ColorId:         int32(ft.ColorID),
+		IconEmojiId:     ft.IconEmojiID,
+		CreatorId:       ft.CreatorID,
+		CreationDate:    ft.CreationDate,
+		IsClosed:        ft.IsClosed,
+		IsHidden:        ft.IsHidden,
+		IsMy:            ft.IsMy,
+		IsPinned:        ft.IsPinned,
+		UnreadCount:     int32(ft.UnreadCount),
+		UnreadMentions:  int32(ft.UnreadMentions),
+		UnreadReactions: int32(ft.UnreadReactions),
+		TopMessageId:    ft.TopMessageID,
+		ReadInboxMaxId:  int32(ft.ReadInboxMaxID),
+		ReadOutboxMaxId: int32(ft.ReadOutboxMaxID),
+		ParentId:        ft.ParentID,
+		CanEdit:         ft.CanEdit,
+		CanDelete:       ft.CanDelete,
+		CanToggleClosed: ft.CanToggleClosed,
+		CanTogglePinned: ft.CanTogglePinned,
 	}
 }
 

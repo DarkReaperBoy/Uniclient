@@ -249,8 +249,32 @@ message EngineGetForumTopicsRequest {
   string chat_id    = 2;
 }
 
+message EngineForumTopic {
+  string id                = 1;
+  string title             = 2;
+  int32  color_id          = 3;
+  int64  icon_emoji_id     = 4;
+  string creator_id        = 5;
+  int64  creation_date     = 6;
+  bool   is_closed         = 7;
+  bool   is_hidden         = 8;
+  bool   is_my             = 9;
+  bool   is_pinned         = 10;
+  int32  unread_count      = 11;
+  int32  unread_mentions   = 12;
+  int32  unread_reactions  = 13;
+  string top_message_id    = 14;
+  int32  read_inbox_max_id  = 15;
+  int32  read_outbox_max_id = 16;
+  string parent_id         = 17;
+  bool   can_edit           = 18;
+  bool   can_delete         = 19;
+  bool   can_toggle_closed  = 20;
+  bool   can_toggle_pinned  = 21;
+}
+
 message EngineGetForumTopicsResponse {
-  repeated EngineChatInfo chats = 1;
+  repeated EngineForumTopic topics = 1;
 }
 
 // ═══════════════════════════════════════════════════════════════════════

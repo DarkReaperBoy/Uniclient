@@ -581,22 +581,19 @@ func (e *Engine) ArchiveChat(accountID, chatID string, archived bool) error {
 	return nil
 }
 
-// GetForumTopics fetches forum topics for a chat from the core, caches them,
-// and returns the list. Only works for cores that support topics (e.g. Telegram).
-// Returns an empty list for cores that don't support forum topics.
-func (e *Engine) GetForumTopics(accountID, chatID string) ([]ChatInfo, error) {
+// GetForumTopics fetches forum topics for a chat from the core.
+// Returns the full ForumTopic data model with capability flags.
+func (e *Engine) GetForumTopics(accountID, chatID string) ([]cores.ForumTopic, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return nil, fmt.Errorf("account not found: %s", accountID)
 	}
 
-	// Check if the core supports topics via type assertion.
 	type forumTopicGetter interface {
-		GetForumTopics(chatID string, limit int) ([]cores.Dialog, error)
+		GetForumTopics(chatID string, limit int) ([]cores.ForumTopic, error)
 	}
 	ftg, ok := acc.Core.(forumTopicGetter)
 	if !ok {
-		// Core doesn't support forum topics — return empty list gracefully.
 		return nil, nil
 	}
 
@@ -605,32 +602,19 @@ func (e *Engine) GetForumTopics(accountID, chatID string) ([]ChatInfo, error) {
 		return nil, err
 	}
 
-	// Cache each topic as a chat entry.
 	for _, t := range topics {
-		if err := e.UpsertChat(accountID, t); err != nil {
+		ci := cores.Dialog{
+			ID: t.ID, Type: cores.ChatTypeTopic, Title: t.Title,
+			UnreadCount: t.UnreadCount, IsPinned: t.IsPinned,
+			ParentID: t.ParentID, UnreadMentionCount: t.UnreadMentions,
+			UnreadReactionCount: t.UnreadReactions,
+		}
+		if err := e.UpsertChat(accountID, ci); err != nil {
 			log.Printf("[engine] GetForumTopics: failed to cache topic %s: %v", t.ID, err)
 		}
 	}
 
-	// Return from DB to get the fully populated ChatInfo structs.
-	rows, err := e.db.Query(
-		`SELECT c.account_id, c.chat_id, c.type, c.title, c.avatar_path,
-		        c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
-		        c.last_msg_is_outgoing, c.last_msg_status, c.last_msg_media_type, c.last_msg_thumb_b64,
-		        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
-		        c.draft_text, c.member_count, c.parent_id,
-		        COALESCE(u.is_bot, 0), COALESCE(u.is_contact, 0), COALESCE(u.is_blocked, 0),
-		        c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
-		        c.is_verified, c.is_scam, c.is_fake
-		 FROM chats c
-		 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
-		 WHERE c.account_id = ? AND c.parent_id = ?
-		 ORDER BY c.title ASC`, accountID, chatID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return scanChats(rows)
+	return topics, nil
 }
 
 // FolderInfo represents a synced folder from the platform (e.g. Telegram folders).
