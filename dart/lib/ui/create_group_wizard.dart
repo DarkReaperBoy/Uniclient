@@ -480,9 +480,9 @@ class _WizardDialogState extends State<_WizardDialog>
                 );
               }).toList(),
             ),
-          if (_step == _WizardStep.memberPicker && _selectedMembers.isNotEmpty)
+          if (_step == _WizardStep.memberPicker)
             Text(
-              '${_selectedMembers.length}',
+              '${_selectedMembers.length} / 200000',
               style: TextStyle(fontSize: 13, color: subtextColor),
             ),
         ],
@@ -712,8 +712,6 @@ class _WizardDialogState extends State<_WizardDialog>
   Widget _buildMemberPickerStep(bool isDark) {
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final fieldBg = isDark ? const Color(0xFF242F3D) : const Color(0xFFF1F1F1);
-    final accentColor = isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
     final searchText = _memberSearchController.text.toLowerCase();
 
     final filtered = searchText.isEmpty
@@ -728,52 +726,14 @@ class _WizardDialogState extends State<_WizardDialog>
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (_selectedMembers.isNotEmpty) ...[
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            children: _selectedMembers.map((id) {
-              final contact = _contacts.where((c) => c.userId == id).firstOrNull;
-              final name = contact?.displayName ?? id;
-              return Chip(
-                label: Text(
-                  name,
-                  style: TextStyle(fontSize: 12, color: textColor),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                deleteIcon: const Icon(Icons.close, size: 16),
-                onDeleted: () => setState(() => _selectedMembers.remove(id)),
-                backgroundColor: fieldBg,
-                side: BorderSide.none,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                visualDensity: VisualDensity.compact,
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 8),
-        ],
-        TextField(
-          controller: _memberSearchController,
-          style: TextStyle(fontSize: 14, color: textColor),
-          decoration: InputDecoration(
-            hintText: 'Search',
-            hintStyle: TextStyle(color: subtextColor),
-            prefixIcon: Icon(Icons.search, color: subtextColor, size: 20),
-            filled: true,
-            fillColor: fieldBg,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide.none,
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 10,
-            ),
-            isDense: true,
-          ),
-          onChanged: (_) => setState(() {}),
+        _MultiSelectBar(
+          contacts: _contacts,
+          selectedIds: _selectedMembers,
+          searchController: _memberSearchController,
+          isDark: isDark,
+          onRemove: (id) => setState(() => _selectedMembers.remove(id)),
+          onSearchChanged: () => setState(() {}),
         ),
-        const SizedBox(height: 8),
         if (_loadingContacts)
           const Padding(
             padding: EdgeInsets.all(16),
@@ -993,7 +953,7 @@ class _ContactRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor = isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
+    final activeTextFg = isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
 
     Widget avatar;
     if (contact.avatarB64.isNotEmpty) {
@@ -1015,62 +975,71 @@ class _ContactRow extends StatelessWidget {
       child: SizedBox(
         height: 56,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.only(left: 16, right: 16, top: 7),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Stack(
-                children: [
-                  avatar,
-                  if (selected)
-                    Positioned.fill(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: accentColor.withValues(alpha: 0.7),
-                        ),
-                        child: const Icon(
-                          Icons.check,
-                          color: Colors.white,
-                          size: 22,
+              SizedBox(
+                width: 42,
+                height: 42,
+                child: Stack(
+                  children: [
+                    avatar,
+                    if (selected)
+                      Positioned.fill(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: activeTextFg.withValues(alpha: 0.85),
+                          ),
+                          child: const Icon(
+                            Icons.check,
+                            color: Colors.white,
+                            size: 22,
+                          ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        contact.displayName.isNotEmpty
+                            ? contact.displayName
+                            : contact.username.isNotEmpty
+                                ? '@${contact.username}'
+                                : contact.phone,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: textColor,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
                     Text(
-                      contact.displayName.isNotEmpty
-                          ? contact.displayName
+                      contact.isOnline
+                          ? 'online'
                           : contact.username.isNotEmpty
                               ? '@${contact.username}'
-                              : contact.phone,
+                              : contact.phone.isNotEmpty
+                                  ? contact.phone
+                                  : 'last seen recently',
                       style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: textColor,
+                        fontSize: 12,
+                        color: contact.isOnline
+                            ? const Color(0xFF4DC920)
+                            : subtextColor,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (contact.username.isNotEmpty ||
-                        contact.isOnline) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        contact.isOnline
-                            ? 'online'
-                            : '@${contact.username}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: contact.isOnline
-                              ? const Color(0xFF4DC920)
-                              : subtextColor,
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),
@@ -1361,4 +1330,200 @@ class _ProgressRingPainter extends CustomPainter {
   @override
   bool shouldRepaint(_ProgressRingPainter old) =>
       old.progress != progress || old.rotation != rotation;
+}
+
+class _MultiSelectBar extends StatelessWidget {
+  final List<ContactInfo> contacts;
+  final Set<String> selectedIds;
+  final TextEditingController searchController;
+  final bool isDark;
+  final void Function(String id) onRemove;
+  final VoidCallback onSearchChanged;
+
+  const _MultiSelectBar({
+    required this.contacts,
+    required this.selectedIds,
+    required this.searchController,
+    required this.isDark,
+    required this.onRemove,
+    required this.onSearchChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final boxSearchBg = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 104),
+      decoration: BoxDecoration(
+        color: boxSearchBg,
+        border: Border(
+          bottom: BorderSide(
+            color: isDark ? const Color(0x14FFFFFF) : const Color(0x14000000),
+          ),
+        ),
+      ),
+      padding: const EdgeInsets.all(8),
+      child: SingleChildScrollView(
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            ...selectedIds.map((id) {
+              final contact = contacts.where((c) => c.userId == id).firstOrNull;
+              final name = contact?.displayName ?? id;
+              return _MemberChip(
+                label: name,
+                isDark: isDark,
+                onDelete: () => onRemove(id),
+              );
+            }),
+            SizedBox(
+              height: 32,
+              width: selectedIds.isEmpty ? double.infinity : 120,
+              child: Row(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(left: 10, top: 9, bottom: 9),
+                    child: Icon(Icons.search, size: 16, color: subtextColor),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: TextField(
+                      controller: searchController,
+                      style: TextStyle(fontSize: 13, color: textColor),
+                      decoration: InputDecoration(
+                        hintText: selectedIds.isEmpty ? 'Search' : '',
+                        hintStyle: TextStyle(fontSize: 13, color: subtextColor),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
+                        isDense: true,
+                      ),
+                      onChanged: (_) => onSearchChanged(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MemberChip extends StatefulWidget {
+  final String label;
+  final bool isDark;
+  final VoidCallback onDelete;
+
+  const _MemberChip({
+    required this.label,
+    required this.isDark,
+    required this.onDelete,
+  });
+
+  @override
+  State<_MemberChip> createState() => _MemberChipState();
+}
+
+class _MemberChipState extends State<_MemberChip>
+    with SingleTickerProviderStateMixin {
+  bool _hovering = false;
+  late AnimationController _deleteAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _deleteAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 150),
+    );
+  }
+
+  @override
+  void dispose() {
+    _deleteAnim.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // contactsBgOver: day #f1f1f1, night #2b3846
+    final chipBg = widget.isDark ? const Color(0xFF2B3846) : const Color(0xFFF1F1F1);
+    // activeButtonBg: day #40a7e3, night #2f6ea5
+    final chipBgActive = widget.isDark ? const Color(0xFF2F6EA5) : const Color(0xFF40A7E3);
+    final textColor = widget.isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final activeTextColor = Colors.white;
+    final bg = _hovering ? chipBgActive : chipBg;
+    final fg = _hovering ? activeTextColor : textColor;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: GestureDetector(
+        onTap: widget.onDelete,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          height: 32,
+          constraints: const BoxConstraints(maxWidth: 128),
+          padding: const EdgeInsets.only(left: 10, right: 4),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  widget.label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: fg,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ),
+              SizedBox(
+                width: 32,
+                height: 32,
+                child: Center(
+                  child: CustomPaint(
+                    size: const Size(10, 10),
+                    painter: _CrossPainter(color: fg, strokeWidth: 1.5),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CrossPainter extends CustomPainter {
+  final Color color;
+  final double strokeWidth;
+
+  _CrossPainter({required this.color, required this.strokeWidth});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(Offset.zero, Offset(size.width, size.height), paint);
+    canvas.drawLine(Offset(size.width, 0), Offset(0, size.height), paint);
+  }
+
+  @override
+  bool shouldRepaint(_CrossPainter old) =>
+      old.color != color || old.strokeWidth != strokeWidth;
 }

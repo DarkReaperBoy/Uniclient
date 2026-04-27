@@ -762,7 +762,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 21.2 Step 1 — Group/Channel Info Box
 
 ### 21.3 Step 2a — Member Picker
-- [ ] PeerListBox with MultiSelect bar (boxSearchBg, 8px padding, max 104px height): chips (32px height, max 128px wide, contactsBgOver/activeButtonBg, delete cross 32px 1.5px stroke 150ms), search field (transparent 32px, search icon at 10/9), contact rows (56px, 42px avatar at 16/7, name+status, checkbox-overlay check), "Invite via Link" button, "{count} / {limit}" counter, Create/Invite + Cancel/Skip buttons — spec §21.3
 
 ### 21.4 Step 2b — Channel Setup Box
 - [ ] Public/Private radios (defaultBoxCheckbox, 27px skip), about text (windowSubTextFg), username field (t.me/ prefix, setupChannelLink style, 32px min height, 200ms validation debounce, client pre-checks, green/red API status label, 5–32 chars alphanumeric+underscore), private invite link (clickable, copies+toast), PublicLinksLimitBox on too many — spec §21.4 & §21.4.1
