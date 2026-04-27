@@ -72,10 +72,19 @@ class ForumTopicIcon extends StatelessWidget {
   static const largeSize = 26.0;
   static const infoSize = 32.0;
 
+  static (double font, double textTop) _specFor(double size) => switch (size) {
+    21 => (11, 2),
+    19 => (10, 2),
+    26 => (13, 3),
+    32 => (15, 4),
+    _ => (size * 0.5, size * 0.1),
+  };
+
   @override
   Widget build(BuildContext context) {
     final palette =
         topicIconPalettes[colorId] ?? topicIconPalettes[_defaultColorId]!;
+    final (fontSize, textTop) = _specFor(size);
     return SizedBox(
       width: size,
       height: size,
@@ -84,6 +93,8 @@ class ForumTopicIcon extends StatelessWidget {
           palette: palette,
           letter: extractTopicLetter(title),
           targetSize: size,
+          fontSize: fontSize,
+          textTop: textTop,
         ),
       ),
     );
@@ -211,6 +222,8 @@ class _BubbleIconPainter extends CustomPainter {
   final TopicIconPalette palette;
   final String letter;
   final double targetSize;
+  final double fontSize;
+  final double textTop;
 
   static Path? _rawBubble;
   static Path? _rawHighlight;
@@ -219,6 +232,8 @@ class _BubbleIconPainter extends CustomPainter {
     required this.palette,
     required this.letter,
     required this.targetSize,
+    required this.fontSize,
+    required this.textTop,
   });
 
   @override
@@ -267,7 +282,6 @@ class _BubbleIconPainter extends CustomPainter {
     );
 
     if (letter.isNotEmpty) {
-      final fontSize = 11.0 * (targetSize / 21.0);
       final tp = TextPainter(
         text: TextSpan(
           text: letter,
@@ -282,10 +296,7 @@ class _BubbleIconPainter extends CustomPainter {
       )..layout();
       tp.paint(
         canvas,
-        Offset(
-          (targetSize - tp.width) / 2,
-          targetSize * 0.43 - tp.height / 2,
-        ),
+        Offset((targetSize - tp.width) / 2, textTop),
       );
     }
   }
@@ -294,5 +305,7 @@ class _BubbleIconPainter extends CustomPainter {
   bool shouldRepaint(_BubbleIconPainter old) =>
       palette != old.palette ||
       letter != old.letter ||
-      targetSize != old.targetSize;
+      targetSize != old.targetSize ||
+      fontSize != old.fontSize ||
+      textTop != old.textTop;
 }
