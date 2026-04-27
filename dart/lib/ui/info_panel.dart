@@ -12,7 +12,9 @@ import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/chat_state.dart';
 import 'chat_view.dart' show formatChatLastSeen;
+import 'confirm_box.dart';
 import 'create_group_wizard.dart' show showEditPeerTypeBox;
+import 'edit_forum_topic_box.dart';
 import 'forum_topic_icon.dart';
 import 'popup_menu.dart';
 
@@ -1086,6 +1088,7 @@ class _TopicInfoCoverDelegate extends SliverPersistentHeaderDelegate {
   final ThemeData theme;
   final VoidCallback onClose;
   final bool showBackButton;
+  final ChatInfo chat;
 
   static const double coverHeight = 77.0;
 
@@ -1096,6 +1099,7 @@ class _TopicInfoCoverDelegate extends SliverPersistentHeaderDelegate {
     required this.theme,
     required this.onClose,
     required this.showBackButton,
+    required this.chat,
   });
 
   @override
@@ -1157,7 +1161,7 @@ class _TopicInfoCoverDelegate extends SliverPersistentHeaderDelegate {
             Positioned(
               left: 79,
               top: 14,
-              right: 48,
+              right: 88,
               child: Text(
                 topic.title,
                 style: TextStyle(
@@ -1172,7 +1176,7 @@ class _TopicInfoCoverDelegate extends SliverPersistentHeaderDelegate {
             Positioned(
               left: 79,
               top: 38,
-              right: 48,
+              right: 88,
               child: Text(
                 isGeneral ? 'General' : statusText,
                 style: TextStyle(
@@ -1188,13 +1192,23 @@ class _TopicInfoCoverDelegate extends SliverPersistentHeaderDelegate {
               right: 0,
               child: SizedBox(
                 height: coverHeight,
-                child: IconButton(
-                  icon: Icon(
-                    showBackButton ? Icons.arrow_back : Icons.close,
-                    size: 20,
-                  ),
-                  onPressed: onClose,
-                  tooltip: showBackButton ? 'Back' : 'Close',
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _TopicInfoMenuButton(
+                      topic: topic,
+                      chat: chat,
+                      theme: theme,
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        showBackButton ? Icons.arrow_back : Icons.close,
+                        size: 20,
+                      ),
+                      onPressed: onClose,
+                      tooltip: showBackButton ? 'Back' : 'Close',
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -1209,6 +1223,222 @@ class _TopicInfoCoverDelegate extends SliverPersistentHeaderDelegate {
         ),
       ),
     );
+  }
+}
+
+class _TopicInfoMenuButton extends StatelessWidget {
+  final ForumTopic topic;
+  final ChatInfo chat;
+  final ThemeData theme;
+
+  const _TopicInfoMenuButton({
+    required this.topic,
+    required this.chat,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.more_vert, size: 20),
+      onPressed: () {
+        final box = context.findRenderObject() as RenderBox;
+        final pos = box.localToGlobal(Offset(box.size.width / 2, box.size.height));
+        _showTopicInfoMenu(context, pos);
+      },
+      tooltip: 'Menu',
+    );
+  }
+
+  void _showTopicInfoMenu(BuildContext context, Offset position) async {
+    final engine = context.read<EngineService>();
+    final chatState = context.read<ChatState>();
+    final parentChat = chatState.forumParentChat;
+    final parentChatId = topic.parentId.isNotEmpty
+        ? topic.parentId
+        : (parentChat?.chatId ?? chat.parentId);
+
+    final value = await showTelegramMenu<String>(
+      context: context,
+      position: position,
+      items: [
+        TelegramMenuItem(
+          value: 'ttl',
+          icon: Icon(
+            chat.ttlPeriod > 0 ? Icons.timer : Icons.timer_outlined,
+            size: 20,
+          ),
+          label: chat.ttlPeriod > 0
+              ? 'Auto-Delete (${_formatTtl(chat.ttlPeriod)})'
+              : 'Auto-Delete Timer',
+        ),
+        const TelegramMenuItem(
+          value: 'copy_link',
+          icon: Icon(Icons.link, size: 20),
+          label: 'Copy Topic Link',
+        ),
+        if (topic.canEdit)
+          const TelegramMenuItem(
+            value: 'edit',
+            icon: Icon(Icons.edit_outlined, size: 20),
+            label: 'Edit Topic',
+          ),
+        if (topic.canToggleClosed)
+          TelegramMenuItem(
+            value: 'toggle_closed',
+            icon: Icon(
+              topic.isClosed ? Icons.lock_open : Icons.lock_outline,
+              size: 20,
+            ),
+            label: topic.isClosed ? 'Reopen Topic' : 'Close Topic',
+          ),
+        if (topic.canDelete && !topic.isGeneral) ...[
+          const TelegramMenuItem.separator(),
+          const TelegramMenuItem(
+            value: 'delete',
+            icon: Icon(Icons.delete_outline, size: 20),
+            label: 'Delete Topic',
+            isAttention: true,
+          ),
+        ],
+      ],
+    );
+
+    if (value == null || !context.mounted) return;
+    final topicId = int.tryParse(topic.id) ?? 0;
+
+    switch (value) {
+      case 'ttl':
+        _showTtlSubmenu(context, position);
+      case 'copy_link':
+        try {
+          final username = await engine.getChatUsername(chat.accountId, parentChatId);
+          if (username.isNotEmpty && context.mounted) {
+            final link = 'https://t.me/$username/${topic.id}';
+            Clipboard.setData(ClipboardData(text: link));
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Topic link copied'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          } else if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('This group has no public link'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        } catch (_) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Could not get topic link'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        }
+      case 'edit':
+        final result = await showEditForumTopicBox(
+          context,
+          existingTitle: topic.title,
+          existingColorId: topic.colorId,
+          existingIconEmojiId: topic.iconEmojiId,
+          isGeneral: topic.isGeneral,
+          isEditing: true,
+        );
+        if (result == null || !context.mounted) return;
+        try {
+          await engine.editForumTopic(
+            chat.accountId, parentChatId, topicId, result.title,
+            iconEmojiId: topic.isGeneral ? -1 : result.iconEmojiId,
+          );
+          await chatState.refreshForumTopics();
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed to edit topic: $e')),
+            );
+          }
+        }
+      case 'toggle_closed':
+        try {
+          await chatState.toggleForumTopicClosed(
+            chat.accountId, parentChatId, topicId, !topic.isClosed,
+          );
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed: $e')),
+            );
+          }
+        }
+      case 'delete':
+        if (!context.mounted) return;
+        final r = await showDeleteConfirmBox(
+          context,
+          mode: DeleteBoxMode.clearHistory,
+          chatType: ChatType.topic,
+          peerName: topic.title,
+        );
+        if (r.confirmed && context.mounted) {
+          try {
+            await chatState.deleteForumTopicHistory(
+              chat.accountId, parentChatId, topicId,
+            );
+            await chatState.refreshForumTopics();
+            chatState.closeChat();
+          } catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Failed: $e')),
+              );
+            }
+          }
+        }
+    }
+  }
+
+  void _showTtlSubmenu(BuildContext context, Offset position) async {
+    final chatState = context.read<ChatState>();
+    final accentColor = theme.colorScheme.primary;
+    final value = await showTelegramMenu<int>(
+      context: context,
+      position: position,
+      items: [
+        for (final e in const <MapEntry<int, String>>[
+          MapEntry(0, 'Off'),
+          MapEntry(86400, '1 day'),
+          MapEntry(604800, '7 days'),
+          MapEntry(2678400, '1 month'),
+        ])
+          TelegramMenuItem(
+            value: e.key,
+            icon: Icon(
+              e.key == 0 ? Icons.timer_off_outlined : Icons.timer_outlined,
+              size: 20,
+              color: e.key == chat.ttlPeriod ? accentColor : null,
+            ),
+            label: e.value,
+            labelColor: e.key == chat.ttlPeriod ? accentColor : null,
+          ),
+      ],
+    );
+    if (value != null && value != chat.ttlPeriod && context.mounted) {
+      chatState.setHistoryTTL(chat.accountId, chat.chatId, value);
+    }
+  }
+
+  static String _formatTtl(int seconds) {
+    if (seconds <= 0) return 'Off';
+    if (seconds < 60) return '${seconds}s';
+    if (seconds < 3600) return '${seconds ~/ 60}m';
+    if (seconds < 86400) return '${seconds ~/ 3600}h';
+    final days = seconds ~/ 86400;
+    if (days < 31) return '${days}d';
+    return '${days ~/ 30}mo';
   }
 }
 
@@ -1452,6 +1682,7 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
             theme: widget.theme,
             onClose: widget.onClose,
             showBackButton: widget.showBackButton,
+            chat: widget.chat,
           ),
         ),
         SliverList(
