@@ -745,9 +745,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 
 ### 20.10–20.12 Video Playback Controls
 
-### 20.13 Picture-in-Picture
-- [ ] PiP floating always-on-top window: default 320px (min 120px), 10px resize edges, own play/pause/close/enlarge/volume, 2px track (4px hover), geometry persisted, closing returns to viewer at same position, 16px snap threshold / 20px snap margin, default top-left, easeOutCirc release animation ~150ms — spec §20.13 & §20.13.1
-
 ### 20.14 Gallery Thumbs Strip
 - [ ] Horizontal thumbnails (56–160px wide, 80px height), padding 0/14/0/14 with 3px gap (12px for current), current thumb 160px centered, no scrollbar, overflow capped to available width, click navigates, 150ms slide animation, active thumb emphasis via width only — spec §20.14 & §20.14.1
 

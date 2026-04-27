@@ -48,9 +48,107 @@ const _kMediaviewCaptionPadding = EdgeInsets.fromLTRB(11, 6, 11, 6);
 const _kMediaviewCaptionMargin = 11.0;
 const _kMediaviewCaptionMaxWidth = 600.0;
 
+const _kPipDefaultSize = 320.0;
+const _kPipMinimalSize = 120.0;
+const _kPipBorderSkip = 20.0;
+const _kPipBorderSnapArea = 16.0;
+const _kPipResizeArea = 10.0;
+const _kPipTrackHeight = 2.0;
+const _kPipTrackHeightHover = 4.0;
+const _kPipControlsHeight = 36.0;
+const _kPipSnapDuration = Duration(milliseconds: 150);
+
+class PipData {
+  final Player player;
+  final VideoController videoController;
+  final List<StreamSubscription> playerSubs;
+  final CachedMessage message;
+  final List<CachedMessage> mediaMessages;
+  final double volume;
+  final double playbackSpeed;
+  final Duration position;
+  final Duration duration;
+  final bool isPlaying;
+
+  PipData({
+    required this.player,
+    required this.videoController,
+    required this.playerSubs,
+    required this.message,
+    required this.mediaMessages,
+    required this.volume,
+    required this.playbackSpeed,
+    required this.position,
+    required this.duration,
+    required this.isPlaying,
+  });
+}
+
+class PipManager extends ChangeNotifier {
+  static final PipManager instance = PipManager._();
+  PipManager._();
+
+  PipData? _data;
+  _PipWidgetState? _activeState;
+
+  bool get isActive => _data != null;
+  PipData? get data => _data;
+
+  void activate({
+    required Player player,
+    required VideoController videoController,
+    required List<StreamSubscription> playerSubs,
+    required CachedMessage message,
+    required List<CachedMessage> mediaMessages,
+    required double volume,
+    required double playbackSpeed,
+    required Duration position,
+    required Duration duration,
+    required bool isPlaying,
+  }) {
+    dismiss();
+    _data = PipData(
+      player: player,
+      videoController: videoController,
+      playerSubs: playerSubs,
+      message: message,
+      mediaMessages: mediaMessages,
+      volume: volume,
+      playbackSpeed: playbackSpeed,
+      position: position,
+      duration: duration,
+      isPlaying: isPlaying,
+    );
+    notifyListeners();
+  }
+
+  void dismiss() {
+    _activeState?._disposePlayer();
+    _activeState = null;
+    _data = null;
+    notifyListeners();
+  }
+
+  void _enlarge(BuildContext context) {
+    final state = _activeState;
+    if (state == null) return;
+    final msg = state.widget.message;
+    final msgs = state.widget.mediaMessages;
+    final pos = state._position;
+
+    state._disposePlayer();
+    _activeState = null;
+    _data = null;
+    notifyListeners();
+
+    MediaViewer.open(context, message: msg, allMessages: msgs, resumePosition: pos);
+  }
+}
+
 class MediaViewer extends StatefulWidget {
   final CachedMessage initialMessage;
   final List<CachedMessage> mediaMessages;
+  final Duration? resumePosition;
 
   static _MediaViewerState? _activeInstance;
 
@@ -60,18 +158,22 @@ class MediaViewer extends StatefulWidget {
   static void flipV() => _activeInstance?._flipVertical();
   static void save() => _activeInstance?._saveMediaToDownloads(_activeInstance!._currentMessage);
   static void copyMedia() => _activeInstance?._copyImageToClipboard(_activeInstance!._currentMessage);
+  static void enterPip() => _activeInstance?._enterPip();
 
   const MediaViewer({
     super.key,
     required this.initialMessage,
     required this.mediaMessages,
+    this.resumePosition,
   });
 
   static void open(
     BuildContext context, {
     required CachedMessage message,
     required List<CachedMessage> allMessages,
+    Duration? resumePosition,
   }) {
+    PipManager.instance.dismiss();
     final mediaMessages = allMessages
         .where((m) =>
             (m.mediaLocalPath.isNotEmpty || m.mediaType == 8 || m.mediaType == 3) &&
@@ -91,6 +193,7 @@ class MediaViewer extends StatefulWidget {
             child: MediaViewer(
               initialMessage: message,
               mediaMessages: mediaMessages,
+              resumePosition: resumePosition,
             ),
           );
         },
@@ -296,6 +399,13 @@ class _MediaViewerState extends State<MediaViewer>
       player.setPlaylistMode(
           (msg.mediaType == 7 || msg.mediaType == 5) ? PlaylistMode.single : PlaylistMode.none);
       player.open(Media(msg.mediaLocalPath));
+      if (widget.resumePosition != null && widget.resumePosition! > Duration.zero) {
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (mounted && _player != null) {
+            _player!.seek(widget.resumePosition!);
+          }
+        });
+      }
     }
   }
 
@@ -560,6 +670,34 @@ class _MediaViewerState extends State<MediaViewer>
     Navigator.of(context).pop();
   }
 
+  void _enterPip() {
+    if (_player == null || _videoController == null) return;
+    if (!_isVideo && !_isGif) return;
+
+    final player = _player!;
+    final vc = _videoController!;
+    final subs = List<StreamSubscription>.from(_playerSubs);
+
+    _player = null;
+    _videoController = null;
+    _playerSubs = [];
+
+    PipManager.instance.activate(
+      player: player,
+      videoController: vc,
+      playerSubs: subs,
+      message: _currentMessage,
+      mediaMessages: widget.mediaMessages,
+      volume: _volume,
+      playbackSpeed: _playbackSpeed,
+      position: _position,
+      duration: _duration,
+      isPlaying: _isPlaying,
+    );
+
+    Navigator.of(context).pop();
+  }
+
   void _seekToPercent(int percent) {
     if (!_isVideo || _player == null || _duration == Duration.zero) return;
     final target = _duration * (percent / 100.0);
@@ -715,6 +853,9 @@ class _MediaViewerState extends State<MediaViewer>
         return KeyEventResult.handled;
       case LogicalKeyboardKey.keyV:
         _flipVertical();
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.keyP:
+        _enterPip();
         return KeyEventResult.handled;
       default:
         return KeyEventResult.ignored;
@@ -1896,7 +2037,7 @@ class _MediaViewerState extends State<MediaViewer>
                       _ControlButton(
                         icon: Icons.picture_in_picture_alt,
                         size: 32,
-                        onTap: () {},
+                        onTap: _enterPip,
                       ),
                       const SizedBox(width: 4),
                       _ControlButton(
@@ -2807,6 +2948,561 @@ class _ProgressivePhotoState extends State<_ProgressivePhoto> {
       height: size.height,
       child: const Center(
         child: Icon(Icons.photo, color: Colors.white24, size: 64),
+      ),
+    );
+  }
+}
+
+class PipOverlayWidget extends StatefulWidget {
+  final Player player;
+  final VideoController videoController;
+  final List<StreamSubscription> playerSubs;
+  final CachedMessage message;
+  final List<CachedMessage> mediaMessages;
+  final double initialVolume;
+  final double initialSpeed;
+  final Duration initialPosition;
+  final Duration initialDuration;
+  final bool initialPlaying;
+
+  const PipOverlayWidget({
+    super.key,
+    required this.player,
+    required this.videoController,
+    required this.playerSubs,
+    required this.message,
+    required this.mediaMessages,
+    required this.initialVolume,
+    required this.initialSpeed,
+    required this.initialPosition,
+    required this.initialDuration,
+    required this.initialPlaying,
+  });
+
+  @override
+  State<PipOverlayWidget> createState() => _PipWidgetState();
+}
+
+class _PipWidgetState extends State<PipOverlayWidget>
+    with TickerProviderStateMixin {
+  late double _x;
+  late double _y;
+  late double _width;
+  late double _height;
+
+  bool _isPlaying = false;
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+  double _volume = 0.8;
+  bool _isSeeking = false;
+
+  bool _isDragging = false;
+  Offset _dragStart = Offset.zero;
+  double _dragStartX = 0;
+  double _dragStartY = 0;
+
+  bool _isResizing = false;
+  int _resizeEdge = 0;
+  Offset _resizeStart = Offset.zero;
+  double _resizeStartX = 0;
+  double _resizeStartY = 0;
+  double _resizeStartW = 0;
+  double _resizeStartH = 0;
+
+  bool _hovering = false;
+  bool _trackHovering = false;
+
+  late final AnimationController _snapAnim;
+  double _snapFromX = 0, _snapFromY = 0;
+  double _snapToX = 0, _snapToY = 0;
+
+  List<StreamSubscription> _playerSubs = [];
+
+  @override
+  void initState() {
+    super.initState();
+    PipManager.instance._activeState = this;
+
+    _width = _kPipDefaultSize;
+    _height = _kPipDefaultSize;
+    _x = _kPipBorderSkip;
+    _y = _kPipBorderSkip;
+
+    _isPlaying = widget.initialPlaying;
+    _position = widget.initialPosition;
+    _duration = widget.initialDuration;
+    _volume = widget.initialVolume;
+
+    for (final sub in widget.playerSubs) {
+      sub.cancel();
+    }
+    _playerSubs = [
+      widget.player.stream.playing.listen((p) {
+        if (mounted) setState(() => _isPlaying = p);
+      }),
+      widget.player.stream.position.listen((pos) {
+        if (mounted && !_isSeeking) setState(() => _position = pos);
+      }),
+      widget.player.stream.duration.listen((dur) {
+        if (mounted) setState(() => _duration = dur);
+      }),
+    ];
+
+    _snapAnim = AnimationController(
+      duration: _kPipSnapDuration,
+      vsync: this,
+    )..addListener(() {
+        final t = Curves.easeOutCirc.transform(_snapAnim.value);
+        setState(() {
+          _x = _snapFromX + (_snapToX - _snapFromX) * t;
+          _y = _snapFromY + (_snapToY - _snapFromY) * t;
+        });
+      });
+
+    _loadPipGeometry();
+  }
+
+  @override
+  void dispose() {
+    if (PipManager.instance._activeState == this) {
+      PipManager.instance._activeState = null;
+    }
+    _snapAnim.dispose();
+    for (final sub in _playerSubs) {
+      sub.cancel();
+    }
+    super.dispose();
+  }
+
+  void _disposePlayer() {
+    for (final sub in _playerSubs) {
+      sub.cancel();
+    }
+    _playerSubs = [];
+    widget.player.dispose();
+  }
+
+  void _detachPlayer() {
+    for (final sub in _playerSubs) {
+      sub.cancel();
+    }
+    _playerSubs = [];
+  }
+
+  String get _prefsPath {
+    try {
+      final appState = context.read<AppState>();
+      final dir = appState.configDir;
+      return dir.isEmpty ? '' : '$dir/pip_geometry.json';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  void _loadPipGeometry() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final path = _prefsPath;
+      if (path.isEmpty) return;
+      try {
+        final file = File(path);
+        if (!file.existsSync()) return;
+        final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+        setState(() {
+          _x = (data['x'] as num?)?.toDouble() ?? _kPipBorderSkip;
+          _y = (data['y'] as num?)?.toDouble() ?? _kPipBorderSkip;
+          _width = (data['w'] as num?)?.toDouble() ?? _kPipDefaultSize;
+          _height = (data['h'] as num?)?.toDouble() ?? _kPipDefaultSize;
+        });
+      } catch (_) {}
+    });
+  }
+
+  void _savePipGeometry() {
+    final path = _prefsPath;
+    if (path.isEmpty) return;
+    try {
+      File(path).writeAsStringSync(jsonEncode({
+        'x': _x, 'y': _y, 'w': _width, 'h': _height,
+      }));
+    } catch (_) {}
+  }
+
+  void _togglePlayPause() {
+    if (_isPlaying) {
+      widget.player.pause();
+    } else {
+      widget.player.play();
+    }
+  }
+
+  void _toggleMute() {
+    if (_volume > 0) {
+      setState(() => _volume = 0);
+      widget.player.setVolume(0);
+    } else {
+      setState(() => _volume = 0.8);
+      widget.player.setVolume(80);
+    }
+  }
+
+  void _close() {
+    _savePipGeometry();
+    PipManager.instance.dismiss();
+  }
+
+  void _enlarge() {
+    _savePipGeometry();
+    PipManager.instance._enlarge(context);
+  }
+
+  Offset _snapPosition(double x, double y, Size screen) {
+    double sx = x, sy = y;
+    final right = screen.width - _width;
+    final bottom = screen.height - _height;
+
+    if ((x - _kPipBorderSkip).abs() < _kPipBorderSnapArea) {
+      sx = _kPipBorderSkip;
+    } else if ((x - right + _kPipBorderSkip).abs() < _kPipBorderSnapArea) {
+      sx = right - _kPipBorderSkip;
+    }
+
+    if ((y - _kPipBorderSkip).abs() < _kPipBorderSnapArea) {
+      sy = _kPipBorderSkip;
+    } else if ((y - bottom + _kPipBorderSkip).abs() < _kPipBorderSnapArea) {
+      sy = bottom - _kPipBorderSkip;
+    }
+
+    sx = sx.clamp(_kPipBorderSkip, right - _kPipBorderSkip);
+    sy = sy.clamp(_kPipBorderSkip, bottom - _kPipBorderSkip);
+    return Offset(sx, sy);
+  }
+
+  int _hitTestEdge(Offset local) {
+    int edge = 0;
+    if (local.dx < _kPipResizeArea) edge |= 1;
+    if (local.dx > _width - _kPipResizeArea) edge |= 2;
+    if (local.dy < _kPipResizeArea) edge |= 4;
+    if (local.dy > _height - _kPipResizeArea) edge |= 8;
+    return edge;
+  }
+
+  MouseCursor _cursorForEdge(int edge) {
+    if (edge == (1 | 4) || edge == (2 | 8)) return SystemMouseCursors.resizeUpLeftDownRight;
+    if (edge == (2 | 4) || edge == (1 | 8)) return SystemMouseCursors.resizeUpRightDownLeft;
+    if (edge == 1 || edge == 2) return SystemMouseCursors.resizeLeftRight;
+    if (edge == 4 || edge == 8) return SystemMouseCursors.resizeUpDown;
+    return SystemMouseCursors.basic;
+  }
+
+  String _formatTime(Duration d) {
+    final m = d.inMinutes.remainder(60);
+    final s = d.inSeconds.remainder(60);
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screen = MediaQuery.sizeOf(context);
+    final progress = _duration.inMilliseconds > 0
+        ? (_position.inMilliseconds / _duration.inMilliseconds).clamp(0.0, 1.0)
+        : 0.0;
+
+    return Positioned(
+      left: _x,
+      top: _y,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovering = true),
+        onExit: (_) => setState(() {
+          _hovering = false;
+          _trackHovering = false;
+        }),
+        child: GestureDetector(
+          onPanStart: (d) {
+            final local = d.localPosition;
+            final edge = _hitTestEdge(local);
+            if (edge != 0) {
+              _isResizing = true;
+              _resizeEdge = edge;
+              _resizeStart = d.globalPosition;
+              _resizeStartX = _x;
+              _resizeStartY = _y;
+              _resizeStartW = _width;
+              _resizeStartH = _height;
+            } else {
+              _isDragging = true;
+              _dragStart = d.globalPosition;
+              _dragStartX = _x;
+              _dragStartY = _y;
+              _snapAnim.stop();
+            }
+          },
+          onPanUpdate: (d) {
+            if (_isResizing) {
+              _handleResize(d.globalPosition, screen);
+            } else if (_isDragging) {
+              setState(() {
+                _x = _dragStartX + (d.globalPosition.dx - _dragStart.dx);
+                _y = _dragStartY + (d.globalPosition.dy - _dragStart.dy);
+              });
+            }
+          },
+          onPanEnd: (_) {
+            if (_isDragging) {
+              _isDragging = false;
+              final snapped = _snapPosition(_x, _y, screen);
+              if ((snapped.dx - _x).abs() > 0.5 ||
+                  (snapped.dy - _y).abs() > 0.5) {
+                _snapFromX = _x;
+                _snapFromY = _y;
+                _snapToX = snapped.dx;
+                _snapToY = snapped.dy;
+                _snapAnim.forward(from: 0);
+              }
+              _savePipGeometry();
+            }
+            if (_isResizing) {
+              _isResizing = false;
+              _savePipGeometry();
+            }
+          },
+          child: Container(
+            width: _width,
+            height: _height,
+            decoration: BoxDecoration(
+              color: Colors.black,
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x80000000),
+                  blurRadius: 12,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Video(
+                  controller: widget.videoController,
+                  fill: Colors.black,
+                  fit: BoxFit.contain,
+                  controls: NoVideoControls,
+                ),
+                AnimatedOpacity(
+                    opacity: _hovering ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 150),
+                    child: Stack(
+                      children: [
+                        Container(color: const Color(0x44000000)),
+                        Positioned(
+                          top: 4,
+                          right: 4,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _PipButton(
+                                icon: Icons.open_in_full,
+                                onTap: _enlarge,
+                                tooltip: 'Enlarge',
+                              ),
+                              const SizedBox(width: 2),
+                              _PipButton(
+                                icon: Icons.close,
+                                onTap: _close,
+                                tooltip: 'Close',
+                              ),
+                            ],
+                          ),
+                        ),
+                        Center(
+                          child: GestureDetector(
+                            onTap: _togglePlayPause,
+                            child: Container(
+                              width: 44,
+                              height: 44,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Color(0x66000000),
+                              ),
+                              child: Icon(
+                                _isPlaying
+                                    ? Icons.pause_rounded
+                                    : Icons.play_arrow_rounded,
+                                color: Colors.white,
+                                size: 28,
+                              ),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          left: 4,
+                          bottom: 4,
+                          child: _PipButton(
+                            icon: _volume > 0
+                                ? Icons.volume_up
+                                : Icons.volume_off,
+                            onTap: _toggleMute,
+                            tooltip: _volume > 0 ? 'Mute' : 'Unmute',
+                          ),
+                        ),
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: MouseRegion(
+                            onEnter: (_) => setState(() => _trackHovering = true),
+                            onExit: (_) => setState(() => _trackHovering = false),
+                            child: GestureDetector(
+                              onTapDown: (d) {
+                                final ratio = (d.localPosition.dx / _width).clamp(0.0, 1.0);
+                                if (_duration.inMilliseconds == 0) return;
+                                setState(() {
+                                  _isSeeking = true;
+                                  _position = Duration(
+                                    milliseconds: (ratio * _duration.inMilliseconds).round(),
+                                  );
+                                });
+                                widget.player.seek(_position);
+                                setState(() => _isSeeking = false);
+                              },
+                              onHorizontalDragUpdate: (d) {
+                                final ratio = (d.localPosition.dx / _width).clamp(0.0, 1.0);
+                                if (_duration.inMilliseconds == 0) return;
+                                setState(() {
+                                  _isSeeking = true;
+                                  _position = Duration(
+                                    milliseconds: (ratio * _duration.inMilliseconds).round(),
+                                  );
+                                });
+                                widget.player.seek(_position);
+                              },
+                              onHorizontalDragEnd: (_) =>
+                                  setState(() => _isSeeking = false),
+                              child: Container(
+                                height: _trackHovering ? _kPipTrackHeightHover : _kPipTrackHeight,
+                                color: Colors.transparent,
+                                child: Align(
+                                  alignment: Alignment.bottomCenter,
+                                  child: Container(
+                                    height: _trackHovering ? _kPipTrackHeightHover : _kPipTrackHeight,
+                                    child: Row(
+                                      children: [
+                                        Flexible(
+                                          flex: (progress * 1000).round().clamp(0, 1000),
+                                          child: Container(
+                                            decoration: const BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius: BorderRadius.only(
+                                                topLeft: Radius.circular(2),
+                                                bottomLeft: Radius.circular(2),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        Flexible(
+                                          flex: ((1 - progress) * 1000).round().clamp(0, 1000),
+                                          child: Container(
+                                            decoration: const BoxDecoration(
+                                              color: Color(0x66FFFFFF),
+                                              borderRadius: BorderRadius.only(
+                                                topRight: Radius.circular(2),
+                                                bottomRight: Radius.circular(2),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _handleResize(Offset global, Size screen) {
+    final dx = global.dx - _resizeStart.dx;
+    final dy = global.dy - _resizeStart.dy;
+    double newX = _resizeStartX;
+    double newY = _resizeStartY;
+    double newW = _resizeStartW;
+    double newH = _resizeStartH;
+
+    if (_resizeEdge & 1 != 0) {
+      newW = (_resizeStartW - dx).clamp(_kPipMinimalSize, screen.width - _kPipBorderSkip * 2);
+      newX = _resizeStartX + (_resizeStartW - newW);
+    }
+    if (_resizeEdge & 2 != 0) {
+      newW = (_resizeStartW + dx).clamp(_kPipMinimalSize, screen.width - _resizeStartX - _kPipBorderSkip);
+    }
+    if (_resizeEdge & 4 != 0) {
+      newH = (_resizeStartH - dy).clamp(_kPipMinimalSize, screen.height - _kPipBorderSkip * 2);
+      newY = _resizeStartY + (_resizeStartH - newH);
+    }
+    if (_resizeEdge & 8 != 0) {
+      newH = (_resizeStartH + dy).clamp(_kPipMinimalSize, screen.height - _resizeStartY - _kPipBorderSkip);
+    }
+
+    setState(() {
+      _x = newX;
+      _y = newY;
+      _width = newW;
+      _height = newH;
+    });
+  }
+}
+
+class _PipButton extends StatefulWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final String tooltip;
+
+  const _PipButton({
+    required this.icon,
+    required this.onTap,
+    required this.tooltip,
+  });
+
+  @override
+  State<_PipButton> createState() => _PipButtonState();
+}
+
+class _PipButtonState extends State<_PipButton> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: widget.tooltip,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovering = true),
+        onExit: (_) => setState(() => _hovering = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _hovering
+                  ? Colors.white.withValues(alpha: 0.25)
+                  : Colors.white.withValues(alpha: 0.1),
+            ),
+            child: Icon(widget.icon, color: Colors.white, size: 16),
+          ),
+        ),
       ),
     );
   }

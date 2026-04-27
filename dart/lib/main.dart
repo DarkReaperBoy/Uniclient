@@ -1031,6 +1031,10 @@ class _UniClientAppState extends State<UniClientApp>
         MediaViewer.save();
       case 'copy_media':
         MediaViewer.copyMedia();
+      case 'pip':
+        MediaViewer.enterPip();
+      case 'closepip':
+        PipManager.instance.dismiss();
       default:
         if (key.length == 1) {
           final code = key.codeUnitAt(0);
@@ -1297,6 +1301,27 @@ class _UniClientAppState extends State<UniClientApp>
                 ),
               ),
             ),
+          ListenableBuilder(
+            listenable: PipManager.instance,
+            builder: (context, _) {
+              final pip = PipManager.instance;
+              if (!pip.isActive) return const SizedBox.shrink();
+              final d = pip.data!;
+              return PipOverlayWidget(
+                key: ValueKey(d.message.msgId),
+                player: d.player,
+                videoController: d.videoController,
+                playerSubs: d.playerSubs,
+                message: d.message,
+                mediaMessages: d.mediaMessages,
+                initialVolume: d.volume,
+                initialSpeed: d.playbackSpeed,
+                initialPosition: d.position,
+                initialDuration: d.duration,
+                initialPlaying: d.isPlaying,
+              );
+            },
+          ),
         ],
       ),
     );
