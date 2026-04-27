@@ -3618,18 +3618,124 @@ class _ForumTopicRow extends StatelessWidget {
   }
 
   void _showTopicContextMenu(BuildContext ctx, Offset position) async {
-    final items = <PopupMenuEntry<String>>[
-      if (topic.canEdit)
-        const PopupMenuItem(value: 'edit', child: Text('Edit Topic')),
-    ];
-    if (items.isEmpty) return;
-    final value = await showMenu<String>(
+    final topicId = int.tryParse(topic.id) ?? 0;
+    final hasUnread = topic.unreadCount > 0;
+
+    final value = await showTelegramMenu<String>(
       context: ctx,
-      position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx, position.dy),
-      items: items,
+      position: position,
+      items: [
+        if (topic.canTogglePinned)
+          TelegramMenuItem(
+            value: 'pin',
+            icon: Icon(topic.isPinned ? Icons.push_pin_outlined : Icons.push_pin, size: 20),
+            label: topic.isPinned ? 'Unpin from Top' : 'Pin to Top',
+          ),
+        const TelegramMenuItem(
+          value: 'view_info',
+          icon: Icon(Icons.info_outline, size: 20),
+          label: 'View Info',
+        ),
+        TelegramMenuItem(
+          value: 'mark_read',
+          icon: Icon(hasUnread ? Icons.done_all : Icons.markunread, size: 20),
+          label: hasUnread ? 'Mark as Read' : 'Mark as Unread',
+        ),
+        if (topic.canEdit)
+          const TelegramMenuItem(
+            value: 'edit',
+            icon: Icon(Icons.edit_outlined, size: 20),
+            label: 'Edit Topic',
+          ),
+        if (topic.canToggleClosed)
+          TelegramMenuItem(
+            value: 'toggle_closed',
+            icon: Icon(topic.isClosed ? Icons.lock_open : Icons.lock_outline, size: 20),
+            label: topic.isClosed ? 'Reopen Topic' : 'Close Topic',
+          ),
+        const TelegramMenuItem.separator(),
+        const TelegramMenuItem(
+          value: 'clear_history',
+          icon: Icon(Icons.delete_sweep_outlined, size: 20),
+          label: 'Clear History',
+        ),
+        if (topic.canDelete && !topic.isGeneral)
+          const TelegramMenuItem(
+            value: 'delete',
+            icon: Icon(Icons.delete_outline, size: 20),
+            label: 'Delete Topic',
+            isAttention: true,
+          ),
+      ],
     );
-    if (value == 'edit' && ctx.mounted) {
-      _showEditTopicDialog(ctx);
+    if (value == null || !ctx.mounted) return;
+    switch (value) {
+      case 'pin':
+        try {
+          await chatState.pinForumTopic(accountId, chatId, topicId, !topic.isPinned);
+        } catch (e) {
+          if (ctx.mounted) {
+            ScaffoldMessenger.of(ctx).showSnackBar(
+              SnackBar(content: Text('Failed: $e')),
+            );
+          }
+        }
+      case 'view_info':
+        chatState.openTopic(topic);
+        UniClientShell.toggleInfoRequest?.call();
+      case 'mark_read':
+        if (hasUnread) {
+          chatState.markChatRead(accountId, topic.id);
+        }
+      case 'edit':
+        _showEditTopicDialog(ctx);
+      case 'toggle_closed':
+        try {
+          await chatState.toggleForumTopicClosed(accountId, chatId, topicId, !topic.isClosed);
+        } catch (e) {
+          if (ctx.mounted) {
+            ScaffoldMessenger.of(ctx).showSnackBar(
+              SnackBar(content: Text('Failed: $e')),
+            );
+          }
+        }
+      case 'clear_history':
+        final r = await showDeleteConfirmBox(
+          ctx,
+          mode: DeleteBoxMode.clearHistory,
+          chatType: ChatType.topic,
+          peerName: topic.title,
+        );
+        if (r.confirmed) {
+          try {
+            await chatState.deleteForumTopicHistory(accountId, chatId, topicId);
+          } catch (e) {
+            if (ctx.mounted) {
+              ScaffoldMessenger.of(ctx).showSnackBar(
+                SnackBar(content: Text('Failed: $e')),
+              );
+            }
+          }
+        }
+      case 'delete':
+        final r = await showDeleteConfirmBox(
+          ctx,
+          mode: DeleteBoxMode.clearHistory,
+          chatType: ChatType.topic,
+          peerName: topic.title,
+        );
+        if (r.confirmed) {
+          try {
+            await chatState.deleteForumTopicHistory(accountId, chatId, topicId);
+            await chatState.refreshForumTopics();
+          } catch (e) {
+            if (ctx.mounted) {
+              ScaffoldMessenger.of(ctx).showSnackBar(
+                SnackBar(content: Text('Failed: $e')),
+              );
+            }
+          }
+        }
     }
   }
 

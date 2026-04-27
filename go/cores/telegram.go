@@ -14921,6 +14921,17 @@ func (t *TelegramCore) ToggleViewForumAsMessages(chatID string, enabled bool) er
 	return err
 }
 
+// ToggleForumTopicClosed closes or reopens a forum topic.
+func (t *TelegramCore) ToggleForumTopicClosed(chatID string, topicID int, closed bool) error {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil { return err }
+	defer unlock()
+	req := &tg.MessagesEditForumTopicRequest{Peer: inputPeer, TopicID: topicID}
+	req.SetClosed(closed)
+	_, err = t.api.MessagesEditForumTopic(t.ctx, req)
+	return err
+}
+
 // DeleteTopicHistory deletes all messages in a forum topic.
 func (t *TelegramCore) DeleteTopicHistory(chatID string, topicID int) error {
 	inputPeer, unlock, err := t.withPeer(chatID)

@@ -344,6 +344,27 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.EditForumTopic(req.AccountId, req.ChatId, int(req.TopicId), req.Title, req.IconEmojiId)
 
+	case "PinForumTopic":
+		var req pb.EngineEditForumTopicRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.PinForumTopic(req.AccountId, req.ChatId, int(req.TopicId), req.ColorId != 0)
+
+	case "ToggleForumTopicClosed":
+		var req pb.EngineEditForumTopicRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.ToggleForumTopicClosed(req.AccountId, req.ChatId, int(req.TopicId), req.ColorId != 0)
+
+	case "DeleteForumTopicHistory":
+		var req pb.EngineEditForumTopicRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.DeleteForumTopicHistory(req.AccountId, req.ChatId, int(req.TopicId))
+
 	// ── Messages ──
 
 	case "GetMessages":

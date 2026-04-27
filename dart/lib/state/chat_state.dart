@@ -613,6 +613,21 @@ class ChatState extends ChangeNotifier {
     }
   }
 
+  Future<void> pinForumTopic(String accountId, String chatId, int topicId, bool pinned) async {
+    await _engine.pinForumTopic(accountId, chatId, topicId, pinned);
+    await refreshForumTopics();
+  }
+
+  Future<void> toggleForumTopicClosed(String accountId, String chatId, int topicId, bool closed) async {
+    await _engine.toggleForumTopicClosed(accountId, chatId, topicId, closed);
+    await refreshForumTopics();
+  }
+
+  Future<void> deleteForumTopicHistory(String accountId, String chatId, int topicId) async {
+    await _engine.deleteForumTopicHistory(accountId, chatId, topicId);
+    await refreshForumTopics();
+  }
+
   void closeForum() {
     _forumParentChat = null;
     _forumTopics = [];

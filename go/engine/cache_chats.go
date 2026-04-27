@@ -654,6 +654,51 @@ func (e *Engine) EditForumTopic(accountID, chatID string, topicID int, title str
 	return fte.EditForumTopic(chatID, topicID, title, iconEmojiId)
 }
 
+func (e *Engine) PinForumTopic(accountID, chatID string, topicID int, pinned bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	type pinner interface {
+		PinForumTopic(chatID string, topicID int, pinned bool) error
+	}
+	p, ok := acc.Core.(pinner)
+	if !ok {
+		return fmt.Errorf("platform does not support pinning forum topics")
+	}
+	return p.PinForumTopic(chatID, topicID, pinned)
+}
+
+func (e *Engine) ToggleForumTopicClosed(accountID, chatID string, topicID int, closed bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	type closer interface {
+		ToggleForumTopicClosed(chatID string, topicID int, closed bool) error
+	}
+	c, ok := acc.Core.(closer)
+	if !ok {
+		return fmt.Errorf("platform does not support closing forum topics")
+	}
+	return c.ToggleForumTopicClosed(chatID, topicID, closed)
+}
+
+func (e *Engine) DeleteForumTopicHistory(accountID, chatID string, topicID int) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	type deleter interface {
+		DeleteTopicHistory(chatID string, topicID int) error
+	}
+	d, ok := acc.Core.(deleter)
+	if !ok {
+		return fmt.Errorf("platform does not support deleting forum topic history")
+	}
+	return d.DeleteTopicHistory(chatID, topicID)
+}
+
 // FolderInfo represents a synced folder from the platform (e.g. Telegram folders).
 type FolderInfo struct {
 	ID              string

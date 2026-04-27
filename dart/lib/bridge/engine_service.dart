@@ -357,6 +357,32 @@ class EngineService {
     await _callAsync('__engine', 'EditForumTopic', req.writeToBuffer());
   }
 
+  Future<void> pinForumTopic(String accountId, String chatId, int topicId, bool pinned) async {
+    final req = epb.EngineEditForumTopicRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..topicId = Int64(topicId)
+      ..colorId = pinned ? 1 : 0;
+    await _callAsync('__engine', 'PinForumTopic', req.writeToBuffer());
+  }
+
+  Future<void> toggleForumTopicClosed(String accountId, String chatId, int topicId, bool closed) async {
+    final req = epb.EngineEditForumTopicRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..topicId = Int64(topicId)
+      ..colorId = closed ? 1 : 0;
+    await _callAsync('__engine', 'ToggleForumTopicClosed', req.writeToBuffer());
+  }
+
+  Future<void> deleteForumTopicHistory(String accountId, String chatId, int topicId) async {
+    final req = epb.EngineEditForumTopicRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..topicId = Int64(topicId);
+    await _callAsync('__engine', 'DeleteForumTopicHistory', req.writeToBuffer());
+  }
+
   // ── Folders ──
 
   /// Fetch synced folders for an account. Returns empty list if the platform
