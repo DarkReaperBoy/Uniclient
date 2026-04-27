@@ -1261,6 +1261,15 @@ class EngineService {
     return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
   }
 
+  Future<void> addMembers(String accountId, String chatId, List<String> userIds) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'user_ids': userIds,
+    }));
+    await _callAsync('__engine', 'AddMembers', Uint8List.fromList(payload));
+  }
+
   Future<String> getInviteLink(String accountId, String chatId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

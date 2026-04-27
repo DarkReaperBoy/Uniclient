@@ -1083,6 +1083,19 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(chat)
 
+	// ── Add Members ──
+
+	case "AddMembers":
+		var params struct {
+			AccountID string   `json:"account_id"`
+			ChatID    string   `json:"chat_id"`
+			UserIDs   []string `json:"user_ids"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.AddMembers(params.AccountID, params.ChatID, params.UserIDs)
+
 	// ── Contacts ──
 
 	case "GetContacts":

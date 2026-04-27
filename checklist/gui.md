@@ -768,7 +768,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 21.5 Edit Peer Type Box
 
 ### 21.6 Complete Flow
-- [ ] Full flow sequences functional end-to-end: Create Group (InfoBox→MemberPicker→API→chat), Create Channel (InfoBox→API→SetupChannelBox→MemberPicker→channel) — spec §21.6
 
 ---
 

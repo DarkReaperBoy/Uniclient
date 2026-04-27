@@ -465,8 +465,7 @@ class _WizardDialogState extends State<_WizardDialog>
             _engine.setHistoryTTL(_accountId, chatId, _ttlSeconds);
           } catch (_) {}
         }
-        final chat = _chatState.chats.where((c) => c.chatId == chatId).firstOrNull;
-        if (chat != null) _chatState.openChat(chat);
+        _navigateToChat(chatId);
       }
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -525,12 +524,33 @@ class _WizardDialogState extends State<_WizardDialog>
   }
 
   Future<void> _inviteMembers() async {
-    if (_createdChatId.isEmpty || _selectedMembers.isEmpty) {
+    if (_createdChatId.isEmpty) {
       Navigator.of(context).pop();
       return;
     }
+    if (_selectedMembers.isNotEmpty) {
+      setState(() { _creating = true; _error = null; });
+      try {
+        await _engine.addMembers(
+          _accountId, _createdChatId, _selectedMembers.toList(),
+        );
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _creating = false;
+          _error = e.toString().replaceAll('Exception: ', '');
+        });
+        return;
+      }
+      if (!mounted) return;
+    }
+    _navigateToChat(_createdChatId);
     Navigator.of(context).pop();
-    final chat = _chatState.chats.where((c) => c.chatId == _createdChatId).firstOrNull;
+  }
+
+  void _navigateToChat(String chatId) {
+    _chatState.loadChats();
+    final chat = _chatState.chats.where((c) => c.chatId == chatId).firstOrNull;
     if (chat != null) _chatState.openChat(chat);
   }
 
@@ -1054,14 +1074,12 @@ class _WizardDialogState extends State<_WizardDialog>
           confirmAction = _creating ? null : _submitGroup;
         } else {
           confirmLabel = 'Invite';
-          confirmAction =
-              _selectedMembers.isEmpty ? null : () => _inviteMembers();
+          confirmAction = _creating
+              ? null
+              : (_selectedMembers.isEmpty ? null : () => _inviteMembers());
           cancelLabel = 'Skip';
           cancelAction = () {
-            final chat = _chatState.chats
-                .where((c) => c.chatId == _createdChatId)
-                .firstOrNull;
-            if (chat != null) _chatState.openChat(chat);
+            _navigateToChat(_createdChatId);
             Navigator.of(context).pop();
           };
         }

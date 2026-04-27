@@ -595,6 +595,15 @@ func (e *Engine) CreateGroup(accountID, name string, members []string) (*ChatInf
 	}, nil
 }
 
+// AddMembers adds users to a group or channel.
+func (e *Engine) AddMembers(accountID, chatID string, userIDs []string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	return acc.Core.AddMembers(chatID, userIDs)
+}
+
 // SendScheduledNow immediately sends previously scheduled messages.
 // Only supported by cores that implement the scheduledSender interface
 // (e.g. Telegram with CapScheduled capability).
