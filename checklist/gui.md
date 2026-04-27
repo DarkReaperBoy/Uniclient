@@ -730,7 +730,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 <!-- File: dart/lib/ui/media_viewer.dart -->
 
 ### 20.1 Window & Background
-- [ ] Background: mediaviewBg opaque dark, top+bottom gradient shadow overlays at _controlsOpacity — spec §20.2
 
 ### 20.3 Content Display
 - [ ] Media centered in available area: photo (progressive thumbnailInline→Small→Thumbnail→Large), video/GIF streaming, document bubble (mediaviewFileBg, 340×116px, 80×80px icon), theme preview (903×584px with Apply/Cancel/Share) — spec §20.3

@@ -22,6 +22,9 @@ const _kDefaultY = 120.0;
 const _kTitleBarHeight = 32.0;
 const _kTitleButtonWidth = 44.0;
 const _kTitleButtonHeight = 32.0;
+const _kMediaviewBg = Color(0xFF0E0E0E);
+const _kGradientTopHeight = 80.0;
+const _kGradientBottomHeight = 120.0;
 
 class MediaViewer extends StatefulWidget {
   final CachedMessage initialMessage;
@@ -83,7 +86,8 @@ class _MediaViewerState extends State<MediaViewer>
   Offset _baseOffset = Offset.zero;
   bool _isFitToScreen = true;
 
-  bool _controlsVisible = true;
+  late final AnimationController _controlsAnim;
+  Timer? _autoHideTimer;
 
   Player? _player;
   VideoController? _videoController;
@@ -115,8 +119,17 @@ class _MediaViewerState extends State<MediaViewer>
       (m) => m.msgId == widget.initialMessage.msgId,
     );
     if (_currentIndex < 0) _currentIndex = 0;
+    _controlsAnim = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      reverseDuration: const Duration(milliseconds: 600),
+      value: 1.0,
+      vsync: this,
+    )..addListener(() {
+        if (mounted) setState(() {});
+      });
     _loadViewerPrefs();
     _initVideoIfNeeded();
+    _scheduleAutoHide();
   }
 
   @override
@@ -125,6 +138,8 @@ class _MediaViewerState extends State<MediaViewer>
       MediaViewer._activeInstance = null;
     }
     _disposePlayer();
+    _autoHideTimer?.cancel();
+    _controlsAnim.dispose();
     _focusNode.dispose();
     super.dispose();
   }
@@ -287,6 +302,45 @@ class _MediaViewerState extends State<MediaViewer>
     player.playOrPause();
   }
 
+  double get _controlsOpacity => _controlsAnim.value;
+  bool get _controlsVisible => !_controlsAnim.isDismissed;
+
+  void _showControls() {
+    _controlsAnim.forward();
+    _scheduleAutoHide();
+  }
+
+  void _hideControls() {
+    _cancelAutoHide();
+    _controlsAnim.reverse();
+  }
+
+  void _toggleControls() {
+    if (_controlsAnim.isCompleted ||
+        _controlsAnim.status == AnimationStatus.forward) {
+      _hideControls();
+    } else {
+      _showControls();
+    }
+  }
+
+  void _scheduleAutoHide() {
+    _cancelAutoHide();
+    _autoHideTimer = Timer(const Duration(milliseconds: 1100), () {
+      if (mounted) _controlsAnim.reverse();
+    });
+  }
+
+  void _cancelAutoHide() {
+    _autoHideTimer?.cancel();
+    _autoHideTimer = null;
+  }
+
+  void _onPointerActivity() {
+    if (!_controlsAnim.isCompleted) _controlsAnim.forward();
+    _scheduleAutoHide();
+  }
+
   void _close() {
     _disposePlayer();
     Navigator.of(context).pop();
@@ -390,123 +444,14 @@ class _MediaViewerState extends State<MediaViewer>
     final totalPhotos = widget.mediaMessages.length;
     final titleBarOffset = _showTitleBar ? _kTitleBarHeight : 0.0;
 
-    return GestureDetector(
-      onTap: () {
-        if (_isVideo || _isGif) {
-          _togglePlayPause();
-        } else {
-          setState(() => _controlsVisible = !_controlsVisible);
-        }
-      },
-      onScaleStart: (details) {
-        _baseScale = _scale;
-        _baseOffset = _offset;
-      },
-      onScaleUpdate: (details) {
-        setState(() {
-          _scale = (_baseScale * details.scale).clamp(0.5, 8.0);
-          if (_scale > 1.0) {
-            _offset = _baseOffset + details.focalPointDelta;
-            _isFitToScreen = false;
-          }
-        });
-      },
-      onScaleEnd: (_) {
-        if (_scale <= 1.0) setState(() => _resetZoom());
-      },
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Container(color: const Color(0xFF0E0E0E)),
-
-          if (_showTitleBar) _buildTitleBar(),
-
-          Positioned(
-            top: titleBarOffset,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Center(
-              child: Transform(
-                alignment: Alignment.center,
-                transform: Matrix4.identity()
-                  ..translate(_offset.dx, _offset.dy)
-                  ..scale(_scale),
-                child: _buildContent(msg, screenSize),
-              ),
-            ),
-          ),
-
-          if (_controlsVisible) ...[
-            if (_hasPrev)
-              Positioned(
-                left: 0,
-                top: titleBarOffset,
-                bottom: 0,
-                width: 90,
-                child: _NavArea(icon: Icons.chevron_left, onTap: _goToPrev),
-              ),
-            if (_hasNext)
-              Positioned(
-                right: 0,
-                top: titleBarOffset,
-                bottom: 0,
-                width: 90,
-                child: _NavArea(icon: Icons.chevron_right, onTap: _goToNext),
-              ),
-            Positioned(
-              left: 14,
-              bottom: (_isVideo ? 86 : 14),
-              child: _buildFooter(msg, photoIndex, totalPhotos),
-            ),
-            if (!_showTitleBar)
-              Positioned(
-                top: 8,
-                left: 8,
-                child: _ViewerButton(
-                  icon: Icons.close,
-                  onTap: _close,
-                  tooltip: 'Close',
-                ),
-              ),
-            Positioned(
-              bottom: (_isVideo ? 86 : 14),
-              right: 14,
-              child: _buildToolbar(msg),
-            ),
-          ],
-
-          if (_isVideo && _player != null)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: _buildVideoControls(),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildWindowedViewer(Size screenSize) {
-    final msg = _currentMessage;
-    final photoIndex = widget.mediaMessages.length - _currentIndex;
-    final totalPhotos = widget.mediaMessages.length;
-
-    final w = _windowedWidth.clamp(_kMinWidth, screenSize.width);
-    final h = _windowedHeight.clamp(_kMinHeight, screenSize.height);
-    final x = _windowedX.clamp(0.0, (screenSize.width - w).clamp(0.0, double.infinity));
-    final y = _windowedY.clamp(0.0, (screenSize.height - h).clamp(0.0, double.infinity));
-
-    return Positioned(
-      left: x,
-      top: y,
+    return Listener(
+      onPointerHover: (_) => _onPointerActivity(),
       child: GestureDetector(
         onTap: () {
           if (_isVideo || _isGif) {
             _togglePlayPause();
           } else {
-            setState(() => _controlsVisible = !_controlsVisible);
+            _toggleControls();
           }
         },
         onScaleStart: (details) {
@@ -525,74 +470,302 @@ class _MediaViewerState extends State<MediaViewer>
         onScaleEnd: (_) {
           if (_scale <= 1.0) setState(() => _resetZoom());
         },
-        child: Container(
-          width: w,
-          height: h,
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: const Color(0xFF0E0E0E),
-            borderRadius: BorderRadius.circular(2),
-            boxShadow: const [
-              BoxShadow(color: Color(0x80000000), blurRadius: 20, spreadRadius: 2),
-            ],
-          ),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              _buildTitleBar(),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(color: _kMediaviewBg),
 
-              Positioned(
-                top: _kTitleBarHeight,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: Center(
-                  child: Transform(
-                    alignment: Alignment.center,
-                    transform: Matrix4.identity()
-                      ..translate(_offset.dx, _offset.dy)
-                      ..scale(_scale),
-                    child: _buildContent(msg, Size(w, h - _kTitleBarHeight)),
+            if (_showTitleBar) _buildTitleBar(),
+
+            Positioned(
+              top: titleBarOffset,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Center(
+                child: Transform(
+                  alignment: Alignment.center,
+                  transform: Matrix4.identity()
+                    ..translate(_offset.dx, _offset.dy)
+                    ..scale(_scale),
+                  child: _buildContent(msg, screenSize),
+                ),
+              ),
+            ),
+
+            Positioned(
+              top: titleBarOffset,
+              left: 0,
+              right: 0,
+              height: _kGradientTopHeight,
+              child: IgnorePointer(
+                child: Opacity(
+                  opacity: _controlsOpacity,
+                  child: const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Color(0x80000000), Colors.transparent],
+                      ),
+                    ),
                   ),
                 ),
               ),
+            ),
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: _kGradientBottomHeight,
+              child: IgnorePointer(
+                child: Opacity(
+                  opacity: _controlsOpacity,
+                  child: const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.topCenter,
+                        colors: [Color(0x80000000), Colors.transparent],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
 
-              if (_controlsVisible) ...[
-                if (_hasPrev)
-                  Positioned(
-                    left: 0,
-                    top: _kTitleBarHeight,
-                    bottom: 0,
-                    width: 90,
+            if (_controlsVisible) ...[
+              if (_hasPrev)
+                Positioned(
+                  left: 0,
+                  top: titleBarOffset,
+                  bottom: 0,
+                  width: 90,
+                  child: Opacity(
+                    opacity: _controlsOpacity,
                     child: _NavArea(icon: Icons.chevron_left, onTap: _goToPrev),
                   ),
-                if (_hasNext)
-                  Positioned(
-                    right: 0,
-                    top: _kTitleBarHeight,
-                    bottom: 0,
-                    width: 90,
+                ),
+              if (_hasNext)
+                Positioned(
+                  right: 0,
+                  top: titleBarOffset,
+                  bottom: 0,
+                  width: 90,
+                  child: Opacity(
+                    opacity: _controlsOpacity,
                     child: _NavArea(icon: Icons.chevron_right, onTap: _goToNext),
                   ),
-                Positioned(
-                  left: 14,
-                  bottom: (_isVideo ? 86 : 14),
+                ),
+              Positioned(
+                left: 14,
+                bottom: (_isVideo ? 86 : 14),
+                child: Opacity(
+                  opacity: _controlsOpacity,
                   child: _buildFooter(msg, photoIndex, totalPhotos),
                 ),
+              ),
+              if (!_showTitleBar)
                 Positioned(
-                  bottom: (_isVideo ? 86 : 14),
-                  right: 14,
+                  top: 8,
+                  left: 8,
+                  child: Opacity(
+                    opacity: _controlsOpacity,
+                    child: _ViewerButton(
+                      icon: Icons.close,
+                      onTap: _close,
+                      tooltip: 'Close',
+                    ),
+                  ),
+                ),
+              Positioned(
+                bottom: (_isVideo ? 86 : 14),
+                right: 14,
+                child: Opacity(
+                  opacity: _controlsOpacity,
                   child: _buildToolbar(msg),
                 ),
-              ],
+              ),
+            ],
 
-              if (_isVideo && _player != null)
+            if (_isVideo && _player != null)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: _buildVideoControls(),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWindowedViewer(Size screenSize) {
+    final msg = _currentMessage;
+    final photoIndex = widget.mediaMessages.length - _currentIndex;
+    final totalPhotos = widget.mediaMessages.length;
+
+    final w = _windowedWidth.clamp(_kMinWidth, screenSize.width);
+    final h = _windowedHeight.clamp(_kMinHeight, screenSize.height);
+    final x = _windowedX.clamp(0.0, (screenSize.width - w).clamp(0.0, double.infinity));
+    final y = _windowedY.clamp(0.0, (screenSize.height - h).clamp(0.0, double.infinity));
+
+    return Positioned(
+      left: x,
+      top: y,
+      child: Listener(
+        onPointerHover: (_) => _onPointerActivity(),
+        child: GestureDetector(
+          onTap: () {
+            if (_isVideo || _isGif) {
+              _togglePlayPause();
+            } else {
+              _toggleControls();
+            }
+          },
+          onScaleStart: (details) {
+            _baseScale = _scale;
+            _baseOffset = _offset;
+          },
+          onScaleUpdate: (details) {
+            setState(() {
+              _scale = (_baseScale * details.scale).clamp(0.5, 8.0);
+              if (_scale > 1.0) {
+                _offset = _baseOffset + details.focalPointDelta;
+                _isFitToScreen = false;
+              }
+            });
+          },
+          onScaleEnd: (_) {
+            if (_scale <= 1.0) setState(() => _resetZoom());
+          },
+          child: Container(
+            width: w,
+            height: h,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: _kMediaviewBg,
+              borderRadius: BorderRadius.circular(2),
+              boxShadow: const [
+                BoxShadow(
+                    color: Color(0x80000000),
+                    blurRadius: 20,
+                    spreadRadius: 2),
+              ],
+            ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                _buildTitleBar(),
+
                 Positioned(
+                  top: _kTitleBarHeight,
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  child: _buildVideoControls(),
+                  child: Center(
+                    child: Transform(
+                      alignment: Alignment.center,
+                      transform: Matrix4.identity()
+                        ..translate(_offset.dx, _offset.dy)
+                        ..scale(_scale),
+                      child: _buildContent(msg, Size(w, h - _kTitleBarHeight)),
+                    ),
+                  ),
                 ),
+
+                Positioned(
+                  top: _kTitleBarHeight,
+                  left: 0,
+                  right: 0,
+                  height: _kGradientTopHeight,
+                  child: IgnorePointer(
+                    child: Opacity(
+                      opacity: _controlsOpacity,
+                      child: const DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [Color(0x80000000), Colors.transparent],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  height: _kGradientBottomHeight,
+                  child: IgnorePointer(
+                    child: Opacity(
+                      opacity: _controlsOpacity,
+                      child: const DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.bottomCenter,
+                            end: Alignment.topCenter,
+                            colors: [Color(0x80000000), Colors.transparent],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                if (_controlsVisible) ...[
+                  if (_hasPrev)
+                    Positioned(
+                      left: 0,
+                      top: _kTitleBarHeight,
+                      bottom: 0,
+                      width: 90,
+                      child: Opacity(
+                        opacity: _controlsOpacity,
+                        child: _NavArea(
+                            icon: Icons.chevron_left, onTap: _goToPrev),
+                      ),
+                    ),
+                  if (_hasNext)
+                    Positioned(
+                      right: 0,
+                      top: _kTitleBarHeight,
+                      bottom: 0,
+                      width: 90,
+                      child: Opacity(
+                        opacity: _controlsOpacity,
+                        child: _NavArea(
+                            icon: Icons.chevron_right, onTap: _goToNext),
+                      ),
+                    ),
+                  Positioned(
+                    left: 14,
+                    bottom: (_isVideo ? 86 : 14),
+                    child: Opacity(
+                      opacity: _controlsOpacity,
+                      child: _buildFooter(msg, photoIndex, totalPhotos),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: (_isVideo ? 86 : 14),
+                    right: 14,
+                    child: Opacity(
+                      opacity: _controlsOpacity,
+                      child: _buildToolbar(msg),
+                    ),
+                  ),
+                ],
+
+                if (_isVideo && _player != null)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: _buildVideoControls(),
+                  ),
 
               // Bottom-right resize handle
               Positioned(
@@ -632,6 +805,7 @@ class _MediaViewerState extends State<MediaViewer>
           ),
         ),
       ),
+    ),
     );
   }
 
@@ -752,11 +926,10 @@ class _MediaViewerState extends State<MediaViewer>
         : 0.0;
     final remaining = _duration - _position;
 
-    return AnimatedOpacity(
-      opacity: _controlsVisible ? 1.0 : 0.0,
-      duration: Duration(milliseconds: _controlsVisible ? 200 : 600),
+    return Opacity(
+      opacity: _controlsOpacity,
       child: IgnorePointer(
-        ignoring: !_controlsVisible,
+        ignoring: _controlsAnim.isDismissed,
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
           constraints: const BoxConstraints(maxWidth: 480),
