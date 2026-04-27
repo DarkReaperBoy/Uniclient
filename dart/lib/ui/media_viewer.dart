@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -25,6 +26,11 @@ const _kTitleButtonHeight = 32.0;
 const _kMediaviewBg = Color(0xFF0E0E0E);
 const _kGradientTopHeight = 80.0;
 const _kGradientBottomHeight = 120.0;
+const _kDocBubbleWidth = 340.0;
+const _kDocBubbleHeight = 116.0;
+const _kDocIconSize = 80.0;
+const _kMediaviewFileBg = Color(0xFF1B2836);
+const _kMaxDisplayImageSize = 4096.0;
 
 class MediaViewer extends StatefulWidget {
   final CachedMessage initialMessage;
@@ -47,8 +53,8 @@ class MediaViewer extends StatefulWidget {
   }) {
     final mediaMessages = allMessages
         .where((m) =>
-            m.mediaLocalPath.isNotEmpty &&
-            (m.mediaType == 1 || m.mediaType == 2 || m.mediaType == 7))
+            (m.mediaLocalPath.isNotEmpty || m.mediaType == 8 || m.mediaType == 3) &&
+            (m.mediaType >= 1 && m.mediaType <= 8))
         .toList();
     if (mediaMessages.isEmpty) return;
 
@@ -145,12 +151,15 @@ class _MediaViewerState extends State<MediaViewer>
   }
 
   CachedMessage get _currentMessage => widget.mediaMessages[_currentIndex];
-  bool get _isVideo => _currentMessage.mediaType == 2;
+  bool get _isVideo => _currentMessage.mediaType == 2 || _currentMessage.mediaType == 5;
   bool get _isGif => _currentMessage.mediaType == 7;
+  bool get _isDocument => _currentMessage.mediaType == 8 || _currentMessage.mediaType == 3;
+
+  bool get _isVideoNote => _currentMessage.mediaType == 5;
 
   void _initVideoIfNeeded() {
     final msg = _currentMessage;
-    if ((msg.mediaType == 2 || msg.mediaType == 7) &&
+    if ((msg.mediaType == 2 || msg.mediaType == 5 || msg.mediaType == 7) &&
         msg.mediaLocalPath.isNotEmpty) {
       _disposePlayer();
       final player = Player();
@@ -175,9 +184,10 @@ class _MediaViewerState extends State<MediaViewer>
         }),
       ];
 
-      player.setVolume(msg.mediaType == 7 ? 0.0 : _volume * 100.0);
+      final isMuted = msg.mediaType == 7;
+      player.setVolume(isMuted ? 0.0 : _volume * 100.0);
       player.setPlaylistMode(
-          msg.mediaType == 7 ? PlaylistMode.single : PlaylistMode.none);
+          (msg.mediaType == 7 || msg.mediaType == 5) ? PlaylistMode.single : PlaylistMode.none);
       player.open(Media(msg.mediaLocalPath));
     }
   }
@@ -882,20 +892,52 @@ class _MediaViewerState extends State<MediaViewer>
   }
 
   Widget _buildContent(CachedMessage msg, Size screenSize) {
-    if ((msg.mediaType == 2 || msg.mediaType == 7) &&
+    if ((msg.mediaType == 2 || msg.mediaType == 5 || msg.mediaType == 7) &&
         _videoController != null) {
-      return Video(
+      Widget videoWidget = Video(
         controller: _videoController!,
         width: screenSize.width,
         height: screenSize.height,
         fit: BoxFit.contain,
         controls: NoVideoControls,
       );
+      if (msg.mediaType == 5) {
+        final dim = screenSize.width < screenSize.height
+            ? screenSize.width * 0.6
+            : screenSize.height * 0.6;
+        final clampedDim = dim.clamp(120.0, 360.0);
+        videoWidget = ClipOval(
+          child: SizedBox(
+            width: clampedDim,
+            height: clampedDim,
+            child: Video(
+              controller: _videoController!,
+              width: clampedDim,
+              height: clampedDim,
+              fit: BoxFit.cover,
+              controls: NoVideoControls,
+            ),
+          ),
+        );
+      }
+      return videoWidget;
     }
+
+    if (msg.mediaType == 8 || msg.mediaType == 3) {
+      return _buildDocumentBubble(msg);
+    }
+
+    if (msg.mediaLocalPath.isNotEmpty && (msg.mediaType == 1 || msg.mediaType == 6)) {
+      return _ProgressivePhoto(
+        message: msg,
+        maxWidth: screenSize.width,
+        maxHeight: screenSize.height,
+      );
+    }
+
     if (msg.mediaLocalPath.isNotEmpty) {
-      final file = File(msg.mediaLocalPath);
       return Image.file(
-        file,
+        File(msg.mediaLocalPath),
         fit: BoxFit.contain,
         width: screenSize.width,
         height: screenSize.height,
@@ -904,6 +946,112 @@ class _MediaViewerState extends State<MediaViewer>
       );
     }
     return _buildErrorPlaceholder(null);
+  }
+
+  Widget _buildDocumentBubble(CachedMessage msg) {
+    final fileName = msg.mediaFileName.isNotEmpty ? msg.mediaFileName : 'File';
+    final ext = fileName.contains('.') ? fileName.split('.').last.toUpperCase() : '';
+    final sizeStr = _formatFileSize(msg.mediaFileSize);
+    final isAudio = msg.mediaType == 3;
+
+    return Container(
+      width: _kDocBubbleWidth,
+      height: _kDocBubbleHeight,
+      decoration: BoxDecoration(
+        color: _kMediaviewFileBg,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: _kDocIconSize,
+            height: _kDocIconSize,
+            margin: const EdgeInsets.only(left: 18),
+            decoration: BoxDecoration(
+              color: _docExtColor(ext),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  isAudio ? Icons.music_note : Icons.insert_drive_file,
+                  color: Colors.white,
+                  size: 36,
+                ),
+                if (ext.isNotEmpty && ext.length <= 5)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      ext,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(right: 18),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    fileName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (sizeStr.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        sizeStr,
+                        style: const TextStyle(
+                          color: Color(0xFF8899AA),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static Color _docExtColor(String ext) {
+    return switch (ext) {
+      'PDF' => const Color(0xFFE25454),
+      'DOC' || 'DOCX' || 'RTF' || 'ODT' => const Color(0xFF5CA7EB),
+      'XLS' || 'XLSX' || 'CSV' || 'ODS' => const Color(0xFF3ABB5B),
+      'ZIP' || 'RAR' || '7Z' || 'TAR' || 'GZ' => const Color(0xFFE8A63A),
+      'APK' || 'EXE' || 'MSI' || 'DMG' => const Color(0xFFA071E0),
+      'MP3' || 'FLAC' || 'OGG' || 'WAV' || 'AAC' || 'M4A' => const Color(0xFFEB6ECA),
+      _ => const Color(0xFF5CA7EB),
+    };
+  }
+
+  static String _formatFileSize(int bytes) {
+    if (bytes <= 0) return '';
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
   }
 
   Widget _buildErrorPlaceholder(Object? error) {
@@ -1061,7 +1209,11 @@ class _MediaViewerState extends State<MediaViewer>
     final typeLabel = switch (msg.mediaType) {
       1 => 'Photo',
       2 => 'Video',
+      3 => 'Audio',
+      5 => 'Video message',
+      6 => 'Sticker',
       7 => 'GIF',
+      8 => msg.mediaFileName.isNotEmpty ? msg.mediaFileName : 'File',
       _ => 'Media',
     };
     final dt = DateTime.fromMillisecondsSinceEpoch(msg.timestamp);
@@ -1306,6 +1458,157 @@ class _TitleBarButtonState extends State<_TitleBarButton> {
             child: Icon(widget.icon, color: iconColor, size: 18),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ProgressivePhoto extends StatefulWidget {
+  final CachedMessage message;
+  final double maxWidth;
+  final double maxHeight;
+
+  const _ProgressivePhoto({
+    required this.message,
+    required this.maxWidth,
+    required this.maxHeight,
+  });
+
+  @override
+  State<_ProgressivePhoto> createState() => _ProgressivePhotoState();
+}
+
+class _ProgressivePhotoState extends State<_ProgressivePhoto> {
+  Uint8List? _thumbBytes;
+  bool _fullImageReady = false;
+  ImageProvider? _fullImageProvider;
+
+  @override
+  void initState() {
+    super.initState();
+    _decodeThumb();
+    _preloadFull();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ProgressivePhoto oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.message.msgId != widget.message.msgId) {
+      _fullImageReady = false;
+      _fullImageProvider = null;
+      _decodeThumb();
+      _preloadFull();
+    }
+  }
+
+  void _decodeThumb() {
+    final b64 = widget.message.mediaThumbB64;
+    if (b64.isNotEmpty) {
+      try {
+        _thumbBytes = base64Decode(b64);
+      } catch (_) {
+        _thumbBytes = null;
+      }
+    } else {
+      _thumbBytes = null;
+    }
+  }
+
+  void _preloadFull() {
+    final path = widget.message.mediaLocalPath;
+    if (path.isEmpty) return;
+    final file = File(path);
+    if (!file.existsSync()) return;
+    final provider = FileImage(file);
+    _fullImageProvider = provider;
+    final stream = provider.resolve(const ImageConfiguration());
+    late ImageStreamListener listener;
+    listener = ImageStreamListener(
+      (info, _) {
+        if (mounted) setState(() => _fullImageReady = true);
+        stream.removeListener(listener);
+      },
+      onError: (error, _) {
+        if (mounted) setState(() => _fullImageReady = true);
+        stream.removeListener(listener);
+      },
+    );
+    stream.addListener(listener);
+  }
+
+  Size _fitSize() {
+    final mw = widget.message.mediaWidth;
+    final mh = widget.message.mediaHeight;
+    if (mw <= 0 || mh <= 0) return Size(widget.maxWidth, widget.maxHeight);
+
+    var w = mw.toDouble();
+    var h = mh.toDouble();
+    if (w > _kMaxDisplayImageSize) {
+      h = h * _kMaxDisplayImageSize / w;
+      w = _kMaxDisplayImageSize;
+    }
+    if (h > _kMaxDisplayImageSize) {
+      w = w * _kMaxDisplayImageSize / h;
+      h = _kMaxDisplayImageSize;
+    }
+
+    final scaleW = widget.maxWidth / w;
+    final scaleH = widget.maxHeight / h;
+    final scale = scaleW < scaleH ? scaleW : scaleH;
+    if (scale < 1.0) {
+      w *= scale;
+      h *= scale;
+    }
+    return Size(w, h);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = _fitSize();
+
+    if (_fullImageReady && _fullImageProvider != null) {
+      return Image(
+        image: _fullImageProvider!,
+        width: size.width,
+        height: size.height,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
+        errorBuilder: (_, __, ___) => _buildThumb(size),
+      );
+    }
+
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        _buildThumb(size),
+        if (!_fullImageReady && widget.message.mediaLocalPath.isNotEmpty)
+          const SizedBox(
+            width: 32,
+            height: 32,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              color: Colors.white54,
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildThumb(Size size) {
+    if (_thumbBytes != null) {
+      return Image.memory(
+        _thumbBytes!,
+        width: size.width,
+        height: size.height,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.low,
+      );
+    }
+    return SizedBox(
+      width: size.width,
+      height: size.height,
+      child: const Center(
+        child: Icon(Icons.photo, color: Colors.white24, size: 64),
       ),
     );
   }

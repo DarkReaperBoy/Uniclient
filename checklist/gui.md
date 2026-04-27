@@ -732,7 +732,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 20.1 Window & Background
 
 ### 20.3 Content Display
-- [ ] Media centered in available area: photo (progressive thumbnailInline→Small→Thumbnail→Large), video/GIF streaming, document bubble (mediaviewFileBg, 340×116px, 80×80px icon), theme preview (903×584px with Apply/Cancel/Share) — spec §20.3
 
 ### 20.4 Zoom & Pan
 - [ ] Zoom range -7 to +7 (1/8× to 8×), kZoomToScreenLevel, Ctrl+/- / Ctrl+0 / middle mouse / wheel+Ctrl, pan on left-click-drag (cur_sizeall cursor, snapped to bounds), zoom transitions animate at widgetFadeDuration, DPR-aware, 4096px max cap — spec §20.4 & §20.4.1
