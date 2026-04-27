@@ -21,6 +21,7 @@ import '../state/audio_service.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/theme.dart';
+import 'forum_topic_icon.dart';
 import 'media_viewer.dart';
 import 'sticker_pack_viewer.dart';
 
@@ -1477,33 +1478,27 @@ class _ReactionList extends StatelessWidget {
   }
 }
 
-/// Forum topic button — small pill with colored circle icon + topic name.
-/// Spec §5 item 2 / §22.2: colored circle with first letter, 6 predefined colors.
+/// Forum topic button — small pill with bubble icon + topic name.
+/// Spec §5 / §22.2: speech-bubble-with-tail icon, 6 predefined color palettes.
 class _TopicButton extends StatelessWidget {
   final String topicName;
   final int topicColorId;
 
   const _TopicButton({required this.topicName, required this.topicColorId});
 
-  // Spec §22.2: 6 predefined topic icon colors.
   static const _topicColors = <int, Color>{
-    0x6FB9F0: Color(0xFF6FB9F0), // blue
-    0xFFD67E: Color(0xFFFFD67E), // yellow
-    0xCB86DB: Color(0xFFCB86DB), // violet
-    0x8EEE98: Color(0xFF8EEE98), // green
-    0xFF93B2: Color(0xFFFF93B2), // rose
-    0xFB6F5F: Color(0xFFFB6F5F), // red
+    0x6FB9F0: Color(0xFF6FB9F0),
+    0xFFD67E: Color(0xFFFFD67E),
+    0xCB86DB: Color(0xFFCB86DB),
+    0x8EEE98: Color(0xFF8EEE98),
+    0xFF93B2: Color(0xFFFF93B2),
+    0xFB6F5F: Color(0xFFFB6F5F),
   };
-  static const _defaultColor = Color(0xFF6FB9F0); // blue fallback
+  static const _defaultColor = Color(0xFF6FB9F0);
 
   @override
   Widget build(BuildContext context) {
     final color = _topicColors[topicColorId] ?? _defaultColor;
-    // First non-whitespace character for the icon circle.
-    final letter = topicName.isNotEmpty
-        ? topicName.trim().characters.first.toUpperCase()
-        : '#';
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
@@ -1513,22 +1508,10 @@ class _TopicButton extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Colored circle with first letter (spec §22.2: defaultForumTopicIcon 21px,
-          // but inside a bubble pill we use a smaller 16px variant).
-          Container(
-            width: 16,
-            height: 16,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-            alignment: Alignment.center,
-            child: Text(
-              letter,
-              style: const TextStyle(
-                fontSize: 9,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-                height: 1.0,
-              ),
-            ),
+          ForumTopicIcon(
+            colorId: topicColorId,
+            title: topicName,
+            size: 16,
           ),
           const SizedBox(width: 4),
           Flexible(
