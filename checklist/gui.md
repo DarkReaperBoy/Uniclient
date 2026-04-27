@@ -790,7 +790,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 22.9 General Topic
 
 ### 22.10 Navigation & Column Integration
-- [ ] One-column: forum replaces dialog list, back returns to main; two/three-column: topic list in dialog column; "View as Messages/Topics" toggle (saves preference); loading pagination (first 20, then 500/page, stale 100/request); auto-preload when <20 loaded; 8 recent topics for chat list — spec §22.10
 
 ### 22.11 Animations
 - [ ] Userpic loop reset after slideDuration (custom emoji stops/frees memory), topic jump ripple (dialogsRipple), expanded bar 0.0–1.0 float drives left-edge bar, EmojiFlyAnimation in edit dialog, info top bar highlight fade between bg and highlightBg — spec §22.11

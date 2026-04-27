@@ -56,6 +56,8 @@ class ChatState extends ChangeNotifier {
   ChatInfo? _forumParentChat;
   String? _activeTopicId;
   final Set<String> _forumViewAsMessages = {};
+  bool _forumHasMore = false;
+  bool _forumLoadingMore = false;
 
   // §22.4: Recent topic names for forum chats (up to 8), keyed by "accountId:chatId".
   final Map<String, List<ForumTopic>> _forumRecentTopics = {};
@@ -175,6 +177,8 @@ class ChatState extends ChangeNotifier {
   ChatInfo? get forumParentChat => _forumParentChat;
   bool get isViewingForum => _forumParentChat != null && !isForumViewAsMessages;
   String? get activeTopicId => _activeTopicId;
+  bool get forumHasMore => _forumHasMore;
+  bool get forumLoadingMore => _forumLoadingMore;
 
   bool get isForumViewAsMessages {
     final chat = _forumParentChat;
@@ -192,7 +196,22 @@ class ChatState extends ChangeNotifier {
     } else {
       _forumViewAsMessages.add(key);
       _activeTopicId = null;
-      notifyListeners();
+      openChat(chat);
+    }
+  }
+
+  Set<String> get forumViewAsMessagesKeys => Set.unmodifiable(_forumViewAsMessages);
+
+  void loadForumViewPrefs(Set<String> keys) {
+    _forumViewAsMessages.addAll(keys);
+  }
+
+  void goBackFromTopic() {
+    if (_activeTopicId != null) {
+      _activeTopicId = null;
+      closeChat();
+    } else {
+      closeForum();
     }
   }
 
@@ -513,8 +532,7 @@ class ChatState extends ChangeNotifier {
   /// Open a chat — loads messages and sets as active.
   /// For group chats, auto-detects forums and shows topic list.
   void openChat(ChatInfo chat) {
-    if ((chat.type == ChatType.group || chat.type == ChatType.channel) &&
-        _forumParentChat?.chatId != chat.chatId) {
+    if (chat.isForum && _forumParentChat?.chatId != chat.chatId) {
       _checkAndOpenForum(chat);
     }
     _activeChat = chat;
@@ -552,15 +570,16 @@ class ChatState extends ChangeNotifier {
   void _checkAndOpenForum(ChatInfo chat) {
     _engine.getForumTopics(chat.accountId, chat.chatId).then((topics) {
       if (_disposed || topics.isEmpty) return;
-      topics.sort((a, b) {
-        if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
-        final aId = int.tryParse(a.topMessageId) ?? 0;
-        final bId = int.tryParse(b.topMessageId) ?? 0;
-        return bId.compareTo(aId);
-      });
+      _sortTopics(topics);
       _forumParentChat = chat;
       _forumTopics = topics;
+      _forumHasMore = topics.length >= 100;
       _activeTopicId = null;
+      final key = '${chat.accountId}:${chat.chatId}';
+      _forumRecentTopics[key] = topics.take(8).toList();
+      if (topics.length < 20) {
+        _autoPreloadForumTopics(chat);
+      }
       notifyListeners();
     }).catchError((_) {});
   }
@@ -573,24 +592,58 @@ class ChatState extends ChangeNotifier {
     if (chat.chatId == chatId) openChat(chat);
   }
 
+  static void _sortTopics(List<ForumTopic> topics) {
+    topics.sort((a, b) {
+      if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+      final aId = int.tryParse(a.topMessageId) ?? 0;
+      final bId = int.tryParse(b.topMessageId) ?? 0;
+      return bId.compareTo(aId);
+    });
+  }
+
   Future<void> openForum(ChatInfo chat) async {
     _forumParentChat = chat;
     _forumTopics = [];
     _activeTopicId = null;
+    _forumHasMore = false;
+    _forumLoadingMore = false;
     notifyListeners();
     try {
       final topics = await _engine.getForumTopics(chat.accountId, chat.chatId);
       _forumTopics = topics;
-      _forumTopics.sort((a, b) {
-        if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
-        final aId = int.tryParse(a.topMessageId) ?? 0;
-        final bId = int.tryParse(b.topMessageId) ?? 0;
-        return bId.compareTo(aId);
-      });
+      _sortTopics(_forumTopics);
+      _forumHasMore = topics.length >= 100;
+      if (topics.length < 20 && topics.isNotEmpty) {
+        _autoPreloadForumTopics(chat);
+      }
     } catch (_) {}
     final key = '${chat.accountId}:${chat.chatId}';
     _forumRecentTopics[key] = _forumTopics.take(8).toList();
     notifyListeners();
+  }
+
+  Future<void> _autoPreloadForumTopics(ChatInfo chat) async {
+    if (_forumLoadingMore || !_forumHasMore) return;
+    _forumLoadingMore = true;
+    try {
+      final topics = await _engine.getForumTopics(chat.accountId, chat.chatId);
+      if (chat == _forumParentChat) {
+        final existingIds = _forumTopics.map((t) => t.id).toSet();
+        for (final t in topics) {
+          if (!existingIds.contains(t.id)) _forumTopics.add(t);
+        }
+        _sortTopics(_forumTopics);
+        _forumHasMore = topics.length >= 100;
+      }
+    } catch (_) {}
+    _forumLoadingMore = false;
+    if (chat == _forumParentChat) notifyListeners();
+  }
+
+  Future<void> loadMoreForumTopics() async {
+    final chat = _forumParentChat;
+    if (chat == null || _forumLoadingMore || !_forumHasMore) return;
+    await _autoPreloadForumTopics(chat);
   }
 
   Future<void> refreshForumTopics() async {
@@ -599,12 +652,8 @@ class ChatState extends ChangeNotifier {
     try {
       final topics = await _engine.getForumTopics(chat.accountId, chat.chatId);
       _forumTopics = topics;
-      _forumTopics.sort((a, b) {
-        if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
-        final aId = int.tryParse(a.topMessageId) ?? 0;
-        final bId = int.tryParse(b.topMessageId) ?? 0;
-        return bId.compareTo(aId);
-      });
+      _sortTopics(_forumTopics);
+      _forumHasMore = topics.length >= 100;
     } catch (_) {}
     if (chat == _forumParentChat) {
       final key = '${chat.accountId}:${chat.chatId}';
@@ -637,6 +686,8 @@ class ChatState extends ChangeNotifier {
     _forumParentChat = null;
     _forumTopics = [];
     _activeTopicId = null;
+    _forumHasMore = false;
+    _forumLoadingMore = false;
     notifyListeners();
   }
 

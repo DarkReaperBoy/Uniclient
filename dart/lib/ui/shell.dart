@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -40,6 +41,7 @@ class _UniClientShellState extends State<UniClientShell>
   bool _dialogsCollapsed = false;
   bool _layoutLoaded = false;
   bool? _lastVerticalFilters;
+  Set<String>? _lastForumViewPrefs;
   bool _isDragging = false;
   // One-column section transition direction tracking (spec §1: horizontal slide + crossfade).
   bool _navForward = true;
@@ -84,6 +86,10 @@ class _UniClientShellState extends State<UniClientShell>
       _dialogsCollapsed = (data['dialogsCollapsed'] as bool?) ?? _dialogsCollapsed;
       final chatState = context.read<ChatState>();
       chatState.useVerticalFilters = (data['useVerticalFilters'] as bool?) ?? true;
+      final forumPrefs = data['forumViewAsMessages'];
+      if (forumPrefs is List) {
+        chatState.loadForumViewPrefs(forumPrefs.cast<String>().toSet());
+      }
     } catch (_) {
       // Ignore corrupt/missing file.
     }
@@ -99,6 +105,7 @@ class _UniClientShellState extends State<UniClientShell>
         'thirdColumnWidth': _thirdColumnWidth,
         'dialogsCollapsed': _dialogsCollapsed,
         'useVerticalFilters': chatState.useVerticalFilters,
+        'forumViewAsMessages': chatState.forumViewAsMessagesKeys.toList(),
       }));
     } catch (_) {
       // Best-effort persistence.
@@ -192,6 +199,14 @@ class _UniClientShellState extends State<UniClientShell>
       _lastVerticalFilters = chatState.useVerticalFilters;
       _saveLayoutPrefs();
     }
+
+    // Persist when forum view-as-messages preference changes (§22.10).
+    final currentForumPrefs = chatState.forumViewAsMessagesKeys;
+    if (_layoutLoaded && _lastForumViewPrefs != null &&
+        !setEquals(_lastForumViewPrefs!, currentForumPrefs)) {
+      _saveLayoutPrefs();
+    }
+    _lastForumViewPrefs = currentForumPrefs;
 
     // Show loading while engine initializes.
     if (!appState.initialized) {
@@ -292,11 +307,12 @@ class _UniClientShellState extends State<UniClientShell>
   /// Single panel: show either chat list or chat view, with section transition
   /// animation (spec §1: horizontal slide with content snapshot crossfade).
   Widget _buildOneColumn(BuildContext context, ChatState chatState) {
-    final showChat = chatState.activeChat != null;
+    final showForumTopics = chatState.isViewingForum && chatState.activeTopicId == null;
+    final showChat = chatState.activeChat != null && !showForumTopics;
     final showInfo = _infoOpen && showChat;
     final forward = _navForward;
 
-    final String currentKey = showInfo ? 'info' : (showChat ? 'chat' : 'chatlist');
+    final String currentKey = showInfo ? 'info' : (showChat ? 'chat' : (showForumTopics ? 'forumtopics' : 'chatlist'));
 
     return ClipRect(
       child: AnimatedSwitcher(
@@ -337,7 +353,13 @@ class _UniClientShellState extends State<UniClientShell>
             : showChat
                 ? ChatView(
                     key: const ValueKey('chat'),
-                    onBack: () => chatState.closeChat(),
+                    onBack: () {
+                      if (chatState.forumParentChat != null && chatState.activeTopicId != null) {
+                        chatState.goBackFromTopic();
+                      } else {
+                        chatState.closeChat();
+                      }
+                    },
                     showBackButton: true,
                     hideTopBarDivider: _oneColumnAnimating,
                     onToggleInfo: _toggleInfo,

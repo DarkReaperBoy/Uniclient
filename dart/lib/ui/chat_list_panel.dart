@@ -3190,7 +3190,7 @@ class _TelegramToastState extends State<_TelegramToast>
 // §22.3 Forum Topic List View
 // ══════════════════════════════════════════════════════════════════════════════
 
-class _ForumTopicListView extends StatelessWidget {
+class _ForumTopicListView extends StatefulWidget {
   final ChatState chatState;
   final bool collapsed;
 
@@ -3200,13 +3200,42 @@ class _ForumTopicListView extends StatelessWidget {
   });
 
   @override
+  State<_ForumTopicListView> createState() => _ForumTopicListViewState();
+}
+
+class _ForumTopicListViewState extends State<_ForumTopicListView> {
+  final ScrollController _scrollCtrl = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollCtrl.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollCtrl.removeListener(_onScroll);
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_scrollCtrl.hasClients) return;
+    final pos = _scrollCtrl.position;
+    if (pos.pixels >= pos.maxScrollExtent - 200) {
+      widget.chatState.loadMoreForumTopics();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final parent = chatState.forumParentChat!;
-    final allTopics = chatState.forumTopics;
+    final parent = widget.chatState.forumParentChat!;
+    final allTopics = widget.chatState.forumTopics;
     final topics = allTopics.where((t) => !(t.isGeneral && t.isHidden)).toList();
     final engine = context.read<EngineService>();
+    final hasMore = widget.chatState.forumHasMore;
 
     return GestureDetector(
       onSecondaryTapUp: (details) =>
@@ -3223,11 +3252,11 @@ class _ForumTopicListView extends StatelessWidget {
             _ForumTopicHeader(
               title: parent.title,
               isDark: isDark,
-              onBack: chatState.closeForum,
+              onBack: widget.chatState.closeForum,
               chatId: parent.chatId,
               accountId: parent.accountId,
               engine: engine,
-              chatState: chatState,
+              chatState: widget.chatState,
               onShowMenu: (ctx, pos) =>
                   _showTopicListContextMenu(ctx, pos, parent, engine),
             ),
@@ -3235,18 +3264,25 @@ class _ForumTopicListView extends StatelessWidget {
               child: topics.isEmpty
                   ? const Center(child: CircularProgressIndicator())
                   : ListView.builder(
-                      itemCount: topics.length,
+                      controller: _scrollCtrl,
+                      itemCount: topics.length + (hasMore ? 1 : 0),
                       itemBuilder: (context, index) {
+                        if (index >= topics.length) {
+                          return const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                          );
+                        }
                         final topic = topics[index];
-                        final isActive = chatState.activeTopicId == topic.id;
+                        final isActive = widget.chatState.activeTopicId == topic.id;
                         return _ForumTopicRow(
                           topic: topic,
                           isActive: isActive,
                           accountId: parent.accountId,
                           chatId: parent.chatId,
                           engine: engine,
-                          chatState: chatState,
-                          onTap: () => chatState.openTopic(topic),
+                          chatState: widget.chatState,
+                          onTap: () => widget.chatState.openTopic(topic),
                         );
                       },
                     ),
@@ -3263,6 +3299,7 @@ class _ForumTopicListView extends StatelessWidget {
     ChatInfo parent,
     EngineService engine,
   ) async {
+    final chatState = widget.chatState;
     final topics = chatState.forumTopics;
     final value = await showTelegramMenu<String>(
       context: ctx,
@@ -3324,6 +3361,7 @@ class _ForumTopicListView extends StatelessWidget {
   }
 
   void _showCreateTopicDialog(BuildContext ctx, ChatInfo parent, EngineService engine) async {
+    final chatState = widget.chatState;
     final result = await showEditForumTopicBox(ctx);
     if (result == null) return;
     try {
