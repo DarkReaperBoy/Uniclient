@@ -72,6 +72,9 @@ const _kPipTrackHeight = 2.0;
 const _kPipTrackHeightHover = 4.0;
 const _kPipControlsHeight = 36.0;
 const _kPipSnapDuration = Duration(milliseconds: 150);
+const _kMediaTransitionDuration = Duration(milliseconds: 200);
+const _kRadialBg = Color(0x54000000);
+const _kRadialFg = Color(0xFFFFFFFF);
 
 class PipData {
   final Player player;
@@ -1076,7 +1079,15 @@ class _MediaViewerState extends State<MediaViewer>
                           ..scale(_currentScale)
                           ..rotateZ(_displayRotation * math.pi / 2)
                           ..scale(_flipH ? -1.0 : 1.0, _flipV ? -1.0 : 1.0),
-                        child: _buildContent(msg, screenSize),
+                        child: AnimatedSwitcher(
+                          duration: _kMediaTransitionDuration,
+                          switchInCurve: Curves.linear,
+                          switchOutCurve: Curves.linear,
+                          child: KeyedSubtree(
+                            key: ValueKey(_currentIndex),
+                            child: _buildContent(msg, screenSize),
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -1341,7 +1352,15 @@ class _MediaViewerState extends State<MediaViewer>
                                 ..scale(_currentScale)
                                 ..rotateZ(_displayRotation * math.pi / 2)
                                 ..scale(_flipH ? -1.0 : 1.0, _flipV ? -1.0 : 1.0),
-                              child: _buildContent(msg, Size(w, h - _kTitleBarHeight)),
+                              child: AnimatedSwitcher(
+                                duration: _kMediaTransitionDuration,
+                                switchInCurve: Curves.linear,
+                                switchOutCurve: Curves.linear,
+                                child: KeyedSubtree(
+                                  key: ValueKey(_currentIndex),
+                                  child: _buildContent(msg, Size(w, h - _kTitleBarHeight)),
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -3303,12 +3322,17 @@ class _ProgressivePhotoState extends State<_ProgressivePhoto> {
       children: [
         _buildThumb(size),
         if (!_fullImageReady && widget.message.mediaLocalPath.isNotEmpty)
-          const SizedBox(
-            width: 32,
-            height: 32,
-            child: CircularProgressIndicator(
+          Container(
+            width: 40,
+            height: 40,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: _kRadialBg,
+            ),
+            padding: const EdgeInsets.all(4),
+            child: const CircularProgressIndicator(
               strokeWidth: 2.5,
-              color: Colors.white54,
+              color: _kRadialFg,
             ),
           ),
       ],
