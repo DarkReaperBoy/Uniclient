@@ -44,6 +44,11 @@ type CachedMessage struct {
 	HasMedia     bool   `json:"has_media"`
 	GroupedID    string `json:"grouped_id,omitempty"`
 
+	// Scheduled message metadata.
+	ScheduleDate        int64 `json:"schedule_date,omitempty"`
+	IsSilent            bool  `json:"is_silent,omitempty"`
+	ScheduleRepeatPeriod int  `json:"schedule_repeat_period,omitempty"`
+
 	// Media metadata (populated from media table join).
 	MediaType          int    `json:"media_type,omitempty"`
 	MediaFileName      string `json:"media_file_name,omitempty"`

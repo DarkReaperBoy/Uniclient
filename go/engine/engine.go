@@ -678,15 +678,24 @@ func (e *Engine) GetScheduledMessages(accountID, chatID string) ([]CachedMessage
 	for i, m := range msgs {
 		hasMedia := len(m.Attachments) > 0
 		result[i] = CachedMessage{
-			AccountID:   accountID,
-			ChatID:      chatID,
-			MsgID:       m.ID,
-			SenderID:    m.SenderID,
-			SenderName:  m.SenderName,
-			ContentText: m.Text,
-			Timestamp:   m.Timestamp.UnixMilli(),
-			IsOutgoing:  m.IsOutgoing,
-			HasMedia:    hasMedia,
+			AccountID:    accountID,
+			ChatID:       chatID,
+			MsgID:        m.ID,
+			SenderID:     m.SenderID,
+			SenderName:   m.SenderName,
+			ContentText:  m.Text,
+			Timestamp:    m.Timestamp.UnixMilli(),
+			ScheduleDate: m.Timestamp.Unix(),
+			IsOutgoing:   m.IsOutgoing,
+			HasMedia:     hasMedia,
+		}
+		if m.Extra != nil {
+			if v, ok := m.Extra["is_silent"].(bool); ok && v {
+				result[i].IsSilent = true
+			}
+			if v, ok := m.Extra["schedule_repeat_period"].(int); ok {
+				result[i].ScheduleRepeatPeriod = v
+			}
 		}
 		if hasMedia {
 			att := m.Attachments[0]

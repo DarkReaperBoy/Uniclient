@@ -509,6 +509,11 @@ class CachedMessage {
   final bool forceReply;
   final String forceReplyPlaceholder;
 
+  // Scheduled message metadata.
+  final int scheduleDate;
+  final bool isSilent;
+  final int scheduleRepeatPeriod;
+
   const CachedMessage({
     required this.accountId,
     required this.chatId,
@@ -600,6 +605,9 @@ class CachedMessage {
     this.keyboardHide = false,
     this.forceReply = false,
     this.forceReplyPlaceholder = '',
+    this.scheduleDate = 0,
+    this.isSilent = false,
+    this.scheduleRepeatPeriod = 0,
   });
 
   factory CachedMessage.fromJson(Map<String, dynamic> j) => CachedMessage(
@@ -640,6 +648,9 @@ class CachedMessage {
     reactions: (j['reactions'] as List<dynamic>?)
         ?.map((r) => MessageReaction.fromJson(r as Map<String, dynamic>))
         .toList() ?? const [],
+    scheduleDate: j['schedule_date'] as int? ?? 0,
+    isSilent: j['is_silent'] as bool? ?? false,
+    scheduleRepeatPeriod: j['schedule_repeat_period'] as int? ?? 0,
   );
 
   DateTime get dateTime => DateTime.fromMillisecondsSinceEpoch(timestamp);
@@ -660,6 +671,14 @@ class CachedMessage {
   bool get isMediaDownloaded => mediaDownloadState == 2;
   bool get isAlbumMember => groupedId.isNotEmpty;
   bool get hasWebPage => wpUrl.isNotEmpty;
+
+  bool get isScheduled => scheduleDate > 0;
+  bool get isScheduledUntilOnline =>
+      scheduleDate == ScheduledMessages.kScheduledUntilOnlineTimestamp;
+  bool get allowsSendNow =>
+      isScheduled && !isSending && !isFailed && !isService;
+  bool get allowsReschedule => allowsSendNow;
+
   String get mediaSizeLabel {
     if (mediaFileSize <= 0) return '';
     if (mediaFileSize < 1024) return '$mediaFileSize B';
@@ -752,6 +771,9 @@ class CachedMessage {
     bool? keyboardHide,
     bool? forceReply,
     String? forceReplyPlaceholder,
+    int? scheduleDate,
+    bool? isSilent,
+    int? scheduleRepeatPeriod,
   }) => CachedMessage(
     accountId: accountId ?? this.accountId,
     chatId: chatId ?? this.chatId,
@@ -843,6 +865,9 @@ class CachedMessage {
     keyboardHide: keyboardHide ?? this.keyboardHide,
     forceReply: forceReply ?? this.forceReply,
     forceReplyPlaceholder: forceReplyPlaceholder ?? this.forceReplyPlaceholder,
+    scheduleDate: scheduleDate ?? this.scheduleDate,
+    isSilent: isSilent ?? this.isSilent,
+    scheduleRepeatPeriod: scheduleRepeatPeriod ?? this.scheduleRepeatPeriod,
   );
 
   bool get hasStickerSet => stickerSetShortName.isNotEmpty || stickerSetId != 0;
@@ -2014,4 +2039,65 @@ class StoryItem {
       edited: j['edited'] as bool? ?? false,
     );
   }
+}
+
+// ── Scheduled messages ──
+
+enum SendMenuType {
+  scheduled,
+  scheduledToUser,
+  reminder,
+  silentOnly,
+}
+
+class ScheduledMessages {
+  ScheduledMessages._();
+
+  static const int kScheduledUntilOnlineTimestamp = 0x7FFFFFFE;
+  static const int kMinimalScheduleSeconds = 10;
+  static const int kMaxScheduleHorizonDays = 365;
+  static const int kRequestTimeLimitMs = 60000;
+
+  static bool isScheduledMsgId(int id) => id > _kServerMaxMsgId;
+
+  static const int _kServerMaxMsgId = 0x3FFFFFFF;
+
+  static bool canScheduleUntilOnline(ChatInfo peer) {
+    return peer.type == ChatType.dm;
+  }
+
+  static SendMenuType menuTypeForChat(ChatInfo chat, String selfId) {
+    if (chat.chatId == selfId) return SendMenuType.reminder;
+    if (chat.type == ChatType.dm) return SendMenuType.scheduledToUser;
+    return SendMenuType.scheduled;
+  }
+
+  static DateTime defaultScheduleTime() =>
+      DateTime.now().add(const Duration(seconds: 600));
+
+  static DateTime clampScheduleTime(DateTime dt) {
+    final now = DateTime.now();
+    final min = now.add(const Duration(seconds: kMinimalScheduleSeconds));
+    final max = now.add(const Duration(days: kMaxScheduleHorizonDays));
+    if (dt.isBefore(min)) return min;
+    if (dt.isAfter(max)) return max;
+    return dt;
+  }
+
+  static const List<ScheduleRepeatOption> repeatOptions = [
+    ScheduleRepeatOption(0, 'Never'),
+    ScheduleRepeatOption(86400, 'Daily'),
+    ScheduleRepeatOption(604800, 'Weekly'),
+    ScheduleRepeatOption(1209600, 'Every 2 weeks'),
+    ScheduleRepeatOption(2592000, 'Monthly'),
+    ScheduleRepeatOption(7862400, 'Every 3 months'),
+    ScheduleRepeatOption(15724800, 'Every 6 months'),
+    ScheduleRepeatOption(31536000, 'Yearly'),
+  ];
+}
+
+class ScheduleRepeatOption {
+  final int periodSeconds;
+  final String label;
+  const ScheduleRepeatOption(this.periodSeconds, this.label);
 }

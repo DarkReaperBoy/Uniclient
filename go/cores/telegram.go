@@ -9681,6 +9681,19 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 		m.GroupedID = strconv.FormatInt(gid, 10)
 	}
 
+	if msg.Silent {
+		if m.Extra == nil {
+			m.Extra = make(map[string]interface{})
+		}
+		m.Extra["is_silent"] = true
+	}
+	if rp, ok := msg.GetScheduleRepeatPeriod(); ok && rp > 0 {
+		if m.Extra == nil {
+			m.Extra = make(map[string]interface{})
+		}
+		m.Extra["schedule_repeat_period"] = rp
+	}
+
 	if from := msg.FromID; from != nil {
 		m.SenderID = peerToID(from)
 		if peer, ok := from.(*tg.PeerUser); ok {
