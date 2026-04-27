@@ -13,6 +13,7 @@ import 'package:provider/provider.dart';
 
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
+import '../state/chat_state.dart';
 
 enum _MediaViewerMode { windowed, maximized, fullscreen }
 
@@ -38,6 +39,7 @@ const _kMaxZoomLevel = 7;
 const _kZoomAnimDuration = Duration(milliseconds: 200);
 const _kSwipeThreshold = 80.0;
 const _kPreloadAhead = 3;
+const _kMediaviewControlFg = Color(0xFFFFFFFF);
 
 class MediaViewer extends StatefulWidget {
   final CachedMessage initialMessage;
@@ -811,7 +813,8 @@ class _MediaViewerState extends State<MediaViewer>
                 ),
               Positioned(
                 left: 14,
-                bottom: (_isVideo ? 86 : 14),
+                bottom: (_isVideo ? 86 : 8),
+                right: 0,
                 child: Opacity(
                   opacity: _controlsOpacity,
                   child: _buildFooter(msg, photoIndex, totalPhotos),
@@ -1493,6 +1496,35 @@ class _MediaViewerState extends State<MediaViewer>
     );
   }
 
+  String _middleElide(String text, double maxWidth, TextStyle style) {
+    final tp = TextPainter(
+      text: TextSpan(text: text, style: style),
+      maxLines: 1,
+      textDirection: TextDirection.ltr,
+    )..layout();
+    if (tp.width <= maxWidth) return text;
+    const ellipsis = '\u2026';
+    int lo = 1, hi = text.length - 1;
+    while (lo < hi) {
+      final mid = (lo + hi) ~/ 2;
+      final half = mid ~/ 2;
+      final candidate = '${text.substring(0, half)}$ellipsis${text.substring(text.length - (mid - half))}';
+      final check = TextPainter(
+        text: TextSpan(text: candidate, style: style),
+        maxLines: 1,
+        textDirection: TextDirection.ltr,
+      )..layout();
+      if (check.width <= maxWidth) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    final keep = (lo - 1).clamp(2, text.length - 1);
+    final half = keep ~/ 2;
+    return '${text.substring(0, half)}$ellipsis${text.substring(text.length - (keep - half))}';
+  }
+
   Widget _buildFooter(CachedMessage msg, int photoIndex, int totalPhotos) {
     final typeLabel = switch (msg.mediaType) {
       1 => 'Photo',
@@ -1504,6 +1536,10 @@ class _MediaViewerState extends State<MediaViewer>
       8 => msg.mediaFileName.isNotEmpty ? msg.mediaFileName : 'File',
       _ => 'Media',
     };
+    final headerText = totalPhotos > 1
+        ? '$typeLabel $photoIndex of $totalPhotos'
+        : typeLabel;
+
     final dt = DateTime.fromMillisecondsSinceEpoch(msg.timestamp);
     const months = [
       'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -1514,40 +1550,72 @@ class _MediaViewerState extends State<MediaViewer>
     final dateStr =
         '${months[dt.month - 1]} ${dt.day}, ${dt.year} at $hour:${dt.minute.toString().padLeft(2, '0')} $amPm';
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          totalPhotos > 1 ? '$typeLabel $photoIndex of $totalPhotos' : typeLabel,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Row(
+    const headerStyle = TextStyle(
+      color: _kMediaviewControlFg,
+      fontSize: 14,
+      fontWeight: FontWeight.w600,
+    );
+    const infoStyle = TextStyle(
+      color: _kMediaviewControlFg,
+      fontSize: 13,
+    );
+    const separatorStyle = TextStyle(
+      color: _kMediaviewControlFg,
+      fontSize: 13,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxHeaderWidth = constraints.maxWidth > 0
+            ? constraints.maxWidth / 3
+            : 300.0;
+        final displayHeader = _middleElide(headerText, maxHeaderWidth, headerStyle);
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (msg.senderName.isNotEmpty) ...[
-              Text(
-                msg.senderName,
-                style: const TextStyle(color: Colors.white70, fontSize: 13),
-              ),
-              const Text(
-                ' \u2022 ',
-                style: TextStyle(color: Colors.white54, fontSize: 13),
-              ),
-            ],
-            Text(
-              dateStr,
-              style: const TextStyle(color: Colors.white70, fontSize: 13),
+            Text(displayHeader, style: headerStyle, maxLines: 1),
+            const SizedBox(height: 3),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (msg.senderName.isNotEmpty) ...[
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: () => _onSenderTap(msg),
+                      child: Text(msg.senderName, style: infoStyle),
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 5),
+                    child: Text('\u2022', style: separatorStyle),
+                  ),
+                ],
+                MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: GestureDetector(
+                    onTap: () => _onDateTap(msg),
+                    child: Text(dateStr, style: infoStyle),
+                  ),
+                ),
+              ],
             ),
           ],
-        ),
-      ],
+        );
+      },
     );
+  }
+
+  void _onSenderTap(CachedMessage msg) {
+    Navigator.of(context).pop();
+  }
+
+  void _onDateTap(CachedMessage msg) {
+    final chatState = context.read<ChatState>();
+    Navigator.of(context).pop();
+    chatState.jumpToMessage(msg.timestamp);
   }
 
   Widget _buildToolbar(CachedMessage msg) {
