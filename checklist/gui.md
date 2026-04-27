@@ -742,7 +742,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 20.8 Bottom-Right Toolbar + Context Menu
 
 ### 20.9 Caption Display
-- [ ] Caption: mediaviewCaptionBg (radius 6px, no bg in stories), padding 11/6/11/6px, mediaviewCaptionStyle/mediaviewCaptionFg, max height 1/4 maxUsedHeight, stories collapsed to kCollapsedCaptionLines with "Show more", bottom-aligned with 11px margin, spoiler + timestamp link support — spec §20.9
 
 ### 20.10–20.12 Video Playback Controls
 - [ ] Video controls panel (max 480px wide, 72px height): volume toggle (32×32px), volume slider (75px, mediaviewPlayback style), time played (12px semibold), progress bar (3px track, 12px handle), Play/Pause (40×40px centered), speed/quality button (32×32px), PiP button, fullscreen button, chapter marks (2×10px), controls fade 200ms in / 600ms out — spec §20.10

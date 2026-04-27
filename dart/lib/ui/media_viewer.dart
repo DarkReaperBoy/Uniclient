@@ -40,6 +40,13 @@ const _kZoomAnimDuration = Duration(milliseconds: 200);
 const _kSwipeThreshold = 80.0;
 const _kPreloadAhead = 3;
 const _kMediaviewControlFg = Color(0xFFFFFFFF);
+const _kMediaviewCaptionBg = Color(0xC8000000);
+const _kMediaviewCaptionFg = Color(0xFFFFFFFF);
+const _kMediaviewCaptionLinkFg = Color(0xFF71BAF7);
+const _kMediaviewCaptionRadius = 6.0;
+const _kMediaviewCaptionPadding = EdgeInsets.fromLTRB(11, 6, 11, 6);
+const _kMediaviewCaptionMargin = 11.0;
+const _kMediaviewCaptionMaxWidth = 600.0;
 
 class MediaViewer extends StatefulWidget {
   final CachedMessage initialMessage;
@@ -836,6 +843,16 @@ class _MediaViewerState extends State<MediaViewer>
                   child: _buildFooter(msg, photoIndex, totalPhotos),
                 ),
               ),
+              if (_buildCaption(msg, contentViewport.height) case final caption?)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: (_isVideo ? 138 : 60) + _kMediaviewCaptionMargin,
+                  child: Opacity(
+                    opacity: _controlsOpacity,
+                    child: Center(child: caption),
+                  ),
+                ),
               if (!_showTitleBar)
                 Positioned(
                   top: 8,
@@ -1069,6 +1086,16 @@ class _MediaViewerState extends State<MediaViewer>
                       child: _buildFooter(msg, photoIndex, totalPhotos),
                     ),
                   ),
+                  if (_buildCaption(msg, windowContentViewport.height) case final caption?)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: (_isVideo ? 138 : 60) + _kMediaviewCaptionMargin,
+                      child: Opacity(
+                        opacity: _controlsOpacity,
+                        child: Center(child: caption),
+                      ),
+                    ),
                   Positioned(
                     bottom: (_isVideo ? 86 : 14),
                     right: 14,
@@ -1623,6 +1650,35 @@ class _MediaViewerState extends State<MediaViewer>
           ],
         );
       },
+    );
+  }
+
+  Widget? _buildCaption(CachedMessage msg, double maxUsedHeight) {
+    final text = msg.contentText;
+    if (text.isEmpty) return null;
+
+    final maxCaptionHeight = maxUsedHeight / 4;
+
+    return Container(
+      constraints: BoxConstraints(
+        maxWidth: _kMediaviewCaptionMaxWidth,
+        maxHeight: maxCaptionHeight,
+      ),
+      decoration: BoxDecoration(
+        color: _kMediaviewCaptionBg,
+        borderRadius: BorderRadius.circular(_kMediaviewCaptionRadius),
+      ),
+      padding: _kMediaviewCaptionPadding,
+      child: SingleChildScrollView(
+        child: SelectableText(
+          text,
+          style: const TextStyle(
+            color: _kMediaviewCaptionFg,
+            fontSize: 14,
+            height: 1.35,
+          ),
+        ),
+      ),
     );
   }
 
