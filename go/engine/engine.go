@@ -399,6 +399,28 @@ func (e *Engine) EditChatDescription(accountID, chatID, description string) erro
 	return acc.Core.EditChatDescription(chatID, description)
 }
 
+func (e *Engine) ToggleForum(accountID, chatID string, enabled bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type forumToggler interface {
+		ToggleForum(chatID string, enabled bool) error
+	}
+	ft, ok := acc.Core.(forumToggler)
+	if !ok {
+		return fmt.Errorf("core does not support forum toggle")
+	}
+	if err := ft.ToggleForum(chatID, enabled); err != nil {
+		return err
+	}
+	go func() {
+		ctx := context.Background()
+		e.syncAccount(ctx, accountID)
+	}()
+	return nil
+}
+
 // ClearHistory deletes the message history for a chat on the server and locally,
 // but keeps the chat visible in the chat list.
 func (e *Engine) ClearHistory(accountID, chatID string) error {

@@ -425,6 +425,13 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.EditChatDescription(req.AccountId, req.ChatId, req.Text)
 
+	case "ToggleForum":
+		var req pb.EngineMuteChatRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.ToggleForum(req.AccountId, req.ChatId, req.Muted)
+
 	case "ClearHistory":
 		var req pb.EngineLeaveChatRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

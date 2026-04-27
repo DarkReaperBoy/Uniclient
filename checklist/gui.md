@@ -760,7 +760,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 <!-- File: dart/lib/ui/create_group_wizard.dart -->
 
 ### 21.2 Step 1 — Group/Channel Info Box
-- [ ] Forum "Enable Topics" toggle: in post-creation Manage settings (not Step 1), manageGroupTopicsButton style, "NEW" badge, child screen with Tabs/List radios + enable toggle, member-count gate from AppConfig (fallback 200), forces pre-join history visible — spec §21.2.2
 
 ### 21.3 Step 2a — Member Picker
 - [ ] PeerListBox with MultiSelect bar (boxSearchBg, 8px padding, max 104px height): chips (32px height, max 128px wide, contactsBgOver/activeButtonBg, delete cross 32px 1.5px stroke 150ms), search field (transparent 32px, search icon at 10/9), contact rows (56px, 42px avatar at 16/7, name+status, checkbox-overlay check), "Invite via Link" button, "{count} / {limit}" counter, Create/Invite + Cancel/Skip buttons — spec §21.3
@@ -1455,3 +1454,4 @@ Status key: `[ ]` not started · `[x]` done
 - [ ] GIF tab inline search broken: GetInlineBotResults passes string "gif" as bot ID but engine expects numeric ID. Error: `invalid ID "gif": strconv.ParseInt: parsing "gif": invalid syntax`. Affects both manual text search and category emoji search.
 - [ ] Chat Settings page scroll broken via flutter_interact.sh — PointerScrollEvent dispatched at various y positions doesn't cause ListView to scroll. Scrollbar error "ScrollController has no ScrollPosition attached" in logs. ListView has `primary: true` but scroll still doesn't work via debug dispatch. Affects testing of items below viewport (quick action radios).
 - [ ] Notifications page scroll broken — Channels and Reactions split-toggle rows are below viewport (~y=775) but ListView doesn't scroll via flutter_interact.sh. Same class of bug as Chat Settings scroll issue. Affects testing of Channels/Reactions per-type sub-page navigation. PARTIAL FIX: ScrollController explicitly assigned to both Scrollbar and ListView (no longer uses primary:true), but flutter_interact.sh PointerScrollEvent dispatch still doesn't scroll the page. OS-level ydotool scroll works as a workaround.
+- [ ] `_isSelfAdmin` in `_GroupActionsSection` (info_panel.dart) never returns true: compares `chat.accountId` (format "tele_4beb99fd") with `m.userId` (Telegram numeric ID like "123456789") — formats never match. "Edit Group" and "Topics" rows are invisible for all groups because of this. Fix: resolve account's own Telegram user ID and compare against member userId.

@@ -1219,6 +1219,14 @@ class EngineService {
     await _callAsync('__engine', 'EditChatDescription', req.writeToBuffer());
   }
 
+  Future<void> toggleForum(String accountId, String chatId, bool enabled) async {
+    final req = epb.EngineMuteChatRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..muted = enabled;
+    await _callAsync('__engine', 'ToggleForum', req.writeToBuffer());
+  }
+
   Future<void> clearHistory(String accountId, String chatId) async {
     final req = epb.EngineLeaveChatRequest()
       ..accountId = accountId

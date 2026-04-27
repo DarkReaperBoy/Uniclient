@@ -1790,6 +1790,7 @@ class _GroupActionsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final chatState = context.read<ChatState>();
     final attentionColor = const Color(0xFFDD4B39);
+    final accentColor = theme.colorScheme.primary;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1800,6 +1801,35 @@ class _GroupActionsSection extends StatelessWidget {
             label: 'Edit Group',
             theme: theme,
             onTap: () => _editGroup(context, chatState),
+          ),
+        if (_isSelfAdmin)
+          _ActionRow(
+            icon: Icons.forum_outlined,
+            label: 'Topics',
+            theme: theme,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: accentColor,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text(
+                    'NEW',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(Icons.chevron_right, size: 20, color: theme.colorScheme.onSurface.withValues(alpha: 0.5)),
+              ],
+            ),
+            onTap: () => _showForumTopicsDialog(context),
           ),
         _ActionRow(
           icon: Icons.flag_outlined,
@@ -1815,6 +1845,18 @@ class _GroupActionsSection extends StatelessWidget {
           onTap: () => _confirmLeave(context, chatState),
         ),
       ],
+    );
+  }
+
+  void _showForumTopicsDialog(BuildContext context) {
+    final engine = context.read<EngineService>();
+    showDialog(
+      context: context,
+      builder: (ctx) => _ForumTopicsDialog(
+        chat: chat,
+        engine: engine,
+        theme: theme,
+      ),
     );
   }
 
@@ -1931,6 +1973,160 @@ class _GroupActionsSection extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+enum _ForumLayout { tabs, list }
+
+class _ForumTopicsDialog extends StatefulWidget {
+  final ChatInfo chat;
+  final EngineService engine;
+  final ThemeData theme;
+
+  const _ForumTopicsDialog({
+    required this.chat,
+    required this.engine,
+    required this.theme,
+  });
+
+  @override
+  State<_ForumTopicsDialog> createState() => _ForumTopicsDialogState();
+}
+
+class _ForumTopicsDialogState extends State<_ForumTopicsDialog> {
+  bool _enabled = false;
+  _ForumLayout _layout = _ForumLayout.tabs;
+  bool _saving = false;
+  String? _error;
+
+  static const int _minMembers = 200;
+
+  bool get _hasEnoughMembers => widget.chat.memberCount >= _minMembers;
+
+  String get _aboutText {
+    if (!_enabled) return 'Topics are disabled for this group.';
+    if (_layout == _ForumLayout.tabs) {
+      return 'Members will see topics as tabs at the top of the chat.';
+    }
+    return 'Members will see topics as a list.';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = widget.theme.colorScheme.primary;
+    final mutedFg = widget.theme.colorScheme.onSurface.withValues(alpha: 0.6);
+
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 364),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 14, 24, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                height: 48,
+                child: Row(
+                  children: [
+                    Text(
+                      'Topics',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                        color: widget.theme.colorScheme.onSurface,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (!_hasEnoughMembers) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'You need at least $_minMembers members to enable topics.',
+                  style: TextStyle(fontSize: 13, color: mutedFg),
+                ),
+                const SizedBox(height: 16),
+              ] else ...[
+                SwitchListTile(
+                  title: const Text('Enable Topics', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  value: _enabled,
+                  activeColor: accent,
+                  contentPadding: EdgeInsets.zero,
+                  onChanged: (v) => setState(() => _enabled = v),
+                ),
+                if (_enabled) ...[
+                  const SizedBox(height: 8),
+                  RadioListTile<_ForumLayout>(
+                    title: const Text('Tabs', style: TextStyle(fontSize: 14)),
+                    value: _ForumLayout.tabs,
+                    groupValue: _layout,
+                    activeColor: accent,
+                    contentPadding: EdgeInsets.zero,
+                    onChanged: (v) => setState(() => _layout = v ?? _ForumLayout.tabs),
+                  ),
+                  RadioListTile<_ForumLayout>(
+                    title: const Text('List', style: TextStyle(fontSize: 14)),
+                    value: _ForumLayout.list,
+                    groupValue: _layout,
+                    activeColor: accent,
+                    contentPadding: EdgeInsets.zero,
+                    onChanged: (v) => setState(() => _layout = v ?? _ForumLayout.list),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                Text(
+                  _aboutText,
+                  style: TextStyle(fontSize: 13, color: mutedFg),
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: 8),
+                  Text(_error!, style: const TextStyle(fontSize: 13, color: Color(0xFFDD4B39))),
+                ],
+                const SizedBox(height: 16),
+              ],
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: _saving ? null : () => Navigator.pop(context),
+                    child: const Text('Cancel'),
+                  ),
+                  if (_hasEnoughMembers) ...[
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: _saving ? null : _save,
+                      child: _saving
+                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Text('Save'),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _save() async {
+    setState(() { _saving = true; _error = null; });
+    try {
+      await widget.engine.toggleForum(
+        widget.chat.accountId,
+        widget.chat.chatId,
+        _enabled,
+      );
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _error = e.toString();
+        });
+      }
+    }
   }
 }
 
@@ -2294,6 +2490,7 @@ class _ActionRow extends StatelessWidget {
   final String label;
   final ThemeData theme;
   final Color? color;
+  final Widget? trailing;
   final VoidCallback onTap;
 
   const _ActionRow({
@@ -2301,6 +2498,7 @@ class _ActionRow extends StatelessWidget {
     required this.label,
     required this.theme,
     this.color,
+    this.trailing,
     required this.onTap,
   });
 
@@ -2326,6 +2524,7 @@ class _ActionRow extends StatelessWidget {
                 ),
               ),
             ),
+            if (trailing != null) trailing!,
           ],
         ),
       ),
