@@ -786,7 +786,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 22.7 Topic Info Panel
 
 ### 22.8 Context Menus
-- [ ] Inside topic burger menu: Mute / Create Topic / Topic/Group Info / View as Topics / Manage Group — spec §22.8
 - [ ] Topic info panel menu: TTL / Copy Topic Link (public only) / Edit Topic (canEdit) / Close/Reopen / standard profile items / Delete Topic — spec §22.8 & §22.8.1
 
 ### 22.9 General Topic

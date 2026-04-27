@@ -29,6 +29,7 @@ import 'send_files_box.dart';
 import 'confirm_box.dart';
 import 'call_panel.dart';
 import 'forum_topic_icon.dart';
+import 'edit_forum_topic_box.dart';
 import 'emoji_panel.dart';
 import '../utils/web_drop.dart';
 
@@ -3355,9 +3356,15 @@ class _ChatTopBar extends StatelessWidget {
     final chatState = btnCtx.read<ChatState>();
     final button = btnCtx.findRenderObject() as RenderBox;
     final buttonPos = button.localToGlobal(Offset(0, button.size.height));
+    final isTopic = chat.type == ChatType.topic;
+
+    if (isTopic) {
+      _showTopicBurgerMenu(btnCtx, chat, chatState, buttonPos, onToggleInfo: onToggleInfo);
+      return;
+    }
+
     final isGroupy = chat.type == ChatType.group ||
-        chat.type == ChatType.channel ||
-        chat.type == ChatType.topic;
+        chat.type == ChatType.channel;
     final isDm = chat.type == ChatType.dm;
     final isForumAsMessages = chatState.isForumViewAsMessages;
     showTelegramMenu<String>(
@@ -3434,6 +3441,107 @@ class _ChatTopBar extends StatelessWidget {
           });
       }
     });
+  }
+
+  /// §22.8: Burger menu when inside a forum topic.
+  /// Items: Mute, Create Topic, Topic Info, Group Info, View as Topics, Manage Group.
+  static void _showTopicBurgerMenu(
+    BuildContext btnCtx,
+    ChatInfo chat,
+    ChatState chatState,
+    Offset buttonPos, {
+    VoidCallback? onToggleInfo,
+  }) {
+    final parentChat = chatState.forumParentChat;
+    final activeTopic = chatState.forumTopics
+        .cast<ForumTopic?>()
+        .firstWhere((t) => t!.id == chat.chatId, orElse: () => null);
+    showTelegramMenu<String>(
+      context: btnCtx,
+      position: buttonPos,
+      items: [
+        TelegramMenuItem(
+          value: 'mute',
+          icon: Icon(chat.isMuted ? Icons.notifications : Icons.notifications_off_outlined, size: 20),
+          label: chat.isMuted ? 'Unmute' : 'Mute',
+        ),
+        const TelegramMenuItem(
+          value: 'create_topic',
+          icon: Icon(Icons.add_circle_outline, size: 20),
+          label: 'Create Topic',
+        ),
+        const TelegramMenuItem.separator(),
+        const TelegramMenuItem(
+          value: 'topic_info',
+          icon: Icon(Icons.info_outline, size: 20),
+          label: 'Topic Info',
+        ),
+        const TelegramMenuItem(
+          value: 'group_info',
+          icon: Icon(Icons.group_outlined, size: 20),
+          label: 'Group Info',
+        ),
+        const TelegramMenuItem(
+          value: 'view_as_topics',
+          icon: Icon(Icons.topic_outlined, size: 20),
+          label: 'View as Topics',
+        ),
+        if (activeTopic != null && activeTopic.canEdit)
+          const TelegramMenuItem(
+            value: 'manage_group',
+            icon: Icon(Icons.settings_outlined, size: 20),
+            label: 'Manage Group',
+          ),
+      ],
+    ).then((value) {
+      if (value == null || !btnCtx.mounted) return;
+      switch (value) {
+        case 'mute':
+          chatState.muteChat(chat.accountId, chat.chatId, !chat.isMuted);
+        case 'create_topic':
+          _createTopicFromBurger(btnCtx, chatState, parentChat);
+        case 'topic_info':
+          onToggleInfo?.call();
+        case 'group_info':
+          if (parentChat != null) {
+            chatState.openChat(parentChat);
+            Future.microtask(() => onToggleInfo?.call());
+          }
+        case 'view_as_topics':
+          chatState.closeChat();
+        case 'manage_group':
+          if (parentChat != null) {
+            chatState.openChat(parentChat);
+            Future.microtask(() => onToggleInfo?.call());
+          }
+      }
+    });
+  }
+
+  static void _createTopicFromBurger(BuildContext ctx, ChatState chatState, ChatInfo? parentChat) async {
+    if (parentChat == null) return;
+    final result = await showEditForumTopicBox(ctx);
+    if (result == null) return;
+    try {
+      final engine = ctx.read<EngineService>();
+      final topicId = await engine.createForumTopic(
+        parentChat.accountId, parentChat.chatId, result.title, result.colorId, result.iconEmojiId,
+      );
+      await chatState.refreshForumTopics();
+      if (topicId > 0) {
+        final newTopic = chatState.forumTopics.cast<ForumTopic?>().firstWhere(
+          (t) => t!.id == topicId.toString(),
+          orElse: () => null,
+        );
+        if (newTopic != null) chatState.openTopic(newTopic);
+      }
+    } catch (e) {
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(
+          SnackBar(content: Text('Failed to create topic: $e')),
+        );
+      }
+    }
   }
 
   /// Spec §4.3: right-click on call button opens audio/video call submenu.
