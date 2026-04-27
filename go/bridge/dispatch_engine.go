@@ -2551,6 +2551,7 @@ func chatInfoToProto(c *engine.ChatInfo) *pb.EngineChatInfo {
 		StarsToSend:           int32(c.StarsToSend),
 		TtlPeriod:             int32(c.TtlPeriod),
 		EmojiStatusId:         c.EmojiStatusID,
+		IsForum:               c.IsForum,
 	}
 }
 

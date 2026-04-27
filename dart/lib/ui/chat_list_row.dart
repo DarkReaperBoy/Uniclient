@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
 
 import '../models/engine_models.dart';
+import 'forum_topic_icon.dart';
 
 /// Spec §2.7: Data carried during a drag-and-drop forward gesture.
 /// MIME equivalent of Telegram Desktop's `application/x-td-forward`.
@@ -1634,6 +1635,260 @@ class _HoverBuilderState extends State<_HoverBuilder> {
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: widget.builder(context, _isHovered),
+    );
+  }
+}
+
+/// §22.4: Forum group row in chat list — expanded 80px with topic names.
+class ForumChatListRow extends StatelessWidget {
+  final ChatInfo chat;
+  final bool isActive;
+  final bool isNarrow;
+  final List<ForumTopic> recentTopics;
+  final VoidCallback onTap;
+  final ValueChanged<Offset>? onSecondaryTap;
+  final VoidCallback? onStoryTap;
+  final bool isForwardHovered;
+
+  const ForumChatListRow({
+    super.key,
+    required this.chat,
+    required this.isActive,
+    this.isNarrow = false,
+    required this.recentTopics,
+    required this.onTap,
+    this.onSecondaryTap,
+    this.onStoryTap,
+    this.isForwardHovered = false,
+  });
+
+  static const _rowHeight = 80.0;
+  static const _avatarSize = 46.0;
+  static const _avatarLeft = 10.0;
+  static const _contentLeft = 68.0;
+  static const _paddingRight = 10.0;
+  static const _topicsHeight = 21.0;
+  static const _topicsSkip = 8.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final activeBg = isDark ? const Color(0xFF2b5278) : const Color(0xFF419fd9);
+    final defaultBg = isDark ? null : const Color(0xFFffffff);
+
+    final nameColor = isActive
+        ? Colors.white
+        : (isDark ? theme.textTheme.bodyLarge?.color : const Color(0xFF222222));
+    final mutedColor = isActive
+        ? Colors.white
+        : (isDark ? theme.textTheme.bodySmall?.color : const Color(0xFF999999));
+
+    final Color? rowBg;
+    if (isForwardHovered) {
+      rowBg = isDark ? const Color(0xFF2b3a4a) : const Color(0xFFe3f0fd);
+    } else if (isActive) {
+      rowBg = activeBg;
+    } else {
+      rowBg = defaultBg;
+    }
+
+    if (isNarrow) {
+      return Container(
+        color: rowBg,
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: onTap,
+            child: SizedBox(
+              height: _rowHeight,
+              child: Center(
+                child: _ChatAvatar(
+                  chat: chat,
+                  size: _avatarSize,
+                  isOnline: false,
+                  minified: true,
+                  onStoryTap: onStoryTap,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      color: rowBg,
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          onSecondaryTapDown: onSecondaryTap == null
+              ? null
+              : (details) => onSecondaryTap!(details.globalPosition),
+          hoverColor: isActive
+              ? Colors.white.withValues(alpha: 0.08)
+              : (isDark ? const Color(0xFF202b36) : const Color(0xFFF1F1F1)),
+          child: SizedBox(
+            height: _rowHeight,
+            child: Padding(
+              padding: const EdgeInsets.only(left: _avatarLeft, right: _paddingRight),
+              child: Row(
+                children: [
+                  _ChatAvatar(
+                    chat: chat,
+                    size: _avatarSize,
+                    isOnline: false,
+                    onStoryTap: onStoryTap,
+                  ),
+                  const SizedBox(width: _contentLeft - _avatarLeft - _avatarSize),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Icon(Icons.forum, size: 16, color: mutedColor),
+                            const SizedBox(width: 3),
+                            Expanded(
+                              child: Text(
+                                chat.title.isNotEmpty ? chat.title : chat.chatId,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: nameColor,
+                                ),
+                              ),
+                            ),
+                            if (chat.isMuted) ...[
+                              const SizedBox(width: 4),
+                              Icon(Icons.volume_off, size: 14, color: mutedColor),
+                            ],
+                            const SizedBox(width: 5),
+                            Text(
+                              _formatTime(chat.lastMsgTime),
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: isActive
+                                    ? Colors.white
+                                    : (isDark ? theme.textTheme.bodySmall?.color : const Color(0xFF999999)),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        SizedBox(
+                          height: _topicsHeight,
+                          child: _TopicsPreview(
+                            topics: recentTopics,
+                            isActive: isActive,
+                            isDark: isDark,
+                          ),
+                        ),
+                        const SizedBox(height: _topicsSkip - 4),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  static String _formatTime(int timestampMs) {
+    if (timestampMs == 0) return '';
+    final dt = DateTime.fromMillisecondsSinceEpoch(timestampMs);
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inDays == 0 && dt.day == now.day) {
+      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    }
+    if (diff.inDays == 1 || (diff.inDays == 0 && dt.day != now.day)) {
+      return 'Yesterday';
+    }
+    if (diff.inDays < 7) {
+      return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][dt.weekday - 1];
+    }
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${months[dt.month - 1]} ${dt.day}';
+  }
+}
+
+/// §22.4: Horizontal row of up to 8 recent topic names. Unread topics bold.
+class _TopicsPreview extends StatelessWidget {
+  final List<ForumTopic> topics;
+  final bool isActive;
+  final bool isDark;
+
+  const _TopicsPreview({
+    required this.topics,
+    required this.isActive,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (topics.isEmpty) {
+      return Text(
+        'No topics',
+        style: TextStyle(
+          fontSize: 13,
+          color: isActive ? Colors.white70 : (isDark ? const Color(0xFF6c7883) : const Color(0xFF999999)),
+        ),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final children = <InlineSpan>[];
+        for (var i = 0; i < topics.length; i++) {
+          final topic = topics[i];
+          final hasUnread = topic.unreadCount > 0;
+          if (i > 0) {
+            children.add(TextSpan(
+              text: ', ',
+              style: TextStyle(
+                fontSize: 13,
+                color: isActive ? Colors.white54 : (isDark ? const Color(0xFF6c7883) : const Color(0xFF999999)),
+              ),
+            ));
+          }
+          children.add(WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: topic.isGeneral
+                ? GeneralForumTopicIcon(size: ForumTopicIcon.defaultSize)
+                : ForumTopicIcon(
+                    colorId: topic.colorId,
+                    title: topic.title,
+                    size: ForumTopicIcon.defaultSize,
+                  ),
+          ));
+          children.add(const WidgetSpan(child: SizedBox(width: 3)));
+          children.add(TextSpan(
+            text: topic.title,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
+              color: isActive
+                  ? Colors.white
+                  : (hasUnread
+                      ? (isDark ? Colors.white : const Color(0xFF222222))
+                      : (isDark ? const Color(0xFF6c7883) : const Color(0xFF999999))),
+            ),
+          ));
+        }
+        return Text.rich(
+          TextSpan(children: children),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        );
+      },
     );
   }
 }

@@ -2628,6 +2628,7 @@ class EngineService {
     starsToSend: p.starsToSend,
     ttlPeriod: p.ttlPeriod,
     emojiStatusId: p.emojiStatusId,
+    isForum: p.isForum,
   );
 
   static CachedMessage _cachedMsgFromProto(epb.EngineCachedMessage p) {

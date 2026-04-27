@@ -639,8 +639,23 @@ class _ChatListPanelState extends State<ChatListPanel>
 
                             // During active reorder: skip SwipeableChatRow wrapper for pinned items.
                             Widget row;
-                            if (_reorderActive && isPinnedReorderable) {
-                              row = ChatListRow(
+                            Widget buildChatRow() {
+                              if (chat.isForum) {
+                                return ForumChatListRow(
+                                  chat: chat,
+                                  isActive: isActive,
+                                  isNarrow: widget.collapsed,
+                                  recentTopics: chatState.recentTopicsFor(chat.accountId, chat.chatId),
+                                  onTap: () => chatState.openChat(chat),
+                                  onSecondaryTap: (pos) =>
+                                      _showChatContextMenu(context, chat, pos),
+                                  isForwardHovered: isForwardHovered,
+                                  onStoryTap: chat.storyCount > 0
+                                      ? () => _openStories(context, chat)
+                                      : null,
+                                );
+                              }
+                              return ChatListRow(
                                 chat: chat,
                                 isActive: isActive,
                                 isOnline: chatState.isChatOnline(chat),
@@ -654,25 +669,16 @@ class _ChatListPanelState extends State<ChatListPanel>
                                     ? () => _openStories(context, chat)
                                     : null,
                               );
+                            }
+
+                            if (_reorderActive && isPinnedReorderable) {
+                              row = buildChatRow();
                             } else {
                               row = SwipeableChatRow(
                                 action: swipeAction,
                                 onAction: () => _performSwipeAction(
                                     context, swipeAction, chat),
-                                child: ChatListRow(
-                                  chat: chat,
-                                  isActive: isActive,
-                                  isOnline: chatState.isChatOnline(chat),
-                                  isNarrow: widget.collapsed,
-                                  typingUser: chatState.typingUserFor(chat.chatId),
-                                  onTap: () => chatState.openChat(chat),
-                                  onSecondaryTap: (pos) =>
-                                      _showChatContextMenu(context, chat, pos),
-                                  isForwardHovered: isForwardHovered,
-                                  onStoryTap: chat.storyCount > 0
-                                      ? () => _openStories(context, chat)
-                                      : null,
-                                ),
+                                child: buildChatRow(),
                               );
                             }
 

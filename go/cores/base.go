@@ -179,6 +179,7 @@ type Dialog struct {
 	EmojiStatusID       string `json:"emoji_status_id,omitempty"`
 	StoryCount          int    `json:"story_count,omitempty"`
 	HasUnreadStory      bool   `json:"has_unread_story,omitempty"`
+	IsForum             bool   `json:"is_forum,omitempty"`
 	Platform            string `json:"platform"`
 }
 

@@ -56,6 +56,10 @@ class ChatState extends ChangeNotifier {
   ChatInfo? _forumParentChat;
   String? _activeTopicId;
 
+  // §22.4: Recent topic names for forum chats (up to 8), keyed by "accountId:chatId".
+  final Map<String, List<ForumTopic>> _forumRecentTopics = {};
+  final Set<String> _forumTopicsFetching = {};
+
   final List<StreamSubscription<dynamic>> _subs = [];
   Timer? _pollTimer;
   Timer? _loadChatsDebounce;
@@ -170,6 +174,28 @@ class ChatState extends ChangeNotifier {
   ChatInfo? get forumParentChat => _forumParentChat;
   bool get isViewingForum => _forumParentChat != null;
   String? get activeTopicId => _activeTopicId;
+
+  List<ForumTopic> recentTopicsFor(String accountId, String chatId) {
+    final key = '$accountId:$chatId';
+    final cached = _forumRecentTopics[key];
+    if (cached != null) return cached;
+    if (!_forumTopicsFetching.contains(key)) {
+      _forumTopicsFetching.add(key);
+      _engine.getForumTopics(accountId, chatId).then((topics) {
+        if (_disposed) return;
+        topics.sort((a, b) {
+          final aId = int.tryParse(a.topMessageId) ?? 0;
+          final bId = int.tryParse(b.topMessageId) ?? 0;
+          return bId.compareTo(aId);
+        });
+        _forumRecentTopics[key] = topics.take(8).toList();
+        notifyListeners();
+      }).catchError((_) {
+        _forumTopicsFetching.remove(key);
+      });
+    }
+    return const [];
+  }
 
   /// Online member count for the active group/channel chat.
   int get groupOnlineCount => _groupOnlineCount;
@@ -541,6 +567,8 @@ class ChatState extends ChangeNotifier {
         return bId.compareTo(aId);
       });
     } catch (_) {}
+    final key = '${chat.accountId}:${chat.chatId}';
+    _forumRecentTopics[key] = _forumTopics.take(8).toList();
     notifyListeners();
   }
 

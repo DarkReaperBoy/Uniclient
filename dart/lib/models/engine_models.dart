@@ -215,6 +215,7 @@ class ChatInfo {
   final int starsToSend;
   final int ttlPeriod;
   final String emojiStatusId;
+  final bool isForum;
 
   const ChatInfo({
     required this.accountId,
@@ -257,6 +258,7 @@ class ChatInfo {
     this.starsToSend = 0,
     this.ttlPeriod = 0,
     this.emojiStatusId = '',
+    this.isForum = false,
   });
 
   factory ChatInfo.fromJson(Map<String, dynamic> j) => ChatInfo(
@@ -300,6 +302,7 @@ class ChatInfo {
     starsToSend: j['stars_to_send'] as int? ?? 0,
     ttlPeriod: j['ttl_period'] as int? ?? 0,
     emojiStatusId: j['emoji_status_id'] as String? ?? '',
+    isForum: j['is_forum'] as bool? ?? false,
   );
 
   /// Time as DateTime for display.

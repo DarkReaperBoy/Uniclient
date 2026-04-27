@@ -10707,6 +10707,7 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 					} else {
 						dialog.Type = ChatTypeGroup
 					}
+					dialog.IsForum = c.Forum
 					if _, ok := c.Photo.(*tg.ChatPhoto); ok {
 						dialog.AvatarURL = "has_photo"
 					}

@@ -121,6 +121,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV18,
 	migrateV19,
 	migrateV20,
+	migrateV21,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -561,6 +562,15 @@ func migrateV20(tx *sql.Tx) error {
 	}
 	if !columnExists(tx, "chats", "has_unread_story") {
 		if _, err := tx.Exec(`ALTER TABLE chats ADD COLUMN has_unread_story INTEGER NOT NULL DEFAULT 0`); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func migrateV21(tx *sql.Tx) error {
+	if !columnExists(tx, "chats", "is_forum") {
+		if _, err := tx.Exec(`ALTER TABLE chats ADD COLUMN is_forum INTEGER NOT NULL DEFAULT 0`); err != nil {
 			return err
 		}
 	}

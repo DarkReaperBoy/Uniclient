@@ -1432,6 +1432,7 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     $core.int? starsToSend,
     $core.int? ttlPeriod,
     $core.String? emojiStatusId,
+    $core.bool? isForum,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -1512,6 +1513,9 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     if (emojiStatusId != null) {
       $result.emojiStatusId = emojiStatusId;
     }
+    if (isForum != null) {
+      $result.isForum = isForum;
+    }
     return $result;
   }
   EngineChatInfo._() : super();
@@ -1545,6 +1549,7 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     ..a<$core.int>(24, _omitFieldNames ? '' : 'starsToSend', $pb.PbFieldType.O3)
     ..a<$core.int>(25, _omitFieldNames ? '' : 'ttlPeriod', $pb.PbFieldType.O3)
     ..aOS(26, _omitFieldNames ? '' : 'emojiStatusId')
+    ..aOB(27, _omitFieldNames ? '' : 'isForum')
     ..hasRequiredFields = false
   ;
 
@@ -1802,6 +1807,15 @@ class EngineChatInfo extends $pb.GeneratedMessage {
   $core.bool hasEmojiStatusId() => $_has(25);
   @$pb.TagNumber(26)
   void clearEmojiStatusId() => clearField(26);
+
+  @$pb.TagNumber(27)
+  $core.bool get isForum => $_getBF(26);
+  @$pb.TagNumber(27)
+  set isForum($core.bool v) { $_setBool(26, v); }
+  @$pb.TagNumber(27)
+  $core.bool hasIsForum() => $_has(26);
+  @$pb.TagNumber(27)
+  void clearIsForum() => clearField(27);
 }
 
 class EngineGetChatListRequest extends $pb.GeneratedMessage {

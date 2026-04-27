@@ -1132,6 +1132,7 @@ type EngineChatInfo struct {
 	StarsToSend          int32                  `protobuf:"varint,24,opt,name=stars_to_send,json=starsToSend,proto3" json:"stars_to_send,omitempty"`
 	TtlPeriod            int32                  `protobuf:"varint,25,opt,name=ttl_period,json=ttlPeriod,proto3" json:"ttl_period,omitempty"`
 	EmojiStatusId        string                 `protobuf:"bytes,26,opt,name=emoji_status_id,json=emojiStatusId,proto3" json:"emoji_status_id,omitempty"`
+	IsForum              bool                   `protobuf:"varint,27,opt,name=is_forum,json=isForum,proto3" json:"is_forum,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -1346,6 +1347,13 @@ func (x *EngineChatInfo) GetEmojiStatusId() string {
 		return x.EmojiStatusId
 	}
 	return ""
+}
+
+func (x *EngineChatInfo) GetIsForum() bool {
+	if x != nil {
+		return x.IsForum
+	}
+	return false
 }
 
 type EngineGetChatListRequest struct {
@@ -9947,7 +9955,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x05state\x18\x01 \x01(\v2\x1a.uniclient.EngineAuthStateR\x05state\"8\n" +
 	"\x17EngineCancelAuthRequest\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x01 \x01(\tR\taccountId\"\xf9\x06\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\"\x94\a\n" +
 	"\x0eEngineChatInfo\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
@@ -9982,7 +9990,8 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\rstars_to_send\x18\x18 \x01(\x05R\vstarsToSend\x12\x1d\n" +
 	"\n" +
 	"ttl_period\x18\x19 \x01(\x05R\tttlPeriod\x12&\n" +
-	"\x0femoji_status_id\x18\x1a \x01(\tR\remojiStatusId\"\x83\x01\n" +
+	"\x0femoji_status_id\x18\x1a \x01(\tR\remojiStatusId\x12\x19\n" +
+	"\bis_forum\x18\x1b \x01(\bR\aisForum\"\x83\x01\n" +
 	"\x18EngineGetChatListRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x1a\n" +
