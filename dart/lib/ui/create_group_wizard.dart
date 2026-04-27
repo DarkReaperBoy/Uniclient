@@ -75,7 +75,8 @@ class _WizardDialog extends StatefulWidget {
   State<_WizardDialog> createState() => _WizardDialogState();
 }
 
-class _WizardDialogState extends State<_WizardDialog> {
+class _WizardDialogState extends State<_WizardDialog>
+    with TickerProviderStateMixin {
   late _WizardStep _step;
   final _nameController = TextEditingController();
   final _descController = TextEditingController();
@@ -83,6 +84,20 @@ class _WizardDialogState extends State<_WizardDialog> {
   bool _creating = false;
   String? _error;
   String _createdChatId = '';
+
+  // Shake animation for empty title.
+  late AnimationController _shakeController;
+  late Animation<double> _shakeAnimation;
+
+  // TTL (auto-delete) state for groups.
+  int _ttlSeconds = 0;
+
+  static const Map<int, String> _ttlOptions = {
+    0: 'Off',
+    86400: '1 day',
+    604800: '1 week',
+    2678400: '1 month',
+  };
 
   // Member picker state.
   List<ContactInfo> _contacts = [];
@@ -100,6 +115,20 @@ class _WizardDialogState extends State<_WizardDialog> {
   void initState() {
     super.initState();
     _step = _WizardStep.info;
+    _shakeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _shakeAnimation = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0, end: -8), weight: 1),
+      TweenSequenceItem(tween: Tween(begin: -8, end: 8), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: 8, end: -6), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: -6, end: 4), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: 4, end: 0), weight: 1),
+    ]).animate(CurvedAnimation(
+      parent: _shakeController,
+      curve: Curves.easeOut,
+    ));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _nameFocus.requestFocus();
     });
@@ -107,6 +136,7 @@ class _WizardDialogState extends State<_WizardDialog> {
 
   @override
   void dispose() {
+    _shakeController.dispose();
     _nameController.dispose();
     _descController.dispose();
     _nameFocus.dispose();
@@ -230,11 +260,15 @@ class _WizardDialogState extends State<_WizardDialog> {
     }
   }
 
+  void _shakeTitle() {
+    _nameFocus.requestFocus();
+    _shakeController.forward(from: 0);
+  }
+
   Future<void> _submitInfo() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
-      _nameFocus.requestFocus();
-      setState(() => _error = 'Please enter a name');
+      _shakeTitle();
       return;
     }
 
@@ -264,8 +298,13 @@ class _WizardDialogState extends State<_WizardDialog> {
       } on EngineException catch (e) {
         if (!mounted) return;
         String msg = e.message;
-        if (msg.contains('NO_CHAT_TITLE')) msg = 'Please enter a channel name';
+        if (msg.contains('NO_CHAT_TITLE')) {
+          _shakeTitle();
+          setState(() { _creating = false; });
+          return;
+        }
         if (msg.contains('CHANNELS_TOO_MUCH')) msg = 'You have created too many channels';
+        if (msg.contains('USERS_TOO_FEW')) msg = 'You need to add more members';
         setState(() { _creating = false; _error = msg; });
       } catch (e) {
         if (!mounted) return;
@@ -285,13 +324,27 @@ class _WizardDialogState extends State<_WizardDialog> {
       if (!mounted) return;
       final chatId = result['chat_id'] as String? ?? '';
       if (chatId.isNotEmpty) {
+        if (_ttlSeconds > 0) {
+          try {
+            _engine.setHistoryTTL(_accountId, chatId, _ttlSeconds);
+          } catch (_) {}
+        }
         final chat = _chatState.chats.where((c) => c.chatId == chatId).firstOrNull;
         if (chat != null) _chatState.openChat(chat);
       }
+      if (!mounted) return;
       Navigator.of(context).pop();
     } on EngineException catch (e) {
       if (!mounted) return;
-      setState(() { _creating = false; _error = e.message; });
+      String msg = e.message;
+      if (msg.contains('NO_CHAT_TITLE')) {
+        _shakeTitle();
+        setState(() { _creating = false; _step = _WizardStep.info; });
+        return;
+      }
+      if (msg.contains('USERS_TOO_FEW')) msg = 'You need to add at least one member';
+      if (msg.contains('CHANNELS_TOO_MUCH')) msg = 'You have created too many groups';
+      setState(() { _creating = false; _error = msg; });
     } catch (e) {
       if (!mounted) return;
       setState(() { _creating = false; _error = e.toString(); });
@@ -362,6 +415,7 @@ class _WizardDialogState extends State<_WizardDialog> {
 
   Widget _buildTitleBar(bool isDark) {
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     String title;
     switch (_step) {
       case _WizardStep.info:
@@ -394,13 +448,42 @@ class _WizardDialogState extends State<_WizardDialog> {
               ),
             ),
           ),
+          if (_step == _WizardStep.info && widget.type == _WizardType.group)
+            PopupMenuButton<int>(
+              icon: Icon(Icons.more_vert, color: subtextColor, size: 20),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              tooltip: 'Auto-delete messages',
+              onSelected: (ttl) => setState(() => _ttlSeconds = ttl),
+              itemBuilder: (ctx) => _ttlOptions.entries.map((e) {
+                final selected = _ttlSeconds == e.key;
+                return PopupMenuItem<int>(
+                  value: e.key,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          e.key == 0
+                              ? 'Auto-delete off'
+                              : 'Auto-delete in ${e.value}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: textColor,
+                            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                          ),
+                        ),
+                      ),
+                      if (selected)
+                        Icon(Icons.check, size: 18, color: isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD)),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
           if (_step == _WizardStep.memberPicker && _selectedMembers.isNotEmpty)
             Text(
               '${_selectedMembers.length}',
-              style: TextStyle(
-                fontSize: 13,
-                color: isDark ? const Color(0xFF6C7883) : const Color(0xFF999999),
-              ),
+              style: TextStyle(fontSize: 13, color: subtextColor),
             ),
         ],
       ),
@@ -443,29 +526,39 @@ class _WizardDialogState extends State<_WizardDialog> {
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.only(top: 5),
-                child: TextField(
-                  controller: _nameController,
-                  focusNode: _nameFocus,
-                  maxLength: _maxTitleLength,
-                  style: TextStyle(fontSize: 14, color: textColor),
-                  decoration: InputDecoration(
-                    hintText: widget.type == _WizardType.group
-                        ? 'Group Name'
-                        : 'Channel Name',
-                    hintStyle: TextStyle(color: subtextColor),
-                    counterText: '',
-                    filled: true,
-                    fillColor: fieldBg,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide.none,
+                child: AnimatedBuilder(
+                  animation: _shakeAnimation,
+                  builder: (ctx, child) {
+                    return Transform.translate(
+                      offset: Offset(_shakeAnimation.value, 0),
+                      child: child,
+                    );
+                  },
+                  child: TextField(
+                    controller: _nameController,
+                    focusNode: _nameFocus,
+                    maxLength: _maxTitleLength,
+                    style: TextStyle(fontSize: 14, color: textColor),
+                    decoration: InputDecoration(
+                      hintText: widget.type == _WizardType.group
+                          ? 'Group Name'
+                          : 'Channel Name',
+                      hintStyle: TextStyle(color: subtextColor),
+                      counterText: '',
+                      filled: true,
+                      fillColor: fieldBg,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
+                    onChanged: (_) => setState(() => _error = null),
+                    onSubmitted: (_) => _submitInfo(),
                   ),
-                  onChanged: (_) => setState(() => _error = null),
                 ),
               ),
             ),
@@ -473,25 +566,28 @@ class _WizardDialogState extends State<_WizardDialog> {
         ),
         if (widget.type == _WizardType.channel) ...[
           const SizedBox(height: 13),
-          TextField(
-            controller: _descController,
-            maxLength: _maxDescLength,
-            maxLines: null,
-            minLines: 3,
-            style: TextStyle(fontSize: 14, color: textColor),
-            decoration: InputDecoration(
-              hintText: 'Description (optional)',
-              hintStyle: TextStyle(color: subtextColor),
-              counterText: '',
-              filled: true,
-              fillColor: fieldBg,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 10,
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 116),
+            child: TextField(
+              controller: _descController,
+              maxLength: _maxDescLength,
+              maxLines: null,
+              minLines: 3,
+              style: TextStyle(fontSize: 14, color: textColor),
+              decoration: InputDecoration(
+                hintText: 'Description (optional)',
+                hintStyle: TextStyle(color: subtextColor),
+                counterText: '',
+                filled: true,
+                fillColor: fieldBg,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
               ),
             ),
           ),
