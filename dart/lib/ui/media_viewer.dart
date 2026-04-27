@@ -51,6 +51,8 @@ class MediaViewer extends StatefulWidget {
   static void rotate() => _activeInstance?._rotate();
   static void flipH() => _activeInstance?._flipHorizontal();
   static void flipV() => _activeInstance?._flipVertical();
+  static void save() => _activeInstance?._saveMediaToDownloads(_activeInstance!._currentMessage);
+  static void copyMedia() => _activeInstance?._copyImageToClipboard(_activeInstance!._currentMessage);
 
   const MediaViewer({
     super.key,
@@ -587,6 +589,18 @@ class _MediaViewerState extends State<MediaViewer>
           return KeyEventResult.handled;
         }
         return KeyEventResult.ignored;
+      case LogicalKeyboardKey.keyS:
+        if (ctrl) {
+          _saveMediaToDownloads(_currentMessage);
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      case LogicalKeyboardKey.keyC:
+        if (ctrl) {
+          _copyImageToClipboard(_currentMessage);
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
       case LogicalKeyboardKey.keyH:
         _flipHorizontal();
         return KeyEventResult.handled;
@@ -676,6 +690,8 @@ class _MediaViewerState extends State<MediaViewer>
                   _toggleControls();
                 }
               },
+              onSecondaryTapDown: (details) =>
+                  _showViewerContextMenu(details, _currentMessage),
               onScaleStart: (details) {
                 _isPinching = details.pointerCount >= 2;
                 _pinchBaseScale = _currentScale;
@@ -907,6 +923,8 @@ class _MediaViewerState extends State<MediaViewer>
                         _toggleControls();
                       }
                     },
+                    onSecondaryTapDown: (details) =>
+                        _showViewerContextMenu(details, _currentMessage),
                     onScaleStart: (details) {
                       _isPinching = details.pointerCount >= 2;
                       _pinchBaseScale = _currentScale;
@@ -1618,27 +1636,262 @@ class _MediaViewerState extends State<MediaViewer>
     chatState.jumpToMessage(msg.timestamp);
   }
 
+  void _saveMediaToDownloads(CachedMessage msg) async {
+    if (msg.mediaLocalPath.isEmpty) return;
+    final sourceFile = File(msg.mediaLocalPath);
+    if (!await sourceFile.exists()) return;
+    final downloadsDir =
+        Directory('${Platform.environment['HOME'] ?? '/tmp'}/Downloads');
+    if (!await downloadsDir.exists()) {
+      await downloadsDir.create(recursive: true);
+    }
+    final fileName = msg.mediaFileName.isNotEmpty
+        ? msg.mediaFileName
+        : sourceFile.uri.pathSegments.last;
+    var destPath = '${downloadsDir.path}/$fileName';
+    var counter = 1;
+    while (await File(destPath).exists()) {
+      final ext =
+          fileName.contains('.') ? '.${fileName.split('.').last}' : '';
+      final base = fileName.contains('.')
+          ? fileName.substring(0, fileName.lastIndexOf('.'))
+          : fileName;
+      destPath = '${downloadsDir.path}/${base}_($counter)$ext';
+      counter++;
+    }
+    await sourceFile.copy(destPath);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Saved to ${destPath.split('/').last}'),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _showInChat(CachedMessage msg) {
+    final chatState = context.read<ChatState>();
+    Navigator.of(context).pop();
+    chatState.jumpToMessage(msg.timestamp);
+  }
+
+  void _forwardMedia(CachedMessage msg) {
+    final chatState = context.read<ChatState>();
+    final chats = chatState.chats;
+    if (chats.isEmpty) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E2C3A),
+        title: const Text('Forward to...', style: TextStyle(color: Colors.white)),
+        content: SizedBox(
+          width: 300,
+          height: 400,
+          child: ListView.builder(
+            itemCount: chats.length,
+            itemBuilder: (_, i) {
+              final chat = chats[i];
+              return ListTile(
+                title: Text(chat.title,
+                    style: const TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  chatState.forwardMessages([msg.msgId], chat.chatId);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Forwarded to ${chat.title}'),
+                      behavior: SnackBarBehavior.floating,
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _deleteMedia(CachedMessage msg) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E2C3A),
+        title: const Text('Delete', style: TextStyle(color: Colors.white)),
+        content: const Text('Are you sure you want to delete this media?',
+            style: TextStyle(color: Color(0xFFAABBCC))),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              final chatState = context.read<ChatState>();
+              chatState.deleteMessage(msg.msgId);
+              if (widget.mediaMessages.length <= 1) {
+                Navigator.of(context).pop();
+              } else {
+                setState(() {
+                  if (_currentIndex > 0) {
+                    _currentIndex--;
+                  }
+                });
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _copyImageToClipboard(CachedMessage msg) async {
+    if (msg.mediaLocalPath.isEmpty) return;
+    final file = File(msg.mediaLocalPath);
+    if (!await file.exists()) return;
+    final bytes = await file.readAsBytes();
+    await Clipboard.setData(ClipboardData(text: msg.mediaLocalPath));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Image path copied to clipboard'),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _showMoreMenu(BuildContext btnContext, CachedMessage msg) {
+    final RenderBox button = btnContext.findRenderObject() as RenderBox;
+    final RenderBox overlay =
+        Navigator.of(btnContext).overlay!.context.findRenderObject()
+            as RenderBox;
+    final Offset pos = button.localToGlobal(Offset.zero, ancestor: overlay);
+
+    final items = <PopupMenuEntry<String>>[
+      _darkMenuItem('show_in_chat', Icons.chat_bubble_outline, 'Show in Chat'),
+      if (_isPhoto && msg.mediaLocalPath.isNotEmpty)
+        _darkMenuItem('copy_image', Icons.copy, 'Copy Image'),
+      if (msg.mediaLocalPath.isNotEmpty)
+        _darkMenuItem('forward', Icons.forward, 'Forward'),
+      if (msg.isOutgoing)
+        _darkMenuItem('delete', Icons.delete_outline, 'Delete',
+            isDestructive: true),
+      if (msg.mediaLocalPath.isNotEmpty)
+        _darkMenuItem('save_as', Icons.save_alt, 'Save As\u2026'),
+    ];
+
+    showMenu<String>(
+      context: btnContext,
+      position: RelativeRect.fromLTRB(
+        pos.dx,
+        pos.dy - (items.length * 48.0),
+        pos.dx + button.size.width,
+        pos.dy,
+      ),
+      color: const Color(0xE6222222),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      items: items,
+    ).then((value) {
+      if (value == null) return;
+      switch (value) {
+        case 'show_in_chat':
+          _showInChat(msg);
+        case 'copy_image':
+          _copyImageToClipboard(msg);
+        case 'forward':
+          _forwardMedia(msg);
+        case 'delete':
+          _deleteMedia(msg);
+        case 'save_as':
+          _saveMediaToDownloads(msg);
+      }
+    });
+  }
+
+  PopupMenuItem<String> _darkMenuItem(
+      String value, IconData icon, String label,
+      {bool isDestructive = false}) {
+    final color = isDestructive ? const Color(0xFFE53935) : const Color(0xFFDDDDDD);
+    return PopupMenuItem(
+      value: value,
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: color),
+          const SizedBox(width: 12),
+          Text(label, style: TextStyle(color: color, fontSize: 14)),
+        ],
+      ),
+    );
+  }
+
+  void _showViewerContextMenu(TapDownDetails details, CachedMessage msg) {
+    final pos = details.globalPosition;
+    final items = <PopupMenuEntry<String>>[
+      _darkMenuItem('show_in_chat', Icons.chat_bubble_outline, 'Show in Chat'),
+      if (_isPhoto && msg.mediaLocalPath.isNotEmpty)
+        _darkMenuItem('copy_image', Icons.copy, 'Copy Image'),
+      if (msg.mediaLocalPath.isNotEmpty)
+        _darkMenuItem('forward', Icons.forward, 'Forward'),
+      if (msg.isOutgoing)
+        _darkMenuItem('delete', Icons.delete_outline, 'Delete',
+            isDestructive: true),
+      if (msg.mediaLocalPath.isNotEmpty)
+        _darkMenuItem('save_as', Icons.save_alt, 'Save As\u2026'),
+    ];
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(pos.dx, pos.dy, pos.dx, pos.dy),
+      color: const Color(0xE6222222),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      items: items,
+    ).then((value) {
+      if (value == null) return;
+      switch (value) {
+        case 'show_in_chat':
+          _showInChat(msg);
+        case 'copy_image':
+          _copyImageToClipboard(msg);
+        case 'forward':
+          _forwardMedia(msg);
+        case 'delete':
+          _deleteMedia(msg);
+        case 'save_as':
+          _saveMediaToDownloads(msg);
+      }
+    });
+  }
+
   Widget _buildToolbar(CachedMessage msg) {
+    final hasContent = msg.mediaLocalPath.isNotEmpty;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (hasContent)
+          _ViewerButton(
+            icon: Icons.save_alt,
+            onTap: () => _saveMediaToDownloads(msg),
+            tooltip: 'Save (Ctrl+S)',
+          ),
         _ViewerButton(
           icon: Icons.rotate_left,
           onTap: _rotate,
           tooltip: 'Rotate',
         ),
-        if (_isZoomedIn)
-          _ViewerButton(
-            icon: Icons.fit_screen,
-            onTap: () => _animateZoomTo(0),
-            tooltip: 'Fit to screen (Ctrl+0)',
-          )
-        else
-          _ViewerButton(
-            icon: Icons.zoom_in,
-            onTap: () => _animateZoomTo(3),
-            tooltip: 'Zoom in (Ctrl++)',
+        Builder(
+          builder: (btnCtx) => _ViewerButton(
+            icon: Icons.more_horiz,
+            onTap: () => _showMoreMenu(btnCtx, msg),
+            tooltip: 'More',
           ),
+        ),
       ],
     );
   }

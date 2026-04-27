@@ -869,6 +869,14 @@ class _UniClientAppState extends State<UniClientApp>
       SystemTray.quitAppRequest?.call();
       return;
     }
+    if (lc == 'ctrl+s' || lc == 'control+s') {
+      MediaViewer.save();
+      return;
+    }
+    if (lc == 'ctrl+c' || lc == 'control+c') {
+      MediaViewer.copyMedia();
+      return;
+    }
     // Telegram Desktop spec §24.4 Chat Actions: Ctrl+\ opens the chat-level
     // action menu (`show_chat_menu`, aka the peer menu). Anchored at the
     // top-bar more_vert button. No-op when no chat is open. Same harness
@@ -1019,6 +1027,10 @@ class _UniClientAppState extends State<UniClientApp>
         MediaViewer.flipH();
       case 'flipv':
         MediaViewer.flipV();
+      case 'save':
+        MediaViewer.save();
+      case 'copy_media':
+        MediaViewer.copyMedia();
       default:
         if (key.length == 1) {
           final code = key.codeUnitAt(0);

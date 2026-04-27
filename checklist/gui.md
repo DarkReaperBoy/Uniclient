@@ -740,8 +740,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 20.7 Footer / Header
 
 ### 20.8 Bottom-Right Toolbar + Context Menu
-- [ ] Toolbar: 46×54px icon cells (right-to-left), 36px hover circle, 150ms per-icon fade, icons: More/Rotate/Share/Save/Draw/OCR (conditional) — spec §20.8
-- [ ] More-menu / right-click: up to 18 conditional items (Cancel download, Show in Chat, Archive/Save, Copy Image, Forward, Delete, Save As, Set as Userpic, Report, etc.), dark-themed popup (groupCallMenuBg/groupCallMembersFg), Rotate NOT in context menu — spec §20.8.1 & §20.16
 
 ### 20.9 Caption Display
 - [ ] Caption: mediaviewCaptionBg (radius 6px, no bg in stories), padding 11/6/11/6px, mediaviewCaptionStyle/mediaviewCaptionFg, max height 1/4 maxUsedHeight, stories collapsed to kCollapsedCaptionLines with "Show more", bottom-aligned with 11px margin, spoiler + timestamp link support — spec §20.9
