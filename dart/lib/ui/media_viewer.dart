@@ -814,50 +814,50 @@ class _MediaViewerState extends State<MediaViewer>
           }
           return KeyEventResult.handled;
         }
-        if (_isVideo) {
+        if (_isVideo && _mode == _MediaViewerMode.fullscreen) {
           _seekToPercent(0);
           return KeyEventResult.handled;
         }
         return KeyEventResult.ignored;
       case LogicalKeyboardKey.digit1:
       case LogicalKeyboardKey.numpad1:
-        if (!ctrl && _isVideo) { _seekToPercent(10); return KeyEventResult.handled; }
+        if (!ctrl && _isVideo && _mode == _MediaViewerMode.fullscreen) { _seekToPercent(10); return KeyEventResult.handled; }
         return KeyEventResult.ignored;
       case LogicalKeyboardKey.digit2:
       case LogicalKeyboardKey.numpad2:
-        if (!ctrl && _isVideo) { _seekToPercent(20); return KeyEventResult.handled; }
+        if (!ctrl && _isVideo && _mode == _MediaViewerMode.fullscreen) { _seekToPercent(20); return KeyEventResult.handled; }
         return KeyEventResult.ignored;
       case LogicalKeyboardKey.digit3:
       case LogicalKeyboardKey.numpad3:
-        if (!ctrl && _isVideo) { _seekToPercent(30); return KeyEventResult.handled; }
+        if (!ctrl && _isVideo && _mode == _MediaViewerMode.fullscreen) { _seekToPercent(30); return KeyEventResult.handled; }
         return KeyEventResult.ignored;
       case LogicalKeyboardKey.digit4:
       case LogicalKeyboardKey.numpad4:
-        if (!ctrl && _isVideo) { _seekToPercent(40); return KeyEventResult.handled; }
+        if (!ctrl && _isVideo && _mode == _MediaViewerMode.fullscreen) { _seekToPercent(40); return KeyEventResult.handled; }
         return KeyEventResult.ignored;
       case LogicalKeyboardKey.digit5:
       case LogicalKeyboardKey.numpad5:
-        if (!ctrl && _isVideo) { _seekToPercent(50); return KeyEventResult.handled; }
+        if (!ctrl && _isVideo && _mode == _MediaViewerMode.fullscreen) { _seekToPercent(50); return KeyEventResult.handled; }
         return KeyEventResult.ignored;
       case LogicalKeyboardKey.digit6:
       case LogicalKeyboardKey.numpad6:
-        if (!ctrl && _isVideo) { _seekToPercent(60); return KeyEventResult.handled; }
+        if (!ctrl && _isVideo && _mode == _MediaViewerMode.fullscreen) { _seekToPercent(60); return KeyEventResult.handled; }
         return KeyEventResult.ignored;
       case LogicalKeyboardKey.digit7:
       case LogicalKeyboardKey.numpad7:
-        if (!ctrl && _isVideo) { _seekToPercent(70); return KeyEventResult.handled; }
+        if (!ctrl && _isVideo && _mode == _MediaViewerMode.fullscreen) { _seekToPercent(70); return KeyEventResult.handled; }
         return KeyEventResult.ignored;
       case LogicalKeyboardKey.digit8:
       case LogicalKeyboardKey.numpad8:
-        if (!ctrl && _isVideo) { _seekToPercent(80); return KeyEventResult.handled; }
+        if (!ctrl && _isVideo && _mode == _MediaViewerMode.fullscreen) { _seekToPercent(80); return KeyEventResult.handled; }
         return KeyEventResult.ignored;
       case LogicalKeyboardKey.digit9:
       case LogicalKeyboardKey.numpad9:
-        if (!ctrl && _isVideo) { _seekToPercent(90); return KeyEventResult.handled; }
+        if (!ctrl && _isVideo && _mode == _MediaViewerMode.fullscreen) { _seekToPercent(90); return KeyEventResult.handled; }
         return KeyEventResult.ignored;
       case LogicalKeyboardKey.arrowLeft:
         if (alt) return KeyEventResult.ignored;
-        if (_isVideo && _player != null) {
+        if (_isVideo && _player != null && _mode == _MediaViewerMode.fullscreen) {
           _player!.seek(_position - const Duration(seconds: 5));
           _showControls();
           return KeyEventResult.handled;
@@ -866,7 +866,7 @@ class _MediaViewerState extends State<MediaViewer>
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowRight:
         if (alt) return KeyEventResult.ignored;
-        if (_isVideo && _player != null) {
+        if (_isVideo && _player != null && _mode == _MediaViewerMode.fullscreen) {
           _player!.seek(_position + const Duration(seconds: 5));
           _showControls();
           return KeyEventResult.handled;

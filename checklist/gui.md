@@ -752,7 +752,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 20.17 Stories Viewer Mode
 
 ### 20.18–20.19 Keyboard Shortcuts & Animations
-- [ ] All keyboard shortcuts: Escape/Space/Left/Right/Alt+Left/Right/0-9/Ctrl+F/Alt+Enter/Ctrl+/Ctrl-/Ctrl+0/Ctrl+S/Ctrl+C/H/V — spec §20.18
 - [ ] All viewer animations: controls auto-hide 1100ms→600ms fade, mouse activity 200ms fade-in, blank cursor, icon hover 150ms, between-media rect interpolation with rotation, radial loading arc, open 200ms/close 600ms with overlay bg fade — spec §20.19 & §20.19.1
 
 ---
