@@ -764,7 +764,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 21.3 Step 2a — Member Picker
 
 ### 21.4 Step 2b — Channel Setup Box
-- [ ] Public/Private radios (defaultBoxCheckbox, 27px skip), about text (windowSubTextFg), username field (t.me/ prefix, setupChannelLink style, 32px min height, 200ms validation debounce, client pre-checks, green/red API status label, 5–32 chars alphanumeric+underscore), private invite link (clickable, copies+toast), PublicLinksLimitBox on too many — spec §21.4 & §21.4.1
 - [ ] PublicLinksLimitBox (364px): "Public Link Limit Reached", bubble with counter, free(10)/premium(20) limits, revoke list (avatar+title+status+"Revoke" link), revoke confirmation, Premium upsell gradient button or close button — spec §21.4.2
 
 ### 21.5 Edit Peer Type Box

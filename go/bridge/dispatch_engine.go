@@ -926,6 +926,49 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(&pb.EngineCreateChannelResponse{Chat: chatInfoToProto(chat)})
 
+	case "GetInviteLink":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		link, err := e.GetInviteLink(params.AccountID, params.ChatID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]string{"link": link})
+
+	case "CheckChannelUsername":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Username  string `json:"username"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		ok, err := e.CheckChannelUsername(params.AccountID, params.ChatID, params.Username)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]bool{"available": ok})
+
+	case "UpdateChannelUsername":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Username  string `json:"username"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.UpdateChannelUsername(params.AccountID, params.ChatID, params.Username); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
 	// ── Create Group ──
 
 	case "CreateGroup":

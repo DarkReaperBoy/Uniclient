@@ -1261,6 +1261,36 @@ class EngineService {
     return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
   }
 
+  Future<String> getInviteLink(String accountId, String chatId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+    }));
+    final respBytes = await _callAsync('__engine', 'GetInviteLink', Uint8List.fromList(payload));
+    final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    return data['link'] as String? ?? '';
+  }
+
+  Future<bool> checkChannelUsername(String accountId, String chatId, String username) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'username': username,
+    }));
+    final respBytes = await _callAsync('__engine', 'CheckChannelUsername', Uint8List.fromList(payload));
+    final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    return data['available'] as bool? ?? false;
+  }
+
+  Future<void> updateChannelUsername(String accountId, String chatId, String username) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'username': username,
+    }));
+    await _callAsync('__engine', 'UpdateChannelUsername', Uint8List.fromList(payload));
+  }
+
   Future<void> forwardMessage(String accountId, String chatId, String msgId, String toChatId, {
     bool dropAuthor = false,
     bool dropCaptions = false,

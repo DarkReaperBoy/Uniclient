@@ -14872,6 +14872,19 @@ func (t *TelegramCore) UpdateChannelUsername(chatID, username string) error {
 	return err
 }
 
+// CheckChannelUsername checks if a username is available for a specific channel.
+func (t *TelegramCore) CheckChannelUsername(chatID, username string) (bool, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return false, ErrAuth }
+	peer, err := t.resolvePeer(chatID); if err != nil { return false, err }
+	ch, ok := peer.(*tg.PeerChannel); if !ok { return false, fmt.Errorf("not a channel") }
+	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
+	return t.api.ChannelsCheckUsername(t.ctx, &tg.ChannelsCheckUsernameRequest{
+		Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
+		Username: username,
+	})
+}
+
 // UpdateBirthday sets or clears the user's birthday on their profile.
 func (t *TelegramCore) UpdateBirthday(day, month, year int) error {
 	t.mu.RLock(); defer t.mu.RUnlock()

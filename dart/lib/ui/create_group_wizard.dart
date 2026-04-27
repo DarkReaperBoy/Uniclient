@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -5,6 +6,7 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
@@ -110,6 +112,11 @@ class _WizardDialogState extends State<_WizardDialog>
   final _usernameController = TextEditingController();
   String? _usernameStatus;
   bool _usernameValid = false;
+  bool _usernameChecking = false;
+  Timer? _usernameDebounce;
+  String _inviteLink = '';
+  bool _loadingInviteLink = false;
+  bool _savingUsername = false;
 
   @override
   void initState() {
@@ -136,6 +143,7 @@ class _WizardDialogState extends State<_WizardDialog>
 
   @override
   void dispose() {
+    _usernameDebounce?.cancel();
     _shakeController.dispose();
     _nameController.dispose();
     _descController.dispose();
@@ -244,6 +252,114 @@ class _WizardDialogState extends State<_WizardDialog>
     }
   }
 
+  static final _usernameRegex = RegExp(r'^[A-Za-z][A-Za-z0-9_]*$');
+
+  void _onUsernameChanged(String value) {
+    _usernameDebounce?.cancel();
+    final username = value.trim();
+
+    if (username.isEmpty) {
+      setState(() {
+        _usernameStatus = null;
+        _usernameValid = false;
+        _usernameChecking = false;
+      });
+      return;
+    }
+
+    if (username.length < 5) {
+      setState(() {
+        _usernameStatus = 'Too short, please enter 5 characters or more';
+        _usernameValid = false;
+        _usernameChecking = false;
+      });
+      return;
+    }
+
+    if (username.length > 32) {
+      setState(() {
+        _usernameStatus = 'Username is too long';
+        _usernameValid = false;
+        _usernameChecking = false;
+      });
+      return;
+    }
+
+    if (!_usernameRegex.hasMatch(username)) {
+      setState(() {
+        _usernameStatus = 'Sorry, this link is invalid';
+        _usernameValid = false;
+        _usernameChecking = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _usernameStatus = null;
+      _usernameValid = false;
+      _usernameChecking = true;
+    });
+
+    _usernameDebounce = Timer(const Duration(milliseconds: 200), () {
+      _checkUsernameApi(username);
+    });
+  }
+
+  Future<void> _checkUsernameApi(String username) async {
+    if (_createdChatId.isEmpty) return;
+    try {
+      final available = await _engine.checkChannelUsername(
+        _accountId, _createdChatId, username,
+      );
+      if (!mounted) return;
+      if (_usernameController.text.trim() != username) return;
+      setState(() {
+        _usernameChecking = false;
+        if (available) {
+          _usernameStatus = '$username is available';
+          _usernameValid = true;
+        } else {
+          _usernameStatus = 'Sorry, this link is already taken';
+          _usernameValid = false;
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      if (_usernameController.text.trim() != username) return;
+      final msg = e.toString();
+      setState(() {
+        _usernameChecking = false;
+        if (msg.contains('USERNAME_INVALID') || msg.contains('UsernameInvalid')) {
+          _usernameStatus = 'Sorry, this link is invalid';
+        } else if (msg.contains('USERNAME_OCCUPIED') || msg.contains('UsernameOccupied')) {
+          _usernameStatus = 'Sorry, this link is already taken';
+        } else if (msg.contains('CHANNELS_ADMIN_PUBLIC_TOO_MUCH')) {
+          _usernameStatus = 'You have too many public channels';
+          _isPublic = false;
+        } else {
+          _usernameStatus = 'Sorry, this link is invalid';
+        }
+        _usernameValid = false;
+      });
+    }
+  }
+
+  Future<void> _loadInviteLink() async {
+    if (_createdChatId.isEmpty || _loadingInviteLink) return;
+    setState(() => _loadingInviteLink = true);
+    try {
+      final link = await _engine.getInviteLink(_accountId, _createdChatId);
+      if (!mounted) return;
+      setState(() {
+        _inviteLink = link;
+        _loadingInviteLink = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingInviteLink = false);
+    }
+  }
+
   Future<void> _loadContacts() async {
     if (_loadingContacts) return;
     setState(() => _loadingContacts = true);
@@ -291,6 +407,7 @@ class _WizardDialogState extends State<_WizardDialog>
         );
         if (!mounted) return;
         _createdChatId = chatInfo.chatId;
+        _loadInviteLink();
         setState(() {
           _creating = false;
           _step = _WizardStep.setupChannel;
@@ -352,13 +469,40 @@ class _WizardDialogState extends State<_WizardDialog>
   }
 
   Future<void> _finishChannelSetup() async {
-    if (_createdChatId.isNotEmpty) {
-      _loadContacts();
-      setState(() {
-        _step = _WizardStep.memberPicker;
-        _error = null;
-      });
+    if (_createdChatId.isEmpty) return;
+
+    if (_isPublic) {
+      final username = _usernameController.text.trim();
+      if (username.isEmpty || !_usernameValid) {
+        setState(() {
+          _error = username.isEmpty
+              ? 'Please enter a public link'
+              : 'Please enter a valid public link';
+        });
+        return;
+      }
+      setState(() { _savingUsername = true; _error = null; });
+      try {
+        await _engine.updateChannelUsername(
+          _accountId, _createdChatId, username,
+        );
+        if (!mounted) return;
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _savingUsername = false;
+          _error = e.toString().replaceAll('Exception: ', '');
+        });
+        return;
+      }
+      setState(() => _savingUsername = false);
     }
+
+    _loadContacts();
+    setState(() {
+      _step = _WizardStep.memberPicker;
+      _error = null;
+    });
   }
 
   Future<void> _inviteMembers() async {
@@ -613,6 +757,8 @@ class _WizardDialogState extends State<_WizardDialog>
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor = isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
     final fieldBg = isDark ? const Color(0xFF242F3D) : const Color(0xFFF1F1F1);
+    const goodColor = Color(0xFF4CAF50);
+    const errorColor = Color(0xFFDD4B39);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -622,7 +768,9 @@ class _WizardDialogState extends State<_WizardDialog>
           label: 'Public Channel',
           subtitle: 'Anyone can find the channel and join',
           selected: _isPublic,
-          onTap: () => setState(() => _isPublic = true),
+          onTap: () {
+            if (!_isPublic) setState(() { _isPublic = true; _error = null; });
+          },
           isDark: isDark,
         ),
         const SizedBox(height: 27),
@@ -630,7 +778,13 @@ class _WizardDialogState extends State<_WizardDialog>
           label: 'Private Channel',
           subtitle: 'Only accessible via invite link',
           selected: !_isPublic,
-          onTap: () => setState(() => _isPublic = false),
+          onTap: () {
+            if (_isPublic) {
+              _usernameDebounce?.cancel();
+              setState(() { _isPublic = false; _error = null; });
+              if (_inviteLink.isEmpty) _loadInviteLink();
+            }
+          },
           isDark: isDark,
         ),
         const SizedBox(height: 16),
@@ -644,54 +798,119 @@ class _WizardDialogState extends State<_WizardDialog>
             ),
           ),
           const SizedBox(height: 8),
-          Row(
-            children: [
-              Text(
-                't.me/',
-                style: TextStyle(fontSize: 14, color: subtextColor),
-              ),
-              Expanded(
-                child: TextField(
-                  controller: _usernameController,
-                  style: TextStyle(fontSize: 14, color: textColor),
-                  decoration: InputDecoration(
-                    hintText: 'link',
-                    hintStyle: TextStyle(color: subtextColor),
-                    filled: true,
-                    fillColor: fieldBg,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    isDense: true,
-                  ),
-                  onChanged: (_) {
-                    setState(() {
-                      _usernameStatus = null;
-                      _usernameValid = false;
-                    });
-                  },
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 32),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  't.me/',
+                  style: TextStyle(fontSize: 14, color: subtextColor),
                 ),
-              ),
-            ],
+                Expanded(
+                  child: TextField(
+                    controller: _usernameController,
+                    style: TextStyle(fontSize: 14, color: textColor),
+                    decoration: InputDecoration(
+                      hintText: 'link',
+                      hintStyle: TextStyle(color: subtextColor),
+                      filled: true,
+                      fillColor: fieldBg,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      isDense: true,
+                    ),
+                    onChanged: _onUsernameChanged,
+                  ),
+                ),
+              ],
+            ),
           ),
-          if (_usernameStatus != null) ...[
+          if (_usernameChecking) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                SizedBox(
+                  width: 12, height: 12,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.5,
+                    color: subtextColor,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Checking...',
+                  style: TextStyle(fontSize: 13, color: subtextColor),
+                ),
+              ],
+            ),
+          ] else if (_usernameStatus != null) ...[
             const SizedBox(height: 8),
             Text(
               _usernameStatus!,
               style: TextStyle(
                 fontSize: 13,
-                color: _usernameValid
-                    ? const Color(0xFF4CAF50)
-                    : const Color(0xFFDD4B39),
+                color: _usernameValid ? goodColor : errorColor,
               ),
             ),
           ],
         ] else ...[
+          if (_loadingInviteLink)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 14, height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.5,
+                      color: subtextColor,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Loading invite link...',
+                    style: TextStyle(fontSize: 13, color: subtextColor),
+                  ),
+                ],
+              ),
+            )
+          else if (_inviteLink.isNotEmpty) ...[
+            Text(
+              'Invite Link',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: accentColor,
+              ),
+            ),
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: _inviteLink));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Link copied to clipboard'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              },
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: Text(
+                  _inviteLink,
+                  style: TextStyle(fontSize: 14, color: accentColor),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           Text(
             'People can join your channel by following this link. '
             'You can revoke the link any time.',
@@ -702,7 +921,7 @@ class _WizardDialogState extends State<_WizardDialog>
           const SizedBox(height: 12),
           Text(
             _error!,
-            style: const TextStyle(fontSize: 13, color: Color(0xFFDD4B39)),
+            style: const TextStyle(fontSize: 13, color: errorColor),
           ),
         ],
       ],
@@ -801,7 +1020,7 @@ class _WizardDialogState extends State<_WizardDialog>
         confirmAction = _creating ? null : _submitInfo;
       case _WizardStep.setupChannel:
         confirmLabel = 'Save';
-        confirmAction = _finishChannelSetup;
+        confirmAction = _savingUsername ? null : _finishChannelSetup;
         cancelLabel = 'Skip';
         cancelAction = () {
           _loadContacts();
@@ -844,7 +1063,7 @@ class _WizardDialogState extends State<_WizardDialog>
           const SizedBox(width: 8),
           TextButton(
             onPressed: confirmAction,
-            child: _creating
+            child: (_creating || _savingUsername)
                 ? SizedBox(
                     width: 16,
                     height: 16,

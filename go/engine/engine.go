@@ -693,3 +693,39 @@ func (e *Engine) GetScheduledMessages(accountID, chatID string) ([]CachedMessage
 	}
 	return result, nil
 }
+
+func (e *Engine) GetInviteLink(accountID, chatID string) (string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return "", fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	return acc.Core.GetInviteLink(chatID)
+}
+
+func (e *Engine) CheckChannelUsername(accountID, chatID, username string) (bool, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return false, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type checker interface {
+		CheckChannelUsername(chatID, username string) (bool, error)
+	}
+	if c, ok := acc.Core.(checker); ok {
+		return c.CheckChannelUsername(chatID, username)
+	}
+	return false, fmt.Errorf("platform does not support channel username check")
+}
+
+func (e *Engine) UpdateChannelUsername(accountID, chatID, username string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type updater interface {
+		UpdateChannelUsername(chatID, username string) error
+	}
+	if u, ok := acc.Core.(updater); ok {
+		return u.UpdateChannelUsername(chatID, username)
+	}
+	return fmt.Errorf("platform does not support channel username update")
+}
