@@ -13,6 +13,7 @@ import '../models/engine_models.dart';
 import '../state/chat_state.dart';
 import 'chat_view.dart' show formatChatLastSeen;
 import 'create_group_wizard.dart' show showEditPeerTypeBox;
+import 'forum_topic_icon.dart';
 import 'popup_menu.dart';
 
 enum InfoWrapMode { side, narrow, layer }
@@ -1078,6 +1079,139 @@ class _EmojiStatusPatternPainter extends CustomPainter {
       progress != old.progress || isDark != old.isDark;
 }
 
+class _TopicInfoCoverDelegate extends SliverPersistentHeaderDelegate {
+  final ForumTopic topic;
+  final String accountId;
+  final String statusText;
+  final ThemeData theme;
+  final VoidCallback onClose;
+  final bool showBackButton;
+
+  static const double coverHeight = 77.0;
+
+  _TopicInfoCoverDelegate({
+    required this.topic,
+    required this.accountId,
+    required this.statusText,
+    required this.theme,
+    required this.onClose,
+    required this.showBackButton,
+  });
+
+  @override
+  double get maxExtent => coverHeight;
+  @override
+  double get minExtent => coverHeight;
+
+  @override
+  bool shouldRebuild(covariant _TopicInfoCoverDelegate old) =>
+      topic.id != old.topic.id ||
+      topic.title != old.topic.title ||
+      topic.colorId != old.topic.colorId ||
+      topic.iconEmojiId != old.topic.iconEmojiId ||
+      statusText != old.statusText ||
+      showBackButton != old.showBackButton;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    final isDark = theme.brightness == Brightness.dark;
+    final isGeneral = topic.isGeneral;
+    final nameColor = theme.textTheme.titleMedium?.color ?? (isDark ? Colors.white : Colors.black);
+    final statusColor = isDark ? const Color(0xFF7F91A4) : const Color(0xFF999999);
+    final engine = context.read<EngineService>();
+
+    Widget iconWidget;
+    if (isGeneral) {
+      iconWidget = GeneralForumTopicIcon(
+        size: ForumTopicIcon.infoSize,
+        iconContext: GeneralIconContext.profile,
+      );
+    } else if (topic.hasCustomIcon) {
+      iconWidget = CustomEmojiTopicIcon(
+        documentId: topic.iconEmojiId,
+        accountId: accountId,
+        engine: engine,
+        size: 36,
+      );
+    } else {
+      iconWidget = ForumTopicIcon(
+        colorId: topic.colorId,
+        title: topic.title,
+        size: 36,
+      );
+    }
+
+    return SizedBox(
+      height: coverHeight,
+      child: Material(
+        color: theme.colorScheme.surface,
+        child: Stack(
+          children: [
+            Positioned(
+              left: 22,
+              top: 18,
+              width: 36,
+              height: 36,
+              child: iconWidget,
+            ),
+            Positioned(
+              left: 79,
+              top: 14,
+              right: 48,
+              child: Text(
+                topic.title,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: nameColor,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Positioned(
+              left: 79,
+              top: 38,
+              right: 48,
+              child: Text(
+                isGeneral ? 'General' : statusText,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: isGeneral ? statusColor : statusColor,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Positioned(
+              top: 0,
+              right: 0,
+              child: SizedBox(
+                height: coverHeight,
+                child: IconButton(
+                  icon: Icon(
+                    showBackButton ? Icons.arrow_back : Icons.close,
+                    size: 20,
+                  ),
+                  onPressed: onClose,
+                  tooltip: showBackButton ? 'Back' : 'Close',
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: 1,
+              child: ColoredBox(color: theme.dividerColor),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ChatInfoPage extends StatefulWidget {
   final ChatInfo chat;
   final ChatState chatState;
@@ -1156,8 +1290,24 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
     );
   }
 
+  ForumTopic? _findActiveTopic() {
+    if (widget.chat.type != ChatType.topic) return null;
+    final topics = widget.chatState.forumTopics;
+    for (final t in topics) {
+      if (t.id == widget.chat.chatId) return t;
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isTopic = widget.chat.type == ChatType.topic;
+    final activeTopic = isTopic ? _findActiveTopic() : null;
+
+    if (isTopic && activeTopic != null) {
+      return _buildTopicInfoView(context, activeTopic);
+    }
+
     final isDm = widget.chat.type == ChatType.dm;
     final isOnline = widget.chatState.isChatOnline(widget.chat);
     final lastSeen = widget.chatState.chatLastSeen(widget.chat);
@@ -1273,6 +1423,66 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
           SliverToBoxAdapter(child: SizedBox(height: tailPad)),
         ],
       ),
+    );
+  }
+
+  Widget _buildTopicInfoView(BuildContext context, ForumTopic topic) {
+    final parentChat = widget.chatState.forumParentChat;
+    String statusText;
+    if (parentChat != null && parentChat.memberCount > 0) {
+      statusText = '${parentChat.memberCount} members';
+    } else if (widget.chat.parentTitle.isNotEmpty) {
+      statusText = widget.chat.parentTitle;
+    } else {
+      statusText = '';
+    }
+
+    final tailPad = MediaQuery.sizeOf(context).height -
+        _TopicInfoCoverDelegate.coverHeight;
+
+    return CustomScrollView(
+      controller: widget.scrollController,
+      slivers: [
+        SliverPersistentHeader(
+          pinned: true,
+          delegate: _TopicInfoCoverDelegate(
+            topic: topic,
+            accountId: widget.chat.accountId,
+            statusText: statusText,
+            theme: widget.theme,
+            onClose: widget.onClose,
+            showBackButton: widget.showBackButton,
+          ),
+        ),
+        SliverList(
+          delegate: SliverChildListDelegate([
+            const SizedBox(height: 16),
+            _NotificationToggle(chat: widget.chat, theme: widget.theme),
+            if (widget.mediaCounts.isNotEmpty) ...[
+              const Divider(height: 24),
+              _SharedMediaSection(
+                counts: widget.mediaCounts,
+                theme: widget.theme,
+                isLayer: widget.isLayer,
+                accountId: widget.chat.accountId,
+                chatId: widget.chat.chatId,
+              ),
+            ],
+            const Divider(height: 24),
+            _MembersSection(
+              members: widget.members,
+              loading: widget.loadingMembers,
+              memberCount: widget.chat.memberCount,
+              theme: widget.theme,
+              onMemberTap: widget.onMemberTap,
+              accountId: widget.chat.accountId,
+              chatId: widget.chat.chatId,
+            ),
+            const SizedBox(height: 16),
+          ]),
+        ),
+        SliverToBoxAdapter(child: SizedBox(height: tailPad)),
+      ],
     );
   }
 }

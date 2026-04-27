@@ -784,7 +784,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 22.6 Topic Header Bar
 
 ### 22.7 Topic Info Panel
-- [ ] Topic info panel (third column or full-screen push): cover height 77px, 36×36px icon at (22,18), name at (79,14) + status at (79,38), General in windowSubTextFg, custom emoji loaded at cover size, default 32px circle with bold 15px letter, sections (notifications toggle/shared media/members list/topic link) — spec §22.7
 
 ### 22.8 Context Menus
 - [ ] Topic list right-click: Create Topic / View Group Info / View as Messages / Search / Manage Group / Add Members / Video Chat / Report / Leave/Join — spec §22.8
