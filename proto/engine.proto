@@ -1102,3 +1102,16 @@ message EngineSendCallRatingRequest {
   int32  rating     = 3;
   string comment    = 4;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Fetch Peer Stories (full story items with media refs)
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineFetchPeerStoriesRequest {
+  string account_id = 1;
+  string peer_id    = 2;
+}
+
+message EngineFetchPeerStoriesResponse {
+  string stories_json = 1;
+}

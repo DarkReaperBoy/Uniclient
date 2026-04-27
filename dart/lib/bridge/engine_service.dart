@@ -1102,6 +1102,19 @@ class EngineService {
     await _callAsync('__engine', 'SendCallRating', req.writeToBuffer());
   }
 
+  // ── Stories ──
+
+  Future<List<StoryItem>> fetchPeerStories(String accountId, String peerId) async {
+    final req = epb.EngineFetchPeerStoriesRequest()
+      ..accountId = accountId
+      ..peerId = peerId;
+    final respBytes = await _callAsync('__engine', 'FetchPeerStories', req.writeToBuffer());
+    final resp = epb.EngineFetchPeerStoriesResponse.fromBuffer(respBytes);
+    if (resp.storiesJson.isEmpty) return [];
+    final List<dynamic> items = json.decode(resp.storiesJson);
+    return items.map((j) => StoryItem.fromJson(j as Map<String, dynamic>)).toList();
+  }
+
   // ── Contacts ──
 
   Future<List<ContactInfo>> getContacts(String accountId) async {

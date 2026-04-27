@@ -1873,6 +1873,19 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return []byte{}, nil
 
+	case "FetchPeerStories":
+		var req pb.EngineFetchPeerStoriesRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		storiesJSON, err := e.FetchPeerStories(req.AccountId, req.PeerId)
+		if err != nil {
+			return nil, err
+		}
+		return proto.Marshal(&pb.EngineFetchPeerStoriesResponse{
+			StoriesJson: storiesJSON,
+		})
+
 	case "GetDefaultHistoryTTL":
 		var params struct {
 			AccountID string `json:"account_id"`

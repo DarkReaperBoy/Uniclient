@@ -32,6 +32,7 @@ class ChatListRow extends StatelessWidget {
   final String? typingUser;
   final VoidCallback onTap;
   final ValueChanged<Offset>? onSecondaryTap;
+  final VoidCallback? onStoryTap;
 
   /// Spec §2.7: Visual highlight when forward-drag is hovering over this row.
   final bool isForwardHovered;
@@ -46,6 +47,7 @@ class ChatListRow extends StatelessWidget {
     required this.onTap,
     this.onSecondaryTap,
     this.isForwardHovered = false,
+    this.onStoryTap,
   });
 
   // Spec dimensions.
@@ -138,6 +140,7 @@ class ChatListRow extends StatelessWidget {
                           size: _avatarSize,
                           isOnline: isOnline,
                           minified: true,
+                          onStoryTap: onStoryTap,
                         ),
                         // Unread count badge at bottom-right of avatar.
                         if (chat.unreadCount > 0)
@@ -184,6 +187,7 @@ class ChatListRow extends StatelessWidget {
                   chat: chat,
                   size: _avatarSize,
                   isOnline: isOnline,
+                  onStoryTap: onStoryTap,
                 ),
                 const SizedBox(width: _contentLeft - _avatarLeft - _avatarSize),
                 // Content.
@@ -974,12 +978,14 @@ class _ChatAvatar extends StatelessWidget {
   final double size;
   final bool isOnline;
   final bool minified;
+  final VoidCallback? onStoryTap;
 
   const _ChatAvatar({
     required this.chat,
     required this.size,
     this.isOnline = false,
     this.minified = false,
+    this.onStoryTap,
   });
 
   // Spec §2: full/expanded stories ring geometry.
@@ -1033,50 +1039,53 @@ class _ChatAvatar extends StatelessWidget {
 
     final bgColor = Theme.of(context).scaffoldBackgroundColor;
 
-    return SizedBox(
-      width: size,
-      height: size,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          // Stories ring (painted behind the avatar).
-          if (_hasStories)
-            Positioned.fill(
-              child: CustomPaint(
-                painter: _StoriesRingPainter(
-                  storyCount: chat.storyCount,
-                  hasUnread: chat.hasUnreadStory,
-                  isLiveStream: chat.isLiveStream,
-                  isDark: isDark,
-                  minified: minified,
+    return GestureDetector(
+      onTap: _hasStories ? onStoryTap : null,
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            // Stories ring (painted behind the avatar).
+            if (_hasStories)
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: _StoriesRingPainter(
+                    storyCount: chat.storyCount,
+                    hasUnread: chat.hasUnreadStory,
+                    isLiveStream: chat.isLiveStream,
+                    isDark: isDark,
+                    minified: minified,
+                  ),
                 ),
               ),
-            ),
-          // Avatar photo, centered (shrunk to 42px when stories present).
-          if (_hasStories)
-            Positioned(
-              left: (size - photoSize) / 2,
-              top: (size - photoSize) / 2,
-              child: avatar,
-            )
-          else
-            avatar,
-          // Online dot at bottom-right.
-          if (isOnline && !_hasStories)
-            Positioned(
-              right: 0,
-              bottom: 0,
-              child: Container(
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF4dc920),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: bgColor, width: 3),
+            // Avatar photo, centered (shrunk to 42px when stories present).
+            if (_hasStories)
+              Positioned(
+                left: (size - photoSize) / 2,
+                top: (size - photoSize) / 2,
+                child: avatar,
+              )
+            else
+              avatar,
+            // Online dot at bottom-right.
+            if (isOnline && !_hasStories)
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4dc920),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: bgColor, width: 3),
+                  ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

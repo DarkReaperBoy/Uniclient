@@ -12,6 +12,7 @@ import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import 'chat_list_row.dart';
 import 'filter_column.dart';
+import 'media_viewer.dart';
 import 'popup_menu.dart';
 import 'confirm_box.dart';
 
@@ -641,6 +642,9 @@ class _ChatListPanelState extends State<ChatListPanel>
                                 onSecondaryTap: (pos) =>
                                     _showChatContextMenu(context, chat, pos),
                                 isForwardHovered: isForwardHovered,
+                                onStoryTap: chat.storyCount > 0
+                                    ? () => _openStories(context, chat)
+                                    : null,
                               );
                             } else {
                               row = SwipeableChatRow(
@@ -657,6 +661,9 @@ class _ChatListPanelState extends State<ChatListPanel>
                                   onSecondaryTap: (pos) =>
                                       _showChatContextMenu(context, chat, pos),
                                   isForwardHovered: isForwardHovered,
+                                  onStoryTap: chat.storyCount > 0
+                                      ? () => _openStories(context, chat)
+                                      : null,
                                 ),
                               );
                             }
@@ -1119,6 +1126,25 @@ class _ChatListPanelState extends State<ChatListPanel>
       final dist = edgeZone - localY;
       pos.jumpTo((pos.pixels - dist * scrollFactor)
           .clamp(pos.minScrollExtent, pos.maxScrollExtent));
+    }
+  }
+
+  void _openStories(BuildContext context, ChatInfo chat) async {
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+    try {
+      final stories = await engine.fetchPeerStories(accountId, chat.chatId);
+      if (stories.isEmpty || !mounted) return;
+      StoriesViewer.open(
+        context,
+        stories: stories,
+        peerName: chat.title,
+        peerAvatarPath: chat.avatarPath,
+      );
+    } catch (e) {
+      debugPrint('Failed to load stories: $e');
     }
   }
 

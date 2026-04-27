@@ -177,6 +177,8 @@ type Dialog struct {
 	TtlPeriod           int    `json:"ttl_period,omitempty"`
 	LinkedChatId        string `json:"linked_chat_id,omitempty"`
 	EmojiStatusID       string `json:"emoji_status_id,omitempty"`
+	StoryCount          int    `json:"story_count,omitempty"`
+	HasUnreadStory      bool   `json:"has_unread_story,omitempty"`
 	Platform            string `json:"platform"`
 }
 

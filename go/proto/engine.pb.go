@@ -9296,6 +9296,102 @@ func (x *EngineSendCallRatingRequest) GetComment() string {
 	return ""
 }
 
+type EngineFetchPeerStoriesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	PeerId        string                 `protobuf:"bytes,2,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineFetchPeerStoriesRequest) Reset() {
+	*x = EngineFetchPeerStoriesRequest{}
+	mi := &file_proto_engine_proto_msgTypes[146]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineFetchPeerStoriesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineFetchPeerStoriesRequest) ProtoMessage() {}
+
+func (x *EngineFetchPeerStoriesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[146]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineFetchPeerStoriesRequest.ProtoReflect.Descriptor instead.
+func (*EngineFetchPeerStoriesRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{146}
+}
+
+func (x *EngineFetchPeerStoriesRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineFetchPeerStoriesRequest) GetPeerId() string {
+	if x != nil {
+		return x.PeerId
+	}
+	return ""
+}
+
+type EngineFetchPeerStoriesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	StoriesJson   string                 `protobuf:"bytes,1,opt,name=stories_json,json=storiesJson,proto3" json:"stories_json,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineFetchPeerStoriesResponse) Reset() {
+	*x = EngineFetchPeerStoriesResponse{}
+	mi := &file_proto_engine_proto_msgTypes[147]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineFetchPeerStoriesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineFetchPeerStoriesResponse) ProtoMessage() {}
+
+func (x *EngineFetchPeerStoriesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[147]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineFetchPeerStoriesResponse.ProtoReflect.Descriptor instead.
+func (*EngineFetchPeerStoriesResponse) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{147}
+}
+
+func (x *EngineFetchPeerStoriesResponse) GetStoriesJson() string {
+	if x != nil {
+		return x.StoriesJson
+	}
+	return ""
+}
+
 var File_proto_engine_proto protoreflect.FileDescriptor
 
 const file_proto_engine_proto_rawDesc = "" +
@@ -10101,7 +10197,13 @@ const file_proto_engine_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
 	"\acall_id\x18\x02 \x01(\tR\x06callId\x12\x16\n" +
 	"\x06rating\x18\x03 \x01(\x05R\x06rating\x12\x18\n" +
-	"\acomment\x18\x04 \x01(\tR\acommentB\x11Z\x0funiclient/protob\x06proto3"
+	"\acomment\x18\x04 \x01(\tR\acomment\"W\n" +
+	"\x1dEngineFetchPeerStoriesRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\apeer_id\x18\x02 \x01(\tR\x06peerId\"C\n" +
+	"\x1eEngineFetchPeerStoriesResponse\x12!\n" +
+	"\fstories_json\x18\x01 \x01(\tR\vstoriesJsonB\x11Z\x0funiclient/protob\x06proto3"
 
 var (
 	file_proto_engine_proto_rawDescOnce sync.Once
@@ -10115,7 +10217,7 @@ func file_proto_engine_proto_rawDescGZIP() []byte {
 	return file_proto_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 146)
+var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 148)
 var file_proto_engine_proto_goTypes = []any{
 	(*EngineEvent)(nil),                            // 0: uniclient.EngineEvent
 	(*AccountInfo)(nil),                            // 1: uniclient.AccountInfo
@@ -10263,6 +10365,8 @@ var file_proto_engine_proto_goTypes = []any{
 	(*EngineGetStickerSuggestionsRequest)(nil),     // 143: uniclient.EngineGetStickerSuggestionsRequest
 	(*EngineGetStickerSuggestionsResponse)(nil),    // 144: uniclient.EngineGetStickerSuggestionsResponse
 	(*EngineSendCallRatingRequest)(nil),            // 145: uniclient.EngineSendCallRatingRequest
+	(*EngineFetchPeerStoriesRequest)(nil),          // 146: uniclient.EngineFetchPeerStoriesRequest
+	(*EngineFetchPeerStoriesResponse)(nil),         // 147: uniclient.EngineFetchPeerStoriesResponse
 }
 var file_proto_engine_proto_depIdxs = []int32{
 	1,   // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
@@ -10315,7 +10419,7 @@ func file_proto_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   146,
+			NumMessages:   148,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

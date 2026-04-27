@@ -10673,6 +10673,12 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 				if _, ok := user.Photo.(*tg.UserProfilePhoto); ok {
 					dialog.AvatarURL = "has_photo"
 				}
+				if maxStory, ok := user.GetStoriesMaxID(); ok && !user.StoriesUnavailable {
+					if maxID, ok := maxStory.GetMaxID(); ok && maxID > 0 {
+						dialog.StoryCount = 1
+						dialog.HasUnreadStory = true
+					}
+				}
 			}
 		case *tg.PeerChat:
 			dialog.ID = strconv.FormatInt(-p.ChatID, 10)
@@ -13785,6 +13791,97 @@ func (t *TelegramCore) GetPeerStories(peerID string) (int, error) {
 	result, err := t.api.StoriesGetPeerStories(t.ctx, inputPeer)
 	if err != nil { return 0, err }
 	return len(result.Stories.Stories), nil
+}
+
+// FetchPeerStoriesData fetches full story items with media references for a peer.
+// Returns JSON array of story objects.
+func (t *TelegramCore) FetchPeerStoriesData(peerID string) (string, error) {
+	inputPeer, unlock, err := t.withPeer(peerID)
+	if err != nil { return "", err }
+	defer unlock()
+	result, err := t.api.StoriesGetPeerStories(t.ctx, inputPeer)
+	if err != nil { return "", err }
+
+	type storyItem struct {
+		ID        int     `json:"id"`
+		Date      int     `json:"date"`
+		Caption   string  `json:"caption"`
+		MediaType string  `json:"media_type"`
+		FileRef   FileRef `json:"file_ref"`
+		Views     int     `json:"views"`
+		Pinned    bool    `json:"pinned"`
+		Edited    bool    `json:"edited"`
+	}
+
+	var items []storyItem
+	for _, sc := range result.Stories.Stories {
+		si, ok := sc.(*tg.StoryItem)
+		if !ok { continue }
+
+		item := storyItem{
+			ID:      si.ID,
+			Date:    si.Date,
+			Pinned:  si.Pinned,
+			Edited:  si.Edited,
+		}
+		if caption, ok := si.GetCaption(); ok {
+			item.Caption = caption
+		}
+		if views, ok := si.GetViews(); ok {
+			item.Views = views.ViewsCount
+		}
+
+		switch md := si.Media.(type) {
+		case *tg.MessageMediaPhoto:
+			item.MediaType = "photo"
+			if p, ok := md.Photo.(*tg.Photo); ok {
+				ref := FileRef{
+					ID:       strconv.FormatInt(p.ID, 10),
+					MimeType: "image/jpeg",
+					Name:     fmt.Sprintf("story_%d.jpg", si.ID),
+					Extra:    encodeFileExtra(p.AccessHash, p.FileReference),
+				}
+				for _, size := range p.Sizes {
+					if s, ok := size.(*tg.PhotoSize); ok {
+						ref.Size = int64(s.Size)
+						ref.Width = s.W
+						ref.Height = s.H
+					}
+				}
+				ref.ThumbB64 = extractStrippedThumbB64(p.Sizes)
+				t.cacheFileInfo(p.ID, p.AccessHash, p.FileReference)
+				item.FileRef = ref
+			}
+		case *tg.MessageMediaDocument:
+			if d, ok := md.Document.(*tg.Document); ok {
+				ref := FileRef{
+					ID:       strconv.FormatInt(d.ID, 10),
+					MimeType: d.MimeType,
+					Name:     fmt.Sprintf("story_%d.mp4", si.ID),
+					Size:     d.Size,
+					Extra:    encodeFileExtra(d.AccessHash, d.FileReference),
+				}
+				ref.ThumbB64 = extractStrippedThumbB64(d.Thumbs)
+				for _, attr := range d.Attributes {
+					if v, ok := attr.(*tg.DocumentAttributeVideo); ok {
+						ref.Width = v.W
+						ref.Height = v.H
+						ref.Duration = int(v.Duration)
+						break
+					}
+				}
+				t.cacheFileInfo(d.ID, d.AccessHash, d.FileReference)
+				item.FileRef = ref
+				item.MediaType = "video"
+			}
+		}
+
+		items = append(items, item)
+	}
+
+	data, err := json.Marshal(items)
+	if err != nil { return "", err }
+	return string(data), nil
 }
 
 // GetConfig returns the current Telegram server configuration.

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -1356,4 +1358,64 @@ func (e *Engine) ReportMessage(accountID, chatID string, msgIDs []int, option []
 		return nil, fmt.Errorf("platform does not support message reporting")
 	}
 	return reporter.ReportMessage(chatID, msgIDs, option, message)
+}
+
+type StoryFetcher interface {
+	FetchPeerStoriesData(peerID string) (string, error)
+}
+
+func (e *Engine) FetchPeerStories(accountID, peerID string) (string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return "", fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return "", fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(StoryFetcher)
+	if !ok {
+		return "", fmt.Errorf("platform does not support stories")
+	}
+	storiesJSON, err := fetcher.FetchPeerStoriesData(peerID)
+	if err != nil {
+		return "", err
+	}
+
+	// Download each story's media to local path.
+	type storyEntry struct {
+		ID      int            `json:"id"`
+		FileRef cores.FileRef  `json:"file_ref"`
+	}
+	var entries []storyEntry
+	if err := json.Unmarshal([]byte(storiesJSON), &entries); err != nil {
+		return storiesJSON, nil
+	}
+
+	dir := filepath.Join(e.mediaDir, accountID, "stories")
+	os.MkdirAll(dir, 0o755)
+
+	type storyFull map[string]interface{}
+	var items []storyFull
+	if err := json.Unmarshal([]byte(storiesJSON), &items); err != nil {
+		return storiesJSON, nil
+	}
+
+	for i, entry := range entries {
+		if entry.FileRef.ID == "" { continue }
+		ext := ".jpg"
+		if entry.FileRef.MimeType != "" && entry.FileRef.MimeType != "image/jpeg" {
+			ext = ".mp4"
+		}
+		localPath := filepath.Join(dir, fmt.Sprintf("%d%s", entry.ID, ext))
+		if _, err := os.Stat(localPath); err == nil {
+			items[i]["local_path"] = localPath
+			continue
+		}
+		if err := acc.Core.DownloadFile(entry.FileRef, localPath, nil); err == nil {
+			items[i]["local_path"] = localPath
+		}
+	}
+
+	out, _ := json.Marshal(items)
+	return string(out), nil
 }

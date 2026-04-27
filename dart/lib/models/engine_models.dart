@@ -1871,3 +1871,54 @@ class CloudThemeInfo {
     isDark: json['is_dark'] as bool? ?? false,
   );
 }
+
+class StoryItem {
+  final int id;
+  final int date;
+  final String caption;
+  final String mediaType;
+  final String localPath;
+  final String thumbB64;
+  final int width;
+  final int height;
+  final int duration;
+  final int views;
+  final bool pinned;
+  final bool edited;
+
+  const StoryItem({
+    required this.id,
+    required this.date,
+    this.caption = '',
+    this.mediaType = 'photo',
+    this.localPath = '',
+    this.thumbB64 = '',
+    this.width = 0,
+    this.height = 0,
+    this.duration = 0,
+    this.views = 0,
+    this.pinned = false,
+    this.edited = false,
+  });
+
+  bool get isVideo => mediaType == 'video';
+  bool get hasMedia => localPath.isNotEmpty;
+
+  factory StoryItem.fromJson(Map<String, dynamic> j) {
+    final fileRef = j['file_ref'] as Map<String, dynamic>? ?? {};
+    return StoryItem(
+      id: (j['id'] as num?)?.toInt() ?? 0,
+      date: (j['date'] as num?)?.toInt() ?? 0,
+      caption: j['caption'] as String? ?? '',
+      mediaType: j['media_type'] as String? ?? 'photo',
+      localPath: j['local_path'] as String? ?? '',
+      thumbB64: fileRef['thumb_b64'] as String? ?? '',
+      width: (fileRef['width'] as num?)?.toInt() ?? 0,
+      height: (fileRef['height'] as num?)?.toInt() ?? 0,
+      duration: (fileRef['duration'] as num?)?.toInt() ?? 0,
+      views: (j['views'] as num?)?.toInt() ?? 0,
+      pinned: j['pinned'] as bool? ?? false,
+      edited: j['edited'] as bool? ?? false,
+    );
+  }
+}

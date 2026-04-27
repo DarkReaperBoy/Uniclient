@@ -750,7 +750,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 20.15 Save/Download Toast
 
 ### 20.17 Stories Viewer Mode
-- [ ] Stories: delegates to Stories::View, aspect-fit in 540×960 with 8px radius, sibling previews as thumbnails, controls always visible, no zoom/rotation, collapsed captions — spec §20.17
 
 ### 20.18–20.19 Keyboard Shortcuts & Animations
 - [ ] All keyboard shortcuts: Escape/Space/Left/Right/Alt+Left/Right/0-9/Ctrl+F/Alt+Enter/Ctrl+/Ctrl-/Ctrl+0/Ctrl+S/Ctrl+C/H/V — spec §20.18

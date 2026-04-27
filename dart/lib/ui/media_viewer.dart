@@ -3889,3 +3889,611 @@ class _PipButtonState extends State<_PipButton> {
     );
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Stories Viewer — §20.17
+// Aspect-fit content in 540×960, 8px radius, sibling previews,
+// controls always visible, no zoom/rotation, collapsible captions.
+// ═══════════════════════════════════════════════════════════════════════
+
+const _kStoriesMaxWidth = 540.0;
+const _kStoriesMaxHeight = 960.0;
+const _kStoriesRadius = 8.0;
+const _kStoriesPreviewWidth = 80.0;
+const _kStoriesPreviewGap = 8.0;
+const _kStoriesProgressHeight = 2.0;
+const _kStoriesProgressGap = 4.0;
+const _kStoriesProgressPadding = EdgeInsets.symmetric(horizontal: 12, vertical: 8);
+const _kStoriesCaptionMaxLines = 2;
+
+class StoriesViewer extends StatefulWidget {
+  final List<StoryItem> stories;
+  final int initialIndex;
+  final String peerName;
+  final String? peerAvatarPath;
+
+  const StoriesViewer({
+    super.key,
+    required this.stories,
+    this.initialIndex = 0,
+    this.peerName = '',
+    this.peerAvatarPath,
+  });
+
+  static void open(
+    BuildContext context, {
+    required List<StoryItem> stories,
+    int initialIndex = 0,
+    String peerName = '',
+    String? peerAvatarPath,
+  }) {
+    if (stories.isEmpty) return;
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.transparent,
+        transitionDuration: const Duration(milliseconds: 200),
+        reverseTransitionDuration: const Duration(milliseconds: 600),
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return FadeTransition(
+            opacity: animation.drive(CurveTween(curve: Curves.linear)),
+            child: StoriesViewer(
+              stories: stories,
+              initialIndex: initialIndex,
+              peerName: peerName,
+              peerAvatarPath: peerAvatarPath,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  @override
+  State<StoriesViewer> createState() => _StoriesViewerState();
+}
+
+class _StoriesViewerState extends State<StoriesViewer>
+    with TickerProviderStateMixin {
+  late int _currentIndex;
+  bool _captionExpanded = false;
+  late final FocusNode _focusNode;
+
+  Player? _videoPlayer;
+  VideoController? _videoController;
+  final List<StreamSubscription> _playerSubs = [];
+  Duration _videoPosition = Duration.zero;
+  Duration _videoDuration = Duration.zero;
+  bool _videoPlaying = false;
+
+  late final AnimationController _storyTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex.clamp(0, widget.stories.length - 1);
+    _focusNode = FocusNode();
+    _storyTimer = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 5),
+    );
+    _storyTimer.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _goToNext();
+      }
+    });
+    _loadStory();
+  }
+
+  @override
+  void dispose() {
+    _storyTimer.dispose();
+    _focusNode.dispose();
+    _disposeVideo();
+    super.dispose();
+  }
+
+  void _disposeVideo() {
+    for (final sub in _playerSubs) { sub.cancel(); }
+    _playerSubs.clear();
+    _videoPlayer?.dispose();
+    _videoPlayer = null;
+    _videoController = null;
+  }
+
+  StoryItem get _current => widget.stories[_currentIndex];
+
+  void _loadStory() {
+    _disposeVideo();
+    _captionExpanded = false;
+    _storyTimer.reset();
+
+    if (_current.isVideo && _current.hasMedia) {
+      final player = Player();
+      final controller = VideoController(player);
+      _videoPlayer = player;
+      _videoController = controller;
+
+      _playerSubs.add(player.stream.position.listen((p) {
+        if (mounted) setState(() => _videoPosition = p);
+      }));
+      _playerSubs.add(player.stream.duration.listen((d) {
+        if (mounted) setState(() => _videoDuration = d);
+      }));
+      _playerSubs.add(player.stream.playing.listen((p) {
+        if (mounted) setState(() => _videoPlaying = p);
+      }));
+      _playerSubs.add(player.stream.completed.listen((c) {
+        if (c && mounted) _goToNext();
+      }));
+
+      player.open(Media('file://${_current.localPath}'));
+    } else {
+      _storyTimer.forward();
+    }
+    if (mounted) setState(() {});
+  }
+
+  void _goToNext() {
+    if (_currentIndex < widget.stories.length - 1) {
+      setState(() => _currentIndex++);
+      _loadStory();
+    } else {
+      Navigator.of(context).maybePop();
+    }
+  }
+
+  void _goToPrev() {
+    if (_currentIndex > 0) {
+      setState(() => _currentIndex--);
+      _loadStory();
+    }
+  }
+
+  void _goToIndex(int idx) {
+    if (idx < 0 || idx >= widget.stories.length || idx == _currentIndex) return;
+    setState(() => _currentIndex = idx);
+    _loadStory();
+  }
+
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    switch (event.logicalKey) {
+      case LogicalKeyboardKey.escape:
+        Navigator.of(context).maybePop();
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowLeft:
+        _goToPrev();
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowRight:
+        _goToNext();
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.space:
+        if (_current.isVideo && _videoPlayer != null) {
+          _videoPlayer!.playOrPause();
+        } else {
+          if (_storyTimer.isAnimating) {
+            _storyTimer.stop();
+          } else {
+            _storyTimer.forward();
+          }
+        }
+        return KeyEventResult.handled;
+      default:
+        return KeyEventResult.ignored;
+    }
+  }
+
+  String _formatDate(int timestamp) {
+    final dt = DateTime.fromMillisecondsSinceEpoch(timestamp * 1000);
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenSize = MediaQuery.sizeOf(context);
+
+    double storyW = _kStoriesMaxWidth;
+    double storyH = _kStoriesMaxHeight;
+    final scale = math.min(
+      (screenSize.width - 200) / storyW,
+      (screenSize.height - 40) / storyH,
+    ).clamp(0.3, 1.0);
+    storyW *= scale;
+    storyH *= scale;
+
+    return Focus(
+      focusNode: _focusNode,
+      autofocus: true,
+      onKeyEvent: _handleKey,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            GestureDetector(
+              onTap: () => Navigator.of(context).maybePop(),
+              child: Container(color: const Color(0xE6000000)),
+            ),
+            Center(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  ..._buildSiblingPreviews(isLeft: true, scale: scale),
+                  _buildStoryCard(storyW, storyH),
+                  ..._buildSiblingPreviews(isLeft: false, scale: scale),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStoryCard(double w, double h) {
+    final story = _current;
+
+    return SizedBox(
+      width: w,
+      height: h,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(_kStoriesRadius),
+        child: Container(
+          color: Colors.black,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              _buildStoryContent(story, w, h),
+              _buildProgressBar(w),
+              _buildHeader(story),
+              _buildNavTapZones(),
+              if (story.caption.isNotEmpty) _buildCaption(story, w),
+              _buildFooter(story),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStoryContent(StoryItem story, double w, double h) {
+    if (story.isVideo && _videoController != null) {
+      return Video(
+        controller: _videoController!,
+        fit: BoxFit.contain,
+        width: w,
+        height: h,
+      );
+    }
+
+    if (story.hasMedia) {
+      return Image.file(
+        File(story.localPath),
+        fit: BoxFit.contain,
+        width: w,
+        height: h,
+        errorBuilder: (_, __, ___) => _buildThumbFallback(story),
+      );
+    }
+
+    return _buildThumbFallback(story);
+  }
+
+  Widget _buildThumbFallback(StoryItem story) {
+    if (story.thumbB64.isNotEmpty) {
+      try {
+        return Image.memory(
+          base64Decode(story.thumbB64),
+          fit: BoxFit.contain,
+          gaplessPlayback: true,
+        );
+      } catch (_) {}
+    }
+    return const Center(
+      child: Icon(Icons.image, color: Colors.white38, size: 64),
+    );
+  }
+
+  Widget _buildProgressBar(double width) {
+    final count = widget.stories.length;
+    if (count == 0) return const SizedBox.shrink();
+
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: Padding(
+        padding: _kStoriesProgressPadding,
+        child: Row(
+          children: List.generate(count, (i) {
+            return Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  right: i < count - 1 ? _kStoriesProgressGap : 0,
+                ),
+                child: SizedBox(
+                  height: _kStoriesProgressHeight,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(1),
+                    child: i < _currentIndex
+                        ? Container(color: Colors.white)
+                        : i == _currentIndex
+                            ? AnimatedBuilder(
+                                animation: _current.isVideo && _videoDuration.inMilliseconds > 0
+                                    ? AlwaysStoppedAnimation(
+                                        _videoPosition.inMilliseconds /
+                                            _videoDuration.inMilliseconds)
+                                    : _storyTimer,
+                                builder: (context, _) {
+                                  final progress = _current.isVideo && _videoDuration.inMilliseconds > 0
+                                      ? _videoPosition.inMilliseconds / _videoDuration.inMilliseconds
+                                      : _storyTimer.value;
+                                  return LinearProgressIndicator(
+                                    value: progress.clamp(0.0, 1.0),
+                                    backgroundColor: Colors.white38,
+                                    valueColor: const AlwaysStoppedAnimation(Colors.white),
+                                    minHeight: _kStoriesProgressHeight,
+                                  );
+                                },
+                              )
+                            : Container(color: Colors.white38),
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(StoryItem story) {
+    return Positioned(
+      top: _kStoriesProgressPadding.top + _kStoriesProgressHeight + 8,
+      left: 12,
+      right: 12,
+      child: Row(
+        children: [
+          if (widget.peerAvatarPath != null && widget.peerAvatarPath!.isNotEmpty)
+            ClipOval(
+              child: Image.file(
+                File(widget.peerAvatarPath!),
+                width: 32,
+                height: 32,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  width: 32,
+                  height: 32,
+                  color: Colors.blueGrey,
+                  child: const Icon(Icons.person, size: 18, color: Colors.white70),
+                ),
+              ),
+            )
+          else
+            Container(
+              width: 32,
+              height: 32,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.blueGrey,
+              ),
+              child: const Icon(Icons.person, size: 18, color: Colors.white70),
+            ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  widget.peerName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  _formatDate(story.date),
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          GestureDetector(
+            onTap: () => Navigator.of(context).maybePop(),
+            child: const Icon(Icons.close, color: Colors.white70, size: 24),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNavTapZones() {
+    return Positioned.fill(
+      child: Row(
+        children: [
+          Expanded(
+            flex: 1,
+            child: GestureDetector(
+              onTap: _goToPrev,
+              behavior: HitTestBehavior.translucent,
+              child: const SizedBox.expand(),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: GestureDetector(
+              onTap: () {
+                if (_current.isVideo && _videoPlayer != null) {
+                  _videoPlayer!.playOrPause();
+                } else {
+                  if (_storyTimer.isAnimating) {
+                    _storyTimer.stop();
+                  } else {
+                    _storyTimer.forward();
+                  }
+                }
+              },
+              behavior: HitTestBehavior.translucent,
+              child: const SizedBox.expand(),
+            ),
+          ),
+          Expanded(
+            flex: 1,
+            child: GestureDetector(
+              onTap: _goToNext,
+              behavior: HitTestBehavior.translucent,
+              child: const SizedBox.expand(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCaption(StoryItem story, double width) {
+    return Positioned(
+      bottom: 48,
+      left: 0,
+      right: 0,
+      child: GestureDetector(
+        onTap: () => setState(() => _captionExpanded = !_captionExpanded),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: _kMediaviewCaptionBg,
+            borderRadius: BorderRadius.circular(_kMediaviewCaptionRadius),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                story.caption,
+                style: const TextStyle(
+                  color: _kMediaviewCaptionFg,
+                  fontSize: 14,
+                ),
+                maxLines: _captionExpanded ? null : _kStoriesCaptionMaxLines,
+                overflow: _captionExpanded ? null : TextOverflow.ellipsis,
+              ),
+              if (!_captionExpanded && story.caption.length > 100)
+                const Text(
+                  'Show more',
+                  style: TextStyle(
+                    color: _kMediaviewCaptionLinkFg,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFooter(StoryItem story) {
+    return Positioned(
+      bottom: 12,
+      left: 12,
+      right: 12,
+      child: Row(
+        children: [
+          if (story.views > 0) ...[
+            const Icon(Icons.visibility, color: Colors.white54, size: 16),
+            const SizedBox(width: 4),
+            Text(
+              '${story.views}',
+              style: const TextStyle(color: Colors.white54, fontSize: 12),
+            ),
+          ],
+          const Spacer(),
+          Text(
+            '${_currentIndex + 1}/${widget.stories.length}',
+            style: const TextStyle(color: Colors.white54, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildSiblingPreviews({required bool isLeft, required double scale}) {
+    final idx = isLeft ? _currentIndex - 1 : _currentIndex + 1;
+    if (idx < 0 || idx >= widget.stories.length) {
+      return [SizedBox(width: _kStoriesPreviewWidth * scale + _kStoriesPreviewGap)];
+    }
+
+    final previewH = _kStoriesMaxHeight * scale * 0.6;
+    final previewW = _kStoriesPreviewWidth * scale;
+    final story = widget.stories[idx];
+
+    return [
+      if (!isLeft) const SizedBox(width: _kStoriesPreviewGap),
+      GestureDetector(
+        onTap: () => _goToIndex(idx),
+        child: Opacity(
+          opacity: 0.5,
+          child: SizedBox(
+            width: previewW,
+            height: previewH,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(_kStoriesRadius * 0.6),
+              child: Container(
+                color: Colors.grey.shade900,
+                child: _buildPreviewContent(story, previewW, previewH),
+              ),
+            ),
+          ),
+        ),
+      ),
+      if (isLeft) const SizedBox(width: _kStoriesPreviewGap),
+    ];
+  }
+
+  Widget _buildPreviewContent(StoryItem story, double w, double h) {
+    if (story.hasMedia) {
+      return Image.file(
+        File(story.localPath),
+        fit: BoxFit.cover,
+        width: w,
+        height: h,
+        errorBuilder: (_, __, ___) => _buildPreviewThumb(story),
+      );
+    }
+    return _buildPreviewThumb(story);
+  }
+
+  Widget _buildPreviewThumb(StoryItem story) {
+    if (story.thumbB64.isNotEmpty) {
+      try {
+        return Image.memory(
+          base64Decode(story.thumbB64),
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+        );
+      } catch (_) {}
+    }
+    return Center(
+      child: Icon(
+        story.isVideo ? Icons.videocam : Icons.image,
+        color: Colors.white38,
+        size: 24,
+      ),
+    );
+  }
+}

@@ -10962,5 +10962,83 @@ class EngineSendCallRatingRequest extends $pb.GeneratedMessage {
   set comment($core.String v) { $_setString(3, v); }
 }
 
+class EngineFetchPeerStoriesRequest extends $pb.GeneratedMessage {
+  factory EngineFetchPeerStoriesRequest({
+    $core.String? accountId,
+    $core.String? peerId,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    if (peerId != null) $result.peerId = peerId;
+    return $result;
+  }
+  EngineFetchPeerStoriesRequest._() : super();
+  factory EngineFetchPeerStoriesRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineFetchPeerStoriesRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'peerId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineFetchPeerStoriesRequest clone() => EngineFetchPeerStoriesRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineFetchPeerStoriesRequest copyWith(void Function(EngineFetchPeerStoriesRequest) updates) => super.copyWith((message) => updates(message as EngineFetchPeerStoriesRequest)) as EngineFetchPeerStoriesRequest;
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineFetchPeerStoriesRequest create() => EngineFetchPeerStoriesRequest._();
+  EngineFetchPeerStoriesRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineFetchPeerStoriesRequest> createRepeated() => $pb.PbList<EngineFetchPeerStoriesRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineFetchPeerStoriesRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineFetchPeerStoriesRequest>(create);
+  static EngineFetchPeerStoriesRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.String get peerId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set peerId($core.String v) { $_setString(1, v); }
+}
+
+class EngineFetchPeerStoriesResponse extends $pb.GeneratedMessage {
+  factory EngineFetchPeerStoriesResponse({
+    $core.String? storiesJson,
+  }) {
+    final $result = create();
+    if (storiesJson != null) $result.storiesJson = storiesJson;
+    return $result;
+  }
+  EngineFetchPeerStoriesResponse._() : super();
+  factory EngineFetchPeerStoriesResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineFetchPeerStoriesResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'storiesJson')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineFetchPeerStoriesResponse clone() => EngineFetchPeerStoriesResponse()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineFetchPeerStoriesResponse copyWith(void Function(EngineFetchPeerStoriesResponse) updates) => super.copyWith((message) => updates(message as EngineFetchPeerStoriesResponse)) as EngineFetchPeerStoriesResponse;
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineFetchPeerStoriesResponse create() => EngineFetchPeerStoriesResponse._();
+  EngineFetchPeerStoriesResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineFetchPeerStoriesResponse> createRepeated() => $pb.PbList<EngineFetchPeerStoriesResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineFetchPeerStoriesResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineFetchPeerStoriesResponse>(create);
+  static EngineFetchPeerStoriesResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get storiesJson => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set storiesJson($core.String v) { $_setString(0, v); }
+}
+
 const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
 const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');
