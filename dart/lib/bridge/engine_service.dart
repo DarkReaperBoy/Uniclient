@@ -375,6 +375,15 @@ class EngineService {
     await _callAsync('__engine', 'ToggleForumTopicClosed', req.writeToBuffer());
   }
 
+  Future<void> toggleGeneralTopicHidden(String accountId, String chatId, bool hidden) async {
+    final req = epb.EngineEditForumTopicRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..topicId = Int64(1)
+      ..colorId = hidden ? 1 : 0;
+    await _callAsync('__engine', 'ToggleGeneralTopicHidden', req.writeToBuffer());
+  }
+
   Future<void> deleteForumTopicHistory(String accountId, String chatId, int topicId) async {
     final req = epb.EngineEditForumTopicRequest()
       ..accountId = accountId

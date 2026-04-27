@@ -14932,6 +14932,17 @@ func (t *TelegramCore) ToggleForumTopicClosed(chatID string, topicID int, closed
 	return err
 }
 
+// ToggleGeneralTopicHidden hides or shows the General topic (rootId=1) in a forum.
+func (t *TelegramCore) ToggleGeneralTopicHidden(chatID string, hidden bool) error {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil { return err }
+	defer unlock()
+	req := &tg.MessagesEditForumTopicRequest{Peer: inputPeer, TopicID: 1}
+	req.SetHidden(hidden)
+	_, err = t.api.MessagesEditForumTopic(t.ctx, req)
+	return err
+}
+
 // DeleteTopicHistory deletes all messages in a forum topic.
 func (t *TelegramCore) DeleteTopicHistory(chatID string, topicID int) error {
 	inputPeer, unlock, err := t.withPeer(chatID)

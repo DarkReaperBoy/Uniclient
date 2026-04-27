@@ -1871,7 +1871,7 @@ class _TopicsPreview extends StatelessWidget {
           ));
           children.add(const WidgetSpan(child: SizedBox(width: 3)));
           children.add(TextSpan(
-            text: topic.title,
+            text: topic.isGeneral ? '# ${topic.title}' : topic.title,
             style: TextStyle(
               fontSize: 13,
               fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,

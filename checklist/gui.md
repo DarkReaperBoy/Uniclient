@@ -788,7 +788,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 22.8 Context Menus
 
 ### 22.9 General Topic
-- [ ] rootId=1, cannot be deleted/change icon (uses general.svg), can be hidden, title prefixed with "# " in rich text — spec §22.9
 
 ### 22.10 Navigation & Column Integration
 - [ ] One-column: forum replaces dialog list, back returns to main; two/three-column: topic list in dialog column; "View as Messages/Topics" toggle (saves preference); loading pagination (first 20, then 500/page, stale 100/request); auto-preload when <20 loaded; 8 recent topics for chat list — spec §22.10

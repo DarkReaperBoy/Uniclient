@@ -684,6 +684,21 @@ func (e *Engine) ToggleForumTopicClosed(accountID, chatID string, topicID int, c
 	return c.ToggleForumTopicClosed(chatID, topicID, closed)
 }
 
+func (e *Engine) ToggleGeneralTopicHidden(accountID, chatID string, hidden bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	type hider interface {
+		ToggleGeneralTopicHidden(chatID string, hidden bool) error
+	}
+	h, ok := acc.Core.(hider)
+	if !ok {
+		return fmt.Errorf("platform does not support hiding general topic")
+	}
+	return h.ToggleGeneralTopicHidden(chatID, hidden)
+}
+
 func (e *Engine) DeleteForumTopicHistory(accountID, chatID string, topicID int) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

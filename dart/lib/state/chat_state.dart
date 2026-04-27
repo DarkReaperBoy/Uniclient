@@ -623,6 +623,11 @@ class ChatState extends ChangeNotifier {
     await refreshForumTopics();
   }
 
+  Future<void> toggleGeneralTopicHidden(String accountId, String chatId, bool hidden) async {
+    await _engine.toggleGeneralTopicHidden(accountId, chatId, hidden);
+    await refreshForumTopics();
+  }
+
   Future<void> deleteForumTopicHistory(String accountId, String chatId, int topicId) async {
     await _engine.deleteForumTopicHistory(accountId, chatId, topicId);
     await refreshForumTopics();

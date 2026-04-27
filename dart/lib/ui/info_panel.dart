@@ -1163,7 +1163,7 @@ class _TopicInfoCoverDelegate extends SliverPersistentHeaderDelegate {
               top: 14,
               right: 88,
               child: Text(
-                topic.title,
+                isGeneral ? '# ${topic.title}' : topic.title,
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -1292,6 +1292,15 @@ class _TopicInfoMenuButton extends StatelessWidget {
             ),
             label: topic.isClosed ? 'Reopen Topic' : 'Close Topic',
           ),
+        if (topic.isGeneral && topic.canEdit)
+          TelegramMenuItem(
+            value: 'toggle_hidden',
+            icon: Icon(
+              topic.isHidden ? Icons.visibility : Icons.visibility_off,
+              size: 20,
+            ),
+            label: topic.isHidden ? 'Show Topic' : 'Hide Topic',
+          ),
         if (topic.canDelete && !topic.isGeneral) ...[
           const TelegramMenuItem.separator(),
           const TelegramMenuItem(
@@ -1367,6 +1376,18 @@ class _TopicInfoMenuButton extends StatelessWidget {
         try {
           await chatState.toggleForumTopicClosed(
             chat.accountId, parentChatId, topicId, !topic.isClosed,
+          );
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed: $e')),
+            );
+          }
+        }
+      case 'toggle_hidden':
+        try {
+          await chatState.toggleGeneralTopicHidden(
+            chat.accountId, parentChatId, !topic.isHidden,
           );
         } catch (e) {
           if (context.mounted) {

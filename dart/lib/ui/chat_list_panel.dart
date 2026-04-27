@@ -3204,7 +3204,8 @@ class _ForumTopicListView extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final parent = chatState.forumParentChat!;
-    final topics = chatState.forumTopics;
+    final allTopics = chatState.forumTopics;
+    final topics = allTopics.where((t) => !(t.isGeneral && t.isHidden)).toList();
     final engine = context.read<EngineService>();
 
     return GestureDetector(
@@ -3546,7 +3547,7 @@ class _ForumTopicRow extends StatelessWidget {
                     children: [
                       Flexible(
                         child: Text(
-                          topic.title,
+                          topic.isGeneral ? '# ${topic.title}' : topic.title,
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -3653,6 +3654,12 @@ class _ForumTopicRow extends StatelessWidget {
             icon: Icon(topic.isClosed ? Icons.lock_open : Icons.lock_outline, size: 20),
             label: topic.isClosed ? 'Reopen Topic' : 'Close Topic',
           ),
+        if (topic.isGeneral && topic.canEdit)
+          TelegramMenuItem(
+            value: 'toggle_hidden',
+            icon: Icon(topic.isHidden ? Icons.visibility : Icons.visibility_off, size: 20),
+            label: topic.isHidden ? 'Show Topic' : 'Hide Topic',
+          ),
         const TelegramMenuItem.separator(),
         const TelegramMenuItem(
           value: 'clear_history',
@@ -3692,6 +3699,16 @@ class _ForumTopicRow extends StatelessWidget {
       case 'toggle_closed':
         try {
           await chatState.toggleForumTopicClosed(accountId, chatId, topicId, !topic.isClosed);
+        } catch (e) {
+          if (ctx.mounted) {
+            ScaffoldMessenger.of(ctx).showSnackBar(
+              SnackBar(content: Text('Failed: $e')),
+            );
+          }
+        }
+      case 'toggle_hidden':
+        try {
+          await chatState.toggleGeneralTopicHidden(accountId, chatId, !topic.isHidden);
         } catch (e) {
           if (ctx.mounted) {
             ScaffoldMessenger.of(ctx).showSnackBar(

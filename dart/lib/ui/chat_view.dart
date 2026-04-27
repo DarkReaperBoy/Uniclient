@@ -3883,7 +3883,9 @@ class _ChatTopBar extends StatelessWidget {
                           ],
                           Flexible(
                             child: Text(
-                              chat.title.isNotEmpty ? chat.title : chat.chatId,
+                              isTopic && activeTopic != null && activeTopic!.isGeneral
+                                  ? '# ${chat.title.isNotEmpty ? chat.title : chat.chatId}'
+                                  : (chat.title.isNotEmpty ? chat.title : chat.chatId),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.titleMedium,

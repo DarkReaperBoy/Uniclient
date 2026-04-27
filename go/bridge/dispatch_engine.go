@@ -358,6 +358,13 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.ToggleForumTopicClosed(req.AccountId, req.ChatId, int(req.TopicId), req.ColorId != 0)
 
+	case "ToggleGeneralTopicHidden":
+		var req pb.EngineEditForumTopicRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.ToggleGeneralTopicHidden(req.AccountId, req.ChatId, req.ColorId != 0)
+
 	case "DeleteForumTopicHistory":
 		var req pb.EngineEditForumTopicRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
