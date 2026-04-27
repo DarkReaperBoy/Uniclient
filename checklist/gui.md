@@ -760,7 +760,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 <!-- File: dart/lib/ui/create_group_wizard.dart -->
 
 ### 21.2 Step 1 — Group/Channel Info Box
-- [ ] Info box (48px title bar, 16px semibold): UserpicButton 72×72px at (24,10) with EmptyUserpic gradient initials (up to 2 letters, 28px font), forum userpic with rounded rect, change icon always visible when no image, upload overlay (24px, msgDateImgBgOver), progress ring (3px, 8px margin, 500ms) — spec §21.2 & §21.2.1
 - [ ] Title input (left 99px, top 5px, ~217px width, max 128 chars, emoji suggestions), description (channels only, multiline, max 255 chars, max 116px height, 13px below userpic), TTL menu (groups only), Create/Next + Cancel buttons, empty-title shake, error handling (NO_CHAT_TITLE/USERS_TOO_FEW/CHANNELS_TOO_MUCH) — spec §21.2
 - [ ] Forum "Enable Topics" toggle: in post-creation Manage settings (not Step 1), manageGroupTopicsButton style, "NEW" badge, child screen with Tabs/List radios + enable toggle, member-count gate from AppConfig (fallback 200), forces pre-join history visible — spec §21.2.2
 

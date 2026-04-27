@@ -1,5 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
+import 'dart:math' as math;
+import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -115,22 +119,99 @@ class _WizardDialogState extends State<_WizardDialog> {
   EngineService get _engine => context.read<EngineService>();
   ChatState get _chatState => context.read<ChatState>();
 
+  Uint8List? _photoBytes;
+  String? _photoPath;
+  double _uploadProgress = -1;
+
   List<Color> get _userpicColors {
     final name = _nameController.text.trim();
     final idx = name.isEmpty ? 0 : name.codeUnitAt(0) % _userpicGradients.length;
     return _userpicGradients[idx];
   }
 
-  String get _userpicInitial {
+  static final _letterOrDigit = RegExp(r'[\p{L}\p{N}]', unicode: true);
+
+  String get _userpicInitials {
     final name = _nameController.text.trim();
     if (name.isEmpty) return '';
-    for (final r in name.runes) {
-      final ch = String.fromCharCode(r);
-      if (RegExp(r'[\p{L}\p{N}]', unicode: true).hasMatch(ch)) {
-        return ch.toUpperCase();
+
+    String? first;
+    for (int i = 0; i < name.length; i++) {
+      final c = name.codeUnitAt(i);
+      if (c >= 0xD800 && c <= 0xDFFF) continue;
+      if (_letterOrDigit.hasMatch(name[i])) {
+        first = name[i].toUpperCase();
+        break;
       }
     }
-    return name[0].toUpperCase();
+    if (first == null) return '';
+
+    String? afterSpace, afterHyphen;
+    for (int i = 1; i < name.length; i++) {
+      final c = name.codeUnitAt(i);
+      if (c >= 0xD800 && c <= 0xDFFF) continue;
+      if (!_letterOrDigit.hasMatch(name[i])) continue;
+      if (name[i - 1] == ' ' && afterSpace == null) {
+        afterSpace = name[i].toUpperCase();
+      }
+      if (name[i - 1] == '-' && afterHyphen == null) {
+        afterHyphen = name[i].toUpperCase();
+      }
+    }
+
+    final second = afterSpace ?? afterHyphen;
+    return second != null ? '$first$second' : first;
+  }
+
+  Future<void> _pickPhoto() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final path = result.files.first.path;
+    if (path == null) return;
+    try {
+      final bytes = await File(path).readAsBytes();
+      if (!mounted) return;
+      setState(() {
+        _photoBytes = bytes;
+        _photoPath = path;
+      });
+    } catch (_) {}
+  }
+
+  void _onUserpicTap() {
+    if (_photoBytes != null) {
+      showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Remove Photo'),
+          content: const Text('Choose a new photo or remove the current one?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Choose New'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Remove'),
+            ),
+          ],
+        ),
+      ).then((remove) {
+        if (remove == true) {
+          setState(() {
+            _photoBytes = null;
+            _photoPath = null;
+          });
+        } else if (remove == false) {
+          _pickPhoto();
+        }
+      });
+    } else {
+      _pickPhoto();
+    }
   }
 
   Future<void> _loadContacts() async {
@@ -350,33 +431,13 @@ class _WizardDialogState extends State<_WizardDialog> {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: colors,
-                ),
-              ),
-              child: Center(
-                child: _userpicInitial.isNotEmpty
-                    ? Text(
-                        _userpicInitial,
-                        style: const TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Icon(
-                        Icons.add_a_photo_outlined,
-                        size: 28,
-                        color: Colors.white.withValues(alpha: 0.8),
-                      ),
-              ),
+            _UserpicButton(
+              size: 72,
+              gradientColors: colors,
+              initials: _userpicInitials,
+              photoBytes: _photoBytes,
+              uploadProgress: _uploadProgress,
+              onTap: (_) => _onUserpicTap(),
             ),
             const SizedBox(width: 27),
             Expanded(
@@ -942,4 +1003,266 @@ class _ContactRow extends StatelessWidget {
       ),
     );
   }
+}
+
+class _UserpicButton extends StatefulWidget {
+  final double size;
+  final List<Color> gradientColors;
+  final String initials;
+  final Uint8List? photoBytes;
+  final bool isForum;
+  final double uploadProgress;
+  final void Function(Offset globalPosition) onTap;
+
+  const _UserpicButton({
+    required this.size,
+    required this.gradientColors,
+    required this.initials,
+    this.photoBytes,
+    this.isForum = false,
+    this.uploadProgress = -1,
+    required this.onTap,
+  });
+
+  @override
+  State<_UserpicButton> createState() => _UserpicButtonState();
+}
+
+class _UserpicButtonState extends State<_UserpicButton>
+    with SingleTickerProviderStateMixin {
+  bool _hovering = false;
+  late AnimationController _progressAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _progressAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+    if (widget.uploadProgress >= 0) _progressAnim.repeat();
+  }
+
+  @override
+  void didUpdateWidget(_UserpicButton old) {
+    super.didUpdateWidget(old);
+    if (widget.uploadProgress >= 0 && !_progressAnim.isAnimating) {
+      _progressAnim.repeat();
+    } else if (widget.uploadProgress < 0 && _progressAnim.isAnimating) {
+      _progressAnim.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _progressAnim.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasImage = widget.photoBytes != null;
+    final forumRadius = widget.size * 0.32;
+    final shape = widget.isForum
+        ? BoxShape.rectangle
+        : BoxShape.circle;
+    final borderRadius = widget.isForum
+        ? BorderRadius.circular(forumRadius)
+        : null;
+    final fontSize = (widget.size * 13 / 33).roundToDouble();
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTapUp: (details) => widget.onTap(details.globalPosition),
+        child: SizedBox(
+          width: widget.size,
+          height: widget.size,
+          child: Stack(
+            children: [
+              Container(
+                width: widget.size,
+                height: widget.size,
+                decoration: BoxDecoration(
+                  shape: shape,
+                  borderRadius: borderRadius,
+                  gradient: hasImage
+                      ? null
+                      : LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: widget.gradientColors,
+                        ),
+                  image: hasImage
+                      ? DecorationImage(
+                          image: MemoryImage(widget.photoBytes!),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
+                ),
+                child: !hasImage && widget.initials.isNotEmpty
+                    ? Center(
+                        child: Text(
+                          widget.initials,
+                          style: TextStyle(
+                            fontSize: fontSize,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.white,
+                          ),
+                        ),
+                      )
+                    : null,
+              ),
+
+              if (_hovering || !hasImage)
+                Container(
+                  width: widget.size,
+                  height: widget.size,
+                  decoration: BoxDecoration(
+                    shape: shape,
+                    borderRadius: borderRadius,
+                    color: _hovering
+                        ? (hasImage
+                            ? const Color(0x54000000)
+                            : const Color(0x18000000))
+                        : Colors.transparent,
+                  ),
+                ),
+
+              if (!hasImage || _hovering)
+                const Positioned(
+                  left: 21,
+                  top: 23,
+                  child: Icon(
+                    Icons.add_a_photo_outlined,
+                    size: 24,
+                    color: Color(0xE6FFFFFF),
+                  ),
+                ),
+
+              if (widget.uploadProgress >= 0) ...[
+                ClipPath(
+                  clipper: _BottomClipper(
+                    height: 24,
+                    isForum: widget.isForum,
+                    radius: forumRadius,
+                  ),
+                  child: Container(
+                    width: widget.size,
+                    height: widget.size,
+                    decoration: BoxDecoration(
+                      shape: shape,
+                      borderRadius: borderRadius,
+                      color: const Color(0x7F000000),
+                    ),
+                  ),
+                ),
+                Positioned.fill(
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: AnimatedBuilder(
+                      animation: _progressAnim,
+                      builder: (ctx, _) {
+                        return CustomPaint(
+                          painter: _ProgressRingPainter(
+                            progress: widget.uploadProgress,
+                            rotation: _progressAnim.value * 2 * math.pi,
+                            strokeWidth: 3,
+                            isForum: widget.isForum,
+                            forumRadius: forumRadius - 8,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BottomClipper extends CustomClipper<Path> {
+  final double height;
+  final bool isForum;
+  final double radius;
+
+  _BottomClipper({
+    required this.height,
+    required this.isForum,
+    required this.radius,
+  });
+
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+    if (isForum) {
+      path.addRRect(RRect.fromRectAndRadius(
+        Rect.fromLTWH(0, 0, size.width, size.height),
+        Radius.circular(radius),
+      ));
+    } else {
+      path.addOval(Rect.fromLTWH(0, 0, size.width, size.height));
+    }
+    final cutout = Path()
+      ..addRect(Rect.fromLTWH(0, 0, size.width, size.height - height));
+    return Path.combine(PathOperation.intersect, path, Path()
+      ..addRect(Rect.fromLTWH(0, size.height - height, size.width, height)));
+  }
+
+  @override
+  bool shouldReclip(_BottomClipper old) =>
+      old.height != height || old.isForum != isForum || old.radius != radius;
+}
+
+class _ProgressRingPainter extends CustomPainter {
+  final double progress;
+  final double rotation;
+  final double strokeWidth;
+  final bool isForum;
+  final double forumRadius;
+
+  _ProgressRingPainter({
+    required this.progress,
+    required this.rotation,
+    required this.strokeWidth,
+    this.isForum = false,
+    this.forumRadius = 0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    final rect = Rect.fromLTWH(0, 0, size.width, size.height);
+    final sweepAngle = progress.clamp(0.05, 1.0) * 2 * math.pi;
+
+    canvas.save();
+    canvas.translate(size.width / 2, size.height / 2);
+    canvas.rotate(rotation);
+    canvas.translate(-size.width / 2, -size.height / 2);
+
+    if (isForum) {
+      final rrect = RRect.fromRectAndRadius(rect, Radius.circular(forumRadius));
+      final path = Path()..addRRect(rrect);
+      canvas.drawPath(path, paint..style = PaintingStyle.stroke);
+    } else {
+      canvas.drawArc(rect, -math.pi / 2, sweepAngle, false, paint);
+    }
+
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_ProgressRingPainter old) =>
+      old.progress != progress || old.rotation != rotation;
 }
