@@ -12,6 +12,7 @@ import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/chat_state.dart';
 import 'chat_view.dart' show formatChatLastSeen;
+import 'create_group_wizard.dart' show showEditPeerTypeBox;
 import 'popup_menu.dart';
 
 enum InfoWrapMode { side, narrow, layer }
@@ -1255,6 +1256,7 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
                 _ChannelActionsSection(
                   chat: widget.chat,
                   theme: widget.theme,
+                  members: widget.members,
                 ),
               ],
               if (widget.chat.type == ChatType.dm &&
@@ -1804,6 +1806,18 @@ class _GroupActionsSection extends StatelessWidget {
           ),
         if (_isSelfAdmin)
           _ActionRow(
+            icon: Icons.lock_outline,
+            label: 'Group Type',
+            theme: theme,
+            onTap: () => showEditPeerTypeBox(
+              context,
+              accountId: chat.accountId,
+              chatId: chat.chatId,
+              isChannel: false,
+            ),
+          ),
+        if (_isSelfAdmin)
+          _ActionRow(
             icon: Icons.forum_outlined,
             label: 'Topics',
             theme: theme,
@@ -2133,8 +2147,22 @@ class _ForumTopicsDialogState extends State<_ForumTopicsDialog> {
 class _ChannelActionsSection extends StatelessWidget {
   final ChatInfo chat;
   final ThemeData theme;
+  final List<MemberInfo>? members;
 
-  const _ChannelActionsSection({required this.chat, required this.theme});
+  const _ChannelActionsSection({required this.chat, required this.theme, this.members});
+
+  bool get _isSelfAdmin {
+    if (members == null) return false;
+    final accountId = chat.accountId;
+    for (final m in members!) {
+      if (m.role == 'owner' || m.role == 'admin' || m.role == 'creator') {
+        if (m.userId == accountId || accountId.contains(m.userId) || m.userId.contains(accountId)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2144,6 +2172,18 @@ class _ChannelActionsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (_isSelfAdmin)
+          _ActionRow(
+            icon: Icons.lock_outline,
+            label: 'Channel Type',
+            theme: theme,
+            onTap: () => showEditPeerTypeBox(
+              context,
+              accountId: chat.accountId,
+              chatId: chat.chatId,
+              isChannel: true,
+            ),
+          ),
         _ActionRow(
           icon: Icons.people_outline,
           label: 'Similar Channels',

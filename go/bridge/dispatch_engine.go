@@ -940,6 +940,20 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(map[string]string{"link": link})
 
+	case "GetChatUsername":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		username, err := e.GetChatUsername(params.AccountID, params.ChatID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]string{"username": username})
+
 	case "CheckChannelUsername":
 		var params struct {
 			AccountID string `json:"account_id"`

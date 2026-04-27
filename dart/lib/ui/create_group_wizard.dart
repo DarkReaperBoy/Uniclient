@@ -2056,3 +2056,544 @@ class _PublicLinksLimitBoxState extends State<_PublicLinksLimitBox> {
     );
   }
 }
+
+// ── §21.5 EditPeerTypeBox ──
+
+Future<bool?> showEditPeerTypeBox(
+  BuildContext context, {
+  required String accountId,
+  required String chatId,
+  required bool isChannel,
+}) {
+  final engine = context.read<EngineService>();
+  return showDialog<bool>(
+    context: context,
+    builder: (ctx) => Provider<EngineService>.value(
+      value: engine,
+      child: _EditPeerTypeBox(
+        accountId: accountId,
+        chatId: chatId,
+        isChannel: isChannel,
+      ),
+    ),
+  );
+}
+
+class _EditPeerTypeBox extends StatefulWidget {
+  final String accountId;
+  final String chatId;
+  final bool isChannel;
+
+  const _EditPeerTypeBox({
+    required this.accountId,
+    required this.chatId,
+    required this.isChannel,
+  });
+
+  @override
+  State<_EditPeerTypeBox> createState() => _EditPeerTypeBoxState();
+}
+
+class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
+  bool _isPublic = false;
+  bool _loading = true;
+  bool _saving = false;
+  String _currentUsername = '';
+  String _inviteLink = '';
+  bool _loadingInviteLink = false;
+  String? _error;
+
+  final _usernameController = TextEditingController();
+  Timer? _usernameDebounce;
+  bool _usernameChecking = false;
+  bool _usernameValid = false;
+  String? _usernameStatus;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrentState();
+  }
+
+  @override
+  void dispose() {
+    _usernameDebounce?.cancel();
+    _usernameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadCurrentState() async {
+    final engine = context.read<EngineService>();
+    try {
+      final username = await engine.getChatUsername(widget.accountId, widget.chatId);
+      if (!mounted) return;
+      setState(() {
+        _currentUsername = username;
+        _isPublic = username.isNotEmpty;
+        if (username.isNotEmpty) {
+          _usernameController.text = username;
+          _usernameValid = true;
+        }
+        _loading = false;
+      });
+      if (!_isPublic) _loadInviteLink();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadInviteLink() async {
+    setState(() => _loadingInviteLink = true);
+    final engine = context.read<EngineService>();
+    try {
+      final link = await engine.getInviteLink(widget.accountId, widget.chatId);
+      if (!mounted) return;
+      setState(() {
+        _inviteLink = link;
+        _loadingInviteLink = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingInviteLink = false);
+    }
+  }
+
+  void _onUsernameChanged(String value) {
+    _usernameDebounce?.cancel();
+    final text = value.trim().toLowerCase();
+    if (text.isEmpty) {
+      setState(() {
+        _usernameChecking = false;
+        _usernameValid = false;
+        _usernameStatus = null;
+        _error = null;
+      });
+      return;
+    }
+    if (text.length < 5) {
+      setState(() {
+        _usernameChecking = false;
+        _usernameValid = false;
+        _usernameStatus = 'Username must be at least 5 characters';
+      });
+      return;
+    }
+    if (!RegExp(r'^[a-zA-Z][a-zA-Z0-9_]*$').hasMatch(text)) {
+      setState(() {
+        _usernameChecking = false;
+        _usernameValid = false;
+        _usernameStatus = 'Username can only contain a-z, 0-9, and underscores';
+      });
+      return;
+    }
+    setState(() { _usernameChecking = true; _usernameStatus = null; });
+    _usernameDebounce = Timer(const Duration(milliseconds: 200), () async {
+      final engine = context.read<EngineService>();
+      try {
+        final ok = await engine.checkChannelUsername(widget.accountId, widget.chatId, text);
+        if (!mounted) return;
+        if (_usernameController.text.trim().toLowerCase() != text) return;
+        setState(() {
+          _usernameChecking = false;
+          _usernameValid = ok || text == _currentUsername;
+          _usernameStatus = (ok || text == _currentUsername) ? 'Username is available' : 'Username is already taken';
+        });
+      } catch (e) {
+        if (!mounted) return;
+        final msg = e.toString();
+        setState(() {
+          _usernameChecking = false;
+          _usernameValid = false;
+          _usernameStatus = msg.contains('CHANNELS_ADMIN_PUBLIC_TOO_MUCH')
+              ? 'Too many public channels'
+              : 'Check failed: $msg';
+        });
+      }
+    });
+  }
+
+  Future<void> _save() async {
+    final engine = context.read<EngineService>();
+    final newUsername = _isPublic ? _usernameController.text.trim() : '';
+
+    if (_isPublic && newUsername.isEmpty) {
+      setState(() => _error = 'Please enter a username');
+      return;
+    }
+    if (_isPublic && !_usernameValid) {
+      setState(() => _error = 'Please fix the username first');
+      return;
+    }
+
+    if (newUsername == _currentUsername) {
+      Navigator.pop(context, false);
+      return;
+    }
+
+    setState(() { _saving = true; _error = null; });
+    try {
+      await engine.updateChannelUsername(widget.accountId, widget.chatId, newUsername);
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e.toString();
+      if (msg.contains('CHANNELS_ADMIN_PUBLIC_TOO_MUCH')) {
+        final revoked = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => Provider<EngineService>.value(
+            value: engine,
+            child: _PublicLinksLimitBox(
+              engine: engine,
+              accountId: widget.accountId,
+            ),
+          ),
+        );
+        if (revoked == true && mounted) {
+          _save();
+          return;
+        }
+      }
+      setState(() {
+        _saving = false;
+        _error = msg.contains('CHANNELS_ADMIN_PUBLIC_TOO_MUCH')
+            ? 'Too many public groups/channels'
+            : 'Failed to save: $msg';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
+    final bgColor = isDark ? const Color(0xFF1B2836) : Colors.white;
+    final fieldBg = isDark ? const Color(0xFF242F3D) : const Color(0xFFF1F1F1);
+    const goodColor = Color(0xFF4CAF50);
+    const errorColor = Color(0xFFDD4B39);
+    final peerLabel = widget.isChannel ? 'Channel' : 'Group';
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      backgroundColor: bgColor,
+      child: SizedBox(
+        width: _boxWidth,
+        child: _loading
+            ? const Padding(
+                padding: EdgeInsets.symmetric(vertical: 48),
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              )
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    height: _boxTitleHeight,
+                    child: Center(
+                      child: Text(
+                        '$peerLabel Type',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: textColor,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      padding: _boxPadding,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: _RadioRow(
+                              label: 'Public $peerLabel',
+                              subtitle: widget.isChannel
+                                  ? 'Anyone can find the channel and join'
+                                  : 'Anyone can find the group and join',
+                              selected: _isPublic,
+                              onTap: () {
+                                if (!_isPublic) {
+                                  setState(() { _isPublic = true; _error = null; });
+                                }
+                              },
+                              isDark: isDark,
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(42, 0, 34, 0),
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(minWidth: 220),
+                              child: Text(
+                                widget.isChannel
+                                    ? 'Public channels can be found in search, anyone can join them.'
+                                    : 'Public groups can be found in search, their chat history is available to everyone and anyone can join.',
+                                style: TextStyle(fontSize: 13, color: subtextColor),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: _RadioRow(
+                              label: 'Private $peerLabel',
+                              subtitle: widget.isChannel
+                                  ? 'Only accessible via invite link'
+                                  : 'Only accessible via invite link',
+                              selected: !_isPublic,
+                              onTap: () {
+                                if (_isPublic) {
+                                  _usernameDebounce?.cancel();
+                                  setState(() { _isPublic = false; _error = null; });
+                                  if (_inviteLink.isEmpty) _loadInviteLink();
+                                }
+                              },
+                              isDark: isDark,
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(42, 0, 34, 0),
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(minWidth: 220),
+                              child: Text(
+                                widget.isChannel
+                                    ? 'Private channels can only be joined via an invite link.'
+                                    : 'Private groups can only be joined if you were invited or have an invite link.',
+                                style: TextStyle(fontSize: 13, color: subtextColor),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          if (_isPublic) ...[
+                            Text(
+                              'Public Link',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: accentColor,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(minHeight: 32),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    't.me/',
+                                    style: TextStyle(fontSize: 14, color: subtextColor),
+                                  ),
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _usernameController,
+                                      style: TextStyle(fontSize: 14, color: textColor),
+                                      decoration: InputDecoration(
+                                        hintText: 'link',
+                                        hintStyle: TextStyle(color: subtextColor),
+                                        filled: true,
+                                        fillColor: fieldBg,
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                          borderSide: BorderSide.none,
+                                        ),
+                                        contentPadding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 6,
+                                        ),
+                                        isDense: true,
+                                      ),
+                                      onChanged: _onUsernameChanged,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (_usernameChecking) ...[
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  SizedBox(
+                                    width: 12, height: 12,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 1.5, color: subtextColor,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text('Checking...', style: TextStyle(fontSize: 13, color: subtextColor)),
+                                ],
+                              ),
+                            ] else if (_usernameStatus != null) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                _usernameStatus!,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: _usernameValid ? goodColor : errorColor,
+                                ),
+                              ),
+                            ],
+                          ] else ...[
+                            if (_loadingInviteLink)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                child: Row(
+                                  children: [
+                                    SizedBox(
+                                      width: 14, height: 14,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 1.5, color: subtextColor,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text('Loading invite link...',
+                                      style: TextStyle(fontSize: 13, color: subtextColor)),
+                                  ],
+                                ),
+                              )
+                            else if (_inviteLink.isNotEmpty) ...[
+                              Text(
+                                'Invite Link',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: accentColor,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: fieldBg,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  _inviteLink,
+                                  style: TextStyle(fontSize: 14, color: accentColor),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  _LinkActionButton(
+                                    icon: Icons.copy,
+                                    label: 'Copy',
+                                    color: accentColor,
+                                    onTap: () {
+                                      Clipboard.setData(ClipboardData(text: _inviteLink));
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Link copied to clipboard'),
+                                          duration: Duration(seconds: 2),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(width: 12),
+                                  _LinkActionButton(
+                                    icon: Icons.share,
+                                    label: 'Share',
+                                    color: accentColor,
+                                    onTap: () {
+                                      Clipboard.setData(ClipboardData(text: _inviteLink));
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Link copied to clipboard'),
+                                          duration: Duration(seconds: 2),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ],
+                            const SizedBox(height: 4),
+                            Text(
+                              'People can join your ${widget.isChannel ? 'channel' : 'group'} by following this link. '
+                              'You can revoke the link any time.',
+                              style: TextStyle(fontSize: 13, color: subtextColor),
+                            ),
+                          ],
+                          if (_error != null) ...[
+                            const SizedBox(height: 12),
+                            Text(_error!, style: const TextStyle(fontSize: 13, color: errorColor)),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: _saving ? null : () => Navigator.pop(context, false),
+                          child: Text(
+                            'Cancel',
+                            style: TextStyle(fontSize: 14, color: subtextColor),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        TextButton(
+                          onPressed: _saving ? null : _save,
+                          child: _saving
+                              ? SizedBox(
+                                  width: 16, height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 1.5, color: accentColor,
+                                  ),
+                                )
+                              : Text(
+                                  'Save',
+                                  style: TextStyle(fontSize: 14, color: accentColor),
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+class _LinkActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _LinkActionButton({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 4),
+            Text(label, style: TextStyle(fontSize: 13, color: color)),
+          ],
+        ),
+      ),
+    );
+  }
+}

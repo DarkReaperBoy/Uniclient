@@ -1271,6 +1271,16 @@ class EngineService {
     return data['link'] as String? ?? '';
   }
 
+  Future<String> getChatUsername(String accountId, String chatId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+    }));
+    final respBytes = await _callAsync('__engine', 'GetChatUsername', Uint8List.fromList(payload));
+    final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    return data['username'] as String? ?? '';
+  }
+
   Future<bool> checkChannelUsername(String accountId, String chatId, String username) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

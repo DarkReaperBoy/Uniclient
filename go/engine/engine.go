@@ -730,6 +730,20 @@ func (e *Engine) UpdateChannelUsername(accountID, chatID, username string) error
 	return fmt.Errorf("platform does not support channel username update")
 }
 
+func (e *Engine) GetChatUsername(accountID, chatID string) (string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return "", fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type usernameGetter interface {
+		GetChatUsername(chatID string) (string, error)
+	}
+	if g, ok := acc.Core.(usernameGetter); ok {
+		return g.GetChatUsername(chatID)
+	}
+	return "", fmt.Errorf("platform does not support chat username lookup")
+}
+
 type PublicLinkInfo struct {
 	ChatID    string `json:"chat_id"`
 	Title     string `json:"title"`

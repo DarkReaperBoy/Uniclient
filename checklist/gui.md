@@ -766,7 +766,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 21.4 Step 2b — Channel Setup Box
 
 ### 21.5 Edit Peer Type Box
-- [ ] EditPeerTypeBox (364px): privacy radios (editPeerPrivacyBoxCheckbox, margins 0/8/0/8), explanation labels (min 220px, windowSubTextFg, margins 42/0/34/0), 16px bottom skip, draggable collectible usernames list (public), permanent invite link block with copy/share (private) — spec §21.5
 - [ ] Group permission toggles: full-width rows (icon+label+toggle), toggleSkip from right, locked=dimmed, lineWidth separator, "Only members" toggle, slow mode slider (8 positions 0–3600s with step labels), Topics row (conditional forum), Approve New Members nested toggle, Restrict Saving toggle, color tokens — spec §21.5.1
 
 ### 21.6 Complete Flow

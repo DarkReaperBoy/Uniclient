@@ -14858,6 +14858,22 @@ func (t *TelegramCore) UpdateUsername(username string) error {
 	return err
 }
 
+func (t *TelegramCore) GetChatUsername(chatID string) (string, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return "", ErrAuth }
+	peer, err := t.resolvePeer(chatID); if err != nil { return "", err }
+	ch, ok := peer.(*tg.PeerChannel); if !ok { return "", nil }
+	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
+	result, err := t.api.ChannelsGetFullChannel(t.ctx, &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash})
+	if err != nil { return "", err }
+	for _, c := range result.Chats {
+		if cc, ok := c.(*tg.Channel); ok && cc.ID == ch.ChannelID {
+			return cc.Username, nil
+		}
+	}
+	return "", nil
+}
+
 // UpdateChannelUsername sets or clears a public username on a channel/supergroup.
 func (t *TelegramCore) UpdateChannelUsername(chatID, username string) error {
 	t.mu.RLock(); defer t.mu.RUnlock()
