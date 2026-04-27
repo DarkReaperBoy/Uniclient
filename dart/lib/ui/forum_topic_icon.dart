@@ -309,3 +309,69 @@ class _BubbleIconPainter extends CustomPainter {
       fontSize != old.fontSize ||
       textTop != old.textTop;
 }
+
+enum GeneralIconContext { normal, hover, active, profile }
+
+class GeneralForumTopicIcon extends StatelessWidget {
+  final double size;
+  final GeneralIconContext iconContext;
+  final Color? colorOverride;
+
+  const GeneralForumTopicIcon({
+    super.key,
+    this.size = ForumTopicIcon.defaultSize,
+    this.iconContext = GeneralIconContext.normal,
+    this.colorOverride,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final color = colorOverride ?? _resolveColor(isDark);
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(
+        painter: _GeneralIconPainter(color: color, targetSize: size),
+      ),
+    );
+  }
+
+  Color _resolveColor(bool isDark) => switch (iconContext) {
+    GeneralIconContext.normal =>
+      isDark ? const Color(0xFF7F91A4) : const Color(0xFF999999),
+    GeneralIconContext.hover =>
+      isDark ? const Color(0xFF91A3B5) : const Color(0xFF919191),
+    GeneralIconContext.active =>
+      const Color(0xFFFFFFFF),
+    GeneralIconContext.profile =>
+      isDark ? const Color(0xFF7F91A4) : const Color(0xFF999999),
+  };
+}
+
+class _GeneralIconPainter extends CustomPainter {
+  final Color color;
+  final double targetSize;
+
+  static Path? _rawPath;
+
+  _GeneralIconPainter({required this.color, required this.targetSize});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    _rawPath ??= _parseSvgPath(generalTopicPathD);
+    final s = targetSize / 20.0;
+    final mat = Float64List.fromList([
+      s, 0, 0, 0,
+      0, s, 0, 0,
+      0, 0, 1, 0,
+      0, 0, 0, 1,
+    ]);
+    final path = _rawPath!.transform(mat);
+    canvas.drawPath(path, Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(_GeneralIconPainter old) =>
+      color != old.color || targetSize != old.targetSize;
+}

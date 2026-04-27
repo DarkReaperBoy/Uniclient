@@ -776,7 +776,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 <!-- No dart file yet — likely integrates with dart/lib/ui/chat_list_panel.dart, dart/lib/ui/chat_view.dart -->
 
 ### 22.1–22.2 Data Model & Icon System
-- [ ] General topic icon: general.svg 20×20 hash shape, recolored at paint time (dialogsTextFg/Over/Active per context), re-rendered on palette changes, no color background — spec §22.2
 - [ ] Custom emoji icon: loaded via CustomEmojiManager when iconId≠0, loops once then freezes, no bubble background, narrow-mode centering, context text color variants — spec §22.2
 
 ### 22.3 Topic List Layout

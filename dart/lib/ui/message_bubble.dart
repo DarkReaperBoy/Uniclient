@@ -358,6 +358,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                               ? message.topicName
                               : 'Topic #${message.topicId}',
                           topicColorId: message.topicColorId,
+                          topicId: message.topicId,
                         ),
                       ),
                     // Via-bot label: "via @botname" — spec §5, shown if no sender name shown and no forward header.
@@ -1483,8 +1484,9 @@ class _ReactionList extends StatelessWidget {
 class _TopicButton extends StatelessWidget {
   final String topicName;
   final int topicColorId;
+  final String topicId;
 
-  const _TopicButton({required this.topicName, required this.topicColorId});
+  const _TopicButton({required this.topicName, required this.topicColorId, this.topicId = ''});
 
   static const _topicColors = <int, Color>{
     0x6FB9F0: Color(0xFF6FB9F0),
@@ -1498,7 +1500,11 @@ class _TopicButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = _topicColors[topicColorId] ?? _defaultColor;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isGeneral = topicId == '1';
+    final color = isGeneral
+        ? (isDark ? const Color(0xFF7F91A4) : const Color(0xFF999999))
+        : (_topicColors[topicColorId] ?? _defaultColor);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
@@ -1508,11 +1514,14 @@ class _TopicButton extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          ForumTopicIcon(
-            colorId: topicColorId,
-            title: topicName,
-            size: 16,
-          ),
+          if (topicId == '1')
+            GeneralForumTopicIcon(size: 16)
+          else
+            ForumTopicIcon(
+              colorId: topicColorId,
+              title: topicName,
+              size: 16,
+            ),
           const SizedBox(width: 4),
           Flexible(
             child: Text(
