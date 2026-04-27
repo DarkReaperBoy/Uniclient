@@ -3359,12 +3359,19 @@ class _ChatTopBar extends StatelessWidget {
         chat.type == ChatType.channel ||
         chat.type == ChatType.topic;
     final isDm = chat.type == ChatType.dm;
+    final isForumAsMessages = chatState.isForumViewAsMessages;
     showTelegramMenu<String>(
       context: btnCtx,
       position: buttonPos,
       items: [
         if (onToggleInfo != null)
           const TelegramMenuItem(value: 'view_profile', label: 'View Profile'),
+        if (isForumAsMessages)
+          const TelegramMenuItem(
+            value: 'view_as_topics',
+            icon: Icon(Icons.topic_outlined, size: 20),
+            label: 'View as Topics',
+          ),
         TelegramMenuItem(value: 'mute', label: chat.isMuted ? 'Unmute' : 'Mute'),
         TelegramMenuItem(
           value: 'read',
@@ -3384,6 +3391,8 @@ class _ChatTopBar extends StatelessWidget {
       switch (value) {
         case 'view_profile':
           onToggleInfo?.call();
+        case 'view_as_topics':
+          chatState.toggleForumViewAsMessages();
         case 'mute':
           chatState.muteChat(chat.accountId, chat.chatId, !chat.isMuted);
         case 'read':

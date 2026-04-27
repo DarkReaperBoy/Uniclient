@@ -17,6 +17,7 @@ import 'media_viewer.dart';
 import 'popup_menu.dart';
 import 'confirm_box.dart';
 import 'edit_forum_topic_box.dart';
+import 'shell.dart';
 
 /// The entire left panel: search bar + chat list.
 /// When [collapsed] is true, renders in avatar-only narrow mode (spec §1:
@@ -3206,47 +3207,143 @@ class _ForumTopicListView extends StatelessWidget {
     final topics = chatState.forumTopics;
     final engine = context.read<EngineService>();
 
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        border: Border(
-          right: BorderSide(color: theme.dividerColor, width: 1),
+    return GestureDetector(
+      onSecondaryTapUp: (details) =>
+          _showTopicListContextMenu(context, details.globalPosition, parent, engine),
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          border: Border(
+            right: BorderSide(color: theme.dividerColor, width: 1),
+          ),
+        ),
+        child: Column(
+          children: [
+            _ForumTopicHeader(
+              title: parent.title,
+              isDark: isDark,
+              onBack: chatState.closeForum,
+              chatId: parent.chatId,
+              accountId: parent.accountId,
+              engine: engine,
+              chatState: chatState,
+              onShowMenu: (ctx, pos) =>
+                  _showTopicListContextMenu(ctx, pos, parent, engine),
+            ),
+            Expanded(
+              child: topics.isEmpty
+                  ? const Center(child: CircularProgressIndicator())
+                  : ListView.builder(
+                      itemCount: topics.length,
+                      itemBuilder: (context, index) {
+                        final topic = topics[index];
+                        final isActive = chatState.activeTopicId == topic.id;
+                        return _ForumTopicRow(
+                          topic: topic,
+                          isActive: isActive,
+                          accountId: parent.accountId,
+                          chatId: parent.chatId,
+                          engine: engine,
+                          chatState: chatState,
+                          onTap: () => chatState.openTopic(topic),
+                        );
+                      },
+                    ),
+            ),
+          ],
         ),
       ),
-      child: Column(
-        children: [
-          _ForumTopicHeader(
-            title: parent.title,
-            isDark: isDark,
-            onBack: chatState.closeForum,
-            chatId: parent.chatId,
-            accountId: parent.accountId,
-            engine: engine,
-            chatState: chatState,
-          ),
-          Expanded(
-            child: topics.isEmpty
-                ? const Center(child: CircularProgressIndicator())
-                : ListView.builder(
-                    itemCount: topics.length,
-                    itemBuilder: (context, index) {
-                      final topic = topics[index];
-                      final isActive = chatState.activeTopicId == topic.id;
-                      return _ForumTopicRow(
-                        topic: topic,
-                        isActive: isActive,
-                        accountId: parent.accountId,
-                        chatId: parent.chatId,
-                        engine: engine,
-                        chatState: chatState,
-                        onTap: () => chatState.openTopic(topic),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
     );
+  }
+
+  void _showTopicListContextMenu(
+    BuildContext ctx,
+    Offset position,
+    ChatInfo parent,
+    EngineService engine,
+  ) async {
+    final topics = chatState.forumTopics;
+    final value = await showTelegramMenu<String>(
+      context: ctx,
+      position: position,
+      items: [
+        const TelegramMenuItem(
+          value: 'create_topic',
+          icon: Icon(Icons.add_circle_outline, size: 20),
+          label: 'Create Topic',
+        ),
+        const TelegramMenuItem(
+          value: 'view_group_info',
+          icon: Icon(Icons.info_outline, size: 20),
+          label: 'View Group Info',
+        ),
+        const TelegramMenuItem(
+          value: 'view_as_messages',
+          icon: Icon(Icons.forum_outlined, size: 20),
+          label: 'View as Messages',
+        ),
+        if (topics.length > 1)
+          const TelegramMenuItem(
+            value: 'search',
+            icon: Icon(Icons.search, size: 20),
+            label: 'Search',
+          ),
+        const TelegramMenuItem.separator(),
+        TelegramMenuItem(
+          value: 'leave',
+          icon: const Icon(Icons.exit_to_app, size: 20),
+          label: parent.type == ChatType.channel ? 'Leave Channel' : 'Leave Group',
+          isAttention: true,
+        ),
+      ],
+    );
+    if (value == null || !ctx.mounted) return;
+    switch (value) {
+      case 'create_topic':
+        _showCreateTopicDialog(ctx, parent, engine);
+      case 'view_group_info':
+        UniClientShell.toggleInfoRequest?.call();
+      case 'view_as_messages':
+        chatState.toggleForumViewAsMessages();
+      case 'search':
+        ChatListPanel.focusSearchRequest?.call();
+      case 'leave':
+        showDeleteConfirmBox(
+          ctx,
+          mode: DeleteBoxMode.leaveChat,
+          chatType: parent.type,
+          peerName: parent.title,
+        ).then((r) {
+          if (r.confirmed) {
+            chatState.leaveChat(parent.accountId, parent.chatId);
+            chatState.closeForum();
+          }
+        });
+    }
+  }
+
+  void _showCreateTopicDialog(BuildContext ctx, ChatInfo parent, EngineService engine) async {
+    final result = await showEditForumTopicBox(ctx);
+    if (result == null) return;
+    try {
+      final topicId = await engine.createForumTopic(
+        parent.accountId, parent.chatId, result.title, result.colorId, result.iconEmojiId,
+      );
+      await chatState.refreshForumTopics();
+      if (topicId > 0) {
+        final newTopic = chatState.forumTopics.cast<ForumTopic?>().firstWhere(
+          (t) => t!.id == topicId.toString(),
+          orElse: () => null,
+        );
+        if (newTopic != null) chatState.openTopic(newTopic);
+      }
+    } catch (e) {
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(
+          SnackBar(content: Text('Failed to create topic: $e')),
+        );
+      }
+    }
   }
 }
 
@@ -3258,6 +3355,7 @@ class _ForumTopicHeader extends StatelessWidget {
   final String accountId;
   final EngineService engine;
   final ChatState chatState;
+  final void Function(BuildContext ctx, Offset position) onShowMenu;
 
   const _ForumTopicHeader({
     required this.title,
@@ -3267,50 +3365,68 @@ class _ForumTopicHeader extends StatelessWidget {
     required this.accountId,
     required this.engine,
     required this.chatState,
+    required this.onShowMenu,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 54,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF17212b) : Colors.white,
-        border: Border(
-          bottom: BorderSide(
-            color: isDark ? const Color(0x8F04080e) : const Color(0x18000000),
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back, size: 22),
-            onPressed: onBack,
-            splashRadius: 18,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-          ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              ),
-              overflow: TextOverflow.ellipsis,
+    return GestureDetector(
+      onSecondaryTapUp: (details) => onShowMenu(context, details.globalPosition),
+      child: Container(
+        height: 54,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF17212b) : Colors.white,
+          border: Border(
+            bottom: BorderSide(
+              color: isDark ? const Color(0x8F04080e) : const Color(0x18000000),
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.add, size: 22),
-            onPressed: () => _showCreateTopicDialog(context),
-            splashRadius: 18,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            tooltip: 'Create Topic',
-          ),
-        ],
+        ),
+        child: Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back, size: 22),
+              onPressed: onBack,
+              splashRadius: 18,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.add, size: 22),
+              onPressed: () => _showCreateTopicDialog(context),
+              splashRadius: 18,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              tooltip: 'Create Topic',
+            ),
+            Builder(
+              builder: (btnCtx) => IconButton(
+                icon: const Icon(Icons.more_vert, size: 22),
+                onPressed: () {
+                  final box = btnCtx.findRenderObject() as RenderBox;
+                  final pos = box.localToGlobal(Offset(box.size.width, box.size.height));
+                  onShowMenu(context, pos);
+                },
+                splashRadius: 18,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                tooltip: 'Menu',
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

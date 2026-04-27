@@ -23,6 +23,8 @@ enum LayoutMode { oneColumn, twoColumn, threeColumn }
 class UniClientShell extends StatefulWidget {
   const UniClientShell({super.key});
 
+  static VoidCallback? toggleInfoRequest;
+
   @override
   State<UniClientShell> createState() => _UniClientShellState();
 }
@@ -118,10 +120,14 @@ class _UniClientShellState extends State<UniClientShell>
       parent: _thirdColumnAnim,
       curve: Curves.easeOutCirc,
     );
+    UniClientShell.toggleInfoRequest = _toggleInfo;
   }
 
   @override
   void dispose() {
+    if (UniClientShell.toggleInfoRequest == _toggleInfo) {
+      UniClientShell.toggleInfoRequest = null;
+    }
     _thirdColumnAnim.dispose();
     _oneColumnTimer?.cancel();
     super.dispose();

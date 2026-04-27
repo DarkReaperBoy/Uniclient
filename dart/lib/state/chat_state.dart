@@ -55,6 +55,7 @@ class ChatState extends ChangeNotifier {
   List<ForumTopic> _forumTopics = [];
   ChatInfo? _forumParentChat;
   String? _activeTopicId;
+  final Set<String> _forumViewAsMessages = {};
 
   // §22.4: Recent topic names for forum chats (up to 8), keyed by "accountId:chatId".
   final Map<String, List<ForumTopic>> _forumRecentTopics = {};
@@ -172,8 +173,28 @@ class ChatState extends ChangeNotifier {
   // ── Forum topic list getters (§22.3) ──
   List<ForumTopic> get forumTopics => _forumTopics;
   ChatInfo? get forumParentChat => _forumParentChat;
-  bool get isViewingForum => _forumParentChat != null;
+  bool get isViewingForum => _forumParentChat != null && !isForumViewAsMessages;
   String? get activeTopicId => _activeTopicId;
+
+  bool get isForumViewAsMessages {
+    final chat = _forumParentChat;
+    if (chat == null) return false;
+    return _forumViewAsMessages.contains('${chat.accountId}:${chat.chatId}');
+  }
+
+  void toggleForumViewAsMessages() {
+    final chat = _forumParentChat;
+    if (chat == null) return;
+    final key = '${chat.accountId}:${chat.chatId}';
+    if (_forumViewAsMessages.contains(key)) {
+      _forumViewAsMessages.remove(key);
+      openForum(chat);
+    } else {
+      _forumViewAsMessages.add(key);
+      _activeTopicId = null;
+      notifyListeners();
+    }
+  }
 
   List<ForumTopic> recentTopicsFor(String accountId, String chatId) {
     final key = '$accountId:$chatId';
