@@ -2963,6 +2963,183 @@ class EngineGetForumTopicsResponse extends $pb.GeneratedMessage {
   $core.List<EngineForumTopic> get topics => $_getList(0);
 }
 
+class EngineCreateForumTopicRequest extends $pb.GeneratedMessage {
+  factory EngineCreateForumTopicRequest({
+    $core.String? accountId,
+    $core.String? chatId,
+    $core.String? title,
+    $core.int? colorId,
+    $fixnum.Int64? iconEmojiId,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    if (chatId != null) $result.chatId = chatId;
+    if (title != null) $result.title = title;
+    if (colorId != null) $result.colorId = colorId;
+    if (iconEmojiId != null) $result.iconEmojiId = iconEmojiId;
+    return $result;
+  }
+  EngineCreateForumTopicRequest._() : super();
+  factory EngineCreateForumTopicRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineCreateForumTopicRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..aOS(3, _omitFieldNames ? '' : 'title')
+    ..a<$core.int>(4, _omitFieldNames ? '' : 'colorId', $pb.PbFieldType.O3)
+    ..aInt64(5, _omitFieldNames ? '' : 'iconEmojiId')
+    ..hasRequiredFields = false
+  ;
+
+  EngineCreateForumTopicRequest clone() => EngineCreateForumTopicRequest()..mergeFromMessage(this);
+  EngineCreateForumTopicRequest copyWith(void Function(EngineCreateForumTopicRequest) updates) => super.copyWith((message) => updates(message as EngineCreateForumTopicRequest)) as EngineCreateForumTopicRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineCreateForumTopicRequest create() => EngineCreateForumTopicRequest._();
+  EngineCreateForumTopicRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineCreateForumTopicRequest> createRepeated() => $pb.PbList<EngineCreateForumTopicRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineCreateForumTopicRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineCreateForumTopicRequest>(create);
+  static EngineCreateForumTopicRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+
+  @$pb.TagNumber(3)
+  $core.String get title => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set title($core.String v) { $_setString(2, v); }
+
+  @$pb.TagNumber(4)
+  $core.int get colorId => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set colorId($core.int v) { $_setSignedInt32(3, v); }
+
+  @$pb.TagNumber(5)
+  $fixnum.Int64 get iconEmojiId => $_getI64(4);
+  @$pb.TagNumber(5)
+  set iconEmojiId($fixnum.Int64 v) { $_setInt64(4, v); }
+}
+
+class EngineCreateForumTopicResponse extends $pb.GeneratedMessage {
+  factory EngineCreateForumTopicResponse({
+    $fixnum.Int64? topicId,
+  }) {
+    final $result = create();
+    if (topicId != null) $result.topicId = topicId;
+    return $result;
+  }
+  EngineCreateForumTopicResponse._() : super();
+  factory EngineCreateForumTopicResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineCreateForumTopicResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aInt64(1, _omitFieldNames ? '' : 'topicId')
+    ..hasRequiredFields = false
+  ;
+
+  EngineCreateForumTopicResponse clone() => EngineCreateForumTopicResponse()..mergeFromMessage(this);
+  EngineCreateForumTopicResponse copyWith(void Function(EngineCreateForumTopicResponse) updates) => super.copyWith((message) => updates(message as EngineCreateForumTopicResponse)) as EngineCreateForumTopicResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineCreateForumTopicResponse create() => EngineCreateForumTopicResponse._();
+  EngineCreateForumTopicResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineCreateForumTopicResponse> createRepeated() => $pb.PbList<EngineCreateForumTopicResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineCreateForumTopicResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineCreateForumTopicResponse>(create);
+  static EngineCreateForumTopicResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $fixnum.Int64 get topicId => $_getI64(0);
+  @$pb.TagNumber(1)
+  set topicId($fixnum.Int64 v) { $_setInt64(0, v); }
+}
+
+class EngineEditForumTopicRequest extends $pb.GeneratedMessage {
+  factory EngineEditForumTopicRequest({
+    $core.String? accountId,
+    $core.String? chatId,
+    $fixnum.Int64? topicId,
+    $core.String? title,
+    $core.int? colorId,
+    $fixnum.Int64? iconEmojiId,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    if (chatId != null) $result.chatId = chatId;
+    if (topicId != null) $result.topicId = topicId;
+    if (title != null) $result.title = title;
+    if (colorId != null) $result.colorId = colorId;
+    if (iconEmojiId != null) $result.iconEmojiId = iconEmojiId;
+    return $result;
+  }
+  EngineEditForumTopicRequest._() : super();
+  factory EngineEditForumTopicRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineEditForumTopicRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..aInt64(3, _omitFieldNames ? '' : 'topicId')
+    ..aOS(4, _omitFieldNames ? '' : 'title')
+    ..a<$core.int>(5, _omitFieldNames ? '' : 'colorId', $pb.PbFieldType.O3)
+    ..aInt64(6, _omitFieldNames ? '' : 'iconEmojiId')
+    ..hasRequiredFields = false
+  ;
+
+  EngineEditForumTopicRequest clone() => EngineEditForumTopicRequest()..mergeFromMessage(this);
+  EngineEditForumTopicRequest copyWith(void Function(EngineEditForumTopicRequest) updates) => super.copyWith((message) => updates(message as EngineEditForumTopicRequest)) as EngineEditForumTopicRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineEditForumTopicRequest create() => EngineEditForumTopicRequest._();
+  EngineEditForumTopicRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineEditForumTopicRequest> createRepeated() => $pb.PbList<EngineEditForumTopicRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineEditForumTopicRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineEditForumTopicRequest>(create);
+  static EngineEditForumTopicRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+
+  @$pb.TagNumber(3)
+  $fixnum.Int64 get topicId => $_getI64(2);
+  @$pb.TagNumber(3)
+  set topicId($fixnum.Int64 v) { $_setInt64(2, v); }
+
+  @$pb.TagNumber(4)
+  $core.String get title => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set title($core.String v) { $_setString(3, v); }
+
+  @$pb.TagNumber(5)
+  $core.int get colorId => $_getIZ(4);
+  @$pb.TagNumber(5)
+  set colorId($core.int v) { $_setSignedInt32(4, v); }
+
+  @$pb.TagNumber(6)
+  $fixnum.Int64 get iconEmojiId => $_getI64(5);
+  @$pb.TagNumber(6)
+  set iconEmojiId($fixnum.Int64 v) { $_setInt64(5, v); }
+}
+
 class EngineCachedMessage extends $pb.GeneratedMessage {
   factory EngineCachedMessage({
     $core.String? accountId,

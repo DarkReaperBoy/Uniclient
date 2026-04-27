@@ -325,6 +325,25 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(resp)
 
+	case "CreateForumTopic":
+		var req pb.EngineCreateForumTopicRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		topicId, err := e.CreateForumTopic(req.AccountId, req.ChatId, req.Title, int(req.ColorId), req.IconEmojiId)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineCreateForumTopicResponse{TopicId: int64(topicId)}
+		return proto.Marshal(resp)
+
+	case "EditForumTopic":
+		var req pb.EngineEditForumTopicRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.EditForumTopic(req.AccountId, req.ChatId, int(req.TopicId), req.Title)
+
 	// ── Messages ──
 
 	case "GetMessages":

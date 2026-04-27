@@ -780,7 +780,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 22.3 Topic List Layout
 
 ### 22.5 Create / Edit Topic Dialog
-- [ ] EditForumTopicBox (GenericBox, max 408px): title input (defaultInputField, margins 70/2/22/18), placeholder "Topic Name" or "Bot Thread Title", icon button at (24,19) showing emoji or 26px default circle, click cycles random color from remaining pool (disabled with custom emoji or when editing), divider text, not shown for General topic — spec §22.5 & §22.5.1
 - [ ] Icon selector panel (EmojiListWidget Mode::TopicIcon): recent section (default icon sentinel + server emoji set), non-default custom emoji require Premium (toast), EmojiFlyAnimation from selector to icon button, shadow separator below pinned cover, auto-title reactivity on typing — spec §22.5 & §22.5.1
 - [ ] Save/Create logic: validates non-empty title, reserves local ID, navigates to topic, calls EditForumTopic API, General topic cannot change icon, showError on empty title submit — spec §22.5
 

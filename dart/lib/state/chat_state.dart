@@ -572,6 +572,26 @@ class ChatState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> refreshForumTopics() async {
+    final chat = _forumParentChat;
+    if (chat == null) return;
+    try {
+      final topics = await _engine.getForumTopics(chat.accountId, chat.chatId);
+      _forumTopics = topics;
+      _forumTopics.sort((a, b) {
+        if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+        final aId = int.tryParse(a.topMessageId) ?? 0;
+        final bId = int.tryParse(b.topMessageId) ?? 0;
+        return bId.compareTo(aId);
+      });
+    } catch (_) {}
+    if (chat == _forumParentChat) {
+      final key = '${chat.accountId}:${chat.chatId}';
+      _forumRecentTopics[key] = _forumTopics.take(8).toList();
+      notifyListeners();
+    }
+  }
+
   void closeForum() {
     _forumParentChat = null;
     _forumTopics = [];

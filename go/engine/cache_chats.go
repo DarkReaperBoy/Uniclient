@@ -620,6 +620,40 @@ func (e *Engine) GetForumTopics(accountID, chatID string) ([]cores.ForumTopic, e
 	return topics, nil
 }
 
+func (e *Engine) CreateForumTopic(accountID, chatID, title string, colorID int, iconEmojiID int64) (int, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return 0, fmt.Errorf("account not found: %s", accountID)
+	}
+
+	type forumTopicCreator interface {
+		CreateForumTopic(chatID string, title string) (int, error)
+	}
+	ftc, ok := acc.Core.(forumTopicCreator)
+	if !ok {
+		return 0, fmt.Errorf("platform does not support creating forum topics")
+	}
+
+	return ftc.CreateForumTopic(chatID, title)
+}
+
+func (e *Engine) EditForumTopic(accountID, chatID string, topicID int, title string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+
+	type forumTopicEditor interface {
+		EditForumTopic(chatID string, topicID int, title string) error
+	}
+	fte, ok := acc.Core.(forumTopicEditor)
+	if !ok {
+		return fmt.Errorf("platform does not support editing forum topics")
+	}
+
+	return fte.EditForumTopic(chatID, topicID, title)
+}
+
 // FolderInfo represents a synced folder from the platform (e.g. Telegram folders).
 type FolderInfo struct {
 	ID              string

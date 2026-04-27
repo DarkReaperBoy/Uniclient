@@ -16,6 +16,7 @@ import 'forum_topic_icon.dart';
 import 'media_viewer.dart';
 import 'popup_menu.dart';
 import 'confirm_box.dart';
+import 'edit_forum_topic_box.dart';
 
 /// The entire left panel: search bar + chat list.
 /// When [collapsed] is true, renders in avatar-only narrow mode (spec §1:
@@ -3218,6 +3219,10 @@ class _ForumTopicListView extends StatelessWidget {
             title: parent.title,
             isDark: isDark,
             onBack: chatState.closeForum,
+            chatId: parent.chatId,
+            accountId: parent.accountId,
+            engine: engine,
+            chatState: chatState,
           ),
           Expanded(
             child: topics.isEmpty
@@ -3247,11 +3252,19 @@ class _ForumTopicHeader extends StatelessWidget {
   final String title;
   final bool isDark;
   final VoidCallback onBack;
+  final String chatId;
+  final String accountId;
+  final EngineService engine;
+  final ChatState chatState;
 
   const _ForumTopicHeader({
     required this.title,
     required this.isDark,
     required this.onBack,
+    required this.chatId,
+    required this.accountId,
+    required this.engine,
+    required this.chatState,
   });
 
   @override
@@ -3287,9 +3300,32 @@ class _ForumTopicHeader extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
+          IconButton(
+            icon: const Icon(Icons.add, size: 22),
+            onPressed: () => _showCreateTopicDialog(context),
+            splashRadius: 18,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            tooltip: 'Create Topic',
+          ),
         ],
       ),
     );
+  }
+
+  void _showCreateTopicDialog(BuildContext ctx) async {
+    final result = await showEditForumTopicBox(ctx);
+    if (result == null) return;
+    try {
+      await engine.createForumTopic(accountId, chatId, result.title, result.colorId, result.iconEmojiId);
+      chatState.refreshForumTopics();
+    } catch (e) {
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(
+          SnackBar(content: Text('Failed to create topic: $e')),
+        );
+      }
+    }
   }
 }
 

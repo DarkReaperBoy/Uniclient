@@ -332,6 +332,28 @@ class EngineService {
     canTogglePinned: p.canTogglePinned,
   );
 
+  Future<int> createForumTopic(String accountId, String chatId, String title, int colorId, int iconEmojiId) async {
+    final req = epb.EngineCreateForumTopicRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..title = title
+      ..colorId = colorId
+      ..iconEmojiId = Int64(iconEmojiId);
+    final respBytes = await _callAsync('__engine', 'CreateForumTopic', req.writeToBuffer());
+    if (respBytes.isEmpty) return 0;
+    final resp = epb.EngineCreateForumTopicResponse.fromBuffer(respBytes);
+    return resp.topicId.toInt();
+  }
+
+  Future<void> editForumTopic(String accountId, String chatId, int topicId, String title) async {
+    final req = epb.EngineEditForumTopicRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..topicId = Int64(topicId)
+      ..title = title;
+    await _callAsync('__engine', 'EditForumTopic', req.writeToBuffer());
+  }
+
   // ── Folders ──
 
   /// Fetch synced folders for an account. Returns empty list if the platform
