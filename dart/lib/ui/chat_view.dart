@@ -28,6 +28,7 @@ import 'popup_menu.dart';
 import 'send_files_box.dart';
 import 'confirm_box.dart';
 import 'call_panel.dart';
+import 'forum_topic_icon.dart';
 import 'emoji_panel.dart';
 import '../utils/web_drop.dart';
 
@@ -2777,6 +2778,14 @@ class _ChatViewState extends State<ChatView>
                           onSearchPrev: _searchPrev,
                           onSearchNext: _searchNext,
                           onSearchChanged: (_) => _onSearchQueryChanged(),
+                          activeTopic: chat.type == ChatType.topic
+                              ? chatState.forumTopics
+                                  .cast<ForumTopic?>()
+                                  .firstWhere((t) => t!.id == chat.chatId, orElse: () => null)
+                              : null,
+                          parentChat: chat.type == ChatType.topic
+                              ? chatState.forumParentChat
+                              : null,
                         ),
                       ),
                       // Selection bar slides in from below
@@ -3288,6 +3297,11 @@ class _ChatTopBar extends StatelessWidget {
   final VoidCallback? onSearchNext;
   final ValueChanged<String>? onSearchChanged;
 
+  /// §22.6: Active forum topic (when chat.type == topic).
+  final ForumTopic? activeTopic;
+  /// §22.6: Parent group chat for topic subtitle (member count).
+  final ChatInfo? parentChat;
+
   const _ChatTopBar({
     required this.chat,
     this.typingUser,
@@ -3310,6 +3324,8 @@ class _ChatTopBar extends StatelessWidget {
     this.onSearchPrev,
     this.onSearchNext,
     this.onSearchChanged,
+    this.activeTopic,
+    this.parentChat,
   });
 
   /// Format a last-seen descriptor per Telegram Desktop spec §1.4 / §7588.
@@ -3472,6 +3488,29 @@ class _ChatTopBar extends StatelessWidget {
     );
   }
 
+  /// §22.6: Build the topic icon widget for the title prefix.
+  /// Uses normalForumTopicIcon size (19px) per spec §22.2.1.
+  Widget _buildTopicTitleIcon(BuildContext context) {
+    final topic = activeTopic!;
+    if (topic.isGeneral) {
+      return const GeneralForumTopicIcon(size: ForumTopicIcon.normalSize);
+    }
+    if (topic.hasCustomIcon) {
+      final engine = context.read<EngineService>();
+      return CustomEmojiTopicIcon(
+        documentId: topic.iconEmojiId,
+        accountId: chat.accountId,
+        engine: engine,
+        size: ForumTopicIcon.normalSize,
+      );
+    }
+    return ForumTopicIcon(
+      colorId: topic.colorId,
+      title: topic.title,
+      size: ForumTopicIcon.normalSize,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -3480,22 +3519,34 @@ class _ChatTopBar extends StatelessWidget {
     // Subtitle: typing, online status, member count, or last seen.
     String subtitle;
     Color? subtitleColor;
+    final bool isTopic = chat.type == ChatType.topic && activeTopic != null;
     final bool isTyping = typingUser != null;
     if (isTyping) {
       subtitle = ''; // rendered via _TopBarTypingDots widget instead
       subtitleColor = theme.colorScheme.primary;
+    } else if (isTopic) {
+      // §22.6: topic subtitle shows parent group member count.
+      final pc = parentChat;
+      if (pc != null && pc.memberCount > 0) {
+        subtitle = '${pc.memberCount} members';
+        if (groupOnlineCount > 1) {
+          subtitle = '${pc.memberCount} members, $groupOnlineCount online';
+        }
+      } else {
+        subtitle = chat.parentTitle;
+      }
+      subtitleColor = isDark
+          ? const Color(0xFF98b4d3)
+          : const Color(0xFF999999);
     } else if (chat.type == ChatType.dm && isOnline) {
       subtitle = 'online';
       subtitleColor = const Color(0xFF3BA55C); // online green
     } else if (chat.type == ChatType.dm) {
       subtitle = _formatLastSeen(lastSeen);
-      // Spec §4.2 / §14135: windowSubTextFg gray for offline/last-seen.
-      // Day #999999, night #98b4d3.
       subtitleColor = isDark
           ? const Color(0xFF98b4d3)
           : const Color(0xFF999999);
     } else if (chat.memberCount > 0) {
-      // Spec §4.2: windowSubTextFg for group/channel subtitle.
       subtitleColor = isDark
           ? const Color(0xFF98b4d3)
           : const Color(0xFF999999);
@@ -3550,27 +3601,28 @@ class _ChatTopBar extends StatelessWidget {
           else
             // Spec §4.2: _leftTaken = 17px when no back button.
             const SizedBox(width: 17),
-          // Spec §4.2: UserpicButton — 52×54px hit-area, 42px photo diameter,
-          // photo offset (2, -1) → positioned at left=2, top=(54-42)/2-1=5.
-          // Full 52×54 hit-area is opaque (accepts taps everywhere).
-          // Horizontal origin = _leftTaken (60px with back, 17px without).
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onToggleInfo,
-            child: SizedBox(
-              width: 52,
-              height: 54,
-              child: Stack(
-                children: [
-                  Positioned(
-                    left: 2,
-                    top: 5, // (54 - 42) / 2 + (-1)
-                    child: _chatAvatar(chat, theme, 21),
-                  ),
-                ],
+          // §22.6: For topic chats, skip the avatar — the topic icon is shown
+          // inline before the title text. For other types, show the 42px avatar.
+          if (!isTopic)
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onToggleInfo,
+              child: SizedBox(
+                width: 52,
+                height: 54,
+                child: Stack(
+                  children: [
+                    Positioned(
+                      left: 2,
+                      top: 5,
+                      child: _chatAvatar(chat, theme, 21),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ),
+            )
+          else
+            const SizedBox(width: 8),
           // Spec §4.3: when searching, replace title/subtitle with inline
           // search text field + filter buttons + results navigation.
           if (isSearching)
@@ -3707,6 +3759,11 @@ class _ChatTopBar extends StatelessWidget {
                     children: [
                       Row(
                         children: [
+                          // §22.6: topic icon prefix before title.
+                          if (isTopic) ...[
+                            _buildTopicTitleIcon(context),
+                            const SizedBox(width: 6),
+                          ],
                           Flexible(
                             child: Text(
                               chat.title.isNotEmpty ? chat.title : chat.chatId,
