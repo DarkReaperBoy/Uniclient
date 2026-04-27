@@ -969,6 +969,19 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, nil
 
+	case "GetAdminedPublicChannels":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		channels, err := e.GetAdminedPublicChannels(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(channels)
+
 	// ── Create Group ──
 
 	case "CreateGroup":

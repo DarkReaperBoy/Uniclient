@@ -16554,6 +16554,58 @@ func (t *TelegramCore) ChannelsGetAdminedPublicChannels(request *tg.ChannelsGetA
 	return t.api.ChannelsGetAdminedPublicChannels(t.ctx, request)
 }
 
+// GetAdminedPublicChannels returns a simplified list of public channels/groups the user admins.
+func (t *TelegramCore) GetAdminedPublicChannels() ([]Dialog, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return nil, ErrAuth }
+	result, err := t.api.ChannelsGetAdminedPublicChannels(t.ctx, &tg.ChannelsGetAdminedPublicChannelsRequest{})
+	if err != nil { return nil, err }
+	var chats []tg.ChatClass
+	switch mc := result.(type) {
+	case *tg.MessagesChats:
+		chats = mc.Chats
+	case *tg.MessagesChatsSlice:
+		chats = mc.Chats
+	}
+	var dialogs []Dialog
+	for _, c := range chats {
+		channel, ok := c.(*tg.Channel)
+		if !ok { continue }
+		username := ""
+		if u, ok := channel.GetUsername(); ok {
+			username = u
+		}
+		if username == "" && len(channel.Usernames) > 0 {
+			for _, un := range channel.Usernames {
+				if un.Active {
+					username = un.Username
+					break
+				}
+			}
+		}
+		if username == "" { continue }
+		d := Dialog{
+			ID:       strconv.FormatInt(-1000000000000-channel.ID, 10),
+			Title:    channel.Title,
+			Type:     ChatTypeChannel,
+			Platform: tgPlatform,
+		}
+		if cp, ok := channel.Photo.(*tg.ChatPhoto); ok {
+			if thumb, ok := cp.GetStrippedThumb(); ok && len(thumb) > 0 {
+				if jpg := tgStrippedToJPEG(thumb); len(jpg) > 0 {
+					d.AvatarB64 = base64.StdEncoding.EncodeToString(jpg)
+				}
+			}
+		}
+		if channel.ParticipantsCount > 0 {
+			d.MemberCount = channel.ParticipantsCount
+		}
+		d.LinkedChatId = username
+		dialogs = append(dialogs, d)
+	}
+	return dialogs, nil
+}
+
 // ChannelsGetChannelRecommendations returns recommended similar channels.
 func (t *TelegramCore) ChannelsGetChannelRecommendations(request *tg.ChannelsGetChannelRecommendationsRequest) (tg.MessagesChatsClass, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()

@@ -729,3 +729,38 @@ func (e *Engine) UpdateChannelUsername(accountID, chatID, username string) error
 	}
 	return fmt.Errorf("platform does not support channel username update")
 }
+
+type PublicLinkInfo struct {
+	ChatID    string `json:"chat_id"`
+	Title     string `json:"title"`
+	Username  string `json:"username"`
+	AvatarB64 string `json:"avatar_b64,omitempty"`
+}
+
+func (e *Engine) GetAdminedPublicChannels(accountID string) ([]PublicLinkInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type provider interface {
+		GetAdminedPublicChannels() ([]cores.Dialog, error)
+	}
+	p, ok := acc.Core.(provider)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support admined public channels")
+	}
+	dialogs, err := p.GetAdminedPublicChannels()
+	if err != nil {
+		return nil, err
+	}
+	result := make([]PublicLinkInfo, 0, len(dialogs))
+	for _, d := range dialogs {
+		result = append(result, PublicLinkInfo{
+			ChatID:    d.ID,
+			Title:     d.Title,
+			Username:  d.LinkedChatId,
+			AvatarB64: d.AvatarB64,
+		})
+	}
+	return result, nil
+}

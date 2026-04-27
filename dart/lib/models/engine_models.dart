@@ -1153,6 +1153,28 @@ class SimilarChannelInfo {
   );
 }
 
+// ── Public link info (for PublicLinksLimitBox) ──
+class PublicLinkInfo {
+  final String chatId;
+  final String title;
+  final String username;
+  final String avatarB64;
+
+  const PublicLinkInfo({
+    required this.chatId,
+    this.title = '',
+    this.username = '',
+    this.avatarB64 = '',
+  });
+
+  factory PublicLinkInfo.fromJson(Map<String, dynamic> j) => PublicLinkInfo(
+    chatId: j['chat_id'] as String? ?? '',
+    title: j['title'] as String? ?? '',
+    username: j['username'] as String? ?? '',
+    avatarB64: j['avatar_b64'] as String? ?? '',
+  );
+}
+
 // ── Bot command info ──
 class BotCommandInfo {
   final String command;

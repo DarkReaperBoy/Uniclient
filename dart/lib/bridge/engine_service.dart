@@ -1291,6 +1291,14 @@ class EngineService {
     await _callAsync('__engine', 'UpdateChannelUsername', Uint8List.fromList(payload));
   }
 
+  Future<List<PublicLinkInfo>> getAdminedPublicChannels(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    final resp = await _callAsync('__engine', 'GetAdminedPublicChannels', Uint8List.fromList(payload));
+    if (resp.isEmpty) return [];
+    final list = json.decode(utf8.decode(resp)) as List<dynamic>;
+    return list.map((j) => PublicLinkInfo.fromJson(j as Map<String, dynamic>)).toList();
+  }
+
   Future<void> forwardMessage(String accountId, String chatId, String msgId, String toChatId, {
     bool dropAuthor = false,
     bool dropCaptions = false,

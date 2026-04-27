@@ -335,13 +335,32 @@ class _WizardDialogState extends State<_WizardDialog>
           _usernameStatus = 'Sorry, this link is already taken';
         } else if (msg.contains('CHANNELS_ADMIN_PUBLIC_TOO_MUCH')) {
           _usernameStatus = 'You have too many public channels';
-          _isPublic = false;
+          _showPublicLinksLimitBox();
         } else {
           _usernameStatus = 'Sorry, this link is invalid';
         }
         _usernameValid = false;
       });
     }
+  }
+
+  void _showPublicLinksLimitBox() {
+    showDialog<bool>(
+      context: context,
+      builder: (ctx) => _PublicLinksLimitBox(
+        engine: _engine,
+        accountId: _accountId,
+      ),
+    ).then((revoked) {
+      if (revoked == true && mounted) {
+        setState(() {
+          _usernameStatus = null;
+          _usernameValid = false;
+        });
+        final username = _usernameController.text.trim();
+        if (username.length >= 5) _onUsernameChanged(username);
+      }
+    });
   }
 
   Future<void> _loadInviteLink() async {
@@ -1745,4 +1764,295 @@ class _CrossPainter extends CustomPainter {
   @override
   bool shouldRepaint(_CrossPainter old) =>
       old.color != color || old.strokeWidth != strokeWidth;
+}
+
+// ── §21.4.2 PublicLinksLimitBox ──
+
+class _PublicLinksLimitBox extends StatefulWidget {
+  final EngineService engine;
+  final String accountId;
+
+  const _PublicLinksLimitBox({required this.engine, required this.accountId});
+
+  @override
+  State<_PublicLinksLimitBox> createState() => _PublicLinksLimitBoxState();
+}
+
+class _PublicLinksLimitBoxState extends State<_PublicLinksLimitBox> {
+  List<PublicLinkInfo> _channels = [];
+  bool _loading = true;
+  String? _revokingChatId;
+  bool _revoked = false;
+
+  static const int _freeLimit = 10;
+  static const int _premiumLimit = 20;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadChannels();
+  }
+
+  Future<void> _loadChannels() async {
+    try {
+      final channels = await widget.engine.getAdminedPublicChannels(widget.accountId);
+      if (!mounted) return;
+      setState(() {
+        _channels = channels;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _revokeUsername(PublicLinkInfo channel) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Revoke Link'),
+        content: Text(
+          'Are you sure you want to revoke the link t.me/${channel.username} '
+          'from "${channel.title}"? The channel will become private.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFFDD4B39)),
+            child: const Text('Revoke'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _revokingChatId = channel.chatId);
+    try {
+      await widget.engine.updateChannelUsername(widget.accountId, channel.chatId, '');
+      if (!mounted) return;
+      setState(() {
+        _channels.removeWhere((c) => c.chatId == channel.chatId);
+        _revokingChatId = null;
+        _revoked = true;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _revokingChatId = null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to revoke: $e')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
+    final bgColor = isDark ? const Color(0xFF1B2836) : Colors.white;
+    final bubbleBg = isDark ? const Color(0xFF242F3D) : const Color(0xFFF1F3F5);
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      backgroundColor: bgColor,
+      child: SizedBox(
+        width: _boxWidth,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Title bar (48px)
+            SizedBox(
+              height: _boxTitleHeight,
+              child: Center(
+                child: Text(
+                  'Public Link Limit Reached',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                ),
+              ),
+            ),
+            // Bubble row with counter
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: bubbleBg,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.link, size: 20, color: accentColor),
+                  const SizedBox(width: 8),
+                  Text(
+                    '$_freeLimit',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: accentColor,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: Icon(Icons.arrow_forward, size: 14, color: subtextColor),
+                  ),
+                  Text(
+                    '$_premiumLimit',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF7B68EE),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Description
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Text(
+                'You are owner of $_freeLimit public t.me/ links. '
+                'Revoke the link from one of the older channels you don\'t need.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: subtextColor),
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Channel list
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              )
+            else
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 260),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _channels.length,
+                  padding: EdgeInsets.zero,
+                  itemBuilder: (ctx, i) => _buildChannelRow(_channels[i], isDark, textColor, subtextColor),
+                ),
+              ),
+            const SizedBox(height: 12),
+            // Close button
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+              child: SizedBox(
+                width: double.infinity,
+                height: 38,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context, _revoked),
+                  style: TextButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: Text(
+                    'Close',
+                    style: TextStyle(fontSize: 14, color: accentColor),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChannelRow(PublicLinkInfo channel, bool isDark, Color textColor, Color subtextColor) {
+    final isRevoking = _revokingChatId == channel.chatId;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Row(
+        children: [
+          // Avatar (42px)
+          ClipOval(
+            child: SizedBox(
+              width: 42,
+              height: 42,
+              child: channel.avatarB64.isNotEmpty
+                  ? Image.memory(
+                      base64Decode(channel.avatarB64),
+                      width: 42,
+                      height: 42,
+                      fit: BoxFit.cover,
+                    )
+                  : Container(
+                      color: const Color(0xFF40A7E3),
+                      alignment: Alignment.center,
+                      child: Text(
+                        channel.title.isNotEmpty ? channel.title[0].toUpperCase() : '?',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Title + link
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  channel.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  't.me/${channel.username}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, color: subtextColor),
+                ),
+              ],
+            ),
+          ),
+          // Revoke button
+          if (isRevoking)
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 1.5),
+            )
+          else
+            GestureDetector(
+              onTap: () => _revokeUsername(channel),
+              child: const Text(
+                'Revoke',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Color(0xFFDD4B39),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
