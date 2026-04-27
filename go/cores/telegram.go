@@ -12774,6 +12774,39 @@ func (t *TelegramCore) GetFullChannel(chatID string) (*Dialog, error) {
 	return d, nil
 }
 
+type ChatPermissionFlags struct {
+	SlowmodeSeconds int  `json:"slowmode_seconds"`
+	JoinToSend      bool `json:"join_to_send"`
+	NoForwards      bool `json:"no_forwards"`
+	JoinRequest     bool `json:"join_request"`
+	IsForum         bool `json:"is_forum"`
+}
+
+func (t *TelegramCore) GetChatPermissionFlags(chatID string) (*ChatPermissionFlags, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return nil, ErrAuth }
+	peer, err := t.resolvePeer(chatID); if err != nil { return nil, err }
+	ch, ok := peer.(*tg.PeerChannel); if !ok { return nil, fmt.Errorf("not a channel/supergroup") }
+	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
+	result, err := t.api.ChannelsGetFullChannel(t.ctx, &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash})
+	if err != nil { return nil, err }
+	t.cacheEntities(result.Users, result.Chats)
+	flags := &ChatPermissionFlags{}
+	if fc, ok := result.FullChat.(*tg.ChannelFull); ok {
+		flags.SlowmodeSeconds = fc.SlowmodeSeconds
+	}
+	for _, c := range result.Chats {
+		if cc, ok := c.(*tg.Channel); ok && cc.ID == ch.ChannelID {
+			flags.JoinToSend = cc.JoinToSend
+			flags.NoForwards = cc.Noforwards
+			flags.JoinRequest = cc.JoinRequest
+			flags.IsForum = cc.Forum
+			break
+		}
+	}
+	return flags, nil
+}
+
 // GetParticipants returns participants of a channel or supergroup with filtering.
 func (t *TelegramCore) GetParticipants(chatID string, limit int) ([]User, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()

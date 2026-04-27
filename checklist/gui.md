@@ -766,7 +766,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 21.4 Step 2b — Channel Setup Box
 
 ### 21.5 Edit Peer Type Box
-- [ ] Group permission toggles: full-width rows (icon+label+toggle), toggleSkip from right, locked=dimmed, lineWidth separator, "Only members" toggle, slow mode slider (8 positions 0–3600s with step labels), Topics row (conditional forum), Approve New Members nested toggle, Restrict Saving toggle, color tokens — spec §21.5.1
 
 ### 21.6 Complete Flow
 - [ ] Full flow sequences functional end-to-end: Create Group (InfoBox→MemberPicker→API→chat), Create Channel (InfoBox→API→SetupChannelBox→MemberPicker→channel) — spec §21.6

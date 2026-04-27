@@ -1309,6 +1309,51 @@ class EngineService {
     return list.map((j) => PublicLinkInfo.fromJson(j as Map<String, dynamic>)).toList();
   }
 
+  Future<Map<String, dynamic>> getChatPermissionFlags(String accountId, String chatId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+    }));
+    final respBytes = await _callAsync('__engine', 'GetChatPermissionFlags', Uint8List.fromList(payload));
+    return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+  }
+
+  Future<void> setSlowMode(String accountId, String chatId, int seconds) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'seconds': seconds,
+    }));
+    await _callAsync('__engine', 'SetSlowMode', Uint8List.fromList(payload));
+  }
+
+  Future<void> toggleJoinToSend(String accountId, String chatId, bool enabled) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'enabled': enabled,
+    }));
+    await _callAsync('__engine', 'ToggleJoinToSend', Uint8List.fromList(payload));
+  }
+
+  Future<void> toggleNoForwards(String accountId, String chatId, bool enabled) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'enabled': enabled,
+    }));
+    await _callAsync('__engine', 'ToggleNoForwards', Uint8List.fromList(payload));
+  }
+
+  Future<void> toggleJoinRequest(String accountId, String chatId, bool enabled) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'enabled': enabled,
+    }));
+    await _callAsync('__engine', 'ToggleJoinRequest', Uint8List.fromList(payload));
+  }
+
   Future<void> forwardMessage(String accountId, String chatId, String msgId, String toChatId, {
     bool dropAuthor = false,
     bool dropCaptions = false,

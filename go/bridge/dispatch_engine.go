@@ -996,6 +996,76 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(channels)
 
+	case "GetChatPermissionFlags":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		flags, err := e.GetChatPermissionFlags(params.AccountID, params.ChatID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(flags)
+
+	case "SetSlowMode":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Seconds   int    `json:"seconds"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.SetSlowMode(params.AccountID, params.ChatID, params.Seconds); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
+	case "ToggleJoinToSend":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Enabled   bool   `json:"enabled"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.ToggleJoinToSend(params.AccountID, params.ChatID, params.Enabled); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
+	case "ToggleNoForwards":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Enabled   bool   `json:"enabled"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.ToggleNoForwards(params.AccountID, params.ChatID, params.Enabled); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
+	case "ToggleJoinRequest":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Enabled   bool   `json:"enabled"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.ToggleJoinRequest(params.AccountID, params.ChatID, params.Enabled); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
 	// ── Create Group ──
 
 	case "CreateGroup":

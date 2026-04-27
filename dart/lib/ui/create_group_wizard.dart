@@ -2109,6 +2109,14 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
   bool _usernameValid = false;
   String? _usernameStatus;
 
+  bool _joinToSend = false;
+  bool _noForwards = false;
+  bool _joinRequest = false;
+  bool _isForum = false;
+  int _slowmodeSeconds = 0;
+
+  static const List<int> _slowmodeValues = [0, 5, 10, 30, 60, 300, 900, 3600];
+
   @override
   void initState() {
     super.initState();
@@ -2125,8 +2133,13 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
   Future<void> _loadCurrentState() async {
     final engine = context.read<EngineService>();
     try {
-      final username = await engine.getChatUsername(widget.accountId, widget.chatId);
+      final results = await Future.wait([
+        engine.getChatUsername(widget.accountId, widget.chatId),
+        engine.getChatPermissionFlags(widget.accountId, widget.chatId),
+      ]);
       if (!mounted) return;
+      final username = results[0] as String;
+      final flags = results[1] as Map<String, dynamic>;
       setState(() {
         _currentUsername = username;
         _isPublic = username.isNotEmpty;
@@ -2134,6 +2147,11 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
           _usernameController.text = username;
           _usernameValid = true;
         }
+        _joinToSend = flags['join_to_send'] as bool? ?? false;
+        _noForwards = flags['no_forwards'] as bool? ?? false;
+        _joinRequest = flags['join_request'] as bool? ?? false;
+        _isForum = flags['is_forum'] as bool? ?? false;
+        _slowmodeSeconds = flags['slowmode_seconds'] as int? ?? 0;
         _loading = false;
       });
       if (!_isPublic) _loadInviteLink();
@@ -2262,6 +2280,158 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
             : 'Failed to save: $msg';
       });
     }
+  }
+
+  String _slowmodeLabel(int seconds) {
+    if (seconds == 0) return 'Off';
+    if (seconds < 60) return '${seconds}s';
+    if (seconds < 3600) return '${seconds ~/ 60}min';
+    return '${seconds ~/ 3600}h';
+  }
+
+  int _slowmodeIndex() {
+    final idx = _slowmodeValues.indexOf(_slowmodeSeconds);
+    return idx >= 0 ? idx : 0;
+  }
+
+  Future<void> _toggleFlag(String flag, bool value) async {
+    final engine = context.read<EngineService>();
+    try {
+      switch (flag) {
+        case 'join_to_send':
+          await engine.toggleJoinToSend(widget.accountId, widget.chatId, value);
+        case 'no_forwards':
+          await engine.toggleNoForwards(widget.accountId, widget.chatId, value);
+        case 'join_request':
+          await engine.toggleJoinRequest(widget.accountId, widget.chatId, value);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = 'Failed: $e');
+    }
+  }
+
+  Future<void> _setSlowmode(int seconds) async {
+    final engine = context.read<EngineService>();
+    try {
+      await engine.setSlowMode(widget.accountId, widget.chatId, seconds);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = 'Failed: $e');
+    }
+  }
+
+  List<Widget> _buildPermissionToggles(bool isDark, Color textColor, Color subtextColor, Color accentColor) {
+    final separatorColor = isDark ? const Color(0xFF0F1820) : const Color(0xFFE0E0E0);
+    final toggleActiveColor = isDark ? const Color(0xFF6AB3F3) : const Color(0xFF40A7E3);
+
+    return [
+      _PermissionToggleRow(
+        icon: Icons.chat_bubble_outline,
+        label: 'Only members can send',
+        subtitle: 'Non-members won\'t be able to send messages.',
+        value: _joinToSend,
+        activeColor: toggleActiveColor,
+        textColor: textColor,
+        subtextColor: subtextColor,
+        onChanged: (v) {
+          setState(() {
+            _joinToSend = v;
+            if (!v) _joinRequest = false;
+          });
+          _toggleFlag('join_to_send', v);
+          if (!v && _joinRequest) _toggleFlag('join_request', false);
+        },
+      ),
+      Container(height: 1, color: separatorColor),
+      if (_joinToSend)
+        Padding(
+          padding: const EdgeInsets.only(left: 42),
+          child: _PermissionToggleRow(
+            icon: Icons.person_add_outlined,
+            label: 'Approve New Members',
+            value: _joinRequest,
+            activeColor: toggleActiveColor,
+            textColor: textColor,
+            subtextColor: subtextColor,
+            onChanged: (v) {
+              setState(() => _joinRequest = v);
+              _toggleFlag('join_request', v);
+            },
+          ),
+        ),
+      if (_joinToSend)
+        Container(height: 1, color: separatorColor),
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  Icon(Icons.slow_motion_video, size: 24, color: isDark ? const Color(0xFFAABBC8) : const Color(0xFF707579)),
+                  const SizedBox(width: 16),
+                  Text('Slow Mode', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor)),
+                  const Spacer(),
+                  Text(
+                    _slowmodeLabel(_slowmodeSeconds),
+                    style: TextStyle(fontSize: 13, color: accentColor),
+                  ),
+                ],
+              ),
+            ),
+            SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                activeTrackColor: accentColor,
+                inactiveTrackColor: isDark ? const Color(0xFF2B3E50) : const Color(0xFFDADADA),
+                thumbColor: accentColor,
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7.5),
+                trackHeight: 2,
+                overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+              ),
+              child: Slider(
+                value: _slowmodeIndex().toDouble(),
+                min: 0,
+                max: (_slowmodeValues.length - 1).toDouble(),
+                divisions: _slowmodeValues.length - 1,
+                onChanged: (v) {
+                  setState(() => _slowmodeSeconds = _slowmodeValues[v.round()]);
+                },
+                onChangeEnd: (v) {
+                  _setSlowmode(_slowmodeValues[v.round()]);
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: _slowmodeValues.map((s) => Text(
+                  _slowmodeLabel(s),
+                  style: TextStyle(fontSize: 10, color: subtextColor),
+                )).toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
+      Container(height: 1, color: separatorColor),
+      _PermissionToggleRow(
+        icon: Icons.no_photography_outlined,
+        label: 'Restrict Saving Content',
+        subtitle: 'Members won\'t be able to forward or save content.',
+        value: _noForwards,
+        activeColor: toggleActiveColor,
+        textColor: textColor,
+        subtextColor: subtextColor,
+        onChanged: (v) {
+          setState(() => _noForwards = v);
+          _toggleFlag('no_forwards', v);
+        },
+      ),
+    ];
   }
 
   @override
@@ -2520,6 +2690,15 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
                               style: TextStyle(fontSize: 13, color: subtextColor),
                             ),
                           ],
+                          if (!widget.isChannel) ...[
+                            const SizedBox(height: 16),
+                            Container(
+                              height: 1,
+                              color: isDark ? const Color(0xFF0F1820) : const Color(0xFFE0E0E0),
+                            ),
+                            const SizedBox(height: 12),
+                            ..._buildPermissionToggles(isDark, textColor, subtextColor, accentColor),
+                          ],
                           if (_error != null) ...[
                             const SizedBox(height: 12),
                             Text(_error!, style: const TextStyle(fontSize: 13, color: errorColor)),
@@ -2591,6 +2770,75 @@ class _LinkActionButton extends StatelessWidget {
             Icon(icon, size: 16, color: color),
             const SizedBox(width: 4),
             Text(label, style: TextStyle(fontSize: 13, color: color)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PermissionToggleRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String? subtitle;
+  final bool value;
+  final Color activeColor;
+  final Color textColor;
+  final Color subtextColor;
+  final ValueChanged<bool> onChanged;
+
+  const _PermissionToggleRow({
+    required this.icon,
+    required this.label,
+    this.subtitle,
+    required this.value,
+    required this.activeColor,
+    required this.textColor,
+    required this.subtextColor,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final iconColor = isDark ? const Color(0xFFAABBC8) : const Color(0xFF707579);
+    return InkWell(
+      onTap: () => onChanged(!value),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          children: [
+            Icon(icon, size: 24, color: iconColor),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor),
+                  ),
+                  if (subtitle != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        subtitle!,
+                        style: TextStyle(fontSize: 12, color: subtextColor),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            SizedBox(
+              height: 24,
+              child: Switch(
+                value: value,
+                onChanged: onChanged,
+                activeColor: activeColor,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
           ],
         ),
       ),

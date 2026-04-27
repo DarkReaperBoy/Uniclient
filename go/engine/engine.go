@@ -778,3 +778,92 @@ func (e *Engine) GetAdminedPublicChannels(accountID string) ([]PublicLinkInfo, e
 	}
 	return result, nil
 }
+
+type ChatPermissionFlags struct {
+	SlowmodeSeconds int  `json:"slowmode_seconds"`
+	JoinToSend      bool `json:"join_to_send"`
+	NoForwards      bool `json:"no_forwards"`
+	JoinRequest     bool `json:"join_request"`
+	IsForum         bool `json:"is_forum"`
+}
+
+func (e *Engine) GetChatPermissionFlags(accountID, chatID string) (*ChatPermissionFlags, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type flagGetter interface {
+		GetChatPermissionFlags(chatID string) (*cores.ChatPermissionFlags, error)
+	}
+	g, ok := acc.Core.(flagGetter)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support chat permission flags")
+	}
+	cf, err := g.GetChatPermissionFlags(chatID)
+	if err != nil {
+		return nil, err
+	}
+	return &ChatPermissionFlags{
+		SlowmodeSeconds: cf.SlowmodeSeconds,
+		JoinToSend:      cf.JoinToSend,
+		NoForwards:      cf.NoForwards,
+		JoinRequest:     cf.JoinRequest,
+		IsForum:         cf.IsForum,
+	}, nil
+}
+
+func (e *Engine) SetSlowMode(accountID, chatID string, seconds int) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type setter interface {
+		SetSlowMode(chatID string, seconds int) error
+	}
+	if s, ok := acc.Core.(setter); ok {
+		return s.SetSlowMode(chatID, seconds)
+	}
+	return fmt.Errorf("platform does not support slow mode")
+}
+
+func (e *Engine) ToggleJoinToSend(accountID, chatID string, enabled bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type toggler interface {
+		ToggleJoinToSend(chatID string, enabled bool) error
+	}
+	if t, ok := acc.Core.(toggler); ok {
+		return t.ToggleJoinToSend(chatID, enabled)
+	}
+	return fmt.Errorf("platform does not support join-to-send toggle")
+}
+
+func (e *Engine) ToggleNoForwards(accountID, chatID string, enabled bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type toggler interface {
+		ToggleNoForwards(chatID string, enabled bool) error
+	}
+	if t, ok := acc.Core.(toggler); ok {
+		return t.ToggleNoForwards(chatID, enabled)
+	}
+	return fmt.Errorf("platform does not support no-forwards toggle")
+}
+
+func (e *Engine) ToggleJoinRequest(accountID, chatID string, enabled bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type toggler interface {
+		ToggleJoinRequest(chatID string, enabled bool) error
+	}
+	if t, ok := acc.Core.(toggler); ok {
+		return t.ToggleJoinRequest(chatID, enabled)
+	}
+	return fmt.Errorf("platform does not support join-request toggle")
+}
