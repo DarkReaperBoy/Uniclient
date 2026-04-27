@@ -1,16 +1,35 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:provider/provider.dart';
 
 import '../models/engine_models.dart';
+import '../state/app_state.dart';
+
+enum _MediaViewerMode { windowed, maximized, fullscreen }
+
+const _kMinWidth = 480.0;
+const _kMinHeight = 360.0;
+const _kDefaultWidth = 800.0;
+const _kDefaultHeight = 600.0;
+const _kDefaultX = 160.0;
+const _kDefaultY = 120.0;
+const _kTitleBarHeight = 32.0;
+const _kTitleButtonWidth = 44.0;
+const _kTitleButtonHeight = 32.0;
 
 class MediaViewer extends StatefulWidget {
   final CachedMessage initialMessage;
   final List<CachedMessage> mediaMessages;
+
+  static _MediaViewerState? _activeInstance;
+
+  static void toggleMode() => _activeInstance?._cycleMode();
 
   const MediaViewer({
     super.key,
@@ -75,19 +94,36 @@ class _MediaViewerState extends State<MediaViewer>
   double _volume = 0.8;
   bool _isSeeking = false;
 
+  _MediaViewerMode _mode = _MediaViewerMode.fullscreen;
+  double _windowedWidth = _kDefaultWidth;
+  double _windowedHeight = _kDefaultHeight;
+  double _windowedX = _kDefaultX;
+  double _windowedY = _kDefaultY;
+  bool _isDraggingWindow = false;
+  Offset _dragStart = Offset.zero;
+  bool _isResizingWindow = false;
+  Offset _resizeStart = Offset.zero;
+  double _resizeStartW = 0;
+  double _resizeStartH = 0;
+
   @override
   void initState() {
     super.initState();
+    MediaViewer._activeInstance = this;
     _focusNode = FocusNode();
     _currentIndex = widget.mediaMessages.indexWhere(
       (m) => m.msgId == widget.initialMessage.msgId,
     );
     if (_currentIndex < 0) _currentIndex = 0;
+    _loadViewerPrefs();
     _initVideoIfNeeded();
   }
 
   @override
   void dispose() {
+    if (MediaViewer._activeInstance == this) {
+      MediaViewer._activeInstance = null;
+    }
     _disposePlayer();
     _focusNode.dispose();
     super.dispose();
@@ -128,6 +164,67 @@ class _MediaViewerState extends State<MediaViewer>
       player.setPlaylistMode(
           msg.mediaType == 7 ? PlaylistMode.single : PlaylistMode.none);
       player.open(Media(msg.mediaLocalPath));
+    }
+  }
+
+  String get _prefsPath {
+    try {
+      final appState = context.read<AppState>();
+      final dir = appState.configDir;
+      return dir.isEmpty ? '' : '$dir/media_viewer_prefs.json';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  void _loadViewerPrefs() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final path = _prefsPath;
+      if (path.isEmpty) return;
+      try {
+        final file = File(path);
+        if (!file.existsSync()) return;
+        final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+        setState(() {
+          final modeIdx = data['mode'] as int? ?? 2;
+          _mode = _MediaViewerMode.values[modeIdx.clamp(0, 2)];
+          _windowedWidth = (data['width'] as num?)?.toDouble() ?? _kDefaultWidth;
+          _windowedHeight = (data['height'] as num?)?.toDouble() ?? _kDefaultHeight;
+          _windowedX = (data['x'] as num?)?.toDouble() ?? _kDefaultX;
+          _windowedY = (data['y'] as num?)?.toDouble() ?? _kDefaultY;
+        });
+      } catch (_) {}
+    });
+  }
+
+  void _saveViewerPrefs() {
+    final path = _prefsPath;
+    if (path.isEmpty) return;
+    try {
+      File(path).writeAsStringSync(jsonEncode({
+        'mode': _mode.index,
+        'width': _windowedWidth,
+        'height': _windowedHeight,
+        'x': _windowedX,
+        'y': _windowedY,
+      }));
+    } catch (_) {}
+  }
+
+  void _setMode(_MediaViewerMode mode) {
+    if (_mode == mode) return;
+    setState(() => _mode = mode);
+    _saveViewerPrefs();
+  }
+
+  void _cycleMode() {
+    switch (_mode) {
+      case _MediaViewerMode.fullscreen:
+        _setMode(_MediaViewerMode.windowed);
+      case _MediaViewerMode.maximized:
+        _setMode(_MediaViewerMode.fullscreen);
+      case _MediaViewerMode.windowed:
+        _setMode(_MediaViewerMode.maximized);
     }
   }
 
@@ -197,10 +294,24 @@ class _MediaViewerState extends State<MediaViewer>
 
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final ctrl = HardwareKeyboard.instance.isControlPressed;
     switch (event.logicalKey) {
       case LogicalKeyboardKey.escape:
         _close();
         return KeyEventResult.handled;
+      case LogicalKeyboardKey.f11:
+        _setMode(_mode == _MediaViewerMode.fullscreen
+            ? _MediaViewerMode.maximized
+            : _MediaViewerMode.fullscreen);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.keyF:
+        if (ctrl) {
+          _setMode(_mode == _MediaViewerMode.fullscreen
+              ? _MediaViewerMode.maximized
+              : _MediaViewerMode.fullscreen);
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
       case LogicalKeyboardKey.arrowLeft:
         if (_isVideo && _player != null) {
           _player!.seek(_position - const Duration(seconds: 5));
@@ -237,17 +348,159 @@ class _MediaViewerState extends State<MediaViewer>
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
+  bool get _showTitleBar => _effectiveMode != _MediaViewerMode.fullscreen;
+
+  _MediaViewerMode get _effectiveMode {
+    final screenSize = MediaQuery.sizeOf(context);
+    if (_mode == _MediaViewerMode.windowed &&
+        (screenSize.width < _kMinWidth || screenSize.height < _kMinHeight)) {
+      return _MediaViewerMode.fullscreen;
+    }
+    return _mode;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final msg = _currentMessage;
-    final photoIndex = widget.mediaMessages.length - _currentIndex;
-    final totalPhotos = widget.mediaMessages.length;
     final screenSize = MediaQuery.sizeOf(context);
+    final mode = _effectiveMode;
 
     return Focus(
       focusNode: _focusNode,
       autofocus: true,
       onKeyEvent: _handleKey,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(color: const Color(0xE6000000)),
+            if (mode == _MediaViewerMode.windowed)
+              _buildWindowedViewer(screenSize)
+            else
+              _buildFullViewer(screenSize),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFullViewer(Size screenSize) {
+    final msg = _currentMessage;
+    final photoIndex = widget.mediaMessages.length - _currentIndex;
+    final totalPhotos = widget.mediaMessages.length;
+    final titleBarOffset = _showTitleBar ? _kTitleBarHeight : 0.0;
+
+    return GestureDetector(
+      onTap: () {
+        if (_isVideo || _isGif) {
+          _togglePlayPause();
+        } else {
+          setState(() => _controlsVisible = !_controlsVisible);
+        }
+      },
+      onScaleStart: (details) {
+        _baseScale = _scale;
+        _baseOffset = _offset;
+      },
+      onScaleUpdate: (details) {
+        setState(() {
+          _scale = (_baseScale * details.scale).clamp(0.5, 8.0);
+          if (_scale > 1.0) {
+            _offset = _baseOffset + details.focalPointDelta;
+            _isFitToScreen = false;
+          }
+        });
+      },
+      onScaleEnd: (_) {
+        if (_scale <= 1.0) setState(() => _resetZoom());
+      },
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Container(color: const Color(0xFF0E0E0E)),
+
+          if (_showTitleBar) _buildTitleBar(),
+
+          Positioned(
+            top: titleBarOffset,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Center(
+              child: Transform(
+                alignment: Alignment.center,
+                transform: Matrix4.identity()
+                  ..translate(_offset.dx, _offset.dy)
+                  ..scale(_scale),
+                child: _buildContent(msg, screenSize),
+              ),
+            ),
+          ),
+
+          if (_controlsVisible) ...[
+            if (_hasPrev)
+              Positioned(
+                left: 0,
+                top: titleBarOffset,
+                bottom: 0,
+                width: 90,
+                child: _NavArea(icon: Icons.chevron_left, onTap: _goToPrev),
+              ),
+            if (_hasNext)
+              Positioned(
+                right: 0,
+                top: titleBarOffset,
+                bottom: 0,
+                width: 90,
+                child: _NavArea(icon: Icons.chevron_right, onTap: _goToNext),
+              ),
+            Positioned(
+              left: 14,
+              bottom: (_isVideo ? 86 : 14),
+              child: _buildFooter(msg, photoIndex, totalPhotos),
+            ),
+            if (!_showTitleBar)
+              Positioned(
+                top: 8,
+                left: 8,
+                child: _ViewerButton(
+                  icon: Icons.close,
+                  onTap: _close,
+                  tooltip: 'Close',
+                ),
+              ),
+            Positioned(
+              bottom: (_isVideo ? 86 : 14),
+              right: 14,
+              child: _buildToolbar(msg),
+            ),
+          ],
+
+          if (_isVideo && _player != null)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: _buildVideoControls(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWindowedViewer(Size screenSize) {
+    final msg = _currentMessage;
+    final photoIndex = widget.mediaMessages.length - _currentIndex;
+    final totalPhotos = widget.mediaMessages.length;
+
+    final w = _windowedWidth.clamp(_kMinWidth, screenSize.width);
+    final h = _windowedHeight.clamp(_kMinHeight, screenSize.height);
+    final x = _windowedX.clamp(0.0, (screenSize.width - w).clamp(0.0, double.infinity));
+    final y = _windowedY.clamp(0.0, (screenSize.height - h).clamp(0.0, double.infinity));
+
+    return Positioned(
+      left: x,
+      top: y,
       child: GestureDetector(
         onTap: () {
           if (_isVideo || _isGif) {
@@ -270,25 +523,37 @@ class _MediaViewerState extends State<MediaViewer>
           });
         },
         onScaleEnd: (_) {
-          if (_scale <= 1.0) {
-            setState(() => _resetZoom());
-          }
+          if (_scale <= 1.0) setState(() => _resetZoom());
         },
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
-          body: Stack(
+        child: Container(
+          width: w,
+          height: h,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: const Color(0xFF0E0E0E),
+            borderRadius: BorderRadius.circular(2),
+            boxShadow: const [
+              BoxShadow(color: Color(0x80000000), blurRadius: 20, spreadRadius: 2),
+            ],
+          ),
+          child: Stack(
             fit: StackFit.expand,
             children: [
-              Container(color: const Color(0xFF000000)),
+              _buildTitleBar(),
 
-              Center(
-                child: Transform(
-                  alignment: Alignment.center,
-                  // ignore: deprecated_member_use
-                  transform: Matrix4.identity()
-                    ..translate(_offset.dx, _offset.dy) // ignore: deprecated_member_use
-                    ..scale(_scale),
-                  child: _buildContent(msg, screenSize),
+              Positioned(
+                top: _kTitleBarHeight,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Center(
+                  child: Transform(
+                    alignment: Alignment.center,
+                    transform: Matrix4.identity()
+                      ..translate(_offset.dx, _offset.dy)
+                      ..scale(_scale),
+                    child: _buildContent(msg, Size(w, h - _kTitleBarHeight)),
+                  ),
                 ),
               ),
 
@@ -296,42 +561,24 @@ class _MediaViewerState extends State<MediaViewer>
                 if (_hasPrev)
                   Positioned(
                     left: 0,
-                    top: 0,
+                    top: _kTitleBarHeight,
                     bottom: 0,
                     width: 90,
-                    child: _NavArea(
-                      icon: Icons.chevron_left,
-                      onTap: _goToPrev,
-                    ),
+                    child: _NavArea(icon: Icons.chevron_left, onTap: _goToPrev),
                   ),
                 if (_hasNext)
                   Positioned(
                     right: 0,
-                    top: 0,
+                    top: _kTitleBarHeight,
                     bottom: 0,
                     width: 90,
-                    child: _NavArea(
-                      icon: Icons.chevron_right,
-                      onTap: _goToNext,
-                    ),
+                    child: _NavArea(icon: Icons.chevron_right, onTap: _goToNext),
                   ),
-
                 Positioned(
                   left: 14,
                   bottom: (_isVideo ? 86 : 14),
                   child: _buildFooter(msg, photoIndex, totalPhotos),
                 ),
-
-                Positioned(
-                  top: 8,
-                  left: 8,
-                  child: _ViewerButton(
-                    icon: Icons.close,
-                    onTap: _close,
-                    tooltip: 'Close',
-                  ),
-                ),
-
                 Positioned(
                   bottom: (_isVideo ? 86 : 14),
                   right: 14,
@@ -346,6 +593,113 @@ class _MediaViewerState extends State<MediaViewer>
                   bottom: 0,
                   child: _buildVideoControls(),
                 ),
+
+              // Bottom-right resize handle
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: GestureDetector(
+                  onPanStart: (d) {
+                    _isResizingWindow = true;
+                    _resizeStart = d.globalPosition;
+                    _resizeStartW = w;
+                    _resizeStartH = h;
+                  },
+                  onPanUpdate: (d) {
+                    if (!_isResizingWindow) return;
+                    final dx = d.globalPosition.dx - _resizeStart.dx;
+                    final dy = d.globalPosition.dy - _resizeStart.dy;
+                    setState(() {
+                      _windowedWidth = (_resizeStartW + dx).clamp(_kMinWidth, screenSize.width);
+                      _windowedHeight = (_resizeStartH + dy).clamp(_kMinHeight, screenSize.height);
+                    });
+                  },
+                  onPanEnd: (_) {
+                    _isResizingWindow = false;
+                    _saveViewerPrefs();
+                  },
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.resizeDownRight,
+                    child: Container(
+                      width: 16,
+                      height: 16,
+                      color: Colors.transparent,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTitleBar() {
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      height: _kTitleBarHeight,
+      child: GestureDetector(
+        onPanStart: _mode == _MediaViewerMode.windowed
+            ? (d) {
+                _isDraggingWindow = true;
+                _dragStart = d.globalPosition - Offset(_windowedX, _windowedY);
+              }
+            : null,
+        onPanUpdate: _mode == _MediaViewerMode.windowed
+            ? (d) {
+                if (!_isDraggingWindow) return;
+                setState(() {
+                  _windowedX = d.globalPosition.dx - _dragStart.dx;
+                  _windowedY = d.globalPosition.dy - _dragStart.dy;
+                });
+              }
+            : null,
+        onPanEnd: _mode == _MediaViewerMode.windowed
+            ? (_) {
+                _isDraggingWindow = false;
+                _saveViewerPrefs();
+              }
+            : null,
+        onDoubleTap: _cycleMode,
+        child: Container(
+          height: _kTitleBarHeight,
+          color: const Color(0xFF1A1A1A),
+          child: Row(
+            children: [
+              const SizedBox(width: 12),
+              const Text(
+                'Media viewer',
+                style: TextStyle(
+                  color: Color(0xFFCCCCCC),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const Spacer(),
+              _TitleBarButton(
+                icon: Icons.minimize,
+                onTap: () => _setMode(_MediaViewerMode.windowed),
+                isActive: _mode == _MediaViewerMode.windowed,
+              ),
+              _TitleBarButton(
+                icon: _mode == _MediaViewerMode.maximized
+                    ? Icons.filter_none
+                    : Icons.crop_square,
+                onTap: () => _setMode(
+                  _mode == _MediaViewerMode.maximized
+                      ? _MediaViewerMode.windowed
+                      : _MediaViewerMode.maximized,
+                ),
+                isActive: _mode == _MediaViewerMode.maximized,
+              ),
+              _TitleBarButton(
+                icon: Icons.close,
+                onTap: _close,
+                isClose: true,
+              ),
             ],
           ),
         ),
@@ -511,9 +865,15 @@ class _MediaViewerState extends State<MediaViewer>
                   ),
                   const SizedBox(width: 16),
                   _ControlButton(
-                    icon: Icons.fullscreen,
+                    icon: _mode == _MediaViewerMode.fullscreen
+                        ? Icons.fullscreen_exit
+                        : Icons.fullscreen,
                     size: 32,
-                    onTap: () {},
+                    onTap: () => _setMode(
+                      _mode == _MediaViewerMode.fullscreen
+                          ? _MediaViewerMode.maximized
+                          : _MediaViewerMode.fullscreen,
+                    ),
                   ),
                 ],
               ),
@@ -718,6 +1078,59 @@ class _ViewerButtonState extends State<_ViewerButton> {
                 child: Icon(widget.icon, color: Colors.white, size: 22),
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TitleBarButton extends StatefulWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool isClose;
+  final bool isActive;
+
+  const _TitleBarButton({
+    required this.icon,
+    required this.onTap,
+    this.isClose = false,
+    this.isActive = false,
+  });
+
+  @override
+  State<_TitleBarButton> createState() => _TitleBarButtonState();
+}
+
+class _TitleBarButtonState extends State<_TitleBarButton> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    Color bgColor;
+    if (_hovering) {
+      bgColor = widget.isClose
+          ? const Color(0xFFE81123)
+          : const Color(0x33FFFFFF);
+    } else {
+      bgColor = Colors.transparent;
+    }
+    final iconColor = _hovering && widget.isClose
+        ? Colors.white
+        : const Color(0xFFCCCCCC);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 100),
+          width: _kTitleButtonWidth,
+          height: _kTitleButtonHeight,
+          color: bgColor,
+          child: Center(
+            child: Icon(widget.icon, color: iconColor, size: 18),
           ),
         ),
       ),

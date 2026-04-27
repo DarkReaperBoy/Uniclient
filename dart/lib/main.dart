@@ -23,6 +23,7 @@ import 'ui/call_panel.dart';
 import 'ui/call_screen.dart';
 import 'ui/chat_list_panel.dart';
 import 'ui/chat_view.dart';
+import 'ui/media_viewer.dart';
 import 'ui/shell.dart';
 import 'ui/titlebar.dart';
 import 'utils/debug.dart';
@@ -1010,6 +1011,8 @@ class _UniClientAppState extends State<UniClientApp>
           logicalKey: LogicalKeyboardKey.tab,
           timeStamp: ts,
         ));
+      case 'f11':
+        MediaViewer.toggleMode();
       default:
         if (key.length == 1) {
           final code = key.codeUnitAt(0);

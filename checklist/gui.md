@@ -727,10 +727,9 @@ Spec file: `research/telegram_desktop_ui.md`.
 
 ## §20 — Media Viewer / Lightbox
 
-<!-- No dart file yet — new file needed: dart/lib/ui/media_viewer.dart -->
+<!-- File: dart/lib/ui/media_viewer.dart -->
 
 ### 20.1 Window & Background
-- [ ] Media viewer window: three states (full-screen default / maximized / windowed), state persisted, min 480×360px, default windowed 800×600 at (160,120), 44×32px title bar buttons, 32px title bar height, "Media viewer" title — spec §20.1
 - [ ] Background: mediaviewBg opaque dark, top+bottom gradient shadow overlays at _controlsOpacity — spec §20.2
 
 ### 20.3 Content Display
