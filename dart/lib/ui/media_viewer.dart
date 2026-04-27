@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
@@ -31,6 +33,9 @@ const _kDocBubbleHeight = 116.0;
 const _kDocIconSize = 80.0;
 const _kMediaviewFileBg = Color(0xFF1B2836);
 const _kMaxDisplayImageSize = 4096.0;
+const _kMinZoomLevel = -7;
+const _kMaxZoomLevel = 7;
+const _kZoomAnimDuration = Duration(milliseconds: 200);
 
 class MediaViewer extends StatefulWidget {
   final CachedMessage initialMessage;
@@ -82,15 +87,21 @@ class MediaViewer extends StatefulWidget {
 }
 
 class _MediaViewerState extends State<MediaViewer>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late int _currentIndex;
   late final FocusNode _focusNode;
 
-  double _scale = 1.0;
-  Offset _offset = Offset.zero;
-  double _baseScale = 1.0;
-  Offset _baseOffset = Offset.zero;
-  bool _isFitToScreen = true;
+  int _zoomLevel = 0;
+  double _currentScale = 1.0;
+  Offset _panOffset = Offset.zero;
+
+  late final AnimationController _zoomAnimCtrl;
+  double _zoomFrom = 1.0;
+  double _zoomTo = 1.0;
+
+  bool _isPinching = false;
+  double _pinchBaseScale = 1.0;
+  Offset _panGestureStart = Offset.zero;
 
   late final AnimationController _controlsAnim;
   Timer? _autoHideTimer;
@@ -133,6 +144,16 @@ class _MediaViewerState extends State<MediaViewer>
     )..addListener(() {
         if (mounted) setState(() {});
       });
+    _zoomAnimCtrl = AnimationController(
+      duration: _kZoomAnimDuration,
+      vsync: this,
+    )..addListener(() {
+        if (mounted) {
+          setState(() {
+            _currentScale = _zoomFrom + (_zoomTo - _zoomFrom) * Curves.easeOutCubic.transform(_zoomAnimCtrl.value);
+          });
+        }
+      });
     _loadViewerPrefs();
     _initVideoIfNeeded();
     _scheduleAutoHide();
@@ -145,6 +166,7 @@ class _MediaViewerState extends State<MediaViewer>
     }
     _disposePlayer();
     _autoHideTimer?.cancel();
+    _zoomAnimCtrl.dispose();
     _controlsAnim.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -289,21 +311,89 @@ class _MediaViewerState extends State<MediaViewer>
     _initVideoIfNeeded();
   }
 
-  void _resetZoom() {
-    _scale = 1.0;
-    _offset = Offset.zero;
-    _isFitToScreen = true;
+  static double _scaleForLevel(int level) {
+    return math.pow(2.0, 3.0 * level / 7.0).toDouble();
   }
 
-  void _toggleFitToScreen() {
-    setState(() {
-      if (_isFitToScreen) {
-        _scale = 2.0;
-        _isFitToScreen = false;
-      } else {
-        _resetZoom();
+  static int _nearestLevel(double scale) {
+    if (scale <= _scaleForLevel(_kMinZoomLevel)) return _kMinZoomLevel;
+    if (scale >= _scaleForLevel(_kMaxZoomLevel)) return _kMaxZoomLevel;
+    int best = 0;
+    double bestDiff = (scale - 1.0).abs();
+    for (int l = _kMinZoomLevel; l <= _kMaxZoomLevel; l++) {
+      final diff = (scale - _scaleForLevel(l)).abs();
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        best = l;
       }
-    });
+    }
+    return best;
+  }
+
+  bool get _isZoomedIn => _currentScale > 1.001;
+
+  void _animateZoomTo(int level, {Offset? focalPoint, Size? viewport}) {
+    final newScale = _scaleForLevel(level);
+    if (focalPoint != null && viewport != null && _currentScale > 0.001) {
+      final ratio = newScale / _currentScale;
+      final center = Offset(viewport.width / 2, viewport.height / 2);
+      final fp = focalPoint - center;
+      _panOffset = _panOffset * ratio - fp * (ratio - 1);
+    }
+    if (level == 0) _panOffset = Offset.zero;
+    _zoomLevel = level;
+    _zoomFrom = _currentScale;
+    _zoomTo = newScale;
+    _zoomAnimCtrl.forward(from: 0.0);
+  }
+
+  void _zoomIn({Offset? focalPoint, Size? viewport}) {
+    if (_zoomLevel >= _kMaxZoomLevel) return;
+    _animateZoomTo(_zoomLevel + 1, focalPoint: focalPoint, viewport: viewport);
+  }
+
+  void _zoomOut({Offset? focalPoint, Size? viewport}) {
+    if (_zoomLevel <= _kMinZoomLevel) return;
+    _animateZoomTo(_zoomLevel - 1, focalPoint: focalPoint, viewport: viewport);
+  }
+
+  void _resetZoom() {
+    _zoomLevel = 0;
+    _currentScale = 1.0;
+    _panOffset = Offset.zero;
+    _zoomAnimCtrl.reset();
+  }
+
+  Offset _clampPan(Offset pan, Size viewport) {
+    if (_currentScale <= 1.0) return Offset.zero;
+    final maxX = (viewport.width * (_currentScale - 1)) / 2;
+    final maxY = (viewport.height * (_currentScale - 1)) / 2;
+    return Offset(pan.dx.clamp(-maxX, maxX), pan.dy.clamp(-maxY, maxY));
+  }
+
+  void _handlePointerSignal(PointerSignalEvent event, Size viewport) {
+    if (event is PointerScrollEvent) {
+      final ctrl = HardwareKeyboard.instance.isControlPressed;
+      if (ctrl) {
+        if (event.scrollDelta.dy < 0) {
+          _zoomIn(focalPoint: event.localPosition, viewport: viewport);
+        } else if (event.scrollDelta.dy > 0) {
+          _zoomOut(focalPoint: event.localPosition, viewport: viewport);
+        }
+      } else {
+        if (event.scrollDelta.dy > 0) {
+          _goToPrev();
+        } else if (event.scrollDelta.dy < 0) {
+          _goToNext();
+        }
+      }
+    }
+  }
+
+  void _handlePointerDown(PointerDownEvent event) {
+    if (event.buttons & 4 != 0) {
+      setState(() => _resetZoom());
+    }
   }
 
   void _togglePlayPause() {
@@ -373,6 +463,32 @@ class _MediaViewerState extends State<MediaViewer>
           _setMode(_mode == _MediaViewerMode.fullscreen
               ? _MediaViewerMode.maximized
               : _MediaViewerMode.fullscreen);
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      case LogicalKeyboardKey.equal:
+      case LogicalKeyboardKey.add:
+      case LogicalKeyboardKey.numpadAdd:
+        if (ctrl) {
+          _zoomIn();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      case LogicalKeyboardKey.minus:
+      case LogicalKeyboardKey.numpadSubtract:
+        if (ctrl) {
+          _zoomOut();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      case LogicalKeyboardKey.digit0:
+      case LogicalKeyboardKey.numpad0:
+        if (ctrl) {
+          if (_isZoomedIn) {
+            _animateZoomTo(0);
+          } else {
+            _animateZoomTo(3);
+          }
           return KeyEventResult.handled;
         }
         return KeyEventResult.ignored;
@@ -454,54 +570,83 @@ class _MediaViewerState extends State<MediaViewer>
     final totalPhotos = widget.mediaMessages.length;
     final titleBarOffset = _showTitleBar ? _kTitleBarHeight : 0.0;
 
+    final contentViewport = Size(
+      screenSize.width,
+      screenSize.height - titleBarOffset,
+    );
+    final clampedPan = _clampPan(_panOffset, contentViewport);
+
     return Listener(
       onPointerHover: (_) => _onPointerActivity(),
-      child: GestureDetector(
-        onTap: () {
-          if (_isVideo || _isGif) {
-            _togglePlayPause();
-          } else {
-            _toggleControls();
-          }
-        },
-        onScaleStart: (details) {
-          _baseScale = _scale;
-          _baseOffset = _offset;
-        },
-        onScaleUpdate: (details) {
-          setState(() {
-            _scale = (_baseScale * details.scale).clamp(0.5, 8.0);
-            if (_scale > 1.0) {
-              _offset = _baseOffset + details.focalPointDelta;
-              _isFitToScreen = false;
+      onPointerSignal: (e) => _handlePointerSignal(e, contentViewport),
+      onPointerDown: _handlePointerDown,
+      child: MouseRegion(
+        cursor: _isZoomedIn
+            ? SystemMouseCursors.move
+            : SystemMouseCursors.basic,
+        child: GestureDetector(
+          onTap: () {
+            if (_isZoomedIn) return;
+            if (_isVideo || _isGif) {
+              _togglePlayPause();
+            } else {
+              _toggleControls();
             }
-          });
-        },
-        onScaleEnd: (_) {
-          if (_scale <= 1.0) setState(() => _resetZoom());
-        },
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            Container(color: _kMediaviewBg),
+          },
+          onScaleStart: (details) {
+            _isPinching = details.pointerCount >= 2;
+            _pinchBaseScale = _currentScale;
+            _panGestureStart = _panOffset;
+          },
+          onScaleUpdate: (details) {
+            setState(() {
+              if (_isPinching || details.scale != 1.0) {
+                _isPinching = true;
+                _currentScale = (_pinchBaseScale * details.scale)
+                    .clamp(_scaleForLevel(_kMinZoomLevel), _scaleForLevel(_kMaxZoomLevel));
+                _zoomLevel = _nearestLevel(_currentScale);
+              }
+              if (_isZoomedIn) {
+                _panOffset = _clampPan(
+                  _panGestureStart + details.focalPointDelta,
+                  contentViewport,
+                );
+              }
+            });
+          },
+          onScaleEnd: (_) {
+            if (_isPinching) {
+              _isPinching = false;
+              final level = _nearestLevel(_currentScale);
+              if (level <= 0) {
+                _animateZoomTo(0);
+              } else {
+                _zoomLevel = level;
+              }
+            }
+          },
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Container(color: _kMediaviewBg),
 
-            if (_showTitleBar) _buildTitleBar(),
+              if (_showTitleBar) _buildTitleBar(),
 
-            Positioned(
-              top: titleBarOffset,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: Center(
-                child: Transform(
-                  alignment: Alignment.center,
-                  transform: Matrix4.identity()
-                    ..translate(_offset.dx, _offset.dy)
-                    ..scale(_scale),
-                  child: _buildContent(msg, screenSize),
+              Positioned(
+                top: titleBarOffset,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Center(
+                  child: Transform(
+                    alignment: Alignment.center,
+                    transform: Matrix4.identity()
+                      ..translate(clampedPan.dx, clampedPan.dy)
+                      ..scale(_currentScale),
+                    child: _buildContent(msg, screenSize),
+                  ),
                 ),
               ),
-            ),
 
             Positioned(
               top: titleBarOffset,
@@ -607,6 +752,7 @@ class _MediaViewerState extends State<MediaViewer>
               ),
           ],
         ),
+        ),
       ),
     );
   }
@@ -621,69 +767,95 @@ class _MediaViewerState extends State<MediaViewer>
     final x = _windowedX.clamp(0.0, (screenSize.width - w).clamp(0.0, double.infinity));
     final y = _windowedY.clamp(0.0, (screenSize.height - h).clamp(0.0, double.infinity));
 
+    final windowContentViewport = Size(w, h - _kTitleBarHeight);
+    final clampedPan = _clampPan(_panOffset, windowContentViewport);
+
     return Positioned(
       left: x,
       top: y,
       child: Listener(
         onPointerHover: (_) => _onPointerActivity(),
-        child: GestureDetector(
-          onTap: () {
-            if (_isVideo || _isGif) {
-              _togglePlayPause();
-            } else {
-              _toggleControls();
-            }
-          },
-          onScaleStart: (details) {
-            _baseScale = _scale;
-            _baseOffset = _offset;
-          },
-          onScaleUpdate: (details) {
-            setState(() {
-              _scale = (_baseScale * details.scale).clamp(0.5, 8.0);
-              if (_scale > 1.0) {
-                _offset = _baseOffset + details.focalPointDelta;
-                _isFitToScreen = false;
+        onPointerSignal: (e) => _handlePointerSignal(e, windowContentViewport),
+        onPointerDown: _handlePointerDown,
+        child: MouseRegion(
+          cursor: _isZoomedIn
+              ? SystemMouseCursors.move
+              : SystemMouseCursors.basic,
+          child: GestureDetector(
+            onTap: () {
+              if (_isZoomedIn) return;
+              if (_isVideo || _isGif) {
+                _togglePlayPause();
+              } else {
+                _toggleControls();
               }
-            });
-          },
-          onScaleEnd: (_) {
-            if (_scale <= 1.0) setState(() => _resetZoom());
-          },
-          child: Container(
-            width: w,
-            height: h,
-            clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(
-              color: _kMediaviewBg,
-              borderRadius: BorderRadius.circular(2),
-              boxShadow: const [
-                BoxShadow(
-                    color: Color(0x80000000),
-                    blurRadius: 20,
-                    spreadRadius: 2),
-              ],
-            ),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                _buildTitleBar(),
+            },
+            onScaleStart: (details) {
+              _isPinching = details.pointerCount >= 2;
+              _pinchBaseScale = _currentScale;
+              _panGestureStart = _panOffset;
+            },
+            onScaleUpdate: (details) {
+              setState(() {
+                if (_isPinching || details.scale != 1.0) {
+                  _isPinching = true;
+                  _currentScale = (_pinchBaseScale * details.scale)
+                      .clamp(_scaleForLevel(_kMinZoomLevel), _scaleForLevel(_kMaxZoomLevel));
+                  _zoomLevel = _nearestLevel(_currentScale);
+                }
+                if (_isZoomedIn) {
+                  _panOffset = _clampPan(
+                    _panGestureStart + details.focalPointDelta,
+                    windowContentViewport,
+                  );
+                }
+              });
+            },
+            onScaleEnd: (_) {
+              if (_isPinching) {
+                _isPinching = false;
+                final level = _nearestLevel(_currentScale);
+                if (level <= 0) {
+                  _animateZoomTo(0);
+                } else {
+                  _zoomLevel = level;
+                }
+              }
+            },
+            child: Container(
+              width: w,
+              height: h,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: _kMediaviewBg,
+                borderRadius: BorderRadius.circular(2),
+                boxShadow: const [
+                  BoxShadow(
+                      color: Color(0x80000000),
+                      blurRadius: 20,
+                      spreadRadius: 2),
+                ],
+              ),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  _buildTitleBar(),
 
-                Positioned(
-                  top: _kTitleBarHeight,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: Center(
-                    child: Transform(
-                      alignment: Alignment.center,
-                      transform: Matrix4.identity()
-                        ..translate(_offset.dx, _offset.dy)
-                        ..scale(_scale),
-                      child: _buildContent(msg, Size(w, h - _kTitleBarHeight)),
+                  Positioned(
+                    top: _kTitleBarHeight,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: Transform(
+                        alignment: Alignment.center,
+                        transform: Matrix4.identity()
+                          ..translate(clampedPan.dx, clampedPan.dy)
+                          ..scale(_currentScale),
+                        child: _buildContent(msg, Size(w, h - _kTitleBarHeight)),
+                      ),
                     ),
                   ),
-                ),
 
                 Positioned(
                   top: _kTitleBarHeight,
@@ -813,6 +985,7 @@ class _MediaViewerState extends State<MediaViewer>
               ),
             ],
           ),
+        ),
         ),
       ),
     ),
@@ -1266,11 +1439,18 @@ class _MediaViewerState extends State<MediaViewer>
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _ViewerButton(
-          icon: _isFitToScreen ? Icons.zoom_in : Icons.zoom_out,
-          onTap: _toggleFitToScreen,
-          tooltip: _isFitToScreen ? 'Zoom in' : 'Fit to screen',
-        ),
+        if (_isZoomedIn)
+          _ViewerButton(
+            icon: Icons.fit_screen,
+            onTap: () => _animateZoomTo(0),
+            tooltip: 'Fit to screen (Ctrl+0)',
+          )
+        else
+          _ViewerButton(
+            icon: Icons.zoom_in,
+            onTap: () => _animateZoomTo(3),
+            tooltip: 'Zoom in (Ctrl++)',
+          ),
       ],
     );
   }

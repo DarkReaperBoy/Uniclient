@@ -734,7 +734,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 20.3 Content Display
 
 ### 20.4 Zoom & Pan
-- [ ] Zoom range -7 to +7 (1/8× to 8×), kZoomToScreenLevel, Ctrl+/- / Ctrl+0 / middle mouse / wheel+Ctrl, pan on left-click-drag (cur_sizeall cursor, snapped to bounds), zoom transitions animate at widgetFadeDuration, DPR-aware, 4096px max cap — spec §20.4 & §20.4.1
 
 ### 20.5–20.6 Rotation, Flip, Navigation
 - [ ] Rotate (0/90/180/270, each click -90°) and flip (H/V keys, photo only), rotate button in bottom-right toolbar — spec §20.5
