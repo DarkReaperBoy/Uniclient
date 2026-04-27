@@ -12,6 +12,7 @@ import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import 'chat_list_row.dart';
 import 'filter_column.dart';
+import 'forum_topic_icon.dart';
 import 'media_viewer.dart';
 import 'popup_menu.dart';
 import 'confirm_box.dart';
@@ -523,6 +524,13 @@ class _ChatListPanelState extends State<ChatListPanel>
       visibleChats = [...archived, ...nonArchived];
     } else {
       visibleChats = nonArchived;
+    }
+
+    if (chatState.isViewingForum) {
+      return _ForumTopicListView(
+        chatState: chatState,
+        collapsed: widget.collapsed,
+      );
     }
 
     return Container(
@@ -3164,6 +3172,337 @@ class _TelegramToastState extends State<_TelegramToast>
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §22.3 Forum Topic List View
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _ForumTopicListView extends StatelessWidget {
+  final ChatState chatState;
+  final bool collapsed;
+
+  const _ForumTopicListView({
+    required this.chatState,
+    this.collapsed = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final parent = chatState.forumParentChat!;
+    final topics = chatState.forumTopics;
+    final engine = context.read<EngineService>();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border(
+          right: BorderSide(color: theme.dividerColor, width: 1),
+        ),
+      ),
+      child: Column(
+        children: [
+          _ForumTopicHeader(
+            title: parent.title,
+            isDark: isDark,
+            onBack: chatState.closeForum,
+          ),
+          Expanded(
+            child: topics.isEmpty
+                ? const Center(child: CircularProgressIndicator())
+                : ListView.builder(
+                    itemCount: topics.length,
+                    itemBuilder: (context, index) {
+                      final topic = topics[index];
+                      final isActive = chatState.activeTopicId == topic.id;
+                      return _ForumTopicRow(
+                        topic: topic,
+                        isActive: isActive,
+                        accountId: parent.accountId,
+                        engine: engine,
+                        onTap: () => chatState.openTopic(topic),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ForumTopicHeader extends StatelessWidget {
+  final String title;
+  final bool isDark;
+  final VoidCallback onBack;
+
+  const _ForumTopicHeader({
+    required this.title,
+    required this.isDark,
+    required this.onBack,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 54,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF17212b) : Colors.white,
+        border: Border(
+          bottom: BorderSide(
+            color: isDark ? const Color(0x8F04080e) : const Color(0x18000000),
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back, size: 22),
+            onPressed: onBack,
+            splashRadius: 18,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ForumTopicRow extends StatelessWidget {
+  final ForumTopic topic;
+  final bool isActive;
+  final String accountId;
+  final EngineService engine;
+  final VoidCallback onTap;
+
+  const _ForumTopicRow({
+    required this.topic,
+    required this.isActive,
+    required this.accountId,
+    required this.engine,
+    required this.onTap,
+  });
+
+  static const _rowHeight = 54.0;
+  static const _iconSize = 20.0;
+  static const _nameLeft = 39.0;
+  static const _nameTop = 7.0;
+  static const _textLeft = 39.0;
+  static const _textTop = 29.0;
+  static const _paddingLeft = 8.0;
+  static const _paddingTop = 7.0;
+  static const _paddingRight = 10.0;
+  static const _paddingBottom = 7.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final activeBg = isDark ? const Color(0xFF2b5278) : const Color(0xFF419fd9);
+    final hoverBg = isDark ? const Color(0xFF202b36) : const Color(0xFFF1F1F1);
+    final Color? rowBg = isActive ? activeBg : null;
+
+    final nameColor = isActive
+        ? Colors.white
+        : (isDark ? const Color(0xFFe1e3e6) : const Color(0xFF222222));
+    final textColor = isActive
+        ? Colors.white70
+        : (isDark ? const Color(0xFF7f91a4) : const Color(0xFF999999));
+    final dateColor = textColor;
+
+    final hasUnread = topic.unreadCount > 0;
+    final showPin = topic.isPinned && !hasUnread;
+
+    return Container(
+      height: _rowHeight,
+      color: rowBg,
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          hoverColor: isActive ? Colors.white.withValues(alpha: 0.08) : hoverBg,
+          splashColor: isActive
+              ? (isDark ? const Color(0xFF315a80) : const Color(0xFF2095d0))
+              : (isDark ? const Color(0xFF25313d) : const Color(0xFFe5e5e5)),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              _paddingLeft, _paddingTop, _paddingRight, _paddingBottom,
+            ),
+            child: Stack(
+              children: [
+                Positioned(
+                  left: 0,
+                  top: (_rowHeight - _paddingTop - _paddingBottom - _iconSize) / 2,
+                  child: TopicIconWidget(
+                    topic: topic,
+                    accountId: accountId,
+                    engine: engine,
+                    size: _iconSize,
+                    generalContext: isActive
+                        ? GeneralIconContext.active
+                        : GeneralIconContext.normal,
+                  ),
+                ),
+                Positioned(
+                  left: _nameLeft - _paddingLeft,
+                  top: _nameTop - _paddingTop,
+                  right: 60,
+                  child: Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          topic.title,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: nameColor,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                      ),
+                      if (topic.isClosed) ...[
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.lock_outline,
+                          size: 14,
+                          color: textColor,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Positioned(
+                  right: 0,
+                  top: _nameTop - _paddingTop,
+                  child: Text(
+                    _formatDate(topic),
+                    style: TextStyle(fontSize: 12, color: dateColor),
+                  ),
+                ),
+                Positioned(
+                  left: _textLeft - _paddingLeft,
+                  top: _textTop - _paddingTop,
+                  right: hasUnread ? 30 : (showPin ? 20 : 0),
+                  child: Text(
+                    _previewText(topic),
+                    style: TextStyle(fontSize: 13, color: textColor),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ),
+                if (hasUnread)
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: _TopicUnreadBadge(
+                      count: topic.unreadCount,
+                      isActive: isActive,
+                      isDark: isDark,
+                    ),
+                  ),
+                if (showPin)
+                  Positioned(
+                    right: 0,
+                    bottom: 2,
+                    child: Icon(
+                      Icons.push_pin,
+                      size: 16,
+                      color: isActive
+                          ? Colors.white70
+                          : (isDark ? const Color(0xFF556a7d) : const Color(0xFFcccccc)),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(ForumTopic topic) {
+    final msgId = int.tryParse(topic.topMessageId) ?? 0;
+    if (msgId == 0) return '';
+    final created = topic.creationDateTime;
+    final now = DateTime.now();
+    if (now.year == created.year &&
+        now.month == created.month &&
+        now.day == created.day) {
+      final h = created.hour.toString().padLeft(2, '0');
+      final m = created.minute.toString().padLeft(2, '0');
+      return '$h:$m';
+    }
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${months[created.month - 1]} ${created.day}';
+  }
+
+  String _previewText(ForumTopic topic) {
+    if (topic.isGeneral) return 'General topic';
+    return '';
+  }
+}
+
+class _TopicUnreadBadge extends StatelessWidget {
+  final int count;
+  final bool isActive;
+  final bool isDark;
+
+  const _TopicUnreadBadge({
+    required this.count,
+    this.isActive = false,
+    this.isDark = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final Color bg;
+    if (isActive) {
+      bg = Colors.white;
+    } else {
+      bg = isDark ? const Color(0xFF3e88c7) : const Color(0xFF40a7e3);
+    }
+    final Color fg = isActive
+        ? (isDark ? const Color(0xFF2b5278) : const Color(0xFF419fd9))
+        : Colors.white;
+    final text = count > 999 ? '${count ~/ 1000}K' : '$count';
+    final minW = text.length > 2 ? 24.0 : 20.0;
+    return Container(
+      constraints: BoxConstraints(minWidth: minW, minHeight: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 5),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: fg,
+          height: 1.0,
         ),
       ),
     );

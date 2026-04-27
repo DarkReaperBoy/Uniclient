@@ -778,7 +778,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 22.1–22.2 Data Model & Icon System
 
 ### 22.3 Topic List Layout
-- [ ] Topic list (54px rows, padding 8/7/10/7px): 20px icon / nameLeft 39px nameTop 7px / textLeft 39px textTop 29px / 8px unread mark, paints icon+name (semibold)+closed lock+date+preview+badges+pin, NO separators, row states (transparent/dialogsBgOver/dialogsBgActive), dialogsRipple on click — spec §22.3 & §22.3.1
 
 ### 22.4 Forum Group in Chat List
 - [ ] Forum group row (80px / 96px with tags): TopicsView with up to 8 recent topic names (unread in bold), 8px/14px inter-title gap, topic jump bubble (radius 11px, padding 8/3/8/3, arrow icon), two-rect stepped outline for multi-line spanning, expanded bar (dialogsBgActive, roundRadiusLarge, animated 0.0–1.0), topics preview height 21px — spec §22.4

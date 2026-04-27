@@ -51,6 +51,11 @@ class ChatState extends ChangeNotifier {
   /// Null means "show all" (the default channel).
   String? _activeChannelId;
 
+  // ── Forum topic list state (§22.3) ──
+  List<ForumTopic> _forumTopics = [];
+  ChatInfo? _forumParentChat;
+  String? _activeTopicId;
+
   final List<StreamSubscription<dynamic>> _subs = [];
   Timer? _pollTimer;
   Timer? _loadChatsDebounce;
@@ -159,6 +164,12 @@ class ChatState extends ChangeNotifier {
 
   /// Get sender avatar base64 data by sender ID.
   String? senderAvatar(String senderId) => _senderAvatars[senderId];
+
+  // ── Forum topic list getters (§22.3) ──
+  List<ForumTopic> get forumTopics => _forumTopics;
+  ChatInfo? get forumParentChat => _forumParentChat;
+  bool get isViewingForum => _forumParentChat != null;
+  String? get activeTopicId => _activeTopicId;
 
   /// Online member count for the active group/channel chat.
   int get groupOnlineCount => _groupOnlineCount;
@@ -453,7 +464,12 @@ class ChatState extends ChangeNotifier {
   }
 
   /// Open a chat — loads messages and sets as active.
+  /// For group chats, auto-detects forums and shows topic list.
   void openChat(ChatInfo chat) {
+    if ((chat.type == ChatType.group || chat.type == ChatType.channel) &&
+        _forumParentChat?.chatId != chat.chatId) {
+      _checkAndOpenForum(chat);
+    }
     _activeChat = chat;
     _openedUnreadCount = chat.unreadCount;
     _messages = [];
@@ -486,12 +502,73 @@ class ChatState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _checkAndOpenForum(ChatInfo chat) {
+    _engine.getForumTopics(chat.accountId, chat.chatId).then((topics) {
+      if (_disposed || topics.isEmpty) return;
+      topics.sort((a, b) {
+        if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+        final aId = int.tryParse(a.topMessageId) ?? 0;
+        final bId = int.tryParse(b.topMessageId) ?? 0;
+        return bId.compareTo(aId);
+      });
+      _forumParentChat = chat;
+      _forumTopics = topics;
+      _activeTopicId = null;
+      notifyListeners();
+    }).catchError((_) {});
+  }
+
   void openChatById(String chatId) {
     final chat = _chats.firstWhere(
       (c) => c.chatId == chatId,
       orElse: () => _chats.first,
     );
     if (chat.chatId == chatId) openChat(chat);
+  }
+
+  Future<void> openForum(ChatInfo chat) async {
+    _forumParentChat = chat;
+    _forumTopics = [];
+    _activeTopicId = null;
+    notifyListeners();
+    try {
+      final topics = await _engine.getForumTopics(chat.accountId, chat.chatId);
+      _forumTopics = topics;
+      _forumTopics.sort((a, b) {
+        if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+        final aId = int.tryParse(a.topMessageId) ?? 0;
+        final bId = int.tryParse(b.topMessageId) ?? 0;
+        return bId.compareTo(aId);
+      });
+    } catch (_) {}
+    notifyListeners();
+  }
+
+  void closeForum() {
+    _forumParentChat = null;
+    _forumTopics = [];
+    _activeTopicId = null;
+    notifyListeners();
+  }
+
+  void openTopic(ForumTopic topic) {
+    _activeTopicId = topic.id;
+    final parent = _forumParentChat;
+    if (parent == null) return;
+    final topicChat = _chats.firstWhere(
+      (c) => c.chatId == topic.id && c.accountId == parent.accountId,
+      orElse: () => ChatInfo(
+        accountId: parent.accountId,
+        chatId: topic.id,
+        type: ChatType.topic,
+        title: topic.title,
+        unreadCount: topic.unreadCount,
+        isPinned: topic.isPinned,
+        parentId: parent.chatId,
+        parentTitle: parent.title,
+      ),
+    );
+    openChat(topicChat);
   }
 
   /// Select a channel/topic within the active topic-type group.
