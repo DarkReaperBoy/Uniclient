@@ -1013,6 +1013,12 @@ class _UniClientAppState extends State<UniClientApp>
         ));
       case 'f11':
         MediaViewer.toggleMode();
+      case 'rotate':
+        MediaViewer.rotate();
+      case 'fliph':
+        MediaViewer.flipH();
+      case 'flipv':
+        MediaViewer.flipV();
       default:
         if (key.length == 1) {
           final code = key.codeUnitAt(0);

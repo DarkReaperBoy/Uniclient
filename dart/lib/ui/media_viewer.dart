@@ -44,6 +44,9 @@ class MediaViewer extends StatefulWidget {
   static _MediaViewerState? _activeInstance;
 
   static void toggleMode() => _activeInstance?._cycleMode();
+  static void rotate() => _activeInstance?._rotate();
+  static void flipH() => _activeInstance?._flipHorizontal();
+  static void flipV() => _activeInstance?._flipVertical();
 
   const MediaViewer({
     super.key,
@@ -98,6 +101,14 @@ class _MediaViewerState extends State<MediaViewer>
   late final AnimationController _zoomAnimCtrl;
   double _zoomFrom = 1.0;
   double _zoomTo = 1.0;
+
+  int _rotationQuarters = 0;
+  late final AnimationController _rotationAnimCtrl;
+  double _displayRotation = 0.0;
+  double _rotationFrom = 0.0;
+  double _rotationTo = 0.0;
+  bool _flipH = false;
+  bool _flipV = false;
 
   bool _isPinching = false;
   double _pinchBaseScale = 1.0;
@@ -154,6 +165,18 @@ class _MediaViewerState extends State<MediaViewer>
           });
         }
       });
+    _rotationAnimCtrl = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    )..addListener(() {
+        if (mounted) {
+          setState(() {
+            _displayRotation = _rotationFrom +
+                (_rotationTo - _rotationFrom) *
+                    Curves.easeOutCubic.transform(_rotationAnimCtrl.value);
+          });
+        }
+      });
     _loadViewerPrefs();
     _initVideoIfNeeded();
     _scheduleAutoHide();
@@ -166,6 +189,7 @@ class _MediaViewerState extends State<MediaViewer>
     }
     _disposePlayer();
     _autoHideTimer?.cancel();
+    _rotationAnimCtrl.dispose();
     _zoomAnimCtrl.dispose();
     _controlsAnim.dispose();
     _focusNode.dispose();
@@ -178,6 +202,7 @@ class _MediaViewerState extends State<MediaViewer>
   bool get _isDocument => _currentMessage.mediaType == 8 || _currentMessage.mediaType == 3;
 
   bool get _isVideoNote => _currentMessage.mediaType == 5;
+  bool get _isPhoto => !_isVideo && !_isGif && !_isDocument;
 
   void _initVideoIfNeeded() {
     final msg = _currentMessage;
@@ -362,6 +387,28 @@ class _MediaViewerState extends State<MediaViewer>
     _currentScale = 1.0;
     _panOffset = Offset.zero;
     _zoomAnimCtrl.reset();
+    _rotationQuarters = 0;
+    _displayRotation = 0.0;
+    _rotationAnimCtrl.reset();
+    _flipH = false;
+    _flipV = false;
+  }
+
+  void _rotate() {
+    _rotationQuarters--;
+    _rotationFrom = _displayRotation;
+    _rotationTo = _rotationQuarters.toDouble();
+    _rotationAnimCtrl.forward(from: 0.0);
+  }
+
+  void _flipHorizontal() {
+    if (!_isPhoto) return;
+    setState(() => _flipH = !_flipH);
+  }
+
+  void _flipVertical() {
+    if (!_isPhoto) return;
+    setState(() => _flipV = !_flipV);
   }
 
   Offset _clampPan(Offset pan, Size viewport) {
@@ -513,6 +560,12 @@ class _MediaViewerState extends State<MediaViewer>
           return KeyEventResult.handled;
         }
         return KeyEventResult.ignored;
+      case LogicalKeyboardKey.keyH:
+        _flipHorizontal();
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.keyV:
+        _flipVertical();
+        return KeyEventResult.handled;
       default:
         return KeyEventResult.ignored;
     }
@@ -584,69 +637,75 @@ class _MediaViewerState extends State<MediaViewer>
         cursor: _isZoomedIn
             ? SystemMouseCursors.move
             : SystemMouseCursors.basic,
-        child: GestureDetector(
-          onTap: () {
-            if (_isZoomedIn) return;
-            if (_isVideo || _isGif) {
-              _togglePlayPause();
-            } else {
-              _toggleControls();
-            }
-          },
-          onScaleStart: (details) {
-            _isPinching = details.pointerCount >= 2;
-            _pinchBaseScale = _currentScale;
-            _panGestureStart = _panOffset;
-          },
-          onScaleUpdate: (details) {
-            setState(() {
-              if (_isPinching || details.scale != 1.0) {
-                _isPinching = true;
-                _currentScale = (_pinchBaseScale * details.scale)
-                    .clamp(_scaleForLevel(_kMinZoomLevel), _scaleForLevel(_kMaxZoomLevel));
-                _zoomLevel = _nearestLevel(_currentScale);
-              }
-              if (_isZoomedIn) {
-                _panOffset = _clampPan(
-                  _panGestureStart + details.focalPointDelta,
-                  contentViewport,
-                );
-              }
-            });
-          },
-          onScaleEnd: (_) {
-            if (_isPinching) {
-              _isPinching = false;
-              final level = _nearestLevel(_currentScale);
-              if (level <= 0) {
-                _animateZoomTo(0);
-              } else {
-                _zoomLevel = level;
-              }
-            }
-          },
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              Container(color: _kMediaviewBg),
-
-              if (_showTitleBar) _buildTitleBar(),
-
-              Positioned(
-                top: titleBarOffset,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: Center(
-                  child: Transform(
-                    alignment: Alignment.center,
-                    transform: Matrix4.identity()
-                      ..translate(clampedPan.dx, clampedPan.dy)
-                      ..scale(_currentScale),
-                    child: _buildContent(msg, screenSize),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            GestureDetector(
+              onTap: () {
+                if (_isZoomedIn) return;
+                if (_isVideo || _isGif) {
+                  _togglePlayPause();
+                } else {
+                  _toggleControls();
+                }
+              },
+              onScaleStart: (details) {
+                _isPinching = details.pointerCount >= 2;
+                _pinchBaseScale = _currentScale;
+                _panGestureStart = _panOffset;
+              },
+              onScaleUpdate: (details) {
+                setState(() {
+                  if (_isPinching || details.scale != 1.0) {
+                    _isPinching = true;
+                    _currentScale = (_pinchBaseScale * details.scale)
+                        .clamp(_scaleForLevel(_kMinZoomLevel), _scaleForLevel(_kMaxZoomLevel));
+                    _zoomLevel = _nearestLevel(_currentScale);
+                  }
+                  if (_isZoomedIn) {
+                    _panOffset = _clampPan(
+                      _panGestureStart + details.focalPointDelta,
+                      contentViewport,
+                    );
+                  }
+                });
+              },
+              onScaleEnd: (_) {
+                if (_isPinching) {
+                  _isPinching = false;
+                  final level = _nearestLevel(_currentScale);
+                  if (level <= 0) {
+                    _animateZoomTo(0);
+                  } else {
+                    _zoomLevel = level;
+                  }
+                }
+              },
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Container(color: _kMediaviewBg),
+                  if (_showTitleBar) _buildTitleBar(),
+                  Positioned(
+                    top: titleBarOffset,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: Transform(
+                        alignment: Alignment.center,
+                        transform: Matrix4.identity()
+                          ..translate(clampedPan.dx, clampedPan.dy)
+                          ..scale(_currentScale)
+                          ..rotateZ(_displayRotation * math.pi / 2)
+                          ..scale(_flipH ? -1.0 : 1.0, _flipV ? -1.0 : 1.0),
+                        child: _buildContent(msg, screenSize),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
+            ),
 
             Positioned(
               top: titleBarOffset,
@@ -752,7 +811,6 @@ class _MediaViewerState extends State<MediaViewer>
               ),
           ],
         ),
-        ),
       ),
     );
   }
@@ -781,48 +839,7 @@ class _MediaViewerState extends State<MediaViewer>
           cursor: _isZoomedIn
               ? SystemMouseCursors.move
               : SystemMouseCursors.basic,
-          child: GestureDetector(
-            onTap: () {
-              if (_isZoomedIn) return;
-              if (_isVideo || _isGif) {
-                _togglePlayPause();
-              } else {
-                _toggleControls();
-              }
-            },
-            onScaleStart: (details) {
-              _isPinching = details.pointerCount >= 2;
-              _pinchBaseScale = _currentScale;
-              _panGestureStart = _panOffset;
-            },
-            onScaleUpdate: (details) {
-              setState(() {
-                if (_isPinching || details.scale != 1.0) {
-                  _isPinching = true;
-                  _currentScale = (_pinchBaseScale * details.scale)
-                      .clamp(_scaleForLevel(_kMinZoomLevel), _scaleForLevel(_kMaxZoomLevel));
-                  _zoomLevel = _nearestLevel(_currentScale);
-                }
-                if (_isZoomedIn) {
-                  _panOffset = _clampPan(
-                    _panGestureStart + details.focalPointDelta,
-                    windowContentViewport,
-                  );
-                }
-              });
-            },
-            onScaleEnd: (_) {
-              if (_isPinching) {
-                _isPinching = false;
-                final level = _nearestLevel(_currentScale);
-                if (level <= 0) {
-                  _animateZoomTo(0);
-                } else {
-                  _zoomLevel = level;
-                }
-              }
-            },
-            child: Container(
+          child: Container(
               width: w,
               height: h,
               clipBehavior: Clip.antiAlias,
@@ -839,21 +856,70 @@ class _MediaViewerState extends State<MediaViewer>
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  _buildTitleBar(),
-
-                  Positioned(
-                    top: _kTitleBarHeight,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: Center(
-                      child: Transform(
-                        alignment: Alignment.center,
-                        transform: Matrix4.identity()
-                          ..translate(clampedPan.dx, clampedPan.dy)
-                          ..scale(_currentScale),
-                        child: _buildContent(msg, Size(w, h - _kTitleBarHeight)),
-                      ),
+                  GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onTap: () {
+                      if (_isZoomedIn) return;
+                      if (_isVideo || _isGif) {
+                        _togglePlayPause();
+                      } else {
+                        _toggleControls();
+                      }
+                    },
+                    onScaleStart: (details) {
+                      _isPinching = details.pointerCount >= 2;
+                      _pinchBaseScale = _currentScale;
+                      _panGestureStart = _panOffset;
+                    },
+                    onScaleUpdate: (details) {
+                      setState(() {
+                        if (_isPinching || details.scale != 1.0) {
+                          _isPinching = true;
+                          _currentScale = (_pinchBaseScale * details.scale)
+                              .clamp(_scaleForLevel(_kMinZoomLevel), _scaleForLevel(_kMaxZoomLevel));
+                          _zoomLevel = _nearestLevel(_currentScale);
+                        }
+                        if (_isZoomedIn) {
+                          _panOffset = _clampPan(
+                            _panGestureStart + details.focalPointDelta,
+                            windowContentViewport,
+                          );
+                        }
+                      });
+                    },
+                    onScaleEnd: (_) {
+                      if (_isPinching) {
+                        _isPinching = false;
+                        final level = _nearestLevel(_currentScale);
+                        if (level <= 0) {
+                          _animateZoomTo(0);
+                        } else {
+                          _zoomLevel = level;
+                        }
+                      }
+                    },
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        _buildTitleBar(),
+                        Positioned(
+                          top: _kTitleBarHeight,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: Center(
+                            child: Transform(
+                              alignment: Alignment.center,
+                              transform: Matrix4.identity()
+                                ..translate(clampedPan.dx, clampedPan.dy)
+                                ..scale(_currentScale)
+                                ..rotateZ(_displayRotation * math.pi / 2)
+                                ..scale(_flipH ? -1.0 : 1.0, _flipV ? -1.0 : 1.0),
+                              child: _buildContent(msg, Size(w, h - _kTitleBarHeight)),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
 
@@ -949,7 +1015,6 @@ class _MediaViewerState extends State<MediaViewer>
                     child: _buildVideoControls(),
                   ),
 
-              // Bottom-right resize handle
               Positioned(
                 right: 0,
                 bottom: 0,
@@ -985,7 +1050,6 @@ class _MediaViewerState extends State<MediaViewer>
               ),
             ],
           ),
-        ),
         ),
       ),
     ),
@@ -1439,6 +1503,11 @@ class _MediaViewerState extends State<MediaViewer>
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        _ViewerButton(
+          icon: Icons.rotate_left,
+          onTap: _rotate,
+          tooltip: 'Rotate',
+        ),
         if (_isZoomedIn)
           _ViewerButton(
             icon: Icons.fit_screen,
@@ -1565,6 +1634,7 @@ class _ViewerButtonState extends State<_ViewerButton> {
         onEnter: (_) => setState(() => _hovering = true),
         onExit: (_) => setState(() => _hovering = false),
         child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
           onTap: widget.onTap,
           child: SizedBox(
             width: 46,

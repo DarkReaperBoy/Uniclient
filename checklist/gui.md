@@ -736,7 +736,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 20.4 Zoom & Pan
 
 ### 20.5–20.6 Rotation, Flip, Navigation
-- [ ] Rotate (0/90/180/270, each click -90°) and flip (H/V keys, photo only), rotate button in bottom-right toolbar — spec §20.5
 - [ ] Side navigation areas (90px normal / 64px stories), prev/next icons, Left/Right arrow keys, touch/swipe 80px threshold, preload 3 ahead + 48 IDs each direction — spec §20.6
 
 ### 20.7 Footer / Header
