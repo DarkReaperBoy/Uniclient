@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -419,7 +420,10 @@ class CustomEmojiTopicIcon extends StatefulWidget {
 }
 
 class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon> {
+  static const _slideDuration = Duration(milliseconds: 200);
   bool _loading = false;
+  bool _active = true;
+  Timer? _releaseTimer;
 
   @override
   void initState() {
@@ -431,6 +435,33 @@ class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon> {
   void didUpdateWidget(CustomEmojiTopicIcon old) {
     super.didUpdateWidget(old);
     if (old.documentId != widget.documentId) _loadThumb();
+  }
+
+  @override
+  void deactivate() {
+    _releaseTimer?.cancel();
+    _releaseTimer = Timer(_slideDuration, () {
+      _customEmojiThumbCache.remove(widget.documentId);
+      _active = false;
+    });
+    super.deactivate();
+  }
+
+  @override
+  void activate() {
+    super.activate();
+    _releaseTimer?.cancel();
+    _releaseTimer = null;
+    if (!_active) {
+      _active = true;
+      _loadThumb();
+    }
+  }
+
+  @override
+  void dispose() {
+    _releaseTimer?.cancel();
+    super.dispose();
   }
 
   void _loadThumb() {

@@ -1717,6 +1717,8 @@ class ForumChatListRow extends StatelessWidget {
       );
     }
 
+    final rippleColor = isDark ? const Color(0xFF1e2831) : const Color(0xFFc6c6c6);
+
     return Container(
       color: rowBg,
       child: Material(
@@ -1729,6 +1731,9 @@ class ForumChatListRow extends StatelessWidget {
           hoverColor: isActive
               ? Colors.white.withValues(alpha: 0.08)
               : (isDark ? const Color(0xFF202b36) : const Color(0xFFF1F1F1)),
+          splashColor: isActive
+              ? (isDark ? const Color(0xFF315a80) : const Color(0xFF2095d0))
+              : rippleColor,
           child: SizedBox(
             height: _rowHeight,
             child: Padding(

@@ -3386,7 +3386,7 @@ class _ForumTopicListViewState extends State<_ForumTopicListView> {
   }
 }
 
-class _ForumTopicHeader extends StatelessWidget {
+class _ForumTopicHeader extends StatefulWidget {
   final String title;
   final bool isDark;
   final VoidCallback onBack;
@@ -3408,25 +3408,77 @@ class _ForumTopicHeader extends StatelessWidget {
   });
 
   @override
+  State<_ForumTopicHeader> createState() => _ForumTopicHeaderState();
+}
+
+class _ForumTopicHeaderState extends State<_ForumTopicHeader>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _highlightController;
+  late final Animation<double> _highlightAnimation;
+  String? _lastActiveTopicId;
+
+  @override
+  void initState() {
+    super.initState();
+    _highlightController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _highlightAnimation = CurvedAnimation(
+      parent: _highlightController,
+      curve: Curves.easeOut,
+    );
+    _lastActiveTopicId = widget.chatState.activeTopicId;
+  }
+
+  @override
+  void didUpdateWidget(_ForumTopicHeader old) {
+    super.didUpdateWidget(old);
+    final currentTopicId = widget.chatState.activeTopicId;
+    if (currentTopicId != null && currentTopicId != _lastActiveTopicId) {
+      _highlightController.forward(from: 0.0).then((_) {
+        if (mounted) _highlightController.reverse();
+      });
+    }
+    _lastActiveTopicId = currentTopicId;
+  }
+
+  @override
+  void dispose() {
+    _highlightController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    final bg = isDark ? const Color(0xFF17212b) : Colors.white;
+    final highlightBg = isDark ? const Color(0xFF2b3d4f) : const Color(0xFFe8f0fe);
+
     return GestureDetector(
-      onSecondaryTapUp: (details) => onShowMenu(context, details.globalPosition),
-      child: Container(
-        height: 54,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF17212b) : Colors.white,
-          border: Border(
-            bottom: BorderSide(
-              color: isDark ? const Color(0x8F04080e) : const Color(0x18000000),
+      onSecondaryTapUp: (details) => widget.onShowMenu(context, details.globalPosition),
+      child: AnimatedBuilder(
+        animation: _highlightAnimation,
+        builder: (_, child) {
+          return Container(
+            height: 54,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              color: Color.lerp(bg, highlightBg, _highlightAnimation.value),
+              border: Border(
+                bottom: BorderSide(
+                  color: isDark ? const Color(0x8F04080e) : const Color(0x18000000),
+                ),
+              ),
             ),
-          ),
-        ),
+            child: child,
+          );
+        },
         child: Row(
           children: [
             IconButton(
               icon: const Icon(Icons.arrow_back, size: 22),
-              onPressed: onBack,
+              onPressed: widget.onBack,
               splashRadius: 18,
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
@@ -3434,7 +3486,7 @@ class _ForumTopicHeader extends StatelessWidget {
             const SizedBox(width: 4),
             Expanded(
               child: Text(
-                title,
+                widget.title,
                 style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
@@ -3456,7 +3508,7 @@ class _ForumTopicHeader extends StatelessWidget {
                 onPressed: () {
                   final box = btnCtx.findRenderObject() as RenderBox;
                   final pos = box.localToGlobal(Offset(box.size.width, box.size.height));
-                  onShowMenu(context, pos);
+                  widget.onShowMenu(context, pos);
                 },
                 splashRadius: 18,
                 padding: EdgeInsets.zero,
@@ -3474,15 +3526,17 @@ class _ForumTopicHeader extends StatelessWidget {
     final result = await showEditForumTopicBox(ctx);
     if (result == null) return;
     try {
-      final topicId = await engine.createForumTopic(accountId, chatId, result.title, result.colorId, result.iconEmojiId);
-      await chatState.refreshForumTopics();
+      final topicId = await widget.engine.createForumTopic(
+        widget.accountId, widget.chatId, result.title, result.colorId, result.iconEmojiId,
+      );
+      await widget.chatState.refreshForumTopics();
       if (topicId > 0) {
-        final newTopic = chatState.forumTopics.cast<ForumTopic?>().firstWhere(
+        final newTopic = widget.chatState.forumTopics.cast<ForumTopic?>().firstWhere(
           (t) => t!.id == topicId.toString(),
           orElse: () => null,
         );
         if (newTopic != null) {
-          chatState.openTopic(newTopic);
+          widget.chatState.openTopic(newTopic);
         }
       }
     } catch (e) {
@@ -3495,7 +3549,7 @@ class _ForumTopicHeader extends StatelessWidget {
   }
 }
 
-class _ForumTopicRow extends StatelessWidget {
+class _ForumTopicRow extends StatefulWidget {
   final ForumTopic topic;
   final bool isActive;
   final String accountId;
@@ -3524,6 +3578,48 @@ class _ForumTopicRow extends StatelessWidget {
   static const _paddingTop = 7.0;
   static const _paddingRight = 10.0;
   static const _paddingBottom = 7.0;
+  static const _leftBarWidth = 4.0;
+
+  @override
+  State<_ForumTopicRow> createState() => _ForumTopicRowState();
+}
+
+class _ForumTopicRowState extends State<_ForumTopicRow>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _barController;
+  late final Animation<double> _barAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _barController = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+      value: widget.isActive ? 1.0 : 0.0,
+    );
+    _barAnimation = CurvedAnimation(
+      parent: _barController,
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
+  void didUpdateWidget(_ForumTopicRow old) {
+    super.didUpdateWidget(old);
+    if (widget.isActive != old.isActive) {
+      if (widget.isActive) {
+        _barController.forward();
+      } else {
+        _barController.reverse();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _barController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -3532,131 +3628,159 @@ class _ForumTopicRow extends StatelessWidget {
 
     final activeBg = isDark ? const Color(0xFF2b5278) : const Color(0xFF419fd9);
     final hoverBg = isDark ? const Color(0xFF202b36) : const Color(0xFFF1F1F1);
-    final Color? rowBg = isActive ? activeBg : null;
+    final Color? rowBg = widget.isActive ? activeBg : null;
+    final rippleColor = isDark ? const Color(0xFF1e2831) : const Color(0xFFc6c6c6);
 
-    final nameColor = isActive
+    final nameColor = widget.isActive
         ? Colors.white
         : (isDark ? const Color(0xFFe1e3e6) : const Color(0xFF222222));
-    final textColor = isActive
+    final textColor = widget.isActive
         ? Colors.white70
         : (isDark ? const Color(0xFF7f91a4) : const Color(0xFF999999));
     final dateColor = textColor;
 
-    final hasUnread = topic.unreadCount > 0;
-    final showPin = topic.isPinned && !hasUnread;
+    final hasUnread = widget.topic.unreadCount > 0;
+    final showPin = widget.topic.isPinned && !hasUnread;
 
     return GestureDetector(
       onSecondaryTapUp: (details) => _showTopicContextMenu(context, details.globalPosition),
       child: Container(
-        height: _rowHeight,
+        height: _ForumTopicRow._rowHeight,
         color: rowBg,
-        child: Material(
-          type: MaterialType.transparency,
-          child: InkWell(
-            onTap: onTap,
-            hoverColor: isActive ? Colors.white.withValues(alpha: 0.08) : hoverBg,
-            splashColor: isActive
-                ? (isDark ? const Color(0xFF315a80) : const Color(0xFF2095d0))
-                : (isDark ? const Color(0xFF25313d) : const Color(0xFFe5e5e5)),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                _paddingLeft, _paddingTop, _paddingRight, _paddingBottom,
-              ),
-              child: Stack(
-                children: [
-                  Positioned(
-                    left: 0,
-                  top: (_rowHeight - _paddingTop - _paddingBottom - _iconSize) / 2,
-                  child: TopicIconWidget(
-                    topic: topic,
-                    accountId: accountId,
-                    engine: engine,
-                    size: _iconSize,
-                    generalContext: isActive
-                        ? GeneralIconContext.active
-                        : GeneralIconContext.normal,
+        child: Stack(
+          children: [
+            AnimatedBuilder(
+              animation: _barAnimation,
+              builder: (_, __) {
+                if (_barAnimation.value <= 0) return const SizedBox.shrink();
+                return Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: _ForumTopicRow._leftBarWidth,
+                  child: Opacity(
+                    opacity: _barAnimation.value,
+                    child: Container(
+                      color: isDark
+                          ? const Color(0xFF5eaade)
+                          : Colors.white.withValues(alpha: 0.7),
+                    ),
                   ),
-                ),
-                Positioned(
-                  left: _nameLeft - _paddingLeft,
-                  top: _nameTop - _paddingTop,
-                  right: 60,
-                  child: Row(
+                );
+              },
+            ),
+            Material(
+              type: MaterialType.transparency,
+              child: InkWell(
+                onTap: widget.onTap,
+                hoverColor: widget.isActive ? Colors.white.withValues(alpha: 0.08) : hoverBg,
+                splashColor: widget.isActive
+                    ? (isDark ? const Color(0xFF315a80) : const Color(0xFF2095d0))
+                    : rippleColor,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    _ForumTopicRow._paddingLeft, _ForumTopicRow._paddingTop,
+                    _ForumTopicRow._paddingRight, _ForumTopicRow._paddingBottom,
+                  ),
+                  child: Stack(
                     children: [
-                      Flexible(
+                      Positioned(
+                        left: 0,
+                        top: (_ForumTopicRow._rowHeight - _ForumTopicRow._paddingTop -
+                            _ForumTopicRow._paddingBottom - _ForumTopicRow._iconSize) / 2,
+                        child: TopicIconWidget(
+                          topic: widget.topic,
+                          accountId: widget.accountId,
+                          engine: widget.engine,
+                          size: _ForumTopicRow._iconSize,
+                          generalContext: widget.isActive
+                              ? GeneralIconContext.active
+                              : GeneralIconContext.normal,
+                        ),
+                      ),
+                      Positioned(
+                        left: _ForumTopicRow._nameLeft - _ForumTopicRow._paddingLeft,
+                        top: _ForumTopicRow._nameTop - _ForumTopicRow._paddingTop,
+                        right: 60,
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                widget.topic.isGeneral ? '# ${widget.topic.title}' : widget.topic.title,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: nameColor,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ),
+                            if (widget.topic.isClosed) ...[
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.lock_outline,
+                                size: 14,
+                                color: textColor,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      Positioned(
+                        right: 0,
+                        top: _ForumTopicRow._nameTop - _ForumTopicRow._paddingTop,
                         child: Text(
-                          topic.isGeneral ? '# ${topic.title}' : topic.title,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: nameColor,
-                          ),
+                          _formatDate(widget.topic),
+                          style: TextStyle(fontSize: 12, color: dateColor),
+                        ),
+                      ),
+                      Positioned(
+                        left: _ForumTopicRow._textLeft - _ForumTopicRow._paddingLeft,
+                        top: _ForumTopicRow._textTop - _ForumTopicRow._paddingTop,
+                        right: hasUnread ? 30 : (showPin ? 20 : 0),
+                        child: Text(
+                          _previewText(widget.topic),
+                          style: TextStyle(fontSize: 13, color: textColor),
                           overflow: TextOverflow.ellipsis,
                           maxLines: 1,
                         ),
                       ),
-                      if (topic.isClosed) ...[
-                        const SizedBox(width: 4),
-                        Icon(
-                          Icons.lock_outline,
-                          size: 14,
-                          color: textColor,
+                      if (hasUnread)
+                        Positioned(
+                          right: 0,
+                          bottom: 0,
+                          child: _TopicUnreadBadge(
+                            count: widget.topic.unreadCount,
+                            isActive: widget.isActive,
+                            isDark: isDark,
+                          ),
                         ),
-                      ],
+                      if (showPin)
+                        Positioned(
+                          right: 0,
+                          bottom: 2,
+                          child: Icon(
+                            Icons.push_pin,
+                            size: 16,
+                            color: widget.isActive
+                                ? Colors.white70
+                                : (isDark ? const Color(0xFF556a7d) : const Color(0xFFcccccc)),
+                          ),
+                        ),
                     ],
                   ),
                 ),
-                Positioned(
-                  right: 0,
-                  top: _nameTop - _paddingTop,
-                  child: Text(
-                    _formatDate(topic),
-                    style: TextStyle(fontSize: 12, color: dateColor),
-                  ),
-                ),
-                Positioned(
-                  left: _textLeft - _paddingLeft,
-                  top: _textTop - _paddingTop,
-                  right: hasUnread ? 30 : (showPin ? 20 : 0),
-                  child: Text(
-                    _previewText(topic),
-                    style: TextStyle(fontSize: 13, color: textColor),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                ),
-                if (hasUnread)
-                  Positioned(
-                    right: 0,
-                    bottom: 0,
-                    child: _TopicUnreadBadge(
-                      count: topic.unreadCount,
-                      isActive: isActive,
-                      isDark: isDark,
-                    ),
-                  ),
-                if (showPin)
-                  Positioned(
-                    right: 0,
-                    bottom: 2,
-                    child: Icon(
-                      Icons.push_pin,
-                      size: 16,
-                      color: isActive
-                          ? Colors.white70
-                          : (isDark ? const Color(0xFF556a7d) : const Color(0xFFcccccc)),
-                    ),
-                  ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
-      ),
       ),
     );
   }
 
   void _showTopicContextMenu(BuildContext ctx, Offset position) async {
+    final topic = widget.topic;
     final topicId = int.tryParse(topic.id) ?? 0;
     final hasUnread = topic.unreadCount > 0;
 
@@ -3717,7 +3841,7 @@ class _ForumTopicRow extends StatelessWidget {
     switch (value) {
       case 'pin':
         try {
-          await chatState.pinForumTopic(accountId, chatId, topicId, !topic.isPinned);
+          await widget.chatState.pinForumTopic(widget.accountId, widget.chatId, topicId, !topic.isPinned);
         } catch (e) {
           if (ctx.mounted) {
             ScaffoldMessenger.of(ctx).showSnackBar(
@@ -3726,17 +3850,17 @@ class _ForumTopicRow extends StatelessWidget {
           }
         }
       case 'view_info':
-        chatState.openTopic(topic);
+        widget.chatState.openTopic(topic);
         UniClientShell.toggleInfoRequest?.call();
       case 'mark_read':
         if (hasUnread) {
-          chatState.markChatRead(accountId, topic.id);
+          widget.chatState.markChatRead(widget.accountId, topic.id);
         }
       case 'edit':
         _showEditTopicDialog(ctx);
       case 'toggle_closed':
         try {
-          await chatState.toggleForumTopicClosed(accountId, chatId, topicId, !topic.isClosed);
+          await widget.chatState.toggleForumTopicClosed(widget.accountId, widget.chatId, topicId, !topic.isClosed);
         } catch (e) {
           if (ctx.mounted) {
             ScaffoldMessenger.of(ctx).showSnackBar(
@@ -3746,7 +3870,7 @@ class _ForumTopicRow extends StatelessWidget {
         }
       case 'toggle_hidden':
         try {
-          await chatState.toggleGeneralTopicHidden(accountId, chatId, !topic.isHidden);
+          await widget.chatState.toggleGeneralTopicHidden(widget.accountId, widget.chatId, !topic.isHidden);
         } catch (e) {
           if (ctx.mounted) {
             ScaffoldMessenger.of(ctx).showSnackBar(
@@ -3763,7 +3887,7 @@ class _ForumTopicRow extends StatelessWidget {
         );
         if (r.confirmed) {
           try {
-            await chatState.deleteForumTopicHistory(accountId, chatId, topicId);
+            await widget.chatState.deleteForumTopicHistory(widget.accountId, widget.chatId, topicId);
           } catch (e) {
             if (ctx.mounted) {
               ScaffoldMessenger.of(ctx).showSnackBar(
@@ -3781,8 +3905,8 @@ class _ForumTopicRow extends StatelessWidget {
         );
         if (r.confirmed) {
           try {
-            await chatState.deleteForumTopicHistory(accountId, chatId, topicId);
-            await chatState.refreshForumTopics();
+            await widget.chatState.deleteForumTopicHistory(widget.accountId, widget.chatId, topicId);
+            await widget.chatState.refreshForumTopics();
           } catch (e) {
             if (ctx.mounted) {
               ScaffoldMessenger.of(ctx).showSnackBar(
@@ -3795,6 +3919,7 @@ class _ForumTopicRow extends StatelessWidget {
   }
 
   void _showEditTopicDialog(BuildContext ctx) async {
+    final topic = widget.topic;
     final result = await showEditForumTopicBox(
       ctx,
       existingTitle: topic.title,
@@ -3806,11 +3931,11 @@ class _ForumTopicRow extends StatelessWidget {
     if (result == null) return;
     try {
       final topicId = int.tryParse(topic.id) ?? 0;
-      await engine.editForumTopic(
-        accountId, chatId, topicId, result.title,
+      await widget.engine.editForumTopic(
+        widget.accountId, widget.chatId, topicId, result.title,
         iconEmojiId: topic.isGeneral ? -1 : result.iconEmojiId,
       );
-      await chatState.refreshForumTopics();
+      await widget.chatState.refreshForumTopics();
     } catch (e) {
       if (ctx.mounted) {
         ScaffoldMessenger.of(ctx).showSnackBar(

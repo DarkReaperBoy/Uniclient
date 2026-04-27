@@ -792,7 +792,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 22.10 Navigation & Column Integration
 
 ### 22.11 Animations
-- [ ] Userpic loop reset after slideDuration (custom emoji stops/frees memory), topic jump ripple (dialogsRipple), expanded bar 0.0–1.0 float drives left-edge bar, EmojiFlyAnimation in edit dialog, info top bar highlight fade between bg and highlightBg — spec §22.11
 # GUI Features Checklist: §23–§40
 
 Consolidated from `checklist/gui.md`. Each item covers a full widget/feature unit. Read the
