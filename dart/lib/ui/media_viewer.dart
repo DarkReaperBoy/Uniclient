@@ -139,6 +139,8 @@ class _MediaViewerState extends State<MediaViewer>
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
   double _volume = 0.8;
+  double _lastVolume = 0.8;
+  double _playbackSpeed = 1.0;
   bool _isSeeking = false;
 
   _MediaViewerMode _mode = _MediaViewerMode.fullscreen;
@@ -593,6 +595,7 @@ class _MediaViewerState extends State<MediaViewer>
       case LogicalKeyboardKey.enter:
         if (_isVideo || _isGif) {
           _togglePlayPause();
+          _showControls();
           return KeyEventResult.handled;
         }
         return KeyEventResult.ignored;
@@ -693,6 +696,7 @@ class _MediaViewerState extends State<MediaViewer>
                 if (_isZoomedIn) return;
                 if (_isVideo || _isGif) {
                   _togglePlayPause();
+                  _showControls();
                 } else {
                   _toggleControls();
                 }
@@ -936,6 +940,7 @@ class _MediaViewerState extends State<MediaViewer>
                       if (_isZoomedIn) return;
                       if (_isVideo || _isGif) {
                         _togglePlayPause();
+                        _showControls();
                       } else {
                         _toggleControls();
                       }
@@ -1404,6 +1409,74 @@ class _MediaViewerState extends State<MediaViewer>
     );
   }
 
+  IconData get _volumeIcon {
+    if (_volume <= 0) return Icons.volume_off;
+    if (_volume < 0.5) return Icons.volume_down;
+    return Icons.volume_up;
+  }
+
+  void _toggleMute() {
+    setState(() {
+      if (_volume > 0) {
+        _lastVolume = _volume;
+        _volume = 0;
+      } else {
+        _volume = _lastVolume > 0 ? _lastVolume : 0.8;
+      }
+      _player?.setVolume(_volume * 100.0);
+    });
+  }
+
+  void _setVolume(double v) {
+    setState(() {
+      _volume = v.clamp(0.0, 1.0);
+      if (_volume > 0) _lastVolume = _volume;
+      _player?.setVolume(_volume * 100.0);
+    });
+  }
+
+  void _setSpeed(double speed) {
+    setState(() => _playbackSpeed = speed);
+    _player?.setRate(speed);
+  }
+
+  void _showSpeedMenu(BuildContext ctx, Offset globalPos) {
+    const speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0];
+    showMenu<double>(
+      context: ctx,
+      position: RelativeRect.fromLTRB(
+        globalPos.dx - 40,
+        globalPos.dy - speeds.length * 40.0,
+        globalPos.dx + 40,
+        globalPos.dy,
+      ),
+      color: const Color(0xE6000000),
+      items: speeds.map((s) {
+        final label = s == 1.0 ? 'Normal' : '${s}x';
+        return PopupMenuItem<double>(
+          value: s,
+          height: 36,
+          child: Text(
+            label,
+            style: TextStyle(
+              color: s == _playbackSpeed
+                  ? const Color(0xFF64B5F6)
+                  : Colors.white,
+              fontSize: 13,
+              fontWeight:
+                  s == _playbackSpeed ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        );
+      }).toList(),
+    ).then((v) {
+      if (v != null) _setSpeed(v);
+    });
+  }
+
+  String get _speedLabel =>
+      _playbackSpeed == 1.0 ? '1x' : '${_playbackSpeed}x';
+
   Widget _buildVideoControls() {
     final progress = _duration.inMilliseconds > 0
         ? (_position.inMilliseconds / _duration.inMilliseconds).clamp(0.0, 1.0)
@@ -1414,127 +1487,146 @@ class _MediaViewerState extends State<MediaViewer>
       opacity: _controlsOpacity,
       child: IgnorePointer(
         ignoring: _controlsAnim.isDismissed,
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
-          constraints: const BoxConstraints(maxWidth: 480),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: const Color(0xCC000000),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Text(
-                    _formatTime(_position),
-                    style: const TextStyle(
-                      color: Color(0xFFC7C7C7),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
+        child: Center(
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
+            constraints: const BoxConstraints(maxWidth: 480),
+            height: 72,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xCC000000),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 2),
+                SizedBox(
+                  height: 24,
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 32,
+                        height: 32,
+                        child: _ControlButton(
+                          icon: _volumeIcon,
+                          size: 32,
+                          onTap: _toggleMute,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      SizedBox(
+                        width: 75,
+                        child: _PlaybackSlider(
+                          value: _volume,
+                          trackHeight: 3,
+                          handleSize: 10,
+                          activeColor: const Color(0xFFC7C7C7),
+                          inactiveColor: const Color(0xFF404040),
+                          onChanged: _setVolume,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _formatTime(_position),
+                        style: const TextStyle(
+                          color: Color(0xFFC7C7C7),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _PlaybackSlider(
+                          value: progress,
+                          trackHeight: 3,
+                          handleSize: 12,
+                          activeColor: const Color(0xFFC7C7C7),
+                          inactiveColor: const Color(0xFF252525),
+                          onChanged: (v) {
+                            if (_duration.inMilliseconds == 0) return;
+                            setState(() {
+                              _isSeeking = true;
+                              _position = Duration(
+                                milliseconds:
+                                    (v * _duration.inMilliseconds).round(),
+                              );
+                            });
+                            _player?.seek(_position);
+                          },
+                          onChangeEnd: () =>
+                              setState(() => _isSeeking = false),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '-${_formatTime(remaining)}',
+                        style: const TextStyle(
+                          color: Color(0xFFC7C7C7),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: GestureDetector(
-                      onHorizontalDragStart: (_) =>
-                          setState(() => _isSeeking = true),
-                      onHorizontalDragUpdate: (details) {
-                        final box =
-                            context.findRenderObject() as RenderBox?;
-                        if (box == null || _duration.inMilliseconds == 0) {
-                          return;
-                        }
-                      },
-                      onHorizontalDragEnd: (_) =>
-                          setState(() => _isSeeking = false),
-                      onTapDown: (details) {
-                        if (_duration.inMilliseconds == 0) return;
-                        final box =
-                            details.localPosition.dx;
-                        final sliderWidth =
-                            (context.findRenderObject() as RenderBox?)
-                                    ?.size
-                                    .width ??
-                                400;
-                        final ratio = (box / sliderWidth).clamp(0.0, 1.0);
-                        _player?.seek(Duration(
-                          milliseconds:
-                              (ratio * _duration.inMilliseconds).round(),
-                        ));
-                      },
-                      child: SizedBox(
-                        height: 20,
-                        child: Center(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(1.5),
-                            child: LinearProgressIndicator(
-                              value: progress,
-                              minHeight: 3,
-                              backgroundColor: const Color(0xFF252525),
-                              valueColor: const AlwaysStoppedAnimation<Color>(
-                                  Color(0xFFC7C7C7)),
+                ),
+                const SizedBox(height: 2),
+                SizedBox(
+                  height: 36,
+                  child: Row(
+                    children: [
+                      const Spacer(),
+                      _ControlButton(
+                        icon: _isPlaying
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        size: 40,
+                        onTap: _togglePlayPause,
+                      ),
+                      const Spacer(),
+                      GestureDetector(
+                        onTapDown: (d) =>
+                            _showSpeedMenu(context, d.globalPosition),
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            alignment: Alignment.center,
+                            child: Text(
+                              _speedLabel,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
+                      const SizedBox(width: 4),
+                      _ControlButton(
+                        icon: Icons.picture_in_picture_alt,
+                        size: 32,
+                        onTap: () {},
+                      ),
+                      const SizedBox(width: 4),
+                      _ControlButton(
+                        icon: _mode == _MediaViewerMode.fullscreen
+                            ? Icons.fullscreen_exit
+                            : Icons.fullscreen,
+                        size: 32,
+                        onTap: () => _setMode(
+                          _mode == _MediaViewerMode.fullscreen
+                              ? _MediaViewerMode.maximized
+                              : _MediaViewerMode.fullscreen,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '-${_formatTime(remaining)}',
-                    style: const TextStyle(
-                      color: Color(0xFFC7C7C7),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _ControlButton(
-                    icon: _volume > 0
-                        ? Icons.volume_up
-                        : Icons.volume_off,
-                    size: 32,
-                    onTap: () {
-                      setState(() {
-                        if (_volume > 0) {
-                          _volume = 0;
-                        } else {
-                          _volume = 0.8;
-                        }
-                        _player?.setVolume(_volume * 100.0);
-                      });
-                    },
-                  ),
-                  const SizedBox(width: 16),
-                  _ControlButton(
-                    icon: _isPlaying
-                        ? Icons.pause_rounded
-                        : Icons.play_arrow_rounded,
-                    size: 40,
-                    onTap: _togglePlayPause,
-                  ),
-                  const SizedBox(width: 16),
-                  _ControlButton(
-                    icon: _mode == _MediaViewerMode.fullscreen
-                        ? Icons.fullscreen_exit
-                        : Icons.fullscreen,
-                    size: 32,
-                    onTap: () => _setMode(
-                      _mode == _MediaViewerMode.fullscreen
-                          ? _MediaViewerMode.maximized
-                          : _MediaViewerMode.fullscreen,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1951,6 +2043,146 @@ class _MediaViewerState extends State<MediaViewer>
       ],
     );
   }
+}
+
+class _PlaybackSlider extends StatefulWidget {
+  final double value;
+  final double trackHeight;
+  final double handleSize;
+  final Color activeColor;
+  final Color inactiveColor;
+  final ValueChanged<double> onChanged;
+  final VoidCallback? onChangeEnd;
+
+  const _PlaybackSlider({
+    required this.value,
+    required this.trackHeight,
+    required this.handleSize,
+    required this.activeColor,
+    required this.inactiveColor,
+    required this.onChanged,
+    this.onChangeEnd,
+  });
+
+  @override
+  State<_PlaybackSlider> createState() => _PlaybackSliderState();
+}
+
+class _PlaybackSliderState extends State<_PlaybackSlider> {
+  bool _hovering = false;
+  bool _dragging = false;
+
+  double _ratioFromLocal(double localX, double totalWidth) {
+    final pad = widget.handleSize / 2;
+    final trackWidth = totalWidth - widget.handleSize;
+    if (trackWidth <= 0) return 0;
+    return ((localX - pad) / trackWidth).clamp(0.0, 1.0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTapDown: (d) {
+          final box = context.findRenderObject() as RenderBox?;
+          if (box == null) return;
+          widget.onChanged(_ratioFromLocal(d.localPosition.dx, box.size.width));
+        },
+        onHorizontalDragStart: (d) {
+          _dragging = true;
+          final box = context.findRenderObject() as RenderBox?;
+          if (box == null) return;
+          widget.onChanged(_ratioFromLocal(d.localPosition.dx, box.size.width));
+        },
+        onHorizontalDragUpdate: (d) {
+          final box = context.findRenderObject() as RenderBox?;
+          if (box == null) return;
+          widget.onChanged(_ratioFromLocal(d.localPosition.dx, box.size.width));
+        },
+        onHorizontalDragEnd: (_) {
+          _dragging = false;
+          widget.onChangeEnd?.call();
+        },
+        child: CustomPaint(
+          painter: _SliderPainter(
+            value: widget.value,
+            trackHeight: widget.trackHeight,
+            handleSize: (_hovering || _dragging)
+                ? widget.handleSize
+                : widget.handleSize * 0.7,
+            activeColor: widget.activeColor,
+            inactiveColor: widget.inactiveColor,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SliderPainter extends CustomPainter {
+  final double value;
+  final double trackHeight;
+  final double handleSize;
+  final Color activeColor;
+  final Color inactiveColor;
+
+  _SliderPainter({
+    required this.value,
+    required this.trackHeight,
+    required this.handleSize,
+    required this.activeColor,
+    required this.inactiveColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cy = size.height / 2;
+    final pad = handleSize / 2;
+    final trackWidth = size.width - handleSize;
+    final trackLeft = pad;
+    final trackRight = pad + trackWidth;
+    final handleX = pad + trackWidth * value;
+
+    final inactivePaint = Paint()
+      ..color = inactiveColor
+      ..strokeCap = StrokeCap.round;
+    final activePaint = Paint()
+      ..color = activeColor
+      ..strokeCap = StrokeCap.round;
+
+    final trackRadius = trackHeight / 2;
+
+    canvas.drawRRect(
+      RRect.fromLTRBR(
+        trackLeft, cy - trackRadius, trackRight, cy + trackRadius,
+        Radius.circular(trackRadius),
+      ),
+      inactivePaint,
+    );
+
+    if (value > 0) {
+      canvas.drawRRect(
+        RRect.fromLTRBR(
+          trackLeft, cy - trackRadius, handleX, cy + trackRadius,
+          Radius.circular(trackRadius),
+        ),
+        activePaint,
+      );
+    }
+
+    canvas.drawCircle(Offset(handleX, cy), handleSize / 2, activePaint);
+  }
+
+  @override
+  bool shouldRepaint(_SliderPainter old) =>
+      value != old.value ||
+      trackHeight != old.trackHeight ||
+      handleSize != old.handleSize ||
+      activeColor != old.activeColor ||
+      inactiveColor != old.inactiveColor;
 }
 
 class _ControlButton extends StatefulWidget {

@@ -744,7 +744,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 20.9 Caption Display
 
 ### 20.10–20.12 Video Playback Controls
-- [ ] Video controls panel (max 480px wide, 72px height): volume toggle (32×32px), volume slider (75px, mediaviewPlayback style), time played (12px semibold), progress bar (3px track, 12px handle), Play/Pause (40×40px centered), speed/quality button (32×32px), PiP button, fullscreen button, chapter marks (2×10px), controls fade 200ms in / 600ms out — spec §20.10
 - [ ] Video behavior: Space/Enter/click play-pause, drag seek, Left/Right +/-5s in fullscreen, 0-9 jump, Alt+Left/Right chapter nav, speed 0.5×–3.0×, quality menu, volume 0.0–1.0, loop animations, auto-pause on call — spec §20.11
 - [ ] Fullscreen: double-click/Alt+Enter/Ctrl+F toggle, auto-hide 1100ms with blank cursor, Escape exits fullscreen (not viewer) — spec §20.12
 
