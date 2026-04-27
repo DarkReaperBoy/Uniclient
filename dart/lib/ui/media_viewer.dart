@@ -36,6 +36,8 @@ const _kMaxDisplayImageSize = 4096.0;
 const _kMinZoomLevel = -7;
 const _kMaxZoomLevel = 7;
 const _kZoomAnimDuration = Duration(milliseconds: 200);
+const _kSwipeThreshold = 80.0;
+const _kPreloadAhead = 3;
 
 class MediaViewer extends StatefulWidget {
   final CachedMessage initialMessage;
@@ -113,6 +115,8 @@ class _MediaViewerState extends State<MediaViewer>
   bool _isPinching = false;
   double _pinchBaseScale = 1.0;
   Offset _panGestureStart = Offset.zero;
+  double _swipeHorizontalDelta = 0.0;
+  bool _swipeNavigated = false;
 
   late final AnimationController _controlsAnim;
   Timer? _autoHideTimer;
@@ -180,6 +184,9 @@ class _MediaViewerState extends State<MediaViewer>
     _loadViewerPrefs();
     _initVideoIfNeeded();
     _scheduleAutoHide();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _preloadNearby();
+    });
   }
 
   @override
@@ -203,6 +210,22 @@ class _MediaViewerState extends State<MediaViewer>
 
   bool get _isVideoNote => _currentMessage.mediaType == 5;
   bool get _isPhoto => !_isVideo && !_isGif && !_isDocument;
+
+  void _preloadNearby() {
+    for (int offset = 1; offset <= _kPreloadAhead; offset++) {
+      final prevIdx = _currentIndex + offset;
+      final nextIdx = _currentIndex - offset;
+      for (final idx in [prevIdx, nextIdx]) {
+        if (idx < 0 || idx >= widget.mediaMessages.length) continue;
+        final msg = widget.mediaMessages[idx];
+        if (msg.mediaLocalPath.isEmpty) continue;
+        if (msg.mediaType == 2 || msg.mediaType == 5 || msg.mediaType == 7) continue;
+        final file = File(msg.mediaLocalPath);
+        if (!file.existsSync()) continue;
+        precacheImage(FileImage(file), context);
+      }
+    }
+  }
 
   void _initVideoIfNeeded() {
     final msg = _currentMessage;
@@ -324,6 +347,7 @@ class _MediaViewerState extends State<MediaViewer>
       _resetZoom();
     });
     _initVideoIfNeeded();
+    _preloadNearby();
   }
 
   void _goToNext() {
@@ -334,6 +358,7 @@ class _MediaViewerState extends State<MediaViewer>
       _resetZoom();
     });
     _initVideoIfNeeded();
+    _preloadNearby();
   }
 
   static double _scaleForLevel(int level) {
@@ -653,6 +678,8 @@ class _MediaViewerState extends State<MediaViewer>
                 _isPinching = details.pointerCount >= 2;
                 _pinchBaseScale = _currentScale;
                 _panGestureStart = _panOffset;
+                _swipeHorizontalDelta = 0.0;
+                _swipeNavigated = false;
               },
               onScaleUpdate: (details) {
                 setState(() {
@@ -667,10 +694,21 @@ class _MediaViewerState extends State<MediaViewer>
                       _panGestureStart + details.focalPointDelta,
                       contentViewport,
                     );
+                  } else if (!_isPinching && !_swipeNavigated) {
+                    _swipeHorizontalDelta += details.focalPointDelta.dx;
+                    if (_swipeHorizontalDelta > _kSwipeThreshold) {
+                      _swipeNavigated = true;
+                      _goToPrev();
+                    } else if (_swipeHorizontalDelta < -_kSwipeThreshold) {
+                      _swipeNavigated = true;
+                      _goToNext();
+                    }
                   }
                 });
               },
               onScaleEnd: (_) {
+                _swipeHorizontalDelta = 0.0;
+                _swipeNavigated = false;
                 if (_isPinching) {
                   _isPinching = false;
                   final level = _nearestLevel(_currentScale);
@@ -870,6 +908,8 @@ class _MediaViewerState extends State<MediaViewer>
                       _isPinching = details.pointerCount >= 2;
                       _pinchBaseScale = _currentScale;
                       _panGestureStart = _panOffset;
+                      _swipeHorizontalDelta = 0.0;
+                      _swipeNavigated = false;
                     },
                     onScaleUpdate: (details) {
                       setState(() {
@@ -884,10 +924,21 @@ class _MediaViewerState extends State<MediaViewer>
                             _panGestureStart + details.focalPointDelta,
                             windowContentViewport,
                           );
+                        } else if (!_isPinching && !_swipeNavigated) {
+                          _swipeHorizontalDelta += details.focalPointDelta.dx;
+                          if (_swipeHorizontalDelta > _kSwipeThreshold) {
+                            _swipeNavigated = true;
+                            _goToPrev();
+                          } else if (_swipeHorizontalDelta < -_kSwipeThreshold) {
+                            _swipeNavigated = true;
+                            _goToNext();
+                          }
                         }
                       });
                     },
                     onScaleEnd: (_) {
+                      _swipeHorizontalDelta = 0.0;
+                      _swipeNavigated = false;
                       if (_isPinching) {
                         _isPinching = false;
                         final level = _nearestLevel(_currentScale);

@@ -736,7 +736,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 20.4 Zoom & Pan
 
 ### 20.5–20.6 Rotation, Flip, Navigation
-- [ ] Side navigation areas (90px normal / 64px stories), prev/next icons, Left/Right arrow keys, touch/swipe 80px threshold, preload 3 ahead + 48 IDs each direction — spec §20.6
 
 ### 20.7 Footer / Header
 - [ ] Bottom-left header: "Photo N of M"/filename (mediaviewThickFont semibold at (14,height-47), max width/3 middle-elided, clickable→overview), sender name (mediaviewFont at (14,height-26), clickable→peer info), date+DC (clickable→message in chat), mediaviewControlFg color — spec §20.7
