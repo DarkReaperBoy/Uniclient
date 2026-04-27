@@ -746,7 +746,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 20.10–20.12 Video Playback Controls
 
 ### 20.14 Gallery Thumbs Strip
-- [ ] Horizontal thumbnails (56–160px wide, 80px height), padding 0/14/0/14 with 3px gap (12px for current), current thumb 160px centered, no scrollbar, overflow capped to available width, click navigates, 150ms slide animation, active thumb emphasis via width only — spec §20.14 & §20.14.1
 
 ### 20.15 Save/Download Toast
 - [ ] Centered toast (mediaviewSaveMsgBg): check icon at (23,21), padding 55/19/29/20px, 16px mediaviewSaveMsgStyle, fade in 200ms / hold 2s / fade out 2.5s, "Downloads" clickable link — spec §20.15

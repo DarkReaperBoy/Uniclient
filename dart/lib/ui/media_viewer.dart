@@ -48,6 +48,14 @@ const _kMediaviewCaptionPadding = EdgeInsets.fromLTRB(11, 6, 11, 6);
 const _kMediaviewCaptionMargin = 11.0;
 const _kMediaviewCaptionMaxWidth = 600.0;
 
+const _kThumbStripHeight = 80.0;
+const _kThumbWidth = 56.0;
+const _kThumbWidthMax = 160.0;
+const _kThumbStripPaddingH = 14.0;
+const _kThumbGap = 3.0;
+const _kThumbGapCurrent = 12.0;
+const _kThumbAnimDuration = Duration(milliseconds: 150);
+
 const _kPipDefaultSize = 320.0;
 const _kPipMinimalSize = 120.0;
 const _kPipBorderSkip = 20.0;
@@ -347,6 +355,8 @@ class _MediaViewerState extends State<MediaViewer>
   bool get _isVideo => _currentMessage.mediaType == 2 || _currentMessage.mediaType == 5;
   bool get _isGif => _currentMessage.mediaType == 7;
   bool get _isDocument => _currentMessage.mediaType == 8 || _currentMessage.mediaType == 3;
+  bool get _hasStrip => widget.mediaMessages.length > 1;
+  double get _stripOffset => _hasStrip ? _kThumbStripHeight + 4 : 0;
 
   bool get _isVideoNote => _currentMessage.mediaType == 5;
   bool get _isPhoto => !_isVideo && !_isGif && !_isDocument;
@@ -510,6 +520,29 @@ class _MediaViewerState extends State<MediaViewer>
     });
     _initVideoIfNeeded();
     _preloadNearby();
+  }
+
+  void _goToIndex(int index) {
+    if (index == _currentIndex) return;
+    if (index < 0 || index >= widget.mediaMessages.length) return;
+    _disposePlayer();
+    setState(() {
+      _currentIndex = index;
+      _resetZoom();
+      _activeQualitySeq = null;
+      _qualityDownloading = false;
+    });
+    _initVideoIfNeeded();
+    _preloadNearby();
+  }
+
+  Widget _buildGalleryStrip() {
+    if (widget.mediaMessages.length <= 1) return const SizedBox.shrink();
+    return _GalleryThumbsStrip(
+      messages: widget.mediaMessages,
+      currentIndex: _currentIndex,
+      onTap: _goToIndex,
+    );
   }
 
   static double _scaleForLevel(int level) {
@@ -1093,7 +1126,7 @@ class _MediaViewerState extends State<MediaViewer>
                 ),
               Positioned(
                 left: 14,
-                bottom: (_isVideo ? 86 : 8),
+                bottom: (_isVideo ? 86 : 8) + _stripOffset,
                 right: 0,
                 child: Opacity(
                   opacity: _controlsOpacity,
@@ -1104,7 +1137,7 @@ class _MediaViewerState extends State<MediaViewer>
                 Positioned(
                   left: 0,
                   right: 0,
-                  bottom: (_isVideo ? 138 : 60) + _kMediaviewCaptionMargin,
+                  bottom: (_isVideo ? 138 : 60) + _kMediaviewCaptionMargin + _stripOffset,
                   child: Opacity(
                     opacity: _controlsOpacity,
                     child: Center(child: caption),
@@ -1124,7 +1157,7 @@ class _MediaViewerState extends State<MediaViewer>
                   ),
                 ),
               Positioned(
-                bottom: (_isVideo ? 86 : 14),
+                bottom: (_isVideo ? 86 : 14) + _stripOffset,
                 right: 14,
                 child: Opacity(
                   opacity: _controlsOpacity,
@@ -1132,6 +1165,17 @@ class _MediaViewerState extends State<MediaViewer>
                 ),
               ),
             ],
+
+            if (_hasStrip)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: _isVideo ? 86 : 4,
+                child: Opacity(
+                  opacity: _controlsOpacity,
+                  child: _buildGalleryStrip(),
+                ),
+              ),
 
             if (_isVideo && _player != null)
               Positioned(
@@ -1347,7 +1391,7 @@ class _MediaViewerState extends State<MediaViewer>
                     ),
                   Positioned(
                     left: 14,
-                    bottom: (_isVideo ? 86 : 14),
+                    bottom: (_isVideo ? 86 : 14) + _stripOffset,
                     child: Opacity(
                       opacity: _controlsOpacity,
                       child: _buildFooter(msg, photoIndex, totalPhotos),
@@ -1357,14 +1401,14 @@ class _MediaViewerState extends State<MediaViewer>
                     Positioned(
                       left: 0,
                       right: 0,
-                      bottom: (_isVideo ? 138 : 60) + _kMediaviewCaptionMargin,
+                      bottom: (_isVideo ? 138 : 60) + _kMediaviewCaptionMargin + _stripOffset,
                       child: Opacity(
                         opacity: _controlsOpacity,
                         child: Center(child: caption),
                       ),
                     ),
                   Positioned(
-                    bottom: (_isVideo ? 86 : 14),
+                    bottom: (_isVideo ? 86 : 14) + _stripOffset,
                     right: 14,
                     child: Opacity(
                       opacity: _controlsOpacity,
@@ -1372,6 +1416,17 @@ class _MediaViewerState extends State<MediaViewer>
                     ),
                   ),
                 ],
+
+                if (_hasStrip)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: _isVideo ? 86 : 4,
+                    child: Opacity(
+                      opacity: _controlsOpacity,
+                      child: _buildGalleryStrip(),
+                    ),
+                  ),
 
                 if (_isVideo && _player != null)
                   Positioned(
@@ -2652,6 +2707,254 @@ class _ControlButtonState extends State<_ControlButton> {
           child: Icon(widget.icon, color: Colors.white, size: widget.size * 0.6),
         ),
       ),
+    );
+  }
+}
+
+class _GalleryThumbsStrip extends StatelessWidget {
+  final List<CachedMessage> messages;
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+
+  const _GalleryThumbsStrip({
+    required this.messages,
+    required this.currentIndex,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (messages.length <= 1) return const SizedBox.shrink();
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableWidth = constraints.maxWidth - 2 * _kThumbStripPaddingH;
+        final singleThumbSlot = _kThumbWidth + _kThumbGap;
+        final maxSideThumbs = math.max(
+          ((availableWidth / 2 - _kThumbWidthMax / 2 - _kThumbGapCurrent) / singleThumbSlot).floor(),
+          1,
+        );
+
+        return SizedBox(
+          height: _kThumbStripHeight,
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: _kThumbStripPaddingH),
+              child: _ThumbRow(
+                messages: messages,
+                currentIndex: currentIndex,
+                maxSideThumbs: maxSideThumbs,
+                onTap: onTap,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ThumbRow extends StatefulWidget {
+  final List<CachedMessage> messages;
+  final int currentIndex;
+  final int maxSideThumbs;
+  final ValueChanged<int> onTap;
+
+  const _ThumbRow({
+    required this.messages,
+    required this.currentIndex,
+    required this.maxSideThumbs,
+    required this.onTap,
+  });
+
+  @override
+  State<_ThumbRow> createState() => _ThumbRowState();
+}
+
+class _ThumbRowState extends State<_ThumbRow> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: _kThumbAnimDuration,
+      value: 1.0,
+    );
+  }
+
+  @override
+  void didUpdateWidget(_ThumbRow old) {
+    super.didUpdateWidget(old);
+    if (old.currentIndex != widget.currentIndex) {
+      _controller.forward(from: 0.0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        final startIdx = math.max(0, widget.currentIndex - widget.maxSideThumbs);
+        final endIdx = math.min(widget.messages.length - 1, widget.currentIndex + widget.maxSideThumbs);
+
+        final children = <Widget>[];
+        for (int i = startIdx; i <= endIdx; i++) {
+          final isCurrent = i == widget.currentIndex;
+          final targetW = isCurrent ? _kThumbWidthMax : _kThumbWidth;
+
+          if (i > startIdx) {
+            final prevIsCurrent = (i - 1) == widget.currentIndex;
+            final gap = (isCurrent || prevIsCurrent) ? _kThumbGapCurrent : _kThumbGap;
+            children.add(SizedBox(width: gap));
+          }
+
+          children.add(
+            _ThumbItem(
+              message: widget.messages[i],
+              width: targetW,
+              isCurrent: isCurrent,
+              onTap: () => widget.onTap(i),
+            ),
+          );
+        }
+
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: children,
+        );
+      },
+    );
+  }
+}
+
+class _ThumbItem extends StatefulWidget {
+  final CachedMessage message;
+  final double width;
+  final bool isCurrent;
+  final VoidCallback onTap;
+
+  const _ThumbItem({
+    required this.message,
+    required this.width,
+    required this.isCurrent,
+    required this.onTap,
+  });
+
+  @override
+  State<_ThumbItem> createState() => _ThumbItemState();
+}
+
+class _ThumbItemState extends State<_ThumbItem> {
+  Uint8List? _thumbBytes;
+  String _lastB64 = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _decodeThumb();
+  }
+
+  @override
+  void didUpdateWidget(_ThumbItem old) {
+    super.didUpdateWidget(old);
+    if (widget.message.mediaThumbB64 != old.message.mediaThumbB64) {
+      _decodeThumb();
+    }
+  }
+
+  void _decodeThumb() {
+    final b64 = widget.message.mediaThumbB64;
+    if (b64.isNotEmpty && b64 != _lastB64) {
+      try {
+        _thumbBytes = base64Decode(b64);
+        _lastB64 = b64;
+      } catch (_) {
+        _thumbBytes = null;
+      }
+    } else if (b64.isEmpty) {
+      _thumbBytes = null;
+      _lastB64 = '';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Widget content;
+    if (widget.message.mediaLocalPath.isNotEmpty &&
+        (widget.message.mediaType == 1 || widget.message.mediaType == 6)) {
+      content = Image.file(
+        File(widget.message.mediaLocalPath),
+        fit: BoxFit.cover,
+        width: widget.width,
+        height: _kThumbStripHeight,
+        cacheWidth: (widget.width * 2).toInt(),
+        errorBuilder: (_, __, ___) => _thumbFallback(),
+      );
+    } else if (_thumbBytes != null) {
+      content = Image.memory(
+        _thumbBytes!,
+        fit: BoxFit.cover,
+        width: widget.width,
+        height: _kThumbStripHeight,
+        cacheWidth: (widget.width * 2).toInt(),
+        errorBuilder: (_, __, ___) => _placeholder(),
+      );
+    } else {
+      content = _placeholder();
+    }
+
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: AnimatedContainer(
+          duration: _kThumbAnimDuration,
+          width: widget.width,
+          height: _kThumbStripHeight,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(4),
+            color: Colors.black26,
+          ),
+          child: content,
+        ),
+      ),
+    );
+  }
+
+  Widget _thumbFallback() {
+    if (_thumbBytes != null) {
+      return Image.memory(
+        _thumbBytes!,
+        fit: BoxFit.cover,
+        width: widget.width,
+        height: _kThumbStripHeight,
+        errorBuilder: (_, __, ___) => _placeholder(),
+      );
+    }
+    return _placeholder();
+  }
+
+  Widget _placeholder() {
+    final iconData = switch (widget.message.mediaType) {
+      2 || 5 => Icons.videocam,
+      7 => Icons.gif,
+      3 || 4 => Icons.audiotrack,
+      8 => Icons.insert_drive_file,
+      _ => Icons.image,
+    };
+    return Center(
+      child: Icon(iconData, color: Colors.white38, size: 24),
     );
   }
 }
