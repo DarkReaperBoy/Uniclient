@@ -9875,6 +9875,50 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 				m.Attachments = []FileRef{ref}
 				t.cacheFileInfo(d.ID, d.AccessHash, d.FileReference)
 			}
+			if altDocs, ok := md.GetAltDocuments(); ok && len(altDocs) > 0 {
+				var qualities []map[string]interface{}
+				altSeq := len(m.Attachments)
+				for _, altDoc := range altDocs {
+					ad, ok := altDoc.(*tg.Document)
+					if !ok {
+						continue
+					}
+					var vw, vh int
+					for _, attr := range ad.Attributes {
+						if v, ok := attr.(*tg.DocumentAttributeVideo); ok {
+							vw = v.W
+							vh = v.H
+							break
+						}
+					}
+					if vh == 0 {
+						continue
+					}
+					altRef := FileRef{
+						ID:       strconv.FormatInt(ad.ID, 10),
+						Size:     ad.Size,
+						MimeType: ad.MimeType,
+						Extra:    encodeFileExtra(ad.AccessHash, ad.FileReference),
+						Width:    vw,
+						Height:   vh,
+					}
+					m.Attachments = append(m.Attachments, altRef)
+					qualities = append(qualities, map[string]interface{}{
+						"height": vh,
+						"width":  vw,
+						"size":   ad.Size,
+						"seq":    altSeq,
+					})
+					t.cacheFileInfo(ad.ID, ad.AccessHash, ad.FileReference)
+					altSeq++
+				}
+				if len(qualities) > 0 {
+					if m.Extra == nil {
+						m.Extra = make(map[string]interface{})
+					}
+					m.Extra["alt_qualities"] = qualities
+				}
+			}
 			if md.Spoiler {
 				if m.Extra == nil {
 					m.Extra = make(map[string]interface{})

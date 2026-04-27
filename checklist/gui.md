@@ -744,7 +744,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 20.9 Caption Display
 
 ### 20.10–20.12 Video Playback Controls
-- [ ] Quality menu: list heights (360/720/1080), seamless switch preserving position (needs Go backend multi-quality support) — spec §20.11
 
 ### 20.13 Picture-in-Picture
 - [ ] PiP floating always-on-top window: default 320px (min 120px), 10px resize edges, own play/pause/close/enlarge/volume, 2px track (4px hover), geometry persisted, closing returns to viewer at same position, 16px snap threshold / 20px snap margin, default top-left, easeOutCirc release animation ~150ms — spec §20.13 & §20.13.1

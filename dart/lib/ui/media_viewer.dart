@@ -144,6 +144,8 @@ class _MediaViewerState extends State<MediaViewer>
   bool _isSeeking = false;
   bool _autoPausedForCall = false;
   ChatState? _chatStateRef;
+  int? _activeQualitySeq;
+  bool _qualityDownloading = false;
 
   _MediaViewerMode _mode = _MediaViewerMode.fullscreen;
   double _windowedWidth = _kDefaultWidth;
@@ -380,6 +382,8 @@ class _MediaViewerState extends State<MediaViewer>
     setState(() {
       _currentIndex++;
       _resetZoom();
+      _activeQualitySeq = null;
+      _qualityDownloading = false;
     });
     _initVideoIfNeeded();
     _preloadNearby();
@@ -391,6 +395,8 @@ class _MediaViewerState extends State<MediaViewer>
     setState(() {
       _currentIndex--;
       _resetZoom();
+      _activeQualitySeq = null;
+      _qualityDownloading = false;
     });
     _initVideoIfNeeded();
     _preloadNearby();
@@ -1592,6 +1598,142 @@ class _MediaViewerState extends State<MediaViewer>
   String get _speedLabel =>
       _playbackSpeed == 1.0 ? '1x' : '${_playbackSpeed}x';
 
+  List<VideoQuality> get _availableQualities => _currentMessage.altQualities;
+
+  String get _qualityLabel {
+    if (_activeQualitySeq != null) {
+      final q = _availableQualities.where((q) => q.seq == _activeQualitySeq).firstOrNull;
+      if (q != null) return q.label;
+    }
+    final h = _currentMessage.mediaHeight;
+    if (h > 0) return '${h}p';
+    return 'Auto';
+  }
+
+  void _showQualityMenu(BuildContext ctx, Offset globalPos) {
+    final msg = _currentMessage;
+    final qualities = _availableQualities;
+    if (qualities.isEmpty) return;
+
+    final originalHeight = msg.mediaHeight;
+    final items = <PopupMenuEntry<int?>>[];
+    items.add(PopupMenuItem<int?>(
+      value: null,
+      height: 36,
+      child: Text(
+        originalHeight > 0 ? '${originalHeight}p (original)' : 'Original',
+        style: TextStyle(
+          color: _activeQualitySeq == null ? const Color(0xFF64B5F6) : Colors.white,
+          fontSize: 13,
+          fontWeight: _activeQualitySeq == null ? FontWeight.w600 : FontWeight.normal,
+        ),
+      ),
+    ));
+    for (final q in qualities) {
+      final sizeLabel = q.size > 0 ? ' (${_formatFileSize(q.size)})' : '';
+      items.add(PopupMenuItem<int?>(
+        value: q.seq,
+        height: 36,
+        child: Text(
+          '${q.label}$sizeLabel',
+          style: TextStyle(
+            color: _activeQualitySeq == q.seq ? const Color(0xFF64B5F6) : Colors.white,
+            fontSize: 13,
+            fontWeight: _activeQualitySeq == q.seq ? FontWeight.w600 : FontWeight.normal,
+          ),
+        ),
+      ));
+    }
+
+    showMenu<int?>(
+      context: ctx,
+      position: RelativeRect.fromLTRB(
+        globalPos.dx - 60,
+        globalPos.dy - items.length * 40.0,
+        globalPos.dx + 60,
+        globalPos.dy,
+      ),
+      color: const Color(0xE6000000),
+      items: items,
+    ).then((seq) {
+      if (seq == null && _activeQualitySeq == null) return;
+      _switchQuality(seq);
+    });
+  }
+
+  void _switchQuality(int? seq) {
+    if (seq == _activeQualitySeq) return;
+    final msg = _currentMessage;
+
+    if (seq == null) {
+      final savedPos = _position;
+      final wasPlaying = _isPlaying;
+      setState(() {
+        _activeQualitySeq = null;
+        _qualityDownloading = false;
+      });
+      _disposePlayer();
+      _initVideoIfNeeded();
+      Future.delayed(const Duration(milliseconds: 100), () {
+        _player?.seek(savedPos);
+        if (wasPlaying) _player?.play();
+      });
+      return;
+    }
+
+    final chatState = _chatStateRef;
+    if (chatState == null) return;
+
+    final existing = chatState.getAltQualityPath(msg.msgId, seq);
+    if (existing != null && File(existing).existsSync()) {
+      _applyQualitySwitch(seq, existing);
+      return;
+    }
+
+    setState(() => _qualityDownloading = true);
+    chatState.requestAltQualityDownload(msg, seq);
+
+    void listener() {
+      final path = chatState.getAltQualityPath(msg.msgId, seq);
+      if (path != null && path.isNotEmpty) {
+        chatState.removeListener(listener);
+        if (mounted) _applyQualitySwitch(seq, path);
+      }
+    }
+    chatState.addListener(listener);
+  }
+
+  void _applyQualitySwitch(int seq, String path) {
+    final savedPos = _position;
+    final wasPlaying = _isPlaying;
+    setState(() {
+      _activeQualitySeq = seq;
+      _qualityDownloading = false;
+    });
+    _disposePlayer();
+    final player = Player();
+    _player = player;
+    _videoController = VideoController(player);
+    _playerSubs = [
+      player.stream.playing.listen((playing) {
+        if (mounted) setState(() => _isPlaying = playing);
+      }),
+      player.stream.position.listen((pos) {
+        if (mounted && !_isSeeking) setState(() => _position = pos);
+      }),
+      player.stream.duration.listen((dur) {
+        if (mounted) setState(() => _duration = dur);
+      }),
+    ];
+    player.setVolume(_volume * 100.0);
+    player.setRate(_playbackSpeed);
+    player.open(Media(path));
+    Future.delayed(const Duration(milliseconds: 100), () {
+      player.seek(savedPos);
+      if (wasPlaying) player.play();
+    });
+  }
+
   Widget _buildVideoControls() {
     final progress = _duration.inMilliseconds > 0
         ? (_position.inMilliseconds / _duration.inMilliseconds).clamp(0.0, 1.0)
@@ -1719,6 +1861,37 @@ class _MediaViewerState extends State<MediaViewer>
                           ),
                         ),
                       ),
+                      if (_availableQualities.isNotEmpty) ...[
+                        const SizedBox(width: 4),
+                        GestureDetector(
+                          onTapDown: (d) =>
+                              _showQualityMenu(context, d.globalPosition),
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            child: Container(
+                              height: 32,
+                              padding: const EdgeInsets.symmetric(horizontal: 6),
+                              alignment: Alignment.center,
+                              child: _qualityDownloading
+                                  ? const SizedBox(
+                                      width: 14, height: 14,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : Text(
+                                      _qualityLabel,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(width: 4),
                       _ControlButton(
                         icon: Icons.picture_in_picture_alt,

@@ -23,6 +23,7 @@ class ChatState extends ChangeNotifier {
   // "accountId:userId" → (kind, lastSeenMs) for DM subtitle text.
   final Map<String, ({String kind, int lastSeenMs})> _userLastSeen = {};
   final Map<String, String> _senderAvatars = {}; // senderId → base64 avatar thumbnail
+  final Map<String, String> _altQualityPaths = {}; // "msgId:seq" → local path
   int _groupOnlineCount = 0; // online members in active group/channel chat
   GroupCallInfo? _activeGroupCall; // active group call in current chat
   int _scheduledCount = 0;
@@ -1141,8 +1142,19 @@ class ChatState extends ChangeNotifier {
     _engine.requestDownload(msg.accountId, msg.chatId, msg.msgId);
   }
 
+  String? getAltQualityPath(String msgId, int seq) => _altQualityPaths['$msgId:$seq'];
+
+  void requestAltQualityDownload(CachedMessage msg, int seq) {
+    _engine.requestDownload(msg.accountId, msg.chatId, msg.msgId, seq: seq);
+  }
+
   void _handleDownloadComplete(DownloadCompleteEvent event) {
     if (_disposed) return;
+    if (event.seq > 0) {
+      _altQualityPaths['${event.msgId}:${event.seq}'] = event.localPath;
+      notifyListeners();
+      return;
+    }
     final idx = _messages.indexWhere((m) => m.msgId == event.msgId);
     if (idx >= 0) {
       _messages[idx] = _messages[idx].copyWith(

@@ -2498,6 +2498,7 @@ class EngineService {
       topicColorId: _topicColorFromRaw(contentRaw),
       viaBotName: _topicFieldFromRaw(contentRaw, 'via_bot_name') ?? '',
       mediaSpoiler: _boolExtraFromRaw(contentRaw, 'media_spoiler'),
+      altQualities: _altQualitiesFromRaw(contentRaw),
       views: _intFieldFromRaw(contentRaw, 'views'),
       forwards: _intFieldFromRaw(contentRaw, 'forwards'),
       stickerSetShortName: _topicFieldFromRaw(contentRaw, 'sticker_set_short_name') ?? '',
@@ -2754,6 +2755,26 @@ class EngineService {
           .whereType<Map<String, dynamic>>()
           .map(PollOption.fromJson)
           .toList(growable: false);
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  static List<VideoQuality> _altQualitiesFromRaw(String contentRaw) {
+    if (contentRaw.isEmpty || !contentRaw.contains('"alt_qualities"')) return const [];
+    try {
+      final decoded = jsonDecode(contentRaw);
+      if (decoded is! Map<String, dynamic>) return const [];
+      final extra = decoded['extra'];
+      if (extra is! Map<String, dynamic>) return const [];
+      final raw = extra['alt_qualities'];
+      if (raw is! List) return const [];
+      return raw.whereType<Map<String, dynamic>>().map((q) => VideoQuality(
+        height: (q['height'] as num?)?.toInt() ?? 0,
+        width: (q['width'] as num?)?.toInt() ?? 0,
+        size: (q['size'] as num?)?.toInt() ?? 0,
+        seq: (q['seq'] as num?)?.toInt() ?? 0,
+      )).where((q) => q.height > 0).toList(growable: false);
     } catch (_) {
       return const [];
     }

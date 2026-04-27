@@ -306,6 +306,15 @@ class ChatInfo {
   DateTime get lastMsgDateTime => DateTime.fromMillisecondsSinceEpoch(lastMsgTime);
 }
 
+class VideoQuality {
+  final int height;
+  final int width;
+  final int size;
+  final int seq;
+  const VideoQuality({this.height = 0, this.width = 0, this.size = 0, this.seq = 0});
+  String get label => '${height}p';
+}
+
 // ── Cached message ──
 class CachedMessage {
   final String accountId;
@@ -343,6 +352,7 @@ class CachedMessage {
   final int mediaDownloadState; // 0=none, 1=in_progress, 2=complete, 3=failed (matches Go engine/db.go)
   final String mediaRemoteRef; // document/file ID for sticker/GIF operations
   final String mediaExtra; // encoded access hash + file reference
+  final List<VideoQuality> altQualities;
   final List<int> mediaWaveform; // 5-bit amplitude samples (0–31), typically 100 entries for voice messages
   final List<MessageReaction> reactions;
 
@@ -462,6 +472,7 @@ class CachedMessage {
     this.mediaDownloadState = 0,
     this.mediaRemoteRef = '',
     this.mediaExtra = '',
+    this.altQualities = const [],
     this.mediaWaveform = const [],
     this.reactions = const [],
     this.topicId = '',
@@ -619,6 +630,7 @@ class CachedMessage {
     int? mediaDownloadState,
     String? mediaRemoteRef,
     String? mediaExtra,
+    List<VideoQuality>? altQualities,
     List<int>? mediaWaveform,
     List<MessageReaction>? reactions,
     String? viaBotName,
@@ -703,6 +715,7 @@ class CachedMessage {
     mediaDownloadState: mediaDownloadState ?? this.mediaDownloadState,
     mediaRemoteRef: mediaRemoteRef ?? this.mediaRemoteRef,
     mediaExtra: mediaExtra ?? this.mediaExtra,
+    altQualities: altQualities ?? this.altQualities,
     mediaWaveform: mediaWaveform ?? this.mediaWaveform,
     reactions: reactions ?? this.reactions,
     topicId: topicId,
