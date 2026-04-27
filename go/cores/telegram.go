@@ -13838,12 +13838,15 @@ func (t *TelegramCore) DeleteChannel(chatID string) error {
 }
 
 // EditForumTopic modifies the title or icon of a forum topic.
-func (t *TelegramCore) EditForumTopic(chatID string, topicID int, title string) error {
+func (t *TelegramCore) EditForumTopic(chatID string, topicID int, title string, iconEmojiId int64) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil { return err }
 	defer unlock()
 	req := &tg.MessagesEditForumTopicRequest{Peer: inputPeer, TopicID: topicID}
 	req.SetTitle(title)
+	if iconEmojiId >= 0 {
+		req.SetIconEmojiID(iconEmojiId)
+	}
 	_, err = t.api.MessagesEditForumTopic(t.ctx, req)
 	return err
 }

@@ -19606,7 +19606,7 @@ func dispatchTelegram(c *cores.TelegramCore, method string, payload []byte) ([]b
 	case "EditForumTopic":
 		var req pbcores.TelegramEditForumTopicRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.EditForumTopic(req.ChatId, int(req.TopicId), req.Title)
+		err := c.EditForumTopic(req.ChatId, int(req.TopicId), req.Title, -1)
 		if err != nil { return nil, err }
 		return nil, nil
 	case "EditMessage":

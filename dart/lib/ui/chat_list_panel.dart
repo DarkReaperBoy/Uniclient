@@ -3236,7 +3236,9 @@ class _ForumTopicListView extends StatelessWidget {
                         topic: topic,
                         isActive: isActive,
                         accountId: parent.accountId,
+                        chatId: parent.chatId,
                         engine: engine,
+                        chatState: chatState,
                         onTap: () => chatState.openTopic(topic),
                       );
                     },
@@ -3317,8 +3319,17 @@ class _ForumTopicHeader extends StatelessWidget {
     final result = await showEditForumTopicBox(ctx);
     if (result == null) return;
     try {
-      await engine.createForumTopic(accountId, chatId, result.title, result.colorId, result.iconEmojiId);
-      chatState.refreshForumTopics();
+      final topicId = await engine.createForumTopic(accountId, chatId, result.title, result.colorId, result.iconEmojiId);
+      await chatState.refreshForumTopics();
+      if (topicId > 0) {
+        final newTopic = chatState.forumTopics.cast<ForumTopic?>().firstWhere(
+          (t) => t!.id == topicId.toString(),
+          orElse: () => null,
+        );
+        if (newTopic != null) {
+          chatState.openTopic(newTopic);
+        }
+      }
     } catch (e) {
       if (ctx.mounted) {
         ScaffoldMessenger.of(ctx).showSnackBar(
@@ -3333,14 +3344,18 @@ class _ForumTopicRow extends StatelessWidget {
   final ForumTopic topic;
   final bool isActive;
   final String accountId;
+  final String chatId;
   final EngineService engine;
+  final ChatState chatState;
   final VoidCallback onTap;
 
   const _ForumTopicRow({
     required this.topic,
     required this.isActive,
     required this.accountId,
+    required this.chatId,
     required this.engine,
+    required this.chatState,
     required this.onTap,
   });
 
@@ -3375,25 +3390,27 @@ class _ForumTopicRow extends StatelessWidget {
     final hasUnread = topic.unreadCount > 0;
     final showPin = topic.isPinned && !hasUnread;
 
-    return Container(
-      height: _rowHeight,
-      color: rowBg,
-      child: Material(
-        type: MaterialType.transparency,
-        child: InkWell(
-          onTap: onTap,
-          hoverColor: isActive ? Colors.white.withValues(alpha: 0.08) : hoverBg,
-          splashColor: isActive
-              ? (isDark ? const Color(0xFF315a80) : const Color(0xFF2095d0))
-              : (isDark ? const Color(0xFF25313d) : const Color(0xFFe5e5e5)),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              _paddingLeft, _paddingTop, _paddingRight, _paddingBottom,
-            ),
-            child: Stack(
-              children: [
-                Positioned(
-                  left: 0,
+    return GestureDetector(
+      onSecondaryTapUp: (details) => _showTopicContextMenu(context, details.globalPosition),
+      child: Container(
+        height: _rowHeight,
+        color: rowBg,
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: onTap,
+            hoverColor: isActive ? Colors.white.withValues(alpha: 0.08) : hoverBg,
+            splashColor: isActive
+                ? (isDark ? const Color(0xFF315a80) : const Color(0xFF2095d0))
+                : (isDark ? const Color(0xFF25313d) : const Color(0xFFe5e5e5)),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                _paddingLeft, _paddingTop, _paddingRight, _paddingBottom,
+              ),
+              child: Stack(
+                children: [
+                  Positioned(
+                    left: 0,
                   top: (_rowHeight - _paddingTop - _paddingBottom - _iconSize) / 2,
                   child: TopicIconWidget(
                     topic: topic,
@@ -3480,7 +3497,50 @@ class _ForumTopicRow extends StatelessWidget {
           ),
         ),
       ),
+      ),
     );
+  }
+
+  void _showTopicContextMenu(BuildContext ctx, Offset position) async {
+    final items = <PopupMenuEntry<String>>[
+      if (topic.canEdit)
+        const PopupMenuItem(value: 'edit', child: Text('Edit Topic')),
+    ];
+    if (items.isEmpty) return;
+    final value = await showMenu<String>(
+      context: ctx,
+      position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx, position.dy),
+      items: items,
+    );
+    if (value == 'edit' && ctx.mounted) {
+      _showEditTopicDialog(ctx);
+    }
+  }
+
+  void _showEditTopicDialog(BuildContext ctx) async {
+    final result = await showEditForumTopicBox(
+      ctx,
+      existingTitle: topic.title,
+      existingColorId: topic.colorId,
+      existingIconEmojiId: topic.iconEmojiId,
+      isGeneral: topic.isGeneral,
+      isEditing: true,
+    );
+    if (result == null) return;
+    try {
+      final topicId = int.tryParse(topic.id) ?? 0;
+      await engine.editForumTopic(
+        accountId, chatId, topicId, result.title,
+        iconEmojiId: topic.isGeneral ? -1 : result.iconEmojiId,
+      );
+      await chatState.refreshForumTopics();
+    } catch (e) {
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(
+          SnackBar(content: Text('Failed to edit topic: $e')),
+        );
+      }
+    }
   }
 
   String _formatDate(ForumTopic topic) {

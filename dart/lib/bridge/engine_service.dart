@@ -345,12 +345,15 @@ class EngineService {
     return resp.topicId.toInt();
   }
 
-  Future<void> editForumTopic(String accountId, String chatId, int topicId, String title) async {
+  Future<void> editForumTopic(String accountId, String chatId, int topicId, String title, {int iconEmojiId = -1}) async {
     final req = epb.EngineEditForumTopicRequest()
       ..accountId = accountId
       ..chatId = chatId
       ..topicId = Int64(topicId)
       ..title = title;
+    if (iconEmojiId >= 0) {
+      req.iconEmojiId = Int64(iconEmojiId);
+    }
     await _callAsync('__engine', 'EditForumTopic', req.writeToBuffer());
   }
 

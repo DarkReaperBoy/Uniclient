@@ -342,7 +342,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
-		return nil, e.EditForumTopic(req.AccountId, req.ChatId, int(req.TopicId), req.Title)
+		return nil, e.EditForumTopic(req.AccountId, req.ChatId, int(req.TopicId), req.Title, req.IconEmojiId)
 
 	// ── Messages ──
 

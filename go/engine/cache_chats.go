@@ -637,21 +637,21 @@ func (e *Engine) CreateForumTopic(accountID, chatID, title string, colorID int, 
 	return ftc.CreateForumTopic(chatID, title)
 }
 
-func (e *Engine) EditForumTopic(accountID, chatID string, topicID int, title string) error {
+func (e *Engine) EditForumTopic(accountID, chatID string, topicID int, title string, iconEmojiId int64) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return fmt.Errorf("account not found: %s", accountID)
 	}
 
 	type forumTopicEditor interface {
-		EditForumTopic(chatID string, topicID int, title string) error
+		EditForumTopic(chatID string, topicID int, title string, iconEmojiId int64) error
 	}
 	fte, ok := acc.Core.(forumTopicEditor)
 	if !ok {
 		return fmt.Errorf("platform does not support editing forum topics")
 	}
 
-	return fte.EditForumTopic(chatID, topicID, title)
+	return fte.EditForumTopic(chatID, topicID, title, iconEmojiId)
 }
 
 // FolderInfo represents a synced folder from the platform (e.g. Telegram folders).

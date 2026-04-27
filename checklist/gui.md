@@ -780,7 +780,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 22.3 Topic List Layout
 
 ### 22.5 Create / Edit Topic Dialog
-- [ ] Save/Create logic: validates non-empty title, reserves local ID, navigates to topic, calls EditForumTopic API, General topic cannot change icon, showError on empty title submit — spec §22.5
 
 ### 22.6 Topic Header Bar
 - [ ] Standard info_top_bar (54px): back→topic list, title with icon prefix + optional subtitle, selection mode (cancel+count+forward/delete) — spec §22.6
