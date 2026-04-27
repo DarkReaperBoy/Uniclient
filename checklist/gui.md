@@ -780,7 +780,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 22.3 Topic List Layout
 
 ### 22.5 Create / Edit Topic Dialog
-- [ ] Icon selector panel (EmojiListWidget Mode::TopicIcon): recent section (default icon sentinel + server emoji set), non-default custom emoji require Premium (toast), EmojiFlyAnimation from selector to icon button, shadow separator below pinned cover, auto-title reactivity on typing — spec §22.5 & §22.5.1
 - [ ] Save/Create logic: validates non-empty title, reserves local ID, navigates to topic, calls EditForumTopic API, General topic cannot change icon, showError on empty title submit — spec §22.5
 
 ### 22.6 Topic Header Bar
