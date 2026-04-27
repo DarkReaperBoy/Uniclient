@@ -544,6 +544,35 @@ func (e *Engine) CreateChannel(accountID, name, description string) (*ChatInfo, 
 	}, nil
 }
 
+func (e *Engine) CreateGroup(accountID, name string, members []string) (*ChatInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+
+	dialog, err := acc.Core.CreateGroup(name, members)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := e.UpsertChat(accountID, *dialog); err != nil {
+		return nil, fmt.Errorf("failed to cache new group: %w", err)
+	}
+
+	go func() {
+		ctx := context.Background()
+		e.syncAccount(ctx, accountID)
+	}()
+
+	return &ChatInfo{
+		AccountID:   accountID,
+		ChatID:      dialog.ID,
+		Type:        ChatTypeGroupVal,
+		Title:       dialog.Title,
+		MemberCount: dialog.MemberCount,
+	}, nil
+}
+
 // SendScheduledNow immediately sends previously scheduled messages.
 // Only supported by cores that implement the scheduledSender interface
 // (e.g. Telegram with CapScheduled capability).

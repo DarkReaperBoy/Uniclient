@@ -1243,6 +1243,16 @@ class EngineService {
     return resp.chat;
   }
 
+  Future<Map<String, dynamic>> createGroup(String accountId, String name, List<String> members) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'name': name,
+      'members': members,
+    }));
+    final respBytes = await _callAsync('__engine', 'CreateGroup', Uint8List.fromList(payload));
+    return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+  }
+
   Future<void> forwardMessage(String accountId, String chatId, String msgId, String toChatId, {
     bool dropAuthor = false,
     bool dropCaptions = false,

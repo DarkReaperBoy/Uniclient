@@ -919,6 +919,23 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(&pb.EngineCreateChannelResponse{Chat: chatInfoToProto(chat)})
 
+	// ── Create Group ──
+
+	case "CreateGroup":
+		var params struct {
+			AccountID string   `json:"account_id"`
+			Name      string   `json:"name"`
+			Members   []string `json:"members"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		chat, err := e.CreateGroup(params.AccountID, params.Name, params.Members)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(chat)
+
 	// ── Contacts ──
 
 	case "GetContacts":

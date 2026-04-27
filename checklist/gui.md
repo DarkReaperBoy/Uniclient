@@ -757,10 +757,7 @@ Spec file: `research/telegram_desktop_ui.md`.
 
 ## §21 — Create Group / Channel Wizard
 
-<!-- No dart file yet — new file needed: dart/lib/ui/create_group_wizard.dart -->
-
-### 21.1 Wizard Overview
-- [ ] Multi-step layered-box flow (all boxes 364px), entry from hamburger "New Group"/"New Channel", Group flow: InfoBox→MemberPicker, Channel flow: InfoBox→SetupChannelBox→MemberPicker — spec §21.1
+<!-- File: dart/lib/ui/create_group_wizard.dart -->
 
 ### 21.2 Step 1 — Group/Channel Info Box
 - [ ] Info box (48px title bar, 16px semibold): UserpicButton 72×72px at (24,10) with EmptyUserpic gradient initials (up to 2 letters, 28px font), forum userpic with rounded rect, change icon always visible when no image, upload overlay (24px, msgDateImgBgOver), progress ring (3px, 8px margin, 500ms) — spec §21.2 & §21.2.1

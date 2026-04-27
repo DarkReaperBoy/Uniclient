@@ -634,6 +634,20 @@ message EngineCreateChannelResponse {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// Create Group
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineCreateGroupRequest {
+  string account_id       = 1;
+  string name             = 2;
+  repeated string members = 3;
+}
+
+message EngineCreateGroupResponse {
+  EngineChatInfo chat = 1;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // Contacts
 // ═══════════════════════════════════════════════════════════════════════
 
