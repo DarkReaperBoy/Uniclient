@@ -778,9 +778,11 @@ class _MediaViewerState extends State<MediaViewer>
       onPointerSignal: (e) => _handlePointerSignal(e, contentViewport),
       onPointerDown: _handlePointerDown,
       child: MouseRegion(
-        cursor: _isZoomedIn
-            ? SystemMouseCursors.move
-            : SystemMouseCursors.basic,
+        cursor: (_mode == _MediaViewerMode.fullscreen && !_controlsVisible)
+            ? SystemMouseCursors.none
+            : _isZoomedIn
+                ? SystemMouseCursors.move
+                : SystemMouseCursors.basic,
         child: Stack(
           fit: StackFit.expand,
           children: [
