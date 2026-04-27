@@ -776,7 +776,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 <!-- No dart file yet — likely integrates with dart/lib/ui/chat_list_panel.dart, dart/lib/ui/chat_view.dart -->
 
 ### 22.1–22.2 Data Model & Icon System
-- [ ] Custom emoji icon: loaded via CustomEmojiManager when iconId≠0, loops once then freezes, no bubble background, narrow-mode centering, context text color variants — spec §22.2
 
 ### 22.3 Topic List Layout
 - [ ] Topic list (54px rows, padding 8/7/10/7px): 20px icon / nameLeft 39px nameTop 7px / textLeft 39px textTop 29px / 8px unread mark, paints icon+name (semibold)+closed lock+date+preview+badges+pin, NO separators, row states (transparent/dialogsBgOver/dialogsBgActive), dialogsRipple on click — spec §22.3 & §22.3.1

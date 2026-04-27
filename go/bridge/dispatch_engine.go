@@ -1298,6 +1298,24 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(resp)
 
+	case "GetCustomEmojiThumbs":
+		var req pb.EngineGetCustomEmojiThumbsRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		thumbs, err := e.GetCustomEmojiThumbs(req.AccountId, req.DocumentIds)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetCustomEmojiThumbsResponse{}
+		for _, t := range thumbs {
+			resp.Thumbs = append(resp.Thumbs, &pb.EngineCustomEmojiThumb{
+				DocumentId: t.DocumentID,
+				ThumbB64:   t.ThumbB64,
+			})
+		}
+		return proto.Marshal(resp)
+
 	case "TranscribeAudio":
 		var req pb.EngineTranscribeAudioRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

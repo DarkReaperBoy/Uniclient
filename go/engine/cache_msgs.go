@@ -934,6 +934,25 @@ func (e *Engine) GetInstalledEmojiSets(accountID string) ([]cores.EmojiSetSummar
 	return fetcher.GetInstalledEmojiSets()
 }
 
+type CustomEmojiThumbsFetcher interface {
+	GetCustomEmojiThumbs(documentIDs []int64) ([]cores.CustomEmojiThumb, error)
+}
+
+func (e *Engine) GetCustomEmojiThumbs(accountID string, documentIDs []int64) ([]cores.CustomEmojiThumb, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(CustomEmojiThumbsFetcher)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support custom emoji")
+	}
+	return fetcher.GetCustomEmojiThumbs(documentIDs)
+}
+
 type InstalledStickerPacksFetcher interface {
 	GetInstalledStickerPacks() ([]cores.StickerPackSummary, error)
 }

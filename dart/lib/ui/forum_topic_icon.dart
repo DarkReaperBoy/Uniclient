@@ -1,6 +1,9 @@
+import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import '../bridge/engine_service.dart';
+import '../models/engine_models.dart';
 
 /// Per-color gradient palette for forum topic bubble icons — spec §22.2.1.
 class TopicIconPalette {
@@ -374,4 +377,127 @@ class _GeneralIconPainter extends CustomPainter {
   @override
   bool shouldRepaint(_GeneralIconPainter old) =>
       color != old.color || targetSize != old.targetSize;
+}
+
+// ── Global custom emoji thumbnail cache ──
+
+final _customEmojiThumbCache = <int, String>{};
+final _customEmojiPendingRequests = <int, Future<void>>{};
+
+Future<void> _fetchCustomEmojiThumb(EngineService engine, String accountId, int documentId) async {
+  if (_customEmojiThumbCache.containsKey(documentId)) return;
+  if (_customEmojiPendingRequests.containsKey(documentId)) {
+    return _customEmojiPendingRequests[documentId];
+  }
+  final future = () async {
+    final result = await engine.getCustomEmojiThumbs(accountId, [documentId]);
+    if (result.containsKey(documentId)) {
+      _customEmojiThumbCache[documentId] = result[documentId]!;
+    }
+    _customEmojiPendingRequests.remove(documentId);
+  }();
+  _customEmojiPendingRequests[documentId] = future;
+  return future;
+}
+
+class CustomEmojiTopicIcon extends StatefulWidget {
+  final int documentId;
+  final String accountId;
+  final EngineService engine;
+  final double size;
+
+  const CustomEmojiTopicIcon({
+    super.key,
+    required this.documentId,
+    required this.accountId,
+    required this.engine,
+    this.size = ForumTopicIcon.defaultSize,
+  });
+
+  @override
+  State<CustomEmojiTopicIcon> createState() => _CustomEmojiTopicIconState();
+}
+
+class _CustomEmojiTopicIconState extends State<CustomEmojiTopicIcon> {
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadThumb();
+  }
+
+  @override
+  void didUpdateWidget(CustomEmojiTopicIcon old) {
+    super.didUpdateWidget(old);
+    if (old.documentId != widget.documentId) _loadThumb();
+  }
+
+  void _loadThumb() {
+    if (_customEmojiThumbCache.containsKey(widget.documentId)) return;
+    _loading = true;
+    _fetchCustomEmojiThumb(widget.engine, widget.accountId, widget.documentId).then((_) {
+      if (mounted) setState(() => _loading = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final thumbB64 = _customEmojiThumbCache[widget.documentId];
+    if (thumbB64 == null || thumbB64.isEmpty) {
+      return SizedBox(width: widget.size, height: widget.size);
+    }
+    final bytes = base64Decode(thumbB64);
+    return SizedBox(
+      width: widget.size,
+      height: widget.size,
+      child: Image.memory(
+        Uint8List.fromList(bytes),
+        width: widget.size,
+        height: widget.size,
+        fit: BoxFit.contain,
+        gaplessPlayback: true,
+      ),
+    );
+  }
+}
+
+class TopicIconWidget extends StatelessWidget {
+  final ForumTopic topic;
+  final double size;
+  final String accountId;
+  final EngineService engine;
+  final GeneralIconContext generalContext;
+
+  const TopicIconWidget({
+    super.key,
+    required this.topic,
+    required this.accountId,
+    required this.engine,
+    this.size = ForumTopicIcon.defaultSize,
+    this.generalContext = GeneralIconContext.normal,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (topic.isGeneral) {
+      return GeneralForumTopicIcon(
+        size: size,
+        iconContext: generalContext,
+      );
+    }
+    if (topic.hasCustomIcon) {
+      return CustomEmojiTopicIcon(
+        documentId: topic.iconEmojiId,
+        accountId: accountId,
+        engine: engine,
+        size: size,
+      );
+    }
+    return ForumTopicIcon(
+      colorId: topic.colorId,
+      title: topic.title,
+      size: size,
+    );
+  }
 }

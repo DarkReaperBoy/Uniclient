@@ -11896,6 +11896,33 @@ func (t *TelegramCore) GetInstalledEmojiSets() ([]EmojiSetSummary, error) {
 	return sets, nil
 }
 
+func (t *TelegramCore) GetCustomEmojiThumbs(documentIDs []int64) ([]CustomEmojiThumb, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	docs, err := t.api.MessagesGetCustomEmojiDocuments(t.ctx, documentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("get custom emoji documents: %w", err)
+	}
+	var result []CustomEmojiThumb
+	for _, doc := range docs {
+		d, ok := doc.(*tg.Document)
+		if !ok {
+			continue
+		}
+		thumb := extractStrippedThumbB64(d.Thumbs)
+		if thumb != "" {
+			result = append(result, CustomEmojiThumb{
+				DocumentID: d.ID,
+				ThumbB64:   thumb,
+			})
+		}
+	}
+	return result, nil
+}
+
 func (t *TelegramCore) GetInstalledStickerPacks() ([]StickerPackSummary, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()

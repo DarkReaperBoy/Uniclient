@@ -1153,3 +1153,21 @@ message EngineFetchPeerStoriesRequest {
 message EngineFetchPeerStoriesResponse {
   string stories_json = 1;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Custom Emoji Thumbnails (for forum topic icons)
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineGetCustomEmojiThumbsRequest {
+  string account_id    = 1;
+  repeated int64 document_ids = 2;
+}
+
+message EngineCustomEmojiThumb {
+  int64  document_id = 1;
+  string thumb_b64   = 2;
+}
+
+message EngineGetCustomEmojiThumbsResponse {
+  repeated EngineCustomEmojiThumb thumbs = 1;
+}

@@ -11248,5 +11248,116 @@ class EngineFetchPeerStoriesResponse extends $pb.GeneratedMessage {
   set storiesJson($core.String v) { $_setString(0, v); }
 }
 
+class EngineGetCustomEmojiThumbsRequest extends $pb.GeneratedMessage {
+  factory EngineGetCustomEmojiThumbsRequest({
+    $core.String? accountId,
+    $core.Iterable<$fixnum.Int64>? documentIds,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    if (documentIds != null) $result.documentIds.addAll(documentIds);
+    return $result;
+  }
+  EngineGetCustomEmojiThumbsRequest._() : super();
+  factory EngineGetCustomEmojiThumbsRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetCustomEmojiThumbsRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..p<$fixnum.Int64>(2, _omitFieldNames ? '' : 'documentIds', $pb.PbFieldType.K6)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGetCustomEmojiThumbsRequest clone() => EngineGetCustomEmojiThumbsRequest()..mergeFromMessage(this);
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineGetCustomEmojiThumbsRequest create() => EngineGetCustomEmojiThumbsRequest._();
+  EngineGetCustomEmojiThumbsRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineGetCustomEmojiThumbsRequest> createRepeated() => $pb.PbList<EngineGetCustomEmojiThumbsRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetCustomEmojiThumbsRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetCustomEmojiThumbsRequest>(create);
+  static EngineGetCustomEmojiThumbsRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.List<$fixnum.Int64> get documentIds => $_getList(1);
+}
+
+class EngineCustomEmojiThumb extends $pb.GeneratedMessage {
+  factory EngineCustomEmojiThumb({
+    $fixnum.Int64? documentId,
+    $core.String? thumbB64,
+  }) {
+    final $result = create();
+    if (documentId != null) $result.documentId = documentId;
+    if (thumbB64 != null) $result.thumbB64 = thumbB64;
+    return $result;
+  }
+  EngineCustomEmojiThumb._() : super();
+  factory EngineCustomEmojiThumb.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineCustomEmojiThumb', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aInt64(1, _omitFieldNames ? '' : 'documentId')
+    ..aOS(2, _omitFieldNames ? '' : 'thumbB64')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Will be removed in next major version')
+  EngineCustomEmojiThumb clone() => EngineCustomEmojiThumb()..mergeFromMessage(this);
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineCustomEmojiThumb create() => EngineCustomEmojiThumb._();
+  EngineCustomEmojiThumb createEmptyInstance() => create();
+  static $pb.PbList<EngineCustomEmojiThumb> createRepeated() => $pb.PbList<EngineCustomEmojiThumb>();
+  @$core.pragma('dart2js:noInline')
+  static EngineCustomEmojiThumb getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineCustomEmojiThumb>(create);
+  static EngineCustomEmojiThumb? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $fixnum.Int64 get documentId => $_getI64(0);
+  @$pb.TagNumber(1)
+  set documentId($fixnum.Int64 v) { $_setInt64(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.String get thumbB64 => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set thumbB64($core.String v) { $_setString(1, v); }
+}
+
+class EngineGetCustomEmojiThumbsResponse extends $pb.GeneratedMessage {
+  factory EngineGetCustomEmojiThumbsResponse({
+    $core.Iterable<EngineCustomEmojiThumb>? thumbs,
+  }) {
+    final $result = create();
+    if (thumbs != null) $result.thumbs.addAll(thumbs);
+    return $result;
+  }
+  EngineGetCustomEmojiThumbsResponse._() : super();
+  factory EngineGetCustomEmojiThumbsResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetCustomEmojiThumbsResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..pc<EngineCustomEmojiThumb>(1, _omitFieldNames ? '' : 'thumbs', $pb.PbFieldType.PM, subBuilder: EngineCustomEmojiThumb.create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGetCustomEmojiThumbsResponse clone() => EngineGetCustomEmojiThumbsResponse()..mergeFromMessage(this);
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineGetCustomEmojiThumbsResponse create() => EngineGetCustomEmojiThumbsResponse._();
+  EngineGetCustomEmojiThumbsResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineGetCustomEmojiThumbsResponse> createRepeated() => $pb.PbList<EngineGetCustomEmojiThumbsResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetCustomEmojiThumbsResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetCustomEmojiThumbsResponse>(create);
+  static EngineGetCustomEmojiThumbsResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<EngineCustomEmojiThumb> get thumbs => $_getList(0);
+}
+
 const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
 const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

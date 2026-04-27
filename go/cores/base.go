@@ -307,6 +307,12 @@ type StickerInfo struct {
 	FileID   string `json:"file_id"`
 }
 
+// CustomEmojiThumb holds a document ID and its base64 thumbnail.
+type CustomEmojiThumb struct {
+	DocumentID int64  `json:"document_id"`
+	ThumbB64   string `json:"thumb_b64"`
+}
+
 // StickerSetResult holds the structured result of a sticker set lookup.
 type StickerSetResult struct {
 	Title     string        `json:"title"`

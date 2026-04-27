@@ -9700,6 +9700,154 @@ func (x *EngineFetchPeerStoriesResponse) GetStoriesJson() string {
 	return ""
 }
 
+type EngineGetCustomEmojiThumbsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	DocumentIds   []int64                `protobuf:"varint,2,rep,packed,name=document_ids,json=documentIds,proto3" json:"document_ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetCustomEmojiThumbsRequest) Reset() {
+	*x = EngineGetCustomEmojiThumbsRequest{}
+	mi := &file_proto_engine_proto_msgTypes[151]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetCustomEmojiThumbsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetCustomEmojiThumbsRequest) ProtoMessage() {}
+
+func (x *EngineGetCustomEmojiThumbsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[151]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetCustomEmojiThumbsRequest.ProtoReflect.Descriptor instead.
+func (*EngineGetCustomEmojiThumbsRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{151}
+}
+
+func (x *EngineGetCustomEmojiThumbsRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineGetCustomEmojiThumbsRequest) GetDocumentIds() []int64 {
+	if x != nil {
+		return x.DocumentIds
+	}
+	return nil
+}
+
+type EngineCustomEmojiThumb struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	DocumentId    int64                  `protobuf:"varint,1,opt,name=document_id,json=documentId,proto3" json:"document_id,omitempty"`
+	ThumbB64      string                 `protobuf:"bytes,2,opt,name=thumb_b64,json=thumbB64,proto3" json:"thumb_b64,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineCustomEmojiThumb) Reset() {
+	*x = EngineCustomEmojiThumb{}
+	mi := &file_proto_engine_proto_msgTypes[152]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineCustomEmojiThumb) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineCustomEmojiThumb) ProtoMessage() {}
+
+func (x *EngineCustomEmojiThumb) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[152]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineCustomEmojiThumb.ProtoReflect.Descriptor instead.
+func (*EngineCustomEmojiThumb) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{152}
+}
+
+func (x *EngineCustomEmojiThumb) GetDocumentId() int64 {
+	if x != nil {
+		return x.DocumentId
+	}
+	return 0
+}
+
+func (x *EngineCustomEmojiThumb) GetThumbB64() string {
+	if x != nil {
+		return x.ThumbB64
+	}
+	return ""
+}
+
+type EngineGetCustomEmojiThumbsResponse struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	Thumbs        []*EngineCustomEmojiThumb `protobuf:"bytes,1,rep,name=thumbs,proto3" json:"thumbs,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetCustomEmojiThumbsResponse) Reset() {
+	*x = EngineGetCustomEmojiThumbsResponse{}
+	mi := &file_proto_engine_proto_msgTypes[153]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetCustomEmojiThumbsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetCustomEmojiThumbsResponse) ProtoMessage() {}
+
+func (x *EngineGetCustomEmojiThumbsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[153]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetCustomEmojiThumbsResponse.ProtoReflect.Descriptor instead.
+func (*EngineGetCustomEmojiThumbsResponse) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{153}
+}
+
+func (x *EngineGetCustomEmojiThumbsResponse) GetThumbs() []*EngineCustomEmojiThumb {
+	if x != nil {
+		return x.Thumbs
+	}
+	return nil
+}
+
 var File_proto_engine_proto protoreflect.FileDescriptor
 
 const file_proto_engine_proto_rawDesc = "" +
@@ -10543,7 +10691,17 @@ const file_proto_engine_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
 	"\apeer_id\x18\x02 \x01(\tR\x06peerId\"C\n" +
 	"\x1eEngineFetchPeerStoriesResponse\x12!\n" +
-	"\fstories_json\x18\x01 \x01(\tR\vstoriesJsonB\x11Z\x0funiclient/protob\x06proto3"
+	"\fstories_json\x18\x01 \x01(\tR\vstoriesJson\"e\n" +
+	"!EngineGetCustomEmojiThumbsRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12!\n" +
+	"\fdocument_ids\x18\x02 \x03(\x03R\vdocumentIds\"V\n" +
+	"\x16EngineCustomEmojiThumb\x12\x1f\n" +
+	"\vdocument_id\x18\x01 \x01(\x03R\n" +
+	"documentId\x12\x1b\n" +
+	"\tthumb_b64\x18\x02 \x01(\tR\bthumbB64\"_\n" +
+	"\"EngineGetCustomEmojiThumbsResponse\x129\n" +
+	"\x06thumbs\x18\x01 \x03(\v2!.uniclient.EngineCustomEmojiThumbR\x06thumbsB\x11Z\x0funiclient/protob\x06proto3"
 
 var (
 	file_proto_engine_proto_rawDescOnce sync.Once
@@ -10557,7 +10715,7 @@ func file_proto_engine_proto_rawDescGZIP() []byte {
 	return file_proto_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 151)
+var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 154)
 var file_proto_engine_proto_goTypes = []any{
 	(*EngineEvent)(nil),                            // 0: uniclient.EngineEvent
 	(*AccountInfo)(nil),                            // 1: uniclient.AccountInfo
@@ -10710,6 +10868,9 @@ var file_proto_engine_proto_goTypes = []any{
 	(*EngineSendCallRatingRequest)(nil),            // 148: uniclient.EngineSendCallRatingRequest
 	(*EngineFetchPeerStoriesRequest)(nil),          // 149: uniclient.EngineFetchPeerStoriesRequest
 	(*EngineFetchPeerStoriesResponse)(nil),         // 150: uniclient.EngineFetchPeerStoriesResponse
+	(*EngineGetCustomEmojiThumbsRequest)(nil),      // 151: uniclient.EngineGetCustomEmojiThumbsRequest
+	(*EngineCustomEmojiThumb)(nil),                 // 152: uniclient.EngineCustomEmojiThumb
+	(*EngineGetCustomEmojiThumbsResponse)(nil),     // 153: uniclient.EngineGetCustomEmojiThumbsResponse
 }
 var file_proto_engine_proto_depIdxs = []int32{
 	1,   // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
@@ -10745,11 +10906,12 @@ var file_proto_engine_proto_depIdxs = []int32{
 	136, // 30: uniclient.EngineGetFeaturedStickerPacksResponse.packs:type_name -> uniclient.EngineStickerPackSummary
 	136, // 31: uniclient.EngineSearchStickerSetsResponse.packs:type_name -> uniclient.EngineStickerPackSummary
 	98,  // 32: uniclient.EngineGetStickerSuggestionsResponse.stickers:type_name -> uniclient.EngineStickerInfo
-	33,  // [33:33] is the sub-list for method output_type
-	33,  // [33:33] is the sub-list for method input_type
-	33,  // [33:33] is the sub-list for extension type_name
-	33,  // [33:33] is the sub-list for extension extendee
-	0,   // [0:33] is the sub-list for field type_name
+	152, // 33: uniclient.EngineGetCustomEmojiThumbsResponse.thumbs:type_name -> uniclient.EngineCustomEmojiThumb
+	34,  // [34:34] is the sub-list for method output_type
+	34,  // [34:34] is the sub-list for method input_type
+	34,  // [34:34] is the sub-list for extension type_name
+	34,  // [34:34] is the sub-list for extension extendee
+	0,   // [0:34] is the sub-list for field type_name
 }
 
 func init() { file_proto_engine_proto_init() }
@@ -10763,7 +10925,7 @@ func file_proto_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   151,
+			NumMessages:   154,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

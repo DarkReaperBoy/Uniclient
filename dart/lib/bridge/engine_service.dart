@@ -691,6 +691,25 @@ class EngineService {
     }
   }
 
+  // ── Custom emoji thumbnails (for forum topic icons) ──
+
+  Future<Map<int, String>> getCustomEmojiThumbs(String accountId, List<int> documentIds) async {
+    final req = epb.EngineGetCustomEmojiThumbsRequest()
+      ..accountId = accountId
+      ..documentIds.addAll(documentIds.map((id) => Int64(id)));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetCustomEmojiThumbs', req.writeToBuffer());
+      if (respBytes.isEmpty) return {};
+      final resp = epb.EngineGetCustomEmojiThumbsResponse.fromBuffer(respBytes);
+      return {
+        for (final t in resp.thumbs) t.documentId.toInt(): t.thumbB64,
+      };
+    } catch (e) {
+      Debug.error('ENGINE', 'getCustomEmojiThumbs failed', e);
+      return {};
+    }
+  }
+
   // ── Installed custom emoji sets ──
 
   Future<List<CustomEmojiSetSummary>> getInstalledEmojiSets(String accountId) async {
