@@ -748,7 +748,6 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 20.14 Gallery Thumbs Strip
 
 ### 20.15 Save/Download Toast
-- [ ] Centered toast (mediaviewSaveMsgBg): check icon at (23,21), padding 55/19/29/20px, 16px mediaviewSaveMsgStyle, fade in 200ms / hold 2s / fade out 2.5s, "Downloads" clickable link — spec §20.15
 
 ### 20.17 Stories Viewer Mode
 - [ ] Stories: delegates to Stories::View, aspect-fit in 540×960 with 8px radius, sibling previews as thumbnails, controls always visible, no zoom/rotation, collapsed captions — spec §20.17

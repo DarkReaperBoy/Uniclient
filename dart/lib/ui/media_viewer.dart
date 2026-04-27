@@ -48,6 +48,13 @@ const _kMediaviewCaptionPadding = EdgeInsets.fromLTRB(11, 6, 11, 6);
 const _kMediaviewCaptionMargin = 11.0;
 const _kMediaviewCaptionMaxWidth = 600.0;
 
+const _kMediaviewSaveMsgBg = Color(0xB2000000);
+const _kMediaviewSaveMsgFg = Color(0xFFFFFFFF);
+const _kSaveToastPadding = EdgeInsets.fromLTRB(55, 19, 29, 20);
+const _kSaveToastFadeIn = Duration(milliseconds: 200);
+const _kSaveToastHold = Duration(seconds: 2);
+const _kSaveToastFadeOut = Duration(milliseconds: 2500);
+
 const _kThumbStripHeight = 80.0;
 const _kThumbWidth = 56.0;
 const _kThumbWidthMax = 160.0;
@@ -258,6 +265,11 @@ class _MediaViewerState extends State<MediaViewer>
   int? _activeQualitySeq;
   bool _qualityDownloading = false;
 
+  late final AnimationController _saveToastAnim;
+  Timer? _saveToastHoldTimer;
+  String _saveToastPath = '';
+  late final TapGestureRecognizer _downloadsLinkRecognizer;
+
   _MediaViewerMode _mode = _MediaViewerMode.fullscreen;
   double _windowedWidth = _kDefaultWidth;
   double _windowedHeight = _kDefaultHeight;
@@ -309,6 +321,15 @@ class _MediaViewerState extends State<MediaViewer>
           });
         }
       });
+    _saveToastAnim = AnimationController(
+      duration: _kSaveToastFadeIn,
+      reverseDuration: _kSaveToastFadeOut,
+      vsync: this,
+    )..addListener(() {
+        if (mounted) setState(() {});
+      });
+    _downloadsLinkRecognizer = TapGestureRecognizer()
+      ..onTap = () => Process.run('xdg-open', [_saveToastPath]);
     _loadViewerPrefs();
     _initVideoIfNeeded();
     _scheduleAutoHide();
@@ -332,6 +353,9 @@ class _MediaViewerState extends State<MediaViewer>
     _chatStateRef = null;
     _disposePlayer();
     _autoHideTimer?.cancel();
+    _saveToastHoldTimer?.cancel();
+    _downloadsLinkRecognizer.dispose();
+    _saveToastAnim.dispose();
     _rotationAnimCtrl.dispose();
     _zoomAnimCtrl.dispose();
     _controlsAnim.dispose();
@@ -1184,6 +1208,8 @@ class _MediaViewerState extends State<MediaViewer>
                 bottom: 0,
                 child: _buildVideoControls(),
               ),
+
+            _buildSaveToast(),
           ],
         ),
       ),
@@ -1469,6 +1495,8 @@ class _MediaViewerState extends State<MediaViewer>
                   ),
                 ),
               ),
+
+              _buildSaveToast(),
             ],
           ),
         ),
@@ -2293,11 +2321,62 @@ class _MediaViewerState extends State<MediaViewer>
     }
     await sourceFile.copy(destPath);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Saved to ${destPath.split('/').last}'),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
+    _showSaveToast(downloadsDir.path);
+  }
+
+  void _showSaveToast(String downloadsPath) {
+    _saveToastHoldTimer?.cancel();
+    _saveToastPath = downloadsPath;
+    _saveToastAnim.forward(from: 0.0).then((_) {
+      if (!mounted) return;
+      _saveToastHoldTimer = Timer(_kSaveToastHold, () {
+        if (mounted) _saveToastAnim.reverse();
+      });
+    });
+  }
+
+  Widget _buildSaveToast() {
+    if (_saveToastAnim.value == 0.0) return const SizedBox.shrink();
+    return Positioned.fill(
+      child: IgnorePointer(
+        ignoring: _saveToastAnim.status == AnimationStatus.reverse,
+        child: Center(
+          child: Opacity(
+            opacity: _saveToastAnim.value,
+            child: Container(
+              decoration: BoxDecoration(
+                color: _kMediaviewSaveMsgBg,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: _kSaveToastPadding,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(right: 16),
+                    child: Icon(Icons.check_circle, color: _kMediaviewSaveMsgFg, size: 24),
+                  ),
+                  Text.rich(
+                    TextSpan(
+                      children: [
+                        const TextSpan(text: 'Media saved to '),
+                        TextSpan(
+                          text: 'Downloads',
+                          style: const TextStyle(decoration: TextDecoration.underline),
+                          recognizer: _downloadsLinkRecognizer,
+                        ),
+                      ],
+                    ),
+                    style: const TextStyle(
+                      color: _kMediaviewSaveMsgFg,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
