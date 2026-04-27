@@ -142,6 +142,8 @@ class _MediaViewerState extends State<MediaViewer>
   double _lastVolume = 0.8;
   double _playbackSpeed = 1.0;
   bool _isSeeking = false;
+  bool _autoPausedForCall = false;
+  ChatState? _chatStateRef;
 
   _MediaViewerMode _mode = _MediaViewerMode.fullscreen;
   double _windowedWidth = _kDefaultWidth;
@@ -198,7 +200,13 @@ class _MediaViewerState extends State<MediaViewer>
     _initVideoIfNeeded();
     _scheduleAutoHide();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _preloadNearby();
+      if (mounted) {
+        _preloadNearby();
+        try {
+          _chatStateRef = context.read<ChatState>();
+          _chatStateRef!.addListener(_onCallStateChanged);
+        } catch (_) {}
+      }
     });
   }
 
@@ -207,6 +215,8 @@ class _MediaViewerState extends State<MediaViewer>
     if (MediaViewer._activeInstance == this) {
       MediaViewer._activeInstance = null;
     }
+    _chatStateRef?.removeListener(_onCallStateChanged);
+    _chatStateRef = null;
     _disposePlayer();
     _autoHideTimer?.cancel();
     _rotationAnimCtrl.dispose();
@@ -214,6 +224,18 @@ class _MediaViewerState extends State<MediaViewer>
     _controlsAnim.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  void _onCallStateChanged() {
+    if (!mounted) return;
+    final callActive = _chatStateRef?.activeGroupCall != null;
+    if (callActive && _isPlaying && !_autoPausedForCall) {
+      _autoPausedForCall = true;
+      _player?.pause();
+    } else if (!callActive && _autoPausedForCall) {
+      _autoPausedForCall = false;
+      _player?.play();
+    }
   }
 
   CachedMessage get _currentMessage => widget.mediaMessages[_currentIndex];
@@ -484,6 +506,7 @@ class _MediaViewerState extends State<MediaViewer>
   void _togglePlayPause() {
     final player = _player;
     if (player == null) return;
+    _autoPausedForCall = false;
     player.playOrPause();
   }
 
@@ -531,12 +554,26 @@ class _MediaViewerState extends State<MediaViewer>
     Navigator.of(context).pop();
   }
 
+  void _seekToPercent(int percent) {
+    if (!_isVideo || _player == null || _duration == Duration.zero) return;
+    final target = _duration * (percent / 100.0);
+    _player!.seek(target);
+    _showControls();
+  }
+
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
     final ctrl = HardwareKeyboard.instance.isControlPressed;
+    final alt = HardwareKeyboard.instance.isAltPressed;
     switch (event.logicalKey) {
       case LogicalKeyboardKey.escape:
-        _close();
+        if (_mode == _MediaViewerMode.fullscreen) {
+          _setMode(_MediaViewerMode.maximized);
+        } else {
+          _close();
+        }
         return KeyEventResult.handled;
       case LogicalKeyboardKey.f11:
         _setMode(_mode == _MediaViewerMode.fullscreen
@@ -576,23 +613,79 @@ class _MediaViewerState extends State<MediaViewer>
           }
           return KeyEventResult.handled;
         }
+        if (_isVideo) {
+          _seekToPercent(0);
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      case LogicalKeyboardKey.digit1:
+      case LogicalKeyboardKey.numpad1:
+        if (!ctrl && _isVideo) { _seekToPercent(10); return KeyEventResult.handled; }
+        return KeyEventResult.ignored;
+      case LogicalKeyboardKey.digit2:
+      case LogicalKeyboardKey.numpad2:
+        if (!ctrl && _isVideo) { _seekToPercent(20); return KeyEventResult.handled; }
+        return KeyEventResult.ignored;
+      case LogicalKeyboardKey.digit3:
+      case LogicalKeyboardKey.numpad3:
+        if (!ctrl && _isVideo) { _seekToPercent(30); return KeyEventResult.handled; }
+        return KeyEventResult.ignored;
+      case LogicalKeyboardKey.digit4:
+      case LogicalKeyboardKey.numpad4:
+        if (!ctrl && _isVideo) { _seekToPercent(40); return KeyEventResult.handled; }
+        return KeyEventResult.ignored;
+      case LogicalKeyboardKey.digit5:
+      case LogicalKeyboardKey.numpad5:
+        if (!ctrl && _isVideo) { _seekToPercent(50); return KeyEventResult.handled; }
+        return KeyEventResult.ignored;
+      case LogicalKeyboardKey.digit6:
+      case LogicalKeyboardKey.numpad6:
+        if (!ctrl && _isVideo) { _seekToPercent(60); return KeyEventResult.handled; }
+        return KeyEventResult.ignored;
+      case LogicalKeyboardKey.digit7:
+      case LogicalKeyboardKey.numpad7:
+        if (!ctrl && _isVideo) { _seekToPercent(70); return KeyEventResult.handled; }
+        return KeyEventResult.ignored;
+      case LogicalKeyboardKey.digit8:
+      case LogicalKeyboardKey.numpad8:
+        if (!ctrl && _isVideo) { _seekToPercent(80); return KeyEventResult.handled; }
+        return KeyEventResult.ignored;
+      case LogicalKeyboardKey.digit9:
+      case LogicalKeyboardKey.numpad9:
+        if (!ctrl && _isVideo) { _seekToPercent(90); return KeyEventResult.handled; }
         return KeyEventResult.ignored;
       case LogicalKeyboardKey.arrowLeft:
+        if (alt) return KeyEventResult.ignored;
         if (_isVideo && _player != null) {
           _player!.seek(_position - const Duration(seconds: 5));
+          _showControls();
           return KeyEventResult.handled;
         }
         _goToPrev();
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowRight:
+        if (alt) return KeyEventResult.ignored;
         if (_isVideo && _player != null) {
           _player!.seek(_position + const Duration(seconds: 5));
+          _showControls();
           return KeyEventResult.handled;
         }
         _goToNext();
         return KeyEventResult.handled;
-      case LogicalKeyboardKey.space:
       case LogicalKeyboardKey.enter:
+        if (alt || ctrl) {
+          _setMode(_mode == _MediaViewerMode.fullscreen
+              ? _MediaViewerMode.maximized
+              : _MediaViewerMode.fullscreen);
+          return KeyEventResult.handled;
+        }
+        if (_isVideo || _isGif) {
+          _togglePlayPause();
+          _showControls();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      case LogicalKeyboardKey.space:
         if (_isVideo || _isGif) {
           _togglePlayPause();
           _showControls();
@@ -699,6 +792,17 @@ class _MediaViewerState extends State<MediaViewer>
                   _showControls();
                 } else {
                   _toggleControls();
+                }
+              },
+              onDoubleTap: () {
+                if (_isVideo) {
+                  _setMode(_mode == _MediaViewerMode.fullscreen
+                      ? _MediaViewerMode.maximized
+                      : _MediaViewerMode.fullscreen);
+                } else if (!_isZoomedIn) {
+                  _animateZoomTo(2);
+                } else {
+                  _animateZoomTo(0);
                 }
               },
               onSecondaryTapDown: (details) =>
@@ -943,6 +1047,15 @@ class _MediaViewerState extends State<MediaViewer>
                         _showControls();
                       } else {
                         _toggleControls();
+                      }
+                    },
+                    onDoubleTap: () {
+                      if (_isVideo) {
+                        _setMode(_MediaViewerMode.fullscreen);
+                      } else if (!_isZoomedIn) {
+                        _animateZoomTo(2);
+                      } else {
+                        _animateZoomTo(0);
                       }
                     },
                     onSecondaryTapDown: (details) =>

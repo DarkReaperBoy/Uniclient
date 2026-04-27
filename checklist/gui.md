@@ -744,8 +744,8 @@ Spec file: `research/telegram_desktop_ui.md`.
 ### 20.9 Caption Display
 
 ### 20.10–20.12 Video Playback Controls
-- [ ] Video behavior: Space/Enter/click play-pause, drag seek, Left/Right +/-5s in fullscreen, 0-9 jump, Alt+Left/Right chapter nav, speed 0.5×–3.0×, quality menu, volume 0.0–1.0, loop animations, auto-pause on call — spec §20.11
-- [ ] Fullscreen: double-click/Alt+Enter/Ctrl+F toggle, auto-hide 1100ms with blank cursor, Escape exits fullscreen (not viewer) — spec §20.12
+- [ ] Quality menu: list heights (360/720/1080), seamless switch preserving position (needs Go backend multi-quality support) — spec §20.11
+- [ ] Fullscreen: blank cursor during auto-hide — spec §20.12
 
 ### 20.13 Picture-in-Picture
 - [ ] PiP floating always-on-top window: default 320px (min 120px), 10px resize edges, own play/pause/close/enlarge/volume, 2px track (4px hover), geometry persisted, closing returns to viewer at same position, 16px snap threshold / 20px snap margin, default top-left, easeOutCirc release animation ~150ms — spec §20.13 & §20.13.1
