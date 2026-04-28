@@ -585,6 +585,36 @@ func (e *Engine) RestrictMember(accountID, chatID, userID string) error {
 	return fmt.Errorf("platform does not support RestrictMember")
 }
 
+func (e *Engine) RestrictMemberWithRights(accountID, chatID, userID string, rights *DefaultBannedRights, untilDate int) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type restrictable interface {
+		RestrictMemberWithRights(chatID, userID string, rights *cores.DefaultBannedRights, untilDate int) error
+	}
+	if r, ok := acc.Core.(restrictable); ok {
+		return r.RestrictMemberWithRights(chatID, userID, &cores.DefaultBannedRights{
+			SendPlain:     rights.SendPlain,
+			SendPhotos:    rights.SendPhotos,
+			SendVideos:    rights.SendVideos,
+			SendRoundvideos: rights.SendRoundvideos,
+			SendAudios:    rights.SendAudios,
+			SendVoices:    rights.SendVoices,
+			SendDocs:      rights.SendDocs,
+			SendStickers:  rights.SendStickers,
+			EmbedLinks:    rights.EmbedLinks,
+			SendPolls:     rights.SendPolls,
+			InviteUsers:   rights.InviteUsers,
+			ManageTopics:  rights.ManageTopics,
+			PinMessages:   rights.PinMessages,
+			EditRank:      rights.EditRank,
+			ChangeInfo:    rights.ChangeInfo,
+		}, untilDate)
+	}
+	return fmt.Errorf("platform does not support RestrictMemberWithRights")
+}
+
 // ReportSpam reports a chat as spam via the core and blocks the sender.
 func (e *Engine) ReportSpam(accountID, chatID string) error {
 	acc, ok := e.getAccount(accountID)

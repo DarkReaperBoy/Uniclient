@@ -272,6 +272,50 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.RestrictMember(req.AccountId, req.ChatId, req.UserId)
 
+	case "RestrictMemberWithRights":
+		var params struct {
+			AccountID       string `json:"account_id"`
+			ChatID          string `json:"chat_id"`
+			UserID          string `json:"user_id"`
+			SendPlain       bool   `json:"send_plain"`
+			SendPhotos      bool   `json:"send_photos"`
+			SendVideos      bool   `json:"send_videos"`
+			SendRoundvideos bool   `json:"send_roundvideos"`
+			SendAudios      bool   `json:"send_audios"`
+			SendVoices      bool   `json:"send_voices"`
+			SendDocs        bool   `json:"send_docs"`
+			SendStickers    bool   `json:"send_stickers"`
+			EmbedLinks      bool   `json:"embed_links"`
+			SendPolls       bool   `json:"send_polls"`
+			InviteUsers     bool   `json:"invite_users"`
+			ManageTopics    bool   `json:"manage_topics"`
+			PinMessages     bool   `json:"pin_messages"`
+			EditRank        bool   `json:"edit_rank"`
+			ChangeInfo      bool   `json:"change_info"`
+			UntilDate       int    `json:"until_date"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		rights := &engine.DefaultBannedRights{
+			SendPlain:       params.SendPlain,
+			SendPhotos:      params.SendPhotos,
+			SendVideos:      params.SendVideos,
+			SendRoundvideos: params.SendRoundvideos,
+			SendAudios:      params.SendAudios,
+			SendVoices:      params.SendVoices,
+			SendDocs:        params.SendDocs,
+			SendStickers:    params.SendStickers,
+			EmbedLinks:      params.EmbedLinks,
+			SendPolls:       params.SendPolls,
+			InviteUsers:     params.InviteUsers,
+			ManageTopics:    params.ManageTopics,
+			PinMessages:     params.PinMessages,
+			EditRank:        params.EditRank,
+			ChangeInfo:      params.ChangeInfo,
+		}
+		return nil, e.RestrictMemberWithRights(params.AccountID, params.ChatID, params.UserID, rights, params.UntilDate)
+
 	case "ReportSpam":
 		var req pb.EngineLeaveChatRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

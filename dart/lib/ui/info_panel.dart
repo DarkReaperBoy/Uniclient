@@ -14,7 +14,7 @@ import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import 'chat_view.dart' show formatChatLastSeen;
 import 'confirm_box.dart';
-import 'admin_tools.dart' show showEditPeerInfoBox;
+import 'admin_tools.dart' show showEditPeerInfoBox, showEditRestrictedBox;
 import 'create_group_wizard.dart' show showEditPeerTypeBox;
 import 'edit_forum_topic_box.dart';
 import 'forum_topic_icon.dart';
@@ -4697,13 +4697,12 @@ class _MemberRow extends StatelessWidget {
             }
           });
         case 'restrict':
-          engine.restrictMember(accountId, chatId, member.userId).catchError((e) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Failed to restrict: $e')),
-              );
-            }
-          });
+          showEditRestrictedBox(
+            context,
+            accountId: accountId,
+            chatId: chatId,
+            member: member,
+          );
         case 'remove':
           engine.removeMember(accountId, chatId, member.userId).catchError((e) {
             if (context.mounted) {

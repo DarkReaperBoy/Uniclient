@@ -256,6 +256,23 @@ class EngineService {
     await _callAsync('__engine', 'RestrictMember', req.writeToBuffer());
   }
 
+  Future<void> restrictMemberWithRights(
+    String accountId,
+    String chatId,
+    String userId,
+    Map<String, bool> rights,
+    int untilDate,
+  ) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'user_id': userId,
+      ...rights,
+      'until_date': untilDate,
+    }));
+    await _callAsync('__engine', 'RestrictMemberWithRights', Uint8List.fromList(payload));
+  }
+
   Future<void> reportSpam(String accountId, String chatId) async {
     final req = epb.EngineLeaveChatRequest()
       ..accountId = accountId

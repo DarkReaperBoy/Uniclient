@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -1163,5 +1164,574 @@ class _EditRow extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+Future<bool?> showEditRestrictedBox(
+  BuildContext context, {
+  required String accountId,
+  required String chatId,
+  required MemberInfo member,
+  bool isForum = false,
+}) {
+  return showDialog<bool>(
+    context: context,
+    builder: (ctx) => _EditRestrictedBox(
+      accountId: accountId,
+      chatId: chatId,
+      member: member,
+      isForum: isForum,
+    ),
+  );
+}
+
+enum _BanDuration { forever, oneDay, oneWeek, custom }
+
+class _EditRestrictedBox extends StatefulWidget {
+  final String accountId;
+  final String chatId;
+  final MemberInfo member;
+  final bool isForum;
+
+  const _EditRestrictedBox({
+    required this.accountId,
+    required this.chatId,
+    required this.member,
+    required this.isForum,
+  });
+
+  @override
+  State<_EditRestrictedBox> createState() => _EditRestrictedBoxState();
+}
+
+class _EditRestrictedBoxState extends State<_EditRestrictedBox>
+    with SingleTickerProviderStateMixin {
+  bool _loading = true;
+  bool _saving = false;
+  bool _mediaExpanded = false;
+  String? _error;
+  _BanDuration _duration = _BanDuration.forever;
+  DateTime? _customDate;
+
+  late AnimationController _expandCtrl;
+  late Animation<double> _expandAnim;
+
+  static const _kSecondsInDay = 86400;
+  static const _kSecondsInWeek = 604800;
+  static const _kMaxRestrictDelayDays = 366;
+
+  late final _PermFlag _sendPlain;
+  late final List<_PermFlag> _mediaFlags;
+  late final List<_PermFlag> _otherFlags;
+
+  List<_PermFlag> get _allFlags => [_sendPlain, ..._mediaFlags, ..._otherFlags];
+
+  @override
+  void initState() {
+    super.initState();
+    _expandCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 150),
+    );
+    _expandAnim = CurvedAnimation(parent: _expandCtrl, curve: Curves.easeOutCubic);
+    _sendPlain = _PermFlag(key: 'send_plain', label: 'Send text messages');
+    _mediaFlags = [
+      _PermFlag(key: 'send_photos', label: 'Send photos'),
+      _PermFlag(key: 'send_videos', label: 'Send videos'),
+      _PermFlag(key: 'send_roundvideos', label: 'Send video messages'),
+      _PermFlag(key: 'send_audios', label: 'Send music'),
+      _PermFlag(key: 'send_voices', label: 'Send voice messages'),
+      _PermFlag(key: 'send_docs', label: 'Send files'),
+      _PermFlag(key: 'send_stickers', label: 'Send stickers & GIFs'),
+    ];
+    _otherFlags = [
+      _PermFlag(key: 'embed_links', label: 'Send links'),
+      _PermFlag(key: 'send_polls', label: 'Send polls'),
+      _PermFlag(key: 'invite_users', label: 'Add members'),
+      if (widget.isForum) _PermFlag(key: 'manage_topics', label: 'Create topics'),
+      _PermFlag(key: 'pin_messages', label: 'Pin messages'),
+      _PermFlag(key: 'change_info', label: 'Change group info'),
+    ];
+    _loadDefaults();
+  }
+
+  @override
+  void dispose() {
+    _expandCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadDefaults() async {
+    try {
+      final engine = context.read<EngineService>();
+      final rights = await engine.getDefaultBannedRights(widget.accountId, widget.chatId);
+      if (!mounted) return;
+      setState(() {
+        for (final f in _allFlags) {
+          f.banned = rights[f.key] == true;
+        }
+        _loading = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() { _error = '$e'; _loading = false; });
+    }
+  }
+
+  int _computeUntilDate() {
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    switch (_duration) {
+      case _BanDuration.forever:
+        return 0;
+      case _BanDuration.oneDay:
+        return now + _kSecondsInDay;
+      case _BanDuration.oneWeek:
+        return now + _kSecondsInWeek;
+      case _BanDuration.custom:
+        if (_customDate != null) {
+          return _customDate!.millisecondsSinceEpoch ~/ 1000;
+        }
+        return 0;
+    }
+  }
+
+  Future<void> _onSave() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      final engine = context.read<EngineService>();
+      final rights = <String, bool>{};
+      for (final f in _allFlags) {
+        rights[f.key] = f.banned;
+      }
+      await engine.restrictMemberWithRights(
+        widget.accountId,
+        widget.chatId,
+        widget.member.userId,
+        rights,
+        _computeUntilDate(),
+      );
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      }
+    }
+  }
+
+  void _toggleFlag(_PermFlag flag) {
+    setState(() {
+      flag.banned = !flag.banned;
+      if (flag.key == 'send_plain' && flag.banned) {
+        final embedLinks = _otherFlags.firstWhere((f) => f.key == 'embed_links');
+        embedLinks.banned = true;
+      }
+      if (flag.key == 'embed_links' && !flag.banned) {
+        _sendPlain.banned = false;
+      }
+    });
+  }
+
+  int get _mediaAllowedCount => _mediaFlags.where((f) => !f.banned).length;
+
+  Future<void> _pickCustomDate() async {
+    final now = DateTime.now();
+    final maxDate = now.add(const Duration(days: _kMaxRestrictDelayDays));
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _customDate ?? now.add(const Duration(days: 1)),
+      firstDate: now,
+      lastDate: maxDate,
+    );
+    if (picked != null && mounted) {
+      final time = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.fromDateTime(_customDate ?? now),
+      );
+      if (mounted) {
+        setState(() {
+          _customDate = DateTime(
+            picked.year,
+            picked.month,
+            picked.day,
+            time?.hour ?? 0,
+            time?.minute ?? 0,
+          );
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = PaletteProvider.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subTextColor = isDark ? const Color(0xFF708499) : const Color(0xFF999999);
+    final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFE0E0E0);
+    final accentColor = palette.windowBgActive;
+    final attentionColor = palette.attentionButtonFg;
+    final headerColor = palette.windowActiveTextFg;
+
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      backgroundColor: bgColor,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420, maxHeight: 600),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildTitleBar(textColor, bgColor, accentColor, dividerColor),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.all(40),
+                child: CircularProgressIndicator(),
+              )
+            else if (_error != null)
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Text(_error!, style: TextStyle(color: attentionColor)),
+              )
+            else
+              Flexible(
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  shrinkWrap: true,
+                  children: [
+                    _buildCover(textColor, subTextColor, accentColor),
+                    Divider(height: 1, color: dividerColor),
+                    const SizedBox(height: 8),
+                    _buildSectionHeader('What can this user do?', headerColor),
+                    const SizedBox(height: 4),
+                    _buildPermToggle(_sendPlain, accentColor, attentionColor, textColor),
+                    _buildMediaSection(accentColor, attentionColor, textColor, subTextColor),
+                    for (final f in _otherFlags)
+                      _buildPermToggle(f, accentColor, attentionColor, textColor),
+                    Divider(height: 1, color: dividerColor),
+                    const SizedBox(height: 12),
+                    _buildSectionHeader('Banned until', headerColor),
+                    const SizedBox(height: 4),
+                    _buildDurationPicker(accentColor, textColor, subTextColor),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTitleBar(Color textColor, Color bgColor, Color accentColor, Color dividerColor) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 20, right: 8, top: 4, bottom: 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Restrict User',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
+                ),
+              ),
+              if (_saving)
+                const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                )
+              else
+                TextButton(
+                  onPressed: _onSave,
+                  child: Text('Save', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: accentColor)),
+                ),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Cancel', style: TextStyle(fontSize: 14, color: textColor.withValues(alpha: 0.6))),
+              ),
+            ],
+          ),
+        ),
+        Divider(height: 1, color: dividerColor),
+      ],
+    );
+  }
+
+  Widget _buildCover(Color textColor, Color subTextColor, Color accentColor) {
+    final member = widget.member;
+    final hasAvatar = member.avatarB64.isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(19, 18, 20, 18),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 30,
+            backgroundColor: accentColor,
+            backgroundImage: hasAvatar
+                ? MemoryImage(base64Decode(member.avatarB64))
+                : null,
+            child: hasAvatar
+                ? null
+                : Text(
+                    _initials(member.label),
+                    style: const TextStyle(fontSize: 20, color: Colors.white),
+                  ),
+          ),
+          const SizedBox(width: 20),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  member.label,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  member.isOnline
+                      ? 'online'
+                      : member.username.isNotEmpty
+                          ? '@${member.username}'
+                          : member.role,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: member.isOnline ? accentColor : subTextColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String text, Color color) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 8, 22, 4),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: color),
+      ),
+    );
+  }
+
+  Widget _buildPermToggle(_PermFlag flag, Color accentColor, Color attentionColor, Color textColor) {
+    final allowed = !flag.banned;
+    final isLocked = flag.key == 'embed_links' && _sendPlain.banned;
+
+    return InkWell(
+      onTap: () {
+        if (isLocked) return;
+        _toggleFlag(flag);
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
+        child: Row(
+          children: [
+            if (isLocked)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Icon(Icons.lock, size: 18, color: accentColor),
+              ),
+            Expanded(
+              child: Text(
+                flag.label,
+                style: TextStyle(fontSize: 14, color: textColor),
+              ),
+            ),
+            const SizedBox(width: 20),
+            SizedBox(
+              height: 24,
+              child: Switch(
+                value: allowed,
+                onChanged: isLocked ? null : (_) => _toggleFlag(flag),
+                activeColor: accentColor,
+                inactiveThumbColor: attentionColor,
+                inactiveTrackColor: attentionColor.withValues(alpha: 0.3),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMediaSection(Color accentColor, Color attentionColor, Color textColor, Color subTextColor) {
+    final allowedCount = _mediaAllowedCount;
+    final total = _mediaFlags.length;
+
+    return Column(
+      children: [
+        InkWell(
+          onTap: () {
+            setState(() => _mediaExpanded = !_mediaExpanded);
+            if (_mediaExpanded) {
+              _expandCtrl.forward();
+            } else {
+              _expandCtrl.reverse();
+            }
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
+            child: Row(
+              children: [
+                AnimatedBuilder(
+                  animation: _expandAnim,
+                  builder: (_, child) => Transform.rotate(
+                    angle: _expandAnim.value * 3.14159,
+                    child: child,
+                  ),
+                  child: Icon(Icons.expand_more, size: 20, color: textColor.withValues(alpha: 0.6)),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Send media',
+                    style: TextStyle(fontSize: 14, color: textColor),
+                  ),
+                ),
+                Text(
+                  '($allowedCount/$total)',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: subTextColor),
+                ),
+                const SizedBox(width: 20),
+                SizedBox(
+                  height: 24,
+                  child: Switch(
+                    value: allowedCount == total,
+                    onChanged: (val) {
+                      setState(() {
+                        for (final f in _mediaFlags) {
+                          f.banned = !val;
+                        }
+                      });
+                    },
+                    activeColor: accentColor,
+                    inactiveThumbColor: allowedCount == 0 ? attentionColor : accentColor,
+                    inactiveTrackColor: allowedCount == 0
+                        ? attentionColor.withValues(alpha: 0.3)
+                        : accentColor.withValues(alpha: 0.3),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        SizeTransition(
+          sizeFactor: _expandAnim,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 30),
+            child: Column(
+              children: [
+                for (final f in _mediaFlags)
+                  _buildMediaCheckbox(f, accentColor, attentionColor, textColor),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMediaCheckbox(_PermFlag flag, Color accentColor, Color attentionColor, Color textColor) {
+    final allowed = !flag.banned;
+    return InkWell(
+      onTap: () => _toggleFlag(flag),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 6),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: Checkbox(
+                value: allowed,
+                onChanged: (_) => _toggleFlag(flag),
+                activeColor: accentColor,
+                side: BorderSide(color: allowed ? accentColor : attentionColor, width: 2),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(flag.label, style: TextStyle(fontSize: 14, color: textColor)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDurationPicker(Color accentColor, Color textColor, Color subTextColor) {
+    return Column(
+      children: [
+        _buildDurationRadio(_BanDuration.forever, 'Ban forever', accentColor, textColor),
+        _buildDurationRadio(_BanDuration.oneDay, 'Ban for 1 day', accentColor, textColor),
+        _buildDurationRadio(_BanDuration.oneWeek, 'Ban for 1 week', accentColor, textColor),
+        _buildDurationRadio(_BanDuration.custom, 'Custom...', accentColor, textColor),
+        if (_duration == _BanDuration.custom && _customDate != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(56, 0, 22, 8),
+            child: Text(
+              'Until ${_customDate!.year}-${_customDate!.month.toString().padLeft(2, '0')}-${_customDate!.day.toString().padLeft(2, '0')} '
+              '${_customDate!.hour.toString().padLeft(2, '0')}:${_customDate!.minute.toString().padLeft(2, '0')}',
+              style: TextStyle(fontSize: 13, color: subTextColor),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildDurationRadio(_BanDuration value, String label, Color accentColor, Color textColor) {
+    return InkWell(
+      onTap: () {
+        setState(() => _duration = value);
+        if (value == _BanDuration.custom) {
+          _pickCustomDate();
+        }
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 6),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: Radio<_BanDuration>(
+                value: value,
+                groupValue: _duration,
+                onChanged: (v) {
+                  setState(() => _duration = v!);
+                  if (v == _BanDuration.custom) {
+                    _pickCustomDate();
+                  }
+                },
+                activeColor: accentColor,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(label, style: TextStyle(fontSize: 14, color: textColor)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _initials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty) return '?';
+    if (parts.length == 1) return parts[0][0].toUpperCase();
+    return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
   }
 }

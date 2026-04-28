@@ -14,6 +14,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
+import 'admin_tools.dart' show showEditRestrictedBox;
 import 'gesture_utils.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
@@ -1870,17 +1871,16 @@ class _ChatViewState extends State<ChatView>
           } catch (_) {}
         }
       case 'restrict':
-        final confirmed = await _showConfirmDialog(
-          context, 'Restrict User', 'Restrict $senderName?');
-        if (confirmed && mounted) {
-          try {
-            await engine.restrictMember(accountId, chat.chatId, senderId);
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('$senderName restricted')),
-              );
-            }
-          } catch (_) {}
+        if (mounted) {
+          showEditRestrictedBox(
+            context,
+            accountId: accountId,
+            chatId: chat.chatId,
+            member: MemberInfo(
+              userId: senderId,
+              displayName: senderName,
+            ),
+          );
         }
       case 'ban':
         final confirmed = await _showConfirmDialog(

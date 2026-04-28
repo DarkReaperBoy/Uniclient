@@ -11677,6 +11677,32 @@ func (t *TelegramCore) RestrictUser(chatID, userID string, rights tg.ChatBannedR
 	return err
 }
 
+func (t *TelegramCore) RestrictMemberWithRights(chatID, userID string, rights *DefaultBannedRights, untilDate int) error {
+	br := tg.ChatBannedRights{
+		SendPlain:       rights.SendPlain,
+		SendPhotos:      rights.SendPhotos,
+		SendVideos:      rights.SendVideos,
+		SendRoundvideos: rights.SendRoundvideos,
+		SendAudios:      rights.SendAudios,
+		SendVoices:      rights.SendVoices,
+		SendDocs:        rights.SendDocs,
+		SendStickers:    rights.SendStickers,
+		SendGifs:        rights.SendStickers,
+		SendGames:       rights.SendStickers,
+		SendInline:      rights.SendStickers,
+		EmbedLinks:      rights.EmbedLinks,
+		SendPolls:       rights.SendPolls,
+		InviteUsers:     rights.InviteUsers,
+		ManageTopics:    rights.ManageTopics,
+		PinMessages:     rights.PinMessages,
+		EditRank:        rights.EditRank,
+		ChangeInfo:      rights.ChangeInfo,
+		UntilDate:       untilDate,
+	}
+	br.SetFlags()
+	return t.RestrictUser(chatID, userID, br)
+}
+
 // SetSlowMode sets slow mode interval for a supergroup (0 to disable).
 func (t *TelegramCore) SetSlowMode(chatID string, seconds int) error {
 	t.mu.RLock()
