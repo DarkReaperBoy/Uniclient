@@ -793,12 +793,18 @@ class _UniClientAppState extends State<UniClientApp>
   }
 
   void _dispatchKey(String key) {
+    final lc = key.toLowerCase();
+
+    if (ShortcutSystem.instance.isRecording) {
+      _dispatchKeyToRecording(lc);
+      return;
+    }
+
     // Handle modifier combos like "ctrl+f" / "control+f". Flutter's
     // CallbackShortcuts only fire from OS-delivered key events that flow
     // through KeyEventManager → FocusManager; HardwareKeyboard.handleKeyEvent
     // alone does not reach the shortcut dispatch path. So we invoke the same
     // callback the shortcut would invoke, to keep the harness observable.
-    final lc = key.toLowerCase();
     if (lc == 'ctrl+f' || lc == 'control+f') {
       ChatListPanel.requestFocusSearch();
       return;
@@ -1050,19 +1056,17 @@ class _UniClientAppState extends State<UniClientApp>
           }
         }
       case 'escape':
-        // Chat list search takes priority: if the user is actively searching
-        // (Ctrl+F focused the field, query typed), cancel it. This mirrors
-        // what OS-delivered Esc does via the app-level CallbackShortcuts
-        // binding — needed here too because HardwareKeyboard.handleKeyEvent
-        // does not route through Shortcuts.
+        if (ShortcutSystem.instance.isRecording) {
+          ShortcutSystem.instance.handleKeyEvent(KeyDownEvent(
+            physicalKey: PhysicalKeyboardKey.escape,
+            logicalKey: LogicalKeyboardKey.escape,
+            timeStamp: Duration(milliseconds: DateTime.now().millisecondsSinceEpoch),
+          ));
+          return;
+        }
         if (ChatListPanel.requestCancelSearch()) {
           return;
         }
-        // Dispatch real KeyDownEvent + KeyUpEvent through HardwareKeyboard so
-        // Focus(onKeyEvent:) handlers (e.g. ChatView's reply/edit/selection
-        // cancel) get a chance to handle it first. If nothing handles it,
-        // fall through to the legacy Navigator.maybePop() route so that
-        // modal popups/dialogs still dismiss on Escape.
         final ts = Duration(milliseconds: DateTime.now().millisecondsSinceEpoch);
         final handled = HardwareKeyboard.instance.handleKeyEvent(KeyDownEvent(
           physicalKey: PhysicalKeyboardKey.escape,
@@ -1146,6 +1150,211 @@ class _UniClientAppState extends State<UniClientApp>
             timeStamp: ts,
           ));
         }
+    }
+  }
+
+  void _dispatchKeyToRecording(String lc) {
+    final parts = lc.split('+');
+    final mods = <String>{};
+    String base = parts.last;
+    for (var i = 0; i < parts.length - 1; i++) {
+      mods.add(parts[i]);
+    }
+    final hasCtrl = mods.contains('ctrl') || mods.contains('control');
+    final hasShift = mods.contains('shift');
+    final hasAlt = mods.contains('alt');
+    final hasMeta = mods.contains('meta') || mods.contains('super');
+
+    final hw = HardwareKeyboard.instance;
+    final pressed = hw.physicalKeysPressed;
+    final ts = Duration(milliseconds: DateTime.now().millisecondsSinceEpoch);
+
+    final pressedCtrl = hasCtrl && !pressed.contains(PhysicalKeyboardKey.controlLeft);
+    final pressedShift = hasShift && !pressed.contains(PhysicalKeyboardKey.shiftLeft);
+    final pressedAlt = hasAlt && !pressed.contains(PhysicalKeyboardKey.altLeft);
+    final pressedMeta = hasMeta && !pressed.contains(PhysicalKeyboardKey.metaLeft);
+
+    if (pressedCtrl) {
+      hw.handleKeyEvent(KeyDownEvent(
+        physicalKey: PhysicalKeyboardKey.controlLeft,
+        logicalKey: LogicalKeyboardKey.controlLeft,
+        timeStamp: ts,
+      ));
+    }
+    if (pressedShift) {
+      hw.handleKeyEvent(KeyDownEvent(
+        physicalKey: PhysicalKeyboardKey.shiftLeft,
+        logicalKey: LogicalKeyboardKey.shiftLeft,
+        timeStamp: ts,
+      ));
+    }
+    if (pressedAlt) {
+      hw.handleKeyEvent(KeyDownEvent(
+        physicalKey: PhysicalKeyboardKey.altLeft,
+        logicalKey: LogicalKeyboardKey.altLeft,
+        timeStamp: ts,
+      ));
+    }
+    if (pressedMeta) {
+      hw.handleKeyEvent(KeyDownEvent(
+        physicalKey: PhysicalKeyboardKey.metaLeft,
+        logicalKey: LogicalKeyboardKey.metaLeft,
+        timeStamp: ts,
+      ));
+    }
+
+    final logicalKey = _nameToLogicalKey(base);
+    final physicalKey = _nameToPhysicalKey(base);
+    ShortcutSystem.instance.handleKeyEvent(KeyDownEvent(
+      physicalKey: physicalKey,
+      logicalKey: logicalKey,
+      timeStamp: ts,
+    ));
+
+    if (pressedMeta) {
+      hw.handleKeyEvent(KeyUpEvent(
+        physicalKey: PhysicalKeyboardKey.metaLeft,
+        logicalKey: LogicalKeyboardKey.metaLeft,
+        timeStamp: ts,
+      ));
+    }
+    if (pressedAlt) {
+      hw.handleKeyEvent(KeyUpEvent(
+        physicalKey: PhysicalKeyboardKey.altLeft,
+        logicalKey: LogicalKeyboardKey.altLeft,
+        timeStamp: ts,
+      ));
+    }
+    if (pressedShift) {
+      hw.handleKeyEvent(KeyUpEvent(
+        physicalKey: PhysicalKeyboardKey.shiftLeft,
+        logicalKey: LogicalKeyboardKey.shiftLeft,
+        timeStamp: ts,
+      ));
+    }
+    if (pressedCtrl) {
+      hw.handleKeyEvent(KeyUpEvent(
+        physicalKey: PhysicalKeyboardKey.controlLeft,
+        logicalKey: LogicalKeyboardKey.controlLeft,
+        timeStamp: ts,
+      ));
+    }
+  }
+
+  static LogicalKeyboardKey _nameToLogicalKey(String name) {
+    switch (name) {
+      case 'a': return LogicalKeyboardKey.keyA;
+      case 'b': return LogicalKeyboardKey.keyB;
+      case 'c': return LogicalKeyboardKey.keyC;
+      case 'd': return LogicalKeyboardKey.keyD;
+      case 'e': return LogicalKeyboardKey.keyE;
+      case 'f': return LogicalKeyboardKey.keyF;
+      case 'g': return LogicalKeyboardKey.keyG;
+      case 'h': return LogicalKeyboardKey.keyH;
+      case 'i': return LogicalKeyboardKey.keyI;
+      case 'j': return LogicalKeyboardKey.keyJ;
+      case 'k': return LogicalKeyboardKey.keyK;
+      case 'l': return LogicalKeyboardKey.keyL;
+      case 'm': return LogicalKeyboardKey.keyM;
+      case 'n': return LogicalKeyboardKey.keyN;
+      case 'o': return LogicalKeyboardKey.keyO;
+      case 'p': return LogicalKeyboardKey.keyP;
+      case 'q': return LogicalKeyboardKey.keyQ;
+      case 'r': return LogicalKeyboardKey.keyR;
+      case 's': return LogicalKeyboardKey.keyS;
+      case 't': return LogicalKeyboardKey.keyT;
+      case 'u': return LogicalKeyboardKey.keyU;
+      case 'v': return LogicalKeyboardKey.keyV;
+      case 'w': return LogicalKeyboardKey.keyW;
+      case 'x': return LogicalKeyboardKey.keyX;
+      case 'y': return LogicalKeyboardKey.keyY;
+      case 'z': return LogicalKeyboardKey.keyZ;
+      case '0': return LogicalKeyboardKey.digit0;
+      case '1': return LogicalKeyboardKey.digit1;
+      case '2': return LogicalKeyboardKey.digit2;
+      case '3': return LogicalKeyboardKey.digit3;
+      case '4': return LogicalKeyboardKey.digit4;
+      case '5': return LogicalKeyboardKey.digit5;
+      case '6': return LogicalKeyboardKey.digit6;
+      case '7': return LogicalKeyboardKey.digit7;
+      case '8': return LogicalKeyboardKey.digit8;
+      case '9': return LogicalKeyboardKey.digit9;
+      case 'f1': return LogicalKeyboardKey.f1;
+      case 'f2': return LogicalKeyboardKey.f2;
+      case 'f3': return LogicalKeyboardKey.f3;
+      case 'f4': return LogicalKeyboardKey.f4;
+      case 'f5': return LogicalKeyboardKey.f5;
+      case 'f6': return LogicalKeyboardKey.f6;
+      case 'f7': return LogicalKeyboardKey.f7;
+      case 'f8': return LogicalKeyboardKey.f8;
+      case 'f9': return LogicalKeyboardKey.f9;
+      case 'f10': return LogicalKeyboardKey.f10;
+      case 'f11': return LogicalKeyboardKey.f11;
+      case 'f12': return LogicalKeyboardKey.f12;
+      case 'escape': return LogicalKeyboardKey.escape;
+      case 'enter': return LogicalKeyboardKey.enter;
+      case 'backspace': return LogicalKeyboardKey.backspace;
+      case 'delete': return LogicalKeyboardKey.delete;
+      case 'tab': return LogicalKeyboardKey.tab;
+      case 'space': return LogicalKeyboardKey.space;
+      case 'up': case 'arrowup': return LogicalKeyboardKey.arrowUp;
+      case 'down': case 'arrowdown': return LogicalKeyboardKey.arrowDown;
+      case 'left': case 'arrowleft': return LogicalKeyboardKey.arrowLeft;
+      case 'right': case 'arrowright': return LogicalKeyboardKey.arrowRight;
+      case 'home': return LogicalKeyboardKey.home;
+      case 'end': return LogicalKeyboardKey.end;
+      case 'pageup': case 'pgup': return LogicalKeyboardKey.pageUp;
+      case 'pagedown': case 'pgdown': return LogicalKeyboardKey.pageDown;
+      case 'insert': return LogicalKeyboardKey.insert;
+      case '[': case 'bracketleft': return LogicalKeyboardKey.bracketLeft;
+      case ']': case 'bracketright': return LogicalKeyboardKey.bracketRight;
+      case '\\': case 'backslash': return LogicalKeyboardKey.backslash;
+      case '/': case 'slash': return LogicalKeyboardKey.slash;
+      case '-': case 'minus': return LogicalKeyboardKey.minus;
+      case '=': case 'equal': return LogicalKeyboardKey.equal;
+      default:
+        if (name.length == 1) {
+          return LogicalKeyboardKey(name.codeUnitAt(0));
+        }
+        return LogicalKeyboardKey.space;
+    }
+  }
+
+  static PhysicalKeyboardKey _nameToPhysicalKey(String name) {
+    switch (name) {
+      case 'a': return PhysicalKeyboardKey.keyA;
+      case 'b': return PhysicalKeyboardKey.keyB;
+      case 'c': return PhysicalKeyboardKey.keyC;
+      case 'd': return PhysicalKeyboardKey.keyD;
+      case 'e': return PhysicalKeyboardKey.keyE;
+      case 'f': return PhysicalKeyboardKey.keyF;
+      case 'g': return PhysicalKeyboardKey.keyG;
+      case 'h': return PhysicalKeyboardKey.keyH;
+      case 'i': return PhysicalKeyboardKey.keyI;
+      case 'j': return PhysicalKeyboardKey.keyJ;
+      case 'k': return PhysicalKeyboardKey.keyK;
+      case 'l': return PhysicalKeyboardKey.keyL;
+      case 'm': return PhysicalKeyboardKey.keyM;
+      case 'n': return PhysicalKeyboardKey.keyN;
+      case 'o': return PhysicalKeyboardKey.keyO;
+      case 'p': return PhysicalKeyboardKey.keyP;
+      case 'q': return PhysicalKeyboardKey.keyQ;
+      case 'r': return PhysicalKeyboardKey.keyR;
+      case 's': return PhysicalKeyboardKey.keyS;
+      case 't': return PhysicalKeyboardKey.keyT;
+      case 'u': return PhysicalKeyboardKey.keyU;
+      case 'v': return PhysicalKeyboardKey.keyV;
+      case 'w': return PhysicalKeyboardKey.keyW;
+      case 'x': return PhysicalKeyboardKey.keyX;
+      case 'y': return PhysicalKeyboardKey.keyY;
+      case 'z': return PhysicalKeyboardKey.keyZ;
+      case 'escape': return PhysicalKeyboardKey.escape;
+      case 'enter': return PhysicalKeyboardKey.enter;
+      case 'backspace': return PhysicalKeyboardKey.backspace;
+      case 'delete': return PhysicalKeyboardKey.delete;
+      case 'tab': return PhysicalKeyboardKey.tab;
+      case 'space': return PhysicalKeyboardKey.space;
+      default: return PhysicalKeyboardKey(0x00070004);
     }
   }
 

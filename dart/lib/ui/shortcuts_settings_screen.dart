@@ -1,0 +1,591 @@
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import 'keyboard_shortcuts.dart';
+import 'settings_style.dart';
+
+const _commandGroups = <List<(ShortcutCommand, String)>>[
+  // 1. App/Window
+  [
+    (ShortcutCommand.closeTelegram, 'Close Window'),
+    (ShortcutCommand.lockTelegram, 'Lock by Passcode'),
+    (ShortcutCommand.minimizeTelegram, 'Minimize'),
+    (ShortcutCommand.quitTelegram, 'Quit'),
+  ],
+  // 2. Search
+  [
+    (ShortcutCommand.search, 'Search'),
+    (ShortcutCommand.cancelSearch, 'Cancel Search'),
+  ],
+  // 3. Chat Nav
+  [
+    (ShortcutCommand.chatSwitchOverlay, 'Recent Chats'),
+    (ShortcutCommand.chatSwitchOverlayReverse, 'Recent Chats (Reverse)'),
+    (ShortcutCommand.chatPrevious, 'Previous Chat'),
+    (ShortcutCommand.chatNext, 'Next Chat'),
+    (ShortcutCommand.chatFirst, 'First Chat'),
+    (ShortcutCommand.chatLast, 'Last Chat'),
+    (ShortcutCommand.selfChat, 'Saved Messages'),
+    (ShortcutCommand.showArchive, 'Archive'),
+    (ShortcutCommand.showContacts, 'Contacts'),
+  ],
+  // 4. Pinned Chats
+  [
+    (ShortcutCommand.pinnedChat1, 'Pinned Chat #1'),
+    (ShortcutCommand.pinnedChat2, 'Pinned Chat #2'),
+    (ShortcutCommand.pinnedChat3, 'Pinned Chat #3'),
+    (ShortcutCommand.pinnedChat4, 'Pinned Chat #4'),
+    (ShortcutCommand.pinnedChat5, 'Pinned Chat #5'),
+    (ShortcutCommand.pinnedChat6, 'Pinned Chat #6'),
+    (ShortcutCommand.pinnedChat7, 'Pinned Chat #7'),
+    (ShortcutCommand.pinnedChat8, 'Pinned Chat #8'),
+  ],
+  // 5. Accounts
+  [
+    (ShortcutCommand.account1, 'Account #1'),
+    (ShortcutCommand.account2, 'Account #2'),
+    (ShortcutCommand.account3, 'Account #3'),
+    (ShortcutCommand.account4, 'Account #4'),
+    (ShortcutCommand.account5, 'Account #5'),
+    (ShortcutCommand.account6, 'Account #6'),
+  ],
+  // 6. Folders
+  [
+    (ShortcutCommand.allChats, 'All Chats'),
+    (ShortcutCommand.folder1, 'Folder #1'),
+    (ShortcutCommand.folder2, 'Folder #2'),
+    (ShortcutCommand.folder3, 'Folder #3'),
+    (ShortcutCommand.folder4, 'Folder #4'),
+    (ShortcutCommand.folder5, 'Folder #5'),
+    (ShortcutCommand.folder6, 'Folder #6'),
+    (ShortcutCommand.lastFolder, 'Last Folder'),
+    (ShortcutCommand.nextFolder, 'Next Folder'),
+    (ShortcutCommand.previousFolder, 'Previous Folder'),
+  ],
+  // 7. Chat Actions
+  [
+    (ShortcutCommand.readChat, 'Mark as Read'),
+    (ShortcutCommand.showChatMenu, 'Chat Menu'),
+    (ShortcutCommand.showChatPreview, 'Chat Preview'),
+    (ShortcutCommand.archiveChat, 'Archive Chat'),
+    (ShortcutCommand.showScheduled, 'Scheduled Messages'),
+  ],
+  // 8. Send
+  [
+    (ShortcutCommand.message, 'Send Message'),
+    (ShortcutCommand.messageSilently, 'Send Silently'),
+    (ShortcutCommand.messageScheduled, 'Schedule Message'),
+  ],
+  // 9. Format & Edit
+  [
+    (ShortcutCommand.recordVoice, 'Record Voice'),
+    (ShortcutCommand.formatBold, 'Bold'),
+    (ShortcutCommand.formatItalic, 'Italic'),
+    (ShortcutCommand.formatUnderline, 'Underline'),
+    (ShortcutCommand.formatStrike, 'Strikethrough'),
+    (ShortcutCommand.formatCode, 'Monospace'),
+    (ShortcutCommand.formatBlockquote, 'Blockquote'),
+    (ShortcutCommand.formatSpoiler, 'Spoiler'),
+    (ShortcutCommand.formatClear, 'Clear Formatting'),
+    (ShortcutCommand.formatLink, 'Create Link'),
+    (ShortcutCommand.formatDate, 'Insert Date'),
+    (ShortcutCommand.editLastMessage, 'Edit Last Message'),
+    (ShortcutCommand.replyPrevious, 'Reply to Previous'),
+    (ShortcutCommand.replyNext, 'Reply to Next'),
+    (ShortcutCommand.openFilePicker, 'Send File'),
+    (ShortcutCommand.pastePlainText, 'Paste as Plain Text'),
+  ],
+  // 10. Admin Log
+  [
+    (ShortcutCommand.showAdminLog, 'Admin Log'),
+  ],
+  // 11. Media Viewer
+  [
+    (ShortcutCommand.mediaViewerVideoFullscreen, 'Video Fullscreen'),
+  ],
+  // 12. Media Playback
+  [
+    (ShortcutCommand.mediaPlay, 'Play'),
+    (ShortcutCommand.mediaPause, 'Pause'),
+    (ShortcutCommand.mediaPlayPause, 'Play / Pause'),
+    (ShortcutCommand.mediaStop, 'Stop'),
+    (ShortcutCommand.mediaPrevious, 'Previous Track'),
+    (ShortcutCommand.mediaNext, 'Next Track'),
+  ],
+];
+
+final _modifierKeys = {
+  LogicalKeyboardKey.controlLeft,
+  LogicalKeyboardKey.controlRight,
+  LogicalKeyboardKey.shiftLeft,
+  LogicalKeyboardKey.shiftRight,
+  LogicalKeyboardKey.altLeft,
+  LogicalKeyboardKey.altRight,
+  LogicalKeyboardKey.metaLeft,
+  LogicalKeyboardKey.metaRight,
+};
+
+final _functionKeys = {
+  LogicalKeyboardKey.f1, LogicalKeyboardKey.f2, LogicalKeyboardKey.f3,
+  LogicalKeyboardKey.f4, LogicalKeyboardKey.f5, LogicalKeyboardKey.f6,
+  LogicalKeyboardKey.f7, LogicalKeyboardKey.f8, LogicalKeyboardKey.f9,
+  LogicalKeyboardKey.f10, LogicalKeyboardKey.f11, LogicalKeyboardKey.f12,
+};
+
+class ShortcutsSettingsScreen extends StatefulWidget {
+  const ShortcutsSettingsScreen({super.key});
+
+  @override
+  State<ShortcutsSettingsScreen> createState() =>
+      _ShortcutsSettingsScreenState();
+}
+
+class _ShortcutsSettingsScreenState extends State<ShortcutsSettingsScreen> {
+  final _currentBindings = <ShortcutCommand, List<KeyBinding>>{};
+  ShortcutCommand? _recordingCommand;
+  int _recordingIndex = -1;
+  final _conflicted = <String, ShortcutCommand>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBindings();
+  }
+
+  @override
+  void dispose() {
+    if (_recordingCommand != null) {
+      ShortcutSystem.instance.stopRecording();
+    }
+    super.dispose();
+  }
+
+  void _loadBindings() {
+    _currentBindings.clear();
+    for (final b in ShortcutSystem.instance.currentBindings) {
+      _currentBindings.putIfAbsent(b.command, () => []).add(b);
+    }
+  }
+
+  bool get _isModified {
+    final defaultByCmd = <ShortcutCommand, List<String>>{};
+    for (final b in ShortcutSystem.defaultBindingsList) {
+      defaultByCmd
+          .putIfAbsent(b.command, () => [])
+          .add(bindingToKeyString(b));
+    }
+    for (final cmd in ShortcutCommand.values) {
+      final currKeys = (_currentBindings[cmd] ?? [])
+          .map(bindingToKeyString)
+          .toList()
+        ..sort();
+      final defKeys = (defaultByCmd[cmd] ?? [])..sort();
+      if (currKeys.length != defKeys.length) return true;
+      for (int i = 0; i < currKeys.length; i++) {
+        if (currKeys[i] != defKeys[i]) return true;
+      }
+    }
+    return false;
+  }
+
+  bool get _isRecording => _recordingCommand != null;
+
+  void _startRecording(ShortcutCommand cmd, int index) {
+    setState(() {
+      _recordingCommand = cmd;
+      _recordingIndex = index;
+      _conflicted.clear();
+    });
+    ShortcutSystem.instance.startRecording(_onRecordingKeyEvent);
+  }
+
+  void _cancelRecording() {
+    setState(() {
+      _recordingCommand = null;
+      _recordingIndex = -1;
+    });
+    ShortcutSystem.instance.stopRecording();
+  }
+
+  void _assignBinding(KeyBinding newBinding) {
+    final keyStr = bindingToKeyString(newBinding);
+    setState(() {
+      for (final entry in _currentBindings.entries) {
+        for (int i = entry.value.length - 1; i >= 0; i--) {
+          if (bindingToKeyString(entry.value[i]) == keyStr) {
+            _conflicted[keyStr] = entry.key;
+            entry.value.removeAt(i);
+          }
+        }
+      }
+      final bindings =
+          _currentBindings.putIfAbsent(_recordingCommand!, () => []);
+      if (_recordingIndex < bindings.length) {
+        bindings[_recordingIndex] = newBinding;
+      } else {
+        bindings.add(newBinding);
+      }
+      _recordingCommand = null;
+      _recordingIndex = -1;
+    });
+    ShortcutSystem.instance.stopRecording();
+    _syncToSystem();
+  }
+
+  void _clearBinding(ShortcutCommand cmd, int index) {
+    setState(() {
+      final bindings = _currentBindings[cmd];
+      if (bindings != null && index < bindings.length) {
+        bindings.removeAt(index);
+        if (bindings.isEmpty) _currentBindings.remove(cmd);
+      }
+      _recordingCommand = null;
+      _recordingIndex = -1;
+    });
+    ShortcutSystem.instance.stopRecording();
+    _syncToSystem();
+  }
+
+  void _addAnotherBinding(ShortcutCommand cmd) {
+    final bindings = _currentBindings.putIfAbsent(cmd, () => []);
+    final newIndex = bindings.length;
+    _startRecording(cmd, newIndex);
+  }
+
+  void _resetToDefaults() {
+    if (_isRecording) _cancelRecording();
+    setState(() {
+      _currentBindings.clear();
+      _conflicted.clear();
+      for (final b in ShortcutSystem.defaultBindingsList) {
+        _currentBindings.putIfAbsent(b.command, () => []).add(b);
+      }
+    });
+    _syncToSystem();
+  }
+
+  void _syncToSystem() {
+    final sys = ShortcutSystem.instance;
+    final allBindings = <KeyBinding>[];
+    for (final bindings in _currentBindings.values) {
+      allBindings.addAll(bindings);
+    }
+    sys.replaceAllBindings(allBindings);
+    sys.saveToCustomFile();
+  }
+
+  void _onRecordingKeyEvent(KeyEvent event) {
+    if (!_isRecording) return;
+    if (event is! KeyDownEvent) return;
+
+    final key = event.logicalKey;
+    if (_modifierKeys.contains(key)) return;
+
+    final hwCtrl = HardwareKeyboard.instance.isControlPressed;
+    final shift = HardwareKeyboard.instance.isShiftPressed;
+    final alt = HardwareKeyboard.instance.isAltPressed;
+    final hwMeta = HardwareKeyboard.instance.isMetaPressed;
+
+    if (key == LogicalKeyboardKey.escape &&
+        !hwCtrl && !shift && !alt && !hwMeta) {
+      _cancelRecording();
+      return;
+    }
+
+    if ((key == LogicalKeyboardKey.backspace ||
+            key == LogicalKeyboardKey.delete) &&
+        !hwCtrl && !shift && !alt && !hwMeta) {
+      _clearBinding(_recordingCommand!, _recordingIndex);
+      return;
+    }
+
+    final hasModifier = hwCtrl || alt || hwMeta;
+    if (!hasModifier && !shift && !_functionKeys.contains(key)) {
+      _cancelRecording();
+      return;
+    }
+
+    final isMac = !kIsWeb && Platform.isMacOS;
+    final ctrl = isMac ? hwMeta : hwCtrl;
+    final meta = isMac ? hwCtrl : hwMeta;
+
+    _assignBinding(KeyBinding(
+      key,
+      _recordingCommand!,
+      control: ctrl,
+      shift: shift,
+      alt: alt,
+      meta: meta,
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor =
+        isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final dividerColor =
+        isDark ? const Color(0xFF101921) : const Color(0xFFE8E8E8);
+    final hoverBg =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+    final goodColor = const Color(0xFF4CAF50);
+    final attentionColor =
+        isDark ? const Color(0xFFE53935) : const Color(0xFFDF3F40);
+    final modified = _isModified;
+
+    return Scaffold(
+        backgroundColor: bgColor,
+        appBar: AppBar(
+          backgroundColor: bgColor,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back, color: textColor),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          title: Text(
+            'Keyboard Shortcuts',
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w600,
+              color: textColor,
+            ),
+          ),
+        ),
+        body: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child: modified
+                  ? Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(height: 1, color: dividerColor),
+                        const SizedBox(height: 7),
+                        _ResetButton(
+                          bgColor: bgColor,
+                          textColor: accentColor,
+                          hoverBg: hoverBg,
+                          onTap: _resetToDefaults,
+                        ),
+                        const SizedBox(height: 7),
+                        Container(height: 1, color: dividerColor),
+                      ],
+                    )
+                  : const SizedBox.shrink(),
+            ),
+            for (int gi = 0; gi < _commandGroups.length; gi++) ...[
+              if (gi > 0) ...[
+                const SizedBox(height: 7),
+                Container(height: 1, color: dividerColor),
+                const SizedBox(height: 7),
+              ],
+              for (final (cmd, label) in _commandGroups[gi])
+                ..._buildCommandRows(
+                  cmd,
+                  label,
+                  textColor: textColor,
+                  subtextColor: subtextColor,
+                  hoverBg: hoverBg,
+                  goodColor: goodColor,
+                  attentionColor: attentionColor,
+                ),
+            ],
+            const SizedBox(height: 24),
+          ],
+        ),
+    );
+  }
+
+  List<Widget> _buildCommandRows(
+    ShortcutCommand cmd,
+    String label, {
+    required Color textColor,
+    required Color subtextColor,
+    required Color hoverBg,
+    required Color goodColor,
+    required Color attentionColor,
+  }) {
+    final bindings = _currentBindings[cmd] ?? [];
+    if (bindings.isEmpty) {
+      return [
+        _ShortcutRow(
+          label: label,
+          keyLabel: '',
+          keyColor: subtextColor,
+          isRecording:
+              _recordingCommand == cmd && _recordingIndex == 0,
+          recordingColor: goodColor,
+          textColor: textColor,
+          hoverBg: hoverBg,
+          onTap: () => _startRecording(cmd, 0),
+          onSecondaryTap: () => _addAnotherBinding(cmd),
+        ),
+      ];
+    }
+
+    final rows = <Widget>[];
+    for (int i = 0; i < bindings.length; i++) {
+      final b = bindings[i];
+      final keyStr = ShortcutSystem.displayBindingString(b);
+      final isConflictSource =
+          _conflicted.containsKey(bindingToKeyString(b));
+
+      rows.add(_ShortcutRow(
+        label: label,
+        keyLabel: keyStr,
+        keyColor: isConflictSource ? attentionColor : subtextColor,
+        strikethrough: isConflictSource,
+        isRecording: _recordingCommand == cmd && _recordingIndex == i,
+        recordingColor: goodColor,
+        textColor: textColor,
+        hoverBg: hoverBg,
+        onTap: () => _startRecording(cmd, i),
+        onSecondaryTap: () => _addAnotherBinding(cmd),
+      ));
+    }
+
+    if (_recordingCommand == cmd && _recordingIndex >= bindings.length) {
+      rows.add(_ShortcutRow(
+        label: label,
+        keyLabel: '',
+        keyColor: subtextColor,
+        isRecording: true,
+        recordingColor: goodColor,
+        textColor: textColor,
+        hoverBg: hoverBg,
+        onTap: () {},
+        onSecondaryTap: () {},
+      ));
+    }
+
+    return rows;
+  }
+}
+
+class _ResetButton extends StatelessWidget {
+  final Color bgColor;
+  final Color textColor;
+  final Color hoverBg;
+  final VoidCallback onTap;
+
+  const _ResetButton({
+    required this.bgColor,
+    required this.textColor,
+    required this.hoverBg,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      hoverColor: hoverBg,
+      child: Padding(
+        padding: SettingsStyle.noIconPadding,
+        child: SizedBox(
+          height: SettingsStyle.rowHeight - 20,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Reset to defaults',
+              style: TextStyle(
+                fontSize: SettingsStyle.buttonFontSize,
+                color: textColor,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ShortcutRow extends StatelessWidget {
+  final String label;
+  final String keyLabel;
+  final Color keyColor;
+  final bool strikethrough;
+  final bool isRecording;
+  final Color recordingColor;
+  final Color textColor;
+  final Color hoverBg;
+  final VoidCallback onTap;
+  final VoidCallback onSecondaryTap;
+
+  const _ShortcutRow({
+    required this.label,
+    required this.keyLabel,
+    required this.keyColor,
+    this.strikethrough = false,
+    required this.isRecording,
+    required this.recordingColor,
+    required this.textColor,
+    required this.hoverBg,
+    required this.onTap,
+    required this.onSecondaryTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onSecondaryTapUp: (_) => onSecondaryTap(),
+      child: InkWell(
+        onTap: onTap,
+        hoverColor: hoverBg,
+        child: Padding(
+          padding: SettingsStyle.noIconPadding,
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: SettingsStyle.buttonFontSize,
+                    color: textColor,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 12),
+              if (isRecording)
+                Text(
+                  'Recording...',
+                  style: TextStyle(
+                    fontSize: SettingsStyle.buttonFontSize,
+                    fontStyle: FontStyle.italic,
+                    color: recordingColor,
+                  ),
+                )
+              else
+                Text(
+                  keyLabel,
+                  style: TextStyle(
+                    fontSize: SettingsStyle.buttonFontSize,
+                    color: keyColor,
+                    decoration: strikethrough
+                        ? TextDecoration.lineThrough
+                        : null,
+                    decorationColor: keyColor,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

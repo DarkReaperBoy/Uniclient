@@ -7,6 +7,7 @@ import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import 'settings_style.dart';
+import 'shortcuts_settings_screen.dart';
 
 class ChatSettingsScreen extends StatefulWidget {
   const ChatSettingsScreen({super.key});
@@ -2870,103 +2871,8 @@ class _ShortcutsArchiveSection extends StatelessWidget {
   }
 
   void _showKeyboardShortcuts(BuildContext context) {
-    final bgColor =
-        isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
-    final textColor =
-        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subtextColor =
-        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final dividerColor =
-        isDark ? const Color(0xFF101921) : const Color(0xFFE8E8E8);
-    final isMac =
-        Theme.of(context).platform == TargetPlatform.macOS;
-    final ctrl = isMac ? '⌘' : 'Ctrl';
-    final alt = isMac ? '⌥' : 'Alt';
-
-    final shortcuts = <(String, String)>[
-      ('Search', '$ctrl+K'),
-      ('Lock by Passcode', '$ctrl+L'),
-      ('Minimize', '$ctrl+M'),
-      ('Close', '$ctrl+W'),
-      ('Quit', '$ctrl+Q'),
-      ('Previous Chat', '$ctrl+Shift+Tab'),
-      ('Next Chat', '$ctrl+Tab'),
-      ('First Chat', '$ctrl+$alt+Home'),
-      ('Last Chat', '$ctrl+$alt+End'),
-      ('Show Archive', '$ctrl+9'),
-      ('Pin Chat 1–8', '$ctrl+1…8'),
-      ('Bold', '$ctrl+B'),
-      ('Italic', '$ctrl+I'),
-      ('Underline', '$ctrl+U'),
-      ('Strikethrough', '$ctrl+Shift+X'),
-      ('Monospace', '$ctrl+Shift+M'),
-      ('Spoiler', '$ctrl+Shift+P'),
-      ('Clear Formatting', '$ctrl+Shift+N'),
-      ('Create Link', '$ctrl+K'),
-      ('Reply', '$ctrl+↑'),
-      ('Edit Last Message', '↑'),
-      ('Delete Message', 'Delete'),
-      ('Forward', '$ctrl+Shift+F'),
-      ('Send File', '$ctrl+O'),
-    ];
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: bgColor,
-        title: Text(
-          'Keyboard Shortcuts',
-          style: TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w600,
-            color: textColor,
-          ),
-        ),
-        content: SizedBox(
-          width: 364,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (var i = 0; i < shortcuts.length; i++) ...[
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            shortcuts[i].$1,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: textColor,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          shortcuts[i].$2,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: subtextColor,
-                            fontFamily: 'monospace',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (i < shortcuts.length - 1)
-                    Container(height: 1, color: dividerColor),
-                ],
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Close', style: TextStyle(color: accentColor)),
-          ),
-        ],
-      ),
+    Navigator.of(context).push(
+      settingsPageRoute(const ShortcutsSettingsScreen()),
     );
   }
 

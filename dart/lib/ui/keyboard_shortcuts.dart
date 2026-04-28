@@ -326,7 +326,7 @@ final _nameToKey = {
   for (final e in _keyNames.entries) e.value: e.key,
 };
 
-String _bindingToKeyString(_KeyBinding b) {
+String bindingToKeyString(KeyBinding b) {
   final parts = <String>[];
   if (b.control) parts.add('ctrl');
   if (b.shift) parts.add('shift');
@@ -336,7 +336,7 @@ String _bindingToKeyString(_KeyBinding b) {
   return parts.join('+');
 }
 
-_KeyBinding? _parseKeyBinding(String keys, ShortcutCommand command) {
+KeyBinding? _parseKeyBinding(String keys, ShortcutCommand command) {
   final parts = keys.toLowerCase().split('+');
   if (parts.isEmpty) return null;
   bool ctrl = false, shift = false, alt = false, meta = false;
@@ -353,7 +353,7 @@ _KeyBinding? _parseKeyBinding(String keys, ShortcutCommand command) {
   if (keyPart == null) return null;
   final key = _nameToKey[keyPart];
   if (key == null) return null;
-  return _KeyBinding(key, command,
+  return KeyBinding(key, command,
       control: ctrl, shift: shift, alt: alt, meta: meta);
 }
 
@@ -363,7 +363,7 @@ class _Handler {
   _Handler(this.priority, this.callback);
 }
 
-class _KeyBinding {
+class KeyBinding {
   final LogicalKeyboardKey trigger;
   final bool control;
   final bool shift;
@@ -371,7 +371,7 @@ class _KeyBinding {
   final bool meta;
   final ShortcutCommand command;
 
-  const _KeyBinding(
+  const KeyBinding(
     this.trigger,
     this.command, {
     this.control = false,
@@ -403,7 +403,7 @@ class ShortcutSystem {
   static final instance = ShortcutSystem._();
 
   final _handlers = <ShortcutCommand, List<_Handler>>{};
-  final _bindings = <_KeyBinding>[];
+  final _bindings = <KeyBinding>[];
   final _requestController = StreamController<ShortcutCommand>.broadcast();
 
   Stream<ShortcutCommand> get requests => _requestController.stream;
@@ -411,6 +411,17 @@ class ShortcutSystem {
   bool _paused = false;
   bool get isPaused => _paused;
   String _configDir = '';
+
+  void Function(KeyEvent)? _recordingCallback;
+  bool get isRecording => _recordingCallback != null;
+
+  void startRecording(void Function(KeyEvent) callback) {
+    _recordingCallback = callback;
+  }
+
+  void stopRecording() {
+    _recordingCallback = null;
+  }
 
   bool _mediaShortcutsEnabled = false;
   bool get mediaShortcutsEnabled => _mediaShortcutsEnabled;
@@ -502,7 +513,7 @@ class ShortcutSystem {
         if (name == null) continue;
         entries.add({
           'command': name,
-          'keys': _bindingToKeyString(b),
+          'keys': bindingToKeyString(b),
         });
       }
       final json = const JsonEncoder.withIndent('  ').convert(entries);
@@ -530,7 +541,7 @@ class ShortcutSystem {
         if (keys is! String || keys.isEmpty) continue;
         final cmdValue = entry['command'];
         if (cmdValue == null) {
-          _bindings.removeWhere((b) => _bindingToKeyString(b) == keys.toLowerCase());
+          _bindings.removeWhere((b) => bindingToKeyString(b) == keys.toLowerCase());
           continue;
         }
         if (cmdValue is! String) continue;
@@ -570,7 +581,7 @@ class ShortcutSystem {
     bool alt = false,
     bool meta = false,
   }) {
-    _bindings.add(_KeyBinding(trigger, command,
+    _bindings.add(KeyBinding(trigger, command,
         control: control, shift: shift, alt: alt, meta: meta));
   }
 
@@ -602,6 +613,10 @@ class ShortcutSystem {
   }
 
   KeyEventResult handleKeyEvent(KeyEvent event) {
+    if (_recordingCallback != null) {
+      _recordingCallback!(event);
+      return KeyEventResult.handled;
+    }
     if (_paused) return KeyEventResult.ignored;
 
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
@@ -668,6 +683,49 @@ class ShortcutSystem {
     return result;
   }
 
+  List<KeyBinding> get currentBindings => List.unmodifiable(_bindings);
+
+  static List<KeyBinding> get defaultBindingsList =>
+      List.unmodifiable(_defaultBindings);
+
+  void replaceAllBindings(List<KeyBinding> newBindings) {
+    _bindings.clear();
+    _bindings.addAll(newBindings);
+  }
+
+  void saveToCustomFile() {
+    if (_configDir.isEmpty) return;
+    try {
+      final defaultsByKey = <String, Set<ShortcutCommand>>{};
+      for (final b in _defaultBindings) {
+        defaultsByKey
+            .putIfAbsent(bindingToKeyString(b), () => {})
+            .add(b.command);
+      }
+      final currentsByKey = <String, Set<ShortcutCommand>>{};
+      for (final b in _bindings) {
+        currentsByKey
+            .putIfAbsent(bindingToKeyString(b), () => {})
+            .add(b.command);
+      }
+      final allKeys = {...defaultsByKey.keys, ...currentsByKey.keys};
+      final entries = <Map<String, dynamic>>[];
+      for (final key in allKeys) {
+        final defs = defaultsByKey[key] ?? {};
+        final currs = currentsByKey[key] ?? {};
+        if (defs.length == currs.length && defs.containsAll(currs)) continue;
+        if (defs.isNotEmpty) {
+          entries.add({'command': null, 'keys': key});
+        }
+        for (final cmd in currs) {
+          entries.add({'command': _commandNames[cmd], 'keys': key});
+        }
+      }
+      final json = const JsonEncoder.withIndent('  ').convert(entries);
+      File('$_configDir/shortcuts-custom.json').writeAsStringSync(json);
+    } catch (_) {}
+  }
+
   void dispose() {
     _handlers.clear();
     _requestController.close();
@@ -709,7 +767,7 @@ class ShortcutSystem {
     return _keyNames[key]?.toUpperCase() ?? key.keyLabel;
   }
 
-  static String displayBindingString(_KeyBinding b) {
+  static String displayBindingString(KeyBinding b) {
     final parts = <String>[];
     if (_isMac) {
       if (b.control) parts.add('\u2318');
@@ -741,176 +799,176 @@ class ShortcutSystem {
         .toList();
   }
 
-  static final List<_KeyBinding> _defaultBindings = [
-    const _KeyBinding(LogicalKeyboardKey.keyF, ShortcutCommand.search,
+  static final List<KeyBinding> _defaultBindings = [
+    const KeyBinding(LogicalKeyboardKey.keyF, ShortcutCommand.search,
         control: true),
-    const _KeyBinding(
+    const KeyBinding(
         LogicalKeyboardKey.escape, ShortcutCommand.cancelSearch),
     if (_isDesktop)
-      const _KeyBinding(LogicalKeyboardKey.tab, ShortcutCommand.chatSwitchOverlay,
+      const KeyBinding(LogicalKeyboardKey.tab, ShortcutCommand.chatSwitchOverlay,
           control: true),
     if (_isDesktop)
-      const _KeyBinding(LogicalKeyboardKey.tab, ShortcutCommand.chatSwitchOverlayReverse,
+      const KeyBinding(LogicalKeyboardKey.tab, ShortcutCommand.chatSwitchOverlayReverse,
           control: true, shift: true),
-    const _KeyBinding(LogicalKeyboardKey.arrowDown, ShortcutCommand.chatNext,
+    const KeyBinding(LogicalKeyboardKey.arrowDown, ShortcutCommand.chatNext,
         alt: true),
-    const _KeyBinding(
+    const KeyBinding(
         LogicalKeyboardKey.arrowUp, ShortcutCommand.chatPrevious,
         alt: true),
     if (_isDesktop)
-      const _KeyBinding(
+      const KeyBinding(
           LogicalKeyboardKey.pageDown, ShortcutCommand.chatNext,
           control: true),
     if (_isDesktop)
-      const _KeyBinding(
+      const KeyBinding(
           LogicalKeyboardKey.pageUp, ShortcutCommand.chatPrevious,
           control: true),
-    const _KeyBinding(
+    const KeyBinding(
         LogicalKeyboardKey.arrowDown, ShortcutCommand.nextFolder,
         control: true, shift: true),
-    const _KeyBinding(
+    const KeyBinding(
         LogicalKeyboardKey.arrowUp, ShortcutCommand.previousFolder,
         control: true, shift: true),
-    const _KeyBinding(LogicalKeyboardKey.home, ShortcutCommand.chatFirst,
+    const KeyBinding(LogicalKeyboardKey.home, ShortcutCommand.chatFirst,
         control: true, alt: true),
-    const _KeyBinding(LogicalKeyboardKey.end, ShortcutCommand.chatLast,
+    const KeyBinding(LogicalKeyboardKey.end, ShortcutCommand.chatLast,
         control: true, alt: true),
     if (_isDesktop)
-      const _KeyBinding(LogicalKeyboardKey.keyR, ShortcutCommand.readChat,
+      const KeyBinding(LogicalKeyboardKey.keyR, ShortcutCommand.readChat,
           control: true),
     if (_isDesktop)
-      const _KeyBinding(LogicalKeyboardKey.keyR, ShortcutCommand.recordVoice,
+      const KeyBinding(LogicalKeyboardKey.keyR, ShortcutCommand.recordVoice,
           control: true),
-    const _KeyBinding(
+    const KeyBinding(
         LogicalKeyboardKey.backslash, ShortcutCommand.showChatMenu,
         control: true),
     if (_isDesktop)
-      const _KeyBinding(
+      const KeyBinding(
           LogicalKeyboardKey.bracketRight, ShortcutCommand.showChatPreview,
           control: true),
-    const _KeyBinding(
+    const KeyBinding(
         LogicalKeyboardKey.arrowUp, ShortcutCommand.replyPrevious,
         control: true),
-    const _KeyBinding(LogicalKeyboardKey.arrowDown, ShortcutCommand.replyNext,
+    const KeyBinding(LogicalKeyboardKey.arrowDown, ShortcutCommand.replyNext,
         control: true),
-    const _KeyBinding(
+    const KeyBinding(
         LogicalKeyboardKey.arrowUp, ShortcutCommand.editLastMessage),
     if (_isDesktop)
-      const _KeyBinding(LogicalKeyboardKey.digit1, ShortcutCommand.allChats,
+      const KeyBinding(LogicalKeyboardKey.digit1, ShortcutCommand.allChats,
           control: true),
     if (_isDesktop)
-      const _KeyBinding(LogicalKeyboardKey.digit2, ShortcutCommand.folder1,
+      const KeyBinding(LogicalKeyboardKey.digit2, ShortcutCommand.folder1,
           control: true),
     if (_isDesktop)
-      const _KeyBinding(LogicalKeyboardKey.digit3, ShortcutCommand.folder2,
+      const KeyBinding(LogicalKeyboardKey.digit3, ShortcutCommand.folder2,
           control: true),
     if (_isDesktop)
-      const _KeyBinding(LogicalKeyboardKey.digit4, ShortcutCommand.folder3,
+      const KeyBinding(LogicalKeyboardKey.digit4, ShortcutCommand.folder3,
           control: true),
     if (_isDesktop)
-      const _KeyBinding(LogicalKeyboardKey.digit5, ShortcutCommand.folder4,
+      const KeyBinding(LogicalKeyboardKey.digit5, ShortcutCommand.folder4,
           control: true),
     if (_isDesktop)
-      const _KeyBinding(LogicalKeyboardKey.digit6, ShortcutCommand.folder5,
+      const KeyBinding(LogicalKeyboardKey.digit6, ShortcutCommand.folder5,
           control: true),
     if (_isDesktop)
-      const _KeyBinding(LogicalKeyboardKey.digit7, ShortcutCommand.folder6,
+      const KeyBinding(LogicalKeyboardKey.digit7, ShortcutCommand.folder6,
           control: true),
     if (_isDesktop)
-      const _KeyBinding(
+      const KeyBinding(
           LogicalKeyboardKey.digit8, ShortcutCommand.lastFolder,
           control: true),
     if (_isDesktop)
-      const _KeyBinding(LogicalKeyboardKey.digit1, ShortcutCommand.pinnedChat1,
+      const KeyBinding(LogicalKeyboardKey.digit1, ShortcutCommand.pinnedChat1,
           control: true),
     if (_isDesktop)
-      const _KeyBinding(LogicalKeyboardKey.digit2, ShortcutCommand.pinnedChat2,
+      const KeyBinding(LogicalKeyboardKey.digit2, ShortcutCommand.pinnedChat2,
           control: true),
     if (_isDesktop)
-      const _KeyBinding(LogicalKeyboardKey.digit3, ShortcutCommand.pinnedChat3,
+      const KeyBinding(LogicalKeyboardKey.digit3, ShortcutCommand.pinnedChat3,
           control: true),
     if (_isDesktop)
-      const _KeyBinding(LogicalKeyboardKey.digit4, ShortcutCommand.pinnedChat4,
+      const KeyBinding(LogicalKeyboardKey.digit4, ShortcutCommand.pinnedChat4,
           control: true),
     if (_isDesktop)
-      const _KeyBinding(LogicalKeyboardKey.digit5, ShortcutCommand.pinnedChat5,
+      const KeyBinding(LogicalKeyboardKey.digit5, ShortcutCommand.pinnedChat5,
           control: true),
     if (_isDesktop)
-      const _KeyBinding(LogicalKeyboardKey.digit6, ShortcutCommand.pinnedChat6,
+      const KeyBinding(LogicalKeyboardKey.digit6, ShortcutCommand.pinnedChat6,
           control: true),
     if (_isDesktop)
-      const _KeyBinding(LogicalKeyboardKey.digit7, ShortcutCommand.pinnedChat7,
+      const KeyBinding(LogicalKeyboardKey.digit7, ShortcutCommand.pinnedChat7,
           control: true),
     if (_isDesktop)
-      const _KeyBinding(LogicalKeyboardKey.digit8, ShortcutCommand.pinnedChat8,
+      const KeyBinding(LogicalKeyboardKey.digit8, ShortcutCommand.pinnedChat8,
           control: true),
     if (_isDesktop)
-      const _KeyBinding(LogicalKeyboardKey.keyL, ShortcutCommand.lockTelegram,
+      const KeyBinding(LogicalKeyboardKey.keyL, ShortcutCommand.lockTelegram,
           control: true),
     if (_isDesktop)
-      const _KeyBinding(
+      const KeyBinding(
           LogicalKeyboardKey.keyW, ShortcutCommand.closeTelegram,
           control: true),
     if (_isDesktop)
-      const _KeyBinding(LogicalKeyboardKey.f4, ShortcutCommand.closeTelegram,
+      const KeyBinding(LogicalKeyboardKey.f4, ShortcutCommand.closeTelegram,
           control: true),
     if (_isDesktop)
-      const _KeyBinding(
+      const KeyBinding(
           LogicalKeyboardKey.keyM, ShortcutCommand.minimizeTelegram,
           control: true),
     if (_isDesktop)
-      const _KeyBinding(
+      const KeyBinding(
           LogicalKeyboardKey.keyQ, ShortcutCommand.quitTelegram,
           control: true),
     if (_isDesktop)
-      const _KeyBinding(LogicalKeyboardKey.digit0, ShortcutCommand.selfChat,
+      const KeyBinding(LogicalKeyboardKey.digit0, ShortcutCommand.selfChat,
           control: true),
     if (_isDesktop)
-      const _KeyBinding(
+      const KeyBinding(
           LogicalKeyboardKey.digit9, ShortcutCommand.showArchive,
           control: true),
-    const _KeyBinding(
+    const KeyBinding(
         LogicalKeyboardKey.keyJ, ShortcutCommand.showContacts,
         control: true),
     if (_isDesktop)
-      const _KeyBinding(LogicalKeyboardKey.f5, ShortcutCommand.supportReloadTemplates),
+      const KeyBinding(LogicalKeyboardKey.f5, ShortcutCommand.supportReloadTemplates),
     if (_isDesktop)
-      const _KeyBinding(LogicalKeyboardKey.delete, ShortcutCommand.supportToggleMuted,
+      const KeyBinding(LogicalKeyboardKey.delete, ShortcutCommand.supportToggleMuted,
           control: true),
     if (_isDesktop)
-      const _KeyBinding(LogicalKeyboardKey.insert, ShortcutCommand.supportScrollToCurrent,
+      const KeyBinding(LogicalKeyboardKey.insert, ShortcutCommand.supportScrollToCurrent,
           control: true),
     if (_isDesktop)
-      const _KeyBinding(LogicalKeyboardKey.keyX, ShortcutCommand.supportHistoryBack,
+      const KeyBinding(LogicalKeyboardKey.keyX, ShortcutCommand.supportHistoryBack,
           control: true, shift: true),
     if (_isDesktop)
-      const _KeyBinding(LogicalKeyboardKey.keyC, ShortcutCommand.supportHistoryForward,
+      const KeyBinding(LogicalKeyboardKey.keyC, ShortcutCommand.supportHistoryForward,
           control: true, shift: true),
-    const _KeyBinding(LogicalKeyboardKey.mediaPlay, ShortcutCommand.mediaPlay),
-    const _KeyBinding(LogicalKeyboardKey.mediaPause, ShortcutCommand.mediaPause),
-    const _KeyBinding(LogicalKeyboardKey.mediaPlayPause, ShortcutCommand.mediaPlayPause),
-    const _KeyBinding(LogicalKeyboardKey.mediaStop, ShortcutCommand.mediaStop),
-    const _KeyBinding(LogicalKeyboardKey.mediaTrackPrevious, ShortcutCommand.mediaPrevious),
-    const _KeyBinding(LogicalKeyboardKey.mediaTrackNext, ShortcutCommand.mediaNext),
-    const _KeyBinding(LogicalKeyboardKey.keyB, ShortcutCommand.formatBold,
+    const KeyBinding(LogicalKeyboardKey.mediaPlay, ShortcutCommand.mediaPlay),
+    const KeyBinding(LogicalKeyboardKey.mediaPause, ShortcutCommand.mediaPause),
+    const KeyBinding(LogicalKeyboardKey.mediaPlayPause, ShortcutCommand.mediaPlayPause),
+    const KeyBinding(LogicalKeyboardKey.mediaStop, ShortcutCommand.mediaStop),
+    const KeyBinding(LogicalKeyboardKey.mediaTrackPrevious, ShortcutCommand.mediaPrevious),
+    const KeyBinding(LogicalKeyboardKey.mediaTrackNext, ShortcutCommand.mediaNext),
+    const KeyBinding(LogicalKeyboardKey.keyB, ShortcutCommand.formatBold,
         control: true),
-    const _KeyBinding(LogicalKeyboardKey.keyI, ShortcutCommand.formatItalic,
+    const KeyBinding(LogicalKeyboardKey.keyI, ShortcutCommand.formatItalic,
         control: true),
-    const _KeyBinding(LogicalKeyboardKey.keyU, ShortcutCommand.formatUnderline,
+    const KeyBinding(LogicalKeyboardKey.keyU, ShortcutCommand.formatUnderline,
         control: true),
-    const _KeyBinding(LogicalKeyboardKey.keyX, ShortcutCommand.formatStrike,
+    const KeyBinding(LogicalKeyboardKey.keyX, ShortcutCommand.formatStrike,
         control: true, shift: true),
-    const _KeyBinding(LogicalKeyboardKey.keyM, ShortcutCommand.formatCode,
+    const KeyBinding(LogicalKeyboardKey.keyM, ShortcutCommand.formatCode,
         control: true, shift: true),
-    const _KeyBinding(LogicalKeyboardKey.period, ShortcutCommand.formatBlockquote,
+    const KeyBinding(LogicalKeyboardKey.period, ShortcutCommand.formatBlockquote,
         control: true, shift: true),
-    const _KeyBinding(LogicalKeyboardKey.keyP, ShortcutCommand.formatSpoiler,
+    const KeyBinding(LogicalKeyboardKey.keyP, ShortcutCommand.formatSpoiler,
         control: true, shift: true),
-    const _KeyBinding(LogicalKeyboardKey.keyN, ShortcutCommand.formatClear,
+    const KeyBinding(LogicalKeyboardKey.keyN, ShortcutCommand.formatClear,
         control: true, shift: true),
-    const _KeyBinding(LogicalKeyboardKey.keyK, ShortcutCommand.formatLink,
+    const KeyBinding(LogicalKeyboardKey.keyK, ShortcutCommand.formatLink,
         control: true),
-    const _KeyBinding(LogicalKeyboardKey.keyD, ShortcutCommand.formatDate,
+    const KeyBinding(LogicalKeyboardKey.keyD, ShortcutCommand.formatDate,
         control: true, shift: true),
   ];
 }

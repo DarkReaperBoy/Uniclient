@@ -812,8 +812,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_list_panel.dart, chat_view.dart, hamburger_drawer.dart (partial key handling already present) — new: dart/lib/ui/keyboard_shortcuts.dart -->
 
-- [ ] Shortcuts settings UI: Chat Settings entry, command rows with right-aligned key label, green italic "Recording..." state, red strikethrough conflict, "Reset to defaults" SlideWrap button, right-click "Add another binding", 11 separator groups — spec §24.12
-
 ---
 
 ## §25 — Theming & Color System
