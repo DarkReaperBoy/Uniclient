@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
+import '../theme/wallpaper.dart';
 import '../utils/debug.dart';
 
 /// Top-level app state: accounts, connection, config, active platform.
@@ -50,6 +52,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Map<String, bool> _experimentalFlags = {};
   bool _editingTheme = false;
   List<String> _accountOrder = []; // persisted display order of account IDs
+  WallpaperData _wallpaper = WallpaperData.none;
   final List<StreamSubscription<dynamic>> _subs = [];
 
   /// Spec §3.3 / §54.8a: Menu bots per account (attach-menu bots with
@@ -333,6 +336,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setEditingTheme(bool value) {
     if (_editingTheme == value) return;
     _editingTheme = value;
+    notifyListeners();
+  }
+
+  WallpaperData get wallpaper => _wallpaper;
+
+  void setWallpaper(WallpaperData data) {
+    _wallpaper = data;
+    _saveWallpaper();
     notifyListeners();
   }
 
@@ -787,6 +798,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       if (rmLangs != null) _removedLanguageCodes = rmLangs.cast<String>();
       final order = data['accountOrder'] as List<dynamic>?;
       if (order != null) _accountOrder = order.cast<String>();
+      _loadWallpaper(data);
     } catch (_) {}
   }
 
@@ -829,8 +841,68 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'selectedLanguageCode': _selectedLanguageCode,
         'removedLanguageCodes': _removedLanguageCodes,
         'experimentalFlags': _experimentalFlags,
+        'wallpaperType': _wallpaper.type.index,
+        'wallpaperColors': _wallpaper.backgroundColors
+            .map((c) => (c.value & 0xFFFFFF).toRadixString(16).padLeft(6, '0'))
+            .toList(),
+        'wallpaperIntensity': _wallpaper.patternIntensity,
+        'wallpaperRotation': _wallpaper.gradientRotation,
+        'wallpaperBlurred': _wallpaper.blurred,
+        'wallpaperTiled': _wallpaper.tiled,
       }));
     } catch (_) {}
+  }
+
+  void _saveWallpaper() {
+    _saveWindowPrefs();
+    if (_wallpaper.imageBytes != null && _configDir.isNotEmpty) {
+      try {
+        File('$_configDir/wallpaper.dat').writeAsBytesSync(_wallpaper.imageBytes!);
+      } catch (_) {}
+    } else if (_wallpaper.patternBytes != null && _configDir.isNotEmpty) {
+      try {
+        File('$_configDir/wallpaper_pattern.dat').writeAsBytesSync(_wallpaper.patternBytes!);
+      } catch (_) {}
+    }
+  }
+
+  void _loadWallpaper(Map<String, dynamic> data) {
+    final typeIdx = data['wallpaperType'] as int? ?? 0;
+    final type = WallpaperType.values.elementAtOrNull(typeIdx) ?? WallpaperType.solid;
+    final colorHexes = (data['wallpaperColors'] as List<dynamic>?)?.cast<String>() ?? [];
+    final intensity = data['wallpaperIntensity'] as int? ?? 40;
+    final rotation = data['wallpaperRotation'] as int? ?? 0;
+    final blurred = data['wallpaperBlurred'] as bool? ?? false;
+    final tiled = data['wallpaperTiled'] as bool? ?? false;
+
+    final colors = <Color>[];
+    for (final hex in colorHexes) {
+      final v = int.tryParse('FF$hex', radix: 16);
+      if (v != null) colors.add(Color(v));
+    }
+
+    Uint8List? imageBytes;
+    Uint8List? patternBytes;
+    if (_configDir.isNotEmpty) {
+      if (type == WallpaperType.image) {
+        final f = File('$_configDir/wallpaper.dat');
+        if (f.existsSync()) imageBytes = f.readAsBytesSync();
+      } else if (type == WallpaperType.pattern) {
+        final f = File('$_configDir/wallpaper_pattern.dat');
+        if (f.existsSync()) patternBytes = f.readAsBytesSync();
+      }
+    }
+
+    _wallpaper = WallpaperData(
+      type: type,
+      backgroundColors: colors,
+      patternIntensity: intensity,
+      gradientRotation: rotation,
+      blurred: blurred,
+      tiled: tiled,
+      imageBytes: imageBytes,
+      patternBytes: patternBytes,
+    );
   }
 
   static String _platformLabel(String platform) => switch (platform.toLowerCase()) {

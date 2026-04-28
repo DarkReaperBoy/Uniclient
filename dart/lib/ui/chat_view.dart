@@ -20,6 +20,7 @@ import '../state/app_state.dart';
 import '../state/audio_service.dart';
 import '../state/chat_state.dart';
 import '../theme/theme.dart';
+import '../theme/wallpaper.dart';
 import '../data/emoji_data.dart';
 import 'chat_list_row.dart' show ForwardDragData;
 import 'sticker_pack_viewer.dart';
@@ -3023,9 +3024,7 @@ class _ChatViewState extends State<ChatView>
       },
       child: _wrapDropTarget(Stack(
       children: [
-      Container(
-      color: theme.scaffoldBackgroundColor,
-      child: Column(
+      _ChatBackground(fallbackColor: theme.scaffoldBackgroundColor, child: Column(
         children: [
           // Spec §4.7: selection bar slides in from below (200ms easeOutCirc)
           // while the top bar title/subtitle translates up by topBarHeight.
@@ -4624,23 +4623,19 @@ class _MessageList extends StatelessWidget {
       if (isScheduledView) {
         final isDark = Theme.of(context).brightness == Brightness.dark;
         final bgColor = isDark ? const Color(0xD5213040) : const Color(0x7F517c41);
-        final scaffoldBg = isDark ? const Color(0xFF0e1621) : const Color(0xFFe6ebee);
-        return Container(
-          color: scaffoldBg,
-          child: Center(
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(12, 3, 12, 4),
-              decoration: BoxDecoration(
-                color: bgColor,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: const Text(
-                'No scheduled messages',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFFFFFFFF),
-                ),
+        return Center(
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(12, 3, 12, 4),
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: const Text(
+              'No scheduled messages',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFFFFFFF),
               ),
             ),
           ),
@@ -11993,4 +11988,30 @@ String _previewSubtitle(ChatInfo chat) {
     return '${chat.memberCount} $label';
   }
   return chat.type == ChatType.dm ? 'Private chat' : '';
+}
+
+class _ChatBackground extends StatelessWidget {
+  final Color fallbackColor;
+  final Widget child;
+
+  const _ChatBackground({required this.fallbackColor, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final wp = WallpaperProvider.of(context);
+
+    if (wp.type == WallpaperType.solid && wp.backgroundColors.isEmpty) {
+      return ColoredBox(color: fallbackColor, child: child);
+    }
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Positioned.fill(
+          child: ChatWallpaper(wallpaper: wp, fallbackColor: fallbackColor),
+        ),
+        child,
+      ],
+    );
+  }
 }

@@ -29,6 +29,7 @@ import 'ui/choose_datetime_box.dart';
 import 'ui/keyboard_shortcuts.dart';
 import 'ui/media_viewer.dart';
 import 'ui/shell.dart';
+import 'theme/wallpaper.dart';
 import 'ui/titlebar.dart';
 import 'utils/debug.dart';
 import 'utils/system_tray.dart';
@@ -1465,7 +1466,9 @@ class _UniClientAppState extends State<UniClientApp>
       }
     }
 
-    return PaletteProvider(
+    return WallpaperProvider(
+      wallpaper: appState.wallpaper,
+      child: PaletteProvider(
       palette: palette,
       child: MaterialApp(
       navigatorKey: _navigatorKey,
@@ -1543,6 +1546,7 @@ class _UniClientAppState extends State<UniClientApp>
           ),
         ],
       ),
+    ),
     ),
     );
   }
