@@ -812,7 +812,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_list_panel.dart, chat_view.dart, hamburger_drawer.dart (partial key handling already present) — new: dart/lib/ui/keyboard_shortcuts.dart -->
 
-- [ ] Shortcut system: Command enum (70+ commands), reactive dispatch stream, priority-based handlers, auto-repeat for navigation commands, global pause/resume for Settings recording mode — spec §24.1
 - [ ] Shortcut customization: write shortcuts-default.json on startup, load shortcuts-custom.json (max 2048 entries), null-command to disable, macOS ctrl/meta note — spec §24.2
 - [ ] Platform modifier mapping: Ctrl vs Cmd, Alt vs Option; macOS display symbols (⌘⌃⌥⇧) — spec §24.3
 - [ ] Application/window shortcuts: Ctrl+W/F4 close, Ctrl+L lock, Ctrl+M minimize, Ctrl+Q quit, Ctrl+F search — spec §24.4

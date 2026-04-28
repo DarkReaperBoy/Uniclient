@@ -24,6 +24,7 @@ import 'ui/call_screen.dart';
 import 'ui/chat_list_panel.dart';
 import 'ui/chat_view.dart';
 import 'ui/choose_datetime_box.dart';
+import 'ui/keyboard_shortcuts.dart';
 import 'ui/media_viewer.dart';
 import 'ui/shell.dart';
 import 'ui/titlebar.dart';
@@ -1201,111 +1202,9 @@ class _UniClientAppState extends State<UniClientApp>
                     );
                   }),
                 Expanded(
-                  child: CallbackShortcuts(
-        bindings: <ShortcutActivator, VoidCallback>{
-          // Telegram Desktop spec §24.4: Ctrl+F opens search in current context.
-          // We focus the chat list search field.
-          const SingleActivator(LogicalKeyboardKey.keyF, control: true):
-              ChatListPanel.requestFocusSearch,
-          // Esc cancels the chat list search if active. Binding only fires
-          // when no descendant intercepts the key first, so ChatView's own
-          // Focus(onKeyEvent:) Esc handler (reply/edit/selection cancel)
-          // still runs when a chat is open. When the sidebar search field
-          // itself has focus, no descendant claims Esc → this fires.
-          const SingleActivator(LogicalKeyboardKey.escape):
-              () => ChatListPanel.requestCancelSearch(),
-          // Telegram Desktop spec §24.7: ArrowUp with empty compose field and
-          // no edit/reply active → edit last outgoing message. Only fires when
-          // no descendant widget (e.g. a focused TextField moving the cursor)
-          // consumes the key first — so the same gesture inside a populated
-          // field continues to move the cursor normally.
-          const SingleActivator(LogicalKeyboardKey.arrowUp):
-              () => ChatView.requestEditLastOutgoing(),
-          // Telegram Desktop spec §24.4: Alt+Down / Alt+Up move the active
-          // selection to the next / previous chat in the visible, sorted
-          // chat list (pinned first, then lastMsgTime desc, archived hidden).
-          // Commands: `next_chat` / `previous_chat`.
-          const SingleActivator(LogicalKeyboardKey.arrowDown, alt: true):
-              () => ChatListPanel.requestNavigateChat(1),
-          const SingleActivator(LogicalKeyboardKey.arrowUp, alt: true):
-              () => ChatListPanel.requestNavigateChat(-1),
-          // Telegram Desktop spec §24.4: Ctrl+PgDn / Ctrl+PgUp navigate chats.
-          // Desktop-only (§13.5: browsers reserve Ctrl+PgUp/PgDn for tab
-          // switching). Alt+Down/Up above still work on web.
-          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.pageDown, control: true):
-              () => ChatListPanel.requestNavigateChat(1),
-          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.pageUp, control: true):
-              () => ChatListPanel.requestNavigateChat(-1),
-          // Telegram Desktop spec §24.4: Ctrl+Shift+Down / Ctrl+Shift+Up
-          // switch to the next / previous folder tab (`next_folder` /
-          // `previous_folder`). Tab order: All Chats, then folders in order.
-          const SingleActivator(LogicalKeyboardKey.arrowDown, control: true, shift: true):
-              () => ChatListPanel.requestNavigateFolder(1),
-          const SingleActivator(LogicalKeyboardKey.arrowUp, control: true, shift: true):
-              () => ChatListPanel.requestNavigateFolder(-1),
-          // Telegram Desktop spec §24.4 Chat Actions: Ctrl+R marks the
-          // currently active chat as read. Desktop-only (§13.5: browser
-          // intercepts Ctrl+R for page refresh).
-          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.keyR, control: true):
-              () => ChatView.requestMarkActiveChatRead(),
-          // Telegram Desktop spec §24.4: Ctrl+Alt+Home / Ctrl+Alt+End jump
-          // the active chat selection to the first / last chat in the
-          // currently visible, sorted sidebar list (`first_chat` /
-          // `last_chat`). No-op when the visible list is empty or the
-          // target is already active.
-          const SingleActivator(LogicalKeyboardKey.home, control: true, alt: true):
-              () => ChatListPanel.requestJumpChat(true),
-          const SingleActivator(LogicalKeyboardKey.end, control: true, alt: true):
-              () => ChatListPanel.requestJumpChat(false),
-          // Telegram Desktop spec §24.4 Folder Switching — Ctrl+1..Ctrl+8
-          // switch to folder tab by 1-based index. Desktop-only (§13.5:
-          // browsers reserve Ctrl+1-8 for tab switching).
-          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.digit1, control: true):
-              () => ChatListPanel.requestSwitchFolderByIndex(1),
-          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.digit2, control: true):
-              () => ChatListPanel.requestSwitchFolderByIndex(2),
-          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.digit3, control: true):
-              () => ChatListPanel.requestSwitchFolderByIndex(3),
-          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.digit4, control: true):
-              () => ChatListPanel.requestSwitchFolderByIndex(4),
-          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.digit5, control: true):
-              () => ChatListPanel.requestSwitchFolderByIndex(5),
-          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.digit6, control: true):
-              () => ChatListPanel.requestSwitchFolderByIndex(6),
-          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.digit7, control: true):
-              () => ChatListPanel.requestSwitchFolderByIndex(7),
-          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.digit8, control: true):
-              () => ChatListPanel.requestSwitchFolderByIndex(8),
-          // §24.4 Window shortcuts — desktop-only (§13.5: yield to browser
-          // combos on web — Ctrl+W/Q/M/F4 are browser-reserved).
-          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.keyW, control: true):
-              () => SystemTray.hideWindowRequest?.call(),
-          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.f4, control: true):
-              () => SystemTray.hideWindowRequest?.call(),
-          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.keyM, control: true):
-              () => SystemTray.minimizeWindowRequest?.call(),
-          if (!kIsWeb) const SingleActivator(LogicalKeyboardKey.keyQ, control: true):
-              () => SystemTray.quitAppRequest?.call(),
-          // Telegram Desktop spec §24.4 Chat Actions: Ctrl+\ opens the
-          // chat-level action menu (peer menu) anchored at the top-bar
-          // more_vert button. No-op when no chat is open.
-          const SingleActivator(LogicalKeyboardKey.backslash, control: true):
-              () => ChatView.requestShowActiveChatMenu(),
-          // Telegram Desktop spec §24.6 lines 2982-2983: Ctrl+Up replies to
-          // the previous (older) message; Ctrl+Down replies to the next
-          // (newer) message, and cancels the reply when already on the newest.
-          // No-op when no chat is open, no messages are loaded, or edit mode
-          // is active. OS-delivered keystrokes with the compose field focused
-          // hit the TextField's FocusNode.onKeyEvent path directly; this
-          // binding covers the case where focus is elsewhere (e.g. nothing
-          // focused, message list focused).
-          const SingleActivator(LogicalKeyboardKey.arrowUp, control: true):
-              () => ChatView.requestCycleReply(1),
-          const SingleActivator(LogicalKeyboardKey.arrowDown, control: true):
-              () => ChatView.requestCycleReply(-1),
-        },
-        child: const UniClientShell(),
-      ),
+                  child: const ShortcutListener(
+                    child: UniClientShell(),
+                  ),
               ),
             ],
           ),
