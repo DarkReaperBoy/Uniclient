@@ -1447,14 +1447,24 @@ class _UniClientAppState extends State<UniClientApp>
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
 
-    return MaterialApp(
+    final palette = switch (appState.themeMode) {
+      ThemeMode.dark => TelegramPalette.night,
+      ThemeMode.light => TelegramPalette.dayBlue,
+      ThemeMode.system => MediaQuery.platformBrightnessOf(context) == Brightness.dark
+          ? TelegramPalette.night
+          : TelegramPalette.dayBlue,
+    };
+
+    return PaletteProvider(
+      palette: palette,
+      child: MaterialApp(
       navigatorKey: _navigatorKey,
       navigatorObservers: [ShortcutLayerObserver()],
       title: 'UniClient',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
-      themeMode: appState.themeMode,
+      theme: AppTheme.fromPalette(palette),
+      darkTheme: AppTheme.fromPalette(palette),
+      themeMode: ThemeMode.light,
       home: Stack(
         children: [
           RepaintBoundary(
@@ -1523,6 +1533,7 @@ class _UniClientAppState extends State<UniClientApp>
           ),
         ],
       ),
+    ),
     );
   }
 }

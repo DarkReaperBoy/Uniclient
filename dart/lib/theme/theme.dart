@@ -1,113 +1,85 @@
 import 'package:flutter/material.dart';
+import 'telegram_palette.dart';
 
-/// Color constants matching the demo_ui.html design.
+export 'telegram_palette.dart';
+
 class AppColors {
-  // Dark theme
-  static const darkBase = Color(0xFF101318);
-  static const darkSurface = Color(0xFF15191f);
-  static const darkSurfaceAlt = Color(0xFF1a1f27);
-  static const darkSidebar = Color(0xFF13171d);
-  static const darkRail = Color(0xFF0d1015);
-  static const darkBorder = Color(0xFF232a35);
-  static const darkText = Color(0xFFe0e3ea);
-  static const darkTextMuted = Color(0xFF8b95a5);
-  static const darkTextDim = Color(0xFF5c6573);
+  static const darkBase = Color(0xFF17212B);
+  static const darkSurface = Color(0xFF17212B);
+  static const darkSurfaceAlt = Color(0xFF232E3C);
+  static const darkSidebar = Color(0xFF0E1621);
+  static const darkRail = Color(0xFF0E1621);
+  static const darkBorder = Color(0xFF232A35);
+  static const darkText = Color(0xFFF5F5F5);
+  static const darkTextMuted = Color(0xFF708499);
+  static const darkTextDim = Color(0xFF6C7883);
 
-  // Light theme
-  static const lightBase = Color(0xFFF5F5F5);
+  static const lightBase = Color(0xFFFFFFFF);
   static const lightSurface = Color(0xFFFFFFFF);
-  static const lightSurfaceAlt = Color(0xFFF0F0F0);
-  static const lightSidebar = Color(0xFFF8F8FA);
-  static const lightRail = Color(0xFFEBEBF0);
-  static const lightBorder = Color(0xFFD8D8DD);
-  static const lightText = Color(0xFF1A1A2E);
-  static const lightTextMuted = Color(0xFF6B7280);
-  static const lightTextDim = Color(0xFF9CA3AF);
+  static const lightSurfaceAlt = Color(0xFFF1F1F1);
+  static const lightSidebar = Color(0xFFF1F1F1);
+  static const lightRail = Color(0xFFF1F1F1);
+  static const lightBorder = Color(0xFFE5E5E5);
+  static const lightText = Color(0xFF000000);
+  static const lightTextMuted = Color(0xFF999999);
+  static const lightTextDim = Color(0xFF999999);
 
-  // Accent
-  static const accent = Color(0xFF4F6EF7);
-  static const accentDark = Color(0xFF3B5BDB);
-  static const accentLight = Color(0xFF6B85FA);
+  static const accent = Color(0xFF40A7E3);
+  static const accentDark = Color(0xFF5288C1);
+  static const accentLight = Color(0xFF6AB3F3);
 
-  // Semantic
-  static const online = Color(0xFF3BA55C);
-  static const danger = Color(0xFFED4245);
-  static const warning = Color(0xFFFAA61A);
+  static const online = Color(0xFF4DC920);
+  static const danger = Color(0xFFD14E4E);
+  static const warning = Color(0xFFFAAD38);
 
-  // Message bubbles — spec §5 exact tokens
-  // msgOutBg night / day
   static const bubbleSent = Color(0xFF2b5278);
   static const bubbleSentLight = Color(0xFFeffdde);
-  // msgInBg night / day
   static const bubbleReceived = Color(0xFF182533);
   static const bubbleReceivedLight = Color(0xFFffffff);
-  // msgOutBgSelected night / day
   static const bubbleSentSelected = Color(0xFF2e70a5);
-  static const bubbleSentSelectedLight = Color(0xFFb7dbdb);
-  // msgInBgSelected night / day
+  static const bubbleSentSelectedLight = Color(0xFFcbebb5);
   static const bubbleReceivedSelected = Color(0xFF2e70a5);
   static const bubbleReceivedSelectedLight = Color(0xFFc2dcf2);
 
-  // Bottom info — spec §5: timestamp + edited label + delivery ticks
-  // msgInDateFg day / night
   static const msgInDateFg = Color(0xFFa0acb6);
-  static const msgInDateFgNight = Color(0xFF6d7f8f);
-  // msgOutDateFg day / night
-  static const msgOutDateFg = Color(0xFF6db566);
+  static const msgInDateFgNight = Color(0xFF7a858f);
+  static const msgOutDateFg = Color(0xFF6fab69);
   static const msgOutDateFgNight = Color(0xFF7da8d3);
-  // historyOutIconFg day / night (outgoing ticks: sent, delivered, read)
-  static const historyOutIconFg = Color(0xFF57b84c);
-  static const historyOutIconFgNight = Color(0xFF6bbfff);
-  // historySendingOutIconFg day / night (outgoing sending clock)
+  static const historyOutIconFg = Color(0xFF5dc452);
+  static const historyOutIconFgNight = Color(0xFF62b2fd);
   static const historySendingOutIconFg = Color(0xFF98d292);
   static const historySendingOutIconFgNight = Color(0xFF70a4d2);
-  // historySendingInIconFg day / night (incoming sending clock)
   static const historySendingInIconFg = Color(0xFFa0adb5);
   static const historySendingInIconFgNight = Color(0xFF76838b);
-  // Media overlay (inverted) — spec §5: msgDateImgBg, *Inverted tokens
-  static const msgDateImgBg = Color(0x54000000); // #00000054 both themes
-  static const historyIconFgInverted = Color(0xFFffffff); // #ffffff both themes
-  static const historySendingInvertedIconFg = Color(0xC8ffffff); // #ffffffc8
+  static const msgDateImgBg = Color(0x54000000);
+  static const historyIconFgInverted = Color(0xFFffffff);
+  static const historySendingInvertedIconFg = Color(0xC8ffffff);
 
-  // Selection checkbox — spec §5: msgSelectionCheck / RoundCheckbox
-  // Empty fill: overviewCheckBg = #00000040 (25% black, both themes)
   static const selectionCheckBgInactive = Color(0x40000000);
-  // Checked fill: boxTextFgGood day #4ab44a / night #5598db
   static const selectionCheckBgActiveDay = Color(0xFF4ab44a);
   static const selectionCheckBgActiveNight = Color(0xFF5598db);
-  // Border + check glyph: windowBg (white, both themes)
   static const selectionCheckBorder = Color(0xFFffffff);
 
-  // msgStickerOverlay — spec §6: tint applied over stickers during selection only
-  // Spec #RRGGBBAA → Flutter 0xAARRGGBB
-  static const msgStickerOverlay = Color(0x7F358CD4);      // day: #358CD47F
-  static const msgStickerOverlayNight = Color(0x7F3585D4);  // night: #3585D47F
+  static const msgStickerOverlay = Color(0x7F358CD4);
+  static const msgStickerOverlayNight = Color(0x7F3585D4);
 
-  // Compose area — spec §7.1
-  static const historyComposeAreaBg = Color(0xFFFFFFFF);       // day
-  static const historyComposeAreaBgNight = Color(0xFF212121);  // night
-  static const historyComposeIconFg = Color(0xFFa0acb6);       // day icon
-  static const historyComposeIconFgOver = Color(0xFF639ac6);   // day hover
-  static const historyComposeIconFgNight = Color(0xFFa0acb6);  // night icon
-  static const historyComposeIconFgOverNight = Color(0xFF639ac6); // night hover
+  static const historyComposeAreaBg = Color(0xFFFFFFFF);
+  static const historyComposeAreaBgNight = Color(0xFF17212B);
+  static const historyComposeIconFg = Color(0xFF999999);
+  static const historyComposeIconFgOver = Color(0xFF8a8a8a);
+  static const historyComposeIconFgNight = Color(0xFF6c7883);
+  static const historyComposeIconFgOverNight = Color(0xFFdcdcdc);
 
-  // Bubble shadows — spec §5: 2px bottom shadow strip
-  // Format: #RRGGBBAA in spec → 0xAARRGGBB in Flutter
-  // msgOutShadow day / night (night disabled: alpha 00)
   static const bubbleSentShadow = Color(0x1d3ac346);
   static const bubbleSentShadowNight = Color(0x00000000);
-  // msgOutShadowSelected day / night
   static const bubbleSentShadowSelected = Color(0x2237a78d);
   static const bubbleSentShadowSelectedNight = Color(0x00366ea6);
-  // msgInShadow day / night (night disabled: alpha 00)
   static const bubbleReceivedShadow = Color(0x29748ea2);
   static const bubbleReceivedShadowNight = Color(0x00748ea2);
-  // msgInShadowSelected day / night
   static const bubbleReceivedShadowSelected = Color(0x29548dbb);
   static const bubbleReceivedShadowSelectedNight = Color(0x00538ebb);
 }
 
-/// Sizing constants.
 class AppSizes {
   static const double railWidth = 68;
   static const double sidebarWidth = 272;
@@ -121,77 +93,54 @@ class AppSizes {
 }
 
 class AppTheme {
-  static ThemeData get dark => ThemeData(
-    useMaterial3: true,
-    brightness: Brightness.dark,
-    fontFamily: 'Inter',
-    colorScheme: const ColorScheme.dark(
-      primary: AppColors.accent,
-      surface: AppColors.darkSurface,
-      onSurface: AppColors.darkText,
-      error: AppColors.danger,
-    ),
-    scaffoldBackgroundColor: AppColors.darkBase,
-    dividerColor: AppColors.darkBorder,
-    cardColor: AppColors.darkSurfaceAlt,
-    textTheme: _textTheme(AppColors.darkText, AppColors.darkTextMuted),
-    iconTheme: const IconThemeData(color: AppColors.darkTextMuted, size: 20),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: AppColors.darkBase,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: AppColors.darkBorder),
+  static ThemeData fromPalette(TelegramPalette p) {
+    final isDark = p.isDark;
+    return ThemeData(
+      useMaterial3: true,
+      brightness: isDark ? Brightness.dark : Brightness.light,
+      fontFamily: 'Inter',
+      colorScheme: isDark
+          ? ColorScheme.dark(
+              primary: p.windowBgActive,
+              surface: p.windowBg,
+              onSurface: p.windowFg,
+              error: p.attentionButtonFg,
+            )
+          : ColorScheme.light(
+              primary: p.windowBgActive,
+              surface: p.windowBg,
+              onSurface: p.windowFg,
+              error: p.attentionButtonFg,
+            ),
+      scaffoldBackgroundColor: p.windowBg,
+      dividerColor: p.shadowFg,
+      cardColor: p.windowBgOver,
+      textTheme: _textTheme(p.windowFg, p.windowSubTextFg),
+      iconTheme: IconThemeData(color: p.menuIconFg, size: 20),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: p.windowBg,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: p.windowBgRipple),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: p.windowBgActive, width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        hintStyle: TextStyle(color: p.windowSubTextFg),
       ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: AppColors.accent, width: 2),
+      scrollbarTheme: ScrollbarThemeData(
+        thumbColor: WidgetStateProperty.all(p.scrollBarBg),
+        radius: const Radius.circular(4),
+        thickness: WidgetStateProperty.all(6),
       ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      hintStyle: const TextStyle(color: AppColors.darkTextDim),
-    ),
-    scrollbarTheme: ScrollbarThemeData(
-      thumbColor: WidgetStateProperty.all(AppColors.darkBorder),
-      radius: const Radius.circular(4),
-      thickness: WidgetStateProperty.all(6),
-    ),
-  );
+    );
+  }
 
-  static ThemeData get light => ThemeData(
-    useMaterial3: true,
-    brightness: Brightness.light,
-    fontFamily: 'Inter',
-    colorScheme: const ColorScheme.light(
-      primary: AppColors.accent,
-      surface: AppColors.lightSurface,
-      onSurface: AppColors.lightText,
-      error: AppColors.danger,
-    ),
-    scaffoldBackgroundColor: AppColors.lightBase,
-    dividerColor: AppColors.lightBorder,
-    cardColor: AppColors.lightSurfaceAlt,
-    textTheme: _textTheme(AppColors.lightText, AppColors.lightTextMuted),
-    iconTheme: const IconThemeData(color: AppColors.lightTextMuted, size: 20),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: AppColors.lightBase,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: AppColors.lightBorder),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: AppColors.accent, width: 2),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      hintStyle: const TextStyle(color: AppColors.lightTextDim),
-    ),
-    scrollbarTheme: ScrollbarThemeData(
-      thumbColor: WidgetStateProperty.all(AppColors.lightBorder),
-      radius: const Radius.circular(4),
-      thickness: WidgetStateProperty.all(6),
-    ),
-  );
+  static ThemeData get dark => fromPalette(TelegramPalette.night);
+  static ThemeData get light => fromPalette(TelegramPalette.dayBlue);
 
   static TextTheme _textTheme(Color primary, Color secondary) => TextTheme(
     headlineLarge: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: primary),

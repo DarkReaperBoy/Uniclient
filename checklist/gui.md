@@ -816,9 +816,8 @@ Status key: `[ ]` not started · `[x]` done
 
 ## §25 — Theming & Color System
 
-<!-- dart files: dart/lib/theme/theme.dart (AppColors/AppTheme skeleton exists — needs full spec implementation) -->
+<!-- dart files: dart/lib/theme/telegram_palette.dart (TelegramPalette + PaletteProvider), dart/lib/theme/theme.dart (AppTheme.fromPalette) -->
 
-- [ ] Full 370-token palette: implement all windowBg/Fg, button, dialog, message, peer-name (8 colors), file-type (4 groups × 4 states), voice waveform, media viewer, intro/login, scrollbar tokens — spec §25.1–25.2
 - [ ] Four built-in themes: Classic Day, Day Blue, Night (Tinted), Night Green — with correct accent, outgoing bubble color, dark flag — spec §25.3
 - [ ] Accent color picker: 8 preset circles per theme type, selection ring animation (~200ms), custom color button (7-circle widget), system-accent checkbox; HSV colorizer algorithm with day/night lightness clamps, 63-token exclusion list, keepContrast pairs — spec §25.4
 - [ ] Theme file format: .tdesktop-theme ZIP (max 5MB), palette file (max 1MB), background image support, cloud-theme metadata markers — spec §25.5
