@@ -818,7 +818,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/theme/telegram_palette.dart (TelegramPalette + PaletteProvider), dart/lib/theme/theme.dart (AppTheme.fromPalette) -->
 
-- [ ] Cloud themes: {id, accessHash, slug, title, emoticon} structure, 4-per-row grid with background preview + bubble indicators + radio, right-click Share/Edit/Delete, sharing link format — spec §25.12
 - [ ] Theme preview image: dialogs panel + chat history with 9 sample rows and message bubbles — spec §25.13
 - [ ] Chat Appearance settings: 4 theme radio buttons, background row with thumbnail + gallery/file pickers, tile checkbox, adaptive-wide checkbox, auto-night checkbox, font-family picker — spec §25.14
 - [ ] AyuGram-specific: bubble-radius slider (0-16), tail removal toggle, Material switches toggle, avatar-corner-radius slider, disable-backgrounds toggle, simple-quotes toggle, semi-transparent-deleted toggle, Android-style palette extraction, drawer theme-toggle visibility — spec §25.15

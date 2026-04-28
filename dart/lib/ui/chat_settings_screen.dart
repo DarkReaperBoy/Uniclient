@@ -1,12 +1,14 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../theme/telegram_palette.dart';
+import 'popup_menu.dart';
 import 'settings_style.dart';
 import 'shortcuts_settings_screen.dart';
 import 'theme_editor.dart';
@@ -26,6 +28,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   List<CloudThemeInfo> _cloudThemes = [];
   bool _cloudThemesLoaded = false;
   bool _showAllCloudThemes = false;
+  int _activeCloudThemeId = 0;
   bool _tileBackground = true;
   bool _adaptiveLayout = true;
   bool _largeEmoji = true;
@@ -215,8 +218,10 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             showAll: _showAllCloudThemes,
             isDark: isDark,
             accentColor: currentAccent,
+            activeThemeId: _activeCloudThemeId,
             onToggleShowAll: () => setState(() => _showAllCloudThemes = !_showAllCloudThemes),
             onThemeSelected: (theme) {
+              setState(() => _activeCloudThemeId = theme.id);
               final targetTheme = theme.isDark ? 'night' : 'day_blue';
               final accentHex = theme.accentColor != 0
                   ? '#${(theme.accentColor & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}'
@@ -1702,6 +1707,7 @@ class _CloudThemeSection extends StatelessWidget {
   final bool showAll;
   final bool isDark;
   final Color accentColor;
+  final int activeThemeId;
   final VoidCallback onToggleShowAll;
   final ValueChanged<CloudThemeInfo> onThemeSelected;
   final VoidCallback? onEditTheme;
@@ -1712,6 +1718,7 @@ class _CloudThemeSection extends StatelessWidget {
     required this.showAll,
     required this.isDark,
     required this.accentColor,
+    required this.activeThemeId,
     required this.onToggleShowAll,
     required this.onThemeSelected,
     this.onEditTheme,
@@ -1762,7 +1769,7 @@ class _CloudThemeSection extends StatelessWidget {
           const SizedBox(height: 10),
           SizedBox(
             height: _gridHeight(visibleThemes.length),
-            child: _buildGrid(visibleThemes, textColor, subtextColor),
+            child: _buildGrid(context, visibleThemes, textColor, subtextColor),
           ),
           if (onEditTheme != null)
             InkWell(
@@ -1793,7 +1800,7 @@ class _CloudThemeSection extends StatelessWidget {
     return rows * 116.0;
   }
 
-  Widget _buildGrid(List<CloudThemeInfo> visible, Color textColor, Color subtextColor) {
+  Widget _buildGrid(BuildContext ctx, List<CloudThemeInfo> visible, Color textColor, Color subtextColor) {
     if (!showAll) {
       return ListView.builder(
         scrollDirection: Axis.horizontal,
@@ -1807,6 +1814,7 @@ class _CloudThemeSection extends StatelessWidget {
             accentColor: accentColor,
             textColor: textColor,
             subtextColor: subtextColor,
+            isActive: visible[i].id == activeThemeId,
             onTap: () => onThemeSelected(visible[i]),
           ),
         ),
@@ -1815,28 +1823,40 @@ class _CloudThemeSection extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 22),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: visible.map((t) => _CloudThemeCard(
-          theme: t,
-          isDark: isDark,
-          accentColor: accentColor,
-          textColor: textColor,
-          subtextColor: subtextColor,
-          onTap: () => onThemeSelected(t),
-        )).toList(),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          const cols = 4;
+          const spacing = 8.0;
+          final cardWidth = (constraints.maxWidth - spacing * (cols - 1)) / cols;
+          return Wrap(
+            spacing: spacing,
+            runSpacing: spacing,
+            children: visible.map((t) => SizedBox(
+              width: cardWidth,
+              child: _CloudThemeCard(
+                theme: t,
+                isDark: isDark,
+                accentColor: accentColor,
+                textColor: textColor,
+                subtextColor: subtextColor,
+                isActive: t.id == activeThemeId,
+                onTap: () => onThemeSelected(t),
+              ),
+            )).toList(),
+          );
+        },
       ),
     );
   }
 }
 
-class _CloudThemeCard extends StatelessWidget {
+class _CloudThemeCard extends StatefulWidget {
   final CloudThemeInfo theme;
   final bool isDark;
   final Color accentColor;
   final Color textColor;
   final Color subtextColor;
+  final bool isActive;
   final VoidCallback onTap;
 
   const _CloudThemeCard({
@@ -1845,62 +1865,192 @@ class _CloudThemeCard extends StatelessWidget {
     required this.accentColor,
     required this.textColor,
     required this.subtextColor,
+    required this.isActive,
     required this.onTap,
   });
 
+  @override
+  State<_CloudThemeCard> createState() => _CloudThemeCardState();
+}
+
+class _CloudThemeCardState extends State<_CloudThemeCard> {
+  bool _hovering = false;
+
   Color _argbToColor(int argb) {
-    if (argb == 0) return isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    if (argb == 0) return widget.isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
     return Color(0xFF000000 | (argb & 0xFFFFFF));
+  }
+
+  void _showContextMenu(Offset position) {
+    final t = widget.theme;
+    final isOwnerAndActive = t.isCreator && widget.isActive;
+    showTelegramMenu<String>(
+      context: context,
+      position: position,
+      items: [
+        TelegramMenuItem(value: 'share', label: 'Share', icon: const Icon(Icons.link, size: 20)),
+        if (isOwnerAndActive)
+          TelegramMenuItem(value: 'edit', label: 'Edit', icon: const Icon(Icons.edit_outlined, size: 20)),
+        TelegramMenuItem(
+          value: 'delete',
+          label: 'Delete',
+          icon: const Icon(Icons.delete_outline, size: 20),
+          isAttention: true,
+        ),
+      ],
+    ).then((action) {
+      if (action == null || !mounted) return;
+      switch (action) {
+        case 'share':
+          final link = 'https://t.me/addtheme/${t.slug}';
+          Clipboard.setData(ClipboardData(text: link));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Link copied'), duration: Duration(seconds: 2)),
+          );
+        case 'edit':
+          break;
+        case 'delete':
+          _showDeleteConfirmation();
+      }
+    });
+  }
+
+  void _showDeleteConfirmation() {
+    final isDark = widget.isDark;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF17212B) : Colors.white,
+        title: Text('Delete Theme', style: TextStyle(color: isDark ? Colors.white : Colors.black)),
+        content: Text(
+          'Are you sure you want to delete "${widget.theme.title}"?',
+          style: TextStyle(color: isDark ? const Color(0xFFAAAAAA) : const Color(0xFF555555)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: TextStyle(color: widget.accentColor)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Theme deleted'), duration: Duration(seconds: 2)),
+              );
+            },
+            child: Text('Delete', style: TextStyle(color: isDark ? const Color(0xFFE53935) : const Color(0xFFDD4B39))),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final accent = _argbToColor(theme.accentColor);
-    final sent = _argbToColor(theme.sentColor);
-    final bg = theme.bgColor != 0
-        ? _argbToColor(theme.bgColor)
-        : (theme.isDark ? const Color(0xFF0E1621) : const Color(0xFFDFE7EB));
-    final recv = theme.recvColor != 0
-        ? _argbToColor(theme.recvColor)
-        : (theme.isDark ? const Color(0xFF182533) : const Color(0xFFFFFFFF));
+    final t = widget.theme;
+    final sent = _argbToColor(t.sentColor);
+    final bg = t.bgColor != 0
+        ? _argbToColor(t.bgColor)
+        : (t.isDark ? const Color(0xFF0E1621) : const Color(0xFFDFE7EB));
+    final recv = t.recvColor != 0
+        ? _argbToColor(t.recvColor)
+        : (t.isDark ? const Color(0xFF182533) : const Color(0xFFFFFFFF));
+    final accent = _argbToColor(t.accentColor);
+    final borderColor = widget.isActive ? widget.accentColor : Colors.transparent;
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        children: [
-          Container(
-            width: 80,
-            height: 92,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.transparent, width: 2),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: CustomPaint(
-                size: const Size(76, 88),
-                painter: _CloudThemePreviewPainter(
-                  background: bg,
-                  receivedBubble: recv,
-                  sentBubble: sent.a > 0 ? sent : accent,
-                  isDarkTheme: theme.isDark,
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        onSecondaryTapUp: (details) => _showContextMenu(details.globalPosition),
+        onLongPressStart: (details) => _showContextMenu(details.globalPosition),
+        child: Column(
+          children: [
+            Stack(
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: 80,
+                  height: 92,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: borderColor, width: 2),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: CustomPaint(
+                      size: const Size(76, 88),
+                      painter: _CloudThemePreviewPainter(
+                        background: bg,
+                        receivedBubble: recv,
+                        sentBubble: sent.a > 0 ? sent : accent,
+                        isDarkTheme: t.isDark,
+                      ),
+                    ),
+                  ),
                 ),
+                Positioned(
+                  right: 4,
+                  bottom: 4,
+                  child: _CloudThemeRadio(
+                    isActive: widget.isActive,
+                    accentColor: widget.accentColor,
+                    isDark: widget.isDark,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            SizedBox(
+              width: 80,
+              child: Text(
+                t.title,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: widget.isActive ? widget.accentColor : widget.subtextColor,
+                  fontWeight: widget.isActive ? FontWeight.w600 : FontWeight.normal,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-          ),
-          const SizedBox(height: 6),
-          SizedBox(
-            width: 80,
-            child: Text(
-              theme.title,
-              style: TextStyle(fontSize: 11, color: subtextColor),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+}
+
+class _CloudThemeRadio extends StatelessWidget {
+  final bool isActive;
+  final Color accentColor;
+  final bool isDark;
+
+  const _CloudThemeRadio({
+    required this.isActive,
+    required this.accentColor,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      width: 18,
+      height: 18,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: isActive ? accentColor : Colors.transparent,
+        border: Border.all(
+          color: isActive ? accentColor : (isDark ? const Color(0xFF5B6A78) : const Color(0xFFBBBBBB)),
+          width: 2,
+        ),
+      ),
+      child: isActive
+          ? const Center(child: Icon(Icons.check, size: 12, color: Colors.white))
+          : null,
     );
   }
 }
