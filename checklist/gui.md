@@ -818,8 +818,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/theme/telegram_palette.dart (TelegramPalette + PaletteProvider), dart/lib/theme/theme.dart (AppTheme.fromPalette) -->
 
-- [ ] AyuGram-specific: bubble-radius slider (0-16), tail removal toggle, Material switches toggle, avatar-corner-radius slider, disable-backgrounds toggle, simple-quotes toggle, semi-transparent-deleted toggle, Android-style palette extraction, drawer theme-toggle visibility — spec §25.15
-
 ---
 
 ## §26 — Admin Tools

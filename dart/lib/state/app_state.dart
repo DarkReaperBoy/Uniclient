@@ -77,6 +77,16 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// Spec §7.3: When true, empty-field send button shows Round (camera) instead of Record (mic).
   bool _recordVideoMessages = false;
 
+  // Spec §25.15: AyuGram-specific theming preferences.
+  int _bubbleRadius = 16; // 0-16, default matches _radiusLarge
+  bool _removeTail = false;
+  bool _materialSwitches = false;
+  int _avatarCornerRadius = 50; // 0-50, 50=circle (default)
+  bool _disableCustomBackgrounds = false;
+  bool _simpleQuotes = false;
+  bool _semiTransparentDeleted = false;
+  bool _showDrawerThemeToggle = true;
+
   // Spec §17.7.1: PowerSaving bitfield (matches tdesktop bit positions).
   static const kPowerSavingStickersPanel = 1 << 0;
   static const kPowerSavingStickersChat  = 1 << 1;
@@ -174,6 +184,75 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   String get customDownloadPath => _customDownloadPath;
   bool get askDownloadPath => _askDownloadPath;
   List<Map<String, dynamic>> get recentDownloads => List.unmodifiable(_recentDownloads);
+
+  // §25.15 AyuGram getters
+  int get bubbleRadius => _bubbleRadius;
+  bool get removeTail => _removeTail;
+  bool get materialSwitches => _materialSwitches;
+  int get avatarCornerRadius => _avatarCornerRadius;
+  bool get disableCustomBackgrounds => _disableCustomBackgrounds;
+  bool get simpleQuotes => _simpleQuotes;
+  bool get semiTransparentDeleted => _semiTransparentDeleted;
+  bool get showDrawerThemeToggle => _showDrawerThemeToggle;
+
+  // §25.15 AyuGram setters
+  void setBubbleRadius(int v) {
+    v = v.clamp(0, 16);
+    if (_bubbleRadius == v) return;
+    _bubbleRadius = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setRemoveTail(bool v) {
+    if (_removeTail == v) return;
+    _removeTail = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setMaterialSwitches(bool v) {
+    if (_materialSwitches == v) return;
+    _materialSwitches = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setAvatarCornerRadius(int v) {
+    v = v.clamp(0, 50);
+    if (_avatarCornerRadius == v) return;
+    _avatarCornerRadius = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setDisableCustomBackgrounds(bool v) {
+    if (_disableCustomBackgrounds == v) return;
+    _disableCustomBackgrounds = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setSimpleQuotes(bool v) {
+    if (_simpleQuotes == v) return;
+    _simpleQuotes = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setSemiTransparentDeleted(bool v) {
+    if (_semiTransparentDeleted == v) return;
+    _semiTransparentDeleted = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setShowDrawerThemeToggle(bool v) {
+    if (_showDrawerThemeToggle == v) return;
+    _showDrawerThemeToggle = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
 
   bool setShowTrayIcon(bool v) {
     if (!v && !_showTaskbarIcon) return false;
@@ -928,6 +1007,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       final order = data['accountOrder'] as List<dynamic>?;
       if (order != null) _accountOrder = order.cast<String>();
       _customThemePath = data['customThemePath'] as String? ?? '';
+      // §25.15 AyuGram prefs
+      _bubbleRadius = (data['bubbleRadius'] as int?) ?? 16;
+      _removeTail = data['removeTail'] as bool? ?? false;
+      _materialSwitches = data['materialSwitches'] as bool? ?? false;
+      _avatarCornerRadius = (data['avatarCornerRadius'] as int?) ?? 50;
+      _disableCustomBackgrounds = data['disableCustomBackgrounds'] as bool? ?? false;
+      _simpleQuotes = data['simpleQuotes'] as bool? ?? false;
+      _semiTransparentDeleted = data['semiTransparentDeleted'] as bool? ?? false;
+      _showDrawerThemeToggle = data['showDrawerThemeToggle'] as bool? ?? true;
       _loadWallpaper(data);
       _loadCustomThemeFromCache();
     } catch (_) {}
@@ -973,6 +1061,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'removedLanguageCodes': _removedLanguageCodes,
         'experimentalFlags': _experimentalFlags,
         'customThemePath': _customThemePath,
+        'bubbleRadius': _bubbleRadius,
+        'removeTail': _removeTail,
+        'materialSwitches': _materialSwitches,
+        'avatarCornerRadius': _avatarCornerRadius,
+        'disableCustomBackgrounds': _disableCustomBackgrounds,
+        'simpleQuotes': _simpleQuotes,
+        'semiTransparentDeleted': _semiTransparentDeleted,
+        'showDrawerThemeToggle': _showDrawerThemeToggle,
         'wallpaperType': _wallpaper.type.index,
         'wallpaperColors': _wallpaper.backgroundColors
             .map((c) => (c.value & 0xFFFFFF).toRadixString(16).padLeft(6, '0'))

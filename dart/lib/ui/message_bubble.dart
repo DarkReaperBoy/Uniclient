@@ -217,15 +217,17 @@ class _MessageBubbleState extends State<MessageBubble> {
         ? CrossAxisAlignment.end
         : CrossAxisAlignment.start;
 
-    // Spec §5 Consecutive Message Grouping — per-corner radius rules:
-    //   Top sender-side:    Large when first-in-group, Small when attached-to-previous.
-    //   Top other-side:     Always Large.
-    //   Bottom sender-side: Always Small (Small when mid-group, Tail≈Small when last).
-    //   Bottom other-side:  Large when last-in-group, Small when attached-to-next.
-    final topSenderSide = isFirstInGroup ? _radiusLarge : _radiusSmall;
-    final topOtherSide = _radiusLarge;
-    final bottomSenderSide = _radiusSmall;
-    final bottomOtherSide = isLastInGroup ? _radiusLarge : _radiusSmall;
+    // §25.15: dynamic bubble radius from AyuGram prefs.
+    final ayuState = context.watch<AppState>();
+    final radiusLarge = ayuState.bubbleRadius.toDouble();
+    final radiusSmall = ayuState.removeTail
+        ? radiusLarge
+        : (radiusLarge * 6 / 16).clamp(0.0, 6.0);
+
+    final topSenderSide = isFirstInGroup ? radiusLarge : radiusSmall;
+    final topOtherSide = radiusLarge;
+    final bottomSenderSide = radiusSmall;
+    final bottomOtherSide = isLastInGroup ? radiusLarge : radiusSmall;
 
     // Show sender avatar for incoming messages in group chats.
     final showAvatar = isGroupChat && !isOutgoing;
@@ -587,9 +589,19 @@ class _MessageBubbleState extends State<MessageBubble> {
     final senderAvatarB64 = widget.senderAvatarB64;
     final onSenderTap = widget.onSenderTap;
     final onSenderContextMenu = widget.onSenderContextMenu;
-    final fallback = CircleAvatar(
-      radius: avatarSize / 2,
-      backgroundColor: _senderColor(message.senderId, isDark: isDark, colorId: message.senderColorId),
+
+    // §25.15.4: dynamic avatar corner radius.
+    final avatarCorner = context.watch<AppState>().avatarCornerRadius;
+    final avatarR = (avatarSize / 2) * (avatarCorner / 50.0);
+
+    final fallback = Container(
+      width: avatarSize,
+      height: avatarSize,
+      decoration: BoxDecoration(
+        color: _senderColor(message.senderId, isDark: isDark, colorId: message.senderColorId),
+        borderRadius: BorderRadius.circular(avatarR),
+      ),
+      alignment: Alignment.center,
       child: Text(
         message.senderName.isNotEmpty ? message.senderName[0].toUpperCase() : '?',
         style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
@@ -604,7 +616,8 @@ class _MessageBubbleState extends State<MessageBubble> {
           onSecondaryTap: onSenderContextMenu != null
               ? (pos) => onSenderContextMenu(message.senderId, pos)
               : null,
-          child: ClipOval(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(avatarR),
             child: Image.memory(
               bytes,
               width: avatarSize,
@@ -1597,12 +1610,18 @@ class _ReplyPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final simpleQuotes = context.watch<AppState>().simpleQuotes;
+    final barColor = simpleQuotes
+        ? (theme.brightness == Brightness.dark
+            ? const Color(0xFF5A6A78)
+            : const Color(0xFFCBCBCB))
+        : theme.colorScheme.primary;
     final body = Container(
       margin: const EdgeInsets.only(bottom: 4),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         border: Border(
-          left: BorderSide(color: theme.colorScheme.primary, width: 2),
+          left: BorderSide(color: barColor, width: 2),
         ),
       ),
       child: Text(

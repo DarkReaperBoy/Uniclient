@@ -5,8 +5,10 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
+import 'package:provider/provider.dart';
 
 import '../models/engine_models.dart';
+import '../state/app_state.dart';
 import 'forum_topic_icon.dart';
 
 /// Spec §2.7: Data carried during a drag-and-drop forward gesture.
@@ -1015,22 +1017,26 @@ class _ChatAvatar extends StatelessWidget {
     final storyPhotoSize = minified ? _storyPhotoSizeSmall : _storyPhotoSizeFull;
     final photoSize = _hasStories ? storyPhotoSize : size;
 
-    // Saved Messages: bookmark icon userpic (spec §31.1).
+    // §25.15.4: dynamic avatar corner radius from AyuGram prefs.
+    final avatarCorner = context.watch<AppState>().avatarCornerRadius;
+    final avatarRadius = photoSize / 2 * (avatarCorner / 50.0);
+
     final Widget avatar;
     if (_isSavedMessages) {
-      avatar = _SavedMessagesUserpic(size: photoSize, isDark: isDark);
+      avatar = _SavedMessagesUserpic(size: photoSize, isDark: isDark, borderRadius: avatarRadius);
     } else if (chat.avatarPath.isNotEmpty) {
-      avatar = ClipOval(
+      avatar = ClipRRect(
+            borderRadius: BorderRadius.circular(avatarRadius),
             child: Image.file(
               File(chat.avatarPath),
               width: photoSize,
               height: photoSize,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => _fallback(color, initials, photoSize),
+              errorBuilder: (_, __, ___) => _fallback(color, initials, photoSize, avatarRadius),
             ),
           );
     } else {
-      avatar = _fallback(color, initials, photoSize);
+      avatar = _fallback(color, initials, photoSize, avatarRadius);
     }
 
     // No stories, no online dot — simple case.
@@ -1091,13 +1097,13 @@ class _ChatAvatar extends StatelessWidget {
     );
   }
 
-  Widget _fallback(Color color, String initials, double photoSize) {
+  Widget _fallback(Color color, String initials, double photoSize, double borderRadius) {
     return Container(
       width: photoSize,
       height: photoSize,
       decoration: BoxDecoration(
         color: color,
-        shape: BoxShape.circle,
+        borderRadius: BorderRadius.circular(borderRadius),
       ),
       alignment: Alignment.center,
       child: Text(
@@ -1532,17 +1538,22 @@ bool isSavedMessages(ChatInfo chat) =>
 class _SavedMessagesUserpic extends StatelessWidget {
   final double size;
   final bool isDark;
+  final double borderRadius;
 
-  const _SavedMessagesUserpic({required this.size, required this.isDark});
+  const _SavedMessagesUserpic({required this.size, required this.isDark, this.borderRadius = -1});
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: CustomPaint(
-        size: Size(size, size),
-        painter: _SavedMessagesIconPainter(isDark: isDark),
+    final r = borderRadius < 0 ? size / 2 : borderRadius;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(r),
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: CustomPaint(
+          size: Size(size, size),
+          painter: _SavedMessagesIconPainter(isDark: isDark),
+        ),
       ),
     );
   }

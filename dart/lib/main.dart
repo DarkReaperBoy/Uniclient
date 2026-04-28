@@ -642,16 +642,24 @@ class _UniClientAppState extends State<UniClientApp>
   void _dispatchTap(double x, double y, {int buttons = kPrimaryButton}) {
     final pointer = _pointerCounter++;
     final binding = GestureBinding.instance;
-    // Pointer down.
+    binding.handlePointerEvent(PointerAddedEvent(
+      pointer: pointer,
+      position: Offset(x, y),
+      kind: PointerDeviceKind.mouse,
+    ));
     binding.handlePointerEvent(PointerDownEvent(
       pointer: pointer,
       position: Offset(x, y),
       buttons: buttons,
       kind: PointerDeviceKind.mouse,
     ));
-    // Pointer up (slight delay via microtask to simulate real tap).
     Future.microtask(() {
       binding.handlePointerEvent(PointerUpEvent(
+        pointer: pointer,
+        position: Offset(x, y),
+        kind: PointerDeviceKind.mouse,
+      ));
+      binding.handlePointerEvent(PointerRemovedEvent(
         pointer: pointer,
         position: Offset(x, y),
         kind: PointerDeviceKind.mouse,

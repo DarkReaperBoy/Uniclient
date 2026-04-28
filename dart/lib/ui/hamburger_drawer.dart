@@ -297,9 +297,8 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         );
                       },
                     ),
-                    // §3.4: Night Mode row with system dark mode support.
-                    // Right-click/long-press shows context menu with "Use System Theme" toggle.
-                    // Manual toggle disables system dark mode when active.
+                    // §3.4 + §25.15.10: Night Mode row, hideable via AyuGram prefs.
+                    if (appState.showDrawerThemeToggle)
                     _MenuRow(
                       icon: Icons.nightlight_round,
                       label: appState.systemDarkModeEnabled
@@ -500,16 +499,27 @@ class _ProfileCover extends StatelessWidget {
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  CircleAvatar(
-                    radius: 24,
-                    backgroundColor: theme.colorScheme.primary,
-                    backgroundImage: account?.avatarPath.isNotEmpty == true
-                        ? FileImage(File(account!.avatarPath))
-                        : null,
-                    child: account?.avatarPath.isNotEmpty != true
-                        ? _initials(account?.displayName ?? '?', theme)
-                        : null,
-                  ),
+                  Builder(builder: (ctx) {
+                    final aR = 24.0 * (ctx.watch<AppState>().avatarCornerRadius / 50.0);
+                    return Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary,
+                        borderRadius: BorderRadius.circular(aR),
+                        image: account?.avatarPath.isNotEmpty == true
+                            ? DecorationImage(
+                                image: FileImage(File(account!.avatarPath)),
+                                fit: BoxFit.cover,
+                              )
+                            : null,
+                      ),
+                      alignment: Alignment.center,
+                      child: account?.avatarPath.isNotEmpty != true
+                          ? _initials(account?.displayName ?? '?', theme)
+                          : null,
+                    );
+                  }),
                   Positioned(
                     right: 0,
                     bottom: 0,
@@ -1016,7 +1026,8 @@ class _AccountRow extends StatelessWidget {
                 child: Container(
                   decoration: isActive
                       ? BoxDecoration(
-                          shape: BoxShape.circle,
+                          borderRadius: BorderRadius.circular(
+                            18.0 * (context.watch<AppState>().avatarCornerRadius / 50.0)),
                           border: Border.all(
                             color: theme.brightness == Brightness.dark
                                 ? const Color(0xFF5288C1)
@@ -1028,16 +1039,23 @@ class _AccountRow extends StatelessWidget {
                   padding: isActive
                       ? const EdgeInsets.all(2)
                       : EdgeInsets.zero,
-                  child: CircleAvatar(
-                    radius: 13,
-                    backgroundColor:
-                        theme.colorScheme.primary.withValues(alpha: 0.3),
-                    child: Icon(
-                      _AccountList.platformIcons[account.platform] ?? Icons.chat,
-                      size: 14,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
+                  child: Builder(builder: (ctx) {
+                    final aR = 13.0 * (context.watch<AppState>().avatarCornerRadius / 50.0);
+                    return Container(
+                      width: 26,
+                      height: 26,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(aR),
+                      ),
+                      alignment: Alignment.center,
+                      child: Icon(
+                        _AccountList.platformIcons[account.platform] ?? Icons.chat,
+                        size: 14,
+                        color: theme.colorScheme.primary,
+                      ),
+                    );
+                  }),
                 ),
               ),
             ),
