@@ -818,7 +818,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/theme/telegram_palette.dart (TelegramPalette + PaletteProvider), dart/lib/theme/theme.dart (AppTheme.fromPalette) -->
 
-- [ ] Theme file format: .tdesktop-theme ZIP (max 5MB), palette file (max 1MB), background image support, cloud-theme metadata markers — spec §25.5
 - [ ] Theme editor: close/menu/search/list/save layout, palette-entry rows with swatch (shadow+checkerboard+solid), ripple+keyboard nav, hex color edit with live preview, Export/Import/Show menu items — spec §25.6
 - [ ] SaveThemeBox: name + slug fields, background thumbnail + "Choose from file" + tile checkbox, JPEG 87% export — spec §25.6.5
 - [ ] Theme name auto-generator: weighted Euclidean distance, "{Adj} {Color}" / "{Color} {Noun}" patterns — spec §25.7

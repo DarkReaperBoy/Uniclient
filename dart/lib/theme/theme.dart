@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'telegram_palette.dart';
 
 export 'telegram_palette.dart';
+export 'theme_file.dart';
 
 class AppColors {
   static const darkBase = Color(0xFF17212B);
