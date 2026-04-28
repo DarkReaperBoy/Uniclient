@@ -60,6 +60,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// Values: "mute", "pin", "read", "archive", "delete". Default: "archive".
   String _swipeAction = 'archive';
 
+  /// Spec §24.6: Submit mode for compose field. Values: "enter", "ctrl_enter".
+  String _sendBy = 'enter';
+
   /// Spec §7.3: When true, empty-field send button shows Round (camera) instead of Record (mic).
   bool _recordVideoMessages = false;
 
@@ -382,6 +385,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   set swipeAction(String value) {
     if (_swipeAction != value) {
       _swipeAction = value;
+      notifyListeners();
+    }
+  }
+
+  String get sendBy => _sendBy;
+  set sendBy(String value) {
+    if (_sendBy != value) {
+      _sendBy = value;
+      _saveWindowPrefs();
       notifyListeners();
     }
   }
@@ -726,6 +738,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _nativeWindowFrame = data['nativeWindowFrame'] as bool? ?? false;
       _mainMenuAccountsShown = data['mainMenuAccountsShown'] as bool? ?? false;
       _systemDarkMode = data['systemDarkMode'] as bool? ?? false;
+      _sendBy = data['sendBy'] as String? ?? 'enter';
       _recordVideoMessages = data['recordVideoMessages'] as bool? ?? false;
       _powerSavingFlags = data['powerSavingFlags'] as int? ?? 0;
       _autoPowerSaving = data['autoPowerSaving'] as bool? ?? false;
@@ -778,6 +791,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'nativeWindowFrame': _nativeWindowFrame,
         'mainMenuAccountsShown': _mainMenuAccountsShown,
         'systemDarkMode': _systemDarkMode,
+        'sendBy': _sendBy,
         'recordVideoMessages': _recordVideoMessages,
         'powerSavingFlags': _powerSavingFlags,
         'autoPowerSaving': _autoPowerSaving,

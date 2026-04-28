@@ -3427,6 +3427,9 @@ class _ChatViewState extends State<ChatView>
               isBot: chat.isBot,
               emojiPanelVisible: _emojiPanelVisible,
               onEmojiToggle: () => setState(() => _emojiPanelVisible = !_emojiPanelVisible),
+              onEscape: () => _handleEscape(),
+              onScrollPage: () {},
+              sendBy: context.read<AppState>().sendBy,
             ),
           if (chatState.visibleReplyKeyboard != null)
             _BotReplyKeyboard(
@@ -7054,6 +7057,16 @@ class RichTextEditingController extends TextEditingController {
     notifyListeners();
   }
 
+  void clearFormatting() {
+    final sel = selection;
+    if (!sel.isValid || sel.isCollapsed) return;
+    final start = sel.start;
+    final end = sel.end;
+    entities.removeWhere((e) =>
+      e.offset < end && e.offset + e.length > start);
+    notifyListeners();
+  }
+
   bool hasFormat(FormatType type) {
     final sel = selection;
     if (!sel.isValid || sel.isCollapsed) return false;
@@ -7185,9 +7198,7 @@ final _kEmoticonsSorted = () {
   return list;
 }();
 
-/// Compose area at bottom. Spec §7.
-/// Enter sends, Shift+Enter for newline (matching Telegram Desktop).
-/// Up arrow with empty field → edit last outgoing message (spec §24.7).
+/// Compose area at bottom. Spec §7 + §24.6.
 enum SendButtonType { send, schedule, save, record, round, cancel, slowmode, editPrice }
 
 enum AutocompleteType { mention, hashtag, command, emoji, stickerSuggestion }
@@ -7239,6 +7250,9 @@ class _ComposeArea extends StatefulWidget {
   final bool isBot;
   final VoidCallback? onEmojiToggle;
   final bool emojiPanelVisible;
+  final VoidCallback? onEscape;
+  final VoidCallback? onScrollPage;
+  final String sendBy;
 
   const _ComposeArea({
     required this.controller,
@@ -7275,6 +7289,9 @@ class _ComposeArea extends StatefulWidget {
     this.isBot = false,
     this.onEmojiToggle,
     this.emojiPanelVisible = false,
+    this.onEscape,
+    this.onScrollPage,
+    this.sendBy = 'enter',
   });
 
   @override
@@ -7302,6 +7319,7 @@ class _ComposeAreaState extends State<_ComposeArea>
   List<String> _detectedLinks = const [];
   bool _hasText = false;
   int _charRemaining = _kMaxMessageLength;
+  int _consecutiveEnters = 0;
   Timer? _slowmodeTimer;
   int _slowmodeSecondsLeft = 0;
   bool _isRecording = false;
@@ -7559,8 +7577,20 @@ class _ComposeAreaState extends State<_ComposeArea>
     );
   }
 
+  bool _shouldSubmit(LogicalKeyboardKey key, bool ctrl, bool shift) {
+    if (key != LogicalKeyboardKey.enter) return false;
+    if (ctrl && shift) return true;
+    final mode = widget.sendBy;
+    if (ctrl && mode != 'enter') return true;
+    if (!ctrl && !shift && mode == 'enter') return true;
+    return false;
+  }
+
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
+
+    final isEnter = event.logicalKey == LogicalKeyboardKey.enter;
+    if (!isEnter) _consecutiveEnters = 0;
 
     if (widget.autocompleteActive) {
       if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
@@ -7571,8 +7601,7 @@ class _ComposeAreaState extends State<_ComposeArea>
         widget.onAutocompleteDown?.call();
         return KeyEventResult.handled;
       }
-      if (event.logicalKey == LogicalKeyboardKey.enter ||
-          event.logicalKey == LogicalKeyboardKey.tab) {
+      if (isEnter || event.logicalKey == LogicalKeyboardKey.tab) {
         widget.onAutocompletePick?.call();
         return KeyEventResult.handled;
       }
@@ -7584,9 +7613,18 @@ class _ComposeAreaState extends State<_ComposeArea>
 
     final ctrl = HardwareKeyboard.instance.isControlPressed;
     final shift = HardwareKeyboard.instance.isShiftPressed;
+    final alt = HardwareKeyboard.instance.isAltPressed;
+    final meta = HardwareKeyboard.instance.isMetaPressed;
     final richCtrl = widget.controller is RichTextEditingController
         ? widget.controller as RichTextEditingController
         : null;
+
+    // Ctrl+Shift+N → clear formatting (spec §24.8)
+    if (richCtrl != null && ctrl && shift &&
+        event.logicalKey == LogicalKeyboardKey.keyN) {
+      richCtrl.clearFormatting();
+      return KeyEventResult.handled;
+    }
 
     if (richCtrl != null && ctrl) {
       FormatType? fmt;
@@ -7612,54 +7650,122 @@ class _ComposeAreaState extends State<_ComposeArea>
       }
     }
 
-    // Ctrl+Shift+Enter → always send (spec §24.4 line 2978: "always sends
-    // regardless of mode"). Intercepted BEFORE the plain-Enter branch since
-    // isShiftPressed is true here, and BEFORE falling through to default
-    // EditableText handling which would otherwise insert a newline.
-    if (event.logicalKey == LogicalKeyboardKey.enter &&
-        ctrl && shift) {
+    // Ctrl+Shift+V → plain paste (spec §24.6)
+    if (ctrl && shift && event.logicalKey == LogicalKeyboardKey.keyV) {
+      _pastePlainText();
+      return KeyEventResult.handled;
+    }
+
+    // Ctrl+O → file picker (spec §24.6)
+    if (ctrl && !shift && !alt && event.logicalKey == LogicalKeyboardKey.keyO) {
+      _pickFiles();
+      return KeyEventResult.handled;
+    }
+
+    // Escape → cancel reply/edit/forward (spec §24.6)
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      widget.onEscape?.call();
+      return KeyEventResult.handled;
+    }
+
+    // PageUp/PageDown → scroll chat history (spec §24.6)
+    if (event.logicalKey == LogicalKeyboardKey.pageUp ||
+        event.logicalKey == LogicalKeyboardKey.pageDown) {
+      widget.onScrollPage?.call();
+      return KeyEventResult.ignored;
+    }
+
+    // Tab → trigger autocomplete (spec §24.6)
+    if (event.logicalKey == LogicalKeyboardKey.tab && !ctrl && !alt) {
+      _checkAutocomplete();
+      return KeyEventResult.handled;
+    }
+
+    // Submit logic (spec §24.6): respects sendBy mode
+    if (_shouldSubmit(event.logicalKey, ctrl, shift)) {
       _doSend();
       return KeyEventResult.handled;
     }
-    // Enter without Shift → send (spec §7).
-    if (event.logicalKey == LogicalKeyboardKey.enter &&
-        !HardwareKeyboard.instance.isShiftPressed) {
-      _doSend();
-      return KeyEventResult.handled;
+
+    // Enter that doesn't submit inserts newline; track for triple-Enter
+    // blockquote exit (spec §24.6)
+    if (isEnter && richCtrl != null) {
+      _consecutiveEnters++;
+      if (_consecutiveEnters >= 3 && _isInBlockquote(richCtrl)) {
+        _exitBlockquote(richCtrl);
+        _consecutiveEnters = 0;
+        return KeyEventResult.handled;
+      }
     }
-    // Up-arrow-to-edit-last-outgoing (spec §24.7): only when field is empty
-    // and no modifier held. The onEditLast callback itself gates on edit/reply
-    // state and message availability, returning false when it declines.
+
+    // Up arrow → edit last outgoing (spec §24.7)
     if (event.logicalKey == LogicalKeyboardKey.arrowUp &&
         widget.controller.text.isEmpty &&
-        !HardwareKeyboard.instance.isShiftPressed &&
-        !HardwareKeyboard.instance.isControlPressed &&
-        !HardwareKeyboard.instance.isAltPressed &&
-        !HardwareKeyboard.instance.isMetaPressed) {
+        !shift && !ctrl && !alt && !meta) {
       final handled = widget.onEditLast?.call() ?? false;
       if (handled) return KeyEventResult.handled;
     }
-    // Ctrl+Up / Ctrl+Down cycle the reply target (spec §24.6 lines 2982-2983).
-    // Intercepted BEFORE EditableText's cursor-movement actions so the reply
-    // bar appears instead of the caret jumping. No-op when edit mode is active
-    // or when there are no messages loaded (see onCycleReply docs).
+
+    // Ctrl+Up / Ctrl+Down → cycle reply target (spec §24.6)
     if (event.logicalKey == LogicalKeyboardKey.arrowUp &&
-        HardwareKeyboard.instance.isControlPressed &&
-        !HardwareKeyboard.instance.isShiftPressed &&
-        !HardwareKeyboard.instance.isAltPressed &&
-        !HardwareKeyboard.instance.isMetaPressed) {
+        ctrl && !shift && !alt && !meta) {
       final handled = widget.onCycleReply?.call(1) ?? false;
       if (handled) return KeyEventResult.handled;
     }
     if (event.logicalKey == LogicalKeyboardKey.arrowDown &&
-        HardwareKeyboard.instance.isControlPressed &&
-        !HardwareKeyboard.instance.isShiftPressed &&
-        !HardwareKeyboard.instance.isAltPressed &&
-        !HardwareKeyboard.instance.isMetaPressed) {
+        ctrl && !shift && !alt && !meta) {
       final handled = widget.onCycleReply?.call(-1) ?? false;
       if (handled) return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
+  }
+
+  Future<void> _pastePlainText() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    if (data?.text == null || data!.text!.isEmpty) return;
+    final sel = widget.controller.selection;
+    final text = widget.controller.text;
+    final newText = text.replaceRange(
+      sel.start, sel.end, data.text!,
+    );
+    widget.controller.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: sel.start + data.text!.length),
+    );
+  }
+
+  bool _isInBlockquote(RichTextEditingController ctrl) {
+    final cursor = ctrl.selection.baseOffset;
+    for (final e in ctrl.entities) {
+      if (e.type == FormatType.blockquote &&
+          cursor >= e.offset && cursor <= e.offset + e.length) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void _exitBlockquote(RichTextEditingController ctrl) {
+    final cursor = ctrl.selection.baseOffset;
+    for (var i = 0; i < ctrl.entities.length; i++) {
+      final e = ctrl.entities[i];
+      if (e.type == FormatType.blockquote &&
+          cursor >= e.offset && cursor <= e.offset + e.length) {
+        final text = ctrl.text;
+        final removeFrom = text.lastIndexOf('\n', cursor - 1);
+        final start = removeFrom >= e.offset ? removeFrom : cursor;
+        final newText = text.substring(0, start) + text.substring(cursor);
+        e.length -= (cursor - start);
+        if (e.length <= 0) {
+          ctrl.entities.removeAt(i);
+        }
+        ctrl.value = TextEditingValue(
+          text: newText,
+          selection: TextSelection.collapsed(offset: start),
+        );
+        break;
+      }
+    }
   }
 
   void _onTextChanged(String value) {

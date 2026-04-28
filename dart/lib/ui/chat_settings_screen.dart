@@ -31,7 +31,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   bool _suggestAnimatedEmoji = true;
   bool _suggestStickersByEmoji = true;
   bool _loopAnimatedStickers = true;
-  String _sendBy = 'enter';
+  String get _sendBy => context.read<AppState>().sendBy;
   String _doubleClickAction = 'reply';
   bool _showReplyButton = true;
   bool _showReactionButton = true;
@@ -298,7 +298,10 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             doubleClickAction: _doubleClickAction,
             showReplyButton: _showReplyButton,
             showReactionButton: _showReactionButton,
-            onSendByChanged: (v) => setState(() => _sendBy = v),
+            onSendByChanged: (v) {
+              context.read<AppState>().sendBy = v;
+              setState(() {});
+            },
             onDoubleClickActionChanged: (v) => setState(() => _doubleClickAction = v),
             onShowReplyButtonChanged: (v) => setState(() => _showReplyButton = v),
             onShowReactionButtonChanged: (v) => setState(() => _showReactionButton = v),

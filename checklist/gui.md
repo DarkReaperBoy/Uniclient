@@ -812,7 +812,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_list_panel.dart, chat_view.dart, hamburger_drawer.dart (partial key handling already present) — new: dart/lib/ui/keyboard_shortcuts.dart -->
 
-- [ ] Compose box key handling: Enter/Shift+Enter/Ctrl+Enter modes, Escape cancel, Tab autocomplete, Up edit-last-message, Ctrl+Up/Down reply-nav, PageUp/Down scroll, Ctrl+O file-picker, Ctrl+Shift+V plain-paste, triple-Enter exits blockquote — spec §24.6
 - [ ] History key handling: Escape cancel/back, PageDown/Up scroll, Up edit-last-editable, Ctrl+Up/Down skip-local reply-nav, Enter /start bot — spec §24.7
 - [ ] Text formatting shortcuts: Ctrl+B/I/U, Ctrl+Shift+X/M/./P/N/K/D — spec §24.8
 - [ ] Media viewer shortcuts: Left/Right prev/next, Esc, Ctrl+S save, H/V flip, K play/pause, J/L seek ±10s, Space speed-boost, period/comma frame-step, Alt+Left/Right chapters, Ctrl+scroll zoom, stories Space toggle — spec §24.9
