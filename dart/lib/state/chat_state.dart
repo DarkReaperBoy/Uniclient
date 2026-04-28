@@ -259,7 +259,14 @@ class ChatState extends ChangeNotifier {
     final chat = _activeChat;
     if (chat == null) return;
     try {
-      final msgs = await _engine.getScheduledMessages(chat.accountId, chat.chatId);
+      // §23.9: For topic chats, load from parent group and filter by topic.
+      final fetchChatId = (chat.type == ChatType.topic && chat.parentId.isNotEmpty)
+          ? chat.parentId
+          : chat.chatId;
+      var msgs = await _engine.getScheduledMessages(chat.accountId, fetchChatId);
+      if (chat.type == ChatType.topic) {
+        msgs = msgs.where((m) => m.topicId == chat.chatId).toList();
+      }
       if (_activeChat?.chatId == chat.chatId && _isScheduledView) {
         _messages = msgs;
         _hasMoreMessages = false;
@@ -752,8 +759,15 @@ class ChatState extends ChangeNotifier {
     final chat = _activeChat;
     if (chat == null || text.trim().isEmpty) return null;
 
-    final localId = await _engine.sendMessage(chat.accountId, chat.chatId, text,
-        replyToId: replyToId, entities: entities, silent: silent, scheduleDate: scheduleDate);
+    // ��23.9: For topic chats, send to the parent group with topicRootId.
+    final sendChatId = (chat.type == ChatType.topic && chat.parentId.isNotEmpty)
+        ? chat.parentId
+        : chat.chatId;
+    final topicRootId = (chat.type == ChatType.topic) ? chat.chatId : '';
+
+    final localId = await _engine.sendMessage(chat.accountId, sendChatId, text,
+        replyToId: replyToId, entities: entities, silent: silent,
+        scheduleDate: scheduleDate, topicRootId: topicRootId);
 
     if (scheduleDate > 0) {
       _loadScheduledCount(chat.accountId, chat.chatId);
@@ -1128,10 +1142,24 @@ class ChatState extends ChangeNotifier {
 
   Future<void> _loadScheduledCount(String accountId, String chatId) async {
     try {
-      final count = await _engine.getScheduledCount(accountId, chatId);
-      if (_activeChat?.chatId == chatId) {
-        _scheduledCount = count;
-        notifyListeners();
+      final chat = _activeChat;
+      // §23.9: For topic chats, count scheduled messages from parent group filtered by topic.
+      final fetchChatId = (chat != null && chat.type == ChatType.topic && chat.parentId.isNotEmpty)
+          ? chat.parentId
+          : chatId;
+      if (chat != null && chat.type == ChatType.topic) {
+        final msgs = await _engine.getScheduledMessages(accountId, fetchChatId);
+        final filtered = msgs.where((m) => m.topicId == chatId).length;
+        if (_activeChat?.chatId == chatId) {
+          _scheduledCount = filtered;
+          notifyListeners();
+        }
+      } else {
+        final count = await _engine.getScheduledCount(accountId, chatId);
+        if (_activeChat?.chatId == chatId) {
+          _scheduledCount = count;
+          notifyListeners();
+        }
       }
     } catch (_) {
       _scheduledCount = 0;

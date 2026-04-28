@@ -32,6 +32,7 @@ type sendPayload struct {
 	ReplyToID    string `json:"reply_to_id,omitempty"`
 	Silent       bool   `json:"silent,omitempty"`
 	ScheduleDate int64  `json:"schedule_date,omitempty"`
+	TopicRootID  string `json:"topic_root_id,omitempty"`
 }
 
 // editPayload is the serialized payload for an "edit" action.
@@ -102,8 +103,8 @@ func getChatLock(accountID, chatID string) *sync.Mutex {
 
 // SendMessage queues a message for sending through the pending queue.
 // Returns the local_id for optimistic UI display.
-func (e *Engine) SendMessage(accountID, chatID, text, replyToID string, silent bool, scheduleDate int64) (string, error) {
-	log.Printf("[engine] SendMessage(%s, %s): text=%q replyToID=%q silent=%v scheduleDate=%d", accountID, chatID, text, replyToID, silent, scheduleDate)
+func (e *Engine) SendMessage(accountID, chatID, text, replyToID string, silent bool, scheduleDate int64, topicRootID string) (string, error) {
+	log.Printf("[engine] SendMessage(%s, %s): text=%q replyToID=%q silent=%v scheduleDate=%d topicRootID=%q", accountID, chatID, text, replyToID, silent, scheduleDate, topicRootID)
 	acc, ok := e.getAccount(accountID)
 	if !ok {
 		return "", fmt.Errorf("account %q not found", accountID)
@@ -117,6 +118,7 @@ func (e *Engine) SendMessage(accountID, chatID, text, replyToID string, silent b
 		ReplyToID:    replyToID,
 		Silent:       silent,
 		ScheduleDate: scheduleDate,
+		TopicRootID:  topicRootID,
 	})
 
 	// Write to pending table.
@@ -457,8 +459,11 @@ func (e *Engine) executePending(acc *Account, chatID, localID, action string, pa
 		if p.ScheduleDate > 0 {
 			extra["schedule_date"] = p.ScheduleDate
 		}
+		if p.TopicRootID != "" {
+			extra["topic_root_id"] = p.TopicRootID
+		}
 		msg := cores.OutgoingMessage{Text: p.Text, ReplyToID: p.ReplyToID, Extra: extra}
-		log.Printf("[engine] executePending SEND: chatID=%s replyToID=%q text=%q silent=%v scheduleDate=%d", chatID, p.ReplyToID, p.Text, p.Silent, p.ScheduleDate)
+		log.Printf("[engine] executePending SEND: chatID=%s replyToID=%q text=%q silent=%v scheduleDate=%d topicRootID=%q", chatID, p.ReplyToID, p.Text, p.Silent, p.ScheduleDate, p.TopicRootID)
 
 		var result *cores.Message
 		var err error

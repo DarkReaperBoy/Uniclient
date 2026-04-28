@@ -1060,12 +1060,29 @@ func (t *TelegramCore) SendMessage(chatID string, msg OutgoingMessage) (*Message
 		if _, ok := msg.Extra["silent"]; ok {
 			req.SetSilent(true)
 		}
+		var topicRootID int
+		if trid, ok := msg.Extra["topic_root_id"]; ok {
+			switch v := trid.(type) {
+			case string:
+				topicRootID, _ = strconv.Atoi(v)
+			case float64:
+				topicRootID = int(v)
+			case int:
+				topicRootID = v
+			}
+		}
 		if msg.ReplyToID != "" {
 			replyID, err := tgMsgID(msg.ReplyToID)
 			if err != nil {
 				return nil, err
 			}
-			req.SetReplyTo(&tg.InputReplyToMessage{ReplyToMsgID: replyID})
+			reply := &tg.InputReplyToMessage{ReplyToMsgID: replyID}
+			if topicRootID > 0 {
+				reply.TopMsgID = topicRootID
+			}
+			req.SetReplyTo(reply)
+		} else if topicRootID > 0 {
+			req.SetReplyTo(&tg.InputReplyToMessage{TopMsgID: topicRootID})
 		}
 		req.SetScheduleDate(scheduleDate)
 		result, err := t.api.MessagesSendMessage(t.ctx, req)

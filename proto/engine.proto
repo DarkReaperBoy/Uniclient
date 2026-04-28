@@ -364,6 +364,7 @@ message EngineSendMessageRequest {
   string reply_to_id = 4;
   bool   silent     = 5;
   int64  schedule_date = 6;
+  string topic_root_id = 7;
 }
 
 message EngineSendMessageResponse {

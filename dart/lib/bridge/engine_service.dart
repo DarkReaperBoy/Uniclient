@@ -1263,7 +1263,7 @@ class EngineService {
     return resp.messages.map(_cachedMsgFromProto).toList();
   }
 
-  Future<String> sendMessage(String accountId, String chatId, String text, {String replyToId = '', String entities = '', bool silent = false, int scheduleDate = 0}) async {
+  Future<String> sendMessage(String accountId, String chatId, String text, {String replyToId = '', String entities = '', bool silent = false, int scheduleDate = 0, String topicRootId = ''}) async {
     final req = epb.EngineSendMessageRequest()
       ..accountId = accountId
       ..chatId = chatId
@@ -1272,6 +1272,9 @@ class EngineService {
       ..silent = silent;
     if (scheduleDate > 0) {
       req.scheduleDate = Int64(scheduleDate);
+    }
+    if (topicRootId.isNotEmpty) {
+      req.topicRootId = topicRootId;
     }
     final respBytes = await _callAsync('__engine', 'SendMessage', req.writeToBuffer());
     final resp = epb.EngineSendMessageResponse.fromBuffer(respBytes);

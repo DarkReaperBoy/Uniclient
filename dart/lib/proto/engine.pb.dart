@@ -3797,6 +3797,7 @@ class EngineSendMessageRequest extends $pb.GeneratedMessage {
     $core.String? replyToId,
     $core.bool? silent,
     $fixnum.Int64? scheduleDate,
+    $core.String? topicRootId,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -3817,6 +3818,9 @@ class EngineSendMessageRequest extends $pb.GeneratedMessage {
     if (scheduleDate != null) {
       $result.scheduleDate = scheduleDate;
     }
+    if (topicRootId != null) {
+      $result.topicRootId = topicRootId;
+    }
     return $result;
   }
   EngineSendMessageRequest._() : super();
@@ -3830,6 +3834,7 @@ class EngineSendMessageRequest extends $pb.GeneratedMessage {
     ..aOS(4, _omitFieldNames ? '' : 'replyToId')
     ..aOB(5, _omitFieldNames ? '' : 'silent')
     ..aInt64(6, _omitFieldNames ? '' : 'scheduleDate')
+    ..aOS(7, _omitFieldNames ? '' : 'topicRootId')
     ..hasRequiredFields = false
   ;
 
@@ -3907,6 +3912,15 @@ class EngineSendMessageRequest extends $pb.GeneratedMessage {
   $core.bool hasScheduleDate() => $_has(5);
   @$pb.TagNumber(6)
   void clearScheduleDate() => clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.String get topicRootId => $_getSZ(6);
+  @$pb.TagNumber(7)
+  set topicRootId($core.String v) { $_setString(6, v); }
+  @$pb.TagNumber(7)
+  $core.bool hasTopicRootId() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearTopicRootId() => clearField(7);
 }
 
 class EngineSendMessageResponse extends $pb.GeneratedMessage {

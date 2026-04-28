@@ -3283,6 +3283,21 @@ class _ChatViewState extends State<ChatView>
               chatState: chatState,
               linkedChatId: chatState.linkedChatId,
             )
+          // §23.9: Topic-level write restriction — closed topics block compose.
+          else if (chat.type == ChatType.topic && (() {
+            final t = chatState.forumTopics.cast<ForumTopic?>().firstWhere(
+                (t) => t!.id == chat.chatId, orElse: () => null);
+            return t != null && t.isClosed;
+          })())
+            Container(
+              height: 49,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: theme.dividerColor.withValues(alpha: 0.12))),
+              ),
+              child: Text('This topic is closed.',
+                style: TextStyle(color: theme.hintColor, fontSize: 13)),
+            )
           else
             _ComposeArea(
               controller: _composeController,
