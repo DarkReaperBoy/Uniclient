@@ -108,6 +108,10 @@ class ChatView extends StatefulWidget {
   static VoidCallback? testVideoTipToast;
   static VoidCallback? testVideoPublishedToast;
 
+  static void Function(bool isUp)? scrollPageRequest;
+  static void requestScrollPage(bool isUp) =>
+      scrollPageRequest?.call(isUp);
+
   /// Invoked by the app-level Ctrl+Up / Ctrl+Down bindings. Returns true if
   /// consumed.
   static bool requestCycleReply(int direction) =>
@@ -310,6 +314,7 @@ class _ChatViewState extends State<ChatView>
     ChatView.setComposeRequest = _setComposeText;
     ChatView.toggleFormatRequest = _toggleComposeFormat;
     ChatView.getComposeEntitiesRequest = _getComposeEntities;
+    ChatView.scrollPageRequest = _scrollPage;
     ChatView.showSendFilesBoxRequest = (paths) {
       _uploadFiles(context.read<ChatState>(), paths);
     };
@@ -353,6 +358,9 @@ class _ChatViewState extends State<ChatView>
     }
     if (ChatView.getComposeEntitiesRequest == _getComposeEntities) {
       ChatView.getComposeEntitiesRequest = null;
+    }
+    if (ChatView.scrollPageRequest == _scrollPage) {
+      ChatView.scrollPageRequest = null;
     }
     ChatView.showSendFilesBoxRequest = null;
     if (ChatView.testVideoTipToast == _showVideoProcessingTip) {
@@ -537,6 +545,20 @@ class _ChatViewState extends State<ChatView>
       0, // reverse: true means 0 is the bottom
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOutCirc,
+    );
+  }
+
+  void _scrollPage(bool isUp) {
+    if (!_scrollController.hasClients) return;
+    final pos = _scrollController.position;
+    final pageHeight = pos.viewportDimension * 0.85;
+    final target = isUp
+        ? (pos.pixels + pageHeight).clamp(pos.minScrollExtent, pos.maxScrollExtent)
+        : (pos.pixels - pageHeight).clamp(pos.minScrollExtent, pos.maxScrollExtent);
+    _scrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOutCubic,
     );
   }
 
@@ -2611,6 +2633,13 @@ class _ChatViewState extends State<ChatView>
     }
   }
 
+  bool _isBotStartVisible(ChatInfo chat) {
+    return !chat.isBlocked &&
+        chat.isBot &&
+        chat.type == ChatType.dm &&
+        chat.lastMsgId.isEmpty;
+  }
+
   void _sendStartBot(ChatState chatState) {
     chatState.sendMessage('/start');
   }
@@ -2979,9 +3008,16 @@ class _ChatViewState extends State<ChatView>
       canRequestFocus: false,
       skipTraversal: true,
       onKeyEvent: (node, event) {
-        if (event is KeyDownEvent &&
-            event.logicalKey == LogicalKeyboardKey.escape) {
+        if (event is! KeyDownEvent) return KeyEventResult.ignored;
+        if (event.logicalKey == LogicalKeyboardKey.escape) {
           return _handleEscape();
+        }
+        if (event.logicalKey == LogicalKeyboardKey.enter ||
+            event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+          if (_isBotStartVisible(chat)) {
+            _sendStartBot(context.read<ChatState>());
+            return KeyEventResult.handled;
+          }
         }
         return KeyEventResult.ignored;
       },
@@ -3428,7 +3464,7 @@ class _ChatViewState extends State<ChatView>
               emojiPanelVisible: _emojiPanelVisible,
               onEmojiToggle: () => setState(() => _emojiPanelVisible = !_emojiPanelVisible),
               onEscape: () => _handleEscape(),
-              onScrollPage: () {},
+              onScrollPage: (isUp) => _scrollPage(isUp),
               sendBy: context.read<AppState>().sendBy,
             ),
           if (chatState.visibleReplyKeyboard != null)
@@ -7251,7 +7287,7 @@ class _ComposeArea extends StatefulWidget {
   final VoidCallback? onEmojiToggle;
   final bool emojiPanelVisible;
   final VoidCallback? onEscape;
-  final VoidCallback? onScrollPage;
+  final ValueChanged<bool>? onScrollPage;
   final String sendBy;
 
   const _ComposeArea({
@@ -7668,11 +7704,14 @@ class _ComposeAreaState extends State<_ComposeArea>
       return KeyEventResult.handled;
     }
 
-    // PageUp/PageDown → scroll chat history (spec §24.6)
-    if (event.logicalKey == LogicalKeyboardKey.pageUp ||
-        event.logicalKey == LogicalKeyboardKey.pageDown) {
-      widget.onScrollPage?.call();
-      return KeyEventResult.ignored;
+    // PageUp/PageDown → scroll chat history (spec §24.7)
+    if (event.logicalKey == LogicalKeyboardKey.pageUp) {
+      widget.onScrollPage?.call(true);
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.pageDown) {
+      widget.onScrollPage?.call(false);
+      return KeyEventResult.handled;
     }
 
     // Tab → trigger autocomplete (spec §24.6)

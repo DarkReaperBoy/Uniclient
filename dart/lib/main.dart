@@ -994,6 +994,14 @@ class _UniClientAppState extends State<UniClientApp>
       ChatView.requestCycleReply(-1);
       return;
     }
+    if (lc == 'pageup' || lc == 'pgup') {
+      ChatView.requestScrollPage(true);
+      return;
+    }
+    if (lc == 'pagedown' || lc == 'pgdown') {
+      ChatView.requestScrollPage(false);
+      return;
+    }
     switch (key) {
       case 'enter':
         final focusNode = FocusManager.instance.primaryFocus;
