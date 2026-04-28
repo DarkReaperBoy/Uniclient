@@ -264,6 +264,10 @@ class _MediaViewerState extends State<MediaViewer>
   double _playbackSpeed = 1.0;
   bool _isSeeking = false;
   bool _autoPausedForCall = false;
+  Timer? _spaceBoostTimer;
+  bool _spaceBoostActive = false;
+  double _preBoostSpeed = 1.0;
+  DateTime? _lastFrameStep;
   ChatState? _chatStateRef;
   int? _activeQualitySeq;
   bool _qualityDownloading = false;
@@ -355,6 +359,7 @@ class _MediaViewerState extends State<MediaViewer>
     _chatStateRef?.removeListener(_onCallStateChanged);
     _chatStateRef = null;
     _disposePlayer();
+    _spaceBoostTimer?.cancel();
     _autoHideTimer?.cancel();
     _saveToastHoldTimer?.cancel();
     _downloadsLinkRecognizer.dispose();
@@ -765,7 +770,56 @@ class _MediaViewerState extends State<MediaViewer>
     _showControls();
   }
 
+  void _frameStep(int direction) {
+    if (!_isVideo || _player == null || _isPlaying) return;
+    final now = DateTime.now();
+    if (_lastFrameStep != null &&
+        now.difference(_lastFrameStep!).inMilliseconds < 150) return;
+    _lastFrameStep = now;
+    const frameDuration = Duration(microseconds: 33333); // 30fps fallback
+    final target = _position + frameDuration * direction;
+    if (target < Duration.zero) return;
+    if (_duration > Duration.zero && target > _duration) return;
+    _player!.seek(target);
+    _showControls();
+  }
+
+  void _startSpeedBoost() {
+    if (!_isVideo || _player == null) return;
+    _spaceBoostTimer?.cancel();
+    _spaceBoostActive = false;
+    _spaceBoostTimer = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      _spaceBoostActive = true;
+      _preBoostSpeed = _playbackSpeed;
+      _setSpeed(2.0);
+      if (!_isPlaying) _player?.play();
+    });
+  }
+
+  void _endSpeedBoost() {
+    final wasBoostPending = _spaceBoostTimer?.isActive ?? false;
+    _spaceBoostTimer?.cancel();
+    _spaceBoostTimer = null;
+    if (_spaceBoostActive) {
+      _spaceBoostActive = false;
+      _setSpeed(_preBoostSpeed);
+      return;
+    }
+    if (wasBoostPending && (_isVideo || _isGif)) {
+      _togglePlayPause();
+      _showControls();
+    }
+  }
+
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event is KeyUpEvent) {
+      if (event.logicalKey == LogicalKeyboardKey.space) {
+        _endSpeedBoost();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
@@ -859,7 +913,10 @@ class _MediaViewerState extends State<MediaViewer>
         if (!ctrl && _isVideo && _mode == _MediaViewerMode.fullscreen) { _seekToPercent(90); return KeyEventResult.handled; }
         return KeyEventResult.ignored;
       case LogicalKeyboardKey.arrowLeft:
-        if (alt) return KeyEventResult.ignored;
+        if (alt) {
+          // Alt+Left: jump to previous chapter (no-op if no chapters)
+          return KeyEventResult.handled;
+        }
         if (_isVideo && _player != null && _mode == _MediaViewerMode.fullscreen) {
           _player!.seek(_position - const Duration(seconds: 5));
           _showControls();
@@ -868,7 +925,10 @@ class _MediaViewerState extends State<MediaViewer>
         _goToPrev();
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowRight:
-        if (alt) return KeyEventResult.ignored;
+        if (alt) {
+          // Alt+Right: jump to next chapter (no-op if no chapters)
+          return KeyEventResult.handled;
+        }
         if (_isVideo && _player != null && _mode == _MediaViewerMode.fullscreen) {
           _player!.seek(_position + const Duration(seconds: 5));
           _showControls();
@@ -891,8 +951,43 @@ class _MediaViewerState extends State<MediaViewer>
         return KeyEventResult.ignored;
       case LogicalKeyboardKey.space:
         if (_isVideo || _isGif) {
+          if (event is KeyDownEvent) {
+            _startSpeedBoost();
+          }
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      case LogicalKeyboardKey.keyK:
+        if (_isVideo || _isGif) {
           _togglePlayPause();
           _showControls();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      case LogicalKeyboardKey.keyJ:
+        if (_isVideo && _player != null) {
+          final target = _position - const Duration(seconds: 10);
+          _player!.seek(target < Duration.zero ? Duration.zero : target);
+          _showControls();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      case LogicalKeyboardKey.keyL:
+        if (_isVideo && _player != null) {
+          _player!.seek(_position + const Duration(seconds: 10));
+          _showControls();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      case LogicalKeyboardKey.period:
+        if (!ctrl) {
+          _frameStep(1);
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      case LogicalKeyboardKey.comma:
+        if (!ctrl) {
+          _frameStep(-1);
           return KeyEventResult.handled;
         }
         return KeyEventResult.ignored;
