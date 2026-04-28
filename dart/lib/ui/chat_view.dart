@@ -67,6 +67,18 @@ class ChatView extends StatefulWidget {
   static bool requestShowActiveChatMenu() =>
       showActiveChatMenuRequest?.call() ?? false;
 
+  static bool Function()? showChatPreviewRequest;
+  static bool requestShowChatPreview() =>
+      showChatPreviewRequest?.call() ?? false;
+
+  static bool Function()? archiveActiveChatRequest;
+  static bool requestArchiveActiveChat() =>
+      archiveActiveChatRequest?.call() ?? false;
+
+  static bool Function()? showScheduledRequest;
+  static bool requestShowScheduled() =>
+      showScheduledRequest?.call() ?? false;
+
   /// Harness hook for always-send (spec §24.4 line 2978: Ctrl+Shift+Enter
   /// always sends regardless of mode). Real OS-delivered Ctrl+Shift+Enter
   /// reaches the compose TextField's FocusNode.onKeyEvent directly; this hook
@@ -280,6 +292,9 @@ class _ChatViewState extends State<ChatView>
     // Register the app-level Ctrl+\ hook (spec §24.4 `show_chat_menu`:
     // open the chat-level action menu anchored to the top-bar more_vert).
     ChatView.showActiveChatMenuRequest = _showActiveChatMenu;
+    ChatView.showChatPreviewRequest = _showChatPreview;
+    ChatView.archiveActiveChatRequest = _archiveActiveChat;
+    ChatView.showScheduledRequest = _showScheduled;
     // Register the harness Ctrl+Shift+Enter hook (spec §24.4 line 2978:
     // always send regardless of mode). The real FocusNode.onKeyEvent path on
     // the compose TextField catches OS-delivered Ctrl+Shift+Enter directly;
@@ -314,6 +329,15 @@ class _ChatViewState extends State<ChatView>
     }
     if (ChatView.showActiveChatMenuRequest == _showActiveChatMenu) {
       ChatView.showActiveChatMenuRequest = null;
+    }
+    if (ChatView.showChatPreviewRequest == _showChatPreview) {
+      ChatView.showChatPreviewRequest = null;
+    }
+    if (ChatView.archiveActiveChatRequest == _archiveActiveChat) {
+      ChatView.archiveActiveChatRequest = null;
+    }
+    if (ChatView.showScheduledRequest == _showScheduled) {
+      ChatView.showScheduledRequest = null;
     }
     if (ChatView.sendComposeRequest == _requestSendCompose) {
       ChatView.sendComposeRequest = null;
@@ -2642,6 +2666,33 @@ class _ChatViewState extends State<ChatView>
     final chat = chatState.activeChat;
     if (chat == null) return false;
     chatState.markChatRead(chat.accountId, chat.chatId);
+    return true;
+  }
+
+  bool _showChatPreview() {
+    if (!mounted) return false;
+    final chatState = context.read<ChatState>();
+    final chat = chatState.activeChat;
+    if (chat == null) return false;
+    _showChatPreviewPopup(context, chat, chatState);
+    return true;
+  }
+
+  bool _archiveActiveChat() {
+    if (!mounted) return false;
+    final chatState = context.read<ChatState>();
+    final chat = chatState.activeChat;
+    if (chat == null) return false;
+    chatState.archiveChat(chat.accountId, chat.chatId, !chat.isArchived);
+    return true;
+  }
+
+  bool _showScheduled() {
+    if (!mounted) return false;
+    final chatState = context.read<ChatState>();
+    final chat = chatState.activeChat;
+    if (chat == null) return false;
+    chatState.toggleScheduledView();
     return true;
   }
 
@@ -11530,4 +11581,157 @@ class _VideoPublishedToastState extends State<_VideoPublishedToast>
       ),
     );
   }
+}
+
+void _showChatPreviewPopup(BuildContext ctx, ChatInfo chat, ChatState chatState) {
+  final theme = Theme.of(ctx);
+  final isDark = theme.brightness == Brightness.dark;
+  final bgColor = isDark ? const Color(0xFF17212b) : Colors.white;
+  final textColor = isDark ? Colors.white : const Color(0xFF222222);
+  final subtitleColor = isDark ? const Color(0xFF5b7a93) : const Color(0xFF999999);
+  final msgs = chatState.messages.take(5).toList();
+
+  showDialog(
+    context: ctx,
+    barrierColor: Colors.black38,
+    builder: (dialogCtx) => GestureDetector(
+      onTap: () => Navigator.of(dialogCtx).pop(),
+      behavior: HitTestBehavior.opaque,
+      child: Center(
+        child: GestureDetector(
+          onTap: () {},
+          child: Material(
+            elevation: 8,
+            borderRadius: BorderRadius.circular(10),
+            color: bgColor,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 360, maxHeight: 420),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+                    child: Row(
+                      children: [
+                        _previewAvatar(chat, 22),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                chat.title,
+                                style: TextStyle(
+                                  color: textColor,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                _previewSubtitle(chat),
+                                style: TextStyle(color: subtitleColor, fontSize: 12),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Divider(height: 1, color: theme.dividerColor),
+                  if (msgs.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        'No messages',
+                        style: TextStyle(color: subtitleColor, fontSize: 13),
+                      ),
+                    )
+                  else
+                    Flexible(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                        itemCount: msgs.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 4),
+                        itemBuilder: (_, i) {
+                          final m = msgs[i];
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (m.senderName.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 6),
+                                  child: Text(
+                                    '${m.senderName}:',
+                                    style: TextStyle(
+                                      color: isDark
+                                          ? const Color(0xFF71BFFF)
+                                          : const Color(0xFF168ACD),
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              Expanded(
+                                child: Text(
+                                  m.contentText.isNotEmpty
+                                      ? m.contentText
+                                      : (m.hasMedia ? '[Media]' : ''),
+                                  style: TextStyle(color: textColor, fontSize: 13),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+Widget _previewAvatar(ChatInfo chat, double radius) {
+  if (chat.avatarPath.isNotEmpty) {
+    final file = File(chat.avatarPath);
+    if (file.existsSync()) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundImage: FileImage(file),
+      );
+    }
+  }
+  const colorRemap = [0, 7, 4, 1, 6, 3, 5];
+  const palette = [
+    Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77), Color(0xFF65aadd),
+    Color(0xFFa695e7), Color(0xFFee7aae), Color(0xFF6ec9cb), Color(0xFFe8a64e),
+  ];
+  final numId = int.tryParse(chat.chatId) ?? chat.chatId.hashCode.abs();
+  final idx = colorRemap[numId.abs() % 7];
+  return CircleAvatar(
+    radius: radius,
+    backgroundColor: palette[idx],
+    child: Text(
+      chat.title.isNotEmpty ? chat.title[0].toUpperCase() : '?',
+      style: TextStyle(color: Colors.white, fontSize: radius * 0.7, fontWeight: FontWeight.w600),
+    ),
+  );
+}
+
+String _previewSubtitle(ChatInfo chat) {
+  if (chat.memberCount > 0) {
+    final label = chat.type == ChatType.channel ? 'subscribers' : 'members';
+    return '${chat.memberCount} $label';
+  }
+  return chat.type == ChatType.dm ? 'Private chat' : '';
 }

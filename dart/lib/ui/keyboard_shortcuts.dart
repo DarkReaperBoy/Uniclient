@@ -592,9 +592,16 @@ class ShortcutSystem {
     if (_isDesktop)
       const _KeyBinding(LogicalKeyboardKey.keyR, ShortcutCommand.readChat,
           control: true),
+    if (_isDesktop)
+      const _KeyBinding(LogicalKeyboardKey.keyR, ShortcutCommand.recordVoice,
+          control: true),
     const _KeyBinding(
         LogicalKeyboardKey.backslash, ShortcutCommand.showChatMenu,
         control: true),
+    if (_isDesktop)
+      const _KeyBinding(
+          LogicalKeyboardKey.bracketRight, ShortcutCommand.showChatPreview,
+          control: true),
     const _KeyBinding(
         LogicalKeyboardKey.arrowUp, ShortcutCommand.replyPrevious,
         control: true),
@@ -735,6 +742,21 @@ class _ShortcutListenerState extends State<ShortcutListener> {
     sys.registerHandler(ShortcutCommand.showChatMenu, () {
       ChatView.requestShowActiveChatMenu();
       return true;
+    });
+    sys.registerHandler(ShortcutCommand.recordVoice, () {
+      return false;
+    });
+    sys.registerHandler(ShortcutCommand.showChatPreview, () {
+      return ChatView.requestShowChatPreview();
+    });
+    sys.registerHandler(ShortcutCommand.archiveChat, () {
+      return ChatView.requestArchiveActiveChat();
+    });
+    sys.registerHandler(ShortcutCommand.showScheduled, () {
+      return ChatView.requestShowScheduled();
+    });
+    sys.registerHandler(ShortcutCommand.showAdminLog, () {
+      return false;
     });
     sys.registerHandler(ShortcutCommand.replyPrevious, () {
       ChatView.requestCycleReply(1);

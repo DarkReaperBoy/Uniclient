@@ -960,6 +960,15 @@ class _UniClientAppState extends State<UniClientApp>
       ChatView.requestShowActiveChatMenu();
       return;
     }
+    if (lc == 'ctrl+]' || lc == 'control+]' ||
+        lc == 'ctrl+bracketright' || lc == 'control+bracketright') {
+      ChatView.requestShowChatPreview();
+      return;
+    }
+    if (lc == 'ctrl+r' || lc == 'control+r') {
+      ChatView.requestMarkActiveChatRead();
+      return;
+    }
     // Telegram Desktop spec §24.4 line 2978 — Ctrl+Shift+Enter always sends
     // the compose field regardless of send-by-Enter mode. Real OS-delivered
     // keystrokes route through the TextField's FocusNode.onKeyEvent directly;
