@@ -1466,6 +1466,10 @@ class _UniClientAppState extends State<UniClientApp>
       }
     }
 
+    if (appState.wallpaper.backgroundColors.isNotEmpty || appState.wallpaper.imageBytes != null) {
+      palette = palette.adjustServiceColorsForWallpaper(appState.wallpaper);
+    }
+
     return WallpaperProvider(
       wallpaper: appState.wallpaper,
       child: PaletteProvider(

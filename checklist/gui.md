@@ -818,7 +818,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/theme/telegram_palette.dart (TelegramPalette + PaletteProvider), dart/lib/theme/theme.dart (AppTheme.fromPalette) -->
 
-- [ ] 6 adaptive service message colors from wallpaper average color; ThemeAdjustedColor hue+sat transplant — spec §25.8.9 + §25.17.5
 - [ ] Night mode: dark detection by dialogsBg HSV < 0.5, hamburger toggle, auto-night from OS, 16s revert countdown overlay (easeIn/easeOut, boxDuration) — spec §25.9
 - [ ] Theme caching: palette + background BMP + checksums, skip re-parse on checksum match — spec §25.10
 - [ ] Per-chat themes: ChatThemeKey {id, dark}, bubble color from accent/bubblesData, contrast validation (min 1.14 ratio), 200ms background fade, horizontal scrollable theme-pill strip (miniature bg + sample bubbles + emoji), selection ring, Apply + Change Wallpaper buttons — spec §25.11

@@ -4621,21 +4621,19 @@ class _MessageList extends StatelessWidget {
   Widget build(BuildContext context) {
     if (messages.isEmpty && !loading) {
       if (isScheduledView) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        final bgColor = isDark ? const Color(0xD5213040) : const Color(0x7F517c41);
         return Center(
           child: Container(
             padding: const EdgeInsets.fromLTRB(12, 3, 12, 4),
             decoration: BoxDecoration(
-              color: bgColor,
+              color: context.palette.msgServiceBg,
               borderRadius: BorderRadius.circular(999),
             ),
-            child: const Text(
+            child: Text(
               'No scheduled messages',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFFFFFFFF),
+                color: context.palette.msgServiceFg,
               ),
             ),
           ),
@@ -4865,8 +4863,7 @@ class _DateSeparator extends StatelessWidget {
       text = '${_months[dt.month - 1]} ${dt.day}, ${dt.year}';
     }
 
-    // msgServiceBg: day #517c417f, night #213040d5
-    final bgColor = isDark ? const Color(0xD5213040) : const Color(0x7F517c41);
+    final bgColor = context.palette.msgServiceBg;
 
     return Padding(
       padding: const EdgeInsets.only(top: 10, bottom: 2),
@@ -4879,10 +4876,10 @@ class _DateSeparator extends StatelessWidget {
           ),
           child: Text(
             text,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: Color(0xFFFFFFFF),
+              color: context.palette.msgServiceFg,
             ),
           ),
         ),
@@ -4896,10 +4893,6 @@ class _DateSeparator extends StatelessWidget {
   ];
 }
 
-/// Spec §5 Service Messages: centered text in rounded pill.
-/// msgServiceBg: day #517c417f, night #213040d5. msgServiceFg: #ffffff.
-/// Padding: msgServicePadding 12/3/12/4. Margin: 10px above, 2px below.
-/// Font: 13px semibold. Radius: fully rounded pill (radius = height/2).
 class _ServiceMessage extends StatelessWidget {
   final String text;
 
@@ -4908,9 +4901,7 @@ class _ServiceMessage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (text.isEmpty) return const SizedBox.shrink();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    // msgServiceBg: day #517c417f, night #213040d5
-    final bgColor = isDark ? const Color(0xD5213040) : const Color(0x7F517c41);
+    final bgColor = context.palette.msgServiceBg;
 
     return Padding(
       padding: const EdgeInsets.only(top: 10, bottom: 2),
@@ -4927,10 +4918,10 @@ class _ServiceMessage extends StatelessWidget {
           child: Text(
             text,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: Color(0xFFFFFFFF),
+              color: context.palette.msgServiceFg,
             ),
           ),
         ),

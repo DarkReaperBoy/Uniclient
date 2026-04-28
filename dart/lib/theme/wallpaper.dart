@@ -131,6 +131,23 @@ class WallpaperData {
     return parts.join('&');
   }
 
+  Color? get averageColor {
+    if (backgroundColors.isNotEmpty) {
+      int r = 0, g = 0, b = 0;
+      for (final c in backgroundColors) {
+        r += c.red;
+        g += c.green;
+        b += c.blue;
+      }
+      final n = backgroundColors.length;
+      return Color.fromARGB(255, r ~/ n, g ~/ n, b ~/ n);
+    }
+    if (imageBytes != null) {
+      return computeAverageColor(imageBytes!);
+    }
+    return null;
+  }
+
   static int _snapRotation(int degrees) {
     final snapped = ((degrees + 22) ~/ 45) * 45;
     return snapped % 360;
