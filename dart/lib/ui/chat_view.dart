@@ -93,6 +93,9 @@ class ChatView extends StatefulWidget {
 
   static void Function(List<String> paths)? showSendFilesBoxRequest;
 
+  static VoidCallback? testVideoTipToast;
+  static VoidCallback? testVideoPublishedToast;
+
   /// Invoked by the app-level Ctrl+Up / Ctrl+Down bindings. Returns true if
   /// consumed.
   static bool requestCycleReply(int direction) =>
@@ -216,6 +219,18 @@ class _ChatViewState extends State<ChatView>
 
   bool _emojiPanelVisible = false;
 
+  // §23.8: Video processing toasts state
+  bool _showVideoTipToast = false;
+  bool _showVideoTooltip = false;
+  String? _videoTooltipMsgId;
+  Timer? _videoTipTimer;
+  Timer? _videoTooltipTimer;
+  bool _showVideoPublishedToast = false;
+  String? _publishedVideoMsgId;
+  Uint8List? _publishedVideoThumb;
+  Timer? _videoPublishedTimer;
+  bool _wasScheduledView = false;
+
   @override
   void initState() {
     super.initState();
@@ -275,6 +290,8 @@ class _ChatViewState extends State<ChatView>
     ChatView.showSendFilesBoxRequest = (paths) {
       _uploadFiles(context.read<ChatState>(), paths);
     };
+    ChatView.testVideoTipToast = _showVideoProcessingTip;
+    ChatView.testVideoPublishedToast = () => showVideoPublishedToast('test', null);
     _searchController.addListener(_onSearchQueryChanged);
   }
 
@@ -306,6 +323,10 @@ class _ChatViewState extends State<ChatView>
       ChatView.getComposeEntitiesRequest = null;
     }
     ChatView.showSendFilesBoxRequest = null;
+    if (ChatView.testVideoTipToast == _showVideoProcessingTip) {
+      ChatView.testVideoTipToast = null;
+    }
+    ChatView.testVideoPublishedToast = null;
     _dragOverlayAnimCtrl.dispose();
     _selectionCurvedAnim.dispose();
     _selectionAnimCtrl.dispose();
@@ -319,6 +340,9 @@ class _ChatViewState extends State<ChatView>
     _searchFocusNode.dispose();
     _previewDebounce?.cancel();
     _inlineBotDebounce?.cancel();
+    _videoTipTimer?.cancel();
+    _videoTooltipTimer?.cancel();
+    _videoPublishedTimer?.cancel();
     super.dispose();
   }
 
@@ -406,6 +430,61 @@ class _ChatViewState extends State<ChatView>
     if (_scrollController.offset < 10) {
       context.read<ChatState>().clearOpenedUnread();
     }
+  }
+
+  /// §23.8: Check if entering scheduled view with video messages and show tip toast.
+  void _checkScheduledVideoTip(ChatState chatState) {
+    if (!chatState.isScheduledView) return;
+    final hasVideo = chatState.messages.any((m) => m.isVideo);
+    if (!hasVideo) return;
+    _showVideoProcessingTip();
+  }
+
+  void _showVideoProcessingTip() {
+    if (_showVideoTipToast) return;
+    setState(() => _showVideoTipToast = true);
+    _videoTipTimer?.cancel();
+    _videoTipTimer = Timer(const Duration(milliseconds: 4000), () {
+      if (!mounted) return;
+      setState(() {
+        _showVideoTipToast = false;
+        _showVideoTooltipForFirstVideo();
+      });
+    });
+  }
+
+  void _showVideoTooltipForFirstVideo() {
+    final chatState = context.read<ChatState>();
+    final videoMsg = chatState.messages.where((m) => m.isVideo).firstOrNull;
+    if (videoMsg == null) return;
+    setState(() {
+      _showVideoTooltip = true;
+      _videoTooltipMsgId = videoMsg.msgId;
+    });
+    _videoTooltipTimer?.cancel();
+    _videoTooltipTimer = Timer(const Duration(milliseconds: 4000), () {
+      if (!mounted) return;
+      setState(() => _showVideoTooltip = false);
+    });
+  }
+
+  /// §23.8: Show the "Scheduled video published" toast with thumbnail and "View" button.
+  void showVideoPublishedToast(String msgId, [Uint8List? thumbnail]) {
+    setState(() {
+      _showVideoPublishedToast = true;
+      _publishedVideoMsgId = msgId;
+      _publishedVideoThumb = thumbnail;
+    });
+    _videoPublishedTimer?.cancel();
+    _videoPublishedTimer = Timer(const Duration(milliseconds: 4000), () {
+      if (!mounted) return;
+      setState(() => _showVideoPublishedToast = false);
+    });
+  }
+
+  void _dismissVideoPublishedToast() {
+    _videoPublishedTimer?.cancel();
+    setState(() => _showVideoPublishedToast = false);
   }
 
   bool _shouldShowContactStatusBar(ChatInfo chat) {
@@ -2800,6 +2879,19 @@ class _ChatViewState extends State<ChatView>
       return const SizedBox.shrink();
     }
 
+    // §23.8: detect transition into scheduled view and trigger video tip toast.
+    final isScheduled = widget.isScheduledView || chatState.isScheduledView;
+    if (isScheduled && !_wasScheduledView) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _checkScheduledVideoTip(chatState);
+      });
+    } else if (!isScheduled && _wasScheduledView) {
+      _videoTipTimer?.cancel();
+      _videoTooltipTimer?.cancel();
+      _showVideoTipToast = false;
+      _showVideoTooltip = false;
+    }
+    _wasScheduledView = isScheduled;
 
     // Spec §5 / §49.17: drive corner button visibility from chat data.
     final wantMentions = chat.unreadMentionCount > 0;
@@ -3278,6 +3370,42 @@ class _ChatViewState extends State<ChatView>
           },
         ),
       ),
+      // §23.8: Video processing tip toast (top-attached, 4000ms).
+      if (_showVideoTipToast)
+        _VideoProcessingTipToast(
+          onDismiss: () {
+            _videoTipTimer?.cancel();
+            setState(() {
+              _showVideoTipToast = false;
+              _showVideoTooltipForFirstVideo();
+            });
+          },
+        ),
+      // §23.8: Video processing tooltip (anchored to message, 4000ms after tip toast).
+      if (_showVideoTooltip)
+        _VideoProcessingTooltip(
+          maxWidth: 364,
+          onDismiss: () {
+            _videoTooltipTimer?.cancel();
+            setState(() => _showVideoTooltip = false);
+          },
+        ),
+      // §23.8: Published video notification toast.
+      if (_showVideoPublishedToast)
+        _VideoPublishedToast(
+          thumbnail: _publishedVideoThumb,
+          onView: () {
+            _dismissVideoPublishedToast();
+            final chatState = context.read<ChatState>();
+            if (chatState.isScheduledView) {
+              chatState.toggleScheduledView();
+            }
+            if (_publishedVideoMsgId != null) {
+              chatState.jumpToMessage(0);
+            }
+          },
+          onDismiss: _dismissVideoPublishedToast,
+        ),
       Positioned.fill(
         child: AnimatedBuilder(
           animation: _dragOverlayAnimCtrl,
@@ -11031,6 +11159,329 @@ class _StarGiftCard extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// §23.8: Top-attached toast for video processing tip.
+/// Shows title + body text, auto-dismisses after 4000ms.
+class _VideoProcessingTipToast extends StatefulWidget {
+  final VoidCallback onDismiss;
+  const _VideoProcessingTipToast({required this.onDismiss});
+  @override
+  State<_VideoProcessingTipToast> createState() => _VideoProcessingTipToastState();
+}
+
+class _VideoProcessingTipToastState extends State<_VideoProcessingTipToast>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _anim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+    _anim.forward();
+  }
+
+  @override
+  void dispose() {
+    _anim.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Positioned(
+      left: 0,
+      right: 0,
+      top: 0,
+      child: FadeTransition(
+        opacity: _anim,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, -1),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: _anim, curve: Curves.easeOutCubic)),
+          child: GestureDetector(
+            onTap: widget.onDismiss,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              constraints: const BoxConstraints(maxWidth: 380),
+              padding: const EdgeInsets.fromLTRB(19, 13, 19, 13),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xF0202C39) : const Color(0xF0FFFFFF),
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.15),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Video is processing',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : const Color(0xFF222222),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'The video will be sent at the scheduled time once processing is complete.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: isDark ? const Color(0xFFAAAAAA) : const Color(0xFF777777),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// §23.8: Tooltip bubble for video processing, shown after the tip toast.
+/// Max width 364px, transparent for mouse events, auto-hides.
+class _VideoProcessingTooltip extends StatefulWidget {
+  final double maxWidth;
+  final VoidCallback onDismiss;
+  const _VideoProcessingTooltip({required this.maxWidth, required this.onDismiss});
+  @override
+  State<_VideoProcessingTooltip> createState() => _VideoProcessingTooltipState();
+}
+
+class _VideoProcessingTooltipState extends State<_VideoProcessingTooltip>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _anim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+    _anim.forward();
+  }
+
+  @override
+  void dispose() {
+    _anim.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Positioned(
+      left: 16,
+      right: 16,
+      top: 62,
+      child: IgnorePointer(
+        child: FadeTransition(
+          opacity: _anim,
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: Container(
+              constraints: BoxConstraints(maxWidth: widget.maxWidth),
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF2B3A4A) : const Color(0xFF333333),
+                borderRadius: BorderRadius.circular(6),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'This video is still being processed and will be sent automatically when ready.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  CustomPaint(
+                    size: const Size(12, 8),
+                    painter: _TooltipArrowPainter(
+                      color: isDark ? const Color(0xFF2B3A4A) : const Color(0xFF333333),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TooltipArrowPainter extends CustomPainter {
+  final Color color;
+  const _TooltipArrowPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color;
+    final path = Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width / 2, size.height)
+      ..lineTo(size.width, 0)
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _TooltipArrowPainter old) => old.color != color;
+}
+
+/// §23.8: Published video notification toast with thumbnail + "View" button.
+/// Top-attached, 380px max width, 19/17/19/17px padding, 4000ms duration.
+/// Right-click dismisses.
+class _VideoPublishedToast extends StatefulWidget {
+  final Uint8List? thumbnail;
+  final VoidCallback onView;
+  final VoidCallback onDismiss;
+  const _VideoPublishedToast({
+    this.thumbnail,
+    required this.onView,
+    required this.onDismiss,
+  });
+  @override
+  State<_VideoPublishedToast> createState() => _VideoPublishedToastState();
+}
+
+class _VideoPublishedToastState extends State<_VideoPublishedToast>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _anim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+    _anim.forward();
+  }
+
+  @override
+  void dispose() {
+    _anim.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final thumbSize = 28.0; // font->height * 2 ≈ 28px
+    return Positioned(
+      left: 0,
+      right: 0,
+      top: 0,
+      child: FadeTransition(
+        opacity: _anim,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, -1),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: _anim, curve: Curves.easeOutCubic)),
+          child: Center(
+            child: GestureDetector(
+              onSecondaryTap: widget.onDismiss,
+              child: Container(
+                constraints: const BoxConstraints(minWidth: 32, maxWidth: 380),
+                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.fromLTRB(19, 17, 19, 17),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xF0202C39) : const Color(0xF0FFFFFF),
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: widget.thumbnail != null
+                          ? Image.memory(
+                              widget.thumbnail!,
+                              width: thumbSize,
+                              height: thumbSize,
+                              fit: BoxFit.cover,
+                            )
+                          : Container(
+                              width: thumbSize,
+                              height: thumbSize,
+                              color: isDark ? const Color(0xFF3A4A5A) : const Color(0xFFDDDDDD),
+                              child: Icon(
+                                Icons.videocam,
+                                size: 16,
+                                color: isDark ? const Color(0xFF8899AA) : const Color(0xFF999999),
+                              ),
+                            ),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        'Scheduled video published',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? Colors.white : const Color(0xFF222222),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: widget.onView,
+                      child: Container(
+                        height: 52,
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        alignment: Alignment.center,
+                        child: Text(
+                          'View',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: isDark ? const Color(0xFF71BFFF) : const Color(0xFF168ACD),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

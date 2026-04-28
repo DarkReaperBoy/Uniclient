@@ -503,6 +503,14 @@ class _UniClientAppState extends State<UniClientApp>
         case 'toggleScheduled':
           chatState.toggleScheduledView();
 
+        case 'testVideoToast':
+          final toastType = cmd['type'] as String? ?? 'tip';
+          if (toastType == 'tip') {
+            ChatView.testVideoTipToast?.call();
+          } else if (toastType == 'published') {
+            ChatView.testVideoPublishedToast?.call();
+          }
+
         case 'dismissPopup':
           // Tap at (0,0) to dismiss any popup/dialog/menu
           _dispatchTap(1, 1);
