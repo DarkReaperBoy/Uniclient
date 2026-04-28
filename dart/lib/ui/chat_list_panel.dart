@@ -68,8 +68,14 @@ class ChatListPanel extends StatefulWidget {
   /// Global hook used by app-level Ctrl+1..Ctrl+8 (Telegram Desktop spec
   /// §24.4 `all_chats`/`folder1`..`folder6`/`last_folder`). `oneIndex` is
   /// 1-based: 1 → All Chats (null), 2..7 → folders[oneIndex-2], 8 → last
-  /// folder. No-op when the target doesn't exist.
-  static void Function(int oneIndex)? switchFolderByIndexRequest;
+  /// folder. Returns false when no folders are configured (falls through to
+  /// pinned-chat handler per §24.12.2).
+  static bool Function(int oneIndex)? switchFolderByIndexRequest;
+
+  /// Global hook for Ctrl+1..Ctrl+8 pinned-chat fallback (spec §24.4
+  /// `pinned_chat1`..`pinned_chat8`). [zeroIndex] is 0-based.
+  /// Returns false when pinned chat at that index doesn't exist.
+  static bool Function(int zeroIndex)? openPinnedChatRequest;
 
   /// Focus the chat list search field. Safe to call when no panel is mounted.
   static void requestFocusSearch() => focusSearchRequest?.call();
@@ -92,12 +98,14 @@ class ChatListPanel extends StatefulWidget {
   static void requestJumpChat(bool toFirst) =>
       jumpChatRequest?.call(toFirst);
 
-  /// Switch to the folder tab at 1-based [oneIndex]: 1 → All Chats, 2..7 →
-  /// folders[oneIndex-2], 8 → last folder. Safe to call when no panel is
-  /// mounted. No-op when the target folder doesn't exist for the active
-  /// account.
-  static void requestSwitchFolderByIndex(int oneIndex) =>
-      switchFolderByIndexRequest?.call(oneIndex);
+  /// Switch to the folder tab at 1-based [oneIndex]. Returns true if handled
+  /// (folders exist), false otherwise (falls through to pinned-chat handler).
+  static bool requestSwitchFolderByIndex(int oneIndex) =>
+      switchFolderByIndexRequest?.call(oneIndex) ?? false;
+
+  /// Open the pinned chat at 0-based [zeroIndex]. Returns true if handled.
+  static bool requestOpenPinnedChat(int zeroIndex) =>
+      openPinnedChatRequest?.call(zeroIndex) ?? false;
 
   @override
   State<ChatListPanel> createState() => _ChatListPanelState();
@@ -163,6 +171,7 @@ class _ChatListPanelState extends State<ChatListPanel>
     ChatListPanel.navigateFolderRequest = _navigateFolder;
     ChatListPanel.jumpChatRequest = _jumpChat;
     ChatListPanel.switchFolderByIndexRequest = _switchFolderByIndex;
+    ChatListPanel.openPinnedChatRequest = _openPinnedChat;
     // Listen to controller directly to handle programmatic text changes
     // (e.g. debug type command) in addition to TextField.onChanged.
     _searchController.addListener(_onControllerChanged);
@@ -309,25 +318,35 @@ class _ChatListPanelState extends State<ChatListPanel>
   /// `oneIndex=1` → All Chats, `oneIndex=2..7` → folders[oneIndex-2],
   /// `oneIndex=8` → always the last folder (Telegram Desktop spec §24.4
   /// `last_folder`). No-op if the target doesn't exist.
-  void _switchFolderByIndex(int oneIndex) {
-    if (!mounted) return;
+  bool _switchFolderByIndex(int oneIndex) {
+    if (!mounted) return false;
     final chatState = context.read<ChatState>();
     final folders = chatState.folders;
+    if (folders.isEmpty) return false;
     String? target;
     if (oneIndex == 1) {
       target = null; // All Chats
     } else if (oneIndex == 8) {
-      if (folders.isEmpty) return;
       target = folders.last.id;
     } else if (oneIndex >= 2 && oneIndex <= 7) {
       final folderIdx = oneIndex - 2;
-      if (folderIdx >= folders.length) return; // no folder at that slot
+      if (folderIdx >= folders.length) return false;
       target = folders[folderIdx].id;
     } else {
-      return; // out of range
+      return false;
     }
-    if (chatState.activeFolderId == target) return; // already active
-    chatState.setActiveFolder(target);
+    if (chatState.activeFolderId != target) {
+      chatState.setActiveFolder(target);
+    }
+    return true;
+  }
+
+  bool _openPinnedChat(int zeroIndex) {
+    if (!mounted) return false;
+    final pinned = _buildNonArchived.where((c) => c.isPinned).toList();
+    if (zeroIndex >= pinned.length) return false;
+    context.read<ChatState>().openChat(pinned[zeroIndex]);
+    return true;
   }
 
   /// Global-Esc hook. If the search field is currently active (Cancel
@@ -359,6 +378,9 @@ class _ChatListPanelState extends State<ChatListPanel>
     }
     if (ChatListPanel.switchFolderByIndexRequest == _switchFolderByIndex) {
       ChatListPanel.switchFolderByIndexRequest = null;
+    }
+    if (ChatListPanel.openPinnedChatRequest == _openPinnedChat) {
+      ChatListPanel.openPinnedChatRequest = null;
     }
     final appState = context.read<AppState>();
     if (appState.onShowArchiveRequested != null) {

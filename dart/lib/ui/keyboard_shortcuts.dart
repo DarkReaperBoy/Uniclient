@@ -266,7 +266,7 @@ _KeyBinding? _parseKeyBinding(String keys, ShortcutCommand command) {
 
 class _Handler {
   final int priority;
-  final VoidCallback callback;
+  final bool Function() callback;
   _Handler(this.priority, this.callback);
 }
 
@@ -417,22 +417,26 @@ class ShortcutSystem {
   }
 
   void registerHandler(
-      ShortcutCommand command, VoidCallback handler, {int priority = 0}) {
+      ShortcutCommand command, bool Function() handler, {int priority = 0}) {
     final list = _handlers.putIfAbsent(command, () => []);
     list.add(_Handler(priority, handler));
     list.sort((a, b) => b.priority.compareTo(a.priority));
   }
 
-  void unregisterHandler(ShortcutCommand command, VoidCallback handler) {
+  void unregisterHandler(ShortcutCommand command, bool Function() handler) {
     _handlers[command]?.removeWhere((h) => h.callback == handler);
   }
 
   bool dispatch(ShortcutCommand command) {
     final list = _handlers[command];
     if (list == null || list.isEmpty) return false;
-    list.first.callback();
-    _requestController.add(command);
-    return true;
+    for (final h in list) {
+      if (h.callback()) {
+        _requestController.add(command);
+        return true;
+      }
+    }
+    return false;
   }
 
   KeyEventResult handleKeyEvent(KeyEvent event) {
@@ -455,11 +459,10 @@ class ShortcutSystem {
       return any ? KeyEventResult.handled : KeyEventResult.ignored;
     }
 
-    bool any = false;
     for (final cmd in commands) {
-      if (dispatch(cmd)) any = true;
+      if (dispatch(cmd)) return KeyEventResult.handled;
     }
-    return any ? KeyEventResult.handled : KeyEventResult.ignored;
+    return KeyEventResult.ignored;
   }
 
   List<ShortcutCommand> _findCommands(KeyEvent event) {
@@ -625,6 +628,30 @@ class ShortcutSystem {
           LogicalKeyboardKey.digit8, ShortcutCommand.lastFolder,
           control: true),
     if (_isDesktop)
+      const _KeyBinding(LogicalKeyboardKey.digit1, ShortcutCommand.pinnedChat1,
+          control: true),
+    if (_isDesktop)
+      const _KeyBinding(LogicalKeyboardKey.digit2, ShortcutCommand.pinnedChat2,
+          control: true),
+    if (_isDesktop)
+      const _KeyBinding(LogicalKeyboardKey.digit3, ShortcutCommand.pinnedChat3,
+          control: true),
+    if (_isDesktop)
+      const _KeyBinding(LogicalKeyboardKey.digit4, ShortcutCommand.pinnedChat4,
+          control: true),
+    if (_isDesktop)
+      const _KeyBinding(LogicalKeyboardKey.digit5, ShortcutCommand.pinnedChat5,
+          control: true),
+    if (_isDesktop)
+      const _KeyBinding(LogicalKeyboardKey.digit6, ShortcutCommand.pinnedChat6,
+          control: true),
+    if (_isDesktop)
+      const _KeyBinding(LogicalKeyboardKey.digit7, ShortcutCommand.pinnedChat7,
+          control: true),
+    if (_isDesktop)
+      const _KeyBinding(LogicalKeyboardKey.digit8, ShortcutCommand.pinnedChat8,
+          control: true),
+    if (_isDesktop)
       const _KeyBinding(LogicalKeyboardKey.keyL, ShortcutCommand.lockTelegram,
           control: true),
     if (_isDesktop)
@@ -672,54 +699,69 @@ class _ShortcutListenerState extends State<ShortcutListener> {
 
     sys.registerHandler(ShortcutCommand.search, () {
       ChatListPanel.requestFocusSearch();
+      return true;
     });
     sys.registerHandler(ShortcutCommand.cancelSearch, () {
-      ChatListPanel.requestCancelSearch();
+      return ChatListPanel.requestCancelSearch();
     });
     sys.registerHandler(ShortcutCommand.chatNext, () {
       ChatListPanel.requestNavigateChat(1);
+      return true;
     });
     sys.registerHandler(ShortcutCommand.chatPrevious, () {
       ChatListPanel.requestNavigateChat(-1);
+      return true;
     });
     sys.registerHandler(ShortcutCommand.chatFirst, () {
       ChatListPanel.requestJumpChat(true);
+      return true;
     });
     sys.registerHandler(ShortcutCommand.chatLast, () {
       ChatListPanel.requestJumpChat(false);
+      return true;
     });
     sys.registerHandler(ShortcutCommand.nextFolder, () {
       ChatListPanel.requestNavigateFolder(1);
+      return true;
     });
     sys.registerHandler(ShortcutCommand.previousFolder, () {
       ChatListPanel.requestNavigateFolder(-1);
+      return true;
     });
     sys.registerHandler(ShortcutCommand.readChat, () {
       ChatView.requestMarkActiveChatRead();
+      return true;
     });
     sys.registerHandler(ShortcutCommand.showChatMenu, () {
       ChatView.requestShowActiveChatMenu();
+      return true;
     });
     sys.registerHandler(ShortcutCommand.replyPrevious, () {
       ChatView.requestCycleReply(1);
+      return true;
     });
     sys.registerHandler(ShortcutCommand.replyNext, () {
       ChatView.requestCycleReply(-1);
+      return true;
     });
     sys.registerHandler(ShortcutCommand.editLastMessage, () {
       ChatView.requestEditLastOutgoing();
+      return true;
     });
     sys.registerHandler(ShortcutCommand.lockTelegram, () {
-      // Requires passcode to be configured (§27) — no-op until then
+      return true;
     });
     sys.registerHandler(ShortcutCommand.closeTelegram, () {
       SystemTray.hideWindowRequest?.call();
+      return true;
     });
     sys.registerHandler(ShortcutCommand.minimizeTelegram, () {
       SystemTray.minimizeWindowRequest?.call();
+      return true;
     });
     sys.registerHandler(ShortcutCommand.quitTelegram, () {
       SystemTray.quitAppRequest?.call();
+      return true;
     });
 
     for (int i = 0; i < 8; i++) {
@@ -734,7 +776,23 @@ class _ShortcutListenerState extends State<ShortcutListener> {
         ShortcutCommand.lastFolder,
       ][i];
       sys.registerHandler(folderCmd, () {
-        ChatListPanel.requestSwitchFolderByIndex(i + 1);
+        return ChatListPanel.requestSwitchFolderByIndex(i + 1);
+      });
+    }
+
+    for (int i = 0; i < 8; i++) {
+      final pinnedCmd = [
+        ShortcutCommand.pinnedChat1,
+        ShortcutCommand.pinnedChat2,
+        ShortcutCommand.pinnedChat3,
+        ShortcutCommand.pinnedChat4,
+        ShortcutCommand.pinnedChat5,
+        ShortcutCommand.pinnedChat6,
+        ShortcutCommand.pinnedChat7,
+        ShortcutCommand.pinnedChat8,
+      ][i];
+      sys.registerHandler(pinnedCmd, () {
+        return ChatListPanel.requestOpenPinnedChat(i);
       });
     }
 
@@ -743,10 +801,15 @@ class _ShortcutListenerState extends State<ShortcutListener> {
       final saved = chatState.chats
           .where((c) => isSavedMessages(c))
           .firstOrNull;
-      if (saved != null) chatState.openChat(saved);
+      if (saved != null) {
+        chatState.openChat(saved);
+        return true;
+      }
+      return false;
     });
     sys.registerHandler(ShortcutCommand.showArchive, () {
       context.read<AppState>().requestShowArchive();
+      return true;
     });
     sys.registerHandler(ShortcutCommand.showContacts, () {
       final appState = context.read<AppState>();
@@ -766,6 +829,7 @@ class _ShortcutListenerState extends State<ShortcutListener> {
           ),
         ),
       );
+      return true;
     });
   }
 

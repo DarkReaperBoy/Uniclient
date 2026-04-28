@@ -812,7 +812,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_list_panel.dart, chat_view.dart, hamburger_drawer.dart (partial key handling already present) — new: dart/lib/ui/keyboard_shortcuts.dart -->
 
-- [ ] Pinned/folder shortcuts: Ctrl+1-8 (pinned chats or folders), Ctrl+Shift+Down/Up next/prev folder, folder priority over pinned — spec §24.4 + §24.12.2
 - [ ] Chat action shortcuts: Ctrl+R mark-read/voice, Ctrl+\\ context menu, Ctrl+] preview popup — spec §24.4
 - [ ] Media-key shortcuts: hardware play/pause/stop/prev/next, toggled with active player — spec §24.4
 - [ ] Ctrl+Tab chat-switcher overlay: 72×104px cells, grid auto-layout, userpic+name, forum topic variant, Q removes from history, Tab/arrows navigate, Enter/release-Ctrl confirms — spec §24.5 + §24.12.3
