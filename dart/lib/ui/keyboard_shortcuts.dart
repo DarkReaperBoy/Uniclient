@@ -106,6 +106,92 @@ const _autoRepeatCommands = {
   ShortcutCommand.mediaNext,
 };
 
+enum ShortcutScope {
+  global,
+  chatRequired,
+  composeRequired,
+  mediaViewer,
+}
+
+const _commandScopes = <ShortcutCommand, ShortcutScope>{
+  ShortcutCommand.closeTelegram: ShortcutScope.global,
+  ShortcutCommand.lockTelegram: ShortcutScope.global,
+  ShortcutCommand.minimizeTelegram: ShortcutScope.global,
+  ShortcutCommand.quitTelegram: ShortcutScope.global,
+  ShortcutCommand.search: ShortcutScope.global,
+  ShortcutCommand.cancelSearch: ShortcutScope.global,
+  ShortcutCommand.chatPrevious: ShortcutScope.global,
+  ShortcutCommand.chatNext: ShortcutScope.global,
+  ShortcutCommand.chatFirst: ShortcutScope.global,
+  ShortcutCommand.chatLast: ShortcutScope.global,
+  ShortcutCommand.selfChat: ShortcutScope.global,
+  ShortcutCommand.showArchive: ShortcutScope.global,
+  ShortcutCommand.showContacts: ShortcutScope.global,
+  ShortcutCommand.pinnedChat1: ShortcutScope.global,
+  ShortcutCommand.pinnedChat2: ShortcutScope.global,
+  ShortcutCommand.pinnedChat3: ShortcutScope.global,
+  ShortcutCommand.pinnedChat4: ShortcutScope.global,
+  ShortcutCommand.pinnedChat5: ShortcutScope.global,
+  ShortcutCommand.pinnedChat6: ShortcutScope.global,
+  ShortcutCommand.pinnedChat7: ShortcutScope.global,
+  ShortcutCommand.pinnedChat8: ShortcutScope.global,
+  ShortcutCommand.account1: ShortcutScope.global,
+  ShortcutCommand.account2: ShortcutScope.global,
+  ShortcutCommand.account3: ShortcutScope.global,
+  ShortcutCommand.account4: ShortcutScope.global,
+  ShortcutCommand.account5: ShortcutScope.global,
+  ShortcutCommand.account6: ShortcutScope.global,
+  ShortcutCommand.allChats: ShortcutScope.global,
+  ShortcutCommand.folder1: ShortcutScope.global,
+  ShortcutCommand.folder2: ShortcutScope.global,
+  ShortcutCommand.folder3: ShortcutScope.global,
+  ShortcutCommand.folder4: ShortcutScope.global,
+  ShortcutCommand.folder5: ShortcutScope.global,
+  ShortcutCommand.folder6: ShortcutScope.global,
+  ShortcutCommand.lastFolder: ShortcutScope.global,
+  ShortcutCommand.nextFolder: ShortcutScope.global,
+  ShortcutCommand.previousFolder: ShortcutScope.global,
+  ShortcutCommand.chatSwitchOverlay: ShortcutScope.global,
+  ShortcutCommand.chatSwitchOverlayReverse: ShortcutScope.global,
+  ShortcutCommand.mediaPlay: ShortcutScope.global,
+  ShortcutCommand.mediaPause: ShortcutScope.global,
+  ShortcutCommand.mediaPlayPause: ShortcutScope.global,
+  ShortcutCommand.mediaStop: ShortcutScope.global,
+  ShortcutCommand.mediaPrevious: ShortcutScope.global,
+  ShortcutCommand.mediaNext: ShortcutScope.global,
+  ShortcutCommand.supportReloadTemplates: ShortcutScope.global,
+  ShortcutCommand.supportToggleMuted: ShortcutScope.chatRequired,
+  ShortcutCommand.supportScrollToCurrent: ShortcutScope.chatRequired,
+  ShortcutCommand.supportHistoryBack: ShortcutScope.global,
+  ShortcutCommand.supportHistoryForward: ShortcutScope.global,
+  ShortcutCommand.readChat: ShortcutScope.chatRequired,
+  ShortcutCommand.recordVoice: ShortcutScope.chatRequired,
+  ShortcutCommand.showChatMenu: ShortcutScope.chatRequired,
+  ShortcutCommand.showChatPreview: ShortcutScope.chatRequired,
+  ShortcutCommand.archiveChat: ShortcutScope.chatRequired,
+  ShortcutCommand.showScheduled: ShortcutScope.chatRequired,
+  ShortcutCommand.showAdminLog: ShortcutScope.chatRequired,
+  ShortcutCommand.replyPrevious: ShortcutScope.chatRequired,
+  ShortcutCommand.replyNext: ShortcutScope.chatRequired,
+  ShortcutCommand.editLastMessage: ShortcutScope.chatRequired,
+  ShortcutCommand.message: ShortcutScope.composeRequired,
+  ShortcutCommand.messageSilently: ShortcutScope.composeRequired,
+  ShortcutCommand.messageScheduled: ShortcutScope.composeRequired,
+  ShortcutCommand.formatBold: ShortcutScope.composeRequired,
+  ShortcutCommand.formatItalic: ShortcutScope.composeRequired,
+  ShortcutCommand.formatUnderline: ShortcutScope.composeRequired,
+  ShortcutCommand.formatStrike: ShortcutScope.composeRequired,
+  ShortcutCommand.formatCode: ShortcutScope.composeRequired,
+  ShortcutCommand.formatBlockquote: ShortcutScope.composeRequired,
+  ShortcutCommand.formatSpoiler: ShortcutScope.composeRequired,
+  ShortcutCommand.formatClear: ShortcutScope.composeRequired,
+  ShortcutCommand.formatLink: ShortcutScope.composeRequired,
+  ShortcutCommand.formatDate: ShortcutScope.composeRequired,
+  ShortcutCommand.openFilePicker: ShortcutScope.chatRequired,
+  ShortcutCommand.pastePlainText: ShortcutScope.composeRequired,
+  ShortcutCommand.mediaViewerVideoFullscreen: ShortcutScope.mediaViewer,
+};
+
 const _commandNames = <ShortcutCommand, String>{
   ShortcutCommand.closeTelegram: 'close_telegram',
   ShortcutCommand.lockTelegram: 'lock_telegram',
@@ -332,6 +418,44 @@ class ShortcutSystem {
   bool _supportMode = false;
   bool get supportMode => _supportMode;
 
+  bool _appInFocus = true;
+  bool get appInFocus => _appInFocus;
+  set appInFocus(bool v) => _appInFocus = v;
+
+  bool _layerShown = false;
+  bool get layerShown => _layerShown;
+
+  int _layerCount = 0;
+
+  void pushLayer() {
+    _layerCount++;
+    _layerShown = _layerCount > 0;
+  }
+
+  void popLayer() {
+    _layerCount = (_layerCount - 1).clamp(0, 999);
+    _layerShown = _layerCount > 0;
+  }
+
+  bool Function()? hasActiveChatCallback;
+  bool Function()? isComposeFieldFocusedCallback;
+  bool Function()? isMediaViewerOpenCallback;
+
+  bool _checkScope(ShortcutCommand command) {
+    final scope = _commandScopes[command] ?? ShortcutScope.global;
+    if (_layerShown && scope != ShortcutScope.global) return false;
+    switch (scope) {
+      case ShortcutScope.global:
+        return true;
+      case ShortcutScope.chatRequired:
+        return hasActiveChatCallback?.call() ?? false;
+      case ShortcutScope.composeRequired:
+        return isComposeFieldFocusedCallback?.call() ?? false;
+      case ShortcutScope.mediaViewer:
+        return isMediaViewerOpenCallback?.call() ?? false;
+    }
+  }
+
   void toggleMediaShortcuts(bool enabled) {
     _mediaShortcutsEnabled = enabled;
   }
@@ -487,6 +611,11 @@ class ShortcutSystem {
     var commands = _findCommands(event);
     if (commands.isEmpty) return KeyEventResult.ignored;
 
+    if (!_appInFocus) {
+      commands = commands.where((c) => _mediaCommands.contains(c)).toList();
+      if (commands.isEmpty) return KeyEventResult.ignored;
+    }
+
     if (!_mediaShortcutsEnabled) {
       commands = commands.where((c) => !_mediaCommands.contains(c)).toList();
       if (commands.isEmpty) return KeyEventResult.ignored;
@@ -496,6 +625,9 @@ class ShortcutSystem {
       commands = commands.where((c) => !_supportCommands.contains(c)).toList();
       if (commands.isEmpty) return KeyEventResult.ignored;
     }
+
+    commands = commands.where(_checkScope).toList();
+    if (commands.isEmpty) return KeyEventResult.ignored;
 
     if (event is KeyRepeatEvent) {
       bool any = false;
@@ -539,6 +671,12 @@ class ShortcutSystem {
   void dispose() {
     _handlers.clear();
     _requestController.close();
+    _layerCount = 0;
+    _layerShown = false;
+    _appInFocus = true;
+    hasActiveChatCallback = null;
+    isComposeFieldFocusedCallback = null;
+    isMediaViewerOpenCallback = null;
   }
 
   static final _isDesktop = !kIsWeb;
@@ -777,6 +915,29 @@ class ShortcutSystem {
   ];
 }
 
+class ShortcutLayerObserver extends NavigatorObserver {
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    if (route is! PageRoute || route.opaque == false) {
+      ShortcutSystem.instance.pushLayer();
+    }
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    if (route is! PageRoute || route.opaque == false) {
+      ShortcutSystem.instance.popLayer();
+    }
+  }
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    if (route is! PageRoute || route.opaque == false) {
+      ShortcutSystem.instance.popLayer();
+    }
+  }
+}
+
 class ShortcutListener extends StatefulWidget {
   final Widget child;
   const ShortcutListener({super.key, required this.child});
@@ -785,7 +946,8 @@ class ShortcutListener extends StatefulWidget {
   State<ShortcutListener> createState() => _ShortcutListenerState();
 }
 
-class _ShortcutListenerState extends State<ShortcutListener> {
+class _ShortcutListenerState extends State<ShortcutListener>
+    with WidgetsBindingObserver {
   AudioService? _audioService;
 
   void _onAudioChanged() {
@@ -796,10 +958,41 @@ class _ShortcutListenerState extends State<ShortcutListener> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    ShortcutSystem.instance.appInFocus =
+        state == AppLifecycleState.resumed ||
+        state == AppLifecycleState.inactive;
+  }
+
+  @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final sys = ShortcutSystem.instance;
     sys.init();
+
+    sys.hasActiveChatCallback = () {
+      try {
+        return context.read<ChatState>().activeChat != null;
+      } catch (_) {
+        return false;
+      }
+    };
+    sys.isComposeFieldFocusedCallback = () {
+      final focus = FocusManager.instance.primaryFocus;
+      if (focus == null) return false;
+      final ctx = focus.context;
+      if (ctx == null) return false;
+      return ctx.findAncestorWidgetOfExactType<EditableText>() != null;
+    };
+    sys.isMediaViewerOpenCallback = () {
+      try {
+        final nav = Navigator.of(context);
+        return nav.canPop();
+      } catch (_) {
+        return false;
+      }
+    };
 
     sys.registerHandler(ShortcutCommand.search, () {
       ChatListPanel.requestFocusSearch();
@@ -1025,8 +1218,13 @@ class _ShortcutListenerState extends State<ShortcutListener> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _audioService?.removeListener(_onAudioChanged);
-    ShortcutSystem.instance.dispose();
+    final sys = ShortcutSystem.instance;
+    sys.hasActiveChatCallback = null;
+    sys.isComposeFieldFocusedCallback = null;
+    sys.isMediaViewerOpenCallback = null;
+    sys.dispose();
     super.dispose();
   }
 

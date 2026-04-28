@@ -1240,6 +1240,7 @@ class _UniClientAppState extends State<UniClientApp>
 
     return MaterialApp(
       navigatorKey: _navigatorKey,
+      navigatorObservers: [ShortcutLayerObserver()],
       title: 'UniClient',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
