@@ -6978,14 +6978,15 @@ class _CornerButtonState extends State<_CornerButton> {
 
 // ── Rich text editing controller (spec §7 / §41.4) ──
 
-enum FormatType { bold, italic, underline, strike, code, spoiler, blockquote }
+enum FormatType { bold, italic, underline, strike, code, spoiler, blockquote, link }
 
 class ComposeEntity {
   int offset;
   int length;
   final FormatType type;
+  final String? url;
 
-  ComposeEntity({required this.offset, required this.length, required this.type});
+  ComposeEntity({required this.offset, required this.length, required this.type, this.url});
 
   Map<String, dynamic> toJson() {
     final typeStr = switch (type) {
@@ -6996,8 +6997,11 @@ class ComposeEntity {
       FormatType.code => 'code',
       FormatType.spoiler => 'spoiler',
       FormatType.blockquote => 'blockquote',
+      FormatType.link => 'text_url',
     };
-    return {'type': typeStr, 'offset': offset, 'length': length};
+    final m = {'type': typeStr, 'offset': offset, 'length': length};
+    if (url != null && url!.isNotEmpty) m['url'] = url!;
+    return m;
   }
 }
 
@@ -7103,6 +7107,47 @@ class RichTextEditingController extends TextEditingController {
     notifyListeners();
   }
 
+  void setLink(String url) {
+    final sel = selection;
+    if (!sel.isValid || sel.isCollapsed) return;
+    final start = sel.start;
+    final end = sel.end;
+    final length = end - start;
+    entities.removeWhere((e) =>
+      e.type == FormatType.link && e.offset == start && e.length == length);
+    if (url.isNotEmpty) {
+      entities.add(ComposeEntity(
+        offset: start, length: length, type: FormatType.link, url: url));
+    }
+    notifyListeners();
+  }
+
+  String? getLinkUrl() {
+    final sel = selection;
+    if (!sel.isValid || sel.isCollapsed) return null;
+    final start = sel.start;
+    final end = sel.end;
+    for (final e in entities) {
+      if (e.type == FormatType.link && e.offset <= start &&
+          e.offset + e.length >= end) {
+        return e.url;
+      }
+    }
+    return null;
+  }
+
+  void insertDateTimestamp(DateTime date) {
+    final ts = date.millisecondsSinceEpoch ~/ 1000;
+    final formatted = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final insert = formatted;
+    final sel = selection;
+    final pos = sel.isValid ? sel.baseOffset : text.length;
+    final before = text.substring(0, pos);
+    final after = text.substring(pos);
+    text = '$before$insert$after';
+    selection = TextSelection.collapsed(offset: pos + insert.length);
+  }
+
   bool hasFormat(FormatType type) {
     final sel = selection;
     if (!sel.isValid || sel.isCollapsed) return false;
@@ -7175,6 +7220,10 @@ class RichTextEditingController extends TextEditingController {
         FormatType.blockquote => TextStyle(
           color: isDark ? const Color(0xFF65bdf3) : const Color(0xFF168acd),
           fontStyle: FontStyle.italic,
+        ),
+        FormatType.link => TextStyle(
+          color: isDark ? const Color(0xFF65bdf3) : const Color(0xFF168acd),
+          decoration: TextDecoration.underline,
         ),
       };
       spans.add(TextSpan(text: entityText, style: entityStyle));
@@ -7684,6 +7733,18 @@ class _ComposeAreaState extends State<_ComposeArea>
         richCtrl.toggleFormat(fmt);
         return KeyEventResult.handled;
       }
+
+      // Ctrl+K → insert/edit link (spec §24.8)
+      if (!shift && event.logicalKey == LogicalKeyboardKey.keyK) {
+        _showLinkDialog(richCtrl);
+        return KeyEventResult.handled;
+      }
+
+      // Ctrl+Shift+D → insert date (spec §24.8)
+      if (shift && event.logicalKey == LogicalKeyboardKey.keyD) {
+        _showDatePicker(richCtrl);
+        return KeyEventResult.handled;
+      }
     }
 
     // Ctrl+Shift+V → plain paste (spec §24.6)
@@ -7880,6 +7941,59 @@ class _ComposeAreaState extends State<_ComposeArea>
     }
 
     _dismissAutocomplete();
+  }
+
+  void _showLinkDialog(RichTextEditingController ctrl) {
+    final sel = ctrl.selection;
+    if (!sel.isValid || sel.isCollapsed) return;
+    final existingUrl = ctrl.getLinkUrl() ?? '';
+    final urlController = TextEditingController(text: existingUrl);
+    showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Insert Link'),
+        content: TextField(
+          controller: urlController,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'https://',
+            labelText: 'URL',
+          ),
+          onSubmitted: (v) => Navigator.of(ctx).pop(v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(null),
+            child: const Text('Cancel'),
+          ),
+          if (existingUrl.isNotEmpty)
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(''),
+              child: const Text('Remove'),
+            ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(urlController.text),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    ).then((url) {
+      if (url == null) return;
+      ctrl.setLink(url);
+    });
+  }
+
+  void _showDatePicker(RichTextEditingController ctrl) {
+    final now = DateTime.now();
+    showDatePicker(
+      context: context,
+      initialDate: now,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    ).then((date) {
+      if (date == null) return;
+      ctrl.insertDateTimestamp(date);
+    });
   }
 
   void _dismissAutocomplete() {

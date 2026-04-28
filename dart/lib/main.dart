@@ -309,6 +309,7 @@ class _UniClientAppState extends State<UniClientApp>
             'code' => FormatType.code,
             'spoiler' => FormatType.spoiler,
             'blockquote' => FormatType.blockquote,
+            'link' => FormatType.link,
             _ => null,
           };
           if (type != null) {

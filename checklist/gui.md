@@ -812,7 +812,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_list_panel.dart, chat_view.dart, hamburger_drawer.dart (partial key handling already present) — new: dart/lib/ui/keyboard_shortcuts.dart -->
 
-- [ ] Text formatting shortcuts: Ctrl+B/I/U, Ctrl+Shift+X/M/./P/N/K/D — spec §24.8
 - [ ] Media viewer shortcuts: Left/Right prev/next, Esc, Ctrl+S save, H/V flip, K play/pause, J/L seek ±10s, Space speed-boost, period/comma frame-step, Alt+Left/Right chapters, Ctrl+scroll zoom, stories Space toggle — spec §24.9
 - [ ] Support-mode shortcuts: F5 reload, Ctrl+Del toggle-muted, Ctrl+Shift+X/C history nav, support templates panel — spec §24.10
 - [ ] Shortcut priority/scope system: global vs context-specific, InFocusChain/AppInFocus/isActiveWindow checks — spec §24.11
