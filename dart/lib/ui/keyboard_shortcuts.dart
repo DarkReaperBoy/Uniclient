@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io' show File, Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -98,6 +100,168 @@ const _autoRepeatCommands = {
   ShortcutCommand.mediaNext,
 };
 
+const _commandNames = <ShortcutCommand, String>{
+  ShortcutCommand.closeTelegram: 'close_telegram',
+  ShortcutCommand.lockTelegram: 'lock_telegram',
+  ShortcutCommand.minimizeTelegram: 'minimize_telegram',
+  ShortcutCommand.quitTelegram: 'quit_telegram',
+  ShortcutCommand.search: 'search',
+  ShortcutCommand.cancelSearch: 'cancel_search',
+  ShortcutCommand.chatPrevious: 'previous_chat',
+  ShortcutCommand.chatNext: 'next_chat',
+  ShortcutCommand.chatFirst: 'first_chat',
+  ShortcutCommand.chatLast: 'last_chat',
+  ShortcutCommand.selfChat: 'self_chat',
+  ShortcutCommand.showArchive: 'show_archive',
+  ShortcutCommand.showContacts: 'show_contacts',
+  ShortcutCommand.pinnedChat1: 'pinned_chat1',
+  ShortcutCommand.pinnedChat2: 'pinned_chat2',
+  ShortcutCommand.pinnedChat3: 'pinned_chat3',
+  ShortcutCommand.pinnedChat4: 'pinned_chat4',
+  ShortcutCommand.pinnedChat5: 'pinned_chat5',
+  ShortcutCommand.pinnedChat6: 'pinned_chat6',
+  ShortcutCommand.pinnedChat7: 'pinned_chat7',
+  ShortcutCommand.pinnedChat8: 'pinned_chat8',
+  ShortcutCommand.account1: 'account1',
+  ShortcutCommand.account2: 'account2',
+  ShortcutCommand.account3: 'account3',
+  ShortcutCommand.account4: 'account4',
+  ShortcutCommand.account5: 'account5',
+  ShortcutCommand.account6: 'account6',
+  ShortcutCommand.allChats: 'all_chats',
+  ShortcutCommand.folder1: 'folder1',
+  ShortcutCommand.folder2: 'folder2',
+  ShortcutCommand.folder3: 'folder3',
+  ShortcutCommand.folder4: 'folder4',
+  ShortcutCommand.folder5: 'folder5',
+  ShortcutCommand.folder6: 'folder6',
+  ShortcutCommand.lastFolder: 'last_folder',
+  ShortcutCommand.nextFolder: 'next_folder',
+  ShortcutCommand.previousFolder: 'previous_folder',
+  ShortcutCommand.readChat: 'read_chat',
+  ShortcutCommand.recordVoice: 'record_voice',
+  ShortcutCommand.showChatMenu: 'show_chat_menu',
+  ShortcutCommand.showChatPreview: 'show_chat_preview',
+  ShortcutCommand.archiveChat: 'archive_chat',
+  ShortcutCommand.showScheduled: 'show_scheduled',
+  ShortcutCommand.showAdminLog: 'show_admin_log',
+  ShortcutCommand.message: 'message',
+  ShortcutCommand.messageSilently: 'message_silently',
+  ShortcutCommand.messageScheduled: 'message_scheduled',
+  ShortcutCommand.mediaPlay: 'media_play',
+  ShortcutCommand.mediaPause: 'media_pause',
+  ShortcutCommand.mediaPlayPause: 'media_playpause',
+  ShortcutCommand.mediaStop: 'media_stop',
+  ShortcutCommand.mediaPrevious: 'media_previous',
+  ShortcutCommand.mediaNext: 'media_next',
+  ShortcutCommand.mediaViewerVideoFullscreen: 'media_viewer_video_fullscreen',
+  ShortcutCommand.formatBold: 'format_bold',
+  ShortcutCommand.formatItalic: 'format_italic',
+  ShortcutCommand.formatUnderline: 'format_underline',
+  ShortcutCommand.formatStrike: 'format_strike',
+  ShortcutCommand.formatCode: 'format_code',
+  ShortcutCommand.formatBlockquote: 'format_blockquote',
+  ShortcutCommand.formatSpoiler: 'format_spoiler',
+  ShortcutCommand.formatClear: 'format_clear',
+  ShortcutCommand.formatLink: 'format_link',
+  ShortcutCommand.formatDate: 'format_date',
+  ShortcutCommand.editLastMessage: 'edit_last_message',
+  ShortcutCommand.replyPrevious: 'reply_previous',
+  ShortcutCommand.replyNext: 'reply_next',
+  ShortcutCommand.openFilePicker: 'open_file_picker',
+  ShortcutCommand.pastePlainText: 'paste_plain_text',
+  ShortcutCommand.supportReloadTemplates: 'support_reload_templates',
+  ShortcutCommand.supportToggleMuted: 'support_toggle_muted',
+  ShortcutCommand.supportScrollToCurrent: 'support_scroll_to_current',
+  ShortcutCommand.supportHistoryBack: 'support_history_back',
+  ShortcutCommand.supportHistoryForward: 'support_history_forward',
+};
+
+final _nameToCommand = {
+  for (final e in _commandNames.entries) e.value: e.key,
+};
+
+final _keyNames = <LogicalKeyboardKey, String>{
+  LogicalKeyboardKey.keyA: 'a', LogicalKeyboardKey.keyB: 'b',
+  LogicalKeyboardKey.keyC: 'c', LogicalKeyboardKey.keyD: 'd',
+  LogicalKeyboardKey.keyE: 'e', LogicalKeyboardKey.keyF: 'f',
+  LogicalKeyboardKey.keyG: 'g', LogicalKeyboardKey.keyH: 'h',
+  LogicalKeyboardKey.keyI: 'i', LogicalKeyboardKey.keyJ: 'j',
+  LogicalKeyboardKey.keyK: 'k', LogicalKeyboardKey.keyL: 'l',
+  LogicalKeyboardKey.keyM: 'm', LogicalKeyboardKey.keyN: 'n',
+  LogicalKeyboardKey.keyO: 'o', LogicalKeyboardKey.keyP: 'p',
+  LogicalKeyboardKey.keyQ: 'q', LogicalKeyboardKey.keyR: 'r',
+  LogicalKeyboardKey.keyS: 's', LogicalKeyboardKey.keyT: 't',
+  LogicalKeyboardKey.keyU: 'u', LogicalKeyboardKey.keyV: 'v',
+  LogicalKeyboardKey.keyW: 'w', LogicalKeyboardKey.keyX: 'x',
+  LogicalKeyboardKey.keyY: 'y', LogicalKeyboardKey.keyZ: 'z',
+  LogicalKeyboardKey.digit0: '0', LogicalKeyboardKey.digit1: '1',
+  LogicalKeyboardKey.digit2: '2', LogicalKeyboardKey.digit3: '3',
+  LogicalKeyboardKey.digit4: '4', LogicalKeyboardKey.digit5: '5',
+  LogicalKeyboardKey.digit6: '6', LogicalKeyboardKey.digit7: '7',
+  LogicalKeyboardKey.digit8: '8', LogicalKeyboardKey.digit9: '9',
+  LogicalKeyboardKey.f1: 'f1', LogicalKeyboardKey.f2: 'f2',
+  LogicalKeyboardKey.f3: 'f3', LogicalKeyboardKey.f4: 'f4',
+  LogicalKeyboardKey.f5: 'f5', LogicalKeyboardKey.f6: 'f6',
+  LogicalKeyboardKey.f7: 'f7', LogicalKeyboardKey.f8: 'f8',
+  LogicalKeyboardKey.f9: 'f9', LogicalKeyboardKey.f10: 'f10',
+  LogicalKeyboardKey.f11: 'f11', LogicalKeyboardKey.f12: 'f12',
+  LogicalKeyboardKey.escape: 'escape', LogicalKeyboardKey.tab: 'tab',
+  LogicalKeyboardKey.space: 'space', LogicalKeyboardKey.enter: 'return',
+  LogicalKeyboardKey.backspace: 'backspace', LogicalKeyboardKey.delete: 'delete',
+  LogicalKeyboardKey.home: 'home', LogicalKeyboardKey.end: 'end',
+  LogicalKeyboardKey.pageUp: 'pgup', LogicalKeyboardKey.pageDown: 'pgdown',
+  LogicalKeyboardKey.arrowUp: 'up', LogicalKeyboardKey.arrowDown: 'down',
+  LogicalKeyboardKey.arrowLeft: 'left', LogicalKeyboardKey.arrowRight: 'right',
+  LogicalKeyboardKey.backslash: '\\',
+  LogicalKeyboardKey.bracketRight: ']',
+  LogicalKeyboardKey.bracketLeft: '[',
+  LogicalKeyboardKey.minus: '-', LogicalKeyboardKey.equal: '=',
+  LogicalKeyboardKey.comma: ',', LogicalKeyboardKey.period: '.',
+  LogicalKeyboardKey.slash: '/',
+  LogicalKeyboardKey.mediaPlay: 'media_play',
+  LogicalKeyboardKey.mediaPause: 'media_pause',
+  LogicalKeyboardKey.mediaPlayPause: 'media_playpause',
+  LogicalKeyboardKey.mediaStop: 'media_stop',
+  LogicalKeyboardKey.mediaTrackPrevious: 'media_previous',
+  LogicalKeyboardKey.mediaTrackNext: 'media_next',
+};
+
+final _nameToKey = {
+  for (final e in _keyNames.entries) e.value: e.key,
+};
+
+String _bindingToKeyString(_KeyBinding b) {
+  final parts = <String>[];
+  if (b.control) parts.add('ctrl');
+  if (b.shift) parts.add('shift');
+  if (b.alt) parts.add('alt');
+  if (b.meta) parts.add('meta');
+  parts.add(_keyNames[b.trigger] ?? b.trigger.keyLabel.toLowerCase());
+  return parts.join('+');
+}
+
+_KeyBinding? _parseKeyBinding(String keys, ShortcutCommand command) {
+  final parts = keys.toLowerCase().split('+');
+  if (parts.isEmpty) return null;
+  bool ctrl = false, shift = false, alt = false, meta = false;
+  String? keyPart;
+  for (final p in parts) {
+    switch (p.trim()) {
+      case 'ctrl': ctrl = true;
+      case 'shift': shift = true;
+      case 'alt': alt = true;
+      case 'meta': meta = true;
+      default: keyPart = p.trim();
+    }
+  }
+  if (keyPart == null) return null;
+  final key = _nameToKey[keyPart];
+  if (key == null) return null;
+  return _KeyBinding(key, command,
+      control: ctrl, shift: shift, alt: alt, meta: meta);
+}
+
 class _Handler {
   final int priority;
   final VoidCallback callback;
@@ -134,13 +298,104 @@ class ShortcutSystem {
 
   bool _paused = false;
   bool get isPaused => _paused;
+  String _configDir = '';
 
   void pause() => _paused = true;
   void resume() => _paused = false;
 
-  void init() {
+  void init({String configDir = ''}) {
     _bindings.clear();
     _bindings.addAll(_defaultBindings);
+    if (kIsWeb) return;
+    if (configDir.isEmpty) {
+      configDir = _resolveConfigDir();
+    }
+    _configDir = configDir;
+    if (_configDir.isNotEmpty) {
+      _writeDefaultsFile();
+      _loadCustomFile();
+    }
+  }
+
+  static String _resolveConfigDir() {
+    if (Platform.isMacOS) {
+      final home = Platform.environment['HOME'] ?? '/tmp';
+      return '$home/Library/Application Support/uniclient';
+    } else if (Platform.isWindows) {
+      final appData = Platform.environment['APPDATA'] ?? 'C:\\Users\\Default\\AppData\\Roaming';
+      return '$appData\\uniclient';
+    } else {
+      final home = Platform.environment['HOME'] ?? '/tmp';
+      return '$home/.config/uniclient';
+    }
+  }
+
+  void _writeDefaultsFile() {
+    try {
+      final entries = <Map<String, String>>[];
+      for (final b in _defaultBindings) {
+        final name = _commandNames[b.command];
+        if (name == null) continue;
+        entries.add({
+          'command': name,
+          'keys': _bindingToKeyString(b),
+        });
+      }
+      final json = const JsonEncoder.withIndent('  ').convert(entries);
+      File('$_configDir/shortcuts-default.json').writeAsStringSync(json);
+    } catch (_) {
+    }
+  }
+
+  void _loadCustomFile() {
+    try {
+      final file = File('$_configDir/shortcuts-custom.json');
+      if (!file.existsSync()) {
+        _writeCustomTemplate();
+        return;
+      }
+      final content = file.readAsStringSync().trim();
+      if (content.isEmpty) return;
+      final list = jsonDecode(content);
+      if (list is! List) return;
+      final cap = list.length > 2048 ? 2048 : list.length;
+      for (int i = 0; i < cap; i++) {
+        final entry = list[i];
+        if (entry is! Map) continue;
+        final keys = entry['keys'];
+        if (keys is! String || keys.isEmpty) continue;
+        final cmdValue = entry['command'];
+        if (cmdValue == null) {
+          _bindings.removeWhere((b) => _bindingToKeyString(b) == keys.toLowerCase());
+          continue;
+        }
+        if (cmdValue is! String) continue;
+        final cmd = _nameToCommand[cmdValue];
+        if (cmd == null) continue;
+        final binding = _parseKeyBinding(keys, cmd);
+        if (binding != null) _bindings.add(binding);
+      }
+    } catch (_) {}
+  }
+
+  void _writeCustomTemplate() {
+    try {
+      final lines = <String>[];
+      if (Platform.isMacOS) {
+        lines.add('// NOTE: On macOS, "ctrl" in key strings maps to the Command key,');
+        lines.add('// and "meta" maps to the Control key.');
+        lines.add('');
+      }
+      lines.add('// Custom shortcut overrides. Max 2048 entries.');
+      lines.add('// Set "command" to null to disable a key binding.');
+      lines.add('// Example:');
+      lines.add('// [');
+      lines.add('//   { "command": "close_telegram", "keys": "ctrl+f4" },');
+      lines.add('//   { "command": null, "keys": "ctrl+w" }');
+      lines.add('// ]');
+      lines.add('[]');
+      File('$_configDir/shortcuts-custom.json').writeAsStringSync(lines.join('\n'));
+    } catch (_) {}
   }
 
   void addBinding(
