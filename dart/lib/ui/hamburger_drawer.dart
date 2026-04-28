@@ -317,7 +317,10 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                           if (appState.systemDarkModeEnabled) {
                             appState.setSystemDarkMode(false);
                           }
-                          switchThemeWithCrossFade(context, dark ? 'dark' : 'light');
+                          final target = dark
+                              ? (appState.themeId == 'classic_day' ? 'night_green' : 'night')
+                              : (appState.themeId == 'night_green' ? 'classic_day' : 'day_blue');
+                          switchThemeWithCrossFade(context, target);
                         },
                       ),
                       onTap: () {
@@ -330,7 +333,10 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         if (appState.systemDarkModeEnabled) {
                           appState.setSystemDarkMode(false);
                         }
-                        switchThemeWithCrossFade(context, !isDark ? 'dark' : 'light');
+                        final target = !isDark
+                            ? (appState.themeId == 'classic_day' ? 'night_green' : 'night')
+                            : (appState.themeId == 'night_green' ? 'classic_day' : 'day_blue');
+                        switchThemeWithCrossFade(context, target);
                       },
                       onSecondaryTapDown: (details) {
                         _showNightModeContextMenu(

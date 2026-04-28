@@ -164,13 +164,10 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
           const SizedBox(height: 10),
           _ThemeCardRow(
             isDark: isDark,
-            currentTheme: appState.themeMode == ThemeMode.dark ? 'dark' : 'light',
+            currentTheme: appState.themeId,
             accentColor: currentAccent,
             onThemeSelected: (themeId) {
-              final targetTheme = themeId == 'dark' || themeId == 'night_blue'
-                  ? 'dark'
-                  : 'light';
-              appState.updateTheme(targetTheme);
+              appState.updateTheme(themeId);
             },
           ),
           const SizedBox(height: 8),
@@ -217,7 +214,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             accentColor: currentAccent,
             onToggleShowAll: () => setState(() => _showAllCloudThemes = !_showAllCloudThemes),
             onThemeSelected: (theme) {
-              final targetTheme = theme.isDark ? 'dark' : 'light';
+              final targetTheme = theme.isDark ? 'night' : 'day_blue';
               appState.updateTheme(targetTheme);
               if (theme.accentColor != 0) {
                 final hex = '#${(theme.accentColor & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
@@ -423,35 +420,35 @@ class _ThemePreset {
 
 const _themePresets = [
   _ThemePreset(
-    id: 'default',
-    label: 'Default',
-    background: Color(0xFFDFE7EB),
+    id: 'classic_day',
+    label: 'Classic',
+    background: Color(0xFF9BD494),
     receivedBubble: Color(0xFFFFFFFF),
-    sentBubble: Color(0xFFEEFFDE),
+    sentBubble: Color(0xFFEAFFDC),
     isDarkTheme: false,
   ),
   _ThemePreset(
-    id: 'day',
-    label: 'Day',
-    background: Color(0xFFDBEDFC),
+    id: 'day_blue',
+    label: 'Day Blue',
+    background: Color(0xFF7EC4EA),
     receivedBubble: Color(0xFFFFFFFF),
-    sentBubble: Color(0xFFD4F3C6),
+    sentBubble: Color(0xFFD7F0FF),
     isDarkTheme: false,
   ),
   _ThemePreset(
-    id: 'dark',
-    label: 'Dark',
-    background: Color(0xFF212121),
-    receivedBubble: Color(0xFF303030),
-    sentBubble: Color(0xFF766AC8),
+    id: 'night',
+    label: 'Night',
+    background: Color(0xFF485761),
+    receivedBubble: Color(0xFF182533),
+    sentBubble: Color(0xFF2B5278),
     isDarkTheme: true,
   ),
   _ThemePreset(
-    id: 'night_blue',
-    label: 'Night Blue',
-    background: Color(0xFF0E1621),
-    receivedBubble: Color(0xFF182533),
-    sentBubble: Color(0xFF2B5278),
+    id: 'night_green',
+    label: 'Night Green',
+    background: Color(0xFF485761),
+    receivedBubble: Color(0xFF33393F),
+    sentBubble: Color(0xFF2A2F33),
     isDarkTheme: true,
   ),
 ];
@@ -515,10 +512,7 @@ class _ThemeCardRow extends StatelessWidget {
   }
 
   bool _isExactMatch(_ThemePreset preset) {
-    if (currentTheme == 'dark') {
-      return preset.id == 'night_blue';
-    }
-    return preset.id == 'default';
+    return preset.id == currentTheme;
   }
 }
 

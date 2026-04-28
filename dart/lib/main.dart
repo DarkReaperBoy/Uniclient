@@ -1447,12 +1447,11 @@ class _UniClientAppState extends State<UniClientApp>
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
 
-    final palette = switch (appState.themeMode) {
-      ThemeMode.dark => TelegramPalette.night,
-      ThemeMode.light => TelegramPalette.dayBlue,
-      ThemeMode.system => MediaQuery.platformBrightnessOf(context) == Brightness.dark
-          ? TelegramPalette.night
-          : TelegramPalette.dayBlue,
+    final palette = switch (appState.themeId) {
+      'classic_day' => TelegramPalette.classicDay,
+      'day_blue' => TelegramPalette.dayBlue,
+      'night_green' => TelegramPalette.nightGreen,
+      _ => TelegramPalette.night,
     };
 
     return PaletteProvider(

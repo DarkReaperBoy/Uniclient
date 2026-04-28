@@ -345,7 +345,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (value) {
       final brightness =
           WidgetsBinding.instance.platformDispatcher.platformBrightness;
-      updateTheme(brightness == Brightness.dark ? 'dark' : 'light');
+      updateTheme(brightness == Brightness.dark ? 'night' : 'day_blue');
     }
     _saveWindowPrefs();
     notifyListeners();
@@ -356,7 +356,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (_systemDarkMode) {
       final brightness =
           WidgetsBinding.instance.platformDispatcher.platformBrightness;
-      updateTheme(brightness == Brightness.dark ? 'dark' : 'light');
+      updateTheme(brightness == Brightness.dark ? 'night' : 'day_blue');
     }
   }
 
@@ -514,9 +514,16 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   ThemeMode get themeMode => switch (_config.theme) {
-    'light' => ThemeMode.light,
+    'light' || 'classic_day' || 'day_blue' => ThemeMode.light,
     'system' => ThemeMode.system,
     _ => ThemeMode.dark,
+  };
+
+  String get themeId => switch (_config.theme) {
+    'classic_day' => 'classic_day',
+    'day_blue' || 'light' => 'day_blue',
+    'night_green' => 'night_green',
+    'night' || 'dark' || _ => 'night',
   };
 
   ConnState connStateFor(String accountId) =>
@@ -594,7 +601,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       if (_systemDarkMode) {
         final brightness =
             WidgetsBinding.instance.platformDispatcher.platformBrightness;
-        updateTheme(brightness == Brightness.dark ? 'dark' : 'light');
+        updateTheme(brightness == Brightness.dark ? 'night' : 'day_blue');
       }
       if (_nativeWindowFrame && Platform.isLinux) {
         try {
