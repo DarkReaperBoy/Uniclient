@@ -15,6 +15,7 @@ import 'chat_view.dart';
 import 'filter_column.dart';
 import 'hamburger_drawer.dart';
 import 'call_screen.dart';
+import 'chat_switch_overlay.dart';
 import 'info_panel.dart';
 
 /// Layout modes matching Telegram Desktop's responsive breakpoints.
@@ -25,6 +26,8 @@ class UniClientShell extends StatefulWidget {
   const UniClientShell({super.key});
 
   static VoidCallback? toggleInfoRequest;
+  static VoidCallback? showChatSwitchRequest;
+  static VoidCallback? hideChatSwitchRequest;
 
   @override
   State<UniClientShell> createState() => _UniClientShellState();
@@ -43,6 +46,7 @@ class _UniClientShellState extends State<UniClientShell>
   bool? _lastVerticalFilters;
   Set<String>? _lastForumViewPrefs;
   bool _isDragging = false;
+  bool _chatSwitchActive = false;
   // One-column section transition direction tracking (spec §1: horizontal slide + crossfade).
   bool _navForward = true;
   bool _hadActiveChat = false;
@@ -128,12 +132,20 @@ class _UniClientShellState extends State<UniClientShell>
       curve: Curves.easeOutCirc,
     );
     UniClientShell.toggleInfoRequest = _toggleInfo;
+    UniClientShell.showChatSwitchRequest = _showChatSwitch;
+    UniClientShell.hideChatSwitchRequest = _hideChatSwitch;
   }
 
   @override
   void dispose() {
     if (UniClientShell.toggleInfoRequest == _toggleInfo) {
       UniClientShell.toggleInfoRequest = null;
+    }
+    if (UniClientShell.showChatSwitchRequest == _showChatSwitch) {
+      UniClientShell.showChatSwitchRequest = null;
+    }
+    if (UniClientShell.hideChatSwitchRequest == _hideChatSwitch) {
+      UniClientShell.hideChatSwitchRequest = null;
     }
     _thirdColumnAnim.dispose();
     _oneColumnTimer?.cancel();
@@ -159,6 +171,16 @@ class _UniClientShellState extends State<UniClientShell>
       _navForward = false;
       _thirdColumnAnim.reverse();
     });
+  }
+
+  void _showChatSwitch() {
+    if (_chatSwitchActive) return;
+    setState(() => _chatSwitchActive = true);
+  }
+
+  void _hideChatSwitch() {
+    if (!_chatSwitchActive) return;
+    setState(() => _chatSwitchActive = false);
   }
 
   LayoutMode _layoutMode(double bodyWidth) {
@@ -280,7 +302,7 @@ class _UniClientShellState extends State<UniClientShell>
 
     final groupCall = chatState.activeGroupCall;
     if (groupCall != null && groupCall.active) {
-      return Column(
+      layout = Column(
         children: [
           MinimisedCallBar(
             groupName: groupCall.title.isNotEmpty
@@ -289,14 +311,39 @@ class _UniClientShellState extends State<UniClientShell>
             participants: groupCall.participants,
             isSelfMuted: groupCall.participants.any((p) =>
                 p.userId == (chatState.activeChat?.accountId ?? '') && p.isMuted),
-            onHangup: () {
-              // Leave handled by engine when available
-            },
-            onToggleMute: () {
-              // Mute toggle handled by engine when available
-            },
+            onHangup: () {},
+            onToggleMute: () {},
           ),
           Expanded(child: layout),
+        ],
+      );
+    }
+
+    if (_chatSwitchActive) {
+      final history = chatState.collectChatOpenHistory();
+      if (history.length < 2) {
+        _chatSwitchActive = false;
+        return layout;
+      }
+      return Stack(
+        children: [
+          layout,
+          Positioned.fill(
+            child: ChatSwitchOverlay(
+              chats: history,
+              initialIndex: 1,
+              onChosen: (chat) {
+                setState(() => _chatSwitchActive = false);
+                chatState.openChat(chat);
+              },
+              onRemove: (chat) {
+                chatState.removeChatFromOpenHistory(chat.chatId);
+              },
+              onCancel: () {
+                setState(() => _chatSwitchActive = false);
+              },
+            ),
+          ),
         ],
       );
     }

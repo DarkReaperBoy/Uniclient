@@ -11,6 +11,7 @@ import 'chat_list_panel.dart';
 import 'chat_list_row.dart';
 import 'chat_view.dart';
 import 'contacts_screen.dart';
+import 'shell.dart';
 import '../state/app_state.dart';
 import '../state/audio_service.dart';
 import '../state/auth_state.dart';
@@ -92,6 +93,8 @@ enum ShortcutCommand {
   supportScrollToCurrent,
   supportHistoryBack,
   supportHistoryForward,
+  chatSwitchOverlay,
+  chatSwitchOverlayReverse,
 }
 
 const _autoRepeatCommands = {
@@ -178,6 +181,8 @@ const _commandNames = <ShortcutCommand, String>{
   ShortcutCommand.supportScrollToCurrent: 'support_scroll_to_current',
   ShortcutCommand.supportHistoryBack: 'support_history_back',
   ShortcutCommand.supportHistoryForward: 'support_history_forward',
+  ShortcutCommand.chatSwitchOverlay: 'chat_switch_overlay',
+  ShortcutCommand.chatSwitchOverlayReverse: 'chat_switch_overlay_reverse',
 };
 
 final _nameToCommand = {
@@ -583,10 +588,10 @@ class ShortcutSystem {
     const _KeyBinding(
         LogicalKeyboardKey.escape, ShortcutCommand.cancelSearch),
     if (_isDesktop)
-      const _KeyBinding(LogicalKeyboardKey.tab, ShortcutCommand.chatNext,
+      const _KeyBinding(LogicalKeyboardKey.tab, ShortcutCommand.chatSwitchOverlay,
           control: true),
     if (_isDesktop)
-      const _KeyBinding(LogicalKeyboardKey.tab, ShortcutCommand.chatPrevious,
+      const _KeyBinding(LogicalKeyboardKey.tab, ShortcutCommand.chatSwitchOverlayReverse,
           control: true, shift: true),
     const _KeyBinding(LogicalKeyboardKey.arrowDown, ShortcutCommand.chatNext,
         alt: true),
@@ -754,6 +759,14 @@ class _ShortcutListenerState extends State<ShortcutListener> {
     });
     sys.registerHandler(ShortcutCommand.chatPrevious, () {
       ChatListPanel.requestNavigateChat(-1);
+      return true;
+    });
+    sys.registerHandler(ShortcutCommand.chatSwitchOverlay, () {
+      UniClientShell.showChatSwitchRequest?.call();
+      return true;
+    });
+    sys.registerHandler(ShortcutCommand.chatSwitchOverlayReverse, () {
+      UniClientShell.showChatSwitchRequest?.call();
       return true;
     });
     sys.registerHandler(ShortcutCommand.chatFirst, () {

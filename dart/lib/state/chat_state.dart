@@ -63,6 +63,10 @@ class ChatState extends ChangeNotifier {
   final Map<String, List<ForumTopic>> _forumRecentTopics = {};
   final Set<String> _forumTopicsFetching = {};
 
+  // §24.5: Recently opened chats for Ctrl+Tab switcher overlay.
+  final List<String> _chatOpenHistory = []; // chatId list, most-recent first
+  static const _maxChatOpenHistory = 30;
+
   final List<StreamSubscription<dynamic>> _subs = [];
   Timer? _pollTimer;
   Timer? _loadChatsDebounce;
@@ -128,6 +132,16 @@ class ChatState extends ChangeNotifier {
 
   List<ChatInfo> get chats => _chats;
   ChatInfo? get activeChat => _activeChat;
+  List<String> get chatOpenHistory => List.unmodifiable(_chatOpenHistory);
+
+  List<ChatInfo> collectChatOpenHistory() {
+    final result = <ChatInfo>[];
+    for (final cid in _chatOpenHistory) {
+      final chat = _chats.where((c) => c.chatId == cid).firstOrNull;
+      if (chat != null) result.add(chat);
+    }
+    return result;
+  }
   int get openedUnreadCount => _openedUnreadCount;
   List<CachedMessage> get messages => _messages;
   List<CachedMessage> get pinnedMessages => _pinnedMessages;
@@ -539,9 +553,18 @@ class ChatState extends ChangeNotifier {
 
   /// Open a chat — loads messages and sets as active.
   /// For group chats, auto-detects forums and shows topic list.
+  void removeChatFromOpenHistory(String chatId) {
+    _chatOpenHistory.remove(chatId);
+  }
+
   void openChat(ChatInfo chat) {
     if (chat.isForum && _forumParentChat?.chatId != chat.chatId) {
       _checkAndOpenForum(chat);
+    }
+    _chatOpenHistory.remove(chat.chatId);
+    _chatOpenHistory.insert(0, chat.chatId);
+    if (_chatOpenHistory.length > _maxChatOpenHistory) {
+      _chatOpenHistory.removeRange(_maxChatOpenHistory, _chatOpenHistory.length);
     }
     _activeChat = chat;
     _openedUnreadCount = chat.unreadCount;

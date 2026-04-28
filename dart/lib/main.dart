@@ -902,11 +902,11 @@ class _UniClientAppState extends State<UniClientApp>
       return;
     }
     if (lc == 'ctrl+tab' || lc == 'control+tab') {
-      ChatListPanel.requestNavigateChat(1);
+      UniClientShell.showChatSwitchRequest?.call();
       return;
     }
     if (lc == 'ctrl+shift+tab' || lc == 'control+shift+tab') {
-      ChatListPanel.requestNavigateChat(-1);
+      UniClientShell.showChatSwitchRequest?.call();
       return;
     }
     if (lc == 'ctrl+0' || lc == 'control+0') {
