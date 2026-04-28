@@ -806,7 +806,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: none yet — create dart/lib/ui/scheduled_messages.dart -->
 
-- [ ] Scheduled-clock toggle button in compose area (44×46px, two-layer icon, dynamic visibility by count, click triggers section) — spec §23.3
 - [ ] ScheduledWidget full section: slide transition in/out, title "Scheduled messages"/"Reminders", top-bar menu (Create Poll / Create To-do List only), selection mode with Send Now + Delete, date separators, auto-scroll to new item, file drag-drop zones, no unread counter — spec §23.4
 - [ ] Scheduled message rendering: scheduled-time timestamp, repeat-period prefix, silent muted-bell tooltip, multi-select support — spec §23.5
 - [ ] Context menu: Send Now (single/group/selected), Send Now confirmation dialog, Reschedule (single up to §23.6 kRescheduleLimit=20), Delete, +1s offset per subsequent message in batch reschedule — spec §23.6
@@ -1426,3 +1425,4 @@ Status key: `[ ]` not started · `[x]` done
 - [ ] Chat Settings page scroll broken via flutter_interact.sh — PointerScrollEvent dispatched at various y positions doesn't cause ListView to scroll. Scrollbar error "ScrollController has no ScrollPosition attached" in logs. ListView has `primary: true` but scroll still doesn't work via debug dispatch. Affects testing of items below viewport (quick action radios).
 - [ ] Notifications page scroll broken — Channels and Reactions split-toggle rows are below viewport (~y=775) but ListView doesn't scroll via flutter_interact.sh. Same class of bug as Chat Settings scroll issue. Affects testing of Channels/Reactions per-type sub-page navigation. PARTIAL FIX: ScrollController explicitly assigned to both Scrollbar and ListView (no longer uses primary:true), but flutter_interact.sh PointerScrollEvent dispatch still doesn't scroll the page. OS-level ydotool scroll works as a workaround.
 - [ ] `_isSelfAdmin` in `_GroupActionsSection` (info_panel.dart) never returns true: compares `chat.accountId` (format "tele_4beb99fd") with `m.userId` (Telegram numeric ID like "123456789") — formats never match. "Edit Group" and "Topics" rows are invisible for all groups because of this. Fix: resolve account's own Telegram user ID and compare against member userId.
+- [ ] `GetScheduledCount` returns PEER_ID_INVALID for some chats (e.g. TODO channel) — Go backend constructs invalid peer for the Telegram API call. Scheduled toggle button can't show because count stays 0. Backend bug, not UI.

@@ -8096,7 +8096,7 @@ class _ScheduledToggleButtonState extends State<_ScheduledToggleButton> {
                       width: 8,
                       height: 8,
                       decoration: const BoxDecoration(
-                        color: Color(0xFFe53935),
+                        color: Color(0xFFdf3f40),
                         shape: BoxShape.circle,
                       ),
                     ),
