@@ -217,6 +217,7 @@ final _keyNames = <LogicalKeyboardKey, String>{
   LogicalKeyboardKey.escape: 'escape', LogicalKeyboardKey.tab: 'tab',
   LogicalKeyboardKey.space: 'space', LogicalKeyboardKey.enter: 'return',
   LogicalKeyboardKey.backspace: 'backspace', LogicalKeyboardKey.delete: 'delete',
+  LogicalKeyboardKey.insert: 'insert',
   LogicalKeyboardKey.home: 'home', LogicalKeyboardKey.end: 'end',
   LogicalKeyboardKey.pageUp: 'pgup', LogicalKeyboardKey.pageDown: 'pgdown',
   LogicalKeyboardKey.arrowUp: 'up', LogicalKeyboardKey.arrowDown: 'down',
@@ -303,6 +304,14 @@ const _mediaCommands = {
   ShortcutCommand.mediaNext,
 };
 
+const _supportCommands = {
+  ShortcutCommand.supportReloadTemplates,
+  ShortcutCommand.supportToggleMuted,
+  ShortcutCommand.supportScrollToCurrent,
+  ShortcutCommand.supportHistoryBack,
+  ShortcutCommand.supportHistoryForward,
+};
+
 class ShortcutSystem {
   ShortcutSystem._();
   static final instance = ShortcutSystem._();
@@ -320,8 +329,15 @@ class ShortcutSystem {
   bool _mediaShortcutsEnabled = false;
   bool get mediaShortcutsEnabled => _mediaShortcutsEnabled;
 
+  bool _supportMode = false;
+  bool get supportMode => _supportMode;
+
   void toggleMediaShortcuts(bool enabled) {
     _mediaShortcutsEnabled = enabled;
+  }
+
+  void toggleSupportMode(bool enabled) {
+    _supportMode = enabled;
   }
 
   void pause() => _paused = true;
@@ -473,6 +489,11 @@ class ShortcutSystem {
 
     if (!_mediaShortcutsEnabled) {
       commands = commands.where((c) => !_mediaCommands.contains(c)).toList();
+      if (commands.isEmpty) return KeyEventResult.ignored;
+    }
+
+    if (!_supportMode) {
+      commands = commands.where((c) => !_supportCommands.contains(c)).toList();
       if (commands.isEmpty) return KeyEventResult.ignored;
     }
 
@@ -713,6 +734,20 @@ class ShortcutSystem {
     const _KeyBinding(
         LogicalKeyboardKey.keyJ, ShortcutCommand.showContacts,
         control: true),
+    if (_isDesktop)
+      const _KeyBinding(LogicalKeyboardKey.f5, ShortcutCommand.supportReloadTemplates),
+    if (_isDesktop)
+      const _KeyBinding(LogicalKeyboardKey.delete, ShortcutCommand.supportToggleMuted,
+          control: true),
+    if (_isDesktop)
+      const _KeyBinding(LogicalKeyboardKey.insert, ShortcutCommand.supportScrollToCurrent,
+          control: true),
+    if (_isDesktop)
+      const _KeyBinding(LogicalKeyboardKey.keyX, ShortcutCommand.supportHistoryBack,
+          control: true, shift: true),
+    if (_isDesktop)
+      const _KeyBinding(LogicalKeyboardKey.keyC, ShortcutCommand.supportHistoryForward,
+          control: true, shift: true),
     const _KeyBinding(LogicalKeyboardKey.mediaPlay, ShortcutCommand.mediaPlay),
     const _KeyBinding(LogicalKeyboardKey.mediaPause, ShortcutCommand.mediaPause),
     const _KeyBinding(LogicalKeyboardKey.mediaPlayPause, ShortcutCommand.mediaPlayPause),
@@ -955,6 +990,33 @@ class _ShortcutListenerState extends State<ShortcutListener> {
     sys.registerHandler(ShortcutCommand.mediaNext, () {
       final audio = context.read<AudioService>();
       return audio.currentMsgId.isNotEmpty;
+    });
+
+    sys.registerHandler(ShortcutCommand.supportReloadTemplates, () {
+      final chatState = context.read<ChatState>();
+      chatState.loadChats();
+      return true;
+    });
+    sys.registerHandler(ShortcutCommand.supportToggleMuted, () {
+      final chatState = context.read<ChatState>();
+      final chat = chatState.activeChat;
+      if (chat == null) return false;
+      chatState.muteChat(chat.accountId, chat.chatId, !chat.isMuted);
+      return true;
+    });
+    sys.registerHandler(ShortcutCommand.supportScrollToCurrent, () {
+      final chatState = context.read<ChatState>();
+      if (chatState.activeChat == null) return false;
+      ChatListPanel.requestNavigateChat(0);
+      return true;
+    });
+    sys.registerHandler(ShortcutCommand.supportHistoryBack, () {
+      ChatListPanel.requestNavigateChat(-1);
+      return true;
+    });
+    sys.registerHandler(ShortcutCommand.supportHistoryForward, () {
+      ChatListPanel.requestNavigateChat(1);
+      return true;
     });
 
     _audioService = context.read<AudioService>();
