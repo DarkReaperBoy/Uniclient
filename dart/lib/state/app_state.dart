@@ -51,6 +51,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   List<Map<String, dynamic>> _recentDownloads = [];
   Map<String, bool> _experimentalFlags = {};
   bool _editingTheme = false;
+  String? _revertThemeId;
+  String? _revertAccentColor;
   List<String> _accountOrder = []; // persisted display order of account IDs
   WallpaperData _wallpaper = WallpaperData.none;
   final List<StreamSubscription<dynamic>> _subs = [];
@@ -725,6 +727,39 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   String get accentColorHex =>
       _config.accentColor.isNotEmpty ? _config.accentColor : '#40a7e3';
+
+  bool get isTestingTheme => _revertThemeId != null;
+
+  void applyTestingTheme(String theme, {String? accentColor}) {
+    if (_revertThemeId == null) {
+      _revertThemeId = themeId;
+      _revertAccentColor = accentColorHex;
+    }
+    if (accentColor != null) {
+      _engine.updateConfig(theme: theme, accentColor: accentColor);
+    } else {
+      _engine.updateConfig(theme: theme);
+    }
+    _config = _engine.getConfig();
+    notifyListeners();
+  }
+
+  void keepAppliedTheme() {
+    _revertThemeId = null;
+    _revertAccentColor = null;
+    notifyListeners();
+  }
+
+  void revertTheme() {
+    if (_revertThemeId == null) return;
+    final t = _revertThemeId!;
+    final a = _revertAccentColor;
+    _revertThemeId = null;
+    _revertAccentColor = null;
+    _engine.updateConfig(theme: t, accentColor: a ?? '#40a7e3');
+    _config = _engine.getConfig();
+    notifyListeners();
+  }
 
   static const _windowChannel = MethodChannel('com.uniclient.app/window');
 

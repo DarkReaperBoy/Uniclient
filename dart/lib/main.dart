@@ -74,6 +74,10 @@ void main() {
 Future<void> switchThemeWithCrossFade(BuildContext context, String theme) =>
     _UniClientAppState.switchThemeWithCrossFade(context, theme);
 
+/// §25.9.4: Revert testing theme with cross-fade animation.
+Future<void> revertThemeWithCrossFade(BuildContext context) =>
+    _UniClientAppState.revertThemeWithCrossFade(context);
+
 class UniClientApp extends StatefulWidget {
   const UniClientApp({super.key});
 
@@ -116,26 +120,48 @@ class _UniClientAppState extends State<UniClientApp>
     await inst._performThemeCrossFade(context, theme);
   }
 
+  /// §25.9.4: Revert a testing theme with cross-fade animation.
+  static Future<void> revertThemeWithCrossFade(BuildContext context) async {
+    final inst = _instance;
+    if (inst == null || !inst.mounted) {
+      context.read<AppState>().revertTheme();
+      return;
+    }
+    await inst._performCrossFadeWith(context, () {
+      context.read<AppState>().revertTheme();
+    });
+  }
+
   Future<void> _performThemeCrossFade(
       BuildContext ctx, String theme) async {
-    final appState = ctx.read<AppState>();
+    await _performCrossFadeWith(ctx, () {
+      ctx.read<AppState>().updateTheme(theme);
+    });
+  }
+
+  Future<void> _performCrossFadeWith(
+      BuildContext ctx, VoidCallback applyChange) async {
     final pixelRatio = MediaQuery.of(ctx).devicePixelRatio;
 
     final boundary = _themeBoundaryKey.currentContext?.findRenderObject()
         as RenderRepaintBoundary?;
     if (boundary == null || !boundary.hasSize) {
-      appState.updateTheme(theme);
+      applyChange();
       return;
     }
 
-    // Capture current frame at screen resolution.
-    final image = await boundary.toImage(pixelRatio: pixelRatio);
-
-    // Apply new theme — widgets rebuild underneath.
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) { applyChange(); return; }
+    ui.Image image;
+    try {
+      image = await boundary.toImage(pixelRatio: pixelRatio);
+    } catch (_) {
+      applyChange();
+      return;
+    }
     if (!mounted) { image.dispose(); return; }
-    appState.updateTheme(theme);
+    applyChange();
 
-    // Show captured old frame as overlay, fade it out.
     _themeFadeCtrl?.dispose();
     _themeFadeCtrl = AnimationController(
       vsync: this,
@@ -143,7 +169,6 @@ class _UniClientAppState extends State<UniClientApp>
     );
     setState(() => _themeCrossFadeImage = image);
 
-    // Wait one frame so the new theme renders underneath.
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted) return;
 
@@ -1482,76 +1507,250 @@ class _UniClientAppState extends State<UniClientApp>
       theme: AppTheme.fromPalette(palette),
       darkTheme: AppTheme.fromPalette(palette),
       themeMode: ThemeMode.light,
-      home: Stack(
-        children: [
-          RepaintBoundary(
-            key: _themeBoundaryKey,
-            child: Column(
-              children: [
-                if (!kIsWeb && Platform.isLinux && !appState.nativeWindowFrame) const CustomTitlebar(),
-                // Spec §1: NativeTitleRequiresShadow — 1px shadow under native frame
-                // when system window decorations are enabled. Replaces the bottom
-                // border that the custom titlebar would normally provide.
-                if (!kIsWeb && Platform.isLinux && appState.nativeWindowFrame)
-                  Builder(builder: (ctx) {
-                    final isDark = Theme.of(ctx).brightness == Brightness.dark;
-                    return Container(
-                      height: 1,
-                      color: isDark
-                          ? const Color(0x5604080e) // shadowFg night
-                          : const Color(0x18000000), // shadowFg day
-                    );
-                  }),
-                Expanded(
-                  child: const ShortcutListener(
-                    child: UniClientShell(),
+      builder: (context, navigator) {
+        return Stack(
+          children: [
+            RepaintBoundary(
+              key: _themeBoundaryKey,
+              child: Column(
+                children: [
+                  if (!kIsWeb && Platform.isLinux && !appState.nativeWindowFrame) const CustomTitlebar(),
+                  if (!kIsWeb && Platform.isLinux && appState.nativeWindowFrame)
+                    Builder(builder: (ctx) {
+                      final isDark = Theme.of(ctx).brightness == Brightness.dark;
+                      return Container(
+                        height: 1,
+                        color: isDark
+                            ? const Color(0x5604080e)
+                            : const Color(0x18000000),
+                      );
+                    }),
+                  Expanded(
+                    child: ShortcutListener(
+                      child: navigator ?? const SizedBox.shrink(),
+                    ),
                   ),
-              ),
-            ],
-          ),
-        ),
-          // §3.4: Theme cross-fade overlay — captured old frame fading out.
-          if (_themeCrossFadeImage != null && _themeFadeCtrl != null)
-            Positioned.fill(
-              child: AnimatedBuilder(
-                animation: _themeFadeCtrl!,
-                builder: (context, child) => Opacity(
-                  opacity: 1.0 - _themeFadeCtrl!.value,
-                  child: child,
-                ),
-                child: RawImage(
-                  image: _themeCrossFadeImage,
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  height: double.infinity,
-                ),
+                ],
               ),
             ),
-          ListenableBuilder(
-            listenable: PipManager.instance,
-            builder: (context, _) {
-              final pip = PipManager.instance;
-              if (!pip.isActive) return const SizedBox.shrink();
-              final d = pip.data!;
-              return PipOverlayWidget(
-                key: ValueKey(d.message.msgId),
-                player: d.player,
-                videoController: d.videoController,
-                playerSubs: d.playerSubs,
-                message: d.message,
-                mediaMessages: d.mediaMessages,
-                initialVolume: d.volume,
-                initialSpeed: d.playbackSpeed,
-                initialPosition: d.position,
-                initialDuration: d.duration,
-                initialPlaying: d.isPlaying,
-              );
-            },
+            if (_themeCrossFadeImage != null && _themeFadeCtrl != null)
+              Positioned.fill(
+                child: AnimatedBuilder(
+                  animation: _themeFadeCtrl!,
+                  builder: (context, child) => Opacity(
+                    opacity: 1.0 - _themeFadeCtrl!.value,
+                    child: child,
+                  ),
+                  child: RawImage(
+                    image: _themeCrossFadeImage,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity,
+                  ),
+                ),
+              ),
+            ListenableBuilder(
+              listenable: PipManager.instance,
+              builder: (context, _) {
+                final pip = PipManager.instance;
+                if (!pip.isActive) return const SizedBox.shrink();
+                final d = pip.data!;
+                return PipOverlayWidget(
+                  key: ValueKey(d.message.msgId),
+                  player: d.player,
+                  videoController: d.videoController,
+                  playerSubs: d.playerSubs,
+                  message: d.message,
+                  mediaMessages: d.mediaMessages,
+                  initialVolume: d.volume,
+                  initialSpeed: d.playbackSpeed,
+                  initialPosition: d.position,
+                  initialDuration: d.duration,
+                  initialPlaying: d.isPlaying,
+                );
+              },
+            ),
+            const _ThemeRevertOverlay(),
+          ],
+        );
+      },
+      home: const UniClientShell(),
+    ),
+    ),
+    );
+  }
+}
+
+/// §25.9.3: Theme switch confirmation overlay with 16s auto-revert countdown.
+class _ThemeRevertOverlay extends StatefulWidget {
+  const _ThemeRevertOverlay();
+
+  @override
+  State<_ThemeRevertOverlay> createState() => _ThemeRevertOverlayState();
+}
+
+class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
+  static const _totalMs = 15999;
+  static const _boxWidth = 320.0;
+  static const _boxRadius = 12.0;
+
+  final _escapeFocus = FocusNode();
+  Timer? _countdownTimer;
+  int _remainingMs = _totalMs;
+  bool _visible = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final testing = context.watch<AppState>().isTestingTheme;
+    if (testing && !_visible) {
+      _startCountdown();
+    } else if (!testing && _visible) {
+      _dismiss();
+    }
+  }
+
+  void _startCountdown() {
+    _visible = true;
+    _remainingMs = _totalMs;
+    _escapeFocus.requestFocus();
+    _countdownTimer?.cancel();
+    _countdownTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+      _remainingMs -= 100;
+      if (_remainingMs <= 0) {
+        _revert();
+      } else {
+        setState(() {});
+      }
+    });
+  }
+
+  void _dismiss() {
+    _visible = false;
+    _countdownTimer?.cancel();
+    _countdownTimer = null;
+    setState(() {});
+  }
+
+  void _keep() {
+    context.read<AppState>().keepAppliedTheme();
+  }
+
+  void _revert() {
+    _countdownTimer?.cancel();
+    _countdownTimer = null;
+    revertThemeWithCrossFade(context);
+  }
+
+  @override
+  void dispose() {
+    _countdownTimer?.cancel();
+    _escapeFocus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final testing = context.watch<AppState>().isTestingTheme;
+    if (!testing && !_visible) return const SizedBox.shrink();
+
+    return Positioned(
+      bottom: 20,
+      left: 0,
+      right: 0,
+      child: IgnorePointer(
+        ignoring: !_visible,
+        child: AnimatedOpacity(
+          opacity: _visible ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 200),
+          child: Center(
+            child: KeyboardListener(
+              focusNode: _escapeFocus,
+              onKeyEvent: (event) {
+                if (event is! KeyDownEvent) return;
+                if (event.logicalKey == LogicalKeyboardKey.escape) {
+                  _revert();
+                } else if (event.logicalKey == LogicalKeyboardKey.enter) {
+                  _keep();
+                }
+              },
+              child: _buildBox(context),
+            ),
           ),
-        ],
+        ),
       ),
-    ),
-    ),
+    );
+  }
+
+  Widget _buildBox(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final boxBg = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = isDark ? Colors.white : const Color(0xFF222222);
+    final subColor = isDark ? const Color(0xFFAAAAAA) : const Color(0xFF666666);
+    final accentColor = Theme.of(context).colorScheme.primary;
+    final seconds = (_remainingMs / 1000).ceil();
+
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        width: _boxWidth,
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+        decoration: BoxDecoration(
+          color: boxBg,
+          borderRadius: BorderRadius.circular(_boxRadius),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.15),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Keep this theme?',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: textColor,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Theme will revert in $seconds second${seconds == 1 ? '' : 's'}',
+              style: TextStyle(fontSize: 13, color: subColor),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: _revert,
+                    style: TextButton.styleFrom(
+                      foregroundColor: subColor,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                    child: const Text('Revert'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextButton(
+                    onPressed: _keep,
+                    style: TextButton.styleFrom(
+                      foregroundColor: accentColor,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                    child: const Text('Keep Changes'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

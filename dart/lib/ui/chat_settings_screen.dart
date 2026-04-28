@@ -169,7 +169,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             currentTheme: appState.themeId,
             accentColor: currentAccent,
             onThemeSelected: (themeId) {
-              appState.updateTheme(themeId);
+              appState.applyTestingTheme(themeId);
             },
           ),
           const SizedBox(height: 8),
@@ -218,11 +218,10 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             onToggleShowAll: () => setState(() => _showAllCloudThemes = !_showAllCloudThemes),
             onThemeSelected: (theme) {
               final targetTheme = theme.isDark ? 'night' : 'day_blue';
-              appState.updateTheme(targetTheme);
-              if (theme.accentColor != 0) {
-                final hex = '#${(theme.accentColor & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
-                appState.updateAccentColor(hex);
-              }
+              final accentHex = theme.accentColor != 0
+                  ? '#${(theme.accentColor & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}'
+                  : null;
+              appState.applyTestingTheme(targetTheme, accentColor: accentHex);
             },
             onEditTheme: null,
           ),
