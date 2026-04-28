@@ -507,6 +507,13 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.SendScheduledNow(req.AccountId, req.ChatId, req.MsgIds)
 
+	case "RescheduleMessage":
+		var req pb.EngineRescheduleMessageRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.RescheduleMessage(req.AccountId, req.ChatId, req.MsgId, req.ScheduleDate)
+
 	case "ReactToMessage":
 		var req pb.EngineReactToMessageRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

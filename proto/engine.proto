@@ -782,6 +782,13 @@ message EngineSendScheduledNowRequest {
   repeated string msg_ids = 3;
 }
 
+message EngineRescheduleMessageRequest {
+  string account_id       = 1;
+  string chat_id          = 2;
+  string msg_id           = 3;
+  int64  schedule_date    = 4;
+}
+
 // ═════════════════════════════════════════════════════════════════════���═
 // Peer Colors (extended 64-entry name color palette from help.peerColors)
 // ═══════════════════════════════════════════════════════════════════════

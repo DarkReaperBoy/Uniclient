@@ -806,7 +806,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: none yet — create dart/lib/ui/scheduled_messages.dart -->
 
-- [ ] Context menu: Send Now (single/group/selected), Send Now confirmation dialog, Reschedule (single up to §23.6 kRescheduleLimit=20), Delete, +1s offset per subsequent message in batch reschedule — spec §23.6
 - [ ] sentToScheduled event auto-navigation and toast — spec §23.7
 - [ ] Video processing toasts: stage-1 top-attached toast 4000ms, stage-2 ImportantTooltip bubble, published notification toast with thumbnail + "View" button — spec §23.8
 - [ ] ForumTopic scheduling support: Context::ScheduledTopic, topicRootId in reply-to, topic-level write restrictions — spec §23.9

@@ -634,6 +634,28 @@ func (e *Engine) SendScheduledNow(accountID, chatID string, msgIDs []string) err
 	return ss.SendScheduledNow(chatID, intIDs)
 }
 
+func (e *Engine) RescheduleMessage(accountID, chatID, msgID string, scheduleDate int64) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+
+	type scheduledRescheduler interface {
+		RescheduleMessage(chatID string, msgID int, scheduleDate int) error
+	}
+	sr, ok := acc.Core.(scheduledRescheduler)
+	if !ok {
+		return fmt.Errorf("core for account %q does not support rescheduling", accountID)
+	}
+
+	n, err := strconv.Atoi(msgID)
+	if err != nil {
+		return fmt.Errorf("invalid message ID %q: %w", msgID, err)
+	}
+
+	return sr.RescheduleMessage(chatID, n, int(scheduleDate))
+}
+
 func (e *Engine) GetScheduledCount(accountID, chatID string) (int, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

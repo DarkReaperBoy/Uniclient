@@ -1494,6 +1494,15 @@ class EngineService {
     await _callAsync('__engine', 'SendScheduledNow', req.writeToBuffer());
   }
 
+  Future<void> rescheduleMessage(String accountId, String chatId, String msgId, int scheduleDate) async {
+    final req = epb.EngineRescheduleMessageRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..msgId = msgId
+      ..scheduleDate = Int64(scheduleDate);
+    await _callAsync('__engine', 'RescheduleMessage', req.writeToBuffer());
+  }
+
   Future<void> reactToMessage(String accountId, String chatId, String msgId, String emoji) async {
     final req = epb.EngineReactToMessageRequest()
       ..accountId = accountId

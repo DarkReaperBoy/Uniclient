@@ -858,6 +858,17 @@ class ChatState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> rescheduleMessage(String msgId, int scheduleDate) async {
+    final chat = _activeChat;
+    if (chat == null) return;
+    await _engine.rescheduleMessage(chat.accountId, chat.chatId, msgId, scheduleDate);
+    final idx = _messages.indexWhere((m) => m.msgId == msgId);
+    if (idx >= 0) {
+      _messages[idx] = _messages[idx].copyWith(scheduleDate: scheduleDate);
+    }
+    notifyListeners();
+  }
+
   /// Pin or unpin a message in the active chat. Optimistically flips
   /// `isPinned` on the cached message so the context menu label and any
   /// pin-dependent UI update immediately, without waiting for the engine

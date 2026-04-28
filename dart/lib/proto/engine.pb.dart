@@ -8389,6 +8389,98 @@ class EngineSendScheduledNowRequest extends $pb.GeneratedMessage {
   $core.List<$core.String> get msgIds => $_getList(2);
 }
 
+class EngineRescheduleMessageRequest extends $pb.GeneratedMessage {
+  factory EngineRescheduleMessageRequest({
+    $core.String? accountId,
+    $core.String? chatId,
+    $core.String? msgId,
+    $fixnum.Int64? scheduleDate,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (chatId != null) {
+      $result.chatId = chatId;
+    }
+    if (msgId != null) {
+      $result.msgId = msgId;
+    }
+    if (scheduleDate != null) {
+      $result.scheduleDate = scheduleDate;
+    }
+    return $result;
+  }
+  EngineRescheduleMessageRequest._() : super();
+  factory EngineRescheduleMessageRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineRescheduleMessageRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineRescheduleMessageRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..aOS(3, _omitFieldNames ? '' : 'msgId')
+    ..aInt64(4, _omitFieldNames ? '' : 'scheduleDate')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  EngineRescheduleMessageRequest clone() => EngineRescheduleMessageRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  EngineRescheduleMessageRequest copyWith(void Function(EngineRescheduleMessageRequest) updates) => super.copyWith((message) => updates(message as EngineRescheduleMessageRequest)) as EngineRescheduleMessageRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineRescheduleMessageRequest create() => EngineRescheduleMessageRequest._();
+  EngineRescheduleMessageRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineRescheduleMessageRequest> createRepeated() => $pb.PbList<EngineRescheduleMessageRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineRescheduleMessageRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineRescheduleMessageRequest>(create);
+  static EngineRescheduleMessageRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasChatId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearChatId() => clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get msgId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set msgId($core.String v) { $_setString(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasMsgId() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearMsgId() => clearField(3);
+
+  @$pb.TagNumber(4)
+  $fixnum.Int64 get scheduleDate => $_getI64(3);
+  @$pb.TagNumber(4)
+  set scheduleDate($fixnum.Int64 v) { $_setInt64(3, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasScheduleDate() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearScheduleDate() => clearField(4);
+}
+
 class EnginePeerColorEntry extends $pb.GeneratedMessage {
   factory EnginePeerColorEntry({
     $core.int? colorId,

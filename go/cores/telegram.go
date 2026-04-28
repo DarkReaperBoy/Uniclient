@@ -13765,6 +13765,20 @@ func (t *TelegramCore) SendScheduledNow(chatID string, msgIDs []int) error {
 	return err
 }
 
+func (t *TelegramCore) RescheduleMessage(chatID string, msgID int, scheduleDate int) error {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil { return err }
+	defer unlock()
+	req := &tg.MessagesEditMessageRequest{
+		Peer:         inputPeer,
+		ID:           msgID,
+		ScheduleDate: scheduleDate,
+	}
+	req.SetScheduleDate(scheduleDate)
+	_, err = t.api.MessagesEditMessage(t.ctx, req)
+	return err
+}
+
 // GetPollResults returns the current results of a poll.
 func (t *TelegramCore) GetPollResults(chatID string, msgID int) error {
 	inputPeer, unlock, err := t.withPeer(chatID)

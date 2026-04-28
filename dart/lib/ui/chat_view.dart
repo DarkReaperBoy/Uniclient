@@ -131,6 +131,7 @@ class ChatView extends StatefulWidget {
 
 class _ChatViewState extends State<ChatView>
     with TickerProviderStateMixin {
+  static const _kRescheduleLimit = 20;
   static final _urlRegExp = RegExp(r'https?://[^\s<>"{}|\\^`\[\]]+', caseSensitive: false);
   final _composeController = RichTextEditingController();
   final _scrollController = ScrollController();
@@ -582,6 +583,23 @@ class _ChatViewState extends State<ChatView>
     final hasLocalFile = msg.mediaLocalPath.isNotEmpty;
     final urls = _urlRegExp.allMatches(msg.contentText).map((m) => m.group(0)!).toSet().toList();
 
+    final inSelection = _selectionMode && _selectedMsgIds.isNotEmpty;
+    final canSendNow = isScheduled && msg.allowsSendNow;
+    final canReschedule = isScheduled && msg.allowsReschedule;
+    final groupMsgIds = (isScheduled && msg.isAlbumMember)
+        ? chatState.messages
+            .where((m) => m.groupedId == msg.groupedId && m.allowsSendNow)
+            .map((m) => m.msgId)
+            .toList()
+        : <String>[msgId];
+    final allSelectedCanSendNow = inSelection &&
+        _selectedMsgIds.every((id) =>
+            chatState.messages.where((m) => m.msgId == id).firstOrNull?.allowsSendNow ?? false);
+    final allSelectedCanReschedule = inSelection &&
+        _selectedMsgIds.length <= _kRescheduleLimit &&
+        _selectedMsgIds.every((id) =>
+            chatState.messages.where((m) => m.msgId == id).firstOrNull?.allowsReschedule ?? false);
+
     showTelegramMenu<String>(
       context: context,
       position: position,
@@ -636,8 +654,10 @@ class _ChatViewState extends State<ChatView>
         if (chat != null)
           const TelegramMenuItem(value: 'copy_link', icon: Icon(Icons.link), label: 'Copy Message Link'),
         const TelegramMenuItem(value: 'forward', icon: Icon(Icons.forward), label: 'Forward'),
-        if (isScheduled)
-          const TelegramMenuItem(value: 'send_now', icon: Icon(Icons.send), label: 'Send Now'),
+        if (canSendNow && !inSelection)
+          const TelegramMenuItem(value: 'send_now', icon: Icon(Icons.send), label: 'Send now'),
+        if (inSelection && allSelectedCanSendNow)
+          const TelegramMenuItem(value: 'send_now_selected', icon: Icon(Icons.send), label: 'Send now selected'),
         const TelegramMenuItem(value: 'delete', icon: Icon(Icons.delete_outline), label: 'Delete', isAttention: true),
         if (hasPhoto)
           const TelegramMenuItem(value: 'save_image', icon: Icon(Icons.save_alt), label: 'Save Image'),
@@ -658,8 +678,10 @@ class _ChatViewState extends State<ChatView>
         if (!msg.isOutgoing)
           const TelegramMenuItem(value: 'report', icon: Icon(Icons.flag_outlined), label: 'Report', isAttention: true),
         const TelegramMenuItem(value: 'select', icon: Icon(Icons.check_circle_outline), label: 'Select'),
-        if (isScheduled)
+        if (canReschedule && !inSelection)
           const TelegramMenuItem(value: 'reschedule', icon: Icon(Icons.schedule_send), label: 'Reschedule'),
+        if (inSelection && allSelectedCanReschedule)
+          const TelegramMenuItem(value: 'reschedule_selected', icon: Icon(Icons.schedule_send), label: 'Reschedule selected'),
         const TelegramMenuItem(value: 'read_until', icon: Icon(Icons.done_all), label: 'Read Until Here'),
         // Pass 3: post-actions
         const TelegramMenuItem.separator(),
@@ -714,9 +736,13 @@ class _ChatViewState extends State<ChatView>
             );
           });
         case 'send_now':
-          chatState.sendScheduledNow([msgId]);
+          _showSendNowConfirm(chatState, groupMsgIds);
+        case 'send_now_selected':
+          _showSendNowConfirm(chatState, _selectedMsgIds.toList());
         case 'reschedule':
-          _showReschedulePicker(msgId);
+          _showReschedulePicker(chatState, [msgId], msg);
+        case 'reschedule_selected':
+          _showRescheduleSelectedPicker(chatState);
         case 'save_image':
           _saveMediaToDownloads(msg);
         case 'save_gif':
@@ -908,12 +934,85 @@ class _ChatViewState extends State<ChatView>
     }
   }
 
-  Future<void> _showReschedulePicker(String msgId) async {
-    final result = await showChooseDateTimeBox(context);
+  void _showSendNowConfirm(ChatState chatState, List<String> msgIds) {
+    if (msgIds.isEmpty) return;
+    final count = msgIds.length;
+    showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Send now'),
+        content: Text(count == 1
+            ? 'Send this message now?'
+            : 'Send $count messages now?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Send')),
+        ],
+      ),
+    ).then((confirmed) {
+      if (confirmed != true || !mounted) return;
+      final sorted = List<String>.from(msgIds)
+        ..sort((a, b) {
+          final ma = chatState.messages.where((m) => m.msgId == a).firstOrNull;
+          final mb = chatState.messages.where((m) => m.msgId == b).firstOrNull;
+          return (ma?.scheduleDate ?? 0).compareTo(mb?.scheduleDate ?? 0);
+        });
+      chatState.sendScheduledNow(sorted);
+      if (_selectionMode) _modifySelection(() => _selectedMsgIds.clear());
+    });
+  }
+
+  Future<void> _showReschedulePicker(ChatState chatState, List<String> msgIds, CachedMessage msg) async {
+    final initialDate = msg.isScheduledUntilOnline
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch(msg.scheduleDate * 1000);
+    final chat = chatState.activeChat;
+    final isSelf = chat != null && chat.title == 'Saved Messages';
+    final result = await showChooseDateTimeBox(
+      context,
+      initialDate: initialDate,
+      isSelfChat: isSelf,
+      isScheduledToUser: chat?.type == ChatType.dm && !isSelf,
+    );
     if (result == null || !mounted) return;
-    // TODO: backend reschedule not yet wired — currently sends immediately
-    final chatState = context.read<ChatState>();
-    chatState.sendScheduledNow([msgId]);
+    final baseTs = result.sendWhenOnline
+        ? ScheduledMessages.kScheduledUntilOnlineTimestamp
+        : result.dateTime.millisecondsSinceEpoch ~/ 1000;
+    final deduped = _deduplicateGroupedIds(chatState, msgIds);
+    for (var i = 0; i < deduped.length; i++) {
+      await chatState.rescheduleMessage(deduped[i], baseTs + i);
+    }
+  }
+
+  Future<void> _showRescheduleSelectedPicker(ChatState chatState) async {
+    final selected = _selectedMsgIds.toList();
+    if (selected.isEmpty) return;
+    final firstMsg = chatState.messages
+        .where((m) => selected.contains(m.msgId))
+        .firstOrNull;
+    if (firstMsg == null) return;
+    await _showReschedulePicker(chatState, selected, firstMsg);
+    if (mounted) _modifySelection(() => _selectedMsgIds.clear());
+  }
+
+  List<String> _deduplicateGroupedIds(ChatState chatState, List<String> msgIds) {
+    final seen = <String>{};
+    final result = <String>[];
+    for (final id in msgIds) {
+      final msg = chatState.messages.where((m) => m.msgId == id).firstOrNull;
+      if (msg == null) continue;
+      if (msg.isAlbumMember) {
+        if (seen.contains(msg.groupedId)) continue;
+        seen.add(msg.groupedId);
+      }
+      result.add(id);
+    }
+    result.sort((a, b) {
+      final ma = chatState.messages.where((m) => m.msgId == a).firstOrNull;
+      final mb = chatState.messages.where((m) => m.msgId == b).firstOrNull;
+      return (ma?.scheduleDate ?? 0).compareTo(mb?.scheduleDate ?? 0);
+    });
+    return result;
   }
 
   static String _formatTimecode(Duration d) {
@@ -1793,9 +1892,7 @@ class _ChatViewState extends State<ChatView>
   }
 
   void _sendNowSelected(ChatState chatState) {
-    final msgIds = _selectedMsgIds.toList();
-    chatState.sendScheduledNow(msgIds);
-    _modifySelection(() => _selectedMsgIds.clear());
+    _showSendNowConfirm(chatState, _selectedMsgIds.toList());
   }
 
   void _deleteSelected(ChatState chatState) {
