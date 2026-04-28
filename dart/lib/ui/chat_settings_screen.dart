@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
+import '../theme/telegram_palette.dart';
 import 'settings_style.dart';
 import 'shortcuts_settings_screen.dart';
 
@@ -174,6 +175,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
           _AccentColorPalette(
             currentColor: currentAccent,
             isDark: isDark,
+            themeId: appState.themeId,
             onColorSelected: (color) {
               final hex = '#${color.value.toRadixString(16).padLeft(8, '0').substring(2)}';
               appState.updateAccentColor(hex);
@@ -652,92 +654,56 @@ class _ThemePreviewPainter extends CustomPainter {
 
 // ── Accent Color Palette ──
 
-const _accentColors = [
-  Color(0xFF40A7E3), // Blue (default)
-  Color(0xFF4FAE4E), // Green
-  Color(0xFFF2921C), // Orange
-  Color(0xFFEC4F8E), // Pink
-  Color(0xFF5C9EDA), // Cyan
-  Color(0xFF7B68EE), // Purple
-];
+// Removed: static _accentColors. Per-theme presets now in TelegramPalette.accentsForTheme().
 
 class _AccentColorPalette extends StatelessWidget {
   final Color currentColor;
   final bool isDark;
+  final String themeId;
   final ValueChanged<Color> onColorSelected;
 
   const _AccentColorPalette({
     required this.currentColor,
     required this.isDark,
+    required this.themeId,
     required this.onColorSelected,
   });
 
+  static const _circleSize = 22.0;
+  static const _ringWidth = 2.0;
+  static const _ringSkip = 2.0;
+
   @override
   Widget build(BuildContext context) {
+    final presets = TelegramPalette.accentsForTheme(themeId);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 22),
       child: Row(
         children: [
-          ..._accentColors.map((color) {
-            final isSelected = _colorsMatch(color, currentColor);
+          ...presets.map((color) {
+            final selected = _colorsMatch(color, currentColor);
             return Padding(
               padding: const EdgeInsets.only(right: 10),
               child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
                 onTap: () => onColorSelected(color),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeOutCubic,
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: color,
-                    border: isSelected
-                        ? Border.all(
-                            color: isDark ? Colors.white : Colors.white,
-                            width: 2,
-                          )
-                        : null,
-                    boxShadow: isSelected
-                        ? [
-                            BoxShadow(
-                              color: color.withValues(alpha: 0.4),
-                              blurRadius: 4,
-                              spreadRadius: 1,
-                            )
-                          ]
-                        : null,
-                  ),
-                  child: isSelected
-                      ? const Icon(Icons.check, size: 14, color: Colors.white)
-                      : null,
+                child: _AccentCircle(
+                  color: color,
+                  selected: selected,
+                  size: _circleSize,
+                  ringWidth: _ringWidth,
+                  ringSkip: _ringSkip,
                 ),
               ),
             );
           }),
-          // Custom HSL picker dot (gradient circle).
           GestureDetector(
+            behavior: HitTestBehavior.opaque,
             onTap: () => _showHslPicker(context),
-            child: Container(
-              width: 24,
-              height: 24,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: SweepGradient(
-                  colors: [
-                    Color(0xFFFF0000),
-                    Color(0xFFFFFF00),
-                    Color(0xFF00FF00),
-                    Color(0xFF00FFFF),
-                    Color(0xFF0000FF),
-                    Color(0xFFFF00FF),
-                    Color(0xFFFF0000),
-                  ],
-                ),
-              ),
-              child: _isCustomColor()
-                  ? const Icon(Icons.check, size: 14, color: Colors.white)
-                  : null,
+            child: _CustomColorButton(
+              size: _circleSize,
+              isSelected: _isCustomColor(presets),
+              currentColor: currentColor,
             ),
           ),
         ],
@@ -745,8 +711,8 @@ class _AccentColorPalette extends StatelessWidget {
     );
   }
 
-  bool _isCustomColor() {
-    for (final c in _accentColors) {
+  bool _isCustomColor(List<Color> presets) {
+    for (final c in presets) {
       if (_colorsMatch(c, currentColor)) return false;
     }
     return true;
@@ -768,6 +734,159 @@ class _AccentColorPalette extends StatelessWidget {
         (a.g - b.g).abs() < 0.02 &&
         (a.b - b.b).abs() < 0.02;
   }
+}
+
+class _AccentCircle extends StatelessWidget {
+  final Color color;
+  final bool selected;
+  final double size;
+  final double ringWidth;
+  final double ringSkip;
+
+  const _AccentCircle({
+    required this.color,
+    required this.selected,
+    required this.size,
+    required this.ringWidth,
+    required this.ringSkip,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final outerSize = size + (ringWidth + ringSkip) * 2;
+    return SizedBox(
+      width: outerSize,
+      height: outerSize,
+      child: CustomPaint(
+        painter: _AccentCirclePainter(
+          color: color,
+          selected: selected,
+          ringWidth: ringWidth,
+          ringSkip: ringSkip,
+        ),
+      ),
+    );
+  }
+}
+
+class _AccentCirclePainter extends CustomPainter {
+  final Color color;
+  final bool selected;
+  final double ringWidth;
+  final double ringSkip;
+
+  _AccentCirclePainter({
+    required this.color,
+    required this.selected,
+    required this.ringWidth,
+    required this.ringSkip,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final innerRadius = (size.width - (ringWidth + ringSkip) * 2) / 2;
+
+    if (selected) {
+      canvas.drawCircle(
+        center,
+        innerRadius + ringSkip + ringWidth / 2,
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = ringWidth,
+      );
+    }
+
+    canvas.drawCircle(center, innerRadius, Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(_AccentCirclePainter old) =>
+      old.color != color || old.selected != selected;
+}
+
+class _CustomColorButton extends StatelessWidget {
+  final double size;
+  final bool isSelected;
+  final Color currentColor;
+
+  const _CustomColorButton({
+    required this.size,
+    required this.isSelected,
+    required this.currentColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final outerSize = size + 8;
+    return SizedBox(
+      width: outerSize,
+      height: outerSize,
+      child: CustomPaint(
+        painter: _SevenCirclePainter(
+          isSelected: isSelected,
+          currentColor: currentColor,
+          dotSize: size / 8,
+        ),
+      ),
+    );
+  }
+}
+
+class _SevenCirclePainter extends CustomPainter {
+  final bool isSelected;
+  final Color currentColor;
+  final double dotSize;
+
+  _SevenCirclePainter({
+    required this.isSelected,
+    required this.currentColor,
+    required this.dotSize,
+  });
+
+  static const _hues = [0.0, 60.0, 120.0, 180.0, 240.0, 300.0];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final r = dotSize;
+    final orbitR = size.width / 2 - r;
+
+    if (isSelected) {
+      canvas.drawCircle(
+        center,
+        size.width / 2,
+        Paint()
+          ..color = currentColor
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2,
+      );
+    }
+
+    canvas.drawCircle(
+      center,
+      r,
+      Paint()..color = isSelected ? currentColor : HSLColor.fromAHSL(1, 0, 0.8, 0.5).toColor(),
+    );
+
+    for (var i = 0; i < 6; i++) {
+      final angle = (i * 60.0 - 90) * math.pi / 180;
+      final pos = Offset(
+        center.dx + orbitR * 0.72 * math.cos(angle),
+        center.dy + orbitR * 0.72 * math.sin(angle),
+      );
+      canvas.drawCircle(
+        pos,
+        r,
+        Paint()..color = HSLColor.fromAHSL(1, _hues[i], 0.8, 0.55).toColor(),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SevenCirclePainter old) =>
+      old.isSelected != isSelected || old.currentColor != currentColor;
 }
 
 // ── HSL Color Picker Dialog ──

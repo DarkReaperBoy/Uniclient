@@ -1447,12 +1447,23 @@ class _UniClientAppState extends State<UniClientApp>
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
 
-    final palette = switch (appState.themeId) {
+    var palette = switch (appState.themeId) {
       'classic_day' => TelegramPalette.classicDay,
       'day_blue' => TelegramPalette.dayBlue,
       'night_green' => TelegramPalette.nightGreen,
       _ => TelegramPalette.night,
     };
+    final accentHex = appState.accentColorHex;
+    if (accentHex.length >= 7) {
+      final hex = accentHex.replaceFirst('#', '');
+      final v = int.tryParse(hex.length == 6 ? 'FF$hex' : hex, radix: 16);
+      if (v != null) {
+        final accentColor = Color(v);
+        if (!TelegramPalette.colorEq(accentColor, palette.windowBgActive)) {
+          palette = palette.colorize(accentColor);
+        }
+      }
+    }
 
     return PaletteProvider(
       palette: palette,
