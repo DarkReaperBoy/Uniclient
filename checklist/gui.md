@@ -822,9 +822,8 @@ Status key: `[ ]` not started · `[x]` done
 
 ## §26 — Admin Tools
 
-<!-- dart files: none yet — create dart/lib/ui/admin_tools.dart -->
+<!-- dart files: dart/lib/ui/admin_tools.dart -->
 
-- [ ] EditPeerInfoBox: scrollable dialog with photo (UserpicButton, context menu Set/Set Video/Remove), title field (128 chars), description field (255 chars), settings rows with right-side value labels (Group/Channel Type, Discussion/Linked, Direct Messages, History, Topics, Auto-Translation, Sign Messages, Sign with Profile), control buttons (Permissions, Invite Links, Admins, Members, Removed, Join Requests), sticker section, delete button (red, confirmation), Save + Cancel — spec §26.1
 - [ ] Permissions management: toggle rows with lock icon, group-media collapsible section (7 toggles, expand/collapse 150ms animation), slowmode 8-position slider, boosts-unrestrict 5-position slider, Charge Stars section, dependency rules (EmbedLinks requires SendOther, etc.), exceptions list with custom restrictions, locked-permission 3000ms toast, Convert-to-Supergroup suggestion at 1000+ members — spec §26.2
 - [ ] Member restrict/ban dialog: cover 60×60px + name/status, per-user permission toggles, duration picker (Forever/1d/7d/Custom, max 366 days), custom rank field — spec §26.3
 - [ ] Admin appointment dialog: "Add as Admin" checkbox with collapsible rights SlideWrap, admin rights sections (Group: 3, Channel: 4), custom title field, Transfer Ownership flow (dry-run → 2FA → confirm → toast), Dismiss Admin button, "Promoted by" link — spec §26.4

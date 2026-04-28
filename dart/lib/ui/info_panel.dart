@@ -13,6 +13,7 @@ import '../models/engine_models.dart';
 import '../state/chat_state.dart';
 import 'chat_view.dart' show formatChatLastSeen;
 import 'confirm_box.dart';
+import 'admin_tools.dart' show showEditPeerInfoBox;
 import 'create_group_wizard.dart' show showEditPeerTypeBox;
 import 'edit_forum_topic_box.dart';
 import 'forum_topic_icon.dart';
@@ -2337,63 +2338,7 @@ class _GroupActionsSection extends StatelessWidget {
   }
 
   void _editGroup(BuildContext context, ChatState chatState) {
-    final engine = context.read<EngineService>();
-    final titleCtrl = TextEditingController(text: chat.title);
-    final descCtrl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Edit Group'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: titleCtrl,
-              decoration: const InputDecoration(labelText: 'Group name'),
-              autofocus: true,
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: descCtrl,
-              decoration: const InputDecoration(labelText: 'Description'),
-              maxLines: 3,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              final newTitle = titleCtrl.text.trim();
-              final newDesc = descCtrl.text.trim();
-              if (newTitle.isNotEmpty && newTitle != chat.title) {
-                engine.editChatTitle(chat.accountId, chat.chatId, newTitle).catchError((e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Failed to update title: $e')),
-                    );
-                  }
-                });
-              }
-              if (newDesc.isNotEmpty) {
-                engine.editChatDescription(chat.accountId, chat.chatId, newDesc).catchError((e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Failed to update description: $e')),
-                    );
-                  }
-                });
-              }
-              Navigator.pop(ctx);
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
+    showEditPeerInfoBox(context, chat: chat, members: members);
   }
 
   void _confirmReport(BuildContext context, ChatState chatState) {
@@ -2634,6 +2579,13 @@ class _ChannelActionsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (_isSelfAdmin)
+          _ActionRow(
+            icon: Icons.edit,
+            label: 'Edit Channel',
+            theme: theme,
+            onTap: () => showEditPeerInfoBox(context, chat: chat, members: members),
+          ),
         if (_isSelfAdmin)
           _ActionRow(
             icon: Icons.lock_outline,
