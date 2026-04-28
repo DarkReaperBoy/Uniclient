@@ -152,6 +152,9 @@ class _ChatViewState extends State<ChatView>
   bool _showMentionsBtn = false;
   bool _showReactionsBtn = false;
   bool _showPollVotesBtn = false;
+  /// §23.10: slide animation (200ms) for scheduled section enter/exit.
+  late final AnimationController _scheduledSlideCtrl;
+  bool _scheduledSlideForward = true;
   String? _lastChatId;
   /// Spec §4.4: when the user taps the close button on the pinned bar,
   /// the bar is hidden locally for the current chat until the chat changes.
@@ -262,6 +265,11 @@ class _ChatViewState extends State<ChatView>
       duration: const Duration(milliseconds: 200),
       vsync: this,
     );
+    _scheduledSlideCtrl = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+      value: 1.0,
+    );
     _scrollController.addListener(_onScroll);
     // Register the app-level ArrowUp hook (spec §24.7: edit last outgoing
     // when compose field is empty and no edit/reply is active).
@@ -328,6 +336,7 @@ class _ChatViewState extends State<ChatView>
     }
     ChatView.testVideoPublishedToast = null;
     _dragOverlayAnimCtrl.dispose();
+    _scheduledSlideCtrl.dispose();
     _selectionCurvedAnim.dispose();
     _selectionAnimCtrl.dispose();
     _fabAnimCtrl.dispose();
@@ -2880,12 +2889,17 @@ class _ChatViewState extends State<ChatView>
     }
 
     // §23.8: detect transition into scheduled view and trigger video tip toast.
+    // §23.10: track slide direction for section enter/exit animation.
     final isScheduled = widget.isScheduledView || chatState.isScheduledView;
     if (isScheduled && !_wasScheduledView) {
+      _scheduledSlideForward = true;
+      _scheduledSlideCtrl.forward(from: 0);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _checkScheduledVideoTip(chatState);
       });
     } else if (!isScheduled && _wasScheduledView) {
+      _scheduledSlideForward = false;
+      _scheduledSlideCtrl.forward(from: 0);
       _videoTipTimer?.cancel();
       _videoTooltipTimer?.cancel();
       _showVideoTipToast = false;
@@ -3058,46 +3072,62 @@ class _ChatViewState extends State<ChatView>
           Expanded(
             child: Stack(
               children: [
-                _MessageList(
-                  messages: _hiddenMsgIds.isEmpty
-                      ? chatState.messages
-                      : chatState.messages.where((m) => !_hiddenMsgIds.contains(m.msgId)).toList(),
-                  loading: chatState.loadingMessages,
-                  isGroupChat: chat.type == ChatType.group || chat.type == ChatType.channel || chat.type == ChatType.topic,
-                  senderAvatars: chatState,
-                  scrollController: _scrollController,
-                  onReply: (msgId) => setState(() => _replyToId = msgId),
-                  selectedIds: _selectedMsgIds,
-                  onToggleSelect: (msgId) => _modifySelection(() {
-                    if (_selectedMsgIds.contains(msgId)) {
-                      _selectedMsgIds.remove(msgId);
-                    } else {
+                // §23.10: 200ms slide+fade when entering/exiting scheduled section.
+                AnimatedBuilder(
+                  animation: _scheduledSlideCtrl,
+                  builder: (context, child) {
+                    if (_scheduledSlideCtrl.isCompleted) return child!;
+                    final t = Curves.easeOutCubic.transform(_scheduledSlideCtrl.value);
+                    final dx = _scheduledSlideForward ? (1.0 - t) : -(1.0 - t);
+                    return Opacity(
+                      opacity: t.clamp(0.0, 1.0),
+                      child: FractionalTranslation(
+                        translation: Offset(dx * 0.3, 0),
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: _MessageList(
+                    messages: _hiddenMsgIds.isEmpty
+                        ? chatState.messages
+                        : chatState.messages.where((m) => !_hiddenMsgIds.contains(m.msgId)).toList(),
+                    loading: chatState.loadingMessages,
+                    isGroupChat: chat.type == ChatType.group || chat.type == ChatType.channel || chat.type == ChatType.topic,
+                    senderAvatars: chatState,
+                    scrollController: _scrollController,
+                    onReply: (msgId) => setState(() => _replyToId = msgId),
+                    selectedIds: _selectedMsgIds,
+                    onToggleSelect: (msgId) => _modifySelection(() {
+                      if (_selectedMsgIds.contains(msgId)) {
+                        _selectedMsgIds.remove(msgId);
+                      } else {
+                        final inScheduled = widget.isScheduledView || chatState.isScheduledView;
+                        if (inScheduled) {
+                          final msg = chatState.messages.where((m) => m.msgId == msgId).firstOrNull;
+                          if (msg != null && (msg.isSending || msg.isFailed)) return;
+                        }
+                        _selectedMsgIds.add(msgId);
+                      }
+                    }),
+                    onLongPress: (msgId) => _modifySelection(() {
                       final inScheduled = widget.isScheduledView || chatState.isScheduledView;
                       if (inScheduled) {
                         final msg = chatState.messages.where((m) => m.msgId == msgId).firstOrNull;
                         if (msg != null && (msg.isSending || msg.isFailed)) return;
                       }
                       _selectedMsgIds.add(msgId);
-                    }
-                  }),
-                  onLongPress: (msgId) => _modifySelection(() {
-                    final inScheduled = widget.isScheduledView || chatState.isScheduledView;
-                    if (inScheduled) {
-                      final msg = chatState.messages.where((m) => m.msgId == msgId).firstOrNull;
-                      if (msg != null && (msg.isSending || msg.isFailed)) return;
-                    }
-                    _selectedMsgIds.add(msgId);
-                  }),
-                  onContextMenu: (msgId, pos, selectedText) => _showMessageContextMenu(msgId, pos, selectedText),
-                  onSenderTap: (senderId) => _showSenderProfile(context, chatState, senderId),
-                  onSenderContextMenu: (senderId, pos) => _showUserContextMenu(context, chatState, senderId, pos),
-                  onReplyTap: (replyToId) => _jumpToReply(chatState, replyToId),
-                  searchHighlightId: _searchResultIndex >= 0 && _searchResultIndex < _searchResultIds.length
-                      ? _searchResultIds[_searchResultIndex]
-                      : null,
-                  searchQuery: _activeSearchQuery,
-                  openedUnreadCount: chatState.openedUnreadCount,
-                  isScheduledView: widget.isScheduledView || chatState.isScheduledView,
+                    }),
+                    onContextMenu: (msgId, pos, selectedText) => _showMessageContextMenu(msgId, pos, selectedText),
+                    onSenderTap: (senderId) => _showSenderProfile(context, chatState, senderId),
+                    onSenderContextMenu: (senderId, pos) => _showUserContextMenu(context, chatState, senderId, pos),
+                    onReplyTap: (replyToId) => _jumpToReply(chatState, replyToId),
+                    searchHighlightId: _searchResultIndex >= 0 && _searchResultIndex < _searchResultIds.length
+                        ? _searchResultIds[_searchResultIndex]
+                        : null,
+                    searchQuery: _activeSearchQuery,
+                    openedUnreadCount: chatState.openedUnreadCount,
+                    isScheduledView: widget.isScheduledView || chatState.isScheduledView,
+                  ),
                 ),
                 // Spec §5 / §49.17: Stacked corner buttons.
                 // Order bottom→top: Jump-down → Mentions → Reactions → PollVotes.

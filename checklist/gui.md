@@ -806,8 +806,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: none yet — create dart/lib/ui/scheduled_messages.dart -->
 
-- [ ] Section/dialog animation timings: 150–200ms slide, 4000ms toast/tooltip auto-hide, shake on time error — spec §23.10
-
 ---
 
 ## §24 — Keyboard Shortcuts
