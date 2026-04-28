@@ -896,6 +896,9 @@ class _UniClientAppState extends State<UniClientApp>
       SystemTray.quitAppRequest?.call();
       return;
     }
+    if (lc == 'ctrl+l' || lc == 'control+l') {
+      return;
+    }
     if (lc == 'ctrl+s' || lc == 'control+s') {
       MediaViewer.save();
       return;

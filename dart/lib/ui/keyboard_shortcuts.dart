@@ -617,6 +617,9 @@ class ShortcutSystem {
           LogicalKeyboardKey.digit8, ShortcutCommand.lastFolder,
           control: true),
     if (_isDesktop)
+      const _KeyBinding(LogicalKeyboardKey.keyL, ShortcutCommand.lockTelegram,
+          control: true),
+    if (_isDesktop)
       const _KeyBinding(
           LogicalKeyboardKey.keyW, ShortcutCommand.closeTelegram,
           control: true),
@@ -697,6 +700,9 @@ class _ShortcutListenerState extends State<ShortcutListener> {
     });
     sys.registerHandler(ShortcutCommand.editLastMessage, () {
       ChatView.requestEditLastOutgoing();
+    });
+    sys.registerHandler(ShortcutCommand.lockTelegram, () {
+      // Requires passcode to be configured (§27) — no-op until then
     });
     sys.registerHandler(ShortcutCommand.closeTelegram, () {
       SystemTray.hideWindowRequest?.call();

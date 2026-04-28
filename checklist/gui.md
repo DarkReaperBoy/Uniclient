@@ -812,7 +812,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_list_panel.dart, chat_view.dart, hamburger_drawer.dart (partial key handling already present) — new: dart/lib/ui/keyboard_shortcuts.dart -->
 
-- [ ] Application/window shortcuts: Ctrl+W/F4 close, Ctrl+L lock, Ctrl+M minimize, Ctrl+Q quit, Ctrl+F search — spec §24.4
 - [ ] Chat navigation shortcuts: Ctrl+Tab switcher, Ctrl+PgDn/Up, Alt+Up/Down, Ctrl+Alt+Home/End, Ctrl+0 Saved/Ctrl+9 Archive/Ctrl+J Contacts — spec §24.4
 - [ ] Pinned/folder shortcuts: Ctrl+1-8 (pinned chats or folders), Ctrl+Shift+Down/Up next/prev folder, folder priority over pinned — spec §24.4 + §24.12.2
 - [ ] Chat action shortcuts: Ctrl+R mark-read/voice, Ctrl+\\ context menu, Ctrl+] preview popup — spec §24.4
