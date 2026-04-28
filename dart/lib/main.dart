@@ -22,7 +22,9 @@ import 'theme/theme.dart';
 import 'ui/call_panel.dart';
 import 'ui/call_screen.dart';
 import 'ui/chat_list_panel.dart';
+import 'ui/chat_list_row.dart';
 import 'ui/chat_view.dart';
+import 'ui/contacts_screen.dart';
 import 'ui/choose_datetime_box.dart';
 import 'ui/keyboard_shortcuts.dart';
 import 'ui/media_viewer.dart';
@@ -897,6 +899,47 @@ class _UniClientAppState extends State<UniClientApp>
       return;
     }
     if (lc == 'ctrl+l' || lc == 'control+l') {
+      return;
+    }
+    if (lc == 'ctrl+tab' || lc == 'control+tab') {
+      ChatListPanel.requestNavigateChat(1);
+      return;
+    }
+    if (lc == 'ctrl+shift+tab' || lc == 'control+shift+tab') {
+      ChatListPanel.requestNavigateChat(-1);
+      return;
+    }
+    if (lc == 'ctrl+0' || lc == 'control+0') {
+      final chatState = context.read<ChatState>();
+      final saved = chatState.chats.where((c) => isSavedMessages(c)).firstOrNull;
+      if (saved != null) chatState.openChat(saved);
+      return;
+    }
+    if (lc == 'ctrl+9' || lc == 'control+9') {
+      context.read<AppState>().requestShowArchive();
+      return;
+    }
+    if (lc == 'ctrl+j' || lc == 'control+j') {
+      final navCtx = _navigatorKey.currentContext;
+      if (navCtx != null) {
+        final appState = context.read<AppState>();
+        final chatSt = context.read<ChatState>();
+        final authSt = context.read<AuthState>();
+        Navigator.of(navCtx).push(
+          MaterialPageRoute(
+            builder: (_) => ChangeNotifierProvider.value(
+              value: appState,
+              child: ChangeNotifierProvider.value(
+                value: chatSt,
+                child: ChangeNotifierProvider.value(
+                  value: authSt,
+                  child: const ContactsScreen(),
+                ),
+              ),
+            ),
+          ),
+        );
+      }
       return;
     }
     if (lc == 'ctrl+s' || lc == 'control+s') {

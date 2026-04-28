@@ -3,14 +3,16 @@ import 'dart:convert';
 import 'dart:io' show File, Platform;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
 
 import 'chat_list_panel.dart';
 import 'chat_list_row.dart';
 import 'chat_view.dart';
+import 'contacts_screen.dart';
 import '../state/app_state.dart';
+import '../state/auth_state.dart';
 import '../state/chat_state.dart';
 import '../utils/system_tray.dart';
 
@@ -555,6 +557,12 @@ class ShortcutSystem {
         control: true),
     const _KeyBinding(
         LogicalKeyboardKey.escape, ShortcutCommand.cancelSearch),
+    if (_isDesktop)
+      const _KeyBinding(LogicalKeyboardKey.tab, ShortcutCommand.chatNext,
+          control: true),
+    if (_isDesktop)
+      const _KeyBinding(LogicalKeyboardKey.tab, ShortcutCommand.chatPrevious,
+          control: true, shift: true),
     const _KeyBinding(LogicalKeyboardKey.arrowDown, ShortcutCommand.chatNext,
         alt: true),
     const _KeyBinding(
@@ -739,6 +747,25 @@ class _ShortcutListenerState extends State<ShortcutListener> {
     });
     sys.registerHandler(ShortcutCommand.showArchive, () {
       context.read<AppState>().requestShowArchive();
+    });
+    sys.registerHandler(ShortcutCommand.showContacts, () {
+      final appState = context.read<AppState>();
+      final chatSt = context.read<ChatState>();
+      final authSt = context.read<AuthState>();
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ChangeNotifierProvider.value(
+            value: appState,
+            child: ChangeNotifierProvider.value(
+              value: chatSt,
+              child: ChangeNotifierProvider.value(
+                value: authSt,
+                child: const ContactsScreen(),
+              ),
+            ),
+          ),
+        ),
+      );
     });
   }
 
