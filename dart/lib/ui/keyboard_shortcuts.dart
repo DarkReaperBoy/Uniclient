@@ -12,6 +12,7 @@ import 'chat_list_row.dart';
 import 'chat_view.dart';
 import 'contacts_screen.dart';
 import '../state/app_state.dart';
+import '../state/audio_service.dart';
 import '../state/auth_state.dart';
 import '../state/chat_state.dart';
 import '../utils/system_tray.dart';
@@ -288,6 +289,15 @@ class _KeyBinding {
   });
 }
 
+const _mediaCommands = {
+  ShortcutCommand.mediaPlay,
+  ShortcutCommand.mediaPause,
+  ShortcutCommand.mediaPlayPause,
+  ShortcutCommand.mediaStop,
+  ShortcutCommand.mediaPrevious,
+  ShortcutCommand.mediaNext,
+};
+
 class ShortcutSystem {
   ShortcutSystem._();
   static final instance = ShortcutSystem._();
@@ -301,6 +311,13 @@ class ShortcutSystem {
   bool _paused = false;
   bool get isPaused => _paused;
   String _configDir = '';
+
+  bool _mediaShortcutsEnabled = false;
+  bool get mediaShortcutsEnabled => _mediaShortcutsEnabled;
+
+  void toggleMediaShortcuts(bool enabled) {
+    _mediaShortcutsEnabled = enabled;
+  }
 
   void pause() => _paused = true;
   void resume() => _paused = false;
@@ -446,8 +463,13 @@ class ShortcutSystem {
       return KeyEventResult.ignored;
     }
 
-    final commands = _findCommands(event);
+    var commands = _findCommands(event);
     if (commands.isEmpty) return KeyEventResult.ignored;
+
+    if (!_mediaShortcutsEnabled) {
+      commands = commands.where((c) => !_mediaCommands.contains(c)).toList();
+      if (commands.isEmpty) return KeyEventResult.ignored;
+    }
 
     if (event is KeyRepeatEvent) {
       bool any = false;
@@ -686,6 +708,12 @@ class ShortcutSystem {
     const _KeyBinding(
         LogicalKeyboardKey.keyJ, ShortcutCommand.showContacts,
         control: true),
+    const _KeyBinding(LogicalKeyboardKey.mediaPlay, ShortcutCommand.mediaPlay),
+    const _KeyBinding(LogicalKeyboardKey.mediaPause, ShortcutCommand.mediaPause),
+    const _KeyBinding(LogicalKeyboardKey.mediaPlayPause, ShortcutCommand.mediaPlayPause),
+    const _KeyBinding(LogicalKeyboardKey.mediaStop, ShortcutCommand.mediaStop),
+    const _KeyBinding(LogicalKeyboardKey.mediaTrackPrevious, ShortcutCommand.mediaPrevious),
+    const _KeyBinding(LogicalKeyboardKey.mediaTrackNext, ShortcutCommand.mediaNext),
   ];
 }
 
@@ -698,6 +726,15 @@ class ShortcutListener extends StatefulWidget {
 }
 
 class _ShortcutListenerState extends State<ShortcutListener> {
+  AudioService? _audioService;
+
+  void _onAudioChanged() {
+    final audio = _audioService;
+    if (audio == null) return;
+    final hasActivePlayer = audio.currentMsgId.isNotEmpty;
+    ShortcutSystem.instance.toggleMediaShortcuts(hasActivePlayer);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -853,10 +890,47 @@ class _ShortcutListenerState extends State<ShortcutListener> {
       );
       return true;
     });
+
+    sys.registerHandler(ShortcutCommand.mediaPlay, () {
+      final audio = context.read<AudioService>();
+      if (audio.currentMsgId.isEmpty) return false;
+      if (!audio.playing) audio.playVoice('', audio.currentMsgId);
+      return true;
+    });
+    sys.registerHandler(ShortcutCommand.mediaPause, () {
+      final audio = context.read<AudioService>();
+      if (audio.currentMsgId.isEmpty) return false;
+      if (audio.playing) audio.playVoice('', audio.currentMsgId);
+      return true;
+    });
+    sys.registerHandler(ShortcutCommand.mediaPlayPause, () {
+      final audio = context.read<AudioService>();
+      if (audio.currentMsgId.isEmpty) return false;
+      audio.playVoice('', audio.currentMsgId);
+      return true;
+    });
+    sys.registerHandler(ShortcutCommand.mediaStop, () {
+      final audio = context.read<AudioService>();
+      if (audio.currentMsgId.isEmpty) return false;
+      audio.stop();
+      return true;
+    });
+    sys.registerHandler(ShortcutCommand.mediaPrevious, () {
+      final audio = context.read<AudioService>();
+      return audio.currentMsgId.isNotEmpty;
+    });
+    sys.registerHandler(ShortcutCommand.mediaNext, () {
+      final audio = context.read<AudioService>();
+      return audio.currentMsgId.isNotEmpty;
+    });
+
+    _audioService = context.read<AudioService>();
+    _audioService!.addListener(_onAudioChanged);
   }
 
   @override
   void dispose() {
+    _audioService?.removeListener(_onAudioChanged);
     ShortcutSystem.instance.dispose();
     super.dispose();
   }

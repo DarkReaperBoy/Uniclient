@@ -812,7 +812,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_list_panel.dart, chat_view.dart, hamburger_drawer.dart (partial key handling already present) — new: dart/lib/ui/keyboard_shortcuts.dart -->
 
-- [ ] Media-key shortcuts: hardware play/pause/stop/prev/next, toggled with active player — spec §24.4
 - [ ] Ctrl+Tab chat-switcher overlay: 72×104px cells, grid auto-layout, userpic+name, forum topic variant, Q removes from history, Tab/arrows navigate, Enter/release-Ctrl confirms — spec §24.5 + §24.12.3
 - [ ] Compose box key handling: Enter/Shift+Enter/Ctrl+Enter modes, Escape cancel, Tab autocomplete, Up edit-last-message, Ctrl+Up/Down reply-nav, PageUp/Down scroll, Ctrl+O file-picker, Ctrl+Shift+V plain-paste, triple-Enter exits blockquote — spec §24.6
 - [ ] History key handling: Escape cancel/back, PageDown/Up scroll, Up edit-last-editable, Ctrl+Up/Down skip-local reply-nav, Enter /start bot — spec §24.7
