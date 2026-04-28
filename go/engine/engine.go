@@ -852,6 +852,93 @@ func (e *Engine) GetChatPermissionFlags(accountID, chatID string) (*ChatPermissi
 	}, nil
 }
 
+type DefaultBannedRights struct {
+	SendPlain         bool `json:"send_plain"`
+	SendPhotos        bool `json:"send_photos"`
+	SendVideos        bool `json:"send_videos"`
+	SendRoundvideos   bool `json:"send_roundvideos"`
+	SendAudios        bool `json:"send_audios"`
+	SendVoices        bool `json:"send_voices"`
+	SendDocs          bool `json:"send_docs"`
+	SendStickers      bool `json:"send_stickers"`
+	EmbedLinks        bool `json:"embed_links"`
+	SendPolls         bool `json:"send_polls"`
+	InviteUsers       bool `json:"invite_users"`
+	ManageTopics      bool `json:"manage_topics"`
+	PinMessages       bool `json:"pin_messages"`
+	EditRank          bool `json:"edit_rank"`
+	ChangeInfo        bool `json:"change_info"`
+	SlowmodeSeconds   int  `json:"slowmode_seconds"`
+}
+
+func (e *Engine) GetDefaultBannedRights(accountID, chatID string) (*DefaultBannedRights, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type getter interface {
+		GetDefaultBannedRights(chatID string) (*cores.DefaultBannedRights, error)
+	}
+	g, ok := acc.Core.(getter)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support default banned rights")
+	}
+	cr, err := g.GetDefaultBannedRights(chatID)
+	if err != nil {
+		return nil, err
+	}
+	return &DefaultBannedRights{
+		SendPlain:       cr.SendPlain,
+		SendPhotos:      cr.SendPhotos,
+		SendVideos:      cr.SendVideos,
+		SendRoundvideos: cr.SendRoundvideos,
+		SendAudios:      cr.SendAudios,
+		SendVoices:      cr.SendVoices,
+		SendDocs:        cr.SendDocs,
+		SendStickers:    cr.SendStickers,
+		EmbedLinks:      cr.EmbedLinks,
+		SendPolls:       cr.SendPolls,
+		InviteUsers:     cr.InviteUsers,
+		ManageTopics:    cr.ManageTopics,
+		PinMessages:     cr.PinMessages,
+		EditRank:        cr.EditRank,
+		ChangeInfo:      cr.ChangeInfo,
+		SlowmodeSeconds: cr.SlowmodeSeconds,
+	}, nil
+}
+
+func (e *Engine) SetDefaultBannedRights(accountID, chatID string, rights *DefaultBannedRights) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type setter interface {
+		SetDefaultBannedRights(chatID string, rights *cores.DefaultBannedRights) error
+	}
+	s, ok := acc.Core.(setter)
+	if !ok {
+		return fmt.Errorf("platform does not support setting default banned rights")
+	}
+	return s.SetDefaultBannedRights(chatID, &cores.DefaultBannedRights{
+		SendPlain:       rights.SendPlain,
+		SendPhotos:      rights.SendPhotos,
+		SendVideos:      rights.SendVideos,
+		SendRoundvideos: rights.SendRoundvideos,
+		SendAudios:      rights.SendAudios,
+		SendVoices:      rights.SendVoices,
+		SendDocs:        rights.SendDocs,
+		SendStickers:    rights.SendStickers,
+		EmbedLinks:      rights.EmbedLinks,
+		SendPolls:       rights.SendPolls,
+		InviteUsers:     rights.InviteUsers,
+		ManageTopics:    rights.ManageTopics,
+		PinMessages:     rights.PinMessages,
+		EditRank:        rights.EditRank,
+		ChangeInfo:      rights.ChangeInfo,
+		SlowmodeSeconds: rights.SlowmodeSeconds,
+	})
+}
+
 func (e *Engine) SetSlowMode(accountID, chatID string, seconds int) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

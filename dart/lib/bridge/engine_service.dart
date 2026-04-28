@@ -1427,6 +1427,24 @@ class EngineService {
     return list.map((j) => PublicLinkInfo.fromJson(j as Map<String, dynamic>)).toList();
   }
 
+  Future<Map<String, dynamic>> getDefaultBannedRights(String accountId, String chatId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+    }));
+    final respBytes = await _callAsync('__engine', 'GetDefaultBannedRights', Uint8List.fromList(payload));
+    return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+  }
+
+  Future<void> setDefaultBannedRights(String accountId, String chatId, Map<String, dynamic> rights) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      ...rights,
+    }));
+    await _callAsync('__engine', 'SetDefaultBannedRights', Uint8List.fromList(payload));
+  }
+
   Future<Map<String, dynamic>> getChatPermissionFlags(String accountId, String chatId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
@@ -2684,6 +2702,7 @@ class EngineService {
     connState: ConnState.values[p.connState.clamp(0, ConnState.values.length - 1)],
     isVerified: p.isVerified,
     isPremium: p.isPremium,
+    selfUserId: p.selfUserId,
   );
 
   static AuthStateData _authStateFromProto(epb.EngineAuthState p) => AuthStateData(

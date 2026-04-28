@@ -68,6 +68,7 @@ class AccountInfo {
   final ConnState connState;
   final bool isVerified;
   final bool isPremium;
+  final String selfUserId;
 
   const AccountInfo({
     required this.id,
@@ -80,6 +81,7 @@ class AccountInfo {
     this.connState = ConnState.disconnected,
     this.isVerified = false,
     this.isPremium = false,
+    this.selfUserId = '',
   });
 
   factory AccountInfo.fromJson(Map<String, dynamic> j) => AccountInfo(
@@ -93,6 +95,7 @@ class AccountInfo {
     connState: ConnState.values[(j['conn_state'] as int? ?? 0).clamp(0, ConnState.values.length - 1)],
     isVerified: j['is_verified'] as bool? ?? false,
     isPremium: j['is_premium'] as bool? ?? false,
+    selfUserId: j['self_user_id'] as String? ?? '',
   );
 }
 

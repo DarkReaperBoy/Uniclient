@@ -118,6 +118,7 @@ class AccountInfo extends $pb.GeneratedMessage {
     $core.bool? isPremium,
     $core.String? phone,
     $core.String? username,
+    $core.String? selfUserId,
   }) {
     final $result = create();
     if (id != null) {
@@ -150,6 +151,9 @@ class AccountInfo extends $pb.GeneratedMessage {
     if (username != null) {
       $result.username = username;
     }
+    if (selfUserId != null) {
+      $result.selfUserId = selfUserId;
+    }
     return $result;
   }
   AccountInfo._() : super();
@@ -167,6 +171,7 @@ class AccountInfo extends $pb.GeneratedMessage {
     ..aOB(8, _omitFieldNames ? '' : 'isPremium')
     ..aOS(9, _omitFieldNames ? '' : 'phone')
     ..aOS(10, _omitFieldNames ? '' : 'username')
+    ..aOS(11, _omitFieldNames ? '' : 'selfUserId')
     ..hasRequiredFields = false
   ;
 
@@ -280,6 +285,15 @@ class AccountInfo extends $pb.GeneratedMessage {
   $core.bool hasUsername() => $_has(9);
   @$pb.TagNumber(10)
   void clearUsername() => clearField(10);
+
+  @$pb.TagNumber(11)
+  $core.String get selfUserId => $_getSZ(10);
+  @$pb.TagNumber(11)
+  set selfUserId($core.String v) { $_setString(10, v); }
+  @$pb.TagNumber(11)
+  $core.bool hasSelfUserId() => $_has(10);
+  @$pb.TagNumber(11)
+  void clearSelfUserId() => clearField(11);
 }
 
 class EngineInitRequest extends $pb.GeneratedMessage {

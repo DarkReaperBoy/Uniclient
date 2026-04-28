@@ -35,6 +35,7 @@ message AccountInfo {
   bool   is_premium   = 8;
   string phone        = 9;
   string username     = 10;
+  string self_user_id = 11;
 }
 
 // --- Init ---

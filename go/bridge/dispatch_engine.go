@@ -81,6 +81,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 				ConnState:   int32(a.ConnState),
 				IsVerified:  a.IsVerified,
 				IsPremium:   a.IsPremium,
+				SelfUserId:  a.SelfUserID,
 			})
 		}
 		return proto.Marshal(resp)
@@ -1049,6 +1050,67 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			return nil, err
 		}
 		return json.Marshal(channels)
+
+	case "GetDefaultBannedRights":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		rights, err := e.GetDefaultBannedRights(params.AccountID, params.ChatID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(rights)
+
+	case "SetDefaultBannedRights":
+		var params struct {
+			AccountID       string `json:"account_id"`
+			ChatID          string `json:"chat_id"`
+			SendPlain       bool   `json:"send_plain"`
+			SendPhotos      bool   `json:"send_photos"`
+			SendVideos      bool   `json:"send_videos"`
+			SendRoundvideos bool   `json:"send_roundvideos"`
+			SendAudios      bool   `json:"send_audios"`
+			SendVoices      bool   `json:"send_voices"`
+			SendDocs        bool   `json:"send_docs"`
+			SendStickers    bool   `json:"send_stickers"`
+			EmbedLinks      bool   `json:"embed_links"`
+			SendPolls       bool   `json:"send_polls"`
+			InviteUsers     bool   `json:"invite_users"`
+			ManageTopics    bool   `json:"manage_topics"`
+			PinMessages     bool   `json:"pin_messages"`
+			EditRank        bool   `json:"edit_rank"`
+			ChangeInfo      bool   `json:"change_info"`
+			SlowmodeSeconds int    `json:"slowmode_seconds"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		rights := &engine.DefaultBannedRights{
+			SendPlain:       params.SendPlain,
+			SendPhotos:      params.SendPhotos,
+			SendVideos:      params.SendVideos,
+			SendRoundvideos: params.SendRoundvideos,
+			SendAudios:      params.SendAudios,
+			SendVoices:      params.SendVoices,
+			SendDocs:        params.SendDocs,
+			SendStickers:    params.SendStickers,
+			EmbedLinks:      params.EmbedLinks,
+			SendPolls:       params.SendPolls,
+			InviteUsers:     params.InviteUsers,
+			ManageTopics:    params.ManageTopics,
+			PinMessages:     params.PinMessages,
+			EditRank:        params.EditRank,
+			ChangeInfo:      params.ChangeInfo,
+			SlowmodeSeconds: params.SlowmodeSeconds,
+		}
+		if err := e.SetDefaultBannedRights(params.AccountID, params.ChatID, rights); err != nil {
+			return nil, err
+		}
+		return nil, nil
 
 	case "GetChatPermissionFlags":
 		var params struct {

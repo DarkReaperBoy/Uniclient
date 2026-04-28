@@ -658,6 +658,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         final newState = ConnState.fromString(event.state);
         final oldState = _connStates[event.accountId];
         _connStates[event.accountId] = newState;
+        if (newState == ConnState.connected && oldState != ConnState.connected) {
+          _accounts = _engine.listAccounts();
+        }
         notifyListeners();
 
         // Fire notification callback when state actually changes.

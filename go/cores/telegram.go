@@ -12877,6 +12877,121 @@ type ChatPermissionFlags struct {
 	IsForum         bool `json:"is_forum"`
 }
 
+type DefaultBannedRights struct {
+	SendPlain         bool `json:"send_plain"`
+	SendPhotos        bool `json:"send_photos"`
+	SendVideos        bool `json:"send_videos"`
+	SendRoundvideos   bool `json:"send_roundvideos"`
+	SendAudios        bool `json:"send_audios"`
+	SendVoices        bool `json:"send_voices"`
+	SendDocs          bool `json:"send_docs"`
+	SendStickers      bool `json:"send_stickers"`
+	EmbedLinks        bool `json:"embed_links"`
+	SendPolls         bool `json:"send_polls"`
+	InviteUsers       bool `json:"invite_users"`
+	ManageTopics      bool `json:"manage_topics"`
+	PinMessages       bool `json:"pin_messages"`
+	EditRank          bool `json:"edit_rank"`
+	ChangeInfo        bool `json:"change_info"`
+	SlowmodeSeconds   int  `json:"slowmode_seconds"`
+}
+
+func (t *TelegramCore) GetDefaultBannedRights(chatID string) (*DefaultBannedRights, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return nil, ErrAuth }
+
+	peer, err := t.resolvePeer(chatID)
+	if err != nil { return nil, err }
+
+	rights := &DefaultBannedRights{}
+
+	switch p := peer.(type) {
+	case *tg.PeerChannel:
+		hash, _ := t.resolveChannelAccessHash(p.ChannelID)
+		result, err := t.api.ChannelsGetFullChannel(t.ctx, &tg.InputChannel{ChannelID: p.ChannelID, AccessHash: hash})
+		if err != nil { return nil, err }
+		t.cacheEntities(result.Users, result.Chats)
+		if fc, ok := result.FullChat.(*tg.ChannelFull); ok {
+			rights.SlowmodeSeconds = fc.SlowmodeSeconds
+		}
+		for _, c := range result.Chats {
+			if cc, ok := c.(*tg.Channel); ok && cc.ID == p.ChannelID {
+				if cc.DefaultBannedRights.ViewMessages { break }
+				br := cc.DefaultBannedRights
+				rights.SendPlain = br.SendPlain
+				rights.SendPhotos = br.SendPhotos
+				rights.SendVideos = br.SendVideos
+				rights.SendRoundvideos = br.SendRoundvideos
+				rights.SendAudios = br.SendAudios
+				rights.SendVoices = br.SendVoices
+				rights.SendDocs = br.SendDocs
+				rights.SendStickers = br.SendStickers
+				rights.EmbedLinks = br.EmbedLinks
+				rights.SendPolls = br.SendPolls
+				rights.InviteUsers = br.InviteUsers
+				rights.ManageTopics = br.ManageTopics
+				rights.PinMessages = br.PinMessages
+				rights.EditRank = br.EditRank
+				rights.ChangeInfo = br.ChangeInfo
+				break
+			}
+		}
+	case *tg.PeerChat:
+		result, err := t.api.MessagesGetFullChat(t.ctx, p.ChatID)
+		if err != nil { return nil, err }
+		t.cacheEntities(result.Users, result.Chats)
+		for _, c := range result.Chats {
+			if cc, ok := c.(*tg.Chat); ok && cc.ID == p.ChatID {
+				br := cc.DefaultBannedRights
+				rights.SendPlain = br.SendPlain
+				rights.SendPhotos = br.SendPhotos
+				rights.SendVideos = br.SendVideos
+				rights.SendRoundvideos = br.SendRoundvideos
+				rights.SendAudios = br.SendAudios
+				rights.SendVoices = br.SendVoices
+				rights.SendDocs = br.SendDocs
+				rights.SendStickers = br.SendStickers
+				rights.EmbedLinks = br.EmbedLinks
+				rights.SendPolls = br.SendPolls
+				rights.InviteUsers = br.InviteUsers
+				rights.ManageTopics = br.ManageTopics
+				rights.PinMessages = br.PinMessages
+				rights.EditRank = br.EditRank
+				rights.ChangeInfo = br.ChangeInfo
+				break
+			}
+		}
+	default:
+		return nil, fmt.Errorf("not a group or channel")
+	}
+	return rights, nil
+}
+
+func (t *TelegramCore) SetDefaultBannedRights(chatID string, rights *DefaultBannedRights) error {
+	br := tg.ChatBannedRights{
+		SendPlain:       rights.SendPlain,
+		SendPhotos:      rights.SendPhotos,
+		SendVideos:      rights.SendVideos,
+		SendRoundvideos: rights.SendRoundvideos,
+		SendAudios:      rights.SendAudios,
+		SendVoices:      rights.SendVoices,
+		SendDocs:        rights.SendDocs,
+		SendStickers:    rights.SendStickers,
+		SendGifs:        rights.SendStickers,
+		SendGames:       rights.SendStickers,
+		SendInline:      rights.SendStickers,
+		EmbedLinks:      rights.EmbedLinks,
+		SendPolls:       rights.SendPolls,
+		InviteUsers:     rights.InviteUsers,
+		ManageTopics:    rights.ManageTopics,
+		PinMessages:     rights.PinMessages,
+		EditRank:        rights.EditRank,
+		ChangeInfo:      rights.ChangeInfo,
+	}
+	br.SetFlags()
+	return t.SetGroupPermissions(chatID, br)
+}
+
 func (t *TelegramCore) GetChatPermissionFlags(chatID string) (*ChatPermissionFlags, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return nil, ErrAuth }
@@ -13358,6 +13473,10 @@ func (t *TelegramCore) UpdateProfile(firstName, lastName, about string) error {
 	if lastName != "" { req.LastName = lastName; req.SetFlags() }
 	if about != "" { req.About = about; req.SetFlags() }
 	_, err := t.api.AccountUpdateProfile(t.ctx, req); return err
+}
+
+func (t *TelegramCore) SelfUserID() string {
+	return strconv.FormatInt(t.selfID, 10)
 }
 
 func (t *TelegramCore) GetSelfBio() (string, error) {

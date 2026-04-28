@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
+import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import 'chat_view.dart' show formatChatLastSeen;
 import 'confirm_box.dart';
@@ -2238,12 +2239,16 @@ class _GroupActionsSection extends StatelessWidget {
     this.members,
   });
 
-  bool get _isSelfAdmin {
+  bool _isSelfAdminIn(BuildContext context) {
     if (members == null) return false;
+    final appState = context.read<AppState>();
+    final selfUserId = appState.activeAccount?.selfUserId ?? '';
     final accountId = chat.accountId;
     for (final m in members!) {
       if (m.role == 'owner' || m.role == 'admin' || m.role == 'creator') {
-        if (m.userId == accountId || accountId.contains(m.userId) || m.userId.contains(accountId)) {
+        if (m.userId == selfUserId ||
+            m.userId == accountId ||
+            (selfUserId.isNotEmpty && m.userId.contains(selfUserId))) {
           return true;
         }
       }
@@ -2253,6 +2258,7 @@ class _GroupActionsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final _isSelfAdmin = _isSelfAdminIn(context);
     final chatState = context.read<ChatState>();
     final attentionColor = const Color(0xFFDD4B39);
     final accentColor = theme.colorScheme.primary;
@@ -2558,12 +2564,16 @@ class _ChannelActionsSection extends StatelessWidget {
 
   const _ChannelActionsSection({required this.chat, required this.theme, this.members});
 
-  bool get _isSelfAdmin {
+  bool _isSelfAdminIn(BuildContext context) {
     if (members == null) return false;
+    final appState = context.read<AppState>();
+    final selfUserId = appState.activeAccount?.selfUserId ?? '';
     final accountId = chat.accountId;
     for (final m in members!) {
       if (m.role == 'owner' || m.role == 'admin' || m.role == 'creator') {
-        if (m.userId == accountId || accountId.contains(m.userId) || m.userId.contains(accountId)) {
+        if (m.userId == selfUserId ||
+            m.userId == accountId ||
+            (selfUserId.isNotEmpty && m.userId.contains(selfUserId))) {
           return true;
         }
       }
@@ -2573,6 +2583,7 @@ class _ChannelActionsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final _isSelfAdmin = _isSelfAdminIn(context);
     final chatState = context.read<ChatState>();
     final attentionColor = const Color(0xFFDD4B39);
 

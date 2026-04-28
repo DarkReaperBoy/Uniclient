@@ -26,6 +26,7 @@ type AccountInfo struct {
 	ConnState   int    `json:"conn_state"`
 	IsVerified  bool   `json:"is_verified"`
 	IsPremium   bool   `json:"is_premium"`
+	SelfUserID  string `json:"self_user_id,omitempty"`
 }
 
 // generateAccountID creates an ID like "tg_a1b2c3d4" (platform prefix + 8 random hex).
@@ -130,7 +131,7 @@ func (e *Engine) ListAccounts() []AccountInfo {
 
 	list := make([]AccountInfo, 0, len(e.accounts))
 	for _, acc := range e.accounts {
-		list = append(list, AccountInfo{
+		info := AccountInfo{
 			ID:          acc.ID,
 			Platform:    acc.Platform,
 			DisplayName: acc.DisplayName,
@@ -140,7 +141,12 @@ func (e *Engine) ListAccounts() []AccountInfo {
 			ConnState:   int(acc.ConnState),
 			IsVerified:  acc.IsVerified,
 			IsPremium:   acc.IsPremium,
-		})
+		}
+		type selfIDer interface { SelfUserID() string }
+		if s, ok := acc.Core.(selfIDer); ok {
+			info.SelfUserID = s.SelfUserID()
+		}
+		list = append(list, info)
 	}
 
 	// Sort by sort_order.

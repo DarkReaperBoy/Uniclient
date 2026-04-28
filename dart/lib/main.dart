@@ -653,7 +653,7 @@ class _UniClientAppState extends State<UniClientApp>
       buttons: buttons,
       kind: PointerDeviceKind.mouse,
     ));
-    Future.microtask(() {
+    Future.delayed(const Duration(milliseconds: 100), () {
       binding.handlePointerEvent(PointerUpEvent(
         pointer: pointer,
         position: Offset(x, y),
