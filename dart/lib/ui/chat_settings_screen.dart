@@ -9,6 +9,7 @@ import '../state/app_state.dart';
 import '../theme/telegram_palette.dart';
 import 'settings_style.dart';
 import 'shortcuts_settings_screen.dart';
+import 'theme_editor.dart';
 
 class ChatSettingsScreen extends StatefulWidget {
   const ChatSettingsScreen({super.key});
@@ -137,7 +138,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             ),
             onSelected: (value) {
               if (value == 'create_theme') {
-                _showCreateThemeDialog(context);
+                _openThemeEditor(context);
               }
             },
             itemBuilder: (context) => [
@@ -223,9 +224,24 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                 appState.updateAccentColor(hex);
               }
             },
-            onEditTheme: _cloudThemes.any((t) => t.isCreator) ? () {
-              _showCreateThemeDialog(context);
-            } : null,
+            onEditTheme: null,
+          ),
+          InkWell(
+            onTap: () => _openThemeEditor(context),
+            hoverColor: isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1),
+            child: Padding(
+              padding: SettingsStyle.iconRowPadding,
+              child: Row(
+                children: [
+                  Icon(Icons.palette_outlined, size: 20, color: currentAccent),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Edit Current Theme',
+                    style: TextStyle(fontSize: 14, color: currentAccent),
+                  ),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 8),
           Container(height: 1, color: dividerColor),
@@ -334,60 +350,14 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     );
   }
 
-  void _showCreateThemeDialog(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
-    final textColor =
-        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
-
-    final controller = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: bgColor,
-        title: Text(
-          'New Theme',
-          style: TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w600,
-            color: textColor,
-          ),
+  void _openThemeEditor(BuildContext context) {
+    final palette = context.palette;
+    Navigator.of(context).push(
+      settingsPageRoute(
+        ThemeEditorScreen(
+          palette: palette,
+          onPaletteChanged: (_) {},
         ),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          style: TextStyle(color: textColor),
-          decoration: InputDecoration(
-            hintText: 'Theme name',
-            hintStyle: TextStyle(
-              color: isDark
-                  ? const Color(0xFF6C7883)
-                  : const Color(0xFF999999),
-            ),
-            enabledBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: accentColor),
-            ),
-            focusedBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: accentColor, width: 2),
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Cancel', style: TextStyle(color: accentColor)),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-            },
-            child: Text('Create', style: TextStyle(color: accentColor)),
-          ),
-        ],
       ),
     );
   }
