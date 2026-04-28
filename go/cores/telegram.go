@@ -1038,6 +1038,43 @@ func (t *TelegramCore) SendMessage(chatID string, msg OutgoingMessage) (*Message
 		return nil, err
 	}
 
+	var scheduleDate int
+	if sd, ok := msg.Extra["schedule_date"]; ok {
+		switch v := sd.(type) {
+		case float64:
+			scheduleDate = int(v)
+		case int64:
+			scheduleDate = int(v)
+		case int:
+			scheduleDate = v
+		}
+	}
+
+	if scheduleDate > 0 {
+		req := &tg.MessagesSendMessageRequest{
+			Peer:         inputPeer,
+			Message:      msg.Text,
+			RandomID:     time.Now().UnixNano(),
+			ScheduleDate: scheduleDate,
+		}
+		if _, ok := msg.Extra["silent"]; ok {
+			req.SetSilent(true)
+		}
+		if msg.ReplyToID != "" {
+			replyID, err := tgMsgID(msg.ReplyToID)
+			if err != nil {
+				return nil, err
+			}
+			req.SetReplyTo(&tg.InputReplyToMessage{ReplyToMsgID: replyID})
+		}
+		req.SetScheduleDate(scheduleDate)
+		result, err := t.api.MessagesSendMessage(t.ctx, req)
+		if err != nil {
+			return nil, fmt.Errorf("send scheduled message: %w", err)
+		}
+		return t.extractMessageFromUpdates(result, chatID), nil
+	}
+
 	target := t.sender.To(inputPeer)
 	if _, ok := msg.Extra["silent"]; ok {
 		target.Silent()

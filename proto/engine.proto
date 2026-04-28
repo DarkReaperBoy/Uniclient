@@ -363,6 +363,7 @@ message EngineSendMessageRequest {
   string text       = 3;
   string reply_to_id = 4;
   bool   silent     = 5;
+  int64  schedule_date = 6;
 }
 
 message EngineSendMessageResponse {

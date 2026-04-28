@@ -28,9 +28,10 @@ const (
 
 // sendPayload is the serialized payload for a "send" action.
 type sendPayload struct {
-	Text      string `json:"text"`
-	ReplyToID string `json:"reply_to_id,omitempty"`
-	Silent    bool   `json:"silent,omitempty"`
+	Text         string `json:"text"`
+	ReplyToID    string `json:"reply_to_id,omitempty"`
+	Silent       bool   `json:"silent,omitempty"`
+	ScheduleDate int64  `json:"schedule_date,omitempty"`
 }
 
 // editPayload is the serialized payload for an "edit" action.
@@ -101,8 +102,8 @@ func getChatLock(accountID, chatID string) *sync.Mutex {
 
 // SendMessage queues a message for sending through the pending queue.
 // Returns the local_id for optimistic UI display.
-func (e *Engine) SendMessage(accountID, chatID, text, replyToID string, silent bool) (string, error) {
-	log.Printf("[engine] SendMessage(%s, %s): text=%q replyToID=%q silent=%v", accountID, chatID, text, replyToID, silent)
+func (e *Engine) SendMessage(accountID, chatID, text, replyToID string, silent bool, scheduleDate int64) (string, error) {
+	log.Printf("[engine] SendMessage(%s, %s): text=%q replyToID=%q silent=%v scheduleDate=%d", accountID, chatID, text, replyToID, silent, scheduleDate)
 	acc, ok := e.getAccount(accountID)
 	if !ok {
 		return "", fmt.Errorf("account %q not found", accountID)
@@ -112,9 +113,10 @@ func (e *Engine) SendMessage(accountID, chatID, text, replyToID string, silent b
 	now := time.Now().UnixMilli()
 
 	payload, _ := json.Marshal(sendPayload{
-		Text:      text,
-		ReplyToID: replyToID,
-		Silent:    silent,
+		Text:         text,
+		ReplyToID:    replyToID,
+		Silent:       silent,
+		ScheduleDate: scheduleDate,
 	})
 
 	// Write to pending table.
@@ -126,45 +128,47 @@ func (e *Engine) SendMessage(accountID, chatID, text, replyToID string, silent b
 		return "", fmt.Errorf("insert pending: %w", err)
 	}
 
-	// Insert optimistic message into cache.
-	var senderName string
-	if acc.DisplayName != "" {
-		senderName = acc.DisplayName
-	}
-
-	// Look up reply preview if replying.
-	var replyPreview string
-	if replyToID != "" {
-		var sn, ct sql.NullString
-		e.db.QueryRow(
-			"SELECT sender_name, content_text FROM messages WHERE account_id = ? AND chat_id = ? AND msg_id = ?",
-			accountID, chatID, replyToID).Scan(&sn, &ct)
-		if sn.Valid && sn.String != "" {
-			replyPreview = sn.String + ": " + ct.String
-		} else if ct.Valid {
-			replyPreview = ct.String
+	if scheduleDate <= 0 {
+		// Insert optimistic message into cache (not for scheduled messages).
+		var senderName string
+		if acc.DisplayName != "" {
+			senderName = acc.DisplayName
 		}
-	}
-	cached := e.InsertPendingMessage(accountID, chatID, localID, text, "", senderName, replyToID)
-	if replyPreview != "" {
-		cached.ReplyPreview = replyPreview
-		e.db.Exec("UPDATE messages SET reply_preview = ? WHERE account_id = ? AND chat_id = ? AND msg_id = ?",
-			replyPreview, accountID, chatID, localID)
-	}
 
-	// Update chat preview.
-	preview := text
-	if len(preview) > 100 {
-		preview = preview[:100]
-	}
-	e.updateChatLastMessage(accountID, chatID, localID, preview, senderName, now, true, MsgStatusSending, 0, "")
+		// Look up reply preview if replying.
+		var replyPreview string
+		if replyToID != "" {
+			var sn, ct sql.NullString
+			e.db.QueryRow(
+				"SELECT sender_name, content_text FROM messages WHERE account_id = ? AND chat_id = ? AND msg_id = ?",
+				accountID, chatID, replyToID).Scan(&sn, &ct)
+			if sn.Valid && sn.String != "" {
+				replyPreview = sn.String + ": " + ct.String
+			} else if ct.Valid {
+				replyPreview = ct.String
+			}
+		}
+		cached := e.InsertPendingMessage(accountID, chatID, localID, text, "", senderName, replyToID)
+		if replyPreview != "" {
+			cached.ReplyPreview = replyPreview
+			e.db.Exec("UPDATE messages SET reply_preview = ? WHERE account_id = ? AND chat_id = ? AND msg_id = ?",
+				replyPreview, accountID, chatID, localID)
+		}
 
-	// Emit message event.
-	e.emitEvent(EventMsgReceived, accountID, MsgReceivedEvent{
-		AccountID: accountID,
-		ChatID:    chatID,
-		Message:   cached,
-	})
+		// Update chat preview.
+		preview := text
+		if len(preview) > 100 {
+			preview = preview[:100]
+		}
+		e.updateChatLastMessage(accountID, chatID, localID, preview, senderName, now, true, MsgStatusSending, 0, "")
+
+		// Emit message event.
+		e.emitEvent(EventMsgReceived, accountID, MsgReceivedEvent{
+			AccountID: accountID,
+			ChatID:    chatID,
+			Message:   cached,
+		})
+	}
 
 	// Process in background.
 	e.wg.Add(1)
@@ -450,8 +454,11 @@ func (e *Engine) executePending(acc *Account, chatID, localID, action string, pa
 		if p.Silent {
 			extra["silent"] = true
 		}
+		if p.ScheduleDate > 0 {
+			extra["schedule_date"] = p.ScheduleDate
+		}
 		msg := cores.OutgoingMessage{Text: p.Text, ReplyToID: p.ReplyToID, Extra: extra}
-		log.Printf("[engine] executePending SEND: chatID=%s replyToID=%q text=%q silent=%v", chatID, p.ReplyToID, p.Text, p.Silent)
+		log.Printf("[engine] executePending SEND: chatID=%s replyToID=%q text=%q silent=%v scheduleDate=%d", chatID, p.ReplyToID, p.Text, p.Silent, p.ScheduleDate)
 
 		var result *cores.Message
 		var err error

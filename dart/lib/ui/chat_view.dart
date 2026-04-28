@@ -2462,7 +2462,7 @@ class _ChatViewState extends State<ChatView>
     return _composeController.entitiesJson;
   }
 
-  void _sendMessage({bool silent = false}) {
+  void _sendMessage({bool silent = false, int scheduleDate = 0}) {
     if (_isForwarding) {
       _executeForward(context, context.read<ChatState>());
       return;
@@ -2477,7 +2477,8 @@ class _ChatViewState extends State<ChatView>
       setState(() { _editingMsgId = null; _editOriginalText = ''; });
       return;
     }
-    chatState.sendMessage(text, replyToId: _replyToId ?? '', entities: entities, silent: silent);
+    chatState.sendMessage(text, replyToId: _replyToId ?? '', entities: entities,
+        silent: silent, scheduleDate: scheduleDate);
     _composeController.clear();
     setState(() {
       _replyToId = null;
@@ -2485,7 +2486,17 @@ class _ChatViewState extends State<ChatView>
       _webPreviewCancelled = false;
       _lastPreviewUrl = '';
     });
-    _scrollToBottom();
+    if (scheduleDate > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Message scheduled'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } else {
+      _scrollToBottom();
+    }
   }
 
   void _sendStartBot(ChatState chatState) {
@@ -3185,8 +3196,8 @@ class _ChatViewState extends State<ChatView>
               controller: _composeController,
               onSend: _sendMessage,
               onSendSilent: () => _sendMessage(silent: true),
-              onSendScheduled: (date) => _sendMessage(),
-              onSendWhenOnline: _sendMessage,
+              onSendScheduled: (date) => _sendMessage(scheduleDate: date.millisecondsSinceEpoch ~/ 1000),
+              onSendWhenOnline: () => _sendMessage(scheduleDate: 0x7FFFFFFE),
               onDraftChanged: (text) {
                 chatState.saveDraft(text);
                 _checkInlineBot(text);
