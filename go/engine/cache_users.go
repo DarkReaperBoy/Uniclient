@@ -875,6 +875,44 @@ func (e *Engine) GetCloudThemes(accountID string) ([]cores.CloudThemeInfo, error
 	return f.GetCloudThemes()
 }
 
+type chatThemesFetcher interface {
+	GetChatThemesList() ([]cores.ChatThemeInfo, error)
+}
+
+func (e *Engine) GetChatThemes(accountID string) ([]cores.ChatThemeInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	f, ok := acc.Core.(chatThemesFetcher)
+	if !ok {
+		return nil, nil
+	}
+	return f.GetChatThemesList()
+}
+
+type chatThemeSetter interface {
+	SetChatTheme(chatID string, emoticon string) error
+}
+
+func (e *Engine) SetChatTheme(accountID, chatID, emoticon string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	f, ok := acc.Core.(chatThemeSetter)
+	if !ok {
+		return fmt.Errorf("platform does not support chat themes")
+	}
+	return f.SetChatTheme(chatID, emoticon)
+}
+
 func (e *Engine) GetWebPagePreview(accountID, url string) (*cores.WebPagePreviewResult, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {

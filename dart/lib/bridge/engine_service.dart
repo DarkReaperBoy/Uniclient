@@ -1938,6 +1938,38 @@ class EngineService {
     }
   }
 
+  // ── Chat themes ──
+
+  Future<List<ChatThemeData>> getChatThemes(String accountId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetChatThemes', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return [];
+      final list = json.decode(utf8.decode(respBytes)) as List<dynamic>;
+      return list.map((e) => ChatThemeData.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (e) {
+      Debug.error('ENGINE', 'getChatThemes failed', e);
+      return [];
+    }
+  }
+
+  Future<bool> setChatTheme(String accountId, String chatId, String emoticon) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'emoticon': emoticon,
+    }));
+    try {
+      await _callAsync('__engine', 'SetChatTheme', Uint8List.fromList(payload));
+      return true;
+    } catch (e) {
+      Debug.error('ENGINE', 'setChatTheme failed', e);
+      return false;
+    }
+  }
+
   // ── Bot callback ──
 
   Future<String> botCallback(String accountId, String chatId, String msgId, String data) async {

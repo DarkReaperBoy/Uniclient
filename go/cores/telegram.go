@@ -17215,6 +17215,76 @@ type CloudThemeInfo struct {
 	IsDark      bool   `json:"is_dark"`
 }
 
+type ChatThemeInfo struct {
+	Emoticon      string `json:"emoticon"`
+	ID            int64  `json:"id"`
+	IsDark        bool   `json:"is_dark"`
+	AccentColor   int    `json:"accent_color"`
+	MessageColors []int  `json:"message_colors,omitempty"`
+	BgColors      []int  `json:"bg_colors,omitempty"`
+}
+
+func (t *TelegramCore) GetChatThemesList() ([]ChatThemeInfo, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	resp, err := t.api.AccountGetChatThemes(t.ctx, 0)
+	if err != nil {
+		return nil, err
+	}
+	themes, ok := resp.(*tg.AccountThemes)
+	if !ok {
+		return nil, nil
+	}
+	var result []ChatThemeInfo
+	for _, th := range themes.Themes {
+		if !th.ForChat {
+			continue
+		}
+		emoticon, _ := th.GetEmoticon()
+		for _, s := range th.Settings {
+			isDark := false
+			switch s.BaseTheme.(type) {
+			case *tg.BaseThemeNight, *tg.BaseThemeTinted:
+				isDark = true
+			}
+			info := ChatThemeInfo{
+				Emoticon:    emoticon,
+				ID:          th.ID,
+				IsDark:      isDark,
+				AccentColor: s.AccentColor,
+			}
+			if mc, ok := s.GetMessageColors(); ok {
+				info.MessageColors = mc
+			}
+			if wp, ok := s.GetWallpaper(); ok {
+				if wpFull, ok := wp.(*tg.WallPaper); ok {
+					if wpSettings, ok := wpFull.GetSettings(); ok {
+						var bgc []int
+						if c, ok := wpSettings.GetBackgroundColor(); ok {
+							bgc = append(bgc, c)
+						}
+						if c, ok := wpSettings.GetSecondBackgroundColor(); ok {
+							bgc = append(bgc, c)
+						}
+						if c, ok := wpSettings.GetThirdBackgroundColor(); ok {
+							bgc = append(bgc, c)
+						}
+						if c, ok := wpSettings.GetFourthBackgroundColor(); ok {
+							bgc = append(bgc, c)
+						}
+						info.BgColors = bgc
+					}
+				}
+			}
+			result = append(result, info)
+		}
+	}
+	return result, nil
+}
+
 // GetPeerColorPalette fetches and parses help.peerColors into a simple list.
 func (t *TelegramCore) GetPeerColorPalette() ([]PeerColorEntry, error) {
 	result, err := t.HelpGetPeerColors(0)

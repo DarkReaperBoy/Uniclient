@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
@@ -954,6 +955,70 @@ class ChatState extends ChangeNotifier {
   void muteChat(String accountId, String chatId, bool muted, {int durationSeconds = 0}) {
     _engine.muteChat(accountId, chatId, muted, durationSeconds: durationSeconds);
     loadChats();
+  }
+
+  // ── Per-chat themes (§25.11) ──
+  List<ChatThemeData> _availableChatThemes = [];
+  List<ChatThemeData> get availableChatThemes => _availableChatThemes;
+  final Map<String, String> _chatThemeEmoticons = {};
+  String? _selectedThemeEmoticon;
+  String? get selectedThemeEmoticon => _selectedThemeEmoticon;
+  bool _showThemeChooser = false;
+  bool get showThemeChooser => _showThemeChooser;
+
+  void toggleThemeChooser() {
+    _showThemeChooser = !_showThemeChooser;
+    if (_showThemeChooser && _availableChatThemes.isEmpty && _activeChat != null) {
+      fetchChatThemes(_activeChat!.accountId);
+    }
+    notifyListeners();
+  }
+
+  void closeThemeChooser() {
+    if (!_showThemeChooser) return;
+    _showThemeChooser = false;
+    _selectedThemeEmoticon = null;
+    notifyListeners();
+  }
+
+  Future<void> fetchChatThemes(String accountId) async {
+    final themes = await _engine.getChatThemes(accountId);
+    _availableChatThemes = themes;
+    notifyListeners();
+  }
+
+  String? chatThemeEmoticon(String chatId) => _chatThemeEmoticons[chatId];
+
+  void selectThemePreview(String? emoticon) {
+    _selectedThemeEmoticon = emoticon;
+    notifyListeners();
+  }
+
+  Future<void> applyChatTheme(String accountId, String chatId, String emoticon) async {
+    final ok = await _engine.setChatTheme(accountId, chatId, emoticon);
+    if (ok) {
+      if (emoticon.isEmpty) {
+        _chatThemeEmoticons.remove(chatId);
+      } else {
+        _chatThemeEmoticons[chatId] = emoticon;
+      }
+      _selectedThemeEmoticon = null;
+      _showThemeChooser = false;
+      notifyListeners();
+    }
+  }
+
+  ChatThemeData? getActiveThemeData(String chatId) {
+    final emoticon = _selectedThemeEmoticon ?? _chatThemeEmoticons[chatId];
+    if (emoticon == null || emoticon.isEmpty) return null;
+    final isDark = WidgetsBinding.instance.platformDispatcher.platformBrightness == Brightness.dark;
+    return _availableChatThemes.cast<ChatThemeData?>().firstWhere(
+      (t) => t!.emoticon == emoticon && t.isDark == isDark,
+      orElse: () => _availableChatThemes.cast<ChatThemeData?>().firstWhere(
+        (t) => t!.emoticon == emoticon,
+        orElse: () => null,
+      ),
+    );
   }
 
   void setHistoryTTL(String accountId, String chatId, int period) {

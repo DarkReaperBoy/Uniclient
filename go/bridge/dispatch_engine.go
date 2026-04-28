@@ -1921,6 +1921,33 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(themes)
 
+	case "GetChatThemes":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		themes, err := e.GetChatThemes(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(themes)
+
+	case "SetChatTheme":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Emoticon  string `json:"emoticon"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.SetChatTheme(params.AccountID, params.ChatID, params.Emoticon); err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]bool{"ok": true})
+
 	case "UploadProfilePhoto":
 		var params struct {
 			AccountID string `json:"account_id"`

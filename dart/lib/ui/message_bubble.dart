@@ -21,6 +21,7 @@ import '../state/audio_service.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/theme.dart';
+import 'chat_view.dart' show ChatThemeOverride;
 import 'forum_topic_icon.dart';
 import 'media_viewer.dart';
 import 'sticker_pack_viewer.dart';
@@ -188,15 +189,18 @@ class _MessageBubbleState extends State<MessageBubble> {
         (message.mediaType == 1 || message.mediaType == 2 ||
          message.mediaType == 7);
 
+    final themeOverride = ChatThemeOverride.of(context);
     final bubbleColor = isStickerOnly
         ? Colors.transparent
-        : isOutgoing
-            ? (isDark
-                ? (isSelected ? AppColors.bubbleSentSelected : AppColors.bubbleSent)
-                : (isSelected ? AppColors.bubbleSentSelectedLight : AppColors.bubbleSentLight))
-            : (isDark
-                ? (isSelected ? AppColors.bubbleReceivedSelected : AppColors.bubbleReceived)
-                : (isSelected ? AppColors.bubbleReceivedSelectedLight : AppColors.bubbleReceivedLight));
+        : isOutgoing && themeOverride?.outgoingBubbleColor != null && !isSelected
+            ? themeOverride!.outgoingBubbleColor!
+            : isOutgoing
+                ? (isDark
+                    ? (isSelected ? AppColors.bubbleSentSelected : AppColors.bubbleSent)
+                    : (isSelected ? AppColors.bubbleSentSelectedLight : AppColors.bubbleSentLight))
+                : (isDark
+                    ? (isSelected ? AppColors.bubbleReceivedSelected : AppColors.bubbleReceived)
+                    : (isSelected ? AppColors.bubbleReceivedSelectedLight : AppColors.bubbleReceivedLight));
 
     // Spec §5: 2px bottom shadow strip. Night theme alpha=00 (disabled).
     final shadowColor = isStickerOnly

@@ -3022,7 +3022,7 @@ class _ChatViewState extends State<ChatView>
         }
         return KeyEventResult.ignored;
       },
-      child: _wrapDropTarget(Stack(
+      child: _wrapDropTarget(_buildChatThemeWrapper(context, chat, chatState, theme, Stack(
       children: [
       _ChatBackground(fallbackColor: theme.scaffoldBackgroundColor, child: Column(
         children: [
@@ -3373,6 +3373,19 @@ class _ChatViewState extends State<ChatView>
               onPick: _pickInlineResult,
               loading: _inlineBotLoading,
             ),
+          // Per-chat theme chooser (§25.11).
+          if (chatState.showThemeChooser)
+            _ChatThemeChooser(
+              themes: chatState.availableChatThemes,
+              selectedEmoticon: chatState.selectedThemeEmoticon,
+              appliedEmoticon: chatState.chatThemeEmoticon(chat.chatId),
+              onSelect: (e) => chatState.selectThemePreview(e),
+              onApply: () {
+                final emoticon = chatState.selectedThemeEmoticon ?? '';
+                chatState.applyChatTheme(chat.accountId, chat.chatId, emoticon);
+              },
+              onClose: () => chatState.closeThemeChooser(),
+            ),
           // Compose area — or fallback buttons for blocked/bot/channel/spam.
           if (chat.isBlocked)
             _FallbackComposeButton(
@@ -3558,7 +3571,52 @@ class _ChatViewState extends State<ChatView>
       ],
       ),
       ),
+      ),
     );
+  }
+
+  Widget _buildChatThemeWrapper(
+    BuildContext context, ChatInfo chat, ChatState chatState, ThemeData theme, Widget child,
+  ) {
+    final themeData = chatState.getActiveThemeData(chat.chatId);
+    if (themeData == null) return child;
+
+    final isDark = theme.brightness == Brightness.dark;
+
+    Color fromInt(int c) => Color(0xFF000000 | c);
+
+    Color? outBubble;
+    if (themeData.messageColors.isNotEmpty) {
+      outBubble = fromInt(themeData.messageColors.first);
+    } else if (themeData.accentColor != 0) {
+      outBubble = fromInt(themeData.accentColor);
+    }
+
+    Color? textColor;
+    if (outBubble != null) {
+      final defaultText = isDark ? Colors.white : const Color(0xFF000000);
+      final ratio = ChatThemeOverride.contrastRatio(defaultText, outBubble);
+      if (ratio < 1.14) {
+        textColor = isDark ? Colors.black : Colors.white;
+      }
+    }
+
+    final wpColors = themeData.bgColors.map(fromInt).toList();
+    final wp = wpColors.isNotEmpty
+        ? WallpaperData.fromColors(wpColors)
+        : null;
+
+    Widget result = ChatThemeOverride(
+      outgoingBubbleColor: outBubble,
+      textColor: textColor,
+      child: child,
+    );
+
+    if (wp != null) {
+      result = WallpaperProvider(wallpaper: wp, child: result);
+    }
+
+    return result;
   }
 }
 
@@ -3771,6 +3829,7 @@ class _ChatTopBar extends StatelessWidget {
         ),
         TelegramMenuItem(value: 'pin', label: chat.isPinned ? 'Unpin' : 'Pin'),
         TelegramMenuItem(value: 'archive', label: chat.isArchived ? 'Unarchive' : 'Archive'),
+        const TelegramMenuItem(value: 'change_theme', label: 'Change Chat Theme'),
         const TelegramMenuItem.separator(),
         const TelegramMenuItem(value: 'clear_history', label: 'Clear History'),
         if (isDm)
@@ -3795,6 +3854,8 @@ class _ChatTopBar extends StatelessWidget {
           chatState.pinChat(chat.accountId, chat.chatId, !chat.isPinned);
         case 'archive':
           chatState.archiveChat(chat.accountId, chat.chatId, !chat.isArchived);
+        case 'change_theme':
+          chatState.toggleThemeChooser();
         case 'clear_history':
           showDeleteConfirmBox(
             btnCtx,
@@ -11979,6 +12040,281 @@ String _previewSubtitle(ChatInfo chat) {
     return '${chat.memberCount} $label';
   }
   return chat.type == ChatType.dm ? 'Private chat' : '';
+}
+
+class ChatThemeOverride extends InheritedWidget {
+  final Color? outgoingBubbleColor;
+  final Color? outgoingShadowColor;
+  final Color? textColor;
+
+  const ChatThemeOverride({
+    super.key,
+    this.outgoingBubbleColor,
+    this.outgoingShadowColor,
+    this.textColor,
+    required super.child,
+  });
+
+  static ChatThemeOverride? of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<ChatThemeOverride>();
+
+  @override
+  bool updateShouldNotify(ChatThemeOverride old) =>
+      outgoingBubbleColor != old.outgoingBubbleColor ||
+      outgoingShadowColor != old.outgoingShadowColor ||
+      textColor != old.textColor;
+
+  static double contrastRatio(Color fg, Color bg) {
+    double luminance(Color c) {
+      final r = c.r <= 0.04045 ? c.r / 12.92 : math.pow((c.r + 0.055) / 1.055, 2.4).toDouble();
+      final g = c.g <= 0.04045 ? c.g / 12.92 : math.pow((c.g + 0.055) / 1.055, 2.4).toDouble();
+      final b = c.b <= 0.04045 ? c.b / 12.92 : math.pow((c.b + 0.055) / 1.055, 2.4).toDouble();
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    }
+    final l1 = luminance(fg);
+    final l2 = luminance(bg);
+    final lighter = math.max(l1, l2);
+    final darker = math.min(l1, l2);
+    return (lighter + 0.05) / (darker + 0.05);
+  }
+}
+
+class _ChatThemeChooser extends StatelessWidget {
+  final List<ChatThemeData> themes;
+  final String? selectedEmoticon;
+  final String? appliedEmoticon;
+  final ValueChanged<String?> onSelect;
+  final VoidCallback onApply;
+  final VoidCallback onClose;
+
+  const _ChatThemeChooser({
+    required this.themes,
+    required this.selectedEmoticon,
+    required this.appliedEmoticon,
+    required this.onSelect,
+    required this.onApply,
+    required this.onClose,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF17212b) : Colors.white;
+    final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFe0e0e0);
+
+    final grouped = <String, List<ChatThemeData>>{};
+    for (final t in themes) {
+      (grouped[t.emoticon] ??= []).add(t);
+    }
+
+    final emoticons = grouped.keys.toList();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: bg,
+        border: Border(top: BorderSide(color: dividerColor, width: 1)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            height: 120,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              itemCount: emoticons.length + 1,
+              itemBuilder: (ctx, i) {
+                if (i == 0) {
+                  final isNone = selectedEmoticon == null
+                      ? appliedEmoticon == null || appliedEmoticon!.isEmpty
+                      : selectedEmoticon!.isEmpty;
+                  return _ThemePill(
+                    emoticon: '',
+                    bgColors: const [],
+                    messageColors: const [],
+                    isSelected: isNone,
+                    isDark: isDark,
+                    onTap: () => onSelect(''),
+                  );
+                }
+                final emoticon = emoticons[i - 1];
+                final variants = grouped[emoticon]!;
+                final variant = variants.firstWhere(
+                  (t) => t.isDark == isDark,
+                  orElse: () => variants.first,
+                );
+                final isSelected = selectedEmoticon == emoticon ||
+                    (selectedEmoticon == null && appliedEmoticon == emoticon);
+                return _ThemePill(
+                  emoticon: emoticon,
+                  bgColors: variant.bgColors,
+                  messageColors: variant.messageColors,
+                  accentColor: variant.accentColor,
+                  isSelected: isSelected,
+                  isDark: isDark,
+                  onTap: () => onSelect(emoticon),
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 12, right: 12, bottom: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 36,
+                    child: FilledButton(
+                      onPressed: onApply,
+                      child: const Text('Apply', style: TextStyle(fontSize: 14)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  height: 36,
+                  width: 36,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(18),
+                      onTap: onClose,
+                      child: const Center(child: Icon(Icons.close, size: 20)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ThemePill extends StatelessWidget {
+  final String emoticon;
+  final List<int> bgColors;
+  final List<int> messageColors;
+  final int? accentColor;
+  final bool isSelected;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _ThemePill({
+    required this.emoticon,
+    required this.bgColors,
+    required this.messageColors,
+    this.accentColor,
+    required this.isSelected,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  Color _fromArgb(int c) => Color(0xFF000000 | c);
+
+  @override
+  Widget build(BuildContext context) {
+    final isNone = emoticon.isEmpty;
+    final pillWidth = 80.0;
+    final pillHeight = 100.0;
+
+    final bgGradient = bgColors.isNotEmpty
+        ? bgColors.map(_fromArgb).toList()
+        : [if (isDark) const Color(0xFF0e1621) else const Color(0xFFdfe8ef)];
+
+    final outColor = messageColors.isNotEmpty
+        ? _fromArgb(messageColors.first)
+        : accentColor != null && accentColor! != 0
+            ? _fromArgb(accentColor!)
+            : (isDark ? const Color(0xFF2b5278) : const Color(0xFFeffdde));
+
+    final inColor = isDark ? const Color(0xFF182533) : Colors.white;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: pillWidth,
+              height: pillHeight - 20,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: isSelected
+                    ? Border.all(color: const Color(0xFF40a7e3), width: 2)
+                    : Border.all(color: Colors.transparent, width: 2),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: isNone
+                    ? Container(
+                        color: isDark ? const Color(0xFF0e1621) : const Color(0xFFdfe8ef),
+                        child: const Center(
+                          child: Icon(Icons.format_color_reset, size: 28, color: Colors.grey),
+                        ),
+                      )
+                    : Container(
+                        decoration: BoxDecoration(
+                          gradient: bgGradient.length > 1
+                              ? LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: bgGradient,
+                                )
+                              : null,
+                          color: bgGradient.length == 1 ? bgGradient.first : null,
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(6),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: Container(
+                                  width: 40,
+                                  height: 14,
+                                  decoration: BoxDecoration(
+                                    color: outColor,
+                                    borderRadius: BorderRadius.circular(7),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: Container(
+                                  width: 36,
+                                  height: 14,
+                                  decoration: BoxDecoration(
+                                    color: inColor,
+                                    borderRadius: BorderRadius.circular(7),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+              ),
+            ),
+            const SizedBox(height: 2),
+            SizedBox(
+              height: 18,
+              child: Text(
+                isNone ? '🚫' : emoticon,
+                style: const TextStyle(fontSize: 16),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _ChatBackground extends StatelessWidget {

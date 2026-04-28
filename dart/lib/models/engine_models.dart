@@ -2101,3 +2101,32 @@ class ScheduleRepeatOption {
   final String label;
   const ScheduleRepeatOption(this.periodSeconds, this.label);
 }
+
+class ChatThemeData {
+  final String emoticon;
+  final int id;
+  final bool isDark;
+  final int accentColor;
+  final List<int> messageColors;
+  final List<int> bgColors;
+
+  const ChatThemeData({
+    required this.emoticon,
+    required this.id,
+    this.isDark = false,
+    this.accentColor = 0,
+    this.messageColors = const [],
+    this.bgColors = const [],
+  });
+
+  factory ChatThemeData.fromJson(Map<String, dynamic> j) => ChatThemeData(
+    emoticon: j['emoticon'] as String? ?? '',
+    id: (j['id'] as num?)?.toInt() ?? 0,
+    isDark: j['is_dark'] as bool? ?? false,
+    accentColor: (j['accent_color'] as num?)?.toInt() ?? 0,
+    messageColors: (j['message_colors'] as List<dynamic>?)
+        ?.map((e) => (e as num).toInt()).toList() ?? const [],
+    bgColors: (j['bg_colors'] as List<dynamic>?)
+        ?.map((e) => (e as num).toInt()).toList() ?? const [],
+  );
+}
