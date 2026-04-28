@@ -246,6 +246,7 @@ class ChatState extends ChangeNotifier {
 
   void toggleScheduledView() {
     _isScheduledView = !_isScheduledView;
+    _messages = [];
     if (_isScheduledView) {
       _loadScheduledMessages();
     } else {
@@ -741,6 +742,7 @@ class ChatState extends ChangeNotifier {
   /// Load more messages (pagination).
   void loadMoreMessages() {
     if (_loadingMessages || !_hasMoreMessages || _activeChat == null) return;
+    if (_isScheduledView) return;
     _loadMessages();
   }
 
@@ -1166,6 +1168,7 @@ class ChatState extends ChangeNotifier {
 
   void _refreshMessages() {
     if (_disposed) return;
+    if (_isScheduledView) return;
     final chat = _activeChat;
     if (chat == null) return;
 
@@ -1231,7 +1234,7 @@ class ChatState extends ChangeNotifier {
     if (_disposed) return;
     final isActiveChat = _activeChat?.accountId == event.accountId &&
         _activeChat?.chatId == event.chatId;
-    if (isActiveChat) {
+    if (isActiveChat && !_isScheduledView) {
       // Dedup: don't add if already present (by msgId or localId).
       final exists = _messages.any((m) =>
         m.msgId == event.message.msgId ||

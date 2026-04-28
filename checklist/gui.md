@@ -806,7 +806,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: none yet — create dart/lib/ui/scheduled_messages.dart -->
 
-- [ ] ScheduledWidget full section: slide transition in/out, title "Scheduled messages"/"Reminders", top-bar menu (Create Poll / Create To-do List only), selection mode with Send Now + Delete, date separators, auto-scroll to new item, file drag-drop zones, no unread counter — spec §23.4
 - [ ] Scheduled message rendering: scheduled-time timestamp, repeat-period prefix, silent muted-bell tooltip, multi-select support — spec §23.5
 - [ ] Context menu: Send Now (single/group/selected), Send Now confirmation dialog, Reschedule (single up to §23.6 kRescheduleLimit=20), Delete, +1s offset per subsequent message in batch reschedule — spec §23.6
 - [ ] sentToScheduled event auto-navigation and toast — spec §23.7

@@ -2622,6 +2622,11 @@ class _ChatViewState extends State<ChatView>
       setState(() => _replyToId = null);
       return KeyEventResult.handled;
     }
+    final chatState = context.read<ChatState>();
+    if (chatState.isScheduledView) {
+      chatState.toggleScheduledView();
+      return KeyEventResult.handled;
+    }
     return KeyEventResult.ignored;
   }
 
@@ -2686,6 +2691,7 @@ class _ChatViewState extends State<ChatView>
     if (chat == null) {
       return const SizedBox.shrink();
     }
+
 
     // Spec §5 / §49.17: drive corner button visibility from chat data.
     final wantMentions = chat.unreadMentionCount > 0;
@@ -2776,6 +2782,8 @@ class _ChatViewState extends State<ChatView>
                           parentChat: chat.type == ChatType.topic
                               ? chatState.forumParentChat
                               : null,
+                          isScheduledView: widget.isScheduledView || chatState.isScheduledView,
+                          onExitScheduled: () => chatState.toggleScheduledView(),
                         ),
                       ),
                       // Selection bar slides in from below
@@ -2879,6 +2887,7 @@ class _ChatViewState extends State<ChatView>
                       : null,
                   searchQuery: _activeSearchQuery,
                   openedUnreadCount: chatState.openedUnreadCount,
+                  isScheduledView: widget.isScheduledView || chatState.isScheduledView,
                 ),
                 // Spec §5 / §49.17: Stacked corner buttons.
                 // Order bottom→top: Jump-down → Mentions → Reactions → PollVotes.
@@ -3292,6 +3301,11 @@ class _ChatTopBar extends StatelessWidget {
   /// §22.6: Parent group chat for topic subtitle (member count).
   final ChatInfo? parentChat;
 
+  /// §23.4: When true, this top bar renders the scheduled messages section
+  /// header instead of the normal chat header.
+  final bool isScheduledView;
+  final VoidCallback? onExitScheduled;
+
   const _ChatTopBar({
     required this.chat,
     this.typingUser,
@@ -3316,6 +3330,8 @@ class _ChatTopBar extends StatelessWidget {
     this.onSearchChanged,
     this.activeTopic,
     this.parentChat,
+    this.isScheduledView = false,
+    this.onExitScheduled,
   });
 
   /// Format a last-seen descriptor per Telegram Desktop spec §1.4 / §7588.
@@ -3617,10 +3633,27 @@ class _ChatTopBar extends StatelessWidget {
     );
   }
 
+  static void _showScheduledMenu(BuildContext btnCtx, ChatInfo chat) {
+    final button = btnCtx.findRenderObject() as RenderBox;
+    final buttonPos = button.localToGlobal(Offset(0, button.size.height));
+    showTelegramMenu<String>(
+      context: btnCtx,
+      position: buttonPos,
+      items: const [
+        TelegramMenuItem(value: 'create_poll', icon: Icon(Icons.poll_outlined, size: 20), label: 'Create Poll'),
+        TelegramMenuItem(value: 'create_todo', icon: Icon(Icons.checklist_outlined, size: 20), label: 'Create To-do List'),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+
+    if (isScheduledView) {
+      return _buildScheduledTopBar(context, theme, isDark);
+    }
 
     // Subtitle: typing, online status, member count, or last seen.
     String subtitle;
@@ -3994,6 +4027,69 @@ class _ChatTopBar extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildScheduledTopBar(BuildContext context, ThemeData theme, bool isDark) {
+    final topBarBg = isDark ? const Color(0xFF17212b) : Colors.white;
+    final shadowFg = isDark ? const Color(0x5604080e) : const Color(0x18000000);
+    final isSavedMessages = chat.title == 'Saved Messages';
+    final titleText = isSavedMessages ? 'Reminders' : 'Scheduled messages';
+    final dialogsNameFg = isDark ? const Color(0xFFf5f5f5) : const Color(0xFF222222);
+
+    return Container(
+      height: 54,
+      decoration: BoxDecoration(
+        color: topBarBg,
+        border: hideDivider ? null : Border(
+          bottom: BorderSide(color: shadowFg, width: 1),
+        ),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 60,
+            height: 54,
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back, size: 20),
+              onPressed: onExitScheduled,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              splashRadius: 20,
+            ),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                titleText,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: dialogsNameFg,
+                ),
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 39,
+            child: OverflowBox(
+              maxWidth: 44,
+              alignment: Alignment.centerRight,
+              child: Builder(
+                builder: (btnCtx) => _TopBarButton(
+                  icon: Icons.more_vert,
+                  width: 44,
+                  iconPadding: const EdgeInsets.only(left: 8),
+                  onPressed: () => _showScheduledMenu(btnCtx, chat),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// Spec §4.2: Animated typing indicator for the top bar subtitle.
@@ -4119,6 +4215,7 @@ class _MessageList extends StatelessWidget {
   final String searchQuery;
   /// Spec §5 / §49.4: unread count at time chat was opened (for unread bar).
   final int openedUnreadCount;
+  final bool isScheduledView;
 
   const _MessageList({
     required this.messages,
@@ -4137,11 +4234,37 @@ class _MessageList extends StatelessWidget {
     this.searchHighlightId,
     this.searchQuery = '',
     this.openedUnreadCount = 0,
+    this.isScheduledView = false,
   });
 
   @override
   Widget build(BuildContext context) {
     if (messages.isEmpty && !loading) {
+      if (isScheduledView) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final bgColor = isDark ? const Color(0xD5213040) : const Color(0x7F517c41);
+        final scaffoldBg = isDark ? const Color(0xFF0e1621) : const Color(0xFFe6ebee);
+        return Container(
+          color: scaffoldBg,
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(12, 3, 12, 4),
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: const Text(
+                'No scheduled messages',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFFFFFFFF),
+                ),
+              ),
+            ),
+          ),
+        );
+      }
       return Center(
         child: Text(
           'No messages yet',
@@ -4196,7 +4319,7 @@ class _MessageList extends StatelessWidget {
         if (msg.isService) {
           return Column(
             children: [
-              if (showDate) _DateSeparator(timestamp: msg.timestamp),
+              if (showDate) _DateSeparator(timestamp: msg.timestamp, isScheduled: isScheduledView),
               if (showUnreadBar) _UnreadBar(count: openedUnreadCount),
               _ServiceMessage(text: msg.contentText),
             ],
@@ -4342,8 +4465,9 @@ class _DisplayItem {
 /// Centered date separator pill.
 class _DateSeparator extends StatelessWidget {
   final int timestamp;
+  final bool isScheduled;
 
-  const _DateSeparator({required this.timestamp});
+  const _DateSeparator({required this.timestamp, this.isScheduled = false});
 
   @override
   Widget build(BuildContext context) {
@@ -4353,7 +4477,9 @@ class _DateSeparator extends StatelessWidget {
     final diff = now.difference(dt);
 
     String text;
-    if (diff.inDays == 0 && dt.day == now.day) {
+    if (isScheduled) {
+      text = 'Scheduled for ${_months[dt.month - 1]} ${dt.day}';
+    } else if (diff.inDays == 0 && dt.day == now.day) {
       text = 'Today';
     } else if (diff.inDays == 1 || (diff.inDays == 0 && dt.day != now.day)) {
       text = 'Yesterday';

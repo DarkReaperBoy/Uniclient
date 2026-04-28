@@ -500,6 +500,9 @@ class _UniClientAppState extends State<UniClientApp>
             channel.invokeMethod('resize', {'width': w, 'height': h});
           }
 
+        case 'toggleScheduled':
+          chatState.toggleScheduledView();
+
         case 'dismissPopup':
           // Tap at (0,0) to dismiss any popup/dialog/menu
           _dispatchTap(1, 1);
