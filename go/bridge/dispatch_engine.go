@@ -265,6 +265,52 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.PromoteAdmin(req.AccountId, req.ChatId, req.UserId)
 
+	case "PromoteAdminWithRights":
+		var params struct {
+			AccountID      string `json:"account_id"`
+			ChatID         string `json:"chat_id"`
+			UserID         string `json:"user_id"`
+			ChangeInfo     bool   `json:"change_info"`
+			DeleteMessages bool   `json:"delete_messages"`
+			BanUsers       bool   `json:"ban_users"`
+			InviteUsers    bool   `json:"invite_users"`
+			PinMessages    bool   `json:"pin_messages"`
+			ManageTopics   bool   `json:"manage_topics"`
+			PostMessages   bool   `json:"post_messages"`
+			EditMessages   bool   `json:"edit_messages"`
+			PostStories    bool   `json:"post_stories"`
+			EditStories    bool   `json:"edit_stories"`
+			DeleteStories  bool   `json:"delete_stories"`
+			ManageCall     bool   `json:"manage_call"`
+			ManageRanks    bool   `json:"manage_ranks"`
+			Anonymous      bool   `json:"anonymous"`
+			AddAdmins      bool   `json:"add_admins"`
+			ManageDirect   bool   `json:"manage_direct"`
+			Rank           string `json:"rank"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		rights := &engine.AdminRights{
+			ChangeInfo:     params.ChangeInfo,
+			DeleteMessages: params.DeleteMessages,
+			BanUsers:       params.BanUsers,
+			InviteUsers:    params.InviteUsers,
+			PinMessages:    params.PinMessages,
+			ManageTopics:   params.ManageTopics,
+			PostMessages:   params.PostMessages,
+			EditMessages:   params.EditMessages,
+			PostStories:    params.PostStories,
+			EditStories:    params.EditStories,
+			DeleteStories:  params.DeleteStories,
+			ManageCall:     params.ManageCall,
+			ManageRanks:    params.ManageRanks,
+			Anonymous:      params.Anonymous,
+			AddAdmins:      params.AddAdmins,
+			ManageDirect:   params.ManageDirect,
+		}
+		return nil, e.PromoteAdminWithRights(params.AccountID, params.ChatID, params.UserID, rights, params.Rank)
+
 	case "RestrictMember":
 		var req pb.EngineRestrictMemberRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

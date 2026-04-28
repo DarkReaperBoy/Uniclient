@@ -14,7 +14,7 @@ import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import 'chat_view.dart' show formatChatLastSeen;
 import 'confirm_box.dart';
-import 'admin_tools.dart' show showEditPeerInfoBox, showEditRestrictedBox;
+import 'admin_tools.dart' show showEditAdminBox, showEditPeerInfoBox, showEditRestrictedBox;
 import 'create_group_wizard.dart' show showEditPeerTypeBox;
 import 'edit_forum_topic_box.dart';
 import 'forum_topic_icon.dart';
@@ -4681,13 +4681,13 @@ class _MemberRow extends StatelessWidget {
             const SnackBar(content: Text('ID copied'), duration: Duration(seconds: 2)),
           );
         case 'promote':
-          engine.promoteAdmin(accountId, chatId, member.userId).catchError((e) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Failed to promote: $e')),
-              );
-            }
-          });
+          showEditAdminBox(
+            context,
+            accountId: accountId,
+            chatId: chatId,
+            member: member,
+            isChannel: chatId.startsWith('-100'),
+          );
         case 'demote':
           engine.demoteAdmin(accountId, chatId, member.userId).catchError((e) {
             if (context.mounted) {

@@ -1735,3 +1735,597 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
     return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
   }
 }
+
+Future<bool?> showEditAdminBox(
+  BuildContext context, {
+  required String accountId,
+  required String chatId,
+  required MemberInfo member,
+  required bool isChannel,
+  String? promotedBy,
+}) {
+  return showDialog<bool>(
+    context: context,
+    builder: (ctx) => _EditAdminBox(
+      accountId: accountId,
+      chatId: chatId,
+      member: member,
+      isChannel: isChannel,
+      promotedBy: promotedBy,
+    ),
+  );
+}
+
+class _AdminFlag {
+  final String key;
+  final String label;
+  bool enabled;
+
+  _AdminFlag({required this.key, required this.label, this.enabled = true});
+}
+
+class _EditAdminBox extends StatefulWidget {
+  final String accountId;
+  final String chatId;
+  final MemberInfo member;
+  final bool isChannel;
+  final String? promotedBy;
+
+  const _EditAdminBox({
+    required this.accountId,
+    required this.chatId,
+    required this.member,
+    required this.isChannel,
+    this.promotedBy,
+  });
+
+  @override
+  State<_EditAdminBox> createState() => _EditAdminBoxState();
+}
+
+class _EditAdminBoxState extends State<_EditAdminBox>
+    with SingleTickerProviderStateMixin {
+  bool _addAsAdmin = true;
+  bool _saving = false;
+  late final TextEditingController _rankCtrl;
+
+  late AnimationController _collapseCtrl;
+  late Animation<double> _collapseAnim;
+
+  late final List<_AdminFlag> _section1;
+  late final List<_AdminFlag> _section2;
+  late final List<_AdminFlag> _section3;
+  late final List<_AdminFlag> _section4;
+
+  List<_AdminFlag> get _allFlags => [
+        ..._section1,
+        ..._section2,
+        ..._section3,
+        if (widget.isChannel) ..._section4,
+      ];
+
+  bool get _allOwnerRightsSelected {
+    for (final f in _allFlags) {
+      if (!f.enabled) return false;
+    }
+    return true;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _rankCtrl = TextEditingController();
+    _collapseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+      value: 1.0,
+    );
+    _collapseAnim = CurvedAnimation(parent: _collapseCtrl, curve: Curves.easeOutCubic);
+
+    if (widget.isChannel) {
+      _section1 = [
+        _AdminFlag(key: 'change_info', label: 'Change channel info'),
+      ];
+      _section2 = [
+        _AdminFlag(key: 'post_messages', label: 'Post messages'),
+        _AdminFlag(key: 'edit_messages', label: 'Edit messages'),
+        _AdminFlag(key: 'delete_messages', label: 'Delete messages'),
+      ];
+      _section3 = [
+        _AdminFlag(key: 'post_stories', label: 'Post stories'),
+        _AdminFlag(key: 'edit_stories', label: 'Edit stories'),
+        _AdminFlag(key: 'delete_stories', label: 'Delete stories'),
+      ];
+      _section4 = [
+        _AdminFlag(key: 'invite_users', label: 'Invite users via link'),
+        _AdminFlag(key: 'manage_call', label: 'Manage voice chats'),
+        _AdminFlag(key: 'manage_direct', label: 'Manage direct messages'),
+        _AdminFlag(key: 'add_admins', label: 'Add new admins'),
+        _AdminFlag(key: 'ban_users', label: 'Ban users'),
+      ];
+    } else {
+      _section1 = [
+        _AdminFlag(key: 'change_info', label: 'Change group info'),
+        _AdminFlag(key: 'delete_messages', label: 'Delete messages'),
+        _AdminFlag(key: 'ban_users', label: 'Ban users'),
+        _AdminFlag(key: 'invite_users', label: 'Invite users via link'),
+        _AdminFlag(key: 'manage_topics', label: 'Manage topics'),
+        _AdminFlag(key: 'pin_messages', label: 'Pin messages'),
+      ];
+      _section2 = [
+        _AdminFlag(key: 'post_stories', label: 'Post stories'),
+        _AdminFlag(key: 'edit_stories', label: 'Edit stories'),
+        _AdminFlag(key: 'delete_stories', label: 'Delete stories'),
+      ];
+      _section3 = [
+        _AdminFlag(key: 'manage_call', label: 'Manage voice chats'),
+        _AdminFlag(key: 'manage_ranks', label: 'Manage ranks'),
+        _AdminFlag(key: 'anonymous', label: 'Remain anonymous'),
+        _AdminFlag(key: 'add_admins', label: 'Add new admins'),
+      ];
+      _section4 = [];
+    }
+
+    if (widget.member.role == 'admin') {
+      _addAsAdmin = true;
+    }
+  }
+
+  @override
+  void dispose() {
+    _rankCtrl.dispose();
+    _collapseCtrl.dispose();
+    super.dispose();
+  }
+
+  void _toggleAddAsAdmin(bool val) {
+    setState(() => _addAsAdmin = val);
+    if (val) {
+      _collapseCtrl.forward();
+    } else {
+      _collapseCtrl.reverse();
+    }
+  }
+
+  Future<void> _onSave() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      final engine = context.read<EngineService>();
+      if (!_addAsAdmin) {
+        await engine.demoteAdmin(widget.accountId, widget.chatId, widget.member.userId);
+      } else {
+        final rights = <String, bool>{};
+        for (final f in _allFlags) {
+          rights[f.key] = f.enabled;
+        }
+        await engine.promoteAdminWithRights(
+          widget.accountId,
+          widget.chatId,
+          widget.member.userId,
+          rights,
+          _rankCtrl.text.trim(),
+        );
+      }
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      }
+    }
+  }
+
+  void _confirmDismiss() {
+    final palette = PaletteProvider.of(context);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Dismiss Admin'),
+        content: const Text('Are you sure you want to remove this admin?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: palette.attentionButtonFg),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final engine = context.read<EngineService>();
+              try {
+                await engine.demoteAdmin(widget.accountId, widget.chatId, widget.member.userId);
+                if (mounted) Navigator.pop(context, true);
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to dismiss: $e')),
+                  );
+                }
+              }
+            },
+            child: const Text('Dismiss'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmTransferOwnership() {
+    final palette = PaletteProvider.of(context);
+    final label = widget.isChannel ? 'Channel' : 'Group';
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Transfer $label Ownership'),
+        content: Text(
+          'Are you sure you want to transfer ownership of this $label to ${widget.member.label}? '
+          'This action requires your 2FA password and cannot be undone easily.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: palette.attentionButtonFg),
+            onPressed: () {
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Transfer ownership requires 2FA verification')),
+              );
+            },
+            child: const Text('Transfer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = PaletteProvider.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subTextColor = isDark ? const Color(0xFF708499) : const Color(0xFF999999);
+    final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFE0E0E0);
+    final accentColor = palette.windowBgActive;
+    final attentionColor = palette.attentionButtonFg;
+    final headerColor = palette.windowActiveTextFg;
+
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      backgroundColor: bgColor,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420, maxHeight: 620),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildTitleBar(textColor, accentColor, dividerColor),
+            Flexible(
+              child: ListView(
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                children: [
+                  _buildCover(textColor, subTextColor, accentColor),
+                  Divider(height: 1, color: dividerColor),
+                  const SizedBox(height: 8),
+                  _buildAddAsAdminCheckbox(accentColor, textColor),
+                  SizeTransition(
+                    sizeFactor: _collapseAnim,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Divider(height: 1, color: dividerColor),
+                        const SizedBox(height: 8),
+                        _buildSectionHeader(
+                          'What can this admin do?',
+                          headerColor,
+                        ),
+                        const SizedBox(height: 4),
+                        _buildRightsSection(
+                          widget.isChannel ? 'Info' : 'Core',
+                          _section1,
+                          accentColor,
+                          textColor,
+                        ),
+                        Divider(height: 1, indent: 22, endIndent: 22, color: dividerColor),
+                        _buildRightsSection(
+                          widget.isChannel ? 'Messages' : 'Stories',
+                          _section2,
+                          accentColor,
+                          textColor,
+                        ),
+                        Divider(height: 1, indent: 22, endIndent: 22, color: dividerColor),
+                        _buildRightsSection(
+                          widget.isChannel ? 'Stories' : 'Meta',
+                          _section3,
+                          accentColor,
+                          textColor,
+                        ),
+                        if (widget.isChannel && _section4.isNotEmpty) ...[
+                          Divider(height: 1, indent: 22, endIndent: 22, color: dividerColor),
+                          _buildRightsSection('Meta', _section4, accentColor, textColor),
+                        ],
+                        Divider(height: 1, color: dividerColor),
+                        const SizedBox(height: 8),
+                        _buildRankField(textColor, subTextColor),
+                        const SizedBox(height: 8),
+                        if (_allOwnerRightsSelected) ...[
+                          Divider(height: 1, color: dividerColor),
+                          _buildTransferButton(accentColor, textColor),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (widget.member.role == 'admin') ...[
+                    Divider(height: 1, color: dividerColor),
+                    const SizedBox(height: 4),
+                    _buildDismissButton(attentionColor),
+                    const SizedBox(height: 4),
+                  ],
+                  if (widget.promotedBy != null && widget.promotedBy!.isNotEmpty) ...[
+                    Divider(height: 1, color: dividerColor),
+                    _buildPromotedByInfo(subTextColor, accentColor),
+                  ],
+                  const SizedBox(height: 12),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTitleBar(Color textColor, Color accentColor, Color dividerColor) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 20, right: 8, top: 4, bottom: 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Edit Admin',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
+                ),
+              ),
+              if (_saving)
+                const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                )
+              else
+                TextButton(
+                  onPressed: _onSave,
+                  child: Text('Save', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: accentColor)),
+                ),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Cancel', style: TextStyle(fontSize: 14, color: textColor.withValues(alpha: 0.6))),
+              ),
+            ],
+          ),
+        ),
+        Divider(height: 1, color: dividerColor),
+      ],
+    );
+  }
+
+  Widget _buildCover(Color textColor, Color subTextColor, Color accentColor) {
+    final member = widget.member;
+    final hasAvatar = member.avatarB64.isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(19, 18, 20, 18),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 30,
+            backgroundColor: accentColor,
+            backgroundImage: hasAvatar ? MemoryImage(base64Decode(member.avatarB64)) : null,
+            child: hasAvatar
+                ? null
+                : Text(
+                    _initials(member.label),
+                    style: const TextStyle(fontSize: 20, color: Colors.white),
+                  ),
+          ),
+          const SizedBox(width: 20),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  member.label,
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textColor),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  member.isOnline
+                      ? 'online'
+                      : member.username.isNotEmpty
+                          ? '@${member.username}'
+                          : member.role,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: member.isOnline ? accentColor : subTextColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAddAsAdminCheckbox(Color accentColor, Color textColor) {
+    return InkWell(
+      onTap: () => _toggleAddAsAdmin(!_addAsAdmin),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 22,
+              height: 22,
+              child: Checkbox(
+                value: _addAsAdmin,
+                onChanged: (v) => _toggleAddAsAdmin(v ?? false),
+                activeColor: accentColor,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Add as Admin',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String text, Color color) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 4, 22, 4),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: color),
+      ),
+    );
+  }
+
+  Widget _buildRightsSection(
+    String sectionLabel,
+    List<_AdminFlag> flags,
+    Color accentColor,
+    Color textColor,
+  ) {
+    return Column(
+      children: [
+        for (final flag in flags)
+          _buildRightToggle(flag, accentColor, textColor),
+      ],
+    );
+  }
+
+  Widget _buildRightToggle(_AdminFlag flag, Color accentColor, Color textColor) {
+    return InkWell(
+      onTap: () => setState(() => flag.enabled = !flag.enabled),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(flag.label, style: TextStyle(fontSize: 14, color: textColor)),
+            ),
+            const SizedBox(width: 20),
+            SizedBox(
+              height: 24,
+              child: Switch(
+                value: flag.enabled,
+                onChanged: (v) => setState(() => flag.enabled = v),
+                activeColor: accentColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRankField(Color textColor, Color subTextColor) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 0, 22, 0),
+      child: TextField(
+        controller: _rankCtrl,
+        maxLength: 16,
+        style: TextStyle(fontSize: 14, color: textColor),
+        decoration: InputDecoration(
+          labelText: 'Custom Title',
+          hintText: 'e.g. Head Moderator',
+          hintStyle: TextStyle(color: subTextColor),
+          counterText: '',
+          isDense: true,
+          border: const UnderlineInputBorder(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTransferButton(Color accentColor, Color textColor) {
+    final label = widget.isChannel ? 'Transfer Channel Ownership' : 'Transfer Group Ownership';
+    return InkWell(
+      onTap: _confirmTransferOwnership,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+        child: Row(
+          children: [
+            Icon(Icons.swap_horiz, size: 24, color: accentColor),
+            const SizedBox(width: 16),
+            Text(
+              label,
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: accentColor),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDismissButton(Color attentionColor) {
+    return InkWell(
+      onTap: _confirmDismiss,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+        child: Row(
+          children: [
+            Icon(Icons.remove_circle_outline, size: 24, color: attentionColor),
+            const SizedBox(width: 16),
+            Text(
+              'Dismiss Admin',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: attentionColor),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPromotedByInfo(Color subTextColor, Color accentColor) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 12, 22, 8),
+      child: Row(
+        children: [
+          Text(
+            'Promoted by ',
+            style: TextStyle(fontSize: 13, color: subTextColor),
+          ),
+          GestureDetector(
+            onTap: () {},
+            child: Text(
+              widget.promotedBy!,
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: accentColor),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _initials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty) return '?';
+    if (parts.length == 1) return parts[0][0].toUpperCase();
+    return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+  }
+}

@@ -571,6 +571,57 @@ func (e *Engine) PromoteAdmin(accountID, chatID, userID string) error {
 	return fmt.Errorf("platform does not support PromoteAdmin")
 }
 
+type AdminRights struct {
+	ChangeInfo     bool
+	DeleteMessages bool
+	BanUsers       bool
+	InviteUsers    bool
+	PinMessages    bool
+	ManageTopics   bool
+	PostMessages   bool
+	EditMessages   bool
+	PostStories    bool
+	EditStories    bool
+	DeleteStories  bool
+	ManageCall     bool
+	ManageRanks    bool
+	Anonymous      bool
+	AddAdmins      bool
+	ManageDirect   bool
+}
+
+func (e *Engine) PromoteAdminWithRights(accountID, chatID, userID string, rights *AdminRights, rank string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type promotableWithRights interface {
+		PromoteAdminWithRights(chatID, userID string, rights map[string]bool, rank string) error
+	}
+	if p, ok := acc.Core.(promotableWithRights); ok {
+		m := map[string]bool{
+			"change_info":     rights.ChangeInfo,
+			"delete_messages": rights.DeleteMessages,
+			"ban_users":       rights.BanUsers,
+			"invite_users":    rights.InviteUsers,
+			"pin_messages":    rights.PinMessages,
+			"manage_topics":   rights.ManageTopics,
+			"post_messages":   rights.PostMessages,
+			"edit_messages":   rights.EditMessages,
+			"post_stories":    rights.PostStories,
+			"edit_stories":    rights.EditStories,
+			"delete_stories":  rights.DeleteStories,
+			"manage_call":     rights.ManageCall,
+			"manage_ranks":    rights.ManageRanks,
+			"anonymous":       rights.Anonymous,
+			"add_admins":      rights.AddAdmins,
+			"manage_direct":   rights.ManageDirect,
+		}
+		return p.PromoteAdminWithRights(chatID, userID, m, rank)
+	}
+	return fmt.Errorf("platform does not support PromoteAdminWithRights")
+}
+
 func (e *Engine) RestrictMember(accountID, chatID, userID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

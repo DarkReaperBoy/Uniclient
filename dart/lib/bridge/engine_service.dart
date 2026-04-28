@@ -248,6 +248,23 @@ class EngineService {
     await _callAsync('__engine', 'PromoteAdmin', req.writeToBuffer());
   }
 
+  Future<void> promoteAdminWithRights(
+    String accountId,
+    String chatId,
+    String userId,
+    Map<String, bool> rights,
+    String rank,
+  ) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'user_id': userId,
+      ...rights,
+      'rank': rank,
+    }));
+    await _callAsync('__engine', 'PromoteAdminWithRights', Uint8List.fromList(payload));
+  }
+
   Future<void> restrictMember(String accountId, String chatId, String userId) async {
     final req = epb.EngineRestrictMemberRequest()
       ..accountId = accountId

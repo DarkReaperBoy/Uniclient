@@ -11584,6 +11584,10 @@ func (t *TelegramCore) SetGroupPermissions(chatID string, rights tg.ChatBannedRi
 
 // PromoteAdmin promotes a user to admin in a channel/supergroup.
 func (t *TelegramCore) PromoteAdmin(chatID, userID string, rights tg.ChatAdminRights) error {
+	return t.promoteAdminInternal(chatID, userID, rights, "")
+}
+
+func (t *TelegramCore) promoteAdminInternal(chatID, userID string, rights tg.ChatAdminRights, rank string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed || t.api == nil {
@@ -11610,9 +11614,29 @@ func (t *TelegramCore) PromoteAdmin(chatID, userID string, rights tg.ChatAdminRi
 		Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
 		UserID:  &tg.InputUser{UserID: uid, AccessHash: uhash},
 		AdminRights: rights,
-		Rank:    "",
+		Rank:    rank,
 	})
 	return err
+}
+
+// PromoteAdminWithRights promotes a user with specific admin rights and a custom rank.
+func (t *TelegramCore) PromoteAdminWithRights(chatID, userID string, rights map[string]bool, rank string) error {
+	return t.promoteAdminInternal(chatID, userID, tg.ChatAdminRights{
+		ChangeInfo:     rights["change_info"],
+		DeleteMessages: rights["delete_messages"],
+		BanUsers:       rights["ban_users"],
+		InviteUsers:    rights["invite_users"],
+		PinMessages:    rights["pin_messages"],
+		ManageTopics:   rights["manage_topics"],
+		PostMessages:   rights["post_messages"],
+		EditMessages:   rights["edit_messages"],
+		PostStories:    rights["post_stories"],
+		EditStories:    rights["edit_stories"],
+		DeleteStories:  rights["delete_stories"],
+		ManageCall:     rights["manage_call"],
+		AddAdmins:      rights["add_admins"],
+		Anonymous:      rights["anonymous"],
+	}, rank)
 }
 
 // PromoteToAdmin promotes a user to admin with default rights.

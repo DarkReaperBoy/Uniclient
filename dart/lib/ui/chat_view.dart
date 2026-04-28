@@ -14,7 +14,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
-import 'admin_tools.dart' show showEditRestrictedBox;
+import 'admin_tools.dart' show showEditAdminBox, showEditRestrictedBox;
 import 'gesture_utils.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
@@ -1858,17 +1858,17 @@ class _ChatViewState extends State<ChatView>
           }
         } catch (_) {}
       case 'promote':
-        final confirmed = await _showConfirmDialog(
-          context, 'Promote to Admin', 'Promote $senderName to admin?');
-        if (confirmed && mounted) {
-          try {
-            await engine.promoteAdmin(accountId, chat.chatId, senderId);
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('$senderName promoted to admin')),
-              );
-            }
-          } catch (_) {}
+        if (mounted) {
+          showEditAdminBox(
+            context,
+            accountId: accountId,
+            chatId: chat.chatId,
+            member: MemberInfo(
+              userId: senderId,
+              displayName: senderName,
+            ),
+            isChannel: chat.type == ChatType.channel,
+          );
         }
       case 'restrict':
         if (mounted) {

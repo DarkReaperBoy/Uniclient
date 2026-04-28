@@ -824,7 +824,7 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/admin_tools.dart -->
 
-- [ ] Admin appointment dialog: "Add as Admin" checkbox with collapsible rights SlideWrap, admin rights sections (Group: 3, Channel: 4), custom title field, Transfer Ownership flow (dry-run → 2FA → confirm → toast), Dismiss Admin button, "Promoted by" link — spec §26.4
+
 - [ ] Admin log / recent actions: top bar with search toggle, "What is this?" FAQ link, events as service messages (51 event types), quoted bubbles, empty state centered text, floating date badge with 1000ms inactivity fade, 20/50 pagination, filter dialog (3 sections, 19 flags, per-admin filter) — spec §26.5
 - [ ] Invite links box: permanent link + "Create New Link" + active list + revoked list + "Delete All" + other-admins section; link rows with color-coded progress-arc badge (6 states), context menu (Copy/Share/QR/Edit/Revoke/Delete), single-link info box with joined-users list, QR Code dialog; create/edit form (label, expiry, usage, approval toggle, subscription credits) — spec §26.6
 - [ ] Member list with 5 role tabs (Members/Admins/Restricted/Kicked/Profile): search bar with debounced server query, 16/200 pagination with online sort, row 56px with avatar/name/badge/rank, Add button per role, context menu (View/Edit Tag/Promote/Restrict/Remove/Promoted-by), banned-users sublist with Unban — spec §26.7–26.8
