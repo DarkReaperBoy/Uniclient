@@ -461,11 +461,14 @@ class ShortcutSystem {
   }
 
   List<ShortcutCommand> _findCommands(KeyEvent event) {
-    final ctrl = HardwareKeyboard.instance.isControlPressed;
+    final hwCtrl = HardwareKeyboard.instance.isControlPressed;
     final shift = HardwareKeyboard.instance.isShiftPressed;
     final alt = HardwareKeyboard.instance.isAltPressed;
-    final meta = HardwareKeyboard.instance.isMetaPressed;
+    final hwMeta = HardwareKeyboard.instance.isMetaPressed;
     final key = event.logicalKey;
+
+    final ctrl = _isMac ? hwMeta : hwCtrl;
+    final meta = _isMac ? hwCtrl : hwMeta;
 
     final result = <ShortcutCommand>[];
     for (final b in _bindings) {
@@ -486,6 +489,66 @@ class ShortcutSystem {
   }
 
   static final _isDesktop = !kIsWeb;
+  static final _isMac = !kIsWeb && Platform.isMacOS;
+
+  static String displayModifier(String mod) {
+    if (!_isMac) return mod;
+    switch (mod) {
+      case 'ctrl': return '\u2318';
+      case 'shift': return '\u21E7';
+      case 'alt': return '\u2325';
+      case 'meta': return '\u2303';
+      default: return mod;
+    }
+  }
+
+  static String displayKeyLabel(LogicalKeyboardKey key) {
+    if (_isMac) {
+      if (key == LogicalKeyboardKey.backspace) return '\u232B';
+      if (key == LogicalKeyboardKey.delete) return '\u2326';
+      if (key == LogicalKeyboardKey.enter) return '\u21A9';
+      if (key == LogicalKeyboardKey.tab) return '\u21E5';
+      if (key == LogicalKeyboardKey.escape) return '\u238B';
+      if (key == LogicalKeyboardKey.arrowUp) return '\u2191';
+      if (key == LogicalKeyboardKey.arrowDown) return '\u2193';
+      if (key == LogicalKeyboardKey.arrowLeft) return '\u2190';
+      if (key == LogicalKeyboardKey.arrowRight) return '\u2192';
+      if (key == LogicalKeyboardKey.space) return '\u2423';
+    }
+    return _keyNames[key]?.toUpperCase() ?? key.keyLabel;
+  }
+
+  static String displayBindingString(_KeyBinding b) {
+    final parts = <String>[];
+    if (_isMac) {
+      if (b.control) parts.add('\u2318');
+      if (b.alt) parts.add('\u2325');
+      if (b.shift) parts.add('\u21E7');
+      if (b.meta) parts.add('\u2303');
+      parts.add(displayKeyLabel(b.trigger));
+      return parts.join();
+    }
+    if (b.control) parts.add('Ctrl');
+    if (b.alt) parts.add('Alt');
+    if (b.shift) parts.add('Shift');
+    if (b.meta) parts.add('Meta');
+    parts.add(_keyNames[b.trigger]?.toUpperCase() ?? b.trigger.keyLabel);
+    return parts.join('+');
+  }
+
+  String displayStringForCommand(ShortcutCommand command) {
+    for (final b in _bindings) {
+      if (b.command == command) return displayBindingString(b);
+    }
+    return '';
+  }
+
+  List<String> allDisplayStringsForCommand(ShortcutCommand command) {
+    return _bindings
+        .where((b) => b.command == command)
+        .map(displayBindingString)
+        .toList();
+  }
 
   static final List<_KeyBinding> _defaultBindings = [
     const _KeyBinding(LogicalKeyboardKey.keyF, ShortcutCommand.search,
