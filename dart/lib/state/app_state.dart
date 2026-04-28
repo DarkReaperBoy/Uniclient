@@ -8,6 +8,8 @@ import 'package:flutter/services.dart';
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
+import '../theme/theme_file.dart';
+import '../theme/telegram_palette.dart';
 import '../theme/wallpaper.dart';
 import '../utils/debug.dart';
 
@@ -53,6 +55,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _editingTheme = false;
   String? _revertThemeId;
   String? _revertAccentColor;
+  String _customThemePath = '';
+  TelegramPalette? _cachedCustomPalette;
+  Uint8List? _cachedCustomBackground;
+  bool _cachedCustomTiled = false;
   List<String> _accountOrder = []; // persisted display order of account IDs
   WallpaperData _wallpaper = WallpaperData.none;
   final List<StreamSubscription<dynamic>> _subs = [];
@@ -761,6 +767,94 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  // ── §25.10 Custom theme with caching ──
+
+  TelegramPalette? get customPalette => _cachedCustomPalette;
+  Uint8List? get customThemeBackground => _cachedCustomBackground;
+  bool get customThemeTiled => _cachedCustomTiled;
+  String get customThemePath => _customThemePath;
+  bool get hasCustomTheme => _customThemePath.isNotEmpty && _cachedCustomPalette != null;
+
+  void applyCustomTheme(String path, Uint8List bytes) {
+    final parsed = parseThemeFile(bytes);
+    if (parsed == null) return;
+
+    _customThemePath = path;
+    _cachedCustomPalette = parsed.palette;
+    _cachedCustomBackground = parsed.backgroundImage;
+    _cachedCustomTiled = parsed.backgroundTiled;
+
+    if (_configDir.isNotEmpty) {
+      final cache = buildThemeCache(bytes, parsed);
+      saveThemeCache(_configDir, cache);
+    }
+
+    _saveWindowPrefs();
+    notifyListeners();
+  }
+
+  void clearCustomTheme() {
+    _customThemePath = '';
+    _cachedCustomPalette = null;
+    _cachedCustomBackground = null;
+    _cachedCustomTiled = false;
+    if (_configDir.isNotEmpty) clearThemeCache(_configDir);
+    _saveWindowPrefs();
+    notifyListeners();
+  }
+
+  void _loadCustomThemeFromCache() {
+    if (_configDir.isEmpty || _customThemePath.isEmpty) return;
+
+    final cache = loadThemeCache(_configDir);
+    if (cache == null) {
+      _reloadCustomThemeFromFile();
+      return;
+    }
+
+    final themeFile = File(_customThemePath);
+    if (!themeFile.existsSync()) {
+      _customThemePath = '';
+      clearThemeCache(_configDir);
+      return;
+    }
+
+    final bytes = themeFile.readAsBytesSync();
+    if (validateThemeCache(cache, bytes)) {
+      _cachedCustomPalette = cache.palette;
+      _cachedCustomBackground = cache.backgroundImage;
+      _cachedCustomTiled = cache.tileBg;
+    } else {
+      _reloadCustomThemeFromFile();
+    }
+  }
+
+  void _reloadCustomThemeFromFile() {
+    try {
+      final themeFile = File(_customThemePath);
+      if (!themeFile.existsSync()) {
+        _customThemePath = '';
+        return;
+      }
+      final bytes = themeFile.readAsBytesSync();
+      final parsed = parseThemeFile(bytes);
+      if (parsed == null) {
+        _customThemePath = '';
+        return;
+      }
+      _cachedCustomPalette = parsed.palette;
+      _cachedCustomBackground = parsed.backgroundImage;
+      _cachedCustomTiled = parsed.backgroundTiled;
+
+      if (_configDir.isNotEmpty) {
+        final cache = buildThemeCache(bytes, parsed);
+        saveThemeCache(_configDir, cache);
+      }
+    } catch (_) {
+      _customThemePath = '';
+    }
+  }
+
   static const _windowChannel = MethodChannel('com.uniclient.app/window');
 
   /// Toggle between native system window frame and client-side custom titlebar.
@@ -833,7 +927,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       if (rmLangs != null) _removedLanguageCodes = rmLangs.cast<String>();
       final order = data['accountOrder'] as List<dynamic>?;
       if (order != null) _accountOrder = order.cast<String>();
+      _customThemePath = data['customThemePath'] as String? ?? '';
       _loadWallpaper(data);
+      _loadCustomThemeFromCache();
     } catch (_) {}
   }
 
@@ -876,6 +972,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'selectedLanguageCode': _selectedLanguageCode,
         'removedLanguageCodes': _removedLanguageCodes,
         'experimentalFlags': _experimentalFlags,
+        'customThemePath': _customThemePath,
         'wallpaperType': _wallpaper.type.index,
         'wallpaperColors': _wallpaper.backgroundColors
             .map((c) => (c.value & 0xFFFFFF).toRadixString(16).padLeft(6, '0'))

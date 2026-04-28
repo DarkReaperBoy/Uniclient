@@ -818,7 +818,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/theme/telegram_palette.dart (TelegramPalette + PaletteProvider), dart/lib/theme/theme.dart (AppTheme.fromPalette) -->
 
-- [ ] Theme caching: palette + background BMP + checksums, skip re-parse on checksum match — spec §25.10
 - [ ] Per-chat themes: ChatThemeKey {id, dark}, bubble color from accent/bubblesData, contrast validation (min 1.14 ratio), 200ms background fade, horizontal scrollable theme-pill strip (miniature bg + sample bubbles + emoji), selection ring, Apply + Change Wallpaper buttons — spec §25.11
 - [ ] Cloud themes: {id, accessHash, slug, title, emoticon} structure, 4-per-row grid with background preview + bubble indicators + radio, right-click Share/Edit/Delete, sharing link format — spec §25.12
 - [ ] Theme preview image: dialogs panel + chat history with 9 sample rows and message bubbles — spec §25.13

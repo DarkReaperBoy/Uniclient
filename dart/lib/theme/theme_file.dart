@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:flutter/material.dart';
@@ -723,3 +725,165 @@ TelegramPalette paletteFromMap(Map<String, Color> m, TelegramPalette fb) =>
       settingsIconBg6: m['settingsIconBg6'] ?? fb.settingsIconBg6,
       overviewCheckBg: m['overviewCheckBg'] ?? fb.overviewCheckBg,
     );
+
+// ── §25.10 Theme Caching ──
+
+class ThemeCacheData {
+  final TelegramPalette palette;
+  final Uint8List? backgroundImage;
+  final bool tileBg;
+  final int paletteChecksum;
+  final int contentChecksum;
+  final CloudThemeMeta? cloudMeta;
+
+  const ThemeCacheData({
+    required this.palette,
+    this.backgroundImage,
+    this.tileBg = false,
+    required this.paletteChecksum,
+    required this.contentChecksum,
+    this.cloudMeta,
+  });
+}
+
+ThemeCacheData buildThemeCache(Uint8List themeFileBytes, ThemeFileData parsed) {
+  final contentChecksum = getCrc32(themeFileBytes);
+
+  int paletteChecksum = 0;
+  if (_looksLikeZip(themeFileBytes)) {
+    try {
+      final archive = ZipDecoder().decodeBytes(themeFileBytes);
+      for (final file in archive) {
+        final name = file.name.toLowerCase();
+        if (name == 'colors.tdesktop-theme' || name == 'colors.tdesktop-palette') {
+          paletteChecksum = getCrc32(file.content as List<int>);
+          break;
+        }
+      }
+    } catch (_) {
+      paletteChecksum = contentChecksum;
+    }
+  } else {
+    paletteChecksum = contentChecksum;
+  }
+
+  return ThemeCacheData(
+    palette: parsed.palette,
+    backgroundImage: parsed.backgroundImage,
+    tileBg: parsed.backgroundTiled,
+    paletteChecksum: paletteChecksum,
+    contentChecksum: contentChecksum,
+    cloudMeta: parsed.cloudMeta,
+  );
+}
+
+bool validateThemeCache(ThemeCacheData cache, Uint8List themeFileBytes) {
+  final contentChecksum = getCrc32(themeFileBytes);
+  if (contentChecksum != cache.contentChecksum) return false;
+
+  if (_looksLikeZip(themeFileBytes)) {
+    try {
+      final archive = ZipDecoder().decodeBytes(themeFileBytes);
+      for (final file in archive) {
+        final name = file.name.toLowerCase();
+        if (name == 'colors.tdesktop-theme' || name == 'colors.tdesktop-palette') {
+          return getCrc32(file.content as List<int>) == cache.paletteChecksum;
+        }
+      }
+    } catch (_) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void saveThemeCache(String configDir, ThemeCacheData cache) {
+  final colorMap = paletteToMap(cache.palette);
+  final hexColors = <String, String>{};
+  for (final entry in colorMap.entries) {
+    hexColors[entry.key] = _colorToHex(entry.value);
+  }
+
+  final json = <String, dynamic>{
+    'paletteChecksum': cache.paletteChecksum,
+    'contentChecksum': cache.contentChecksum,
+    'tileBg': cache.tileBg,
+    'colors': hexColors,
+  };
+  if (cache.cloudMeta != null) {
+    json['cloudMetaId'] = cache.cloudMeta!.id;
+    json['cloudMetaHash'] = cache.cloudMeta!.accessHash;
+  }
+
+  try {
+    File('$configDir/theme_cache.json').writeAsStringSync(jsonEncode(json));
+  } catch (_) {}
+
+  if (cache.backgroundImage != null) {
+    try {
+      File('$configDir/theme_cache_bg.dat').writeAsBytesSync(cache.backgroundImage!);
+    } catch (_) {}
+  } else {
+    try {
+      final f = File('$configDir/theme_cache_bg.dat');
+      if (f.existsSync()) f.deleteSync();
+    } catch (_) {}
+  }
+}
+
+ThemeCacheData? loadThemeCache(String configDir) {
+  try {
+    final cacheFile = File('$configDir/theme_cache.json');
+    if (!cacheFile.existsSync()) return null;
+
+    final data = jsonDecode(cacheFile.readAsStringSync()) as Map<String, dynamic>;
+    final paletteChecksum = data['paletteChecksum'] as int? ?? 0;
+    final contentChecksum = data['contentChecksum'] as int? ?? 0;
+    final tileBg = data['tileBg'] as bool? ?? false;
+    final colorsJson = data['colors'] as Map<String, dynamic>?;
+    if (colorsJson == null) return null;
+
+    final colorMap = <String, Color>{};
+    for (final entry in colorsJson.entries) {
+      final c = _parseHexColor(entry.value as String);
+      if (c != null) colorMap[entry.key] = c;
+    }
+
+    final fallback = TelegramPalette.dayBlue;
+    final merged = Map<String, Color>.from(paletteToMap(fallback))..addAll(colorMap);
+    final palette = paletteFromMap(merged, fallback);
+
+    Uint8List? bgBytes;
+    final bgFile = File('$configDir/theme_cache_bg.dat');
+    if (bgFile.existsSync()) bgBytes = bgFile.readAsBytesSync();
+
+    CloudThemeMeta? cloudMeta;
+    final cmId = data['cloudMetaId'] as int?;
+    final cmHash = data['cloudMetaHash'] as int?;
+    if (cmId != null && cmHash != null) {
+      cloudMeta = CloudThemeMeta(id: cmId, accessHash: cmHash);
+    }
+
+    return ThemeCacheData(
+      palette: palette,
+      backgroundImage: bgBytes,
+      tileBg: tileBg,
+      paletteChecksum: paletteChecksum,
+      contentChecksum: contentChecksum,
+      cloudMeta: cloudMeta,
+    );
+  } catch (_) {
+    return null;
+  }
+}
+
+void clearThemeCache(String configDir) {
+  try {
+    final f = File('$configDir/theme_cache.json');
+    if (f.existsSync()) f.deleteSync();
+  } catch (_) {}
+  try {
+    final f = File('$configDir/theme_cache_bg.dat');
+    if (f.existsSync()) f.deleteSync();
+  } catch (_) {}
+}
