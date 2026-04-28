@@ -806,7 +806,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: none yet — create dart/lib/ui/scheduled_messages.dart -->
 
-- [ ] ChooseDateTimeBox dialog (GenericBox 364px): date field 136px + "at" label + time field 72px, CalendarBox overlay on date click, wheel-scroll date, time validation shake, "Send when online" button (ScheduledToUser only), repeat-period dropdown with Premium lock, silent Ctrl-modifier, RTL layout swap — spec §23.2
 - [ ] Scheduled-clock toggle button in compose area (44×46px, two-layer icon, dynamic visibility by count, click triggers section) — spec §23.3
 - [ ] ScheduledWidget full section: slide transition in/out, title "Scheduled messages"/"Reminders", top-bar menu (Create Poll / Create To-do List only), selection mode with Send Now + Delete, date separators, auto-scroll to new item, file drag-drop zones, no unread counter — spec §23.4
 - [ ] Scheduled message rendering: scheduled-time timestamp, repeat-period prefix, silent muted-bell tooltip, multi-select support — spec §23.5

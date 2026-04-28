@@ -30,6 +30,7 @@ import 'confirm_box.dart';
 import 'call_panel.dart';
 import 'forum_topic_icon.dart';
 import 'edit_forum_topic_box.dart';
+import 'choose_datetime_box.dart';
 import 'emoji_panel.dart';
 import '../utils/web_drop.dart';
 
@@ -908,21 +909,9 @@ class _ChatViewState extends State<ChatView>
   }
 
   Future<void> _showReschedulePicker(String msgId) async {
-    final now = DateTime.now();
-    final date = await showDatePicker(
-      context: context,
-      initialDate: now,
-      firstDate: now,
-      lastDate: now.add(const Duration(days: 365)),
-    );
-    if (date == null || !mounted) return;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(now.add(const Duration(minutes: 5))),
-    );
-    if (time == null || !mounted) return;
-    final scheduled = DateTime(date.year, date.month, date.day, time.hour, time.minute);
-    if (scheduled.isBefore(DateTime.now())) return;
+    final result = await showChooseDateTimeBox(context);
+    if (result == null || !mounted) return;
+    // TODO: backend reschedule not yet wired — currently sends immediately
     final chatState = context.read<ChatState>();
     chatState.sendScheduledNow([msgId]);
   }
@@ -8495,22 +8484,17 @@ class _SendButtonState extends State<_SendButton>
   }
 
   Future<void> _pickScheduleDate() async {
-    final now = DateTime.now();
-    final date = await showDatePicker(
-      context: context,
-      initialDate: now,
-      firstDate: now,
-      lastDate: now.add(const Duration(days: 365)),
+    final result = await showChooseDateTimeBox(
+      context,
+      isSelfChat: widget.isSelfChat,
+      isScheduledToUser: widget.chatType == ChatType.dm && !widget.isSelfChat,
     );
-    if (date == null || !mounted) return;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(now.add(const Duration(minutes: 5))),
-    );
-    if (time == null || !mounted) return;
-    final scheduled = DateTime(date.year, date.month, date.day, time.hour, time.minute);
-    if (scheduled.isBefore(DateTime.now())) return;
-    widget.onSendScheduled?.call(scheduled);
+    if (result == null || !mounted) return;
+    if (result.sendWhenOnline) {
+      widget.onSendWhenOnline?.call();
+    } else {
+      widget.onSendScheduled?.call(result.dateTime);
+    }
   }
 
   static bool _isForbiddable(SendButtonType type) =>
@@ -9584,22 +9568,9 @@ class _ShareBoxState extends State<_ShareBox> {
   }
 
   void _showSchedulePicker(BuildContext context) async {
-    final now = DateTime.now();
-    final date = await showDatePicker(
-      context: context,
-      initialDate: now.add(const Duration(hours: 1)),
-      firstDate: now,
-      lastDate: now.add(const Duration(days: 365)),
-    );
-    if (date == null || !mounted) return;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(now.add(const Duration(hours: 1))),
-    );
-    if (time == null || !mounted) return;
-    final scheduled = DateTime(date.year, date.month, date.day, time.hour, time.minute);
-    if (scheduled.isBefore(DateTime.now())) return;
-    setState(() => _scheduleDate = scheduled.millisecondsSinceEpoch ~/ 1000);
+    final result = await showChooseDateTimeBox(context);
+    if (result == null || !mounted) return;
+    setState(() => _scheduleDate = result.dateTime.millisecondsSinceEpoch ~/ 1000);
     _doSend();
   }
 

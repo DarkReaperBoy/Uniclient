@@ -23,6 +23,7 @@ import 'ui/call_panel.dart';
 import 'ui/call_screen.dart';
 import 'ui/chat_list_panel.dart';
 import 'ui/chat_view.dart';
+import 'ui/choose_datetime_box.dart';
 import 'ui/media_viewer.dart';
 import 'ui/shell.dart';
 import 'ui/titlebar.dart';
@@ -540,6 +541,20 @@ class _UniClientAppState extends State<UniClientApp>
           final navCtx = _navigatorKey.currentContext;
           if (navCtx != null) {
             showCallRatingDialog(navCtx, callId: cmd['callId'] as String? ?? 'test_call');
+          }
+
+        case 'showScheduleBox':
+          final navCtx = _navigatorKey.currentContext;
+          if (navCtx != null) {
+            showChooseDateTimeBox(navCtx).then((result) {
+              File('/tmp/uniclient_debug_out.json').writeAsStringSync(
+                jsonEncode(result != null
+                    ? {'dateTime': result.dateTime.toIso8601String(),
+                       'silent': result.silent, 'sendWhenOnline': result.sendWhenOnline,
+                       'repeatPeriod': result.repeatPeriod}
+                    : {'cancelled': true}),
+              );
+            });
           }
 
         case 'showGroupCallPanel':

@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import '../models/engine_models.dart' show ChatType;
 import 'popup_menu.dart';
+import 'choose_datetime_box.dart';
 
 const double _previewWidth = 308;
 const double _previewHeightMax = 1280;
@@ -236,22 +237,17 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
   }
 
   Future<void> _pickScheduleDate() async {
-    final now = DateTime.now();
-    final date = await showDatePicker(
-      context: context,
-      initialDate: now,
-      firstDate: now,
-      lastDate: now.add(const Duration(days: 365)),
+    final result = await showChooseDateTimeBox(
+      context,
+      isSelfChat: widget.isSelfChat,
+      isScheduledToUser: widget.chatType == ChatType.dm && !widget.isSelfChat,
     );
-    if (date == null || !mounted) return;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(now.add(const Duration(minutes: 5))),
-    );
-    if (time == null || !mounted) return;
-    final scheduled = DateTime(date.year, date.month, date.day, time.hour, time.minute);
-    if (scheduled.isBefore(DateTime.now())) return;
-    _send(scheduledDate: scheduled);
+    if (result == null || !mounted) return;
+    if (result.sendWhenOnline) {
+      _send();
+    } else {
+      _send(scheduledDate: result.dateTime);
+    }
   }
 
   @override
