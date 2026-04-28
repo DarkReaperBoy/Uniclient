@@ -2872,10 +2872,20 @@ class _ChatViewState extends State<ChatView>
                     if (_selectedMsgIds.contains(msgId)) {
                       _selectedMsgIds.remove(msgId);
                     } else {
+                      final inScheduled = widget.isScheduledView || chatState.isScheduledView;
+                      if (inScheduled) {
+                        final msg = chatState.messages.where((m) => m.msgId == msgId).firstOrNull;
+                        if (msg != null && (msg.isSending || msg.isFailed)) return;
+                      }
                       _selectedMsgIds.add(msgId);
                     }
                   }),
                   onLongPress: (msgId) => _modifySelection(() {
+                    final inScheduled = widget.isScheduledView || chatState.isScheduledView;
+                    if (inScheduled) {
+                      final msg = chatState.messages.where((m) => m.msgId == msgId).firstOrNull;
+                      if (msg != null && (msg.isSending || msg.isFailed)) return;
+                    }
                     _selectedMsgIds.add(msgId);
                   }),
                   onContextMenu: (msgId, pos, selectedText) => _showMessageContextMenu(msgId, pos, selectedText),
@@ -4328,7 +4338,7 @@ class _MessageList extends StatelessWidget {
 
         return Column(
           children: [
-            if (showDate) _DateSeparator(timestamp: msg.timestamp),
+            if (showDate) _DateSeparator(timestamp: msg.timestamp, isScheduled: isScheduledView),
             if (showUnreadBar) _UnreadBar(count: openedUnreadCount),
             PlatformGestureDetector(
               behavior: inSelectionMode ? HitTestBehavior.opaque : HitTestBehavior.deferToChild,
@@ -4352,6 +4362,7 @@ class _MessageList extends StatelessWidget {
                             isGroupChat: isGroupChat,
                             isSelected: isSelected,
                             inSelectionMode: inSelectionMode,
+                            isScheduledView: isScheduledView,
                             allMessages: messages,
                             albumItems: item.albumMessages,
                             senderAvatarB64: senderAvatars?.senderAvatar(msg.senderId),
@@ -4368,6 +4379,7 @@ class _MessageList extends StatelessWidget {
                             isGroupChat: isGroupChat,
                             isSelected: isSelected,
                             inSelectionMode: inSelectionMode,
+                            isScheduledView: isScheduledView,
                             allMessages: messages,
                             senderAvatarB64: senderAvatars?.senderAvatar(msg.senderId),
                             onReply: () => onReply(msg.msgId),

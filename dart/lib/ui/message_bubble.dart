@@ -41,6 +41,7 @@ class MessageBubble extends StatefulWidget {
   final bool inSelectionMode;
   final List<CachedMessage> allMessages;
   final List<CachedMessage> albumItems;
+  final bool isScheduledView;
 
   const MessageBubble({
     super.key,
@@ -52,6 +53,7 @@ class MessageBubble extends StatefulWidget {
     this.inSelectionMode = false,
     this.allMessages = const [],
     this.albumItems = const [],
+    this.isScheduledView = false,
     this.senderAvatarB64,
     this.onReply,
     this.onContextMenu,
@@ -452,6 +454,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                         isOutgoing: isOutgoing,
                         isDark: isDark,
                         isSelected: isSelected,
+                        isScheduledView: widget.isScheduledView,
                         allMessages: allMessages,
                       ),
                     // Caption text below media for captioned photo/video/GIF.
@@ -508,11 +511,20 @@ class _MessageBubbleState extends State<MessageBubble> {
                               child: Text('edited',
                                   style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, isDark))),
                             ),
-                          Text(
-                            _formatTime(message.timestamp),
-                            style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, isDark)),
-                          ),
-                          if (isOutgoing) ...[
+                          if (widget.isScheduledView && message.isScheduled)
+                            Tooltip(
+                              message: _scheduledTooltip(message),
+                              child: Text(
+                                _formatScheduledTime(message),
+                                style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, isDark)),
+                              ),
+                            )
+                          else
+                            Text(
+                              _formatTime(message.timestamp),
+                              style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, isDark)),
+                            ),
+                          if (isOutgoing && !widget.isScheduledView) ...[
                             const SizedBox(width: 4),
                             _StatusIcon(status: message.status, theme: theme, isOutgoing: true, isDark: isDark),
                           ],
@@ -690,6 +702,37 @@ class _MessageBubbleState extends State<MessageBubble> {
     if (timestampMs == 0) return '';
     final dt = DateTime.fromMillisecondsSinceEpoch(timestampMs);
     return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+
+  static String _formatScheduledTime(CachedMessage msg) {
+    final ts = msg.scheduleDate > 0 ? msg.scheduleDate * 1000 : msg.timestamp;
+    final time = _formatTime(ts);
+    final prefix = _repeatPeriodLabel(msg.scheduleRepeatPeriod);
+    return prefix.isEmpty ? time : '$prefix $time';
+  }
+
+  static String _repeatPeriodLabel(int period) {
+    const labels = {
+      86400: 'daily',
+      604800: 'weekly',
+      1209600: 'biweekly',
+      2592000: 'monthly',
+      7862400: 'every 3 months',
+      15724800: 'every 6 months',
+      31536000: 'yearly',
+    };
+    return labels[period] ?? '';
+  }
+
+  static String _scheduledTooltip(CachedMessage msg) {
+    final ts = msg.scheduleDate > 0 ? msg.scheduleDate * 1000 : msg.timestamp;
+    if (ts == 0) return '';
+    final dt = DateTime.fromMillisecondsSinceEpoch(ts);
+    final date = '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+    final time = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}:${dt.second.toString().padLeft(2, '0')}';
+    var tip = '$date $time\nID: ${msg.msgId}';
+    if (msg.isSilent) tip += '\n\u{1F515}';
+    return tip;
   }
 
   /// Compact number format for views/forwards (e.g. 1.2K, 3.5M).
@@ -1582,6 +1625,7 @@ class _MediaIndicator extends StatelessWidget {
   final bool isOutgoing;
   final bool isDark;
   final bool isSelected;
+  final bool isScheduledView;
   final List<CachedMessage> allMessages;
 
   const _MediaIndicator({
@@ -1591,6 +1635,7 @@ class _MediaIndicator extends StatelessWidget {
     this.isOutgoing = false,
     this.isDark = false,
     this.isSelected = false,
+    this.isScheduledView = false,
     this.allMessages = const [],
   });
 
@@ -1605,6 +1650,7 @@ class _MediaIndicator extends StatelessWidget {
         isOutgoing: isOutgoing,
         isDark: isDark,
         isSelected: isSelected,
+        isScheduledView: isScheduledView,
         allMessages: allMessages,
       );
     }
@@ -2093,6 +2139,7 @@ class _VisualMedia extends StatefulWidget {
   final bool isOutgoing;
   final bool isDark;
   final bool isSelected;
+  final bool isScheduledView;
   final List<CachedMessage> allMessages;
 
   const _VisualMedia({
@@ -2102,6 +2149,7 @@ class _VisualMedia extends StatefulWidget {
     this.isOutgoing = false,
     this.isDark = false,
     this.isSelected = false,
+    this.isScheduledView = false,
     this.allMessages = const [],
   });
 
@@ -2626,11 +2674,20 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
                             child: Text('edited',
                                 style: TextStyle(fontSize: 13, color: AppColors.historyIconFgInverted)),
                           ),
-                        Text(
-                          _MessageBubbleState._formatTime(message.timestamp),
-                          style: const TextStyle(fontSize: 13, color: AppColors.historyIconFgInverted),
-                        ),
-                        if (widget.isOutgoing) ...[
+                        if (widget.isScheduledView && message.isScheduled)
+                          Tooltip(
+                            message: _MessageBubbleState._scheduledTooltip(message),
+                            child: Text(
+                              _MessageBubbleState._formatScheduledTime(message),
+                              style: const TextStyle(fontSize: 13, color: AppColors.historyIconFgInverted),
+                            ),
+                          )
+                        else
+                          Text(
+                            _MessageBubbleState._formatTime(message.timestamp),
+                            style: const TextStyle(fontSize: 13, color: AppColors.historyIconFgInverted),
+                          ),
+                        if (widget.isOutgoing && !widget.isScheduledView) ...[
                           const SizedBox(width: 4),
                           _StatusIcon(
                             status: message.status,

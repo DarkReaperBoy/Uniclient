@@ -806,7 +806,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: none yet — create dart/lib/ui/scheduled_messages.dart -->
 
-- [ ] Scheduled message rendering: scheduled-time timestamp, repeat-period prefix, silent muted-bell tooltip, multi-select support — spec §23.5
 - [ ] Context menu: Send Now (single/group/selected), Send Now confirmation dialog, Reschedule (single up to §23.6 kRescheduleLimit=20), Delete, +1s offset per subsequent message in batch reschedule — spec §23.6
 - [ ] sentToScheduled event auto-navigation and toast — spec §23.7
 - [ ] Video processing toasts: stage-1 top-attached toast 4000ms, stage-2 ImportantTooltip bubble, published notification toast with thumbnail + "View" button — spec §23.8
