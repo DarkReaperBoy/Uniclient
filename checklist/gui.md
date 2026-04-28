@@ -818,7 +818,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/theme/telegram_palette.dart (TelegramPalette + PaletteProvider), dart/lib/theme/theme.dart (AppTheme.fromPalette) -->
 
-- [ ] Theme name auto-generator: weighted Euclidean distance, "{Adj} {Color}" / "{Color} {Noun}" patterns — spec §25.7
 - [ ] Wallpaper system: Image/Pattern/Gradient/Solid types, 1-4 background colors, pattern intensity ±100, gradient rotation 45° snap, blur flag, 2/3/4-color gradient rendering, pattern SoftLight/DestinationIn compositing, upload (JPEG 87%, 320px thumb), URL format with params — spec §25.8
 - [ ] 6 adaptive service message colors from wallpaper average color; ThemeAdjustedColor hue+sat transplant — spec §25.8.9 + §25.17.5
 - [ ] Night mode: dark detection by dialogsBg HSV < 0.5, hamburger toggle, auto-night from OS, 16s revert countdown overlay (easeIn/easeOut, boxDuration) — spec §25.9

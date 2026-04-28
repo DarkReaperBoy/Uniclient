@@ -8,6 +8,7 @@ import 'package:image/image.dart' as img;
 
 import '../theme/telegram_palette.dart';
 import '../theme/theme_file.dart';
+import '../theme/theme_name_generator.dart';
 
 class ThemeEditorScreen extends StatefulWidget {
   final TelegramPalette palette;
@@ -649,7 +650,9 @@ class _SaveThemeBoxState extends State<_SaveThemeBox> {
   @override
   void initState() {
     super.initState();
-    final defaultName = widget.cloudMeta != null ? '' : 'Custom Theme';
+    final defaultName = widget.cloudMeta != null
+        ? ''
+        : generateThemeName(widget.palette.windowBgActive);
     _nameController = TextEditingController(text: defaultName);
     _slugController = TextEditingController();
     _backgroundImage = widget.existingBackground;
