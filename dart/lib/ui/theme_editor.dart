@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image/image.dart' as img;
 
 import '../theme/telegram_palette.dart';
 import '../theme/theme_file.dart';
@@ -65,11 +66,17 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
   }
 
   void _handleExport() async {
-    final data = ThemeFileData(palette: _currentPalette);
-    final bytes = exportThemeFile(data);
+    final result = await showDialog<ThemeFileData>(
+      context: context,
+      builder: (ctx) => _SaveThemeBox(palette: _currentPalette),
+    );
+    if (result == null || !mounted) return;
+
+    final bytes = exportThemeFile(result);
     final dir = await FilePicker.platform.getDirectoryPath();
     if (dir == null) return;
-    final path = '$dir/custom.tdesktop-theme';
+    final safeName = result.cloudMeta != null ? 'custom' : 'custom';
+    final path = '$dir/$safeName.tdesktop-theme';
     await File(path).writeAsBytes(bytes);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -598,4 +605,384 @@ String _colorToHexString(Color c) {
       '${g.toRadixString(16).padLeft(2, '0')}'
       '${b.toRadixString(16).padLeft(2, '0')}'
       '${a.toRadixString(16).padLeft(2, '0')}';
+}
+
+// ── SaveThemeBox Dialog (spec §25.6.5) ──
+
+const _kBoxWideWidth = 364.0;
+const _kMaxSlugSize = 64;
+const _kMinSlugSize = 5;
+const _kJpegQuality = 87;
+const _kSlugPattern = r'^[a-zA-Z0-9_]+$';
+
+Uint8List _encodeAsJpeg87(Uint8List imageBytes) {
+  final decoded = img.decodeImage(imageBytes);
+  if (decoded == null) return imageBytes;
+  return Uint8List.fromList(img.encodeJpg(decoded, quality: _kJpegQuality));
+}
+
+class _SaveThemeBox extends StatefulWidget {
+  final TelegramPalette palette;
+  final Uint8List? existingBackground;
+  final bool existingTiled;
+  final CloudThemeMeta? cloudMeta;
+
+  const _SaveThemeBox({
+    required this.palette,
+    this.existingBackground,
+    this.existingTiled = false,
+    this.cloudMeta,
+  });
+
+  @override
+  State<_SaveThemeBox> createState() => _SaveThemeBoxState();
+}
+
+class _SaveThemeBoxState extends State<_SaveThemeBox> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _slugController;
+  Uint8List? _backgroundImage;
+  bool _tiled = false;
+  String? _slugError;
+  String? _nameError;
+
+  @override
+  void initState() {
+    super.initState();
+    final defaultName = widget.cloudMeta != null ? '' : 'Custom Theme';
+    _nameController = TextEditingController(text: defaultName);
+    _slugController = TextEditingController();
+    _backgroundImage = widget.existingBackground;
+    _tiled = widget.existingTiled;
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _slugController.dispose();
+    super.dispose();
+  }
+
+  bool _validateSlug(String slug) {
+    if (slug.isEmpty) return true;
+    if (slug.length < _kMinSlugSize) {
+      setState(() => _slugError = 'At least $_kMinSlugSize characters');
+      return false;
+    }
+    if (slug.length > _kMaxSlugSize) {
+      setState(() => _slugError = 'At most $_kMaxSlugSize characters');
+      return false;
+    }
+    if (!RegExp(_kSlugPattern).hasMatch(slug)) {
+      setState(() => _slugError = 'Only letters, digits, underscores');
+      return false;
+    }
+    setState(() => _slugError = null);
+    return true;
+  }
+
+  void _pickBackground() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['jpeg', 'jpg', 'png'],
+    );
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.first;
+    Uint8List? bytes;
+    if (file.bytes != null) {
+      bytes = file.bytes!;
+    } else if (file.path != null) {
+      bytes = await File(file.path!).readAsBytes();
+    }
+    if (bytes != null && mounted) {
+      setState(() => _backgroundImage = bytes);
+    }
+  }
+
+  void _save() {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      setState(() => _nameError = 'Theme name is required');
+      return;
+    }
+    setState(() => _nameError = null);
+
+    final slug = _slugController.text.trim();
+    if (slug.isNotEmpty && !_validateSlug(slug)) return;
+
+    Uint8List? bgBytes;
+    if (_backgroundImage != null) {
+      bgBytes = _encodeAsJpeg87(_backgroundImage!);
+    }
+
+    final data = ThemeFileData(
+      palette: widget.palette,
+      backgroundImage: bgBytes,
+      backgroundTiled: _tiled,
+      cloudMeta: widget.cloudMeta,
+    );
+    Navigator.of(context).pop(data);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.palette.isDark;
+    final boxBg = widget.palette.boxBg;
+    final titleFg = widget.palette.boxTitleFg;
+    final textFg = widget.palette.boxTextFg;
+    final subFg = widget.palette.windowSubTextFg;
+    final accent = widget.palette.windowBgActive;
+    final errorFg = widget.palette.boxTextFgError;
+    final inputBg = isDark ? const Color(0xFF242F3D) : const Color(0xFFF1F3F5);
+
+    final thumbSize = _computeThumbnailSize(context);
+
+    return Dialog(
+      backgroundColor: boxBg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: SizedBox(
+        width: _kBoxWideWidth,
+        child: Padding(
+          padding: const EdgeInsets.all(0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Title bar
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 17, 22, 0),
+                child: Text(
+                  widget.cloudMeta != null ? 'Save Theme' : 'Create a new theme',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: titleFg,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Name field
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 22),
+                child: TextField(
+                  controller: _nameController,
+                  style: TextStyle(color: textFg, fontSize: 14),
+                  decoration: InputDecoration(
+                    labelText: 'Theme name',
+                    labelStyle: TextStyle(color: subFg, fontSize: 14),
+                    errorText: _nameError,
+                    errorStyle: TextStyle(color: errorFg, fontSize: 12),
+                    filled: true,
+                    fillColor: inputBg,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: BorderSide(color: accent, width: 1.5),
+                    ),
+                  ),
+                  onChanged: (_) {
+                    if (_nameError != null) setState(() => _nameError = null);
+                  },
+                ),
+              ),
+              const SizedBox(height: 10),
+              // Link/slug field
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 22),
+                child: TextField(
+                  controller: _slugController,
+                  style: TextStyle(color: textFg, fontSize: 14),
+                  decoration: InputDecoration(
+                    prefixText: 'addtheme/',
+                    prefixStyle: TextStyle(color: subFg, fontSize: 14),
+                    labelText: 'Link',
+                    labelStyle: TextStyle(color: subFg, fontSize: 14),
+                    errorText: _slugError,
+                    errorStyle: TextStyle(color: errorFg, fontSize: 12),
+                    filled: true,
+                    fillColor: inputBg,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: BorderSide(color: accent, width: 1.5),
+                    ),
+                  ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9_]')),
+                    LengthLimitingTextInputFormatter(_kMaxSlugSize),
+                  ],
+                  onChanged: (v) {
+                    if (_slugError != null) _validateSlug(v);
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+              // "Background image" subsection header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
+                child: Text(
+                  'Background image',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: accent,
+                  ),
+                ),
+              ),
+              // Background section: thumbnail + controls
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 22),
+                child: SizedBox(
+                  height: thumbSize + 4,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Thumbnail
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: SizedBox(
+                          width: thumbSize,
+                          height: thumbSize,
+                          child: _backgroundImage != null
+                              ? Image.memory(
+                                  _backgroundImage!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => _PlaceholderThumb(
+                                    size: thumbSize,
+                                    color: widget.palette.dialogsBg,
+                                  ),
+                                )
+                              : _PlaceholderThumb(
+                                  size: thumbSize,
+                                  color: widget.palette.dialogsBg,
+                                ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      // Controls column
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _backgroundImage != null ? 'Image selected' : 'No image',
+                              style: TextStyle(color: textFg, fontSize: 13),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 6),
+                            TextButton(
+                              onPressed: _pickBackground,
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              child: Text(
+                                'Choose from file',
+                                style: TextStyle(color: accent, fontSize: 13),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: Checkbox(
+                                    value: _tiled,
+                                    onChanged: (v) => setState(() => _tiled = v ?? false),
+                                    activeColor: accent,
+                                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                GestureDetector(
+                                  onTap: () => setState(() => _tiled = !_tiled),
+                                  child: Text(
+                                    'Tile background',
+                                    style: TextStyle(color: textFg, fontSize: 13),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Buttons
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 0, 22, 17),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(color: accent, fontSize: 14),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    FilledButton(
+                      onPressed: _save,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: accent,
+                        foregroundColor: widget.palette.activeButtonFg,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      child: const Text('Save', style: TextStyle(fontSize: 14)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  double _computeThumbnailSize(BuildContext context) {
+    const textHeight = 14.0;
+    const smallSkip = 6.0;
+    const buttonHeight = 30.0;
+    const checkboxHeight = 20.0;
+    return textHeight + smallSkip + buttonHeight + smallSkip + checkboxHeight;
+  }
+}
+
+class _PlaceholderThumb extends StatelessWidget {
+  final double size;
+  final Color color;
+
+  const _PlaceholderThumb({required this.size, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
+      ),
+      child: Icon(Icons.image_outlined, color: Colors.grey.withValues(alpha: 0.5), size: size * 0.4),
+    );
+  }
 }
