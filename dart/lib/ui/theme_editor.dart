@@ -9,6 +9,7 @@ import 'package:image/image.dart' as img;
 import '../theme/telegram_palette.dart';
 import '../theme/theme_file.dart';
 import '../theme/theme_name_generator.dart';
+import '../theme/theme_preview.dart';
 
 class ThemeEditorScreen extends StatefulWidget {
   final TelegramPalette palette;
@@ -33,6 +34,7 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
   int? _editingIndex;
   final _scrollController = ScrollController();
   final _listFocusNode = FocusNode();
+  bool _showPreview = false;
 
   @override
   void initState() {
@@ -245,6 +247,15 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
                   ),
                 ),
                 IconButton(
+                  icon: Icon(
+                    _showPreview ? Icons.visibility_off : Icons.visibility,
+                    color: _showPreview ? accentColor : textColor,
+                    size: 22,
+                  ),
+                  onPressed: () => setState(() => _showPreview = !_showPreview),
+                  tooltip: _showPreview ? 'Hide Preview' : 'Show Preview',
+                ),
+                IconButton(
                   icon: Icon(Icons.more_vert, color: textColor, size: 22),
                   onPressed: _showMenuDialog,
                   tooltip: 'Options',
@@ -286,6 +297,24 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
               ),
             ),
           ),
+          // Theme preview panel
+          if (_showPreview)
+            Container(
+              decoration: BoxDecoration(
+                color: _currentPalette.windowBg,
+                border: Border(bottom: BorderSide(color: shadowColor, width: 1)),
+              ),
+              padding: const EdgeInsets.all(8),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 250),
+                  child: AspectRatio(
+                    aspectRatio: 903 / 584,
+                    child: ThemePreviewImage(palette: _currentPalette),
+                  ),
+                ),
+              ),
+            ),
           // Palette entries list
           Expanded(
             child: KeyboardListener(
