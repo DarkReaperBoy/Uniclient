@@ -1,5 +1,8 @@
+import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -8,6 +11,7 @@ import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../theme/telegram_palette.dart';
+import '../theme/wallpaper.dart';
 import 'popup_menu.dart';
 import 'settings_style.dart';
 import 'shortcuts_settings_screen.dart';
@@ -48,6 +52,8 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   @override
   void initState() {
     super.initState();
+    final appState = context.read<AppState>();
+    _tileBackground = appState.wallpaper.tiled;
     _loadSelfColor();
     _loadCloudThemes();
     _loadContentSettings();
@@ -94,6 +100,40 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
         _cloudThemesLoaded = true;
       });
     });
+  }
+
+  Future<void> _pickFromGallery() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+    );
+    await _applyPickedWallpaper(result);
+  }
+
+  Future<void> _pickFromFile() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['jpeg', 'jpg', 'png', 'bmp', 'webp'],
+    );
+    await _applyPickedWallpaper(result);
+  }
+
+  Future<void> _applyPickedWallpaper(FilePickerResult? result) async {
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.first;
+    Uint8List? bytes;
+    if (file.bytes != null) {
+      bytes = file.bytes!;
+    } else if (file.path != null) {
+      bytes = await File(file.path!).readAsBytes();
+    }
+    if (bytes == null || !mounted) return;
+    final processed = encodeWallpaperJpeg(bytes);
+    final appState = context.read<AppState>();
+    appState.setWallpaper(WallpaperData.fromImage(
+      processed,
+      tiled: _tileBackground,
+    ));
+    setState(() {});
   }
 
   @override
@@ -275,8 +315,26 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             tileBackground: _tileBackground,
             adaptiveLayout: _adaptiveLayout,
             accentColor: currentAccent,
-            onTileChanged: (v) => setState(() => _tileBackground = v),
+            wallpaper: appState.wallpaper,
+            onTileChanged: (v) {
+              setState(() => _tileBackground = v);
+              final wp = appState.wallpaper;
+              if (wp.isImage) {
+                appState.setWallpaper(WallpaperData(
+                  type: wp.type,
+                  backgroundColors: wp.backgroundColors,
+                  patternIntensity: wp.patternIntensity,
+                  gradientRotation: wp.gradientRotation,
+                  blurred: wp.blurred,
+                  imageBytes: wp.imageBytes,
+                  patternBytes: wp.patternBytes,
+                  tiled: v,
+                ));
+              }
+            },
             onAdaptiveChanged: (v) => setState(() => _adaptiveLayout = v),
+            onPickGallery: _pickFromGallery,
+            onPickFile: _pickFromFile,
           ),
           const SizedBox(height: 7),
           Container(height: 1, color: dividerColor),
@@ -2062,22 +2120,26 @@ class _ChatBackgroundSection extends StatelessWidget {
   final bool tileBackground;
   final bool adaptiveLayout;
   final Color accentColor;
+  final WallpaperData wallpaper;
   final ValueChanged<bool> onTileChanged;
   final ValueChanged<bool> onAdaptiveChanged;
+  final VoidCallback onPickGallery;
+  final VoidCallback onPickFile;
 
   const _ChatBackgroundSection({
     required this.isDark,
     required this.tileBackground,
     required this.adaptiveLayout,
     required this.accentColor,
+    required this.wallpaper,
     required this.onTileChanged,
     required this.onAdaptiveChanged,
+    required this.onPickGallery,
+    required this.onPickFile,
   });
 
   @override
   Widget build(BuildContext context) {
-    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final thumbBg = isDark ? const Color(0xFF0E1621) : const Color(0xFFDFE7EB);
     final thumbRecv = isDark ? const Color(0xFF182533) : const Color(0xFFFFFFFF);
     final thumbSent = isDark ? const Color(0xFF2B5278) : const Color(0xFFEEFFDE);
@@ -2102,14 +2164,24 @@ class _ChatBackgroundSection extends StatelessWidget {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: CustomPaint(
-                    size: const Size(76, 76),
-                    painter: _BackgroundThumbPainter(
-                      background: thumbBg,
-                      receivedBubble: thumbRecv,
-                      sentBubble: thumbSent,
-                    ),
-                  ),
+                  child: wallpaper.imageBytes != null
+                      ? Image.memory(
+                          wallpaper.imageBytes!,
+                          width: 76,
+                          height: 76,
+                          fit: BoxFit.cover,
+                          gaplessPlayback: true,
+                        )
+                      : CustomPaint(
+                          size: const Size(76, 76),
+                          painter: _BackgroundThumbPainter(
+                            background: wallpaper.backgroundColors.isNotEmpty
+                                ? wallpaper.backgroundColors.first
+                                : thumbBg,
+                            receivedBubble: thumbRecv,
+                            sentBubble: thumbSent,
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(width: 14),
@@ -2118,7 +2190,7 @@ class _ChatBackgroundSection extends StatelessWidget {
                 children: [
                   const SizedBox(height: 8),
                   GestureDetector(
-                    onTap: () {},
+                    onTap: onPickGallery,
                     child: Text(
                       'Choose from gallery',
                       style: TextStyle(fontSize: 14, color: accentColor),
@@ -2126,7 +2198,7 @@ class _ChatBackgroundSection extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   GestureDetector(
-                    onTap: () {},
+                    onTap: onPickFile,
                     child: Text(
                       'Choose from file',
                       style: TextStyle(fontSize: 14, color: accentColor),
