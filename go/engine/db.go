@@ -360,6 +360,7 @@ const (
 	MediaPoll      = 9
 	MediaLocation  = 10
 	MediaContact   = 11
+	MediaInvoice   = 12
 )
 
 func columnExists(tx *sql.Tx, table, column string) bool {

@@ -10143,6 +10143,33 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 				m.Text = "👤 " + name
 			}
 			m.Attachments = []FileRef{{MimeType: "application/x-contact", Name: "contact"}}
+		case *tg.MessageMediaInvoice:
+			if m.Extra == nil {
+				m.Extra = make(map[string]interface{})
+			}
+			m.Extra["invoice_title"] = md.Title
+			m.Extra["invoice_description"] = md.Description
+			m.Extra["invoice_currency"] = md.Currency
+			m.Extra["invoice_total_amount"] = md.TotalAmount
+			m.Extra["invoice_test"] = md.Test
+			if receiptMsgID, ok := md.GetReceiptMsgID(); ok {
+				m.Extra["invoice_receipt_msg_id"] = receiptMsgID
+			}
+			if p, ok := md.GetPhoto(); ok {
+				if photo, ok := p.(*tg.WebDocument); ok {
+					m.Extra["invoice_photo_url"] = photo.URL
+				}
+				if photo, ok := p.(*tg.WebDocumentNoProxy); ok {
+					m.Extra["invoice_photo_url"] = photo.URL
+				}
+			}
+			if md.ShippingAddressRequested {
+				m.Extra["invoice_shipping_requested"] = true
+			}
+			if m.Text == "" {
+				m.Text = "💳 " + md.Title
+			}
+			m.Attachments = []FileRef{{MimeType: "application/x-invoice", Name: "invoice"}}
 		case *tg.MessageMediaGame:
 			if m.Extra == nil {
 				m.Extra = make(map[string]interface{})
@@ -21013,4 +21040,235 @@ func (t *TelegramCore) ClearPaymentInfo(clearCredentials, clearShipping bool) er
 	}
 	_, err := t.api.PaymentsClearSavedInfo(t.ctx, req)
 	return err
+}
+
+// GetPaymentForm fetches the payment form for an invoice message.
+func (t *TelegramCore) GetPaymentForm(chatID, msgID string) (map[string]interface{}, error) {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+	id, err := tgMsgID(msgID)
+	if err != nil {
+		return nil, err
+	}
+	rawResult, err := t.api.PaymentsGetPaymentForm(t.ctx, &tg.PaymentsGetPaymentFormRequest{
+		Invoice: &tg.InputInvoiceMessage{
+			Peer:  inputPeer,
+			MsgID: id,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get payment form: %w", err)
+	}
+	result, ok := rawResult.(*tg.PaymentsPaymentForm)
+	if !ok {
+		return nil, fmt.Errorf("unexpected payment form type: %T", rawResult)
+	}
+	form := map[string]interface{}{
+		"form_id":  result.FormID,
+		"bot_id":   result.BotID,
+		"title":    result.Title,
+		"currency": result.Invoice.Currency,
+		"test":     result.Invoice.Test,
+	}
+	if result.Description != "" {
+		form["description"] = result.Description
+	}
+	if result.NativeProvider != "" {
+		form["native_provider"] = result.NativeProvider
+	}
+	if result.URL != "" {
+		form["url"] = result.URL
+	}
+	if p, ok := result.GetPhoto(); ok {
+		if photo, ok := p.(*tg.WebDocument); ok {
+			form["photo_url"] = photo.URL
+		}
+		if photo, ok := p.(*tg.WebDocumentNoProxy); ok {
+			form["photo_url"] = photo.URL
+		}
+	}
+	prices := make([]map[string]interface{}, 0, len(result.Invoice.Prices))
+	for _, p := range result.Invoice.Prices {
+		prices = append(prices, map[string]interface{}{
+			"label":  p.Label,
+			"amount": p.Amount,
+		})
+	}
+	form["prices"] = prices
+	var total int64
+	for _, p := range result.Invoice.Prices {
+		total += p.Amount
+	}
+	form["total_amount"] = total
+	if result.Invoice.ShippingAddressRequested {
+		form["shipping_requested"] = true
+	}
+	if result.Invoice.NameRequested {
+		form["name_requested"] = true
+	}
+	if result.Invoice.EmailRequested {
+		form["email_requested"] = true
+	}
+	if result.Invoice.PhoneRequested {
+		form["phone_requested"] = true
+	}
+	if result.Invoice.Flexible {
+		form["flexible"] = true
+	}
+	tips := make([]int64, 0, len(result.Invoice.SuggestedTipAmounts))
+	for _, ta := range result.Invoice.SuggestedTipAmounts {
+		tips = append(tips, ta)
+	}
+	if len(tips) > 0 {
+		form["suggested_tips"] = tips
+	}
+	if result.Invoice.MaxTipAmount > 0 {
+		form["max_tip"] = result.Invoice.MaxTipAmount
+	}
+	if info, ok := result.GetSavedInfo(); ok {
+		saved := map[string]interface{}{}
+		if n, ok := info.GetName(); ok {
+			saved["name"] = n
+		}
+		if ph, ok := info.GetPhone(); ok {
+			saved["phone"] = ph
+		}
+		if em, ok := info.GetEmail(); ok {
+			saved["email"] = em
+		}
+		if addr, ok := info.GetShippingAddress(); ok {
+			saved["street1"] = addr.StreetLine1
+			saved["street2"] = addr.StreetLine2
+			saved["city"] = addr.City
+			saved["state"] = addr.State
+			saved["country"] = addr.CountryISO2
+			saved["postcode"] = addr.PostCode
+		}
+		form["saved_info"] = saved
+	}
+	if result.CanSaveCredentials {
+		form["can_save_credentials"] = true
+	}
+	if result.PasswordMissing {
+		form["password_missing"] = true
+	}
+	if tUrl, ok := result.Invoice.GetTermsURL(); ok {
+		form["terms_url"] = tUrl
+	}
+	return form, nil
+}
+
+// GetPaymentReceipt fetches a payment receipt for a completed purchase.
+func (t *TelegramCore) GetPaymentReceipt(chatID, msgID string) (map[string]interface{}, error) {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+	id, err := tgMsgID(msgID)
+	if err != nil {
+		return nil, err
+	}
+	rawResult, err := t.api.PaymentsGetPaymentReceipt(t.ctx, &tg.PaymentsGetPaymentReceiptRequest{
+		Peer:  inputPeer,
+		MsgID: id,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get payment receipt: %w", err)
+	}
+	result, ok := rawResult.(*tg.PaymentsPaymentReceipt)
+	if !ok {
+		return nil, fmt.Errorf("unexpected payment receipt type: %T", rawResult)
+	}
+	receipt := map[string]interface{}{
+		"title":        result.Title,
+		"currency":     result.Invoice.Currency,
+		"total_amount": result.TotalAmount,
+		"date":         result.Date,
+		"bot_id":       result.BotID,
+		"is_receipt":   true,
+	}
+	if result.Description != "" {
+		receipt["description"] = result.Description
+	}
+	if p, ok := result.GetPhoto(); ok {
+		if photo, ok := p.(*tg.WebDocument); ok {
+			receipt["photo_url"] = photo.URL
+		}
+		if photo, ok := p.(*tg.WebDocumentNoProxy); ok {
+			receipt["photo_url"] = photo.URL
+		}
+	}
+	prices := make([]map[string]interface{}, 0, len(result.Invoice.Prices))
+	for _, p := range result.Invoice.Prices {
+		prices = append(prices, map[string]interface{}{
+			"label":  p.Label,
+			"amount": p.Amount,
+		})
+	}
+	receipt["prices"] = prices
+	if result.Invoice.SuggestedTipAmounts != nil {
+		receipt["tip_amount"] = result.TipAmount
+	}
+	if info, ok := result.GetInfo(); ok {
+		saved := map[string]interface{}{}
+		if n, ok := info.GetName(); ok {
+			saved["name"] = n
+		}
+		if ph, ok := info.GetPhone(); ok {
+			saved["phone"] = ph
+		}
+		if em, ok := info.GetEmail(); ok {
+			saved["email"] = em
+		}
+		if addr, ok := info.GetShippingAddress(); ok {
+			saved["street1"] = addr.StreetLine1
+			saved["street2"] = addr.StreetLine2
+			saved["city"] = addr.City
+			saved["state"] = addr.State
+			saved["country"] = addr.CountryISO2
+			saved["postcode"] = addr.PostCode
+		}
+		receipt["saved_info"] = saved
+	}
+	if so, ok := result.GetShipping(); ok {
+		receipt["shipping_option"] = so.Title
+	}
+	return receipt, nil
+}
+
+// SendPaymentForm submits a payment form.
+func (t *TelegramCore) SendPaymentForm(chatID, msgID string, formData map[string]interface{}) error {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	id, err := tgMsgID(msgID)
+	if err != nil {
+		return err
+	}
+	formID, _ := formData["form_id"].(float64)
+	req := &tg.PaymentsSendPaymentFormRequest{
+		FormID: int64(formID),
+		Invoice: &tg.InputInvoiceMessage{
+			Peer:  inputPeer,
+			MsgID: id,
+		},
+		Credentials: &tg.InputPaymentCredentials{
+			Save: false,
+			Data: tg.DataJSON{Data: "{}"},
+		},
+	}
+	if tipAmount, ok := formData["tip_amount"].(float64); ok && tipAmount > 0 {
+		req.SetTipAmount(int64(tipAmount))
+	}
+	_, err = t.api.PaymentsSendPaymentForm(t.ctx, req)
+	if err != nil {
+		return fmt.Errorf("send payment form: %w", err)
+	}
+	return nil
 }

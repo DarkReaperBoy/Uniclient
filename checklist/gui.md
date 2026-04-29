@@ -853,7 +853,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_view.dart, message_bubble.dart, info_panel.dart (partial bot awareness) — new: dart/lib/ui/bot_panels.dart -->
 
-- [ ] Bot payments panel (392×600px): invoice cover (80×80px thumb), title/description/seller, price rows, tips buttons (flex-row wrap, 10%/80% alpha states), 6 section buttons, shipping picker + form, ToS gate, receipt mode, loading overlay 400ms fade — spec §30.10
 - [ ] Business bot bar in chat header: pause/resume toggle + manage/remove options — spec §30.11
 
 ---

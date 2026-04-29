@@ -949,6 +949,54 @@ func (e *Engine) ClearPaymentInfo(accountID string, clearCredentials, clearShipp
 	return c.ClearPaymentInfo(clearCredentials, clearShipping)
 }
 
+type paymentFormGetter interface {
+	GetPaymentForm(chatID, msgID string) (map[string]interface{}, error)
+}
+
+func (e *Engine) GetPaymentForm(accountID, chatID, msgID string) (map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not connected", accountID)
+	}
+	g, ok := acc.Core.(paymentFormGetter)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support payment forms")
+	}
+	return g.GetPaymentForm(chatID, msgID)
+}
+
+type paymentFormSender interface {
+	SendPaymentForm(chatID, msgID string, formData map[string]interface{}) error
+}
+
+func (e *Engine) SendPaymentForm(accountID, chatID, msgID string, formData map[string]interface{}) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not connected", accountID)
+	}
+	s, ok := acc.Core.(paymentFormSender)
+	if !ok {
+		return fmt.Errorf("platform does not support payment forms")
+	}
+	return s.SendPaymentForm(chatID, msgID, formData)
+}
+
+type paymentReceiptGetter interface {
+	GetPaymentReceipt(chatID, msgID string) (map[string]interface{}, error)
+}
+
+func (e *Engine) GetPaymentReceipt(accountID, chatID, msgID string) (map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not connected", accountID)
+	}
+	g, ok := acc.Core.(paymentReceiptGetter)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support payment receipts")
+	}
+	return g.GetPaymentReceipt(chatID, msgID)
+}
+
 type hideReadMarksGetter interface {
 	GetHideReadMarks() (bool, error)
 }

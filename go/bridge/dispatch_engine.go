@@ -2208,6 +2208,48 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.ClearPaymentInfo(params.AccountID, params.ClearCredentials, params.ClearShipping)
 
+	case "GetPaymentForm":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			MsgID     string `json:"msg_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		form, err := e.GetPaymentForm(params.AccountID, params.ChatID, params.MsgID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(form)
+
+	case "SendPaymentForm":
+		var params struct {
+			AccountID string                 `json:"account_id"`
+			ChatID    string                 `json:"chat_id"`
+			MsgID     string                 `json:"msg_id"`
+			FormData  map[string]interface{} `json:"form_data"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SendPaymentForm(params.AccountID, params.ChatID, params.MsgID, params.FormData)
+
+	case "GetPaymentReceipt":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			MsgID     string `json:"msg_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		receipt, err := e.GetPaymentReceipt(params.AccountID, params.ChatID, params.MsgID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(receipt)
+
 	case "GetHideReadMarks":
 		var params struct {
 			AccountID string `json:"account_id"`

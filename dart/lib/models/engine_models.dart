@@ -508,6 +508,16 @@ class CachedMessage {
   final int gamePhotoW;
   final int gamePhotoH;
 
+  // Invoice data (extracted from contentRaw extra fields).
+  final String invoiceTitle;
+  final String invoiceDescription;
+  final String invoiceCurrency;
+  final int invoiceTotalAmount;
+  final bool invoiceTest;
+  final int invoiceReceiptMsgId;
+  final String invoicePhotoUrl;
+  final bool invoiceShippingRequested;
+
   // Thread/replies data (extracted from contentRaw extra fields).
   final int repliesCount;
   final String repliesChannelId;
@@ -614,6 +624,14 @@ class CachedMessage {
     this.gameThumbB64 = '',
     this.gamePhotoW = 0,
     this.gamePhotoH = 0,
+    this.invoiceTitle = '',
+    this.invoiceDescription = '',
+    this.invoiceCurrency = '',
+    this.invoiceTotalAmount = 0,
+    this.invoiceTest = false,
+    this.invoiceReceiptMsgId = 0,
+    this.invoicePhotoUrl = '',
+    this.invoiceShippingRequested = false,
     this.repliesCount = 0,
     this.repliesChannelId = '',
     this.repliesIsComments = false,
@@ -689,6 +707,9 @@ class CachedMessage {
   bool get isAlbumMember => groupedId.isNotEmpty;
   bool get hasWebPage => wpUrl.isNotEmpty;
   bool get hasGame => gameTitle.isNotEmpty;
+  bool get hasInvoice => invoiceTitle.isNotEmpty;
+  bool get isInvoice => mediaType == 12;
+  bool get isReceipt => invoiceReceiptMsgId > 0;
 
   bool get isScheduled => scheduleDate > 0;
   bool get isScheduledUntilOnline =>
@@ -787,6 +808,14 @@ class CachedMessage {
     String? gameThumbB64,
     int? gamePhotoW,
     int? gamePhotoH,
+    String? invoiceTitle,
+    String? invoiceDescription,
+    String? invoiceCurrency,
+    int? invoiceTotalAmount,
+    bool? invoiceTest,
+    int? invoiceReceiptMsgId,
+    String? invoicePhotoUrl,
+    bool? invoiceShippingRequested,
     int? repliesCount,
     String? repliesChannelId,
     bool? repliesIsComments,
@@ -887,6 +916,14 @@ class CachedMessage {
     gameThumbB64: gameThumbB64 ?? this.gameThumbB64,
     gamePhotoW: gamePhotoW ?? this.gamePhotoW,
     gamePhotoH: gamePhotoH ?? this.gamePhotoH,
+    invoiceTitle: invoiceTitle ?? this.invoiceTitle,
+    invoiceDescription: invoiceDescription ?? this.invoiceDescription,
+    invoiceCurrency: invoiceCurrency ?? this.invoiceCurrency,
+    invoiceTotalAmount: invoiceTotalAmount ?? this.invoiceTotalAmount,
+    invoiceTest: invoiceTest ?? this.invoiceTest,
+    invoiceReceiptMsgId: invoiceReceiptMsgId ?? this.invoiceReceiptMsgId,
+    invoicePhotoUrl: invoicePhotoUrl ?? this.invoicePhotoUrl,
+    invoiceShippingRequested: invoiceShippingRequested ?? this.invoiceShippingRequested,
     repliesCount: repliesCount ?? this.repliesCount,
     repliesChannelId: repliesChannelId ?? this.repliesChannelId,
     repliesIsComments: repliesIsComments ?? this.repliesIsComments,

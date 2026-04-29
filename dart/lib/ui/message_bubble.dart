@@ -25,6 +25,7 @@ import 'chat_view.dart' show ChatThemeOverride;
 import 'forum_topic_icon.dart';
 import 'media_viewer.dart';
 import 'sticker_pack_viewer.dart';
+import 'payment_panel.dart';
 import 'web_app_panel.dart';
 
 /// Single message bubble. Spec §5: max 430px, 16/6px radius, sender colors.
@@ -424,7 +425,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                     // Spec §6: For captioned media (photo/video/GIF + text),
                     // media renders first, caption text below it.
                     // For all other messages, text renders before media.
-                    if (!isCaptionedMedia && message.contentText.isNotEmpty && message.mediaType != 9 && message.mediaType != 10 && message.mediaType != 11)
+                    if (!isCaptionedMedia && message.contentText.isNotEmpty && message.mediaType != 9 && message.mediaType != 10 && message.mediaType != 11 && message.mediaType != 12)
                       _RichMessageText(
                         text: message.contentText,
                         entitiesJson: message.contentRich,
@@ -445,6 +446,13 @@ class _MessageBubbleState extends State<MessageBubble> {
                       ),
                     if (message.hasGame)
                       _GameCard(
+                        message: message,
+                        theme: theme,
+                        isDark: isDark,
+                        isOutgoing: isOutgoing,
+                      ),
+                    if (message.hasInvoice)
+                      _InvoiceCard(
                         message: message,
                         theme: theme,
                         isDark: isDark,
@@ -7089,6 +7097,141 @@ class _InlineButtonState extends State<_InlineButton>
             },
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _InvoiceCard extends StatelessWidget {
+  final CachedMessage message;
+  final ThemeData theme;
+  final bool isDark;
+  final bool isOutgoing;
+
+  const _InvoiceCard({
+    required this.message,
+    required this.theme,
+    required this.isDark,
+    required this.isOutgoing,
+  });
+
+  String _formatAmount(int amount, String currency) {
+    final abs = amount.abs();
+    final major = abs ~/ 100;
+    final minor = abs % 100;
+    final sym = _currencySymbol(currency);
+    if (minor == 0) return '$sym$major';
+    return '$sym$major.${minor.toString().padLeft(2, '0')}';
+  }
+
+  String _currencySymbol(String code) {
+    switch (code.toUpperCase()) {
+      case 'USD': return '\$';
+      case 'EUR': return '\u20AC';
+      case 'GBP': return '\u00A3';
+      case 'RUB': return '\u20BD';
+      case 'JPY': return '\u00A5';
+      default: return '$code ';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final titleColor = isDark ? Colors.white : Colors.black87;
+    final descColor = isDark ? const Color(0xFFc0c8d0) : const Color(0xFF444444);
+    final buttonFg = isOutgoing
+        ? (isDark ? const Color(0xFF60c071) : const Color(0xFF4fae5e))
+        : (isDark ? const Color(0xFF71baf7) : const Color(0xFF168acd));
+    final lineFg = isDark ? const Color(0xFF3a4a5a) : const Color(0xFFdde1e5);
+    final badgeBg = const Color(0x73000000);
+    final isReceipt = message.isReceipt;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (message.invoiceTitle.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(11, 5, 11, 0),
+            child: Text(
+              message.invoiceTitle,
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: titleColor),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        if (message.invoiceDescription.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(11, 3, 11, 0),
+            child: Text(
+              message.invoiceDescription,
+              style: TextStyle(fontSize: 13, color: descColor),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(11, 5, 11, 4),
+          child: Text(
+            _formatAmount(message.invoiceTotalAmount, message.invoiceCurrency),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: titleColor),
+          ),
+        ),
+        if (message.invoiceTest)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(11, 0, 11, 4),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFe53935),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  child: const Text('TEST', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Colors.white)),
+                ),
+              ],
+            ),
+          ),
+        Container(height: 1, color: lineFg),
+        SizedBox(
+          height: 36,
+          child: InkWell(
+            onTap: () => _openPayment(context),
+            child: Center(
+              child: Text(
+                isReceipt ? 'VIEW RECEIPT' : 'PAY',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: buttonFg,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _openPayment(BuildContext context) {
+    final appState = Provider.of<AppState>(context, listen: false);
+    final accountId = appState.activeAccountId;
+    PaymentPanel.open(
+      context,
+      data: PaymentPanelData(
+        accountId: accountId,
+        chatId: message.chatId,
+        msgId: message.msgId,
+        title: message.invoiceTitle,
+        description: message.invoiceDescription,
+        currency: message.invoiceCurrency,
+        totalAmount: message.invoiceTotalAmount,
+        isTest: message.invoiceTest,
+        isReceipt: message.isReceipt,
+        receiptMsgId: message.invoiceReceiptMsgId,
+        photoUrl: message.invoicePhotoUrl,
+        botName: message.senderName,
       ),
     );
   }

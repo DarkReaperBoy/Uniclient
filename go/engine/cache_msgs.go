@@ -764,6 +764,8 @@ func guessMediaType(mime, name string) int {
 		return MediaContact
 	case mime == "application/x-poll":
 		return MediaPoll
+	case mime == "application/x-invoice":
+		return MediaInvoice
 	case mime == "image/gif":
 		return MediaGIF
 	case mime == "image/webp":

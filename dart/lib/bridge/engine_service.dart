@@ -1979,6 +1979,36 @@ class EngineService {
     await _callAsync('__engine', 'ClearPaymentInfo', Uint8List.fromList(payload));
   }
 
+  Future<Map<String, dynamic>> getPaymentForm(String accountId, String chatId, String msgId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'msg_id': msgId,
+    }));
+    final respBytes = await _callAsync('__engine', 'GetPaymentForm', Uint8List.fromList(payload));
+    return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+  }
+
+  Future<void> sendPaymentForm(String accountId, String chatId, String msgId, Map<String, dynamic> formData) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'msg_id': msgId,
+      'form_data': formData,
+    }));
+    await _callAsync('__engine', 'SendPaymentForm', Uint8List.fromList(payload));
+  }
+
+  Future<Map<String, dynamic>> getPaymentReceipt(String accountId, String chatId, String msgId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'msg_id': msgId,
+    }));
+    final respBytes = await _callAsync('__engine', 'GetPaymentReceipt', Uint8List.fromList(payload));
+    return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+  }
+
   Future<bool> getHideReadMarks(String accountId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
@@ -3161,6 +3191,14 @@ class EngineService {
       gameThumbB64: _topicFieldFromRaw(contentRaw, 'game_thumb_b64') ?? '',
       gamePhotoW: _int64FieldFromRaw(contentRaw, 'game_photo_w'),
       gamePhotoH: _int64FieldFromRaw(contentRaw, 'game_photo_h'),
+      invoiceTitle: _topicFieldFromRaw(contentRaw, 'invoice_title') ?? '',
+      invoiceDescription: _topicFieldFromRaw(contentRaw, 'invoice_description') ?? '',
+      invoiceCurrency: _topicFieldFromRaw(contentRaw, 'invoice_currency') ?? '',
+      invoiceTotalAmount: _int64FieldFromRaw(contentRaw, 'invoice_total_amount'),
+      invoiceTest: _boolExtraFromRaw(contentRaw, 'invoice_test'),
+      invoiceReceiptMsgId: _int64FieldFromRaw(contentRaw, 'invoice_receipt_msg_id'),
+      invoicePhotoUrl: _topicFieldFromRaw(contentRaw, 'invoice_photo_url') ?? '',
+      invoiceShippingRequested: _boolExtraFromRaw(contentRaw, 'invoice_shipping_requested'),
       repliesCount: _int64FieldFromRaw(contentRaw, 'replies_count'),
       repliesChannelId: _topicFieldFromRaw(contentRaw, 'replies_channel_id') ?? '',
       repliesIsComments: _boolExtraFromRaw(contentRaw, 'replies_is_comments'),
