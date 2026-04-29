@@ -13,6 +13,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:provider/provider.dart';
 
 import '../models/engine_models.dart';
+import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 
@@ -4039,6 +4040,22 @@ const _kFullContentFade = 0.6;
 const _kGoodFadeDuration = Duration(milliseconds: 200);
 const _kMaxSegmentsCount = 180;
 
+// §32.5 Story Reply Compose
+const _kStoryComposeBg = Color(0xFF2C333D);
+const _kStoryComposeBgHover = Color(0xFF323A45);
+const _kStoryComposeRadius = 21.0;
+const _kStoryComposeFieldMinH = 36.0;
+const _kStoryComposeFieldMaxH = 72.0;
+const _kStoryComposeButtonSize = 42.0;
+const _kStoryComposeGrayText = Color(0xFF8E9BA7);
+const _kStoryComposeWhiteText = Color(0xFFFFFFFF);
+const _kStoryComposeBlue = Color(0xFF4DB8FF);
+const _kStoryComposeMinWidth = 280.0;
+const _kStoryComposeBottomSkip = 6.0;
+const _kStoryComposePadding = EdgeInsets.fromLTRB(1, 8, 1, 6);
+const _kStoryComposeFieldLeft = 10.0;
+const _kStoryComposeCommentsUnreadSize = 6.0;
+
 // §32.4 Story Reactions Panel
 const _kStoryReactionsWidth = 210.0;
 const _kStoryReactionsExpandedWidth = 420.0;
@@ -4294,12 +4311,170 @@ class _StoryReactionsPanelState extends State<_StoryReactionsPanel>
   }
 }
 
+// §32.5 Story Reply Compose
+class _StoryReplyCompose extends StatefulWidget {
+  final VoidCallback onFocusChanged;
+  final bool isLiked;
+  final VoidCallback onLike;
+  final void Function(String emoji) onReaction;
+  final void Function(String text)? onSend;
+
+  const _StoryReplyCompose({
+    super.key,
+    required this.onFocusChanged,
+    required this.isLiked,
+    required this.onLike,
+    required this.onReaction,
+    this.onSend,
+  });
+
+  @override
+  State<_StoryReplyCompose> createState() => _StoryReplyComposeState();
+}
+
+class _StoryReplyComposeState extends State<_StoryReplyCompose> {
+  final _controller = TextEditingController();
+  final _focusNode = FocusNode();
+  bool _hasText = false;
+  bool _attachHovered = false;
+  bool _emojiHovered = false;
+  bool _sendHovered = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(() {
+      final hasText = _controller.text.trim().isNotEmpty;
+      if (hasText != _hasText) setState(() => _hasText = hasText);
+    });
+    _focusNode.addListener(() => widget.onFocusChanged());
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  bool get hasFocus => _focusNode.hasFocus;
+
+  void _handleSend() {
+    final text = _controller.text.trim();
+    if (text.isEmpty) return;
+    widget.onSend?.call(text);
+    _controller.clear();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: _kStoryComposeMinWidth),
+      padding: _kStoryComposePadding,
+      decoration: BoxDecoration(
+        color: _kStoryComposeBg,
+        borderRadius: BorderRadius.circular(_kStoryComposeRadius),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          _buildButton(
+            icon: Icons.attach_file,
+            hovered: _attachHovered,
+            onHover: (h) => setState(() => _attachHovered = h),
+            onTap: () {},
+          ),
+          const SizedBox(width: _kStoryComposeFieldLeft - 1),
+          Expanded(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                minHeight: _kStoryComposeFieldMinH,
+                maxHeight: _kStoryComposeFieldMaxH,
+              ),
+              child: TextField(
+                controller: _controller,
+                focusNode: _focusNode,
+                maxLines: null,
+                style: const TextStyle(
+                  color: _kStoryComposeWhiteText,
+                  fontSize: 14,
+                ),
+                decoration: const InputDecoration(
+                  hintText: 'Reply to story...',
+                  hintStyle: TextStyle(
+                    color: _kStoryComposeGrayText,
+                    fontSize: 14,
+                  ),
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+                  isDense: true,
+                ),
+                cursorColor: _kStoryComposeBlue,
+                onSubmitted: (_) => _handleSend(),
+              ),
+            ),
+          ),
+          if (_hasText)
+            _buildButton(
+              icon: Icons.send,
+              hovered: _sendHovered,
+              onHover: (h) => setState(() => _sendHovered = h),
+              onTap: _handleSend,
+              color: _kStoryComposeBlue,
+            )
+          else ...[
+            _buildButton(
+              icon: Icons.emoji_emotions_outlined,
+              hovered: _emojiHovered,
+              onHover: (h) => setState(() => _emojiHovered = h),
+              onTap: () {},
+            ),
+            _StoryReactionsPanel(
+              isLiked: widget.isLiked,
+              onLike: widget.onLike,
+              onReaction: widget.onReaction,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildButton({
+    required IconData icon,
+    required bool hovered,
+    required ValueChanged<bool> onHover,
+    required VoidCallback onTap,
+    Color? color,
+  }) {
+    return MouseRegion(
+      onEnter: (_) => onHover(true),
+      onExit: (_) => onHover(false),
+      child: GestureDetector(
+        onTap: onTap,
+        child: SizedBox(
+          width: _kStoryComposeButtonSize,
+          height: _kStoryComposeButtonSize,
+          child: Center(
+            child: Icon(
+              icon,
+              color: color ?? Colors.white.withValues(alpha: hovered ? 1.0 : 0.7),
+              size: 24,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class StoriesViewer extends StatefulWidget {
   final List<StoryItem> stories;
   final int initialIndex;
   final String peerName;
   final String? peerAvatarPath;
   final bool isOwnStory;
+  final String peerId;
 
   const StoriesViewer({
     super.key,
@@ -4308,6 +4483,7 @@ class StoriesViewer extends StatefulWidget {
     this.peerName = '',
     this.peerAvatarPath,
     this.isOwnStory = false,
+    this.peerId = '',
   });
 
   static void open(
@@ -4317,6 +4493,7 @@ class StoriesViewer extends StatefulWidget {
     String peerName = '',
     String? peerAvatarPath,
     bool isOwnStory = false,
+    String peerId = '',
   }) {
     if (stories.isEmpty) return;
     Navigator.of(context).push(
@@ -4334,6 +4511,7 @@ class StoriesViewer extends StatefulWidget {
               peerName: peerName,
               peerAvatarPath: peerAvatarPath,
               isOwnStory: isOwnStory,
+              peerId: peerId,
             ),
           );
         },
@@ -4358,6 +4536,8 @@ class _StoriesViewerState extends State<StoriesViewer>
   bool _volumeHovered = false;
   bool _closeHovered = false;
   bool _liked = false;
+  final GlobalKey<_StoryReplyComposeState> _composeKey = GlobalKey();
+  bool _composeFocused = false;
 
   Player? _videoPlayer;
   VideoController? _videoController;
@@ -4491,6 +4671,13 @@ class _StoriesViewerState extends State<StoriesViewer>
 
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (_composeFocused) {
+      if (event.logicalKey == LogicalKeyboardKey.escape) {
+        _composeKey.currentState?._focusNode.unfocus();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
     switch (event.logicalKey) {
       case LogicalKeyboardKey.escape:
         Navigator.of(context).maybePop();
@@ -4613,7 +4800,11 @@ class _StoriesViewerState extends State<StoriesViewer>
           child: Stack(
             fit: StackFit.expand,
             children: [
-              _buildStoryContent(story, w, h),
+              AnimatedOpacity(
+                opacity: (_composeFocused || _captionExpanded) ? _kFullContentFade : 1.0,
+                duration: _kGoodFadeDuration,
+                child: _buildStoryContent(story, w, h),
+              ),
               _buildProgressBar(w),
               if (!headerOutside) _buildHeader(story),
               _buildNavTapZones(),
@@ -5036,6 +5227,40 @@ class _StoriesViewerState extends State<StoriesViewer>
   }
 
   Widget _buildFooter(StoryItem story) {
+    if (!widget.isOwnStory) {
+      return Positioned(
+        bottom: _kStoryComposeBottomSkip,
+        left: 8,
+        right: 8,
+        child: _StoryReplyCompose(
+          key: _composeKey,
+          onFocusChanged: () {
+            final focused = _composeKey.currentState?.hasFocus ?? false;
+            if (focused != _composeFocused) {
+              setState(() => _composeFocused = focused);
+              if (focused) {
+                _pausePlayback();
+              } else {
+                _resumePlayback();
+              }
+            }
+          },
+          isLiked: _liked,
+          onLike: () => setState(() => _liked = !_liked),
+          onReaction: (emoji) {
+            setState(() => _liked = true);
+          },
+          onSend: (text) {
+            final engine = context.read<EngineService>();
+            final appState = context.read<AppState>();
+            final accountId = appState.activeAccountId;
+            if (accountId.isNotEmpty && widget.peerId.isNotEmpty) {
+              engine.sendMessage(accountId, widget.peerId, text);
+            }
+          },
+        ),
+      );
+    }
     return Positioned(
       bottom: _kStoryReactionsBottomSkip,
       left: 12,

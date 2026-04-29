@@ -1216,6 +1216,7 @@ class _ChatListPanelState extends State<ChatListPanel>
         peerName: chat.title,
         peerAvatarPath: chat.avatarPath,
         isOwnStory: selfId.isNotEmpty && chat.chatId == selfId,
+        peerId: chat.chatId,
       );
     } catch (e) {
       debugPrint('Failed to load stories: $e');
