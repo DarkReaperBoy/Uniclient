@@ -1864,6 +1864,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
   bool _obscure = true;
   String _error = '';
   bool _visible = false;
+  bool _showLogoutConfirm = false;
   late final SystemUnlockStatus _unlockStatus;
   bool _systemUnlockEnabled = false;
   DateTime _lastSystemUnlockAttempt = DateTime(2000);
@@ -1986,6 +1987,20 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
     final now = DateTime.now();
     if (now.difference(_lastSystemUnlockAttempt) < _systemUnlockCooldown) return;
     _lastSystemUnlockAttempt = now;
+  }
+
+  void _confirmLogout() {
+    final appState = context.read<AppState>();
+    if (appState.activeAccountId.isEmpty) return;
+    setState(() => _showLogoutConfirm = true);
+  }
+
+  void _doLogout() {
+    final appState = context.read<AppState>();
+    final activeId = appState.activeAccountId;
+    if (activeId.isEmpty) return;
+    setState(() => _showLogoutConfirm = false);
+    appState.removeAccount(activeId);
   }
 
   @override
@@ -2130,9 +2145,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
                   right: 0,
                   top: inputY + 70 + (_error.isNotEmpty ? 25 : 0) + 42 + 16 + (_showSystemUnlockButton ? 52 : 0),
                   child: GestureDetector(
-                    onTap: () {
-                      // Log out not implemented — just show info
-                    },
+                    onTap: _confirmLogout,
                     child: Text(
                       'Log out',
                       textAlign: TextAlign.center,
@@ -2144,6 +2157,60 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
                     ),
                   ),
                 ),
+                if (_showLogoutConfirm)
+                  Positioned.fill(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _showLogoutConfirm = false),
+                      child: ColoredBox(
+                        color: const Color(0x80000000),
+                        child: Center(
+                          child: GestureDetector(
+                            onTap: () {},
+                            child: Material(
+                              borderRadius: BorderRadius.circular(10),
+                              color: isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF),
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 320),
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Log out',
+                                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        'Are you sure you want to log out?',
+                                        style: TextStyle(fontSize: 14, color: subtextColor),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.end,
+                                        children: [
+                                          TextButton(
+                                            onPressed: () => setState(() => _showLogoutConfirm = false),
+                                            child: Text('Cancel', style: TextStyle(color: accentColor)),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          TextButton(
+                                            onPressed: _doLogout,
+                                            child: Text('Log out', style: TextStyle(color: errorColor)),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             );
           },

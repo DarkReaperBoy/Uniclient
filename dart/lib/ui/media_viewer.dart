@@ -177,6 +177,7 @@ class MediaViewer extends StatefulWidget {
   static void save() => _activeInstance?._saveMediaToDownloads(_activeInstance!._currentMessage);
   static void copyMedia() => _activeInstance?._copyImageToClipboard(_activeInstance!._currentMessage);
   static void enterPip() => _activeInstance?._enterPip();
+  static void close() => _activeInstance?._close();
 
   const MediaViewer({
     super.key,

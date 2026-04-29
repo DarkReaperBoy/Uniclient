@@ -12,6 +12,7 @@ import '../models/engine_models.dart';
 import '../theme/theme_file.dart';
 import '../theme/telegram_palette.dart';
 import '../theme/wallpaper.dart';
+import '../ui/media_viewer.dart';
 import '../utils/debug.dart';
 
 /// Top-level app state: accounts, connection, config, active platform.
@@ -773,6 +774,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   void lockByPasscode() {
     if (!hasLocalPasscode) return;
+    PipManager.instance.dismiss();
+    MediaViewer.close();
     _passcodeLocked = true;
     notifyListeners();
   }
@@ -925,8 +928,27 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _accounts = _engine.listAccounts();
     _connStates.remove(accountId);
     _accountOrder.remove(accountId);
+    _ensureActiveAccount();
     _saveWindowPrefs();
+    removePasscodeIfEmpty();
     notifyListeners();
+  }
+
+  void removePasscodeIfEmpty() {
+    if (_accounts.isNotEmpty) return;
+    if (!hasLocalPasscode) return;
+    if (_passcodeLocked) {
+      _passcodeLocked = false;
+      _passcodeBadTries = 0;
+      _passcodeLastTry = null;
+    }
+    if (_configDir.isEmpty) return;
+    final file = File('$_configDir/local_passcode.json');
+    if (file.existsSync()) {
+      file.deleteSync();
+    }
+    _autoLockTimer?.cancel();
+    _shouldLockAt = 0;
   }
 
   /// Spec §3.2: drag-to-reorder accounts. Persists new order.
