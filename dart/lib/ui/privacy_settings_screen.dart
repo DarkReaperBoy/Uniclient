@@ -2690,7 +2690,7 @@ class _P2PPrivacyBoxState extends State<_P2PPrivacyBox> {
 
 // ── Cloud Password Mode Enum ──
 
-enum _CloudPasswordMode { check, create, change }
+enum _CloudPasswordMode { check, create, change, recover }
 
 enum _ForgotPasswordAction { recover, cancelReset, reset }
 
@@ -2801,6 +2801,7 @@ class _CloudPasswordInput extends StatefulWidget {
   final int pendingResetDate;
   final VoidCallback onSuccess;
   final String? currentPassword;
+  final String? recoveryCode;
 
   const _CloudPasswordInput({
     required this.accountId,
@@ -2811,6 +2812,7 @@ class _CloudPasswordInput extends StatefulWidget {
     required this.pendingResetDate,
     required this.onSuccess,
     this.currentPassword,
+    this.recoveryCode,
   });
 
   @override
@@ -2834,7 +2836,7 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
   int _srpIdInvalidCount = 0;
   DateTime? _lastSrpIdInvalid;
 
-  bool get _isCreateMode => widget.mode == _CloudPasswordMode.create || widget.mode == _CloudPasswordMode.change;
+  bool get _isCreateMode => widget.mode == _CloudPasswordMode.create || widget.mode == _CloudPasswordMode.change || widget.mode == _CloudPasswordMode.recover;
 
   @override
   void initState() {
@@ -2921,6 +2923,7 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
           newPassword: password,
           currentPassword: widget.currentPassword ?? '',
           onSuccess: widget.onSuccess,
+          recoveryCode: widget.recoveryCode,
         ),
       ));
       return;
@@ -2974,6 +2977,24 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
           }
         });
       }
+    }
+  }
+
+  Future<void> _disablePassword() async {
+    if (widget.recoveryCode == null) return;
+    setState(() { _loading = true; _error = ''; });
+    try {
+      await widget.engine.recoverPasswordWithCode(widget.accountId, code: widget.recoveryCode!);
+      if (!mounted) return;
+      widget.onSuccess();
+      if (!mounted) return;
+      Navigator.of(context).popUntil((route) => route.isFirst || route.settings.name == 'privacy');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cloud password has been removed.'), behavior: SnackBarBehavior.floating),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _loading = false; _error = e.toString().replaceFirst('Exception: ', ''); });
     }
   }
 
@@ -3148,12 +3169,18 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
     final errorColor = isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F);
 
     final title = 'Two-Step Verification';
-    final subtitle = _isCreateMode
-        ? (widget.mode == _CloudPasswordMode.change ? 'Change Password' : 'Set Password')
-        : 'Enter your password';
-    final description = _isCreateMode
-        ? 'Please set an additional password to protect your account.'
-        : 'Your account is protected with an additional password.';
+    final String subtitle;
+    final String description;
+    if (widget.mode == _CloudPasswordMode.recover) {
+      subtitle = 'Set New Password';
+      description = 'Set a new password for your account, or disable it entirely.';
+    } else if (_isCreateMode) {
+      subtitle = widget.mode == _CloudPasswordMode.change ? 'Change Password' : 'Set Password';
+      description = 'Please set an additional password to protect your account.';
+    } else {
+      subtitle = 'Enter your password';
+      description = 'Your account is protected with an additional password.';
+    }
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -3233,6 +3260,13 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
                       style: TextStyle(fontSize: 15, color: textColor),
                     ),
                   ),
+                ),
+              ],
+              if (widget.mode == _CloudPasswordMode.recover) ...[
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: _loading ? null : _disablePassword,
+                  child: Text('Disable', style: TextStyle(fontSize: 14, color: accentColor)),
                 ),
               ],
               if (!_isCreateMode) const SizedBox(height: 61),
@@ -3319,6 +3353,7 @@ class _CloudPasswordHint extends StatefulWidget {
   final String newPassword;
   final String currentPassword;
   final VoidCallback onSuccess;
+  final String? recoveryCode;
 
   const _CloudPasswordHint({
     required this.accountId,
@@ -3326,6 +3361,7 @@ class _CloudPasswordHint extends StatefulWidget {
     required this.newPassword,
     required this.currentPassword,
     required this.onSuccess,
+    this.recoveryCode,
   });
 
   @override
@@ -3336,6 +3372,7 @@ class _CloudPasswordHintState extends State<_CloudPasswordHint> {
   final _hintController = TextEditingController();
   final _hintFocus = FocusNode();
   String _error = '';
+  bool _loading = false;
 
   @override
   void initState() {
@@ -3369,10 +3406,32 @@ class _CloudPasswordHintState extends State<_CloudPasswordHint> {
       return;
     }
 
-    _navigateToEmail(hint);
+    _navigateOrRecover(hint);
   }
 
-  void _navigateToEmail(String hint) {
+  Future<void> _navigateOrRecover(String hint) async {
+    if (widget.recoveryCode != null) {
+      setState(() { _loading = true; _error = ''; });
+      try {
+        await widget.engine.recoverPasswordWithCode(
+          widget.accountId,
+          code: widget.recoveryCode!,
+          newPassword: widget.newPassword,
+          hint: hint,
+        );
+        if (!mounted) return;
+        widget.onSuccess();
+        if (!mounted) return;
+        Navigator.of(context).popUntil((route) => route.isFirst || route.settings.name == 'privacy');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Password updated successfully.'), behavior: SnackBarBehavior.floating),
+        );
+      } catch (e) {
+        if (!mounted) return;
+        setState(() { _loading = false; _error = e.toString().replaceFirst('Exception: ', ''); });
+      }
+      return;
+    }
     Navigator.of(context).pushReplacement(settingsPageRoute(
       _CloudPasswordEmail(
         accountId: widget.accountId,
@@ -3455,7 +3514,7 @@ class _CloudPasswordHintState extends State<_CloudPasswordHint> {
                 ),
               const SizedBox(height: 28),
               TextButton(
-                onPressed: () => _navigateToEmail(''),
+                onPressed: _loading ? null : () => _navigateOrRecover(''),
                 child: Text('Skip', style: TextStyle(fontSize: 14, color: accentColor)),
               ),
               const SizedBox(height: 16),
@@ -3463,12 +3522,14 @@ class _CloudPasswordHintState extends State<_CloudPasswordHint> {
                 width: 300,
                 height: 42,
                 child: FilledButton(
-                  onPressed: _submit,
+                  onPressed: _loading ? null : _submit,
                   style: FilledButton.styleFrom(
                     backgroundColor: accentColor,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                   ),
-                  child: const Text('Continue', style: TextStyle(fontSize: 15, color: Colors.white)),
+                  child: _loading
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Continue', style: TextStyle(fontSize: 15, color: Colors.white)),
                 ),
               ),
             ],
@@ -3488,6 +3549,7 @@ class _CloudPasswordEmail extends StatefulWidget {
   final String currentPassword;
   final String hint;
   final VoidCallback onSuccess;
+  final bool emailOnly;
 
   const _CloudPasswordEmail({
     required this.accountId,
@@ -3496,6 +3558,7 @@ class _CloudPasswordEmail extends StatefulWidget {
     required this.currentPassword,
     required this.hint,
     required this.onSuccess,
+    this.emailOnly = false,
   });
 
   @override
@@ -3571,13 +3634,21 @@ class _CloudPasswordEmailState extends State<_CloudPasswordEmail> {
   Future<void> _setPassword(String email) async {
     setState(() { _loading = true; _error = ''; });
     try {
-      await widget.engine.setCloudPassword(
-        widget.accountId,
-        currentPassword: widget.currentPassword,
-        newPassword: widget.newPassword,
-        hint: widget.hint,
-        email: email,
-      );
+      if (widget.emailOnly) {
+        await widget.engine.setCloudPasswordEmail(
+          widget.accountId,
+          currentPassword: widget.currentPassword,
+          email: email,
+        );
+      } else {
+        await widget.engine.setCloudPassword(
+          widget.accountId,
+          currentPassword: widget.currentPassword,
+          newPassword: widget.newPassword,
+          hint: widget.hint,
+          email: email,
+        );
+      }
       if (!mounted) return;
 
       if (email.isNotEmpty) {
@@ -3585,12 +3656,13 @@ class _CloudPasswordEmailState extends State<_CloudPasswordEmail> {
         if (!mounted) return;
         final unconfirmed = state?['unconfirmedEmail'] as String? ?? '';
         if (unconfirmed.isNotEmpty) {
+          final effectivePassword = widget.emailOnly ? widget.currentPassword : widget.newPassword;
           Navigator.of(context).pushReplacement(settingsPageRoute(
             _CloudPasswordEmailConfirm(
               accountId: widget.accountId,
               engine: widget.engine,
               emailPattern: unconfirmed,
-              currentPassword: widget.newPassword,
+              currentPassword: effectivePassword,
               onDone: () {
                 widget.onSuccess();
               },
@@ -3602,11 +3674,12 @@ class _CloudPasswordEmailState extends State<_CloudPasswordEmail> {
 
       widget.onSuccess();
       if (!mounted) return;
+      final effectivePassword = widget.emailOnly ? widget.currentPassword : widget.newPassword;
       Navigator.of(context).pushReplacement(settingsPageRoute(
         _CloudPasswordManage(
           accountId: widget.accountId,
           engine: widget.engine,
-          currentPassword: widget.newPassword,
+          currentPassword: effectivePassword,
           onChanged: widget.onSuccess,
         ),
       ));
@@ -3699,11 +3772,13 @@ class _CloudPasswordEmailState extends State<_CloudPasswordEmail> {
                   ),
                 ),
               const SizedBox(height: 28),
-              TextButton(
-                onPressed: _loading ? null : _skip,
-                child: Text('Skip', style: TextStyle(fontSize: 14, color: accentColor)),
-              ),
-              const SizedBox(height: 16),
+              if (!widget.emailOnly)
+                TextButton(
+                  onPressed: _loading ? null : _skip,
+                  child: Text('Skip', style: TextStyle(fontSize: 14, color: accentColor)),
+                ),
+              if (!widget.emailOnly) const SizedBox(height: 16),
+              if (widget.emailOnly) const SizedBox(height: 16),
               SizedBox(
                 width: 300,
                 height: 42,
@@ -3798,19 +3873,36 @@ class _CloudPasswordEmailConfirmState extends State<_CloudPasswordEmailConfirm> 
 
     setState(() { _loading = true; _error = ''; _info = ''; });
     try {
-      await widget.engine.confirmPasswordEmail(widget.accountId, code);
-      if (!mounted) return;
-      widget.onDone();
-      if (!mounted) return;
-      if (widget.currentPassword.isNotEmpty) {
+      if (widget.isRecovery) {
+        await widget.engine.checkRecoveryPassword(widget.accountId, code);
+        if (!mounted) return;
         Navigator.of(context).pushReplacement(settingsPageRoute(
-          _CloudPasswordManage(
+          _CloudPasswordInput(
             accountId: widget.accountId,
             engine: widget.engine,
-            currentPassword: widget.currentPassword,
-            onChanged: widget.onDone,
+            mode: _CloudPasswordMode.recover,
+            hint: '',
+            hasRecovery: false,
+            pendingResetDate: 0,
+            onSuccess: widget.onDone,
+            recoveryCode: code,
           ),
         ));
+      } else {
+        await widget.engine.confirmPasswordEmail(widget.accountId, code);
+        if (!mounted) return;
+        widget.onDone();
+        if (!mounted) return;
+        if (widget.currentPassword.isNotEmpty) {
+          Navigator.of(context).pushReplacement(settingsPageRoute(
+            _CloudPasswordManage(
+              accountId: widget.accountId,
+              engine: widget.engine,
+              currentPassword: widget.currentPassword,
+              onChanged: widget.onDone,
+            ),
+          ));
+        }
       }
     } catch (e) {
       if (!mounted) return;
@@ -3829,6 +3921,10 @@ class _CloudPasswordEmailConfirmState extends State<_CloudPasswordEmailConfirm> 
           Future.delayed(const Duration(seconds: 2), () {
             if (mounted) Navigator.of(context).pop();
           });
+        } else if (errMsg.contains('PASSWORD_RECOVERY_NA')) {
+          _error = 'Recovery not available.';
+        } else if (errMsg.contains('PASSWORD_RECOVERY_EXPIRED')) {
+          _error = 'Recovery code expired.';
         } else {
           _error = errMsg;
         }
@@ -3884,17 +3980,94 @@ class _CloudPasswordEmailConfirmState extends State<_CloudPasswordEmailConfirm> 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    await showDialog<void>(
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: bgColor,
-        title: Text('Reset password?', style: TextStyle(color: textColor)),
-        content: Text('If you can\'t access your recovery email, you can reset your password from the login screen.', style: TextStyle(color: textColor)),
+        title: Text('Reset Password', style: TextStyle(color: textColor)),
+        content: Text(
+          'If you can\'t access your recovery email, your password will be reset with a delay for security reasons.',
+          style: TextStyle(color: textColor, height: 1.4),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('OK')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Reset', style: TextStyle(color: Colors.red)),
+          ),
         ],
       ),
     );
+    if (confirmed != true || !mounted) return;
+    setState(() { _loading = true; _error = ''; });
+    try {
+      final result = await widget.engine.resetPassword(widget.accountId);
+      if (!mounted) return;
+      if (result['done'] == true) {
+        widget.onDone();
+        if (!mounted) return;
+        Navigator.of(context).popUntil((route) => route.isFirst || route.settings.name == 'privacy');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cloud password has been removed.'), behavior: SnackBarBehavior.floating),
+        );
+        return;
+      }
+      final retryDate = result['retryDate'] as int? ?? 0;
+      final untilDate = result['untilDate'] as int? ?? 0;
+      if (retryDate > 0) {
+        final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+        var remaining = retryDate - now;
+        if (remaining < 60) remaining = 60;
+        setState(() {
+          _loading = false;
+          _error = 'You can reset your password in ${_formatDuration(remaining)}.';
+        });
+      } else if (untilDate > 0) {
+        final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+        var remaining = untilDate - now;
+        if (remaining < 60) remaining = 60;
+        if (!mounted) return;
+        setState(() => _loading = false);
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: bgColor,
+            title: Text('Reset Initiated', style: TextStyle(color: textColor)),
+            content: Text(
+              'Your password will be reset in ${_formatDuration(remaining)}.',
+              style: TextStyle(color: textColor, height: 1.4),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('OK')),
+            ],
+          ),
+        );
+        if (mounted) {
+          widget.onDone();
+          Navigator.of(context).popUntil((route) => route.isFirst || route.settings.name == 'privacy');
+        }
+      } else {
+        setState(() => _loading = false);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _loading = false; _error = e.toString().replaceFirst('Exception: ', ''); });
+    }
+  }
+
+  String _formatDuration(int seconds) {
+    if (seconds < 60) return '${seconds}s';
+    if (seconds < 3600) {
+      final m = seconds ~/ 60;
+      final s = seconds % 60;
+      return s > 0 ? '${m}m ${s}s' : '${m}m';
+    }
+    final h = seconds ~/ 3600;
+    final m = (seconds % 3600) ~/ 60;
+    if (h < 24) return m > 0 ? '${h}h ${m}m' : '${h}h';
+    final d = h ~/ 24;
+    final rh = h % 24;
+    return rh > 0 ? '${d}d ${rh}h' : '${d}d';
   }
 
   @override
@@ -4179,6 +4352,7 @@ class _CloudPasswordManageState extends State<_CloudPasswordManage> {
                           newPassword: '',
                           currentPassword: widget.currentPassword,
                           hint: '',
+                          emailOnly: true,
                           onSuccess: () {
                             widget.onChanged();
                             _fetchRecoveryState();

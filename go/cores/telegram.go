@@ -14700,6 +14700,59 @@ func (t *TelegramCore) RemoveCloudPassword(currentPassword string) error {
 	return t.SetCloudPassword(currentPassword, "", "", "")
 }
 
+func (t *TelegramCore) SetCloudPasswordEmail(currentPassword, email string) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	pw, err := t.api.AccountGetPassword(t.ctx)
+	if err != nil { return err }
+	var oldCheck tg.InputCheckPasswordSRPClass
+	if pw.HasPassword && currentPassword != "" {
+		check, err2 := auth.PasswordHash([]byte(currentPassword), pw.SRPID, pw.SRPB, pw.SecureRandom, pw.CurrentAlgo)
+		if err2 != nil { return fmt.Errorf("SRP computation failed: %w", err2) }
+		oldCheck = check
+	} else {
+		oldCheck = &tg.InputCheckPasswordEmpty{}
+	}
+	newSettings := tg.AccountPasswordInputSettings{}
+	newSettings.SetEmail(email)
+	_, err = t.api.AccountUpdatePasswordSettings(t.ctx, &tg.AccountUpdatePasswordSettingsRequest{
+		Password:    oldCheck,
+		NewSettings: newSettings,
+	})
+	return err
+}
+
+func (t *TelegramCore) CheckRecoveryPassword(code string) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	_, err := t.api.AuthCheckRecoveryPassword(t.ctx, code)
+	return err
+}
+
+func (t *TelegramCore) RecoverPasswordWithCode(code, newPassword, hint string) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	req := &tg.AuthRecoverPasswordRequest{Code: code}
+	if newPassword != "" {
+		pw, err := t.api.AccountGetPassword(t.ctx)
+		if err != nil { return err }
+		algoModPow, ok := pw.NewAlgo.(*tg.PasswordKdfAlgoSHA256SHA256PBKDF2HMACSHA512iter100000SHA256ModPow)
+		if !ok { return fmt.Errorf("unsupported new password KDF algorithm") }
+		secureRandom := make([]byte, 32)
+		if _, err := rand.Read(secureRandom); err != nil { return err }
+		algoModPow.Salt1 = append(algoModPow.Salt1, secureRandom...)
+		newHash, err := auth.NewPasswordHash([]byte(newPassword), algoModPow)
+		if err != nil { return fmt.Errorf("new password hash failed: %w", err) }
+		settings := tg.AccountPasswordInputSettings{}
+		settings.SetNewAlgo(algoModPow)
+		settings.SetNewPasswordHash(newHash)
+		settings.SetHint(hint)
+		req.SetNewSettings(settings)
+	}
+	_, err := t.api.AuthRecoverPassword(t.ctx, req)
+	return err
+}
+
 func (t *TelegramCore) RequestPasswordRecovery() (string, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return "", ErrAuth }

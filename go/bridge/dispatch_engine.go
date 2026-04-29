@@ -2660,6 +2660,39 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.CancelResetPassword(params.AccountID)
 
+	case "SetCloudPasswordEmail":
+		var params struct {
+			AccountID       string `json:"account_id"`
+			CurrentPassword string `json:"current_password"`
+			Email           string `json:"email"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SetCloudPasswordEmail(params.AccountID, params.CurrentPassword, params.Email)
+
+	case "CheckRecoveryPassword":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Code      string `json:"code"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.CheckRecoveryPassword(params.AccountID, params.Code)
+
+	case "RecoverPasswordWithCode":
+		var params struct {
+			AccountID   string `json:"account_id"`
+			Code        string `json:"code"`
+			NewPassword string `json:"new_password"`
+			Hint        string `json:"hint"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.RecoverPasswordWithCode(params.AccountID, params.Code, params.NewPassword, params.Hint)
+
 	case "GetPasskeyList":
 		var params struct {
 			AccountID string `json:"account_id"`

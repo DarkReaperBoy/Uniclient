@@ -1329,6 +1329,54 @@ func (e *Engine) CancelResetPassword(accountID string) error {
 	return p.CancelResetPassword()
 }
 
+type cloudPasswordEmailSetter interface {
+	SetCloudPasswordEmail(currentPassword, email string) error
+}
+
+type recoveryPasswordChecker interface {
+	CheckRecoveryPassword(code string) error
+}
+
+type recoveryPasswordWithCode interface {
+	RecoverPasswordWithCode(code, newPassword, hint string) error
+}
+
+func (e *Engine) SetCloudPasswordEmail(accountID, currentPassword, email string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found")
+	}
+	p, ok := acc.Core.(cloudPasswordEmailSetter)
+	if !ok {
+		return fmt.Errorf("platform does not support email-only password update")
+	}
+	return p.SetCloudPasswordEmail(currentPassword, email)
+}
+
+func (e *Engine) CheckRecoveryPassword(accountID, code string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found")
+	}
+	p, ok := acc.Core.(recoveryPasswordChecker)
+	if !ok {
+		return fmt.Errorf("platform does not support recovery password check")
+	}
+	return p.CheckRecoveryPassword(code)
+}
+
+func (e *Engine) RecoverPasswordWithCode(accountID, code, newPassword, hint string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found")
+	}
+	p, ok := acc.Core.(recoveryPasswordWithCode)
+	if !ok {
+		return fmt.Errorf("platform does not support password recovery with code")
+	}
+	return p.RecoverPasswordWithCode(code, newPassword, hint)
+}
+
 type passkeyListProvider interface {
 	GetPasskeyList() ([]cores.PasskeyInfo, error)
 }

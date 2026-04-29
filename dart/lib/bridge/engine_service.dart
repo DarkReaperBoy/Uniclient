@@ -2527,6 +2527,33 @@ class EngineService {
     await _callAsync('__engine', 'CancelResetPassword', Uint8List.fromList(payload));
   }
 
+  Future<void> setCloudPasswordEmail(String accountId, {required String currentPassword, required String email}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'current_password': currentPassword,
+      'email': email,
+    }));
+    await _callAsync('__engine', 'SetCloudPasswordEmail', Uint8List.fromList(payload));
+  }
+
+  Future<void> checkRecoveryPassword(String accountId, String code) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'code': code,
+    }));
+    await _callAsync('__engine', 'CheckRecoveryPassword', Uint8List.fromList(payload));
+  }
+
+  Future<void> recoverPasswordWithCode(String accountId, {required String code, String newPassword = '', String hint = ''}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'code': code,
+      'new_password': newPassword,
+      'hint': hint,
+    }));
+    await _callAsync('__engine', 'RecoverPasswordWithCode', Uint8List.fromList(payload));
+  }
+
   // ── Passkeys ──
 
   Future<List<Map<String, dynamic>>> getPasskeyList(String accountId) async {
