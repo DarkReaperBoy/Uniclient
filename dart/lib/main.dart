@@ -20,6 +20,7 @@ import 'state/audio_service.dart';
 import 'state/auth_state.dart';
 import 'theme/theme.dart';
 import 'ui/call_panel.dart';
+import 'ui/chat_export.dart';
 import 'ui/call_screen.dart';
 import 'ui/chat_list_panel.dart';
 import 'ui/chat_list_row.dart';
@@ -652,6 +653,18 @@ class _UniClientAppState extends State<UniClientApp>
             cmd['text'] as String? ?? 'Test notification message',
             cmd['chatTitle'] as String? ?? 'Test Chat',
           );
+
+        case 'showExportPanel':
+          final navCtx = _navigatorKey.currentContext;
+          if (navCtx != null) {
+            final modeStr = cmd['mode'] as String? ?? 'full';
+            final mode = switch (modeStr) {
+              'perChat' => ExportMode.perChat,
+              'perTopic' => ExportMode.perTopic,
+              _ => ExportMode.full,
+            };
+            showExportPanel(navCtx, ExportTarget(mode: mode));
+          }
 
         case 'showGroupCallPanel':
           final navCtx = _navigatorKey.currentContext;

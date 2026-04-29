@@ -847,7 +847,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_export.dart -->
 
-- [ ] Full-export settings screen: account data checkboxes (Personal info/Contacts/Stories/Profile music), chats section (6 types + "Only my messages" sub-option with SlideWrap), media section (7 types + non-linear 1-4000MB size slider, default 8MB), other data section, output format radios (HTML/JSON/HTML+JSON) + clickable path link, Export/Cancel buttons with FadeShadow — spec §29.3
 - [ ] Per-chat/topic settings screen: media options + format/location + date range filter (CalendarBox min Aug 2013, time editing HH:MM, 600s safety offset) — spec §29.4
 - [ ] Progress screen: step rows 30px height (semibold label + windowSubTextFg info, proportional width), 3px progress bar (sineInOut 200ms, opacity crossfade), "Skip file" link after 5000ms, about label text, 200×44px Cancel button (attentionBoxButton), up to 3 visible rows — spec §29.5
 - [ ] Stop confirmation dialog: "Are you sure?" / "Stop" red / "Cancel" — spec §29.6
