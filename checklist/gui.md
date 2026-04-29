@@ -872,7 +872,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/hamburger_drawer.dart, chat_list_panel.dart (partial contact references) — new: dart/lib/ui/contacts_screen.dart -->
 
-- [ ] Stories ring in contacts: colored ring around avatar (dialogsStoriesFull stroke), click avatar=stories/elsewhere=chat, row height 52px with story ring — spec §33.2
 - [ ] Search field: MultiSelect widget, instant local match (nameWords + nameFirstLetters), server fallback with AutoSearchTimeout, "No contacts found" / loading label, Escape clears — spec §33.3
 - [ ] Contact list rows: 56px height, 42px avatar at (16,7), name (semibold, verified/premium/scam badges), status (3 color states: online/offline/hover, status types including Custom), ripple hover, click=chat/middle-click=new window/right-click=context menu — spec §33.4
 - [ ] Add Contact dialog: first+last name + PhoneInput with country code picker (CountrySelectBox 320px), language-aware name ordering, phone validation ≥8 digits, Tab-to-submit flow, retry for non-Telegram phone — spec §33.5

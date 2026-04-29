@@ -705,13 +705,15 @@ message EngineCreateGroupResponse {
 // ═══════════════════════════════════════════════════════════════════════
 
 message EngineContactInfo {
-  string user_id      = 1;
-  string username     = 2;
-  string display_name = 3;
-  string phone        = 4;
-  string avatar_b64   = 5;
-  bool   is_bot       = 6;
-  bool   is_online    = 7;
+  string user_id          = 1;
+  string username         = 2;
+  string display_name     = 3;
+  string phone            = 4;
+  string avatar_b64       = 5;
+  bool   is_bot           = 6;
+  bool   is_online        = 7;
+  int32  story_count      = 8;
+  bool   has_unread_story = 9;
 }
 
 message EngineGetContactsRequest {

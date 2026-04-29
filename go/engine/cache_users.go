@@ -494,13 +494,15 @@ func (e *Engine) GetChatBotCommands(accountID, chatID string) ([]BotCommandInfo,
 
 // ContactInfo is the contact data returned to the UI for the contacts list.
 type ContactInfo struct {
-	UserID      string `json:"user_id"`
-	Username    string `json:"username,omitempty"`
-	DisplayName string `json:"display_name,omitempty"`
-	Phone       string `json:"phone,omitempty"`
-	AvatarB64   string `json:"avatar_b64,omitempty"`
-	IsBot       bool   `json:"is_bot"`
-	IsOnline    bool   `json:"is_online"`
+	UserID         string `json:"user_id"`
+	Username       string `json:"username,omitempty"`
+	DisplayName    string `json:"display_name,omitempty"`
+	Phone          string `json:"phone,omitempty"`
+	AvatarB64      string `json:"avatar_b64,omitempty"`
+	IsBot          bool   `json:"is_bot"`
+	IsOnline       bool   `json:"is_online"`
+	StoryCount     int32  `json:"story_count,omitempty"`
+	HasUnreadStory bool   `json:"has_unread_story,omitempty"`
 }
 
 // GetContacts fetches the contact list from the connected core.
@@ -522,13 +524,15 @@ func (e *Engine) GetContacts(accountID string) ([]ContactInfo, error) {
 	for _, u := range users {
 		e.UpsertUser(accountID, u)
 		contacts = append(contacts, ContactInfo{
-			UserID:      u.ID,
-			Username:    u.Username,
-			DisplayName: u.DisplayName,
-			Phone:       u.Phone,
-			AvatarB64:   u.AvatarB64,
-			IsBot:       u.IsBot,
-			IsOnline:    u.IsOnline,
+			UserID:         u.ID,
+			Username:       u.Username,
+			DisplayName:    u.DisplayName,
+			Phone:          u.Phone,
+			AvatarB64:      u.AvatarB64,
+			IsBot:          u.IsBot,
+			IsOnline:       u.IsOnline,
+			StoryCount:     int32(u.StoryCount),
+			HasUnreadStory: u.HasUnreadStory,
 		})
 	}
 	return contacts, nil

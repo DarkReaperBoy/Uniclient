@@ -1318,6 +1318,8 @@ class ContactInfo {
   final String avatarB64;
   final bool isBot;
   final bool isOnline;
+  final int storyCount;
+  final bool hasUnreadStory;
 
   const ContactInfo({
     required this.userId,
@@ -1327,7 +1329,11 @@ class ContactInfo {
     this.avatarB64 = '',
     this.isBot = false,
     this.isOnline = false,
+    this.storyCount = 0,
+    this.hasUnreadStory = false,
   });
+
+  bool get hasStories => storyCount > 0;
 
   String get label => displayName.isNotEmpty
       ? displayName

@@ -150,6 +150,8 @@ type User struct {
 	BotMenuText   string `json:"bot_menu_text,omitempty"`
 	Role          string `json:"role,omitempty"`
 	Platform      string `json:"platform"`
+	StoryCount    int    `json:"story_count,omitempty"`
+	HasUnreadStory bool  `json:"has_unread_story,omitempty"`
 }
 
 // Dialog represents a conversation (DM, group, channel, or topic) in the chat list.

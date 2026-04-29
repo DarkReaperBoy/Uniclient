@@ -10655,6 +10655,15 @@ func (t *TelegramCore) convertUser(user *tg.User) *User {
 		}
 	}
 
+	if !user.StoriesUnavailable {
+		if maxStory, ok := user.GetStoriesMaxID(); ok {
+			if maxID, ok := maxStory.GetMaxID(); ok && maxID > 0 {
+				u.StoryCount = 1
+				u.HasUnreadStory = true
+			}
+		}
+	}
+
 	return u
 }
 

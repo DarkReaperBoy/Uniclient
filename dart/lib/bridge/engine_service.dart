@@ -3589,6 +3589,8 @@ class EngineService {
     avatarB64: p.avatarB64,
     isBot: p.isBot,
     isOnline: p.isOnline,
+    storyCount: p.storyCount,
+    hasUnreadStory: p.hasUnreadStory,
   );
 
   static SearchResult _searchResultFromProto(epb.EngineSearchResult p) => SearchResult(

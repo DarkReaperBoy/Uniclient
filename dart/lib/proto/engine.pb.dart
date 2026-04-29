@@ -7599,6 +7599,8 @@ class EngineContactInfo extends $pb.GeneratedMessage {
     ..aOS(5, _omitFieldNames ? '' : 'avatarB64')
     ..aOB(6, _omitFieldNames ? '' : 'isBot')
     ..aOB(7, _omitFieldNames ? '' : 'isOnline')
+    ..a<$core.int>(8, _omitFieldNames ? '' : 'storyCount', $pb.PbFieldType.O3)
+    ..aOB(9, _omitFieldNames ? '' : 'hasUnreadStory')
     ..hasRequiredFields = false
   ;
 
@@ -7685,6 +7687,24 @@ class EngineContactInfo extends $pb.GeneratedMessage {
   $core.bool hasIsOnline() => $_has(6);
   @$pb.TagNumber(7)
   void clearIsOnline() => clearField(7);
+
+  @$pb.TagNumber(8)
+  $core.int get storyCount => $_getIZ(7);
+  @$pb.TagNumber(8)
+  set storyCount($core.int v) { $_setSignedInt32(7, v); }
+  @$pb.TagNumber(8)
+  $core.bool hasStoryCount() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearStoryCount() => clearField(8);
+
+  @$pb.TagNumber(9)
+  $core.bool get hasUnreadStory => $_getBF(8);
+  @$pb.TagNumber(9)
+  set hasUnreadStory($core.bool v) { $_setBool(8, v); }
+  @$pb.TagNumber(9)
+  $core.bool hasHasUnreadStory() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearHasUnreadStory() => clearField(9);
 }
 
 class EngineGetContactsRequest extends $pb.GeneratedMessage {

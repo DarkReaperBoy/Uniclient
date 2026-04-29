@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -263,7 +264,11 @@ class _ContactsBoxState extends State<_ContactsBox> {
                                   subtextColor: subtextColor,
                                   hoverBg: hoverBg,
                                   bgColor: bgColor,
+                                  isDark: isDark,
                                   onTap: () => _openChat(contact),
+                                  onStoryTap: contact.hasStories
+                                      ? () => _openStory(contact)
+                                      : null,
                                 );
                               },
                             ),
@@ -327,6 +332,10 @@ class _ContactsBoxState extends State<_ContactsBox> {
       chatState.openChat(dm);
       Navigator.of(context).pop();
     }
+  }
+
+  void _openStory(ContactInfo contact) {
+    _openChat(contact);
   }
 }
 
@@ -394,7 +403,9 @@ class _ContactRow extends StatefulWidget {
   final Color subtextColor;
   final Color hoverBg;
   final Color bgColor;
+  final bool isDark;
   final VoidCallback onTap;
+  final VoidCallback? onStoryTap;
 
   const _ContactRow({
     required this.contact,
@@ -402,7 +413,9 @@ class _ContactRow extends StatefulWidget {
     required this.subtextColor,
     required this.hoverBg,
     required this.bgColor,
+    required this.isDark,
     required this.onTap,
+    this.onStoryTap,
   });
 
   @override
@@ -412,8 +425,12 @@ class _ContactRow extends StatefulWidget {
 class _ContactRowState extends State<_ContactRow> {
   bool _hovered = false;
 
-  static const _rowHeight = 56.0;
+  static const _rowHeightDefault = 56.0;
+  static const _rowHeightWithStories = 52.0;
   static const _avatarSize = 42.0;
+  static const _ringStrokeUnread = 2.0;
+  static const _ringStrokeRead = 1.0;
+  static const _ringGap = 2.0;
 
   static const _avatarColors = [
     Color(0xFFE57373),
@@ -428,63 +445,96 @@ class _ContactRowState extends State<_ContactRow> {
   @override
   Widget build(BuildContext context) {
     final contact = widget.contact;
+    final hasStories = contact.hasStories;
+    final rowHeight = hasStories ? _rowHeightWithStories : _rowHeightDefault;
     final colorIndex = contact.userId.hashCode.abs() % _avatarColors.length;
     final avatarColor = _avatarColors[colorIndex];
     final initials = _initials(
         contact.displayName.isNotEmpty ? contact.displayName : contact.username);
+
+    final ringStroke = contact.hasUnreadStory ? _ringStrokeUnread : _ringStrokeRead;
+    final ringOuterSize = hasStories ? _avatarSize + (ringStroke + _ringGap) * 2 : _avatarSize;
+
+    Widget avatarWidget = contact.avatarB64.isNotEmpty
+        ? ClipOval(
+            child: Image.memory(
+              base64Decode(contact.avatarB64),
+              width: _avatarSize,
+              height: _avatarSize,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => _avatarFallback(avatarColor, initials),
+            ),
+          )
+        : _avatarFallback(avatarColor, initials);
+
+    Widget avatarArea;
+    if (hasStories) {
+      avatarArea = SizedBox(
+        width: ringOuterSize,
+        height: ringOuterSize,
+        child: CustomPaint(
+          painter: _ContactStoryRingPainter(
+            storyCount: contact.storyCount,
+            hasUnread: contact.hasUnreadStory,
+            isDark: widget.isDark,
+          ),
+          child: Center(child: avatarWidget),
+        ),
+      );
+      if (widget.onStoryTap != null) {
+        avatarArea = GestureDetector(
+          onTap: widget.onStoryTap,
+          behavior: HitTestBehavior.opaque,
+          child: avatarArea,
+        );
+      }
+    } else {
+      avatarArea = SizedBox(
+        width: _avatarSize,
+        height: _avatarSize,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            avatarWidget,
+            if (contact.isOnline)
+              Positioned(
+                right: -1,
+                bottom: -1,
+                child: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4dc920),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: _hovered ? widget.hoverBg : widget.bgColor,
+                      width: 2,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
         onTap: widget.onTap,
+        behavior: HitTestBehavior.opaque,
         child: Container(
-          height: _rowHeight,
+          height: rowHeight,
           color: _hovered ? widget.hoverBg : Colors.transparent,
-          padding: const EdgeInsets.only(left: 16, right: 16),
+          padding: EdgeInsets.only(
+            left: hasStories ? 18.0 : 16.0,
+            right: 16,
+          ),
           child: Row(
             children: [
-              SizedBox(
-                width: _avatarSize,
-                height: _avatarSize,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    contact.avatarB64.isNotEmpty
-                        ? ClipOval(
-                            child: Image.memory(
-                              base64Decode(contact.avatarB64),
-                              width: _avatarSize,
-                              height: _avatarSize,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) =>
-                                  _avatarFallback(avatarColor, initials),
-                            ),
-                          )
-                        : _avatarFallback(avatarColor, initials),
-                    if (contact.isOnline)
-                      Positioned(
-                        right: -1,
-                        bottom: -1,
-                        child: Container(
-                          width: 10,
-                          height: 10,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF4dc920),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: _hovered
-                                  ? widget.hoverBg
-                                  : widget.bgColor,
-                              width: 2,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
+              avatarArea,
+              SizedBox(width: hasStories ? 70.0 - 18.0 - ringOuterSize : 12.0),
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -500,8 +550,7 @@ class _ContactRowState extends State<_ContactRow> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (contact.phone.isNotEmpty ||
-                        contact.username.isNotEmpty)
+                    if (contact.phone.isNotEmpty || contact.username.isNotEmpty)
                       Text(
                         contact.phone.isNotEmpty
                             ? contact.phone
@@ -548,5 +597,67 @@ class _ContactRowState extends State<_ContactRow> {
     }
     return parts.first[0].toUpperCase();
   }
+}
+
+class _ContactStoryRingPainter extends CustomPainter {
+  final int storyCount;
+  final bool hasUnread;
+  final bool isDark;
+
+  _ContactStoryRingPainter({
+    required this.storyCount,
+    required this.hasUnread,
+    required this.isDark,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (storyCount <= 0) return;
+
+    final center = Offset(size.width / 2, size.height / 2);
+    final lineWidth = hasUnread ? 2.0 : 1.0;
+    final ringRadius = size.width / 2 - lineWidth / 2;
+
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = lineWidth
+      ..strokeCap = StrokeCap.round;
+
+    if (hasUnread) {
+      paint.shader = const LinearGradient(
+        begin: Alignment.topRight,
+        end: Alignment.bottomLeft,
+        colors: [Color(0xFF34c76e), Color(0xFF3da1fd)],
+      ).createShader(Rect.fromCircle(center: center, radius: ringRadius));
+    } else {
+      paint.color = isDark
+          ? const Color(0xFF3e546a)
+          : const Color(0xFFbbbbbb);
+    }
+
+    if (storyCount == 1) {
+      canvas.drawCircle(center, ringRadius, paint);
+    } else {
+      const fullCircle = 5760.0;
+      const separatorUnits = 160.0;
+      final separatorRadians = (separatorUnits / fullCircle) * 2 * math.pi;
+      final totalSep = storyCount * separatorRadians;
+      final arcPerStory = (2 * math.pi - totalSep) / storyCount;
+
+      var startAngle = -math.pi / 2;
+      final rect = Rect.fromCircle(center: center, radius: ringRadius);
+
+      for (var i = 0; i < storyCount; i++) {
+        canvas.drawArc(rect, startAngle, arcPerStory, false, paint);
+        startAngle += arcPerStory + separatorRadians;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ContactStoryRingPainter old) =>
+      storyCount != old.storyCount ||
+      hasUnread != old.hasUnread ||
+      isDark != old.isDark;
 }
 

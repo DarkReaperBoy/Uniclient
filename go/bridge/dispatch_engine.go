@@ -1484,13 +1484,15 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		resp := &pb.EngineGetContactsResponse{}
 		for _, c := range contacts {
 			resp.Contacts = append(resp.Contacts, &pb.EngineContactInfo{
-				UserId:      c.UserID,
-				Username:    sanitizeUTF8(c.Username),
-				DisplayName: sanitizeUTF8(c.DisplayName),
-				Phone:       c.Phone,
-				AvatarB64:   c.AvatarB64,
-				IsBot:       c.IsBot,
-				IsOnline:    c.IsOnline,
+				UserId:         c.UserID,
+				Username:       sanitizeUTF8(c.Username),
+				DisplayName:    sanitizeUTF8(c.DisplayName),
+				Phone:          c.Phone,
+				AvatarB64:      c.AvatarB64,
+				IsBot:          c.IsBot,
+				IsOnline:       c.IsOnline,
+				StoryCount:     c.StoryCount,
+				HasUnreadStory: c.HasUnreadStory,
 			})
 		}
 		return proto.Marshal(resp)

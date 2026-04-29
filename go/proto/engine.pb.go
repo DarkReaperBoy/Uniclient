@@ -5912,16 +5912,18 @@ func (x *EngineCreateGroupResponse) GetChat() *EngineChatInfo {
 }
 
 type EngineContactInfo struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Username      string                 `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
-	DisplayName   string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	Phone         string                 `protobuf:"bytes,4,opt,name=phone,proto3" json:"phone,omitempty"`
-	AvatarB64     string                 `protobuf:"bytes,5,opt,name=avatar_b64,json=avatarB64,proto3" json:"avatar_b64,omitempty"`
-	IsBot         bool                   `protobuf:"varint,6,opt,name=is_bot,json=isBot,proto3" json:"is_bot,omitempty"`
-	IsOnline      bool                   `protobuf:"varint,7,opt,name=is_online,json=isOnline,proto3" json:"is_online,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	UserId         string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Username       string                 `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
+	DisplayName    string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	Phone          string                 `protobuf:"bytes,4,opt,name=phone,proto3" json:"phone,omitempty"`
+	AvatarB64      string                 `protobuf:"bytes,5,opt,name=avatar_b64,json=avatarB64,proto3" json:"avatar_b64,omitempty"`
+	IsBot          bool                   `protobuf:"varint,6,opt,name=is_bot,json=isBot,proto3" json:"is_bot,omitempty"`
+	IsOnline       bool                   `protobuf:"varint,7,opt,name=is_online,json=isOnline,proto3" json:"is_online,omitempty"`
+	StoryCount     int32                  `protobuf:"varint,8,opt,name=story_count,json=storyCount,proto3" json:"story_count,omitempty"`
+	HasUnreadStory bool                   `protobuf:"varint,9,opt,name=has_unread_story,json=hasUnreadStory,proto3" json:"has_unread_story,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *EngineContactInfo) Reset() {
@@ -5999,6 +6001,20 @@ func (x *EngineContactInfo) GetIsBot() bool {
 func (x *EngineContactInfo) GetIsOnline() bool {
 	if x != nil {
 		return x.IsOnline
+	}
+	return false
+}
+
+func (x *EngineContactInfo) GetStoryCount() int32 {
+	if x != nil {
+		return x.StoryCount
+	}
+	return 0
+}
+
+func (x *EngineContactInfo) GetHasUnreadStory() bool {
+	if x != nil {
+		return x.HasUnreadStory
 	}
 	return false
 }
@@ -11602,7 +11618,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
 	"\amembers\x18\x03 \x03(\tR\amembers\"J\n" +
 	"\x19EngineCreateGroupResponse\x12-\n" +
-	"\x04chat\x18\x01 \x01(\v2\x19.uniclient.EngineChatInfoR\x04chat\"\xd4\x01\n" +
+	"\x04chat\x18\x01 \x01(\v2\x19.uniclient.EngineChatInfoR\x04chat\"\x9f\x02\n" +
 	"\x11EngineContactInfo\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1a\n" +
 	"\busername\x18\x02 \x01(\tR\busername\x12!\n" +
@@ -11611,7 +11627,10 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\n" +
 	"avatar_b64\x18\x05 \x01(\tR\tavatarB64\x12\x15\n" +
 	"\x06is_bot\x18\x06 \x01(\bR\x05isBot\x12\x1b\n" +
-	"\tis_online\x18\a \x01(\bR\bisOnline\"9\n" +
+	"\tis_online\x18\a \x01(\bR\bisOnline\x12\x1f\n" +
+	"\vstory_count\x18\b \x01(\x05R\n" +
+	"storyCount\x12(\n" +
+	"\x10has_unread_story\x18\t \x01(\bR\x0ehasUnreadStory\"9\n" +
 	"\x18EngineGetContactsRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\"U\n" +
