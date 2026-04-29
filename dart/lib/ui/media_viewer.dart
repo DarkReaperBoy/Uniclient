@@ -4039,6 +4039,261 @@ const _kFullContentFade = 0.6;
 const _kGoodFadeDuration = Duration(milliseconds: 200);
 const _kMaxSegmentsCount = 180;
 
+// §32.4 Story Reactions Panel
+const _kStoryReactionsWidth = 210.0;
+const _kStoryReactionsExpandedWidth = 420.0;
+const _kStoryReactionsBottomSkip = 29.0;
+const _kStoryLikeSize = 42.0;
+const _kStoryReactionScaleOutDuration = Duration(milliseconds: 1000);
+const _kStoryReactionScaleOutTarget = 0.7;
+const _kStoryBubbleBigTailDiameter = 0.264;
+const _kStoryBubbleBigTailOffset = 0.464;
+const _kStoryBubbleBigTailRotation = -42.29;
+const _kStoryBubbleSmallTailDiameter = 0.110;
+const _kStoryBubbleSmallTailOffset = 0.697;
+const _kStoryBubbleSmallTailRotation = -40.87;
+const _kStoryReactions = ['❤️', '🔥', '👍', '😱', '🎉', '😢', '👏'];
+
+class _ReactionBubblePainter extends CustomPainter {
+  final Color color;
+
+  _ReactionBubblePainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color;
+    final r = size.width / 2;
+    canvas.drawCircle(Offset(r, r), r, paint);
+
+    final bigR = size.width * _kStoryBubbleBigTailDiameter / 2;
+    final bigDist = size.width * _kStoryBubbleBigTailOffset;
+    const bigAngle = _kStoryBubbleBigTailRotation * math.pi / 180;
+    canvas.drawCircle(
+      Offset(r + bigDist * math.cos(bigAngle), r + bigDist * math.sin(bigAngle)),
+      bigR,
+      paint,
+    );
+
+    final smallR = size.width * _kStoryBubbleSmallTailDiameter / 2;
+    final smallDist = size.width * _kStoryBubbleSmallTailOffset;
+    const smallAngle = _kStoryBubbleSmallTailRotation * math.pi / 180;
+    canvas.drawCircle(
+      Offset(r + smallDist * math.cos(smallAngle), r + smallDist * math.sin(smallAngle)),
+      smallR,
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _ReactionBubblePainter old) => old.color != color;
+}
+
+class _StoryReactionsPanel extends StatefulWidget {
+  final ValueChanged<String> onReaction;
+  final VoidCallback onLike;
+  final bool isLiked;
+
+  const _StoryReactionsPanel({
+    required this.onReaction,
+    required this.onLike,
+    this.isLiked = false,
+  });
+
+  @override
+  State<_StoryReactionsPanel> createState() => _StoryReactionsPanelState();
+}
+
+class _StoryReactionsPanelState extends State<_StoryReactionsPanel>
+    with TickerProviderStateMixin {
+  bool _expanded = false;
+  int _hoveredIndex = -1;
+  int _flyingIndex = -1;
+  AnimationController? _flyController;
+  late final AnimationController _expandController;
+  late final Animation<double> _expandAnim;
+  late final AnimationController _scaleOutController;
+  late final Animation<double> _scaleOutAnim;
+  bool _likeHovered = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _expandController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+    _expandAnim = CurvedAnimation(parent: _expandController, curve: Curves.easeOutCubic);
+    _scaleOutController = AnimationController(
+      vsync: this,
+      duration: _kStoryReactionScaleOutDuration,
+    );
+    _scaleOutAnim = Tween<double>(begin: 1.0, end: _kStoryReactionScaleOutTarget)
+        .animate(CurvedAnimation(parent: _scaleOutController, curve: Curves.easeOut));
+  }
+
+  @override
+  void dispose() {
+    _flyController?.dispose();
+    _expandController.dispose();
+    _scaleOutController.dispose();
+    super.dispose();
+  }
+
+  void _toggleExpanded() {
+    setState(() => _expanded = !_expanded);
+    if (_expanded) {
+      _expandController.forward();
+    } else {
+      _expandController.reverse();
+    }
+  }
+
+  void _triggerReaction(int index) {
+    _flyController?.dispose();
+    _flyController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    setState(() => _flyingIndex = index);
+    _scaleOutController.forward(from: 0.0);
+    _flyController!.forward().then((_) {
+      if (mounted) {
+        widget.onReaction(_kStoryReactions[index]);
+        setState(() {
+          _flyingIndex = -1;
+          _expanded = false;
+        });
+        _expandController.reverse();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        AnimatedBuilder(
+          animation: _expandAnim,
+          builder: (context, child) {
+            final w = _kStoryReactionsWidth +
+                (_kStoryReactionsExpandedWidth - _kStoryReactionsWidth) * _expandAnim.value;
+            if (_expandAnim.value == 0 && !_expanded) {
+              return const SizedBox.shrink();
+            }
+            return Opacity(
+              opacity: _expandAnim.value,
+              child: Container(
+                width: w,
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xCC000000),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: List.generate(_kStoryReactions.length, (i) {
+                      final isFlying = _flyingIndex == i;
+                      final isHovered = _hoveredIndex == i;
+                      final baseScale = isFlying
+                          ? _scaleOutAnim.value
+                          : isHovered
+                              ? 1.3
+                              : 1.0;
+                      return MouseRegion(
+                        onEnter: (_) => setState(() => _hoveredIndex = i),
+                        onExit: (_) => setState(() => _hoveredIndex = -1),
+                        child: GestureDetector(
+                          onTap: () => _triggerReaction(i),
+                          child: AnimatedBuilder(
+                            animation: _scaleOutController,
+                            builder: (context, _) {
+                              return Transform.scale(
+                                scale: isFlying ? _scaleOutAnim.value : baseScale,
+                                child: AnimatedScale(
+                                  scale: isHovered && !isFlying ? 1.3 : 1.0,
+                                  duration: const Duration(milliseconds: 150),
+                                  child: SizedBox(
+                                    width: 36,
+                                    height: 36,
+                                    child: Center(
+                                      child: isFlying
+                                          ? AnimatedBuilder(
+                                              animation: _flyController!,
+                                              builder: (context, _) {
+                                                return Transform.translate(
+                                                  offset: Offset(0, -40 * _flyController!.value),
+                                                  child: Opacity(
+                                                    opacity: 1.0 - _flyController!.value,
+                                                    child: CustomPaint(
+                                                      size: const Size(32, 32),
+                                                      painter: _ReactionBubblePainter(
+                                                        color: const Color(0x55FFFFFF),
+                                                      ),
+                                                      child: Center(
+                                                        child: Text(
+                                                          _kStoryReactions[i],
+                                                          style: const TextStyle(fontSize: 22),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+                                            )
+                                          : Text(
+                                              _kStoryReactions[i],
+                                              style: const TextStyle(fontSize: 22),
+                                            ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+        MouseRegion(
+          onEnter: (_) => setState(() => _likeHovered = true),
+          onExit: (_) => setState(() => _likeHovered = false),
+          child: GestureDetector(
+            onTap: widget.onLike,
+            onLongPress: _toggleExpanded,
+            child: SizedBox(
+              width: _kStoryLikeSize,
+              height: _kStoryLikeSize,
+              child: Center(
+                child: AnimatedScale(
+                  scale: _likeHovered ? 1.2 : 1.0,
+                  duration: const Duration(milliseconds: 150),
+                  child: Icon(
+                    widget.isLiked ? Icons.favorite : Icons.favorite_border,
+                    color: widget.isLiked
+                        ? const Color(0xFFFF3B30)
+                        : Colors.white.withValues(alpha: _likeHovered ? 1.0 : 0.7),
+                    size: 28,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class StoriesViewer extends StatefulWidget {
   final List<StoryItem> stories;
   final int initialIndex;
@@ -4102,6 +4357,7 @@ class _StoriesViewerState extends State<StoriesViewer>
   bool _playHovered = false;
   bool _volumeHovered = false;
   bool _closeHovered = false;
+  bool _liked = false;
 
   Player? _videoPlayer;
   VideoController? _videoController;
@@ -4781,23 +5037,38 @@ class _StoriesViewerState extends State<StoriesViewer>
 
   Widget _buildFooter(StoryItem story) {
     return Positioned(
-      bottom: 12,
+      bottom: _kStoryReactionsBottomSkip,
       left: 12,
       right: 12,
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          if (story.views > 0) ...[
-            const Icon(Icons.visibility, color: Colors.white54, size: 16),
-            const SizedBox(width: 4),
-            Text(
-              '${story.views}',
-              style: const TextStyle(color: Colors.white54, fontSize: 12),
+          Expanded(
+            child: Row(
+              children: [
+                if (story.views > 0) ...[
+                  const Icon(Icons.visibility, color: Colors.white54, size: 16),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${story.views}',
+                    style: const TextStyle(color: Colors.white54, fontSize: 12),
+                  ),
+                ],
+                const Spacer(),
+                Text(
+                  '${_currentIndex + 1}/${widget.stories.length}',
+                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                ),
+              ],
             ),
-          ],
-          const Spacer(),
-          Text(
-            '${_currentIndex + 1}/${widget.stories.length}',
-            style: const TextStyle(color: Colors.white54, fontSize: 12),
+          ),
+          const SizedBox(width: 8),
+          _StoryReactionsPanel(
+            isLiked: _liked,
+            onLike: () => setState(() => _liked = !_liked),
+            onReaction: (emoji) {
+              setState(() => _liked = true);
+            },
           ),
         ],
       ),
