@@ -247,6 +247,7 @@ class _ChatViewState extends State<ChatView>
   bool _emojiPanelVisible = false;
 
   String _botMenuText = '';
+  String _botDescription = '';
 
   // §23.8: Video processing toasts state
   bool _showVideoTipToast = false;
@@ -470,14 +471,19 @@ class _ChatViewState extends State<ChatView>
   void _loadBotMenuText(ChatState chatState) {
     final chat = chatState.activeChat;
     if (chat == null || !chat.isBot || chat.type != ChatType.dm) {
-      if (_botMenuText.isNotEmpty) setState(() => _botMenuText = '');
+      if (_botMenuText.isNotEmpty || _botDescription.isNotEmpty) {
+        setState(() { _botMenuText = ''; _botDescription = ''; });
+      }
       return;
     }
     final engine = context.read<EngineService>();
     engine.getUserProfile(chat.accountId, chat.chatId).then((profile) {
       if (!mounted) return;
       final text = profile?.botMenuText ?? '';
-      if (text != _botMenuText) setState(() => _botMenuText = text);
+      final desc = profile?.bio ?? '';
+      if (text != _botMenuText || desc != _botDescription) {
+        setState(() { _botMenuText = text; _botDescription = desc; });
+      }
     });
   }
 
@@ -3258,6 +3264,9 @@ class _ChatViewState extends State<ChatView>
                     searchQuery: _activeSearchQuery,
                     openedUnreadCount: chatState.openedUnreadCount,
                     isScheduledView: widget.isScheduledView || chatState.isScheduledView,
+                    isBotChat: chat.isBot && chat.type == ChatType.dm,
+                    botName: chat.isBot ? chat.title : '',
+                    botDescription: _botDescription,
                   ),
                 ),
                 // Spec §5 / §49.17: Stacked corner buttons.
@@ -3457,9 +3466,9 @@ class _ChatViewState extends State<ChatView>
           else if (chat.isBot && chat.type == ChatType.dm && chat.lastMsgId.isEmpty)
             _FallbackComposeButton(
               label: 'START',
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? const Color(0xFF6ab3f3) : const Color(0xFF168acd),
+              color: context.palette.windowActiveTextFg,
               onTap: () => _sendStartBot(chatState),
+              onSecondaryTap: () => _sendStartBot(chatState),
             )
           else if ((chat.isScam || chat.isFake) && chat.type == ChatType.dm)
             _FallbackComposeButton(
@@ -4769,6 +4778,9 @@ class _MessageList extends StatelessWidget {
   /// Spec §5 / §49.4: unread count at time chat was opened (for unread bar).
   final int openedUnreadCount;
   final bool isScheduledView;
+  final bool isBotChat;
+  final String botName;
+  final String botDescription;
 
   const _MessageList({
     required this.messages,
@@ -4788,6 +4800,9 @@ class _MessageList extends StatelessWidget {
     this.searchQuery = '',
     this.openedUnreadCount = 0,
     this.isScheduledView = false,
+    this.isBotChat = false,
+    this.botName = '',
+    this.botDescription = '',
   });
 
   @override
@@ -4810,6 +4825,12 @@ class _MessageList extends StatelessWidget {
               ),
             ),
           ),
+        );
+      }
+      if (isBotChat) {
+        return _BotStartScreen(
+          botName: botName,
+          botDescription: botDescription,
         );
       }
       return Center(
@@ -5969,16 +5990,102 @@ class _ContactStatusButtonState extends State<_ContactStatusButton> {
   }
 }
 
+class _BotStartScreen extends StatelessWidget {
+  final String botName;
+  final String botDescription;
+
+  const _BotStartScreen({
+    required this.botName,
+    required this.botDescription,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final nameHash = botName.hashCode.abs();
+    final gradientColors = _botGradientForId(nameHash, isDark);
+
+    return Center(
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 280,
+                height: 140,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: gradientColors,
+                  ),
+                ),
+                child: Center(
+                  child: Icon(
+                    Icons.smart_toy_outlined,
+                    size: 64,
+                    color: Colors.white.withValues(alpha: 0.85),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              if (botDescription.isNotEmpty)
+                Container(
+                  width: 224,
+                  padding: const EdgeInsets.fromLTRB(12, 3, 12, 4),
+                  margin: const EdgeInsets.fromLTRB(10, 10, 10, 2),
+                  decoration: BoxDecoration(
+                    color: palette.msgServiceBg,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    botDescription,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: palette.msgServiceFg,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static List<Color> _botGradientForId(int id, bool isDark) {
+    const palettes = [
+      [Color(0xFF5caffa), Color(0xFF408acf)],
+      [Color(0xFFff8c51), Color(0xFFd4632b)],
+      [Color(0xFF9c71e3), Color(0xFF7751bf)],
+      [Color(0xFF5ec76e), Color(0xFF3ea050)],
+      [Color(0xFFf26ca7), Color(0xFFcf4a87)],
+      [Color(0xFFffc044), Color(0xFFdf9a2b)],
+      [Color(0xFF45c5d6), Color(0xFF32a4b6)],
+    ];
+    final colors = palettes[id % palettes.length];
+    return colors;
+  }
+}
+
 class _FallbackComposeButton extends StatefulWidget {
   final String label;
   final Color color;
   final VoidCallback onTap;
+  final VoidCallback? onSecondaryTap;
   final double height;
 
   const _FallbackComposeButton({
     required this.label,
     required this.color,
     required this.onTap,
+    this.onSecondaryTap,
     this.height = 46,
   });
 
@@ -6003,6 +6110,7 @@ class _FallbackComposeButtonState extends State<_FallbackComposeButton> {
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: widget.onTap,
+          onSecondaryTap: widget.onSecondaryTap,
           child: Container(
             alignment: Alignment.topCenter,
             padding: const EdgeInsets.only(top: 14),
