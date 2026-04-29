@@ -853,7 +853,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_view.dart, message_bubble.dart, info_panel.dart (partial bot awareness) — new: dart/lib/ui/bot_panels.dart -->
 
-- [ ] Web/Mini Apps: SeparatePanel 384×694px, header (bot name + close + back + settings), bottom bar, main button (40px, visible/hidden/active/inactive/progress states, custom colors), secondary button (4 positions), progress indicator 200ms fade, menu popup maxHeight 360px, theme integration, loading state machine, confirmation dialogs — spec §30.6
 - [ ] Bot start screen: empty-state painter with 280×140px bot image (gradient bg), intro area 224px, sticker 96px, service-message style bubble, "START"/"RESTART" full-width button, right-click clears token — spec §30.7
 - [ ] Game message card: title (2-line max) + description + media + "GAME" badge + Play button (36px, 1px separator, hover/press/loading states, 15s load timeout), score service messages — spec §30.8
 - [ ] Login URL auth confirmation dialog: bot userpic 64px, domain title, "(unverified)" prefix, device/location rows, two conditional checkboxes with dependency, phone-sharing sub-dialog, match-codes 4 emoji 48×48px, slide-up 200ms, success toast — spec §30.9

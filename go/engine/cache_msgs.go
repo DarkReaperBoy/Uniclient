@@ -1296,6 +1296,25 @@ func (e *Engine) BotCallback(accountID, chatID, msgID, data string) (string, err
 	return answerer.GetBotCallbackAnswer(chatID, msgID, []byte(data))
 }
 
+type BotWebViewRequester interface {
+	RequestBotWebView(chatID string, botID string) (string, error)
+}
+
+func (e *Engine) RequestBotWebView(accountID, chatID, botID string) (string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return "", fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return "", fmt.Errorf("account not connected: %s", accountID)
+	}
+	requester, ok := acc.Core.(BotWebViewRequester)
+	if !ok {
+		return "", fmt.Errorf("platform does not support bot web views")
+	}
+	return requester.RequestBotWebView(chatID, botID)
+}
+
 type InlineBotQuerier interface {
 	GetInlineBotResultsFull(botID string, query string, offset string, chatID string) (*cores.InlineBotResults, error)
 }

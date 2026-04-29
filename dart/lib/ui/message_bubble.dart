@@ -25,6 +25,7 @@ import 'chat_view.dart' show ChatThemeOverride;
 import 'forum_topic_icon.dart';
 import 'media_viewer.dart';
 import 'sticker_pack_viewer.dart';
+import 'web_app_panel.dart';
 
 /// Single message bubble. Spec §5: max 430px, 16/6px radius, sender colors.
 class MessageBubble extends StatefulWidget {
@@ -6510,11 +6511,17 @@ class _InlineButtonState extends State<_InlineButton>
       case 'web_view':
       case 'simple_web_view':
         if (btn.url.isNotEmpty) {
-          var url = btn.url;
-          if (!url.startsWith('http://') && !url.startsWith('https://')) {
-            url = 'https://$url';
-          }
-          Process.run('xdg-open', [url]);
+          final chatState = context.read<ChatState>();
+          final chat = chatState.activeChat;
+          WebAppPanel.open(
+            context,
+            data: WebAppPanelData(
+              botName: chat?.title ?? 'Web App',
+              botUsername: '',
+              isVerified: chat?.isVerified ?? false,
+              url: btn.url,
+            ),
+          );
         }
       case 'user_profile':
         break;

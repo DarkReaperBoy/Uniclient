@@ -14075,6 +14075,26 @@ func (t *TelegramCore) GetBotCallbackAnswer(chatID string, msgID string, data []
 	return result.Message, nil
 }
 
+// RequestBotWebView opens the main web view for a bot and returns the URL.
+func (t *TelegramCore) RequestBotWebView(chatID string, botID string) (string, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return "", ErrAuth }
+	bid, err := tgUserID(botID)
+	if err != nil { return "", err }
+	bhash := t.getCachedUserHash(bid)
+	peer, err := t.resolvePeer(chatID)
+	if err != nil { return "", err }
+	inputPeer, err := t.toInputPeer(peer)
+	if err != nil { return "", err }
+	result, err := t.api.MessagesRequestMainWebView(t.ctx, &tg.MessagesRequestMainWebViewRequest{
+		Peer: inputPeer,
+		Bot:  &tg.InputUser{UserID: bid, AccessHash: bhash},
+		Platform: "tdesktop",
+	})
+	if err != nil { return "", err }
+	return result.URL, nil
+}
+
 // InlineBotResult represents a single inline bot result for the UI.
 type InlineBotResult struct {
 	ID          string `json:"id"`

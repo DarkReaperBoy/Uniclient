@@ -22,6 +22,7 @@ import 'theme/theme.dart';
 import 'ui/call_panel.dart';
 import 'ui/chat_export.dart';
 import 'ui/call_screen.dart';
+import 'ui/web_app_panel.dart';
 import 'ui/chat_list_panel.dart';
 import 'ui/chat_list_row.dart';
 import 'ui/chat_view.dart';
@@ -664,6 +665,17 @@ class _UniClientAppState extends State<UniClientApp>
               _ => ExportMode.full,
             };
             showExportPanel(navCtx, ExportTarget(mode: mode));
+          }
+
+        case 'showWebAppPanel':
+          final navCtx = _navigatorKey.currentContext;
+          if (navCtx != null) {
+            WebAppPanel.open(navCtx, data: WebAppPanelData(
+              botName: cmd['botName'] as String? ?? 'Test Bot',
+              botUsername: cmd['botUsername'] as String? ?? 'testbot',
+              isVerified: cmd['isVerified'] == true,
+              url: cmd['url'] as String? ?? '',
+            ));
           }
 
         case 'showGroupCallPanel':

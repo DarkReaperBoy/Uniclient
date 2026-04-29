@@ -2192,6 +2192,23 @@ class EngineService {
     return resp.message;
   }
 
+  Future<String> requestBotWebView(String accountId, String chatId, String botId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'bot_id': botId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'RequestBotWebView', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return '';
+      final m = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return m['url'] as String? ?? '';
+    } catch (e) {
+      Debug.error('ENGINE', 'requestBotWebView failed', e);
+      return '';
+    }
+  }
+
   Future<void> pinMessage(String accountId, String chatId, String msgId, bool pinned) async {
     final req = epb.EnginePinMessageRequest()
       ..accountId = accountId

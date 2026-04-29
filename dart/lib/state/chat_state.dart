@@ -977,6 +977,12 @@ class ChatState extends ChangeNotifier {
     return _engine.botCallback(chat.accountId, chat.chatId, msgId, data);
   }
 
+  Future<String> requestBotWebView(String botId) async {
+    final chat = _activeChat;
+    if (chat == null) return '';
+    return _engine.requestBotWebView(chat.accountId, chat.chatId, botId);
+  }
+
   Future<void> retryPending(String localId) async {
     await _engine.retryPending(localId);
   }

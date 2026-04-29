@@ -1974,6 +1974,21 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(&pb.EngineBotCallbackResponse{Message: msg})
 
+	case "RequestBotWebView":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			BotID     string `json:"bot_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		url, err := e.RequestBotWebView(params.AccountID, params.ChatID, params.BotID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]string{"url": url})
+
 	case "GetInlineBotResults":
 		var params struct {
 			AccountID string `json:"account_id"`

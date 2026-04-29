@@ -20,6 +20,7 @@ import 'create_group_wizard.dart';
 import 'my_profile_page.dart';
 import 'popup_menu.dart';
 import 'settings_screen.dart';
+import 'web_app_panel.dart';
 import 'settings_style.dart' show settingsPageRoute;
 
 /// Hamburger menu drawer. Spec §3: 274px wide, 134px cover.
@@ -183,9 +184,20 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         icon: Icons.smart_toy,
                         label: bot.name,
                         iconPath: bot.iconPath,
-                        onTap: () {
+                        onTap: () async {
                           Navigator.of(context).pop();
-                          // TODO: open bot's web app when engine supports it
+                          final chatState = context.read<ChatState>();
+                          final url = await chatState.requestBotWebView(bot.id);
+                          if (context.mounted) {
+                            WebAppPanel.open(
+                              context,
+                              data: WebAppPanelData(
+                                botName: bot.name,
+                                botUsername: '',
+                                url: url,
+                              ),
+                            );
+                          }
                         },
                       ),
                     // §3.3: PlainShadow divider below My Profile/Bots block

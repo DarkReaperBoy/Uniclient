@@ -27,6 +27,7 @@ import 'chat_list_row.dart' show ForwardDragData;
 import 'sticker_pack_viewer.dart';
 import 'message_bubble.dart';
 import 'popup_menu.dart';
+import 'web_app_panel.dart';
 import 'send_files_box.dart';
 import 'confirm_box.dart';
 import 'call_panel.dart';
@@ -7843,6 +7844,23 @@ class _ComposeAreaState extends State<_ComposeArea>
     );
   }
 
+  void _openBotWebApp(BuildContext ctx) async {
+    final chatState = ctx.read<ChatState>();
+    final chat = chatState.activeChat;
+    if (chat == null) return;
+    final url = await chatState.requestBotWebView(chat.chatId);
+    if (!mounted) return;
+    WebAppPanel.open(
+      ctx,
+      data: WebAppPanelData(
+        botName: chat.title,
+        botUsername: '',
+        isVerified: chat.isVerified,
+        url: url,
+      ),
+    );
+  }
+
   bool _shouldSubmit(LogicalKeyboardKey key, bool ctrl, bool shift) {
     if (key != LogicalKeyboardKey.enter) return false;
     if (ctrl && shift) return true;
@@ -8542,7 +8560,7 @@ class _ComposeAreaState extends State<_ComposeArea>
               label: widget.botMenuText,
               accentColor: theme.colorScheme.primary,
               onPressed: () {
-                // TODO: Open bot web app when WebView support is added.
+                _openBotWebApp(context);
               },
             ),
           if (widget.isBot && widget.chatType == ChatType.dm && widget.botMenuText.isEmpty)
