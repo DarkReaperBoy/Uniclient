@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
@@ -46,22 +47,82 @@ class _ContactsBoxState extends State<_ContactsBox> {
   String _error = '';
   bool _loading = true;
   final _searchController = TextEditingController();
+  late final FocusNode _searchFocusNode;
   String _searchQuery = '';
   _SortMode _sortMode = _SortMode.online;
+  Timer? _globalSearchTimer;
+  bool _globalSearching = false;
+  List<ContactInfo>? _globalResults;
+
+  static const _autoSearchTimeout = Duration(milliseconds: 800);
 
   @override
   void initState() {
     super.initState();
+    _searchFocusNode = FocusNode();
     _loadContacts();
-    _searchController.addListener(() {
-      setState(() => _searchQuery = _searchController.text.toLowerCase());
-    });
+    _searchController.addListener(_onSearchChanged);
   }
 
   @override
   void dispose() {
+    _globalSearchTimer?.cancel();
+    _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged() {
+    final query = _searchController.text.toLowerCase().trim();
+    setState(() {
+      _searchQuery = query;
+      _globalResults = null;
+    });
+    _globalSearchTimer?.cancel();
+    if (query.isNotEmpty) {
+      final localCount = _localFiltered(query).length;
+      if (localCount < 5) {
+        _globalSearchTimer = Timer(_autoSearchTimeout, () => _runGlobalSearch(query));
+      }
+    }
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    _globalSearchTimer?.cancel();
+    setState(() {
+      _searchQuery = '';
+      _globalResults = null;
+      _globalSearching = false;
+    });
+  }
+
+  Future<void> _runGlobalSearch(String query) async {
+    if (!mounted || query.isEmpty) return;
+    setState(() => _globalSearching = true);
+    try {
+      final appState = context.read<AppState>();
+      final engine = context.read<EngineService>();
+      final account = appState.activeAccount;
+      if (account == null) return;
+      if (query.startsWith('@') && query.length > 1) {
+        final username = query.substring(1);
+        final result = await engine.resolveUsername(account.id, username);
+        if (mounted && _searchQuery == query && result != null && result.isNotEmpty) {
+          final existing = _contacts ?? [];
+          final alreadyHas = existing.any((c) => c.userId == result);
+          if (!alreadyHas) {
+            setState(() {
+              _globalResults = [
+                ContactInfo(userId: result, username: username, displayName: '@$username'),
+              ];
+            });
+          }
+        }
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _globalSearching = false);
   }
 
   Future<void> _loadContacts() async {
@@ -93,6 +154,46 @@ class _ContactsBoxState extends State<_ContactsBox> {
     }
   }
 
+  static List<String> _nameWords(String name) {
+    return name.toLowerCase().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+  }
+
+  static String _nameFirstLetters(String name) {
+    final words = _nameWords(name);
+    return words.map((w) => w[0]).join();
+  }
+
+  static bool _matchesContact(ContactInfo c, String query) {
+    final queryLower = query.toLowerCase();
+    final words = _nameWords(c.displayName);
+    for (final w in words) {
+      if (w.startsWith(queryLower)) return true;
+    }
+    final firstLetters = _nameFirstLetters(c.displayName);
+    if (firstLetters.startsWith(queryLower)) return true;
+    final queryParts = queryLower.split(RegExp(r'\s+'));
+    if (queryParts.length > 1) {
+      var allMatch = true;
+      for (final qp in queryParts) {
+        if (!words.any((w) => w.startsWith(qp))) {
+          allMatch = false;
+          break;
+        }
+      }
+      if (allMatch) return true;
+    }
+    if (c.username.toLowerCase().startsWith(queryLower)) return true;
+    if (c.phone.contains(queryLower)) return true;
+    if (c.displayName.toLowerCase().contains(queryLower)) return true;
+    return false;
+  }
+
+  List<ContactInfo> _localFiltered(String query) {
+    final all = _contacts ?? [];
+    if (query.isEmpty) return all;
+    return all.where((c) => _matchesContact(c, query)).toList();
+  }
+
   List<ContactInfo> _sortedContacts(List<ContactInfo> list) {
     final sorted = List<ContactInfo>.from(list);
     switch (_sortMode) {
@@ -110,18 +211,14 @@ class _ContactsBoxState extends State<_ContactsBox> {
   }
 
   List<ContactInfo> get _filteredContacts {
-    final all = _contacts ?? [];
-    List<ContactInfo> filtered;
-    if (_searchQuery.isEmpty) {
-      filtered = all;
-    } else {
-      filtered = all.where((c) {
-        return c.displayName.toLowerCase().contains(_searchQuery) ||
-            c.username.toLowerCase().contains(_searchQuery) ||
-            c.phone.contains(_searchQuery);
-      }).toList();
+    final local = _localFiltered(_searchQuery);
+    final sorted = _sortedContacts(local);
+    if (_globalResults != null && _globalResults!.isNotEmpty) {
+      final localIds = sorted.map((c) => c.userId).toSet();
+      final extra = _globalResults!.where((c) => !localIds.contains(c.userId));
+      return [...sorted, ...extra];
     }
-    return _sortedContacts(filtered);
+    return sorted;
   }
 
   @override
@@ -150,12 +247,19 @@ class _ContactsBoxState extends State<_ContactsBox> {
 
     final maxHeight = MediaQuery.of(context).size.height * 0.85;
 
-    return Dialog(
-      backgroundColor: bgColor,
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
-      child: ConstrainedBox(
+    return PopScope(
+      canPop: _searchQuery.isEmpty,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _searchQuery.isNotEmpty) {
+          _clearSearch();
+        }
+      },
+      child: Dialog(
+        backgroundColor: bgColor,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+        child: ConstrainedBox(
         constraints: BoxConstraints(
           maxWidth: _boxWideWidth,
           maxHeight: maxHeight,
@@ -194,7 +298,6 @@ class _ContactsBoxState extends State<_ContactsBox> {
                 ],
               ),
             ),
-            // Search field.
             Padding(
               padding:
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -202,12 +305,23 @@ class _ContactsBoxState extends State<_ContactsBox> {
                 height: 36,
                 child: TextField(
                   controller: _searchController,
+                  focusNode: _searchFocusNode,
+                  autofocus: true,
                   style: TextStyle(fontSize: 13, color: searchFg),
                   decoration: InputDecoration(
                     hintText: 'Search',
                     hintStyle: TextStyle(fontSize: 13, color: searchHintFg),
                     prefixIcon:
                         Icon(Icons.search, size: 18, color: searchHintFg),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            onPressed: _clearSearch,
+                            icon: Icon(Icons.close, size: 16, color: searchHintFg),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                            splashRadius: 14,
+                          )
+                        : null,
                     filled: true,
                     fillColor: searchBg,
                     contentPadding: const EdgeInsets.symmetric(
@@ -221,7 +335,6 @@ class _ContactsBoxState extends State<_ContactsBox> {
               ),
             ),
             Divider(height: 1, color: dividerColor),
-            // Contact list.
             Flexible(
               child: _loading
                   ? const SizedBox(
@@ -240,37 +353,72 @@ class _ContactsBoxState extends State<_ContactsBox> {
                             ),
                           ),
                         )
-                      : _filteredContacts.isEmpty
-                          ? SizedBox(
-                              height: 200,
-                              child: Center(
-                                child: Text(
-                                  _searchQuery.isNotEmpty
-                                      ? 'No contacts found'
-                                      : 'No contacts yet',
-                                  style: TextStyle(
-                                      color: subtextColor, fontSize: 13),
+                      : _filteredContacts.isEmpty && !_globalSearching
+                          ? Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 10),
+                              child: SizedBox(
+                                height: 200,
+                                child: Center(
+                                  child: Text(
+                                    _searchQuery.isNotEmpty
+                                        ? 'No contacts found'
+                                        : 'No contacts yet',
+                                    style: TextStyle(
+                                        color: subtextColor, fontSize: 13),
+                                  ),
                                 ),
                               ),
                             )
-                          : ListView.builder(
-                              shrinkWrap: true,
-                              itemCount: _filteredContacts.length,
-                              itemBuilder: (context, index) {
-                                final contact = _filteredContacts[index];
-                                return _ContactRow(
-                                  contact: contact,
-                                  textColor: textColor,
-                                  subtextColor: subtextColor,
-                                  hoverBg: hoverBg,
-                                  bgColor: bgColor,
-                                  isDark: isDark,
-                                  onTap: () => _openChat(contact),
-                                  onStoryTap: contact.hasStories
-                                      ? () => _openStory(contact)
-                                      : null,
-                                );
-                              },
+                          : Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Flexible(
+                                  child: ListView.builder(
+                                    shrinkWrap: true,
+                                    itemCount: _filteredContacts.length,
+                                    itemBuilder: (context, index) {
+                                      final contact = _filteredContacts[index];
+                                      return _ContactRow(
+                                        contact: contact,
+                                        textColor: textColor,
+                                        subtextColor: subtextColor,
+                                        hoverBg: hoverBg,
+                                        bgColor: bgColor,
+                                        isDark: isDark,
+                                        onTap: () => _openChat(contact),
+                                        onStoryTap: contact.hasStories
+                                            ? () => _openStory(contact)
+                                            : null,
+                                      );
+                                    },
+                                  ),
+                                ),
+                                if (_globalSearching)
+                                  Padding(
+                                    padding: const EdgeInsets.all(12),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        SizedBox(
+                                          width: 14,
+                                          height: 14,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: subtextColor,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Searching...',
+                                          style: TextStyle(
+                                              color: subtextColor,
+                                              fontSize: 13),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                              ],
                             ),
             ),
             // Bottom button bar: "Add Contact" left, "Close" right.
@@ -315,6 +463,7 @@ class _ContactsBoxState extends State<_ContactsBox> {
           ],
         ),
       ),
+    ),
     );
   }
 
