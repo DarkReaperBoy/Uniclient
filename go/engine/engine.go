@@ -907,6 +907,21 @@ func (e *Engine) GetDefaultBannedRights(accountID, chatID string) (*DefaultBanne
 	}, nil
 }
 
+func (e *Engine) GetAdminLogEvents(accountID, chatID string, limit int, query string, maxID int64) ([]cores.AdminLogEvent, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type provider interface {
+		GetAdminLogEvents(chatID string, limit int, query string, maxID int64) ([]cores.AdminLogEvent, error)
+	}
+	p, ok := acc.Core.(provider)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support admin log")
+	}
+	return p.GetAdminLogEvents(chatID, limit, query, maxID)
+}
+
 func (e *Engine) SetDefaultBannedRights(accountID, chatID string, rights *DefaultBannedRights) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -993,4 +1008,18 @@ func (e *Engine) ToggleJoinRequest(accountID, chatID string, enabled bool) error
 		return t.ToggleJoinRequest(chatID, enabled)
 	}
 	return fmt.Errorf("platform does not support join-request toggle")
+}
+
+func (e *Engine) ToggleAntiSpam(accountID, chatID string, enabled bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type toggler interface {
+		ToggleAntiSpam(chatID string, enabled bool) error
+	}
+	if t, ok := acc.Core.(toggler); ok {
+		return t.ToggleAntiSpam(chatID, enabled)
+	}
+	return fmt.Errorf("platform does not support anti-spam toggle")
 }

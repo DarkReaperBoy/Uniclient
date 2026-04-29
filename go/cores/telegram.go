@@ -11752,38 +11752,261 @@ func (t *TelegramCore) SetSlowMode(chatID string, seconds int) error {
 	return err
 }
 
-// GetAdminLog gets recent admin actions in a supergroup/channel.
-func (t *TelegramCore) GetAdminLog(chatID string, limit int) (int, error) {
+type AdminLogEvent struct {
+	ID        int64  `json:"id"`
+	Date      int    `json:"date"`
+	UserID    int64  `json:"user_id"`
+	UserName  string `json:"user_name"`
+	Action    string `json:"action"`
+	Detail    string `json:"detail"`
+	OldValue  string `json:"old_value,omitempty"`
+	NewValue  string `json:"new_value,omitempty"`
+	MessageID int    `json:"message_id,omitempty"`
+	MsgText   string `json:"msg_text,omitempty"`
+}
+
+func (t *TelegramCore) GetAdminLogEvents(chatID string, limit int, query string, maxID int64) ([]AdminLogEvent, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed || t.api == nil {
-		return 0, ErrAuth
+		return nil, ErrAuth
 	}
 
 	peer, err := t.resolvePeer(chatID)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	ch, ok := peer.(*tg.PeerChannel)
 	if !ok {
-		return 0, fmt.Errorf("admin log only works on channels/supergroups")
+		return nil, fmt.Errorf("admin log only works on channels/supergroups")
 	}
 
 	if limit <= 0 {
-		limit = 10
+		limit = 20
 	}
 
 	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
-	result, err := t.api.ChannelsGetAdminLog(t.ctx, &tg.ChannelsGetAdminLogRequest{
+	req := &tg.ChannelsGetAdminLogRequest{
 		Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
-		Q:       "",
+		Q:       query,
 		Limit:   limit,
-	})
+		MaxID:   maxID,
+	}
+	result, err := t.api.ChannelsGetAdminLog(t.ctx, req)
 	if err != nil {
-		return 0, fmt.Errorf("get admin log: %w", err)
+		return nil, fmt.Errorf("get admin log: %w", err)
 	}
 
-	return len(result.Events), nil
+	userMap := make(map[int64]*tg.User)
+	for _, u := range result.Users {
+		if user, ok := u.(*tg.User); ok {
+			userMap[user.ID] = user
+		}
+	}
+
+	events := make([]AdminLogEvent, 0, len(result.Events))
+	for _, ev := range result.Events {
+		userName := ""
+		if u, ok := userMap[ev.UserID]; ok {
+			userName = userDisplayName(u)
+		}
+		action, detail, oldVal, newVal, msgID, msgText := t.describeAdminLogAction(ev.Action, userMap)
+		events = append(events, AdminLogEvent{
+			ID:        ev.ID,
+			Date:      ev.Date,
+			UserID:    ev.UserID,
+			UserName:  userName,
+			Action:    action,
+			Detail:    detail,
+			OldValue:  oldVal,
+			NewValue:  newVal,
+			MessageID: msgID,
+			MsgText:   msgText,
+		})
+	}
+	return events, nil
+}
+
+func (t *TelegramCore) describeAdminLogAction(action tg.ChannelAdminLogEventActionClass, users map[int64]*tg.User) (actionType, detail, oldVal, newVal string, msgID int, msgText string) {
+	switch a := action.(type) {
+	case *tg.ChannelAdminLogEventActionChangeTitle:
+		return "change_title", "", a.PrevValue, a.NewValue, 0, ""
+	case *tg.ChannelAdminLogEventActionChangeAbout:
+		return "change_about", "", a.PrevValue, a.NewValue, 0, ""
+	case *tg.ChannelAdminLogEventActionChangeUsername:
+		return "change_username", "", a.PrevValue, a.NewValue, 0, ""
+	case *tg.ChannelAdminLogEventActionChangePhoto:
+		return "change_photo", "", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionToggleInvites:
+		if a.NewValue {
+			return "toggle_invites", "enabled", "", "", 0, ""
+		}
+		return "toggle_invites", "disabled", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionToggleSignatures:
+		if a.NewValue {
+			return "toggle_signatures", "enabled", "", "", 0, ""
+		}
+		return "toggle_signatures", "disabled", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionUpdatePinned:
+		txt := extractMessageText(a.Message)
+		mid := extractMessageID(a.Message)
+		if txt == "" {
+			return "unpin_message", "", "", "", mid, ""
+		}
+		return "pin_message", "", "", "", mid, txt
+	case *tg.ChannelAdminLogEventActionEditMessage:
+		oldTxt := extractMessageText(a.PrevMessage)
+		newTxt := extractMessageText(a.NewMessage)
+		mid := extractMessageID(a.NewMessage)
+		return "edit_message", "", oldTxt, newTxt, mid, newTxt
+	case *tg.ChannelAdminLogEventActionDeleteMessage:
+		txt := extractMessageText(a.Message)
+		mid := extractMessageID(a.Message)
+		return "delete_message", "", "", "", mid, txt
+	case *tg.ChannelAdminLogEventActionParticipantJoin:
+		return "participant_join", "", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionParticipantLeave:
+		return "participant_leave", "", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionParticipantInvite:
+		name := participantUserName(a.Participant, users)
+		return "participant_invite", name, "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionParticipantToggleBan:
+		name := participantUserName(a.PrevParticipant, users)
+		return "participant_ban", name, "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionParticipantToggleAdmin:
+		name := participantUserName(a.PrevParticipant, users)
+		return "participant_admin", name, "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionChangeStickerSet:
+		return "change_stickerset", "", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionTogglePreHistoryHidden:
+		if a.NewValue {
+			return "toggle_prehistory", "hidden", "", "", 0, ""
+		}
+		return "toggle_prehistory", "visible", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionDefaultBannedRights:
+		return "change_default_rights", "", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionStopPoll:
+		return "stop_poll", "", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionChangeLinkedChat:
+		return "change_linked_chat", "", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionToggleSlowMode:
+		return "toggle_slowmode", fmt.Sprintf("%ds → %ds", a.PrevValue, a.NewValue), "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionStartGroupCall:
+		return "start_call", "", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionDiscardGroupCall:
+		return "end_call", "", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionParticipantMute:
+		return "participant_mute", "", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionParticipantUnmute:
+		return "participant_unmute", "", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionToggleGroupCallSetting:
+		if a.JoinMuted {
+			return "call_setting", "join muted", "", "", 0, ""
+		}
+		return "call_setting", "join unmuted", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionParticipantJoinByInvite:
+		return "join_by_invite", "", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionExportedInviteDelete:
+		return "invite_delete", "", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionExportedInviteRevoke:
+		return "invite_revoke", "", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionExportedInviteEdit:
+		return "invite_edit", "", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionChangeHistoryTTL:
+		return "change_ttl", fmt.Sprintf("%ds → %ds", a.PrevValue, a.NewValue), "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionToggleNoForwards:
+		if a.NewValue {
+			return "toggle_noforwards", "enabled", "", "", 0, ""
+		}
+		return "toggle_noforwards", "disabled", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionSendMessage:
+		txt := extractMessageText(a.Message)
+		mid := extractMessageID(a.Message)
+		return "send_message", "", "", "", mid, txt
+	case *tg.ChannelAdminLogEventActionToggleForum:
+		if a.NewValue {
+			return "toggle_forum", "enabled", "", "", 0, ""
+		}
+		return "toggle_forum", "disabled", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionCreateTopic:
+		return "create_topic", "", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionEditTopic:
+		return "edit_topic", "", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionDeleteTopic:
+		return "delete_topic", "", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionPinTopic:
+		return "pin_topic", "", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionToggleAntiSpam:
+		if a.NewValue {
+			return "toggle_antispam", "enabled", "", "", 0, ""
+		}
+		return "toggle_antispam", "disabled", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionChangeAvailableReactions:
+		return "change_reactions", "", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionChangeUsernames:
+		return "change_usernames", "", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionChangePeerColor:
+		return "change_peer_color", "", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionChangeProfilePeerColor:
+		return "change_profile_color", "", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionChangeWallpaper:
+		return "change_wallpaper", "", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionChangeEmojiStatus:
+		return "change_emoji_status", "", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionChangeEmojiStickerSet:
+		return "change_emoji_stickerset", "", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionToggleSignatureProfiles:
+		if a.NewValue {
+			return "toggle_signature_profiles", "enabled", "", "", 0, ""
+		}
+		return "toggle_signature_profiles", "disabled", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionParticipantSubExtend:
+		return "sub_extend", "", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionParticipantJoinByRequest:
+		return "join_by_request", "", "", "", 0, ""
+	case *tg.ChannelAdminLogEventActionParticipantVolume:
+		return "participant_volume", "", "", "", 0, ""
+	default:
+		return "unknown", fmt.Sprintf("%T", action), "", "", 0, ""
+	}
+}
+
+func extractMessageText(msg tg.MessageClass) string {
+	if m, ok := msg.(*tg.Message); ok {
+		return m.Message
+	}
+	return ""
+}
+
+func extractMessageID(msg tg.MessageClass) int {
+	if m, ok := msg.(*tg.Message); ok {
+		return m.ID
+	}
+	return 0
+}
+
+func participantUserName(p tg.ChannelParticipantClass, users map[int64]*tg.User) string {
+	var uid int64
+	switch pp := p.(type) {
+	case *tg.ChannelParticipant:
+		uid = pp.UserID
+	case *tg.ChannelParticipantSelf:
+		uid = pp.UserID
+	case *tg.ChannelParticipantCreator:
+		uid = pp.UserID
+	case *tg.ChannelParticipantAdmin:
+		uid = pp.UserID
+	case *tg.ChannelParticipantBanned:
+		if peer, ok := pp.Peer.(*tg.PeerUser); ok {
+			uid = peer.UserID
+		}
+	default:
+		return ""
+	}
+	if u, ok := users[uid]; ok {
+		return userDisplayName(u)
+	}
+	return fmt.Sprintf("User#%d", uid)
 }
 
 // GetStickerSet retrieves a sticker set by short name.
@@ -12925,6 +13148,7 @@ type ChatPermissionFlags struct {
 	NoForwards      bool `json:"no_forwards"`
 	JoinRequest     bool `json:"join_request"`
 	IsForum         bool `json:"is_forum"`
+	Antispam        bool `json:"antispam"`
 }
 
 type DefaultBannedRights struct {
@@ -13054,6 +13278,7 @@ func (t *TelegramCore) GetChatPermissionFlags(chatID string) (*ChatPermissionFla
 	flags := &ChatPermissionFlags{}
 	if fc, ok := result.FullChat.(*tg.ChannelFull); ok {
 		flags.SlowmodeSeconds = fc.SlowmodeSeconds
+		flags.Antispam = fc.Antispam
 	}
 	for _, c := range result.Chats {
 		if cc, ok := c.(*tg.Channel); ok && cc.ID == ch.ChannelID {

@@ -825,11 +825,8 @@ Status key: `[ ]` not started · `[x]` done
 <!-- dart files: dart/lib/ui/admin_tools.dart -->
 
 
-- [ ] Admin log / recent actions: top bar with search toggle, "What is this?" FAQ link, events as service messages (51 event types), quoted bubbles, empty state centered text, floating date badge with 1000ms inactivity fade, 20/50 pagination, filter dialog (3 sections, 19 flags, per-admin filter) — spec §26.5
 - [ ] Invite links box: permanent link + "Create New Link" + active list + revoked list + "Delete All" + other-admins section; link rows with color-coded progress-arc badge (6 states), context menu (Copy/Share/QR/Edit/Revoke/Delete), single-link info box with joined-users list, QR Code dialog; create/edit form (label, expiry, usage, approval toggle, subscription credits) — spec §26.6
 - [ ] Member list with 5 role tabs (Members/Admins/Restricted/Kicked/Profile): search bar with debounced server query, 16/200 pagination with online sort, row 56px with avatar/name/badge/rank, Add button per role, context menu (View/Edit Tag/Promote/Restrict/Remove/Promoted-by), banned-users sublist with Unban — spec §26.7–26.8
-- [ ] Slowmode send-button countdown: "m:ss" text replacing icon, 1s updates, exempt for admins/bots — spec §26.9
-- [ ] Anti-spam toggle: requires megagroup ≥ appConfig minimum (default 100), creator/admin visibility, below-threshold divider text — spec §26.10
 
 ---
 

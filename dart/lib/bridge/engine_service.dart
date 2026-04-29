@@ -1461,6 +1461,26 @@ class EngineService {
     return list.map((j) => PublicLinkInfo.fromJson(j as Map<String, dynamic>)).toList();
   }
 
+  Future<List<AdminLogEvent>> getAdminLogEvents(
+    String accountId,
+    String chatId, {
+    int limit = 20,
+    String query = '',
+    int maxId = 0,
+  }) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'limit': limit,
+      'query': query,
+      'max_id': maxId,
+    }));
+    final resp = await _callAsync('__engine', 'GetAdminLogEvents', Uint8List.fromList(payload));
+    if (resp.isEmpty) return [];
+    final list = json.decode(utf8.decode(resp)) as List<dynamic>;
+    return list.map((j) => AdminLogEvent.fromJson(j as Map<String, dynamic>)).toList();
+  }
+
   Future<Map<String, dynamic>> getDefaultBannedRights(String accountId, String chatId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
@@ -1522,6 +1542,15 @@ class EngineService {
       'enabled': enabled,
     }));
     await _callAsync('__engine', 'ToggleJoinRequest', Uint8List.fromList(payload));
+  }
+
+  Future<void> toggleAntiSpam(String accountId, String chatId, bool enabled) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'enabled': enabled,
+    }));
+    await _callAsync('__engine', 'ToggleAntiSpam', Uint8List.fromList(payload));
   }
 
   Future<void> forwardMessage(String accountId, String chatId, String msgId, String toChatId, {

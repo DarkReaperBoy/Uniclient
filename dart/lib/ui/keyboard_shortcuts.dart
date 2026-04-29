@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import 'admin_tools.dart' show showAdminLogScreen;
 import 'chat_list_panel.dart';
 import 'chat_list_row.dart';
 import 'chat_view.dart';
@@ -1112,7 +1113,7 @@ class _ShortcutListenerState extends State<ShortcutListener>
       return ChatView.requestShowScheduled();
     });
     sys.registerHandler(ShortcutCommand.showAdminLog, () {
-      return false;
+      return ChatView.requestShowAdminLog();
     });
     sys.registerHandler(ShortcutCommand.replyPrevious, () {
       ChatView.requestCycleReply(1);

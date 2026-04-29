@@ -1274,6 +1274,47 @@ class PublicLinkInfo {
   );
 }
 
+class AdminLogEvent {
+  final int id;
+  final int date;
+  final int userId;
+  final String userName;
+  final String action;
+  final String detail;
+  final String oldValue;
+  final String newValue;
+  final int messageId;
+  final String msgText;
+
+  const AdminLogEvent({
+    required this.id,
+    required this.date,
+    this.userId = 0,
+    this.userName = '',
+    this.action = '',
+    this.detail = '',
+    this.oldValue = '',
+    this.newValue = '',
+    this.messageId = 0,
+    this.msgText = '',
+  });
+
+  factory AdminLogEvent.fromJson(Map<String, dynamic> j) => AdminLogEvent(
+    id: (j['id'] as num?)?.toInt() ?? 0,
+    date: (j['date'] as num?)?.toInt() ?? 0,
+    userId: (j['user_id'] as num?)?.toInt() ?? 0,
+    userName: j['user_name'] as String? ?? '',
+    action: j['action'] as String? ?? '',
+    detail: j['detail'] as String? ?? '',
+    oldValue: j['old_value'] as String? ?? '',
+    newValue: j['new_value'] as String? ?? '',
+    messageId: (j['message_id'] as num?)?.toInt() ?? 0,
+    msgText: j['msg_text'] as String? ?? '',
+  );
+
+  DateTime get dateTime => DateTime.fromMillisecondsSinceEpoch(date * 1000);
+}
+
 // ── Bot command info ──
 class BotCommandInfo {
   final String command;

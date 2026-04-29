@@ -1155,6 +1155,23 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(rights)
 
+	case "GetAdminLogEvents":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Limit     int    `json:"limit"`
+			Query     string `json:"query"`
+			MaxID     int64  `json:"max_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		events, err := e.GetAdminLogEvents(params.AccountID, params.ChatID, params.Limit, params.Query, params.MaxID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(events)
+
 	case "SetDefaultBannedRights":
 		var params struct {
 			AccountID       string `json:"account_id"`
@@ -1268,6 +1285,20 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			return nil, err
 		}
 		if err := e.ToggleJoinRequest(params.AccountID, params.ChatID, params.Enabled); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
+	case "ToggleAntiSpam":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Enabled   bool   `json:"enabled"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.ToggleAntiSpam(params.AccountID, params.ChatID, params.Enabled); err != nil {
 			return nil, err
 		}
 		return nil, nil

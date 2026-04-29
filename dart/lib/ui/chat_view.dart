@@ -14,7 +14,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
-import 'admin_tools.dart' show showEditAdminBox, showEditRestrictedBox;
+import 'admin_tools.dart' show showEditAdminBox, showEditRestrictedBox, showAdminLogScreen;
 import 'gesture_utils.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
@@ -80,6 +80,10 @@ class ChatView extends StatefulWidget {
   static bool Function()? showScheduledRequest;
   static bool requestShowScheduled() =>
       showScheduledRequest?.call() ?? false;
+
+  static bool Function()? showAdminLogRequest;
+  static bool requestShowAdminLog() =>
+      showAdminLogRequest?.call() ?? false;
 
   /// Harness hook for always-send (spec §24.4 line 2978: Ctrl+Shift+Enter
   /// always sends regardless of mode). Real OS-delivered Ctrl+Shift+Enter
@@ -301,6 +305,7 @@ class _ChatViewState extends State<ChatView>
     ChatView.showChatPreviewRequest = _showChatPreview;
     ChatView.archiveActiveChatRequest = _archiveActiveChat;
     ChatView.showScheduledRequest = _showScheduled;
+    ChatView.showAdminLogRequest = _showAdminLog;
     // Register the harness Ctrl+Shift+Enter hook (spec §24.4 line 2978:
     // always send regardless of mode). The real FocusNode.onKeyEvent path on
     // the compose TextField catches OS-delivered Ctrl+Shift+Enter directly;
@@ -345,6 +350,9 @@ class _ChatViewState extends State<ChatView>
     }
     if (ChatView.showScheduledRequest == _showScheduled) {
       ChatView.showScheduledRequest = null;
+    }
+    if (ChatView.showAdminLogRequest == _showAdminLog) {
+      ChatView.showAdminLogRequest = null;
     }
     if (ChatView.sendComposeRequest == _requestSendCompose) {
       ChatView.sendComposeRequest = null;
@@ -2726,6 +2734,23 @@ class _ChatViewState extends State<ChatView>
     return true;
   }
 
+  bool _showAdminLog() {
+    if (!mounted) return false;
+    final chatState = context.read<ChatState>();
+    final chat = chatState.activeChat;
+    if (chat == null) return false;
+    if (chat.type != ChatType.group && chat.type != ChatType.channel) return false;
+    showAdminLogScreen(
+      context,
+      accountId: chat.accountId,
+      chatId: chat.chatId,
+      chatTitle: chat.title,
+      chatAvatarPath: chat.avatarPath,
+      isChannel: chat.type == ChatType.channel,
+    );
+    return true;
+  }
+
   /// Ctrl+Up / Ctrl+Down reply-navigation handler — Telegram Desktop spec
   /// §24.6 lines 2982-2983. `direction` is +1 for Ctrl+Up (older message)
   /// and -1 for Ctrl+Down (newer message). `chatState.messages` is newest-
@@ -3829,6 +3854,8 @@ class _ChatTopBar extends StatelessWidget {
         ),
         TelegramMenuItem(value: 'pin', label: chat.isPinned ? 'Unpin' : 'Pin'),
         TelegramMenuItem(value: 'archive', label: chat.isArchived ? 'Unarchive' : 'Archive'),
+        if (isGroupy)
+          const TelegramMenuItem(value: 'recent_actions', label: 'Recent Actions'),
         const TelegramMenuItem(value: 'change_theme', label: 'Change Chat Theme'),
         const TelegramMenuItem.separator(),
         const TelegramMenuItem(value: 'clear_history', label: 'Clear History'),
@@ -3854,6 +3881,15 @@ class _ChatTopBar extends StatelessWidget {
           chatState.pinChat(chat.accountId, chat.chatId, !chat.isPinned);
         case 'archive':
           chatState.archiveChat(chat.accountId, chat.chatId, !chat.isArchived);
+        case 'recent_actions':
+          showAdminLogScreen(
+            btnCtx,
+            accountId: chat.accountId,
+            chatId: chat.chatId,
+            chatTitle: chat.title,
+            chatAvatarPath: chat.avatarPath,
+            isChannel: chat.type == ChatType.channel,
+          );
         case 'change_theme':
           chatState.toggleThemeChooser();
         case 'clear_history':

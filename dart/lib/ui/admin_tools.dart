@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -37,9 +38,14 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
   bool _saving = false;
   String? _avatarPath;
   bool _avatarRemoved = false;
+  bool _antispamEnabled = false;
+  bool _antispamLoaded = false;
 
   bool get _isChannel => widget.chat.type == ChatType.channel;
   bool get _isBot => widget.chat.isBot;
+  bool get _isMegagroup => !_isChannel && !_isBot && widget.chat.type == ChatType.group;
+
+  static const int _antispamMinMembers = 100;
 
   String get _peerLabel {
     if (_isBot) return 'Bot';
@@ -53,6 +59,7 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     _titleCtrl = TextEditingController(text: widget.chat.title);
     _descCtrl = TextEditingController();
     _loadDescription();
+    if (_isMegagroup) _loadAntiSpamState();
   }
 
   Future<void> _loadDescription() async {
@@ -66,6 +73,38 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
         setState(() => _descCtrl.text = profile.bio);
       }
     } catch (_) {}
+  }
+
+  Future<void> _loadAntiSpamState() async {
+    try {
+      final engine = context.read<EngineService>();
+      final flags = await engine.getChatPermissionFlags(
+        widget.chat.accountId,
+        widget.chat.chatId,
+      );
+      if (mounted) {
+        setState(() {
+          _antispamEnabled = flags['antispam'] == true;
+          _antispamLoaded = true;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _antispamLoaded = true);
+    }
+  }
+
+  Future<void> _toggleAntiSpam(bool value) async {
+    final engine = context.read<EngineService>();
+    setState(() => _antispamEnabled = value);
+    try {
+      await engine.toggleAntiSpam(
+        widget.chat.accountId,
+        widget.chat.chatId,
+        value,
+      );
+    } catch (_) {
+      if (mounted) setState(() => _antispamEnabled = !value);
+    }
   }
 
   @override
@@ -110,6 +149,11 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
                   Divider(height: 1, color: dividerColor),
                   const SizedBox(height: 6),
                   _buildAdminControlsSection(textColor, subTextColor),
+                  if (_isMegagroup && _antispamLoaded) ...[
+                    Divider(height: 1, color: dividerColor),
+                    const SizedBox(height: 6),
+                    _buildAntiSpamSection(textColor, subTextColor, accentColor),
+                  ],
                   if (!_isChannel && !_isBot) ...[
                     Divider(height: 1, color: dividerColor),
                     const SizedBox(height: 6),
@@ -427,6 +471,48 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           textColor: textColor,
           subTextColor: subTextColor,
           onTap: () {},
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAntiSpamSection(Color textColor, Color subTextColor, Color accentColor) {
+    final memberCount = widget.chat.memberCount;
+    final belowThreshold = memberCount < _antispamMinMembers;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 21, vertical: 8),
+          child: Row(
+            children: [
+              Icon(Icons.smart_toy_outlined, size: 24, color: belowThreshold ? subTextColor : textColor),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  'Aggressive Anti-Spam',
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: belowThreshold ? subTextColor : textColor,
+                  ),
+                ),
+              ),
+              Switch(
+                value: _antispamEnabled,
+                onChanged: belowThreshold ? null : _toggleAntiSpam,
+                activeColor: accentColor,
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
+          child: Text(
+            belowThreshold
+                ? 'Aggressive Anti-Spam is available for groups with more than $_antispamMinMembers members.'
+                : 'Telegram will filter more types of spam in this group.',
+            style: TextStyle(fontSize: 12, color: subTextColor),
+          ),
         ),
       ],
     );
@@ -2327,5 +2413,826 @@ class _EditAdminBoxState extends State<_EditAdminBox>
     if (parts.isEmpty) return '?';
     if (parts.length == 1) return parts[0][0].toUpperCase();
     return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// §26.5 Admin Log / Recent Actions
+// ══════════════════════════════════════════════════════════���═══
+
+void showAdminLogScreen(
+  BuildContext context, {
+  required String accountId,
+  required String chatId,
+  required String chatTitle,
+  required String chatAvatarPath,
+  required bool isChannel,
+}) {
+  final engine = context.read<EngineService>();
+  Navigator.of(context).push(MaterialPageRoute(
+    builder: (_) => Provider<EngineService>.value(
+      value: engine,
+      child: _AdminLogScreen(
+        accountId: accountId,
+        chatId: chatId,
+        chatTitle: chatTitle,
+        chatAvatarPath: chatAvatarPath,
+        isChannel: isChannel,
+      ),
+    ),
+  ));
+}
+
+class _AdminLogScreen extends StatefulWidget {
+  final String accountId;
+  final String chatId;
+  final String chatTitle;
+  final String chatAvatarPath;
+  final bool isChannel;
+
+  const _AdminLogScreen({
+    required this.accountId,
+    required this.chatId,
+    required this.chatTitle,
+    required this.chatAvatarPath,
+    required this.isChannel,
+  });
+
+  @override
+  State<_AdminLogScreen> createState() => _AdminLogScreenState();
+}
+
+class _AdminLogScreenState extends State<_AdminLogScreen> {
+  final List<AdminLogEvent> _events = [];
+  bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasMore = true;
+  String? _error;
+  bool _searchOpen = false;
+  final _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+  Timer? _searchDebounce;
+  final _scrollCtrl = ScrollController();
+
+  double _dateBadgeOpacity = 0.0;
+  Timer? _dateHideTimer;
+  String _currentDateLabel = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEvents();
+    _scrollCtrl.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    _searchDebounce?.cancel();
+    _dateHideTimer?.cancel();
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadEvents({bool append = false}) async {
+    if (!append) {
+      setState(() { _loading = true; _error = null; });
+    } else {
+      setState(() => _loadingMore = true);
+    }
+    try {
+      final engine = context.read<EngineService>();
+      final limit = append ? 50 : 20;
+      final maxId = append && _events.isNotEmpty ? _events.last.id : 0;
+      final events = await engine.getAdminLogEvents(
+        widget.accountId,
+        widget.chatId,
+        limit: limit,
+        query: _searchQuery,
+        maxId: maxId,
+      );
+      if (!mounted) return;
+      setState(() {
+        if (!append) _events.clear();
+        _events.addAll(events);
+        _hasMore = events.length >= limit;
+        _loading = false;
+        _loadingMore = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = '$e';
+        _loading = false;
+        _loadingMore = false;
+      });
+    }
+  }
+
+  void _onScroll() {
+    if (_scrollCtrl.position.pixels >= _scrollCtrl.position.maxScrollExtent - 200) {
+      if (!_loadingMore && _hasMore) {
+        _loadEvents(append: true);
+      }
+    }
+    _updateDateBadge();
+  }
+
+  void _updateDateBadge() {
+    if (_events.isEmpty) return;
+    _dateHideTimer?.cancel();
+    setState(() => _dateBadgeOpacity = 1.0);
+    _dateHideTimer = Timer(const Duration(milliseconds: 1000), () {
+      if (mounted) setState(() => _dateBadgeOpacity = 0.0);
+    });
+  }
+
+  void _onSearchChanged(String query) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+      setState(() => _searchQuery = query);
+      _loadEvents();
+    });
+  }
+
+  void _toggleSearch() {
+    setState(() {
+      _searchOpen = !_searchOpen;
+      if (!_searchOpen) {
+        _searchCtrl.clear();
+        if (_searchQuery.isNotEmpty) {
+          _searchQuery = '';
+          _loadEvents();
+        }
+      }
+    });
+  }
+
+  void _showFilterDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => _AdminLogFilterDialog(
+        isChannel: widget.isChannel,
+        onApply: () => _loadEvents(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = PaletteProvider.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF0E1621) : const Color(0xFFE6EBF0);
+    final topBarBg = isDark ? const Color(0xFF17212B) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subTextColor = isDark ? const Color(0xFF708499) : const Color(0xFF999999);
+    final shadowColor = isDark ? const Color(0xFF04080E) : const Color(0x18000000);
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      body: Column(
+        children: [
+          _buildTopBar(topBarBg, textColor, subTextColor, shadowColor, palette),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Text(_error!, style: TextStyle(color: palette.attentionButtonFg)),
+                        ),
+                      )
+                    : _events.isEmpty
+                        ? _buildEmptyState(subTextColor)
+                        : _buildEventList(palette, isDark, textColor, subTextColor),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopBar(Color bg, Color textColor, Color subTextColor, Color shadowColor, TelegramPalette palette) {
+    return Container(
+      height: 54,
+      decoration: BoxDecoration(
+        color: bg,
+        boxShadow: [BoxShadow(color: shadowColor, offset: const Offset(0, 1))],
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            icon: Icon(Icons.arrow_back, color: textColor),
+            onPressed: () => Navigator.pop(context),
+          ),
+          if (!_searchOpen) ...[
+            _buildUserpic(palette),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                widget.chatTitle,
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textColor),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ] else
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 11),
+                child: TextField(
+                  controller: _searchCtrl,
+                  autofocus: true,
+                  style: TextStyle(fontSize: 14, color: textColor),
+                  decoration: InputDecoration(
+                    hintText: 'Search events...',
+                    hintStyle: TextStyle(color: subTextColor),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                  onChanged: _onSearchChanged,
+                ),
+              ),
+            ),
+          IconButton(
+            icon: Icon(
+              _searchOpen ? Icons.close : Icons.search,
+              color: textColor,
+            ),
+            onPressed: _toggleSearch,
+          ),
+          IconButton(
+            icon: Icon(Icons.filter_list, color: textColor),
+            onPressed: _showFilterDialog,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUserpic(TelegramPalette palette) {
+    final path = widget.chatAvatarPath;
+    final hasAvatar = path.isNotEmpty && File(path).existsSync();
+    return CircleAvatar(
+      radius: 17,
+      backgroundColor: palette.windowBgActive,
+      backgroundImage: hasAvatar ? FileImage(File(path)) : null,
+      child: hasAvatar
+          ? null
+          : Text(
+              widget.chatTitle.isNotEmpty ? widget.chatTitle[0].toUpperCase() : '?',
+              style: const TextStyle(fontSize: 14, color: Colors.white),
+            ),
+    );
+  }
+
+  Widget _buildEmptyState(Color subTextColor) {
+    return Center(
+      child: SizedBox(
+        width: 260,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
+          child: Text(
+            _searchQuery.isNotEmpty
+                ? 'No results for this filter'
+                : 'No events found',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 14, color: subTextColor),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEventList(TelegramPalette palette, bool isDark, Color textColor, Color subTextColor) {
+    return Stack(
+      children: [
+        ListView.builder(
+          controller: _scrollCtrl,
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          itemCount: _events.length + (_loadingMore ? 1 : 0),
+          itemBuilder: (ctx, i) {
+            if (i >= _events.length) {
+              return const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              );
+            }
+            final event = _events[i];
+            final showDateHeader = i == 0 || !_isSameDay(_events[i - 1].dateTime, event.dateTime);
+            return Column(
+              children: [
+                if (showDateHeader) _buildDateSeparator(event.dateTime, isDark),
+                _AdminLogEventTile(
+                  event: event,
+                  palette: palette,
+                  isDark: isDark,
+                  textColor: textColor,
+                  subTextColor: subTextColor,
+                  isChannel: widget.isChannel,
+                ),
+              ],
+            );
+          },
+        ),
+        if (_events.isNotEmpty)
+          Positioned(
+            top: 8,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: AnimatedOpacity(
+                opacity: _dateBadgeOpacity,
+                duration: const Duration(milliseconds: 200),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xCC1B2734) : const Color(0xCCFFFFFF),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    _currentDateLabel,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? const Color(0xFFAABBCC) : const Color(0xFF666666),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildDateSeparator(DateTime date, bool isDark) {
+    final label = _formatDateHeader(date);
+    _currentDateLabel = label;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xCC1B2734) : const Color(0xCCFFFFFF),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: isDark ? const Color(0xFFAABBCC) : const Color(0xFF666666),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  String _formatDateHeader(DateTime d) {
+    final now = DateTime.now();
+    if (_isSameDay(d, now)) return 'Today';
+    final yesterday = now.subtract(const Duration(days: 1));
+    if (_isSameDay(d, yesterday)) return 'Yesterday';
+    const months = ['January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'];
+    if (d.year == now.year) return '${months[d.month - 1]} ${d.day}';
+    return '${months[d.month - 1]} ${d.day}, ${d.year}';
+  }
+}
+
+class _AdminLogEventTile extends StatelessWidget {
+  final AdminLogEvent event;
+  final TelegramPalette palette;
+  final bool isDark;
+  final Color textColor;
+  final Color subTextColor;
+  final bool isChannel;
+
+  const _AdminLogEventTile({
+    required this.event,
+    required this.palette,
+    required this.isDark,
+    required this.textColor,
+    required this.subTextColor,
+    required this.isChannel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final serviceBg = isDark ? const Color(0xCC1B2734) : const Color(0xCCFFFFFF);
+    final serviceText = isDark ? const Color(0xFFAABBCC) : const Color(0xFF666666);
+    final accentColor = palette.windowBgActive;
+    final time = _formatTime(event.dateTime);
+    final desc = _actionDescription();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 540),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: serviceBg,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text.rich(
+                        TextSpan(children: [
+                          TextSpan(
+                            text: event.userName,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: accentColor,
+                            ),
+                          ),
+                          TextSpan(
+                            text: ' $desc',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontStyle: FontStyle.italic,
+                              color: serviceText,
+                            ),
+                          ),
+                        ]),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      time,
+                      style: TextStyle(fontSize: 11, color: subTextColor),
+                    ),
+                  ],
+                ),
+                if (event.msgText.isNotEmpty && event.action != 'edit_message')
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+                      decoration: BoxDecoration(
+                        border: Border(
+                          left: BorderSide(color: accentColor, width: 2),
+                        ),
+                        color: isDark
+                            ? const Color(0x20FFFFFF)
+                            : const Color(0x10000000),
+                        borderRadius: const BorderRadius.only(
+                          topRight: Radius.circular(6),
+                          bottomRight: Radius.circular(6),
+                        ),
+                      ),
+                      child: Text(
+                        event.msgText,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 13, color: textColor),
+                      ),
+                    ),
+                  ),
+                if (event.oldValue.isNotEmpty && event.newValue.isNotEmpty &&
+                    event.action == 'edit_message')
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildQuotedBlock('Previous', event.oldValue, accentColor),
+                        const SizedBox(height: 2),
+                        _buildQuotedBlock('New', event.newValue, accentColor),
+                      ],
+                    ),
+                  )
+                else if (event.oldValue.isNotEmpty || event.newValue.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (event.oldValue.isNotEmpty)
+                          _buildQuotedBlock('Previous', event.oldValue, accentColor),
+                        if (event.newValue.isNotEmpty)
+                          _buildQuotedBlock('New', event.newValue, accentColor),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuotedBlock(String label, String text, Color accentColor) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 2, 8, 2),
+      decoration: BoxDecoration(
+        border: Border(
+          left: BorderSide(color: accentColor, width: 2),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: accentColor,
+            ),
+          ),
+          Text(
+            text,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 13, color: textColor),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _actionDescription() {
+    final memberLabel = isChannel ? 'subscriber' : 'member';
+    switch (event.action) {
+      case 'change_title':
+        return 'changed the group title';
+      case 'change_about':
+        return 'changed the group description';
+      case 'change_username':
+        return 'changed the group link';
+      case 'change_photo':
+        return 'changed the group photo';
+      case 'toggle_invites':
+        return '${event.detail} invites';
+      case 'toggle_signatures':
+        return '${event.detail} signatures';
+      case 'pin_message':
+        return 'pinned a message';
+      case 'unpin_message':
+        return 'unpinned a message';
+      case 'edit_message':
+        return 'edited a message';
+      case 'delete_message':
+        return 'deleted a message';
+      case 'participant_join':
+        return 'joined the ${isChannel ? "channel" : "group"}';
+      case 'participant_leave':
+        return 'left the ${isChannel ? "channel" : "group"}';
+      case 'participant_invite':
+        return 'invited ${event.detail.isNotEmpty ? event.detail : "a $memberLabel"}';
+      case 'participant_ban':
+        return 'changed restrictions for ${event.detail.isNotEmpty ? event.detail : "a $memberLabel"}';
+      case 'participant_admin':
+        return 'changed admin rights for ${event.detail.isNotEmpty ? event.detail : "a $memberLabel"}';
+      case 'change_stickerset':
+        return 'changed the sticker set';
+      case 'toggle_prehistory':
+        return 'made chat history ${event.detail}';
+      case 'change_default_rights':
+        return 'changed default permissions';
+      case 'stop_poll':
+        return 'stopped a poll';
+      case 'change_linked_chat':
+        return 'changed the linked chat';
+      case 'toggle_slowmode':
+        return 'changed slow mode (${event.detail})';
+      case 'start_call':
+        return 'started a voice chat';
+      case 'end_call':
+        return 'ended a voice chat';
+      case 'participant_mute':
+        return 'muted a participant';
+      case 'participant_unmute':
+        return 'unmuted a participant';
+      case 'call_setting':
+        return 'changed call settings (${event.detail})';
+      case 'join_by_invite':
+        return 'joined via invite link';
+      case 'invite_delete':
+        return 'deleted an invite link';
+      case 'invite_revoke':
+        return 'revoked an invite link';
+      case 'invite_edit':
+        return 'edited an invite link';
+      case 'change_ttl':
+        return 'changed auto-delete timer (${event.detail})';
+      case 'toggle_noforwards':
+        return '${event.detail} content protection';
+      case 'send_message':
+        return 'sent a message';
+      case 'toggle_forum':
+        return '${event.detail} forum mode';
+      case 'create_topic':
+        return 'created a topic';
+      case 'edit_topic':
+        return 'edited a topic';
+      case 'delete_topic':
+        return 'deleted a topic';
+      case 'pin_topic':
+        return 'pinned a topic';
+      case 'toggle_antispam':
+        return '${event.detail} anti-spam';
+      case 'change_reactions':
+        return 'changed available reactions';
+      case 'change_usernames':
+        return 'changed usernames';
+      case 'change_peer_color':
+        return 'changed peer color';
+      case 'change_profile_color':
+        return 'changed profile color';
+      case 'change_wallpaper':
+        return 'changed wallpaper';
+      case 'change_emoji_status':
+        return 'changed emoji status';
+      case 'change_emoji_stickerset':
+        return 'changed emoji sticker set';
+      case 'toggle_signature_profiles':
+        return '${event.detail} signature profiles';
+      case 'sub_extend':
+        return 'extended subscription';
+      case 'join_by_request':
+        return 'was accepted to the group';
+      case 'participant_volume':
+        return 'changed participant volume';
+      default:
+        return event.detail.isNotEmpty ? event.detail : event.action;
+    }
+  }
+
+  String _formatTime(DateTime d) {
+    final h = d.hour.toString().padLeft(2, '0');
+    final m = d.minute.toString().padLeft(2, '0');
+    return '$h:$m';
+  }
+}
+
+class _AdminLogFilterDialog extends StatefulWidget {
+  final bool isChannel;
+  final VoidCallback onApply;
+
+  const _AdminLogFilterDialog({
+    required this.isChannel,
+    required this.onApply,
+  });
+
+  @override
+  State<_AdminLogFilterDialog> createState() => _AdminLogFilterDialogState();
+}
+
+class _AdminLogFilterDialogState extends State<_AdminLogFilterDialog> {
+  final Map<String, bool> _checks = {};
+
+  static const _memberSection = [
+    'Admin rights',
+    'Edit rank',
+    'Restrictions',
+    'New members',
+    'Removed members',
+  ];
+  static const _settingsSection = [
+    'Info and settings',
+    'Invite links',
+    'Voice chats',
+    'Subscription extensions',
+    'Topics',
+  ];
+  static const _messageSection = [
+    'Deleted messages',
+    'Edited messages',
+    'Pinned messages',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    for (final s in [..._memberSection, ..._settingsSection, ..._messageSection]) {
+      _checks[s] = true;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = PaletteProvider.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentColor = palette.windowBgActive;
+    final headerColor = palette.windowActiveTextFg;
+    final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFE0E0E0);
+    final memberLabel = widget.isChannel ? 'Subscribers' : 'Members';
+
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      backgroundColor: bgColor,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 380, maxHeight: 500),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(left: 20, right: 8, top: 4, bottom: 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Filter',
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      widget.onApply();
+                      Navigator.pop(context);
+                    },
+                    child: Text('Apply', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: accentColor)),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text('Cancel', style: TextStyle(fontSize: 14, color: textColor.withValues(alpha: 0.6))),
+                  ),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: dividerColor),
+            Flexible(
+              child: ListView(
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                children: [
+                  const SizedBox(height: 8),
+                  _buildSection(memberLabel, _memberSection, headerColor, accentColor, textColor),
+                  Divider(height: 1, color: dividerColor),
+                  _buildSection('Settings', _settingsSection, headerColor, accentColor, textColor),
+                  Divider(height: 1, color: dividerColor),
+                  _buildSection('Messages', _messageSection, headerColor, accentColor, textColor),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSection(
+    String title,
+    List<String> items,
+    Color headerColor,
+    Color accentColor,
+    Color textColor,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 12, 22, 4),
+          child: Text(
+            title,
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: headerColor),
+          ),
+        ),
+        for (final item in items)
+          InkWell(
+            onTap: () => setState(() => _checks[item] = !(_checks[item] ?? true)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 6),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: Checkbox(
+                      value: _checks[item] ?? true,
+                      onChanged: (v) => setState(() => _checks[item] = v ?? true),
+                      activeColor: accentColor,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(item, style: TextStyle(fontSize: 14, color: textColor)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }
