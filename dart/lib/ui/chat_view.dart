@@ -204,6 +204,12 @@ class _ChatViewState extends State<ChatView>
   List<String> _forwardingMsgIds = [];
   bool _forwardHideSender = false;
   bool get _isForwarding => _forwardingMsgIds.isNotEmpty;
+  // §31.8: Saved tag suggestion toast state.
+  List<SavedReactionTagInfo>? _savedTagToastTags;
+  int _savedTagToastMsgCount = 0;
+  String _savedTagToastChatId = '';
+  List<String> _savedTagToastMsgIds = [];
+  SavedReactionTagInfo? _savedTagConfirm;
   // GlobalKey attached to the top-bar more_vert IconButton so the Ctrl+\
   // keyboard shortcut (spec §24.4 `show_chat_menu`) can anchor the menu
   // at the same pixel position as clicking the button. The key is passed
@@ -2163,6 +2169,11 @@ class _ChatViewState extends State<ChatView>
         hasCaptions: msgIds.length > 0,
         onSend: (opts) async {
           Navigator.of(ctx).pop();
+          final savedChat = chatState.chats.where(
+            (c) => c.title == 'Saved Messages' && c.type == ChatType.dm,
+          ).firstOrNull;
+          final forwardedToSaved = savedChat != null &&
+              opts.chatIds.contains(savedChat.chatId);
           for (final toChatId in opts.chatIds) {
             await chatState.forwardMessages(msgIds, toChatId,
               dropAuthor: opts.dropAuthor,
@@ -2175,9 +2186,59 @@ class _ChatViewState extends State<ChatView>
             _forwardingMsgIds = [];
             _forwardHideSender = false;
           });
+          if (forwardedToSaved && mounted) {
+            _showSavedTagToast(chatState, savedChat!.chatId, msgIds);
+          }
         },
       ),
     );
+  }
+
+  static const _kDefaultTagEmoji = ['\u{1F44D}', '\u{2764}\u{FE0F}', '\u{1F525}', '\u{1F389}', '\u{1F622}', '\u{1F44E}'];
+
+  void _showSavedTagToast(
+    ChatState chatState,
+    String savedChatId,
+    List<String> msgIds,
+  ) {
+    var tags = chatState.savedReactionTags;
+    if (tags.isEmpty) {
+      tags = _kDefaultTagEmoji
+          .map((e) => SavedReactionTagInfo(emoji: e))
+          .toList();
+    }
+    setState(() {
+      _savedTagToastTags = tags;
+      _savedTagToastMsgCount = msgIds.length;
+      _savedTagToastChatId = savedChatId;
+      _savedTagToastMsgIds = msgIds;
+      _savedTagConfirm = null;
+    });
+  }
+
+  void _onSavedTagSelected(SavedReactionTagInfo tag) {
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    for (final id in _savedTagToastMsgIds) {
+      engine.reactToMessage(accountId, _savedTagToastChatId, id, tag.emoji);
+    }
+    setState(() {
+      _savedTagToastTags = null;
+      _savedTagConfirm = tag;
+    });
+  }
+
+  void _dismissSavedTagToast() {
+    setState(() {
+      _savedTagToastTags = null;
+    });
+  }
+
+  void _dismissSavedTagConfirm() {
+    setState(() {
+      _savedTagConfirm = null;
+    });
   }
 
   void _cancelForward() {
@@ -3422,6 +3483,29 @@ class _ChatViewState extends State<ChatView>
                           }
                         }
                       } : null,
+                    ),
+                  ),
+                // §31.8: Tag suggestion toast after forward-to-saved
+                if (_savedTagToastTags != null)
+                  Positioned(
+                    bottom: 80,
+                    left: 0,
+                    right: 0,
+                    child: _SavedTagToast(
+                      tags: _savedTagToastTags!,
+                      msgCount: _savedTagToastMsgCount,
+                      onTagSelected: _onSavedTagSelected,
+                      onDismiss: _dismissSavedTagToast,
+                    ),
+                  ),
+                if (_savedTagConfirm != null)
+                  Positioned(
+                    bottom: 80,
+                    left: 0,
+                    right: 0,
+                    child: _TaggedConfirmToast(
+                      tag: _savedTagConfirm!,
+                      onDismiss: _dismissSavedTagConfirm,
                     ),
                   ),
               ],
@@ -13035,6 +13119,244 @@ class _ThemePill extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// §31.8 Forward-to-Saved tag suggestion toast
+class _SavedTagToast extends StatefulWidget {
+  final List<SavedReactionTagInfo> tags;
+  final int msgCount;
+  final ValueChanged<SavedReactionTagInfo> onTagSelected;
+  final VoidCallback onDismiss;
+
+  const _SavedTagToast({
+    required this.tags,
+    required this.msgCount,
+    required this.onTagSelected,
+    required this.onDismiss,
+  });
+
+  @override
+  State<_SavedTagToast> createState() => _SavedTagToastState();
+}
+
+class _SavedTagToastState extends State<_SavedTagToast>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _animCtrl;
+  late final Animation<double> _fadeAnim;
+  Timer? _dismissTimer;
+  bool _hovering = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _animCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+    _fadeAnim = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOutCubic);
+    _animCtrl.forward();
+    _startTimer(const Duration(seconds: 3));
+  }
+
+  void _startTimer(Duration duration) {
+    _dismissTimer?.cancel();
+    _dismissTimer = Timer(duration, _dismiss);
+  }
+
+  void _dismiss() {
+    _dismissTimer?.cancel();
+    _animCtrl.reverse().then((_) {
+      if (mounted) widget.onDismiss();
+    });
+  }
+
+  @override
+  void dispose() {
+    _dismissTimer?.cancel();
+    _animCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final shadowColor = isDark ? Colors.black45 : Colors.black26;
+    final textColor = isDark ? Colors.white : const Color(0xFF222222);
+    final subtitleColor = isDark ? const Color(0xFF8B9BAA) : const Color(0xFF999999);
+
+    return FadeTransition(
+      opacity: _fadeAnim,
+      child: Center(
+        child: MouseRegion(
+          onEnter: (_) {
+            _hovering = true;
+            _dismissTimer?.cancel();
+          },
+          onExit: (_) {
+            _hovering = false;
+            _startTimer(const Duration(seconds: 2));
+          },
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 360),
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [BoxShadow(color: shadowColor, blurRadius: 12, offset: const Offset(0, 4))],
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.bookmark, size: 18, color: const Color(0xFF419FD9)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            widget.msgCount == 1
+                                ? 'Message saved'
+                                : '${widget.msgCount} messages saved',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: textColor,
+                            ),
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: _dismiss,
+                          child: Icon(Icons.close, size: 16, color: subtitleColor),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Add a tag:',
+                      style: TextStyle(fontSize: 12, color: subtitleColor),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: widget.tags.map((tag) {
+                        final emojiText = tag.isCustomEmoji ? '\u{2B50}' : tag.emoji;
+                        return GestureDetector(
+                          onTap: () => widget.onTagSelected(tag),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF2B3A4A) : const Color(0xFFF1F1F1),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(emojiText, style: const TextStyle(fontSize: 16)),
+                                if (tag.title.isNotEmpty) ...[
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    tag.title,
+                                    style: TextStyle(fontSize: 12, color: textColor),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+  }
+}
+
+class _TaggedConfirmToast extends StatefulWidget {
+  final SavedReactionTagInfo tag;
+  final VoidCallback onDismiss;
+
+  const _TaggedConfirmToast({required this.tag, required this.onDismiss});
+
+  @override
+  State<_TaggedConfirmToast> createState() => _TaggedConfirmToastState();
+}
+
+class _TaggedConfirmToastState extends State<_TaggedConfirmToast>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _animCtrl;
+  late final Animation<double> _fadeAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _animCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+    _fadeAnim = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOutCubic);
+    _animCtrl.forward();
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        _animCtrl.reverse().then((_) {
+          if (mounted) widget.onDismiss();
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _animCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final shadowColor = isDark ? Colors.black45 : Colors.black26;
+    final textColor = isDark ? Colors.white : const Color(0xFF222222);
+    final emojiText = widget.tag.isCustomEmoji ? '\u{2B50}' : widget.tag.emoji;
+    final label = widget.tag.title.isNotEmpty ? widget.tag.title : emojiText;
+
+    return FadeTransition(
+      opacity: _fadeAnim,
+      child: Center(
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [BoxShadow(color: shadowColor, blurRadius: 12, offset: const Offset(0, 4))],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.check_circle, size: 18, color: Color(0xFF4DC920)),
+                const SizedBox(width: 8),
+                Text(
+                  'Tagged with $emojiText${widget.tag.title.isNotEmpty ? " ${widget.tag.title}" : ""}',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textColor),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
