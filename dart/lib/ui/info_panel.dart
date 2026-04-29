@@ -12,6 +12,7 @@ import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
+import 'chat_export.dart';
 import 'chat_view.dart' show formatChatLastSeen;
 import 'confirm_box.dart';
 import 'admin_tools.dart' show showEditAdminBox, showEditPeerInfoBox, showEditRestrictedBox;
@@ -1303,6 +1304,11 @@ class _TopicInfoMenuButton extends StatelessWidget {
             ),
             label: topic.isHidden ? 'Show Topic' : 'Hide Topic',
           ),
+        const TelegramMenuItem(
+          value: 'export_topic',
+          icon: Icon(Icons.file_upload_outlined, size: 20),
+          label: 'Export Topic History',
+        ),
         if (topic.canDelete && !topic.isGeneral) ...[
           const TelegramMenuItem.separator(),
           const TelegramMenuItem(
@@ -1321,6 +1327,18 @@ class _TopicInfoMenuButton extends StatelessWidget {
     switch (value) {
       case 'ttl':
         _showTtlSubmenu(context, position);
+      case 'export_topic':
+        showExportPanel(
+          context,
+          ExportTarget(
+            mode: ExportMode.perTopic,
+            accountId: chat.accountId,
+            chatId: parentChatId,
+            chatTitle: chat.title,
+            topicRootId: topicId,
+            topicTitle: topic.title,
+          ),
+        );
       case 'copy_link':
         try {
           final username = await engine.getChatUsername(chat.accountId, parentChatId);
@@ -2315,6 +2333,20 @@ class _GroupActionsSection extends StatelessWidget {
             onTap: () => _showForumTopicsDialog(context),
           ),
         _ActionRow(
+          icon: Icons.file_upload_outlined,
+          label: 'Export Chat History',
+          theme: theme,
+          onTap: () => showExportPanel(
+            context,
+            ExportTarget(
+              mode: ExportMode.perChat,
+              accountId: chat.accountId,
+              chatId: chat.chatId,
+              chatTitle: chat.title,
+            ),
+          ),
+        ),
+        _ActionRow(
           icon: Icons.flag_outlined,
           label: 'Report',
           theme: theme,
@@ -2614,6 +2646,20 @@ class _ChannelActionsSection extends StatelessWidget {
           label: 'Similar Channels',
           theme: theme,
           onTap: () => _showSimilarChannels(context),
+        ),
+        _ActionRow(
+          icon: Icons.file_upload_outlined,
+          label: 'Export Chat History',
+          theme: theme,
+          onTap: () => showExportPanel(
+            context,
+            ExportTarget(
+              mode: ExportMode.perChat,
+              accountId: chat.accountId,
+              chatId: chat.chatId,
+              chatTitle: chat.title,
+            ),
+          ),
         ),
         _ActionRow(
           icon: Icons.flag_outlined,

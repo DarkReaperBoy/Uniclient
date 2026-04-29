@@ -30,6 +30,7 @@ import 'popup_menu.dart';
 import 'send_files_box.dart';
 import 'confirm_box.dart';
 import 'call_panel.dart';
+import 'chat_export.dart';
 import 'forum_topic_icon.dart';
 import 'edit_forum_topic_box.dart';
 import 'choose_datetime_box.dart';
@@ -3857,6 +3858,11 @@ class _ChatTopBar extends StatelessWidget {
         if (isGroupy)
           const TelegramMenuItem(value: 'recent_actions', label: 'Recent Actions'),
         const TelegramMenuItem(value: 'change_theme', label: 'Change Chat Theme'),
+        const TelegramMenuItem(
+          value: 'export_chat',
+          icon: Icon(Icons.file_upload_outlined, size: 20),
+          label: 'Export Chat History',
+        ),
         const TelegramMenuItem.separator(),
         const TelegramMenuItem(value: 'clear_history', label: 'Clear History'),
         if (isDm)
@@ -3892,6 +3898,19 @@ class _ChatTopBar extends StatelessWidget {
           );
         case 'change_theme':
           chatState.toggleThemeChooser();
+        case 'export_chat':
+          Future.delayed(const Duration(milliseconds: 150), () {
+            if (!btnCtx.mounted) return;
+            showExportPanel(
+              btnCtx,
+              ExportTarget(
+                mode: ExportMode.perChat,
+                accountId: chat.accountId,
+                chatId: chat.chatId,
+                chatTitle: chat.title,
+              ),
+            );
+          });
         case 'clear_history':
           showDeleteConfirmBox(
             btnCtx,
@@ -3968,6 +3987,11 @@ class _ChatTopBar extends StatelessWidget {
           icon: Icon(Icons.topic_outlined, size: 20),
           label: 'View as Topics',
         ),
+        const TelegramMenuItem(
+          value: 'export_topic',
+          icon: Icon(Icons.file_upload_outlined, size: 20),
+          label: 'Export Topic History',
+        ),
         if (activeTopic != null && activeTopic.canEdit)
           const TelegramMenuItem(
             value: 'manage_group',
@@ -3991,6 +4015,22 @@ class _ChatTopBar extends StatelessWidget {
           }
         case 'view_as_topics':
           chatState.closeChat();
+        case 'export_topic':
+          final topicRootId = int.tryParse(chat.chatId) ?? 0;
+          Future.delayed(const Duration(milliseconds: 150), () {
+            if (!btnCtx.mounted) return;
+            showExportPanel(
+              btnCtx,
+              ExportTarget(
+                mode: ExportMode.perTopic,
+                accountId: chat.accountId,
+                chatId: parentChat?.chatId ?? chat.chatId,
+                chatTitle: chat.title,
+                topicRootId: topicRootId,
+                topicTitle: chat.title,
+              ),
+            );
+          });
         case 'manage_group':
           if (parentChat != null) {
             chatState.openChat(parentChat);

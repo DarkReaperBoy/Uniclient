@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
+import 'chat_export.dart';
 import 'settings_style.dart';
 
 /// Advanced settings page (§14.7). Opened from Settings → Advanced row.
@@ -749,12 +750,14 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         iconColor: iconColor,
         hoverBg: hoverBg,
         onTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Data export is managed by Telegram servers. Visit Settings > Privacy in the official app.'),
-              duration: Duration(seconds: 3),
-            ),
-          );
+          Navigator.of(context).popUntil((route) => route.isFirst);
+          Future.delayed(const Duration(milliseconds: 150), () {
+            if (!context.mounted) return;
+            showExportPanel(
+              context,
+              const ExportTarget(mode: ExportMode.full),
+            );
+          });
         },
       ),
       _AdvancedIconButtonRow(

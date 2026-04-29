@@ -845,9 +845,8 @@ Status key: `[ ]` not started · `[x]` done
 
 ## §29 — Chat Export
 
-<!-- dart files: none yet — create dart/lib/ui/chat_export.dart -->
+<!-- dart files: dart/lib/ui/chat_export.dart -->
 
-- [ ] Entry points: Settings > Advanced "Export Telegram Data" button, chat context menu "Export Chat History"/"Export Topic History", server-triggered SuggestBox (360px, OK/Cancel) — spec §29.1
 - [ ] Export panel: 364×480px frameless SeparatePanel, dynamic title per mode, close-during-progress confirmation, hideOnDeactivate toggle — spec §29.2
 - [ ] Full-export settings screen: account data checkboxes (Personal info/Contacts/Stories/Profile music), chats section (6 types + "Only my messages" sub-option with SlideWrap), media section (7 types + non-linear 1-4000MB size slider, default 8MB), other data section, output format radios (HTML/JSON/HTML+JSON) + clickable path link, Export/Cancel buttons with FadeShadow — spec §29.3
 - [ ] Per-chat/topic settings screen: media options + format/location + date range filter (CalendarBox min Aug 2013, time editing HH:MM, 600s safety offset) — spec §29.4
