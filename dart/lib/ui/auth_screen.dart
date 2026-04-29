@@ -395,173 +395,210 @@ class _AuthScreenState extends State<AuthScreen>
     );
   }
 
-  Widget _build2FA(AuthStateData data, AuthState authState, ThemeData theme) {
-    return Column(
-      key: ValueKey(_isRecoveryMode ? '2fa_recovery' : '2fa'),
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          Icons.lock_outlined,
-          size: 48,
-          color: theme.colorScheme.primary,
-        ),
-        const SizedBox(height: 16),
-        Text(
-          _title(data),
-          style: theme.textTheme.headlineMedium,
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 8),
-        SizedBox(
-          width: 300,
-          child: Text(
-            _isRecoveryMode
-                ? 'Recovery code sent to ${data.sentTo.isNotEmpty ? data.sentTo : 'your email'}.'
-                : 'You have Two-Step Verification enabled, so your account is protected with an additional password.',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.textTheme.bodySmall?.color,
-              height: 1.4,
+  Widget _build2FAField({
+    required TextEditingController controller,
+    required AuthState authState,
+    required ThemeData theme,
+    required bool obscure,
+    required String label,
+    TextInputType? keyboardType,
+  }) {
+    final errorBorder = _showErrorBorder
+        ? OutlineInputBorder(
+            borderSide: BorderSide(color: theme.colorScheme.error, width: 2),
+          )
+        : null;
+    return AnimatedBuilder(
+      animation: _shakeController,
+      builder: (context, child) {
+        final dx = _shakeController.isAnimating
+            ? sin(_shakeController.value * pi * 4) *
+                6 *
+                (1 - _shakeController.value)
+            : 0.0;
+        return Transform.translate(offset: Offset(dx, 0), child: child);
+      },
+      child: SizedBox(
+        width: 300,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 61),
+          child: TextField(
+            controller: controller,
+            obscureText: obscure,
+            autofocus: true,
+            style: const TextStyle(fontSize: 16),
+            keyboardType: keyboardType,
+            onSubmitted: (_) => _submit(authState),
+            decoration: InputDecoration(
+              labelText: label,
+              counterText: '',
+              contentPadding: const EdgeInsets.fromLTRB(12, 3, 6, 27),
+              border: const OutlineInputBorder(),
+              enabledBorder: errorBorder,
+              focusedBorder: errorBorder,
             ),
-            textAlign: TextAlign.center,
           ),
         ),
-        const SizedBox(height: 74),
-        if (authState.error != null && !_isRecoveryMode) ...[
-          SizedBox(
-            width: 300,
+      ),
+    );
+  }
+
+  Widget _build2FA(AuthStateData data, AuthState authState, ThemeData theme) {
+    const fieldTop = 74.0;
+    const recoveryFieldTop = 96.0;
+    const fieldHeight = 61.0;
+    const hintTop = 151.0;
+    const errorTop = 220.0;
+    final activeFieldTop = _isRecoveryMode ? recoveryFieldTop : fieldTop;
+    final linkTop = activeFieldTop + fieldHeight + 24.0;
+
+    return SizedBox(
+      key: ValueKey(_isRecoveryMode ? '2fa_recovery' : '2fa'),
+      height: errorTop + 40,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            top: 1,
+            left: 0,
+            right: 0,
             child: Text(
-              authState.error!,
-              style: TextStyle(color: theme.colorScheme.error, fontSize: 13),
+              'Enter Your Password',
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
               textAlign: TextAlign.center,
             ),
           ),
-          const SizedBox(height: 8),
-        ],
-        AnimatedBuilder(
-          animation: _shakeController,
-          builder: (context, child) {
-            final dx = _shakeController.isAnimating
-                ? sin(_shakeController.value * pi * 4) *
-                    6 *
-                    (1 - _shakeController.value)
-                : 0.0;
-            return Transform.translate(
-              offset: Offset(dx, 0),
-              child: child,
-            );
-          },
-          child: _isRecoveryMode
-              ? SizedBox(
-                  width: 300,
-                  child: TextField(
-                    controller: _recoveryCodeController,
-                    keyboardType: TextInputType.number,
-                    autofocus: true,
-                    onSubmitted: (_) => _submit(authState),
-                    decoration: InputDecoration(
-                      labelText: 'Recovery Code',
-                      counterText: '',
-                      enabledBorder: _showErrorBorder
-                          ? OutlineInputBorder(
-                              borderSide: BorderSide(
-                                color: theme.colorScheme.error,
-                                width: 2,
-                              ),
-                            )
-                          : null,
-                      focusedBorder: _showErrorBorder
-                          ? OutlineInputBorder(
-                              borderSide: BorderSide(
-                                color: theme.colorScheme.error,
-                                width: 2,
-                              ),
-                            )
-                          : null,
-                    ),
+          Positioned(
+            top: 34,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: SizedBox(
+                width: 300,
+                child: Text(
+                  _isRecoveryMode
+                      ? 'Recovery code sent to ${data.sentTo.isNotEmpty ? data.sentTo : "your email"}.'
+                      : 'You have Two-Step Verification enabled, so your account is protected with an additional password.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.textTheme.bodySmall?.color,
+                    height: 20 / 14,
                   ),
-                )
-              : SizedBox(
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: activeFieldTop,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: _build2FAField(
+                controller:
+                    _isRecoveryMode ? _recoveryCodeController : _passwordController,
+                authState: authState,
+                theme: theme,
+                obscure: !_isRecoveryMode,
+                label: _isRecoveryMode ? 'Recovery Code' : 'Password',
+                keyboardType:
+                    _isRecoveryMode ? TextInputType.number : null,
+              ),
+            ),
+          ),
+          if (!_isRecoveryMode && data.hint.isNotEmpty)
+            Positioned(
+              top: hintTop,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: SizedBox(
                   width: 300,
-                  child: TextField(
-                    controller: _passwordController,
-                    obscureText: true,
-                    autofocus: true,
-                    onSubmitted: (_) => _submit(authState),
-                    decoration: InputDecoration(
-                      labelText: 'Password',
-                      counterText: '',
-                      enabledBorder: _showErrorBorder
-                          ? OutlineInputBorder(
-                              borderSide: BorderSide(
-                                color: theme.colorScheme.error,
-                                width: 2,
-                              ),
-                            )
-                          : null,
-                      focusedBorder: _showErrorBorder
-                          ? OutlineInputBorder(
-                              borderSide: BorderSide(
-                                color: theme.colorScheme.error,
-                                width: 2,
-                              ),
-                            )
-                          : null,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 6),
+                    child: Text(
+                      'Hint: ${data.hint}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.textTheme.bodyMedium?.color,
+                      ),
                     ),
                   ),
                 ),
-        ),
-        if (!_isRecoveryMode && data.hint.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          SizedBox(
-            width: 300,
-            child: Text(
-              'Hint: ${data.hint}',
-              style: theme.textTheme.bodySmall,
-            ),
-          ),
-        ],
-        if (authState.error != null && _isRecoveryMode) ...[
-          const SizedBox(height: 8),
-          SizedBox(
-            width: 300,
-            child: Text(
-              authState.error!,
-              style: TextStyle(color: theme.colorScheme.error, fontSize: 13),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ],
-        const SizedBox(height: 24),
-        if (!_isRecoveryMode)
-          TextButton(
-            onPressed: () => _handleForgotPassword(data, authState),
-            child: Text(
-              'Forgot password?',
-              style: TextStyle(
-                fontSize: 14,
-                color: theme.colorScheme.primary,
               ),
             ),
-          )
-        else
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _isRecoveryMode = false;
-                _showErrorBorder = false;
-                _recoveryCodeController.clear();
-              });
-            },
-            child: Text(
-              'Try password',
-              style: TextStyle(
-                fontSize: 14,
-                color: theme.colorScheme.primary,
+          Positioned(
+            top: linkTop,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: TextButton(
+                onPressed: _isRecoveryMode
+                    ? () => _handleTryPassword()
+                    : () => _handleForgotPassword(data, authState),
+                child: Text(
+                  _isRecoveryMode ? 'Try password' : 'Forgot password?',
+                  style: TextStyle(fontSize: 14, color: theme.colorScheme.primary),
+                ),
               ),
             ),
           ),
-      ],
+          if (authState.error != null)
+            Positioned(
+              top: errorTop,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: SizedBox(
+                  width: 300,
+                  child: Text(
+                    _mapAuthError(authState.error!),
+                    style: TextStyle(color: theme.colorScheme.error, fontSize: 13),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
+  }
+
+  String _mapAuthError(String raw) {
+    if (raw.contains('PASSWORD_HASH_INVALID') || raw.contains('SRP_PASSWORD_CHANGED')) {
+      return 'Wrong password, try again.';
+    }
+    if (raw.contains('FLOOD_WAIT')) return 'Too many attempts. Please try again later.';
+    if (raw.contains('CODE_INVALID')) return 'Wrong recovery code.';
+    if (raw.contains('PASSWORD_RECOVERY_NA')) return 'Recovery not available.';
+    if (raw.contains('PASSWORD_RECOVERY_EXPIRED')) return 'Recovery code expired.';
+    return raw;
+  }
+
+  void _handleTryPassword() {
+    final theme = Theme.of(context);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Can\'t Access Email?'),
+        content: Text(
+          'If you can\'t restore access to your email, your remaining options are '
+          'either to remember your password or to reset your account.',
+          style: theme.textTheme.bodyMedium,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    ).then((_) {
+      setState(() {
+        _isRecoveryMode = false;
+        _showErrorBorder = false;
+        _showResetButton = true;
+        _recoveryCodeController.clear();
+      });
+    });
   }
 
   Widget _buildSignUp(
