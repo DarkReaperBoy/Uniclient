@@ -1243,7 +1243,8 @@ class _OtpCodeInput extends StatefulWidget {
 }
 
 class _OtpCodeInputState extends State<_OtpCodeInput>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin
+    implements TextInputClient {
   static const _cellWidth = 40.0;
   static const _cellHeight = 50.0;
   static const _cellGap = 10.0;
@@ -1262,6 +1263,7 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
   int _callSecondsLeft = 0;
   bool _calling = false;
   bool _submitted = false;
+  TextInputConnection? _inputConnection;
 
   @override
   void initState() {
@@ -1292,9 +1294,30 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
       _callSecondsLeft = widget.timeoutSecs;
       _startCallTimer();
     }
+    _focusNode.addListener(_onFocusChange);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focusNode.requestFocus();
     });
+  }
+
+  void _onFocusChange() {
+    if (_focusNode.hasFocus) {
+      _inputConnection?.close();
+      _inputConnection = TextInput.attach(
+        this,
+        const TextInputConfiguration(
+          inputType: TextInputType.number,
+          inputAction: TextInputAction.done,
+          autocorrect: false,
+          enableSuggestions: false,
+        ),
+      );
+      _inputConnection!.show();
+    } else {
+      _inputConnection?.close();
+      _inputConnection = null;
+    }
+    setState(() {});
   }
 
   @override
@@ -1351,10 +1374,12 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
 
   @override
   void dispose() {
+    _inputConnection?.close();
     for (final c in _digitAnimControllers) {
       c.dispose();
     }
     _shakeController.dispose();
+    _focusNode.removeListener(_onFocusChange);
     _focusNode.dispose();
     _callTimer?.cancel();
     super.dispose();
@@ -1413,6 +1438,94 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
     _checkComplete();
   }
 
+  void _copyCode() {
+    final code = _digits.join();
+    if (code.isNotEmpty) {
+      Clipboard.setData(ClipboardData(text: code));
+    }
+  }
+
+  void _showContextMenu(BuildContext context, Offset position) {
+    final hasDigits = _digits.any((d) => d.isNotEmpty);
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx,
+        position.dy,
+        overlay.size.width - position.dx,
+        overlay.size.height - position.dy,
+      ),
+      items: [
+        const PopupMenuItem(value: 'paste', child: Text('Paste')),
+        if (hasDigits)
+          const PopupMenuItem(value: 'copy', child: Text('Copy')),
+      ],
+    ).then((value) {
+      if (value == 'paste') _pasteCode();
+      if (value == 'copy') _copyCode();
+    });
+  }
+
+  // ── TextInputClient implementation ──
+
+  @override
+  TextEditingValue? get currentTextEditingValue => TextEditingValue(
+        text: _digits.join(),
+        selection: TextSelection.collapsed(offset: _focusedIndex),
+      );
+
+  @override
+  AutofillScope? get currentAutofillScope => null;
+
+  @override
+  void updateEditingValue(TextEditingValue value) {
+    if (_submitted) return;
+    final newDigits = value.text.replaceAll(RegExp(r'\D'), '');
+    if (newDigits.isEmpty) return;
+    for (final char in newDigits.characters) {
+      _insertDigit(char);
+    }
+  }
+
+  @override
+  void performAction(TextInputAction action) {
+    if (action == TextInputAction.done) {
+      _checkComplete();
+    }
+  }
+
+  @override
+  void performPrivateCommand(String action, Map<String, dynamic> data) {}
+
+  @override
+  void showAutocorrectionPromptRect(int start, int end) {}
+
+  @override
+  void updateFloatingCursor(RawFloatingCursorPoint point) {}
+
+  @override
+  void connectionClosed() {}
+
+  @override
+  void insertContent(KeyboardInsertedContent content) {}
+
+  @override
+  void showToolbar() {}
+
+  @override
+  void insertTextPlaceholder(Size size) {}
+
+  @override
+  void removeTextPlaceholder() {}
+
+  @override
+  void didChangeInputControl(TextInputControl? oldControl,
+      TextInputControl? newControl) {}
+
+  @override
+  void performSelector(String selectorName) {}
+
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
@@ -1444,10 +1557,15 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
       return KeyEventResult.handled;
     }
 
-    if (HardwareKeyboard.instance.isControlPressed &&
-        key == LogicalKeyboardKey.keyV) {
-      _pasteCode();
-      return KeyEventResult.handled;
+    if (HardwareKeyboard.instance.isControlPressed) {
+      if (key == LogicalKeyboardKey.keyV) {
+        _pasteCode();
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.keyC) {
+        _copyCode();
+        return KeyEventResult.handled;
+      }
     }
 
     final char = event.character;
@@ -1477,6 +1595,14 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
           onKeyEvent: _handleKey,
           child: GestureDetector(
             onTap: () => _focusNode.requestFocus(),
+            onSecondaryTapUp: (details) {
+              _focusNode.requestFocus();
+              _showContextMenu(context, details.globalPosition);
+            },
+            onLongPressStart: (details) {
+              _focusNode.requestFocus();
+              _showContextMenu(context, details.globalPosition);
+            },
             child: AnimatedBuilder(
               animation: _shakeController,
               builder: (context, child) {

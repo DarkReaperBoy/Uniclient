@@ -841,7 +841,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/auth_screen.dart (partial login-time check), new: dart/lib/ui/two_factor_auth.dart -->
 
-- [ ] Login email CodeInput (per-digit cells): 40×50px cells, 10px gaps, 4px border, fill/clear 120ms slide, shake error ~300ms, auto-submit on last digit, paste/copy context menu, IME digits-only hint — spec §28.9
 - [ ] Fireworks + thumbs-up emoji completion screen on successful verification — spec §28.9–28.10
 - [ ] All 9 error states mapped to user-facing strings: PASSWORD_HASH_INVALID, SRP_PASSWORD_CHANGED, SRP_ID_INVALID (silent retry), CODE_INVALID, EMAIL_INVALID, EMAIL_HASH_EXPIRED, EMAIL_NOT_ALLOWED, RECOVERY_NA/EXPIRED, FLOOD_WAIT — spec §28.12
 
