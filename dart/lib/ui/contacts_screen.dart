@@ -8,23 +8,45 @@ import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 
-/// Contacts screen (§3.3). Opened from hamburger drawer "Contacts" row.
-/// Displays the user's contact list, sorted alphabetically, with search.
-/// Each row: circular avatar + name + phone number.
-/// Tapping a contact opens the DM chat with that user.
-class ContactsScreen extends StatefulWidget {
-  const ContactsScreen({super.key});
+const double _boxWideWidth = 364;
+const double _boxTitleHeight = 48;
 
-  @override
-  State<ContactsScreen> createState() => _ContactsScreenState();
+enum _SortMode { online, alphabetical }
+
+Future<void> showContactsBox(BuildContext context) {
+  final appState = context.read<AppState>();
+  final chatState = context.read<ChatState>();
+  final engine = context.read<EngineService>();
+
+  return showDialog<void>(
+    context: context,
+    builder: (ctx) => ChangeNotifierProvider.value(
+      value: appState,
+      child: ChangeNotifierProvider.value(
+        value: chatState,
+        child: Provider<EngineService>.value(
+          value: engine,
+          child: const _ContactsBox(),
+        ),
+      ),
+    ),
+  );
 }
 
-class _ContactsScreenState extends State<ContactsScreen> {
+class _ContactsBox extends StatefulWidget {
+  const _ContactsBox();
+
+  @override
+  State<_ContactsBox> createState() => _ContactsBoxState();
+}
+
+class _ContactsBoxState extends State<_ContactsBox> {
   List<ContactInfo>? _contacts;
   String _error = '';
   bool _loading = true;
   final _searchController = TextEditingController();
   String _searchQuery = '';
+  _SortMode _sortMode = _SortMode.online;
 
   @override
   void initState() {
@@ -54,8 +76,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
     }
     try {
       final contacts = await engine.getContacts(account.id);
-      // Sort alphabetically by display name.
-      contacts.sort((a, b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
       if (mounted) {
         setState(() {
           _contacts = contacts;
@@ -72,14 +92,35 @@ class _ContactsScreenState extends State<ContactsScreen> {
     }
   }
 
+  List<ContactInfo> _sortedContacts(List<ContactInfo> list) {
+    final sorted = List<ContactInfo>.from(list);
+    switch (_sortMode) {
+      case _SortMode.online:
+        sorted.sort((a, b) {
+          if (a.isOnline && !b.isOnline) return -1;
+          if (!a.isOnline && b.isOnline) return 1;
+          return a.label.toLowerCase().compareTo(b.label.toLowerCase());
+        });
+      case _SortMode.alphabetical:
+        sorted.sort(
+            (a, b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
+    }
+    return sorted;
+  }
+
   List<ContactInfo> get _filteredContacts {
     final all = _contacts ?? [];
-    if (_searchQuery.isEmpty) return all;
-    return all.where((c) {
-      return c.displayName.toLowerCase().contains(_searchQuery) ||
-          c.username.toLowerCase().contains(_searchQuery) ||
-          c.phone.contains(_searchQuery);
-    }).toList();
+    List<ContactInfo> filtered;
+    if (_searchQuery.isEmpty) {
+      filtered = all;
+    } else {
+      filtered = all.where((c) {
+        return c.displayName.toLowerCase().contains(_searchQuery) ||
+            c.username.toLowerCase().contains(_searchQuery) ||
+            c.phone.contains(_searchQuery);
+      }).toList();
+    }
+    return _sortedContacts(filtered);
   }
 
   @override
@@ -87,103 +128,193 @@ class _ContactsScreenState extends State<ContactsScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
-    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final hoverBg = isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
-    final searchBg = isDark ? const Color(0xFF242F3D) : const Color(0xFFF1F1F1);
-    final searchFg = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final searchHintFg = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFE8E8E8);
+    final bgColor =
+        isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final hoverBg =
+        isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
+    final searchBg =
+        isDark ? const Color(0xFF242F3D) : const Color(0xFFF1F1F1);
+    final searchFg =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final searchHintFg =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final dividerColor =
+        isDark ? const Color(0xFF101921) : const Color(0xFFE8E8E8);
+    final buttonColor =
+        isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
 
-    return Scaffold(
+    final maxHeight = MediaQuery.of(context).size.height * 0.85;
+
+    return Dialog(
       backgroundColor: bgColor,
-      appBar: AppBar(
-        backgroundColor: bgColor,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: textColor),
-          onPressed: () => Navigator.of(context).pop(),
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: _boxWideWidth,
+          maxHeight: maxHeight,
+          minWidth: _boxWideWidth,
         ),
-        title: Text(
-          'Contacts',
-          style: TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w600,
-            color: textColor,
-          ),
-        ),
-      ),
-      body: Column(
-        children: [
-          // Search bar.
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            child: SizedBox(
-              height: 36,
-              child: TextField(
-                controller: _searchController,
-                style: TextStyle(fontSize: 13, color: searchFg),
-                decoration: InputDecoration(
-                  hintText: 'Search',
-                  hintStyle: TextStyle(fontSize: 13, color: searchHintFg),
-                  prefixIcon: Icon(Icons.search, size: 18, color: searchHintFg),
-                  filled: true,
-                  fillColor: searchBg,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(18),
-                    borderSide: BorderSide.none,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Title bar: 48px, "Contacts" left, sort toggle right.
+            SizedBox(
+              height: _boxTitleHeight,
+              child: Row(
+                children: [
+                  const SizedBox(width: 24),
+                  Expanded(
+                    child: Text(
+                      'Contacts',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
+                      ),
+                    ),
+                  ),
+                  _SortToggle(
+                    mode: _sortMode,
+                    isDark: isDark,
+                    onToggle: () {
+                      setState(() {
+                        _sortMode = _sortMode == _SortMode.online
+                            ? _SortMode.alphabetical
+                            : _SortMode.online;
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+            // Search field.
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: SizedBox(
+                height: 36,
+                child: TextField(
+                  controller: _searchController,
+                  style: TextStyle(fontSize: 13, color: searchFg),
+                  decoration: InputDecoration(
+                    hintText: 'Search',
+                    hintStyle: TextStyle(fontSize: 13, color: searchHintFg),
+                    prefixIcon:
+                        Icon(Icons.search, size: 18, color: searchHintFg),
+                    filled: true,
+                    fillColor: searchBg,
+                    contentPadding: const EdgeInsets.symmetric(
+                        vertical: 0, horizontal: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      borderSide: BorderSide.none,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-          Divider(height: 1, color: dividerColor),
-          // Contact list.
-          Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : _error.isNotEmpty
-                    ? Center(
-                        child: Text(
-                          _error,
-                          style: TextStyle(color: subtextColor, fontSize: 13),
-                          textAlign: TextAlign.center,
-                        ),
-                      )
-                    : _filteredContacts.isEmpty
-                        ? Center(
+            Divider(height: 1, color: dividerColor),
+            // Contact list.
+            Flexible(
+              child: _loading
+                  ? const SizedBox(
+                      height: 200,
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  : _error.isNotEmpty
+                      ? SizedBox(
+                          height: 200,
+                          child: Center(
                             child: Text(
-                              _searchQuery.isNotEmpty
-                                  ? 'No contacts found'
-                                  : 'No contacts yet',
-                              style: TextStyle(color: subtextColor, fontSize: 13),
+                              _error,
+                              style: TextStyle(
+                                  color: subtextColor, fontSize: 13),
+                              textAlign: TextAlign.center,
                             ),
-                          )
-                        : ListView.builder(
-                            itemCount: _filteredContacts.length,
-                            itemBuilder: (context, index) {
-                              final contact = _filteredContacts[index];
-                              return _ContactRow(
-                                contact: contact,
-                                textColor: textColor,
-                                subtextColor: subtextColor,
-                                hoverBg: hoverBg,
-                                onTap: () => _openChat(contact),
-                              );
-                            },
                           ),
-          ),
-        ],
+                        )
+                      : _filteredContacts.isEmpty
+                          ? SizedBox(
+                              height: 200,
+                              child: Center(
+                                child: Text(
+                                  _searchQuery.isNotEmpty
+                                      ? 'No contacts found'
+                                      : 'No contacts yet',
+                                  style: TextStyle(
+                                      color: subtextColor, fontSize: 13),
+                                ),
+                              ),
+                            )
+                          : ListView.builder(
+                              shrinkWrap: true,
+                              itemCount: _filteredContacts.length,
+                              itemBuilder: (context, index) {
+                                final contact = _filteredContacts[index];
+                                return _ContactRow(
+                                  contact: contact,
+                                  textColor: textColor,
+                                  subtextColor: subtextColor,
+                                  hoverBg: hoverBg,
+                                  bgColor: bgColor,
+                                  onTap: () => _openChat(contact),
+                                );
+                              },
+                            ),
+            ),
+            // Bottom button bar: "Add Contact" left, "Close" right.
+            Divider(height: 1, color: dividerColor),
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  TextButton(
+                    onPressed: () {
+                      // TODO: open AddContactBox (§33.5)
+                    },
+                    style: TextButton.styleFrom(
+                      foregroundColor: buttonColor,
+                      textStyle: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
+                    ),
+                    child: const Text('Add Contact'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: TextButton.styleFrom(
+                      foregroundColor: buttonColor,
+                      textStyle: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
+                    ),
+                    child: const Text('Close'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   void _openChat(ContactInfo contact) {
     final chatState = context.read<ChatState>();
-    // Find the DM chat for this contact by user ID.
     final chats = chatState.chats;
     ChatInfo? dm;
     for (final c in chats) {
@@ -199,11 +330,70 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 }
 
+class _SortToggle extends StatefulWidget {
+  final _SortMode mode;
+  final bool isDark;
+  final VoidCallback onToggle;
+
+  const _SortToggle({
+    required this.mode,
+    required this.isDark,
+    required this.onToggle,
+  });
+
+  @override
+  State<_SortToggle> createState() => _SortToggleState();
+}
+
+class _SortToggleState extends State<_SortToggle> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final iconColor = widget.isDark
+        ? const Color(0xFF6C7883)
+        : const Color(0xFF999999);
+    final hoverColor = widget.isDark
+        ? const Color(0xFF202B36)
+        : const Color(0xFFF1F1F1);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onToggle,
+        child: Container(
+          width: 48,
+          height: 54,
+          alignment: Alignment.center,
+          child: Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _hovered ? hoverColor : Colors.transparent,
+            ),
+            alignment: Alignment.center,
+            child: Icon(
+              widget.mode == _SortMode.online
+                  ? Icons.access_time
+                  : Icons.sort_by_alpha,
+              size: 22,
+              color: iconColor,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ContactRow extends StatefulWidget {
   final ContactInfo contact;
   final Color textColor;
   final Color subtextColor;
   final Color hoverBg;
+  final Color bgColor;
   final VoidCallback onTap;
 
   const _ContactRow({
@@ -211,6 +401,7 @@ class _ContactRow extends StatefulWidget {
     required this.textColor,
     required this.subtextColor,
     required this.hoverBg,
+    required this.bgColor,
     required this.onTap,
   });
 
@@ -225,13 +416,13 @@ class _ContactRowState extends State<_ContactRow> {
   static const _avatarSize = 42.0;
 
   static const _avatarColors = [
-    Color(0xFFE57373), // red
-    Color(0xFF81C784), // green
-    Color(0xFF64B5F6), // blue
-    Color(0xFFFFB74D), // orange
-    Color(0xFF9575CD), // purple
-    Color(0xFF4DB6AC), // teal
-    Color(0xFFF06292), // pink
+    Color(0xFFE57373),
+    Color(0xFF81C784),
+    Color(0xFF64B5F6),
+    Color(0xFFFFB74D),
+    Color(0xFF9575CD),
+    Color(0xFF4DB6AC),
+    Color(0xFFF06292),
   ];
 
   @override
@@ -239,9 +430,8 @@ class _ContactRowState extends State<_ContactRow> {
     final contact = widget.contact;
     final colorIndex = contact.userId.hashCode.abs() % _avatarColors.length;
     final avatarColor = _avatarColors[colorIndex];
-    final initials = _initials(contact.displayName.isNotEmpty
-        ? contact.displayName
-        : contact.username);
+    final initials = _initials(
+        contact.displayName.isNotEmpty ? contact.displayName : contact.username);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -251,10 +441,9 @@ class _ContactRowState extends State<_ContactRow> {
         child: Container(
           height: _rowHeight,
           color: _hovered ? widget.hoverBg : Colors.transparent,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          padding: const EdgeInsets.only(left: 16, right: 16),
           child: Row(
             children: [
-              // Avatar.
               SizedBox(
                 width: _avatarSize,
                 height: _avatarSize,
@@ -286,7 +475,7 @@ class _ContactRowState extends State<_ContactRow> {
                             border: Border.all(
                               color: _hovered
                                   ? widget.hoverBg
-                                  : Theme.of(context).colorScheme.surface,
+                                  : widget.bgColor,
                               width: 2,
                             ),
                           ),
@@ -296,7 +485,6 @@ class _ContactRowState extends State<_ContactRow> {
                 ),
               ),
               const SizedBox(width: 12),
-              // Name + phone/username.
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -305,7 +493,7 @@ class _ContactRowState extends State<_ContactRow> {
                     Text(
                       contact.label,
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: widget.textColor,
                       ),
@@ -339,10 +527,7 @@ class _ContactRowState extends State<_ContactRow> {
     return Container(
       width: _avatarSize,
       height: _avatarSize,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-      ),
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
       alignment: Alignment.center,
       child: Text(
         initials,
@@ -364,3 +549,4 @@ class _ContactRowState extends State<_ContactRow> {
     return parts.first[0].toUpperCase();
   }
 }
+

@@ -234,23 +234,8 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                       icon: Icons.contacts,
                       label: 'Contacts',
                       onTap: () {
-                        final chatSt = context.read<ChatState>();
-                        final authSt = context.read<AuthState>();
                         Navigator.of(context).pop();
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => ChangeNotifierProvider.value(
-                              value: appState,
-                              child: ChangeNotifierProvider.value(
-                                value: chatSt,
-                                child: ChangeNotifierProvider.value(
-                                  value: authSt,
-                                  child: const ContactsScreen(),
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
+                        showContactsBox(context);
                       },
                     ),
                     // §3.3: Calls row (item 6) — menuIconPhone.

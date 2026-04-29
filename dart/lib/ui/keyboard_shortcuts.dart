@@ -1194,23 +1194,7 @@ class _ShortcutListenerState extends State<ShortcutListener>
       return true;
     });
     sys.registerHandler(ShortcutCommand.showContacts, () {
-      final appState = context.read<AppState>();
-      final chatSt = context.read<ChatState>();
-      final authSt = context.read<AuthState>();
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => ChangeNotifierProvider.value(
-            value: appState,
-            child: ChangeNotifierProvider.value(
-              value: chatSt,
-              child: ChangeNotifierProvider.value(
-                value: authSt,
-                child: const ContactsScreen(),
-              ),
-            ),
-          ),
-        ),
-      );
+      showContactsBox(context);
       return true;
     });
 
