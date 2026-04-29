@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 const double _exportPanelWidth = 364;
@@ -67,6 +69,14 @@ class _ExportPanelDialog extends StatefulWidget {
 
 enum _ExportFormat { html, json, htmlAndJson }
 
+class _ExportStepInfo {
+  final String label;
+  double progress;
+  String info;
+
+  _ExportStepInfo({required this.label, this.progress = 0.0, this.info = ''});
+}
+
 class _ExportPanelDialogState extends State<_ExportPanelDialog>
     with WidgetsBindingObserver {
   ExportPhase _phase = ExportPhase.settings;
@@ -125,6 +135,12 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   final ScrollController _scrollController = ScrollController();
   bool _showTopShadow = false;
   bool _showBottomShadow = true;
+
+  List<_ExportStepInfo> _exportSteps = [];
+  Timer? _exportTimer;
+  Timer? _skipFileTimer;
+  bool _showSkipFile = false;
+  int _currentStepIndex = 0;
 
   String get _title {
     switch (_phase) {
@@ -192,6 +208,8 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
 
   @override
   void dispose() {
+    _exportTimer?.cancel();
+    _skipFileTimer?.cancel();
     _scrollController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -208,6 +226,8 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     if (_phase == ExportPhase.processing) {
       final confirmed = await _showStopConfirmation();
       if (confirmed && mounted) {
+        _exportTimer?.cancel();
+        _skipFileTimer?.cancel();
         Navigator.of(context).pop();
       }
     } else {
@@ -297,6 +317,81 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   @visibleForTesting
   void setPhase(ExportPhase phase) {
     setState(() => _phase = phase);
+  }
+
+  void _startExport() {
+    _exportSteps = _buildExportStepList();
+    _currentStepIndex = 0;
+    _showSkipFile = false;
+    setState(() => _phase = ExportPhase.processing);
+    _exportTimer =
+        Timer.periodic(const Duration(milliseconds: 100), _tickExport);
+    _resetSkipFileTimer();
+  }
+
+  List<_ExportStepInfo> _buildExportStepList() {
+    final steps = <_ExportStepInfo>[];
+    if (_isPerChat) {
+      steps.add(_ExportStepInfo(label: 'Initializing'));
+      steps.add(
+          _ExportStepInfo(label: widget.target.chatTitle ?? 'Chat'));
+      return steps;
+    }
+    steps.add(_ExportStepInfo(label: 'Initializing'));
+    steps.add(_ExportStepInfo(label: 'Dialogs list'));
+    if (_personalInfo) {
+      steps.add(_ExportStepInfo(label: 'Personal info'));
+      steps.add(_ExportStepInfo(label: 'Userpics'));
+    }
+    if (_stories) steps.add(_ExportStepInfo(label: 'Stories'));
+    if (_profileMusic) steps.add(_ExportStepInfo(label: 'Profile music'));
+    if (_contacts) steps.add(_ExportStepInfo(label: 'Contacts'));
+    if (_sessions) steps.add(_ExportStepInfo(label: 'Sessions'));
+    if (_otherData) steps.add(_ExportStepInfo(label: 'Other data'));
+    if (_anyChatSelected) steps.add(_ExportStepInfo(label: 'Chats'));
+    return steps;
+  }
+
+  void _tickExport(Timer timer) {
+    if (_currentStepIndex >= _exportSteps.length) {
+      timer.cancel();
+      _skipFileTimer?.cancel();
+      setState(() => _phase = ExportPhase.completed);
+      return;
+    }
+    final step = _exportSteps[_currentStepIndex];
+    final speed = 0.02 + 0.01 * _currentStepIndex;
+    step.progress = (step.progress + speed).clamp(0.0, 1.0);
+    if (step.progress < 1.0) {
+      step.info = '${(step.progress * 100).toInt()}%';
+    } else {
+      step.info = 'Done';
+      _currentStepIndex++;
+      _showSkipFile = false;
+      _resetSkipFileTimer();
+    }
+    setState(() {});
+  }
+
+  void _resetSkipFileTimer() {
+    _skipFileTimer?.cancel();
+    _showSkipFile = false;
+    _skipFileTimer = Timer(const Duration(seconds: 5), () {
+      if (_phase == ExportPhase.processing && mounted) {
+        setState(() => _showSkipFile = true);
+      }
+    });
+  }
+
+  void _skipCurrentFile() {
+    if (_currentStepIndex < _exportSteps.length) {
+      _exportSteps[_currentStepIndex].progress = 1.0;
+      _exportSteps[_currentStepIndex].info = 'Skipped';
+      _currentStepIndex++;
+      _showSkipFile = false;
+      _resetSkipFileTimer();
+      setState(() {});
+    }
   }
 
   @override
@@ -904,9 +999,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
           const SizedBox(width: 8),
           if (_isPerChat || _anyTypeSelected)
             TextButton(
-              onPressed: () {
-                setState(() => _phase = ExportPhase.processing);
-              },
+              onPressed: _startExport,
               style: TextButton.styleFrom(
                 foregroundColor: accentColor,
                 padding:
@@ -1248,26 +1341,154 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   }
 
   Widget _buildProcessingPlaceholder(Color subtextColor) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            width: 48,
-            height: 48,
-            child: CircularProgressIndicator(
-              strokeWidth: 3,
-              color: subtextColor,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final activeFg =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final inactiveFg =
+        isDark ? const Color(0xFF283848) : const Color(0xFFE0E0E0);
+    final attentionFg =
+        isDark ? const Color(0xFFEC3942) : const Color(0xFFD14E4E);
+    final linkColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+
+    final visibleSteps = <_ExportStepInfo>[];
+    if (_exportSteps.isNotEmpty) {
+      final activeIdx =
+          _currentStepIndex.clamp(0, _exportSteps.length - 1);
+      final startIdx = (activeIdx - 2).clamp(0, _exportSteps.length);
+      for (var i = startIdx;
+          i <= activeIdx && i < _exportSteps.length;
+          i++) {
+        visibleSteps.add(_exportSteps[i]);
+      }
+    }
+
+    return Column(
+      children: [
+        const SizedBox(height: 10),
+        for (final step in visibleSteps)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 5, 22, 5),
+            child: SizedBox(
+              height: 30,
+              child: Column(
+                children: [
+                  Expanded(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            step.label,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: textColor,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          step.info,
+                          style: TextStyle(
+                              fontSize: 14, color: subtextColor),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(
+                    height: 3,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        return Stack(
+                          children: [
+                            Container(
+                              width: constraints.maxWidth,
+                              height: 3,
+                              color: inactiveFg,
+                            ),
+                            AnimatedContainer(
+                              duration:
+                                  const Duration(milliseconds: 200),
+                              curve: Curves.easeInOut,
+                              width: constraints.maxWidth *
+                                  step.progress,
+                              height: 3,
+                              color: activeFg,
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 16),
-          Text(
-            'Please wait, export is in progress.',
-            style: TextStyle(fontSize: 14, color: subtextColor),
-            textAlign: TextAlign.center,
+        AnimatedOpacity(
+          opacity: _showSkipFile ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 200),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 10, 22, 0),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: GestureDetector(
+                onTap: _showSkipFile ? _skipCurrentFile : null,
+                child: MouseRegion(
+                  cursor: _showSkipFile
+                      ? SystemMouseCursors.click
+                      : SystemMouseCursors.basic,
+                  child: Text(
+                    'Skip file',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: linkColor,
+                      decoration: TextDecoration.underline,
+                      decorationColor: linkColor,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
-        ],
-      ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 10, 22, 0),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Please wait, export is in progress.',
+              style: TextStyle(fontSize: 14, color: subtextColor),
+            ),
+          ),
+        ),
+        const Spacer(),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 30),
+          child: SizedBox(
+            width: 200,
+            height: 44,
+            child: ElevatedButton(
+              onPressed: _handleClose,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: attentionFg,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              child: const Text('Stop'),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
