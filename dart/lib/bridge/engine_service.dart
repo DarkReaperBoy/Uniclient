@@ -2500,6 +2500,13 @@ class EngineService {
     await _callAsync('__engine', 'ResendPasswordEmail', Uint8List.fromList(payload));
   }
 
+  Future<void> cancelPasswordEmail(String accountId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+    }));
+    await _callAsync('__engine', 'CancelPasswordEmail', Uint8List.fromList(payload));
+  }
+
   // ── Passkeys ──
 
   Future<List<Map<String, dynamic>>> getPasskeyList(String accountId) async {

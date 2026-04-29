@@ -1190,6 +1190,10 @@ type cloudPasswordEmailResender interface {
 	AccountResendPasswordEmail() (bool, error)
 }
 
+type cloudPasswordEmailCanceller interface {
+	AccountCancelPasswordEmail() (bool, error)
+}
+
 func (e *Engine) GetCloudPasswordState(accountID string) (cores.CloudPasswordState, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -1261,6 +1265,19 @@ func (e *Engine) ResendPasswordEmail(accountID string) error {
 		return fmt.Errorf("platform does not support email resend")
 	}
 	_, err := p.AccountResendPasswordEmail()
+	return err
+}
+
+func (e *Engine) CancelPasswordEmail(accountID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found")
+	}
+	p, ok := acc.Core.(cloudPasswordEmailCanceller)
+	if !ok {
+		return fmt.Errorf("platform does not support email cancellation")
+	}
+	_, err := p.AccountCancelPasswordEmail()
 	return err
 }
 

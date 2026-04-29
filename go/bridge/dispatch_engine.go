@@ -2616,6 +2616,15 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.ResendPasswordEmail(params.AccountID)
 
+	case "CancelPasswordEmail":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.CancelPasswordEmail(params.AccountID)
+
 	case "GetPasskeyList":
 		var params struct {
 			AccountID string `json:"account_id"`

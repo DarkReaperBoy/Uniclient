@@ -6,6 +6,7 @@ import 'dart:math' as math;
 import 'package:crypto/crypto.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../utils/system_unlock.dart';
@@ -3474,12 +3475,15 @@ class _CloudPasswordEmailState extends State<_CloudPasswordEmail> {
 }
 
 // ── CloudPasswordEmailConfirm: Confirm recovery email ──
+// §28.3.5: SentCodeField (single field), auto-submit at length, resend, abort menu, recovery path
 
 class _CloudPasswordEmailConfirm extends StatefulWidget {
   final String accountId;
   final EngineService engine;
   final String emailPattern;
   final String currentPassword;
+  final int codeLength;
+  final bool isRecovery;
   final VoidCallback onDone;
 
   const _CloudPasswordEmailConfirm({
@@ -3487,6 +3491,8 @@ class _CloudPasswordEmailConfirm extends StatefulWidget {
     required this.engine,
     required this.emailPattern,
     this.currentPassword = '',
+    this.codeLength = 6,
+    this.isRecovery = false,
     required this.onDone,
   });
 
@@ -3500,23 +3506,32 @@ class _CloudPasswordEmailConfirmState extends State<_CloudPasswordEmailConfirm> 
   String _error = '';
   String _info = '';
   bool _loading = false;
+  bool _autoSubmitted = false;
 
   @override
   void initState() {
     super.initState();
-    _codeController.addListener(_clearMessages);
+    _codeController.addListener(_onTextChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) => _codeFocus.requestFocus());
   }
 
-  void _clearMessages() {
+  void _onTextChanged() {
     if (_error.isNotEmpty || _info.isNotEmpty) {
       setState(() { _error = ''; _info = ''; });
+    }
+    final digits = _codeController.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.length >= widget.codeLength && !_loading && !_autoSubmitted) {
+      _autoSubmitted = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _submit());
+    }
+    if (digits.length < widget.codeLength) {
+      _autoSubmitted = false;
     }
   }
 
   @override
   void dispose() {
-    _codeController.removeListener(_clearMessages);
+    _codeController.removeListener(_onTextChanged);
     _codeController.dispose();
     _codeFocus.dispose();
     super.dispose();
@@ -3550,16 +3565,23 @@ class _CloudPasswordEmailConfirmState extends State<_CloudPasswordEmailConfirm> 
       final errMsg = e.toString().replaceFirst('Exception: ', '');
       setState(() {
         _loading = false;
+        _autoSubmitted = false;
         if (errMsg.contains('CODE_INVALID')) {
           _error = 'Invalid code. Please try again.';
         } else if (errMsg.contains('EMAIL_HASH_EXPIRED')) {
           _error = 'Email confirmation expired.';
         } else if (errMsg.contains('FLOOD_WAIT')) {
           _error = 'Too many attempts. Please try again later.';
+        } else if (errMsg.contains('PASSWORD_HASH_INVALID') || errMsg.contains('SRP_PASSWORD_CHANGED')) {
+          _error = 'Your cloud password has expired.';
+          Future.delayed(const Duration(seconds: 2), () {
+            if (mounted) Navigator.of(context).pop();
+          });
         } else {
           _error = errMsg;
         }
       });
+      _codeController.selection = TextSelection(baseOffset: 0, extentOffset: _codeController.text.length);
     }
   }
 
@@ -3575,6 +3597,54 @@ class _CloudPasswordEmailConfirmState extends State<_CloudPasswordEmailConfirm> 
     }
   }
 
+  Future<void> _abort() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        final bgColor = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
+        final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+        return AlertDialog(
+          backgroundColor: bgColor,
+          title: Text('Abort verification?', style: TextStyle(color: textColor)),
+          content: Text('This will cancel the email verification process.', style: TextStyle(color: textColor)),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: Text('Abort', style: TextStyle(color: isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F))),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await widget.engine.cancelPasswordEmail(widget.accountId);
+    } catch (_) {}
+    if (mounted) {
+      widget.onDone();
+      Navigator.of(context).pop();
+    }
+  }
+
+  Future<void> _onRecoveryLink() async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bgColor,
+        title: Text('Reset password?', style: TextStyle(color: textColor)),
+        content: Text('If you can\'t access your recovery email, you can reset your password from the login screen.', style: TextStyle(color: textColor)),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('OK')),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -3585,6 +3655,13 @@ class _CloudPasswordEmailConfirmState extends State<_CloudPasswordEmailConfirm> 
     final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
     final errorColor = isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F);
     final infoColor = isDark ? const Color(0xFF4CAF50) : const Color(0xFF388E3C);
+
+    final title = widget.isRecovery ? 'Recovery Email' : 'Check your email';
+    final description = widget.isRecovery
+        ? 'Enter the code we sent to ${widget.emailPattern}'
+        : 'We\'ve sent a code to ${widget.emailPattern}';
+    final linkText = widget.isRecovery ? 'Can\'t access your email?' : 'Resend code';
+    final buttonText = widget.isRecovery ? 'Check' : 'Confirm';
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -3597,6 +3674,19 @@ class _CloudPasswordEmailConfirmState extends State<_CloudPasswordEmailConfirm> 
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text('Two-Step Verification', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+        actions: [
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert, color: textColor),
+            color: bgColor,
+            onSelected: (v) { if (v == 'abort') _abort(); },
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: 'abort',
+                child: Text('Abort', style: TextStyle(color: errorColor)),
+              ),
+            ],
+          ),
+        ],
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -3610,10 +3700,10 @@ class _CloudPasswordEmailConfirmState extends State<_CloudPasswordEmailConfirm> 
                 color: accentColor,
               ),
               const SizedBox(height: 19),
-              Text('Check your email', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+              Text(title, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
               const SizedBox(height: 5),
               Text(
-                'We\'ve sent a code to ${widget.emailPattern}',
+                description,
                 style: TextStyle(fontSize: 14, color: subtextColor, height: 1.4),
                 textAlign: TextAlign.center,
               ),
@@ -3626,6 +3716,7 @@ class _CloudPasswordEmailConfirmState extends State<_CloudPasswordEmailConfirm> 
                     controller: _codeController,
                     focusNode: _codeFocus,
                     keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     onSubmitted: (_) => _submit(),
                     decoration: InputDecoration(
                       hintText: 'Code',
@@ -3633,7 +3724,7 @@ class _CloudPasswordEmailConfirmState extends State<_CloudPasswordEmailConfirm> 
                       enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _error.isNotEmpty ? errorColor : subtextColor)),
                       focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _error.isNotEmpty ? errorColor : accentColor, width: 2)),
                     ),
-                    style: TextStyle(fontSize: 15, color: textColor),
+                    style: TextStyle(fontSize: 16, color: textColor),
                   ),
                 ),
               ),
@@ -3642,7 +3733,7 @@ class _CloudPasswordEmailConfirmState extends State<_CloudPasswordEmailConfirm> 
                   padding: const EdgeInsets.only(top: 1),
                   child: SizedBox(
                     width: 256,
-                    child: Text(_error, style: TextStyle(fontSize: 13, color: errorColor), textAlign: TextAlign.center),
+                    child: Text(_error, style: TextStyle(fontSize: 14, color: errorColor), textAlign: TextAlign.center),
                   ),
                 ),
               if (_info.isNotEmpty)
@@ -3650,27 +3741,30 @@ class _CloudPasswordEmailConfirmState extends State<_CloudPasswordEmailConfirm> 
                   padding: const EdgeInsets.only(top: 1),
                   child: SizedBox(
                     width: 256,
-                    child: Text(_info, style: TextStyle(fontSize: 13, color: infoColor), textAlign: TextAlign.center),
+                    child: Text(_info, style: TextStyle(fontSize: 14, color: infoColor), textAlign: TextAlign.center),
                   ),
                 ),
               const SizedBox(height: 28),
               TextButton(
-                onPressed: _resend,
-                child: Text('Resend code', style: TextStyle(fontSize: 14, color: accentColor)),
+                onPressed: widget.isRecovery ? _onRecoveryLink : _resend,
+                child: Text(linkText, style: TextStyle(fontSize: 14, color: accentColor)),
               ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: 300,
-                height: 42,
-                child: FilledButton(
-                  onPressed: _loading ? null : _submit,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: accentColor,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 35),
+                child: SizedBox(
+                  width: 300,
+                  height: 42,
+                  child: FilledButton(
+                    onPressed: _loading ? null : _submit,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: accentColor,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    ),
+                    child: _loading
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : Text(buttonText, style: const TextStyle(fontSize: 15, color: Colors.white)),
                   ),
-                  child: _loading
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('Confirm', style: TextStyle(fontSize: 15, color: Colors.white)),
                 ),
               ),
             ],
