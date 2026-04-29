@@ -4474,6 +4474,7 @@ class _SavedSublistsViewState extends State<_SavedSublistsView> {
                           return _SavedSublistRow(
                             sublist: sub,
                             isDark: isDark,
+                            tags: chatState.savedReactionTags,
                             onTap: () {
                               chatState.openSavedSublist(sub);
                             },
@@ -4548,11 +4549,13 @@ class _SavedSublistRow extends StatefulWidget {
   final SavedSublistInfo sublist;
   final bool isDark;
   final VoidCallback onTap;
+  final List<SavedReactionTagInfo> tags;
 
   const _SavedSublistRow({
     required this.sublist,
     required this.isDark,
     required this.onTap,
+    this.tags = const [],
   });
 
   @override
@@ -4567,6 +4570,8 @@ class _SavedSublistRowState extends State<_SavedSublistRow> {
     final theme = Theme.of(context);
     final sub = widget.sublist;
     final isDark = widget.isDark;
+    final hasTags = widget.tags.isNotEmpty;
+    final rowHeight = hasTags ? 72.0 : 62.0;
 
     final bgColor = _hovered
         ? (isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1))
@@ -4582,19 +4587,17 @@ class _SavedSublistRowState extends State<_SavedSublistRow> {
       child: GestureDetector(
         onTap: widget.onTap,
         child: Container(
-          height: 62,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          height: rowHeight,
+          padding: const EdgeInsets.only(left: 10, right: 10, top: 8, bottom: 8),
           color: bgColor,
           child: Row(
             children: [
-              // Avatar
               _buildAvatar(sub, theme),
               const SizedBox(width: 12),
-              // Content
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.start,
                   children: [
                     Row(
                       children: [
@@ -4638,12 +4641,52 @@ class _SavedSublistRowState extends State<_SavedSublistRow> {
                           _buildUnreadBadge(sub.unreadCount, theme),
                       ],
                     ),
+                    if (hasTags) ...[
+                      const SizedBox(height: 2),
+                      _buildTagPills(theme, isDark),
+                    ],
                   ],
                 ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildTagPills(ThemeData theme, bool isDark) {
+    final tagColor = isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
+    final textColor = isDark ? const Color(0xFF8B9BAA) : const Color(0xFF999999);
+    return SizedBox(
+      height: 16,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: widget.tags.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 4),
+        itemBuilder: (context, i) {
+          final tag = widget.tags[i];
+          final emojiText = tag.isCustomEmoji ? '\u{2B50}' : tag.emoji;
+          final label = tag.title.isNotEmpty ? tag.title : (tag.count > 0 ? '${tag.count}' : '');
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+            decoration: BoxDecoration(
+              color: tagColor,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (emojiText.isNotEmpty)
+                  Text(emojiText, style: const TextStyle(fontSize: 10)),
+                if (emojiText.isNotEmpty && label.isNotEmpty)
+                  const SizedBox(width: 2),
+                if (label.isNotEmpty)
+                  Text(label, style: TextStyle(fontSize: 10, color: textColor)),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
