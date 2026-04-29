@@ -1583,8 +1583,7 @@ class _UniClientAppState extends State<UniClientApp>
               },
             ),
             const _ThemeRevertOverlay(),
-            if (appState.passcodeLocked)
-              const Positioned.fill(child: _PasscodeLockScreen()),
+            const Positioned.fill(child: _PasscodeLockScreen()),
           ],
         );
       },
@@ -1776,20 +1775,59 @@ class _PasscodeLockScreen extends StatefulWidget {
   State<_PasscodeLockScreen> createState() => _PasscodeLockScreenState();
 }
 
-class _PasscodeLockScreenState extends State<_PasscodeLockScreen> {
+class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
+    with SingleTickerProviderStateMixin {
+  static const _duration = Duration(milliseconds: 180);
+  static const _curveIn = Curves.easeOutCirc;
+  static const _curveOut = Curves.easeInCirc;
+
+  late final AnimationController _anim;
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
   bool _obscure = true;
   String _error = '';
+  bool _visible = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _focusNode.requestFocus());
+    _anim = AnimationController(vsync: this, duration: _duration);
+    _anim.addStatusListener(_onAnimStatus);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final locked = context.read<AppState>().passcodeLocked;
+      if (locked) {
+        _visible = true;
+        _anim.value = 1.0;
+        _focusNode.requestFocus();
+      }
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final locked = context.watch<AppState>().passcodeLocked;
+    if (locked && !_visible) {
+      _visible = true;
+      _controller.clear();
+      _error = '';
+      _anim.forward(from: 0.0);
+      WidgetsBinding.instance.addPostFrameCallback((_) => _focusNode.requestFocus());
+    } else if (!locked && _visible && _anim.status != AnimationStatus.reverse) {
+      _anim.reverse(from: 1.0);
+    }
+  }
+
+  void _onAnimStatus(AnimationStatus status) {
+    if (status == AnimationStatus.dismissed) {
+      setState(() => _visible = false);
+    }
   }
 
   @override
   void dispose() {
+    _anim.removeStatusListener(_onAnimStatus);
+    _anim.dispose();
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -1818,6 +1856,8 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_visible) return const SizedBox.shrink();
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
@@ -1825,119 +1865,135 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen> {
     final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
     final errorColor = isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F);
 
-    return Material(
-      color: bgColor,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final inputY = constraints.maxHeight / 3;
-          return Stack(
-            children: [
-              Positioned(
-                left: 0,
-                right: 0,
-                top: inputY - 80,
-                child: Text(
-                  'Please enter your passcode',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 19, color: textColor),
-                ),
-              ),
-              Positioned(
-                left: (constraints.maxWidth - 225) / 2,
-                top: inputY,
-                child: SizedBox(
-                  width: 225,
-                  child: TextField(
-                    controller: _controller,
-                    focusNode: _focusNode,
-                    obscureText: _obscure,
-                    onChanged: (_) {
-                      if (_error.isNotEmpty) setState(() => _error = '');
-                    },
-                    onSubmitted: (_) => _submit(),
-                    decoration: InputDecoration(
-                      hintText: 'Your passcode',
-                      hintStyle: TextStyle(color: subtextColor),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscure ? Icons.visibility_off : Icons.visibility,
-                          color: subtextColor,
-                          size: 20,
-                        ),
-                        onPressed: () => setState(() => _obscure = !_obscure),
-                      ),
-                      enabledBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: subtextColor),
-                      ),
-                      focusedBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: accentColor, width: 2),
-                      ),
-                      errorBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: errorColor, width: 2),
-                      ),
-                      focusedErrorBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: errorColor, width: 2),
-                      ),
-                      contentPadding: const EdgeInsets.fromLTRB(1, 27, 1, 6),
-                    ),
-                    style: TextStyle(fontSize: 16, color: textColor),
-                  ),
-                ),
-              ),
-              if (_error.isNotEmpty)
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (context, child) {
+        final isForward = _anim.status != AnimationStatus.reverse;
+        final curve = isForward ? _curveIn : _curveOut;
+        final t = curve.transform(_anim.value);
+        final slideOffset = Offset((1.0 - t) * 0.15, 0.0);
+        return FractionalTranslation(
+          translation: slideOffset,
+          child: Opacity(
+            opacity: t.clamp(0.0, 1.0),
+            child: child,
+          ),
+        );
+      },
+      child: Material(
+        color: bgColor,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final inputY = constraints.maxHeight / 3;
+            return Stack(
+              children: [
                 Positioned(
                   left: 0,
                   right: 0,
-                  top: inputY + 70,
+                  top: inputY - 80,
                   child: Text(
-                    _error,
+                    'Please enter your passcode',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 13, color: errorColor),
+                    style: TextStyle(fontSize: 19, color: textColor),
                   ),
                 ),
-              Positioned(
-                left: (constraints.maxWidth - 225) / 2,
-                top: inputY + 70 + (_error.isNotEmpty ? 25 : 0),
-                child: SizedBox(
-                  width: 225,
-                  height: 42,
-                  child: FilledButton(
-                    onPressed: _submit,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: accentColor,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
+                Positioned(
+                  left: (constraints.maxWidth - 225) / 2,
+                  top: inputY,
+                  child: SizedBox(
+                    width: 225,
+                    child: TextField(
+                      controller: _controller,
+                      focusNode: _focusNode,
+                      obscureText: _obscure,
+                      onChanged: (_) {
+                        if (_error.isNotEmpty) setState(() => _error = '');
+                      },
+                      onSubmitted: (_) => _submit(),
+                      decoration: InputDecoration(
+                        hintText: 'Your passcode',
+                        hintStyle: TextStyle(color: subtextColor),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscure ? Icons.visibility_off : Icons.visibility,
+                            color: subtextColor,
+                            size: 20,
+                          ),
+                          onPressed: () => setState(() => _obscure = !_obscure),
+                        ),
+                        enabledBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: subtextColor),
+                        ),
+                        focusedBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: accentColor, width: 2),
+                        ),
+                        errorBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: errorColor, width: 2),
+                        ),
+                        focusedErrorBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: errorColor, width: 2),
+                        ),
+                        contentPadding: const EdgeInsets.fromLTRB(1, 27, 1, 6),
+                      ),
+                      style: TextStyle(fontSize: 16, color: textColor),
+                    ),
+                  ),
+                ),
+                if (_error.isNotEmpty)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    top: inputY + 70,
+                    child: Text(
+                      _error,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 13, color: errorColor),
+                    ),
+                  ),
+                Positioned(
+                  left: (constraints.maxWidth - 225) / 2,
+                  top: inputY + 70 + (_error.isNotEmpty ? 25 : 0),
+                  child: SizedBox(
+                    width: 225,
+                    height: 42,
+                    child: FilledButton(
+                      onPressed: _submit,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: accentColor,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      child: const Text(
+                        'Submit',
+                        style: TextStyle(fontSize: 15, color: Colors.white),
                       ),
                     ),
-                    child: const Text(
-                      'Submit',
-                      style: TextStyle(fontSize: 15, color: Colors.white),
+                  ),
+                ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: inputY + 70 + (_error.isNotEmpty ? 25 : 0) + 42 + 16,
+                  child: GestureDetector(
+                    onTap: () {
+                      // Log out not implemented — just show info
+                    },
+                    child: Text(
+                      'Log out',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: accentColor,
+                        decoration: TextDecoration.none,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              Positioned(
-                left: 0,
-                right: 0,
-                top: inputY + 70 + (_error.isNotEmpty ? 25 : 0) + 42 + 16,
-                child: GestureDetector(
-                  onTap: () {
-                    // Log out not implemented — just show info
-                  },
-                  child: Text(
-                    'Log out',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: accentColor,
-                      decoration: TextDecoration.none,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
+              ],
+            );
+          },
+        ),
       ),
     );
   }
