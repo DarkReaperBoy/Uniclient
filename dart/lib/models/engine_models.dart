@@ -960,11 +960,12 @@ class KeyboardButton {
 
 class InlineKeyboardButton {
   final String text;
-  final String type; // url, callback, switch_inline, game, buy, url_auth, web_view, simple_web_view, copy
+  final String type; // url, callback, switch_inline, game, buy, url_auth, web_view, simple_web_view, copy, request_phone, request_location, request_poll, request_peer, user_profile
   final String url;
   final String data;
   final String query;
   final String copyText;
+  final KeyboardButtonColor color;
 
   const InlineKeyboardButton({
     required this.text,
@@ -973,16 +974,27 @@ class InlineKeyboardButton {
     this.data = '',
     this.query = '',
     this.copyText = '',
+    this.color = KeyboardButtonColor.normal,
   });
 
-  factory InlineKeyboardButton.fromJson(Map<String, dynamic> j) => InlineKeyboardButton(
-    text: j['text'] as String? ?? '',
-    type: j['type'] as String? ?? 'callback',
-    url: j['url'] as String? ?? '',
-    data: j['data'] as String? ?? '',
-    query: j['query'] as String? ?? '',
-    copyText: j['copy_text'] as String? ?? '',
-  );
+  factory InlineKeyboardButton.fromJson(Map<String, dynamic> j) {
+    final colorStr = j['color'] as String? ?? '';
+    final color = switch (colorStr) {
+      'primary' => KeyboardButtonColor.primary,
+      'danger' => KeyboardButtonColor.danger,
+      'success' => KeyboardButtonColor.success,
+      _ => KeyboardButtonColor.normal,
+    };
+    return InlineKeyboardButton(
+      text: j['text'] as String? ?? '',
+      type: j['type'] as String? ?? 'callback',
+      url: j['url'] as String? ?? '',
+      data: j['data'] as String? ?? '',
+      query: j['query'] as String? ?? '',
+      copyText: j['copy_text'] as String? ?? '',
+      color: color,
+    );
+  }
 }
 
 class ReplyKeyboardData {

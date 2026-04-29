@@ -6383,24 +6383,25 @@ class _InlineButton extends StatefulWidget {
   State<_InlineButton> createState() => _InlineButtonState();
 }
 
-class _InlineButtonState extends State<_InlineButton> {
+class _InlineButtonState extends State<_InlineButton>
+    with SingleTickerProviderStateMixin {
   bool _loading = false;
+  late final AnimationController _hoverAnim;
 
-  Color get _bgColor => widget.isDark
-      ? const Color(0x33ffffff)
-      : const Color(0x13000000);
+  @override
+  void initState() {
+    super.initState();
+    _hoverAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+  }
 
-  Color get _hoverColor => widget.isDark
-      ? const Color(0x44ffffff)
-      : const Color(0x22000000);
-
-  Color get _textColor => widget.isDark
-      ? const Color(0xFFffffff)
-      : const Color(0xFF5b97cd);
-
-  Color get _iconColor => widget.isDark
-      ? const Color(0xAAFFFFFF)
-      : const Color(0xFF5b97cd);
+  @override
+  void dispose() {
+    _hoverAnim.dispose();
+    super.dispose();
+  }
 
   static const _largeRadius = 10.0;
   static const _smallRadius = 3.0;
@@ -6411,6 +6412,40 @@ class _InlineButtonState extends State<_InlineButton> {
     bottomLeft: Radius.circular(widget.isBottomLeft ? _largeRadius : _smallRadius),
     bottomRight: Radius.circular(widget.isBottomRight ? _largeRadius : _smallRadius),
   );
+
+  ({Color bg, Color hover, Color text, Color icon}) _colors() {
+    final c = widget.button.color;
+    if (c != KeyboardButtonColor.normal) {
+      if (widget.isDark) {
+        return switch (c) {
+          KeyboardButtonColor.primary => (bg: const Color(0xFF568bc8), hover: const Color(0xFF6a9dd4), text: Colors.white, icon: const Color(0xCCFFFFFF)),
+          KeyboardButtonColor.danger => (bg: const Color(0xFFc44040), hover: const Color(0xFFd05050), text: Colors.white, icon: const Color(0xCCFFFFFF)),
+          KeyboardButtonColor.success => (bg: const Color(0xFF49a856), hover: const Color(0xFF5bb868), text: Colors.white, icon: const Color(0xCCFFFFFF)),
+          KeyboardButtonColor.normal => throw StateError('unreachable'),
+        };
+      }
+      return switch (c) {
+        KeyboardButtonColor.primary => (bg: const Color(0xFF40a7e3), hover: const Color(0xFF56b4e8), text: Colors.white, icon: const Color(0xCCFFFFFF)),
+        KeyboardButtonColor.danger => (bg: const Color(0xFFdf3f40), hover: const Color(0xFFe55556), text: Colors.white, icon: const Color(0xCCFFFFFF)),
+        KeyboardButtonColor.success => (bg: const Color(0xFF59b660), hover: const Color(0xFF6bc472), text: Colors.white, icon: const Color(0xCCFFFFFF)),
+        KeyboardButtonColor.normal => throw StateError('unreachable'),
+      };
+    }
+    if (widget.isDark) {
+      return (
+        bg: const Color(0x33ffffff),
+        hover: const Color(0x44ffffff),
+        text: Colors.white,
+        icon: const Color(0xAAFFFFFF),
+      );
+    }
+    return (
+      bg: const Color(0x13000000),
+      hover: const Color(0x22000000),
+      text: const Color(0xFF5b97cd),
+      icon: const Color(0xFF5b97cd),
+    );
+  }
 
   IconData? get _trailingIcon {
     switch (widget.button.type) {
@@ -6423,7 +6458,7 @@ class _InlineButtonState extends State<_InlineButton> {
         return Icons.credit_card;
       case 'web_view':
       case 'simple_web_view':
-        return Icons.web;
+        return Icons.language;
       case 'copy':
         return Icons.copy;
       default:
@@ -6449,6 +6484,7 @@ class _InlineButtonState extends State<_InlineButton> {
           Clipboard.setData(data);
         }
       case 'callback':
+      case 'callback_password':
         if (_loading) return;
         setState(() => _loading = true);
         try {
@@ -6465,6 +6501,10 @@ class _InlineButtonState extends State<_InlineButton> {
         }
       case 'switch_inline':
         break;
+      case 'game':
+        if (btn.url.isNotEmpty) {
+          Process.run('xdg-open', [btn.url]);
+        }
       case 'buy':
         break;
       case 'web_view':
@@ -6476,6 +6516,13 @@ class _InlineButtonState extends State<_InlineButton> {
           }
           Process.run('xdg-open', [url]);
         }
+      case 'user_profile':
+        break;
+      case 'request_phone':
+      case 'request_location':
+      case 'request_poll':
+      case 'request_peer':
+        break;
       default:
         final chatState = context.read<ChatState>();
         chatState.sendMessage(btn.text);
@@ -6485,52 +6532,74 @@ class _InlineButtonState extends State<_InlineButton> {
   @override
   Widget build(BuildContext context) {
     final icon = _trailingIcon;
+    final cs = _colors();
     return SizedBox(
       height: _InlineKeyboard._buttonHeight,
-      child: Material(
-        color: _bgColor,
-        borderRadius: _borderRadius,
-        child: InkWell(
+      child: MouseRegion(
+        onEnter: (_) => _hoverAnim.forward(),
+        onExit: (_) => _hoverAnim.reverse(),
+        child: GestureDetector(
           onTap: _onTap,
-          borderRadius: _borderRadius,
-          hoverColor: _hoverColor,
-          splashColor: _hoverColor,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: _InlineKeyboard._buttonPadding),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Flexible(
-                  child: Text(
-                    widget.button.text,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: _textColor,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                if (icon != null) ...[
-                  const SizedBox(width: _InlineKeyboard._iconPadding),
-                  Icon(icon, size: 14, color: _iconColor),
-                ],
-                if (_loading)
-                  Padding(
-                    padding: const EdgeInsets.only(left: _InlineKeyboard._iconPadding),
-                    child: SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: _iconColor,
+          child: AnimatedBuilder(
+            animation: _hoverAnim,
+            builder: (context, child) {
+              final bg = Color.lerp(cs.bg, cs.hover, _hoverAnim.value)!;
+              return Stack(
+                children: [
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: bg,
+                        borderRadius: _borderRadius,
                       ),
                     ),
                   ),
-              ],
-            ),
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: _InlineKeyboard._buttonPadding,
+                      ),
+                      child: Text(
+                        widget.button.text,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: cs.text,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                  if (icon != null)
+                    Positioned(
+                      right: _InlineKeyboard._iconPadding,
+                      bottom: _InlineKeyboard._iconPadding,
+                      child: Icon(icon, size: 12, color: cs.icon),
+                    ),
+                  if (_loading)
+                    Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: cs.bg.withValues(alpha: 0.5),
+                          borderRadius: _borderRadius,
+                        ),
+                        child: Center(
+                          child: SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: cs.text,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
         ),
       ),

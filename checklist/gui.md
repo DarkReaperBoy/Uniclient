@@ -853,7 +853,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_view.dart, message_bubble.dart, info_panel.dart (partial bot awareness) — new: dart/lib/ui/bot_panels.dart -->
 
-- [ ] Inline keyboard buttons: margin 2px, height 36px, all button types (Default/Url/Callback/RequestPhone/RequestLocation/SwitchInline/Game/Buy/Auth/WebView/CopyText etc.), type icons at bottom-right, hover 200ms animation, loading radial on callbacks, fast-buttons numbered badges — spec §30.5
 - [ ] Web/Mini Apps: SeparatePanel 384×694px, header (bot name + close + back + settings), bottom bar, main button (40px, visible/hidden/active/inactive/progress states, custom colors), secondary button (4 positions), progress indicator 200ms fade, menu popup maxHeight 360px, theme integration, loading state machine, confirmation dialogs — spec §30.6
 - [ ] Bot start screen: empty-state painter with 280×140px bot image (gradient bg), intro area 224px, sticker 96px, service-message style bubble, "START"/"RESTART" full-width button, right-click clears token — spec §30.7
 - [ ] Game message card: title (2-line max) + description + media + "GAME" badge + Play button (36px, 1px separator, hover/press/loading states, 15s load timeout), score service messages — spec §30.8
