@@ -23,6 +23,7 @@ type CachedUser struct {
 	IsOnline    bool   `json:"is_online"`
 	IsContact   bool   `json:"is_contact"`
 	IsBlocked   bool   `json:"is_blocked"`
+	BotMenuText string `json:"bot_menu_text,omitempty"`
 	LastSeen    int64  `json:"last_seen,omitempty"`
 }
 
@@ -35,8 +36,8 @@ func (e *Engine) UpsertUser(accountID string, u cores.User) error {
 	}
 
 	_, err := e.db.Exec(
-		`INSERT INTO users (account_id, user_id, display_name, username, phone, bio, is_bot, is_online, is_contact, is_blocked, last_seen, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO users (account_id, user_id, display_name, username, phone, bio, is_bot, is_online, is_contact, is_blocked, bot_menu_text, last_seen, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(account_id, user_id) DO UPDATE SET
 		     display_name = excluded.display_name,
 		     username = excluded.username,
@@ -46,27 +47,28 @@ func (e *Engine) UpsertUser(accountID string, u cores.User) error {
 		     is_online = excluded.is_online,
 		     is_contact = excluded.is_contact,
 		     is_blocked = excluded.is_blocked,
+		     bot_menu_text = COALESCE(NULLIF(excluded.bot_menu_text, ''), users.bot_menu_text),
 		     last_seen = COALESCE(excluded.last_seen, users.last_seen),
 		     updated_at = excluded.updated_at`,
 		accountID, u.ID, u.DisplayName, u.Username, u.Phone, u.Bio,
-		boolToInt(u.IsBot), boolToInt(u.IsOnline), boolToInt(u.IsContact), boolToInt(u.IsBlocked), lastSeen, now)
+		boolToInt(u.IsBot), boolToInt(u.IsOnline), boolToInt(u.IsContact), boolToInt(u.IsBlocked), u.BotMenuText, lastSeen, now)
 	return err
 }
 
 // GetUser retrieves a cached user profile.
 func (e *Engine) GetUser(accountID, userID string) (*CachedUser, error) {
 	var u CachedUser
-	var displayName, username, phone, bio, avatarPath sql.NullString
+	var displayName, username, phone, bio, avatarPath, botMenuText sql.NullString
 	var lastSeen sql.NullInt64
 	var isBot, isOnline, isContact, isBlocked int
 
 	err := e.db.QueryRow(
 		`SELECT account_id, user_id, display_name, username, phone, bio, avatar_path,
-		        is_bot, is_online, is_contact, is_blocked, last_seen
+		        is_bot, is_online, is_contact, is_blocked, bot_menu_text, last_seen
 		 FROM users WHERE account_id = ? AND user_id = ?`,
 		accountID, userID).Scan(
 		&u.AccountID, &u.UserID, &displayName, &username, &phone, &bio, &avatarPath,
-		&isBot, &isOnline, &isContact, &isBlocked, &lastSeen)
+		&isBot, &isOnline, &isContact, &isBlocked, &botMenuText, &lastSeen)
 	if err != nil {
 		return nil, err
 	}
@@ -80,6 +82,7 @@ func (e *Engine) GetUser(accountID, userID string) (*CachedUser, error) {
 	u.IsOnline = isOnline == 1
 	u.IsContact = isContact == 1
 	u.IsBlocked = isBlocked == 1
+	u.BotMenuText = botMenuText.String
 	if lastSeen.Valid {
 		u.LastSeen = lastSeen.Int64
 	}

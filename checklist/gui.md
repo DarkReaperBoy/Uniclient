@@ -853,7 +853,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_view.dart, message_bubble.dart, info_panel.dart (partial bot awareness) — new: dart/lib/ui/bot_panels.dart -->
 
-- [ ] Bot command slash-button (44×46px, `historyComposeIconFg`) and bot menu button (30px height, auto-width 30-160px, 3-tier label fallback, appear/disappear 120ms width animation, cross-fade label) — spec §30.1
 - [ ] Command autocomplete dropdown: trigger on `/`, 40px rows with userpic+semibold command+right-aligned description, max 4.5 rows visible, case-insensitive filter, `@botname` suffix in groups, 200ms opacity fade — spec §30.2
 - [ ] Inline bot results panel: trigger on `@botname `, 345px panel 278-640px height, mosaic grid layout, photo/GIF 96px, sticker 64px, video/article/file cards, 350ms debounce query, 33ms repaint throttle, Switch PM button — spec §30.3
 - [ ] Reply keyboard: full-width below compose, show/hide 200ms, SingleUse/ForceReply/Persistent/Resize flags, normal (38px) and tiny (25px) button styles, 4 color states (Normal/Primary/Danger/Success), corner rounding, 350ms tooltips — spec §30.4

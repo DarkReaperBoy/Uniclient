@@ -13727,6 +13727,13 @@ func (t *TelegramCore) GetFullUser(userID string) (*User, error) {
 		if user, ok := u.(*tg.User); ok && user.ID == id {
 			cu := t.convertUser(user)
 			cu.Bio = result.FullUser.About
+			if bi, ok := result.FullUser.GetBotInfo(); ok {
+				if mb, ok := bi.GetMenuButton(); ok {
+					if webApp, ok := mb.(*tg.BotMenuButton); ok {
+						cu.BotMenuText = webApp.Text
+					}
+				}
+			}
 			return cu, nil
 		}
 	}

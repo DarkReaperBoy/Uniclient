@@ -1364,6 +1364,7 @@ class UserProfile {
   final bool isBot;
   final bool isContact;
   final bool isBlocked;
+  final String botMenuText;
 
   const UserProfile({
     required this.userId,
@@ -1374,6 +1375,7 @@ class UserProfile {
     this.isBot = false,
     this.isContact = false,
     this.isBlocked = false,
+    this.botMenuText = '',
   });
 
   factory UserProfile.fromJson(Map<String, dynamic> j) => UserProfile(
@@ -1385,6 +1387,7 @@ class UserProfile {
     isBot: j['is_bot'] as bool? ?? false,
     isContact: j['is_contact'] as bool? ?? false,
     isBlocked: j['is_blocked'] as bool? ?? false,
+    botMenuText: j['bot_menu_text'] as String? ?? '',
   );
 }
 

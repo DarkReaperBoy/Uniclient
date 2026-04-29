@@ -122,6 +122,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV19,
 	migrateV20,
 	migrateV21,
+	migrateV22,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -571,6 +572,15 @@ func migrateV20(tx *sql.Tx) error {
 func migrateV21(tx *sql.Tx) error {
 	if !columnExists(tx, "chats", "is_forum") {
 		if _, err := tx.Exec(`ALTER TABLE chats ADD COLUMN is_forum INTEGER NOT NULL DEFAULT 0`); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func migrateV22(tx *sql.Tx) error {
+	if !columnExists(tx, "users", "bot_menu_text") {
+		if _, err := tx.Exec(`ALTER TABLE users ADD COLUMN bot_menu_text TEXT`); err != nil {
 			return err
 		}
 	}

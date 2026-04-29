@@ -147,6 +147,7 @@ type User struct {
 	IsVerified    bool   `json:"is_verified,omitempty"`
 	IsPremium     bool   `json:"is_premium,omitempty"`
 	EmojiStatusID string `json:"emoji_status_id,omitempty"`
+	BotMenuText   string `json:"bot_menu_text,omitempty"`
 	Role          string `json:"role,omitempty"`
 	Platform      string `json:"platform"`
 }

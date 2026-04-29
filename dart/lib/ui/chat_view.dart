@@ -245,6 +245,8 @@ class _ChatViewState extends State<ChatView>
 
   bool _emojiPanelVisible = false;
 
+  String _botMenuText = '';
+
   // §23.8: Video processing toasts state
   bool _showVideoTipToast = false;
   bool _showVideoTooltip = false;
@@ -459,7 +461,23 @@ class _ChatViewState extends State<ChatView>
       Future.microtask(() => chatState.markRead());
       // Fetch send-as peers for channels.
       _loadSendAs(chatState);
+      // Fetch bot menu button text for bot DMs.
+      _loadBotMenuText(chatState);
     }
+  }
+
+  void _loadBotMenuText(ChatState chatState) {
+    final chat = chatState.activeChat;
+    if (chat == null || !chat.isBot || chat.type != ChatType.dm) {
+      if (_botMenuText.isNotEmpty) setState(() => _botMenuText = '');
+      return;
+    }
+    final engine = context.read<EngineService>();
+    engine.getUserProfile(chat.accountId, chat.chatId).then((profile) {
+      if (!mounted) return;
+      final text = profile?.botMenuText ?? '';
+      if (text != _botMenuText) setState(() => _botMenuText = text);
+    });
   }
 
   void _onScroll() {
@@ -3499,6 +3517,7 @@ class _ChatViewState extends State<ChatView>
                 chatState.setHistoryTTL(chat.accountId, chat.chatId, period);
               },
               isBot: chat.isBot,
+              botMenuText: _botMenuText,
               emojiPanelVisible: _emojiPanelVisible,
               onEmojiToggle: () => setState(() => _emojiPanelVisible = !_emojiPanelVisible),
               onEscape: () => _handleEscape(),
@@ -7456,6 +7475,7 @@ class _ComposeArea extends StatefulWidget {
   final int ttlPeriod;
   final ValueChanged<int>? onTtlChanged;
   final bool isBot;
+  final String botMenuText;
   final VoidCallback? onEmojiToggle;
   final bool emojiPanelVisible;
   final VoidCallback? onEscape;
@@ -7495,6 +7515,7 @@ class _ComposeArea extends StatefulWidget {
     this.ttlPeriod = 0,
     this.onTtlChanged,
     this.isBot = false,
+    this.botMenuText = '',
     this.onEmojiToggle,
     this.emojiPanelVisible = false,
     this.onEscape,
@@ -8479,7 +8500,15 @@ class _ComposeAreaState extends State<_ComposeArea>
               hoverColor: _silentMode ? theme.colorScheme.primary : iconFgOver,
               onPressed: () => setState(() => _silentMode = !_silentMode),
             ),
-          if (widget.isBot && widget.chatType == ChatType.dm)
+          if (widget.isBot && widget.chatType == ChatType.dm && widget.botMenuText.isNotEmpty)
+            _BotMenuButton(
+              label: widget.botMenuText,
+              accentColor: theme.colorScheme.primary,
+              onPressed: () {
+                // TODO: Open bot web app when WebView support is added.
+              },
+            ),
+          if (widget.isBot && widget.chatType == ChatType.dm && widget.botMenuText.isEmpty)
             _BotCommandButton(
               iconColor: iconFg,
               hoverColor: iconFgOver,
@@ -8769,6 +8798,121 @@ class _BotCommandButtonState extends State<_BotCommandButton> {
                   color: color,
                   height: 1,
                 ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BotMenuButton extends StatefulWidget {
+  final String label;
+  final Color accentColor;
+  final VoidCallback onPressed;
+
+  const _BotMenuButton({
+    required this.label,
+    required this.accentColor,
+    required this.onPressed,
+  });
+
+  @override
+  State<_BotMenuButton> createState() => _BotMenuButtonState();
+}
+
+class _BotMenuButtonState extends State<_BotMenuButton>
+    with SingleTickerProviderStateMixin {
+  static const double _height = 30.0;
+  static const double _padding = 24.0;
+  static const double _maxWidth = 160.0;
+  static const double _skip = 8.0;
+
+  bool _hovered = false;
+  late final AnimationController _widthAnimCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _widthAnimCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+      value: 1.0,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _BotMenuButton old) {
+    super.didUpdateWidget(old);
+    if (old.label != widget.label) {
+      _widthAnimCtrl.forward(from: 0.0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _widthAnimCtrl.dispose();
+    super.dispose();
+  }
+
+  double _computeWidth(String text, TextStyle style) {
+    final tp = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final labelW = tp.width;
+    final w = labelW + 2 * _padding;
+    return w.clamp(_height, _maxWidth);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final displayText = widget.label.isEmpty ? 'Menu' : widget.label;
+    const labelStyle = TextStyle(
+      fontSize: 13,
+      fontWeight: FontWeight.w600,
+      color: Colors.white,
+      height: 1,
+    );
+    final buttonWidth = _computeWidth(displayText, labelStyle);
+    final bgColor = _hovered
+        ? HSLColor.fromColor(widget.accentColor)
+            .withLightness((HSLColor.fromColor(widget.accentColor).lightness - 0.05).clamp(0.0, 1.0))
+            .toColor()
+        : widget.accentColor;
+
+    return Padding(
+      padding: const EdgeInsets.only(right: _skip),
+      child: AnimatedBuilder(
+        animation: _widthAnimCtrl,
+        builder: (context, child) {
+          final w = buttonWidth * _widthAnimCtrl.value;
+          return SizedBox(
+            width: w.clamp(_height, _maxWidth),
+            height: _height,
+            child: w < _height + 1 ? const SizedBox.shrink() : child,
+          );
+        },
+        child: MouseRegion(
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() => _hovered = false),
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: widget.onPressed,
+            child: Container(
+              height: _height,
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: BorderRadius.circular(_height / 2),
+              ),
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: _padding),
+              child: Text(
+                displayText,
+                style: labelStyle,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
               ),
             ),
           ),
