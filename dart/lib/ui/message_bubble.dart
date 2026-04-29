@@ -443,6 +443,13 @@ class _MessageBubbleState extends State<MessageBubble> {
                           isOutgoing: isOutgoing,
                         ),
                       ),
+                    if (message.hasGame)
+                      _GameCard(
+                        message: message,
+                        theme: theme,
+                        isDark: isDark,
+                        isOutgoing: isOutgoing,
+                      ),
                     // Media indicator — album or single.
                     if (albumItems.length >= 2)
                       Padding(
@@ -6301,6 +6308,173 @@ class _WebPagePreview extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+class _GameCard extends StatefulWidget {
+  final CachedMessage message;
+  final ThemeData theme;
+  final bool isDark;
+  final bool isOutgoing;
+
+  const _GameCard({
+    required this.message,
+    required this.theme,
+    required this.isDark,
+    required this.isOutgoing,
+  });
+
+  @override
+  State<_GameCard> createState() => _GameCardState();
+}
+
+class _GameCardState extends State<_GameCard> {
+  bool _hovering = false;
+  bool _loading = false;
+
+  void _onPlay() async {
+    if (_loading) return;
+    setState(() => _loading = true);
+    String? url;
+    for (final row in widget.message.inlineKeyboard) {
+      for (final btn in row) {
+        if (btn.type == 'game' && btn.url.isNotEmpty) {
+          url = btn.url;
+          break;
+        }
+      }
+      if (url != null) break;
+    }
+    if (url != null) {
+      await Process.run('xdg-open', [url]);
+      if (mounted) setState(() => _loading = false);
+    } else {
+      Future.delayed(const Duration(seconds: 15), () {
+        if (mounted) setState(() => _loading = false);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final msg = widget.message;
+    final isDark = widget.isDark;
+    final isOut = widget.isOutgoing;
+
+    final titleColor = isDark ? Colors.white : Colors.black87;
+    final descColor = isDark ? const Color(0xFFc0c8d0) : const Color(0xFF444444);
+    final buttonFg = isOut
+        ? (isDark ? const Color(0xFF60c071) : const Color(0xFF4fae5e))
+        : (isDark ? const Color(0xFF71baf7) : const Color(0xFF168acd));
+    final lineFg = isDark ? const Color(0xFF3a4a5a) : const Color(0xFFdde1e5);
+    final badgeBg = const Color(0x73000000);
+
+    Widget? thumb;
+    if (msg.gameThumbB64.isNotEmpty) {
+      try {
+        final bytes = base64Decode(msg.gameThumbB64);
+        thumb = Image.memory(
+          Uint8List.fromList(bytes),
+          fit: BoxFit.cover,
+          width: double.infinity,
+          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+        );
+      } catch (_) {}
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (msg.gameTitle.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(11, 5, 11, 0),
+            child: Text(
+              msg.gameTitle,
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: titleColor),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        if (msg.gameDescription.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(11, 5, 11, 0),
+            child: Text(
+              msg.gameDescription,
+              style: TextStyle(fontSize: 13, color: descColor),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        if (thumb != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 5),
+            child: Stack(
+              children: [
+                ClipRRect(
+                  child: AspectRatio(
+                    aspectRatio: msg.gamePhotoW > 0 && msg.gamePhotoH > 0
+                        ? msg.gamePhotoW / msg.gamePhotoH
+                        : 16 / 9,
+                    child: thumb,
+                  ),
+                ),
+                Positioned(
+                  right: 4,
+                  bottom: 4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: badgeBg,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      'GAME',
+                      style: TextStyle(fontSize: 11, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        Container(
+          height: 1,
+          color: lineFg,
+          margin: const EdgeInsets.only(top: 5),
+        ),
+        MouseRegion(
+          onEnter: (_) => setState(() => _hovering = true),
+          onExit: (_) => setState(() => _hovering = false),
+          child: GestureDetector(
+            onTap: _onPlay,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              height: 36,
+              alignment: Alignment.center,
+              color: _hovering
+                  ? buttonFg.withValues(alpha: 0.12)
+                  : Colors.transparent,
+              child: _loading
+                  ? SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: buttonFg,
+                      ),
+                    )
+                  : Text(
+                      'PLAY GAME',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: buttonFg,
+                      ),
+                    ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

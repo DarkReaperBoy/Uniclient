@@ -10143,6 +10143,32 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 				m.Text = "👤 " + name
 			}
 			m.Attachments = []FileRef{{MimeType: "application/x-contact", Name: "contact"}}
+		case *tg.MessageMediaGame:
+			if m.Extra == nil {
+				m.Extra = make(map[string]interface{})
+			}
+			g := md.Game
+			m.Extra["game_id"] = g.ID
+			m.Extra["game_access_hash"] = g.AccessHash
+			m.Extra["game_short_name"] = g.ShortName
+			m.Extra["game_title"] = g.Title
+			m.Extra["game_description"] = g.Description
+			if p, ok := g.Photo.(*tg.Photo); ok {
+				thumbB64 := extractStrippedThumbB64(p.Sizes)
+				if thumbB64 != "" {
+					m.Extra["game_thumb_b64"] = thumbB64
+				}
+				for _, size := range p.Sizes {
+					if s, ok := size.(*tg.PhotoSize); ok {
+						m.Extra["game_photo_w"] = s.W
+						m.Extra["game_photo_h"] = s.H
+						break
+					}
+				}
+			}
+			if m.Text == "" {
+				m.Text = "��� " + g.Title
+			}
 		case *tg.MessageMediaWebPage:
 			if wp, ok := md.Webpage.(*tg.WebPage); ok {
 				if m.Extra == nil {

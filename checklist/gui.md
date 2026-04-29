@@ -853,7 +853,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_view.dart, message_bubble.dart, info_panel.dart (partial bot awareness) — new: dart/lib/ui/bot_panels.dart -->
 
-- [ ] Game message card: title (2-line max) + description + media + "GAME" badge + Play button (36px, 1px separator, hover/press/loading states, 15s load timeout), score service messages — spec §30.8
 - [ ] Login URL auth confirmation dialog: bot userpic 64px, domain title, "(unverified)" prefix, device/location rows, two conditional checkboxes with dependency, phone-sharing sub-dialog, match-codes 4 emoji 48×48px, slide-up 200ms, success toast — spec §30.9
 - [ ] Bot payments panel (392×600px): invoice cover (80×80px thumb), title/description/seller, price rows, tips buttons (flex-row wrap, 10%/80% alpha states), 6 section buttons, shipping picker + form, ToS gate, receipt mode, loading overlay 400ms fade — spec §30.10
 - [ ] Business bot bar in chat header: pause/resume toggle + manage/remove options — spec §30.11

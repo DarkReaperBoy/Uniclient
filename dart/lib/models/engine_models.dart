@@ -500,6 +500,14 @@ class CachedMessage {
   final int wpPhotoH;
   final int wpDuration;
 
+  // Game message data (extracted from contentRaw extra fields).
+  final String gameTitle;
+  final String gameDescription;
+  final String gameShortName;
+  final String gameThumbB64;
+  final int gamePhotoW;
+  final int gamePhotoH;
+
   // Thread/replies data (extracted from contentRaw extra fields).
   final int repliesCount;
   final String repliesChannelId;
@@ -600,6 +608,12 @@ class CachedMessage {
     this.wpPhotoW = 0,
     this.wpPhotoH = 0,
     this.wpDuration = 0,
+    this.gameTitle = '',
+    this.gameDescription = '',
+    this.gameShortName = '',
+    this.gameThumbB64 = '',
+    this.gamePhotoW = 0,
+    this.gamePhotoH = 0,
     this.repliesCount = 0,
     this.repliesChannelId = '',
     this.repliesIsComments = false,
@@ -674,6 +688,7 @@ class CachedMessage {
   bool get isMediaDownloaded => mediaDownloadState == 2;
   bool get isAlbumMember => groupedId.isNotEmpty;
   bool get hasWebPage => wpUrl.isNotEmpty;
+  bool get hasGame => gameTitle.isNotEmpty;
 
   bool get isScheduled => scheduleDate > 0;
   bool get isScheduledUntilOnline =>
@@ -766,6 +781,12 @@ class CachedMessage {
     int? wpPhotoW,
     int? wpPhotoH,
     int? wpDuration,
+    String? gameTitle,
+    String? gameDescription,
+    String? gameShortName,
+    String? gameThumbB64,
+    int? gamePhotoW,
+    int? gamePhotoH,
     int? repliesCount,
     String? repliesChannelId,
     bool? repliesIsComments,
@@ -860,6 +881,12 @@ class CachedMessage {
     wpPhotoW: wpPhotoW ?? this.wpPhotoW,
     wpPhotoH: wpPhotoH ?? this.wpPhotoH,
     wpDuration: wpDuration ?? this.wpDuration,
+    gameTitle: gameTitle ?? this.gameTitle,
+    gameDescription: gameDescription ?? this.gameDescription,
+    gameShortName: gameShortName ?? this.gameShortName,
+    gameThumbB64: gameThumbB64 ?? this.gameThumbB64,
+    gamePhotoW: gamePhotoW ?? this.gamePhotoW,
+    gamePhotoH: gamePhotoH ?? this.gamePhotoH,
     repliesCount: repliesCount ?? this.repliesCount,
     repliesChannelId: repliesChannelId ?? this.repliesChannelId,
     repliesIsComments: repliesIsComments ?? this.repliesIsComments,
