@@ -16,6 +16,7 @@ import '../models/engine_models.dart';
 import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
+import '../theme/telegram_palette.dart';
 
 enum _MediaViewerMode { windowed, maximized, fullscreen }
 
@@ -4662,6 +4663,7 @@ class _StoriesViewerState extends State<StoriesViewer>
   bool _playHovered = false;
   bool _volumeHovered = false;
   bool _closeHovered = false;
+  bool _stealthHovered = false;
   bool _liked = false;
   final GlobalKey<_StoryReplyComposeState> _composeKey = GlobalKey();
   bool _composeFocused = false;
@@ -5279,6 +5281,13 @@ class _StoriesViewerState extends State<StoriesViewer>
                 hovered: _volumeHovered,
                 onHover: (v) => setState(() => _volumeHovered = v),
               ),
+            if (!widget.isOwnStory)
+              _buildStoryControlButton(
+                icon: Icons.visibility_off_outlined,
+                onTap: () => showStoryStealthModeDialog(context),
+                hovered: _stealthHovered,
+                onHover: (v) => setState(() => _stealthHovered = v),
+              ),
             _buildStoryControlButton(
               icon: Icons.close,
               onTap: () => Navigator.of(context).maybePop(),
@@ -5645,6 +5654,422 @@ class _StoriesViewerState extends State<StoriesViewer>
         story.isVideo ? Icons.videocam : Icons.image,
         color: Colors.white38,
         size: 24,
+      ),
+    );
+  }
+}
+
+// ── §32.10 Story Stealth Mode Dialog ──
+
+const _kStealthDialogWidth = 320.0;
+const _kStealthLogoSize = 60.0;
+const _kStealthLogoAdd = 12.0;
+const _kStealthLogoRadius = 16.0;
+const _kStealthButtonHeight = 42.0;
+const _kStealthButtonPadding = EdgeInsets.all(10);
+const _kStealthCountdownInterval = Duration(milliseconds: 250);
+const _kStealthToastDuration = Duration(milliseconds: 4000);
+const _kStealthCloseRipple = 40.0;
+
+enum _StealthButtonState { nonPremium, cooldown, ready }
+
+Future<void> showStoryStealthModeDialog(
+  BuildContext context, {
+  bool isPremium = true,
+  DateTime? enabledTill,
+  DateTime? cooldownTill,
+  VoidCallback? onActivate,
+}) {
+  return showDialog<void>(
+    context: context,
+    builder: (ctx) => _StealthModeDialog(
+      isPremium: isPremium,
+      enabledTill: enabledTill,
+      cooldownTill: cooldownTill,
+      onActivate: onActivate,
+    ),
+  );
+}
+
+class _StealthModeDialog extends StatefulWidget {
+  final bool isPremium;
+  final DateTime? enabledTill;
+  final DateTime? cooldownTill;
+  final VoidCallback? onActivate;
+
+  const _StealthModeDialog({
+    this.isPremium = true,
+    this.enabledTill,
+    this.cooldownTill,
+    this.onActivate,
+  });
+
+  @override
+  State<_StealthModeDialog> createState() => _StealthModeDialogState();
+}
+
+class _StealthModeDialogState extends State<_StealthModeDialog> {
+  Timer? _countdownTimer;
+  late DateTime _now;
+  bool _closeHovered = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _now = DateTime.now();
+    if (_buttonState == _StealthButtonState.cooldown) {
+      _countdownTimer = Timer.periodic(_kStealthCountdownInterval, (_) {
+        setState(() => _now = DateTime.now());
+        if (_buttonState != _StealthButtonState.cooldown) {
+          _countdownTimer?.cancel();
+          _countdownTimer = null;
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _countdownTimer?.cancel();
+    super.dispose();
+  }
+
+  _StealthButtonState get _buttonState {
+    if (!widget.isPremium) return _StealthButtonState.nonPremium;
+    if (widget.cooldownTill != null && widget.cooldownTill!.isAfter(_now)) {
+      return _StealthButtonState.cooldown;
+    }
+    return _StealthButtonState.ready;
+  }
+
+  String _formatCountdown(Duration d) {
+    final h = d.inHours;
+    final m = d.inMinutes.remainder(60);
+    final s = d.inSeconds.remainder(60);
+    if (h > 0) return '$h:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
+  void _onButtonTap() {
+    final state = _buttonState;
+    if (state == _StealthButtonState.nonPremium) {
+      Navigator.of(context).pop();
+      _showToast(context, 'Stealth Mode is a Premium feature');
+      return;
+    }
+    if (state == _StealthButtonState.cooldown) return;
+
+    widget.onActivate?.call();
+    Navigator.of(context).pop();
+    _showToast(context, 'Stealth Mode enabled');
+  }
+
+  static void _showToast(BuildContext context, String message) {
+    final overlay = Overlay.of(context, rootOverlay: true);
+    late final OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (_) => _StealthToast(
+        message: message,
+        onDismiss: () => entry.remove(),
+      ),
+    );
+    overlay.insert(entry);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final palette = PaletteProvider.of(context);
+    final boxBg = isDark ? const Color(0xFF17212B) : Colors.white;
+    final state = _buttonState;
+
+    return Center(
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          width: _kStealthDialogWidth,
+          decoration: BoxDecoration(
+            color: boxBg,
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 28),
+                    Container(
+                      width: _kStealthLogoSize + _kStealthLogoAdd * 2,
+                      height: _kStealthLogoSize + _kStealthLogoAdd * 2,
+                      decoration: BoxDecoration(
+                        color: palette.windowBgActive,
+                        borderRadius: BorderRadius.circular(_kStealthLogoRadius),
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.visibility_off,
+                          color: Colors.white,
+                          size: 36,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      'View Stories Anonymously',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: palette.windowBoldFg,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    _StealthFeatureRow(
+                      icon: Icons.history,
+                      title: 'Hide Recent Views',
+                      description: 'The last 5 minutes of views will be hidden.',
+                      accentColor: palette.windowActiveTextFg,
+                      titleColor: palette.windowBoldFg,
+                      descColor: palette.windowSubTextFg,
+                    ),
+                    const SizedBox(height: 12),
+                    _StealthFeatureRow(
+                      icon: Icons.update,
+                      title: 'Hide Next Views',
+                      description: 'Views in the next 25 minutes will be hidden.',
+                      accentColor: palette.windowActiveTextFg,
+                      titleColor: palette.windowBoldFg,
+                      descColor: palette.windowSubTextFg,
+                    ),
+                    const SizedBox(height: 20),
+                    _buildButton(state, palette),
+                  ],
+                ),
+              ),
+              Positioned(
+                top: 4,
+                right: 4,
+                child: MouseRegion(
+                  onEnter: (_) => setState(() => _closeHovered = true),
+                  onExit: (_) => setState(() => _closeHovered = false),
+                  child: GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: SizedBox(
+                      width: _kStealthCloseRipple,
+                      height: _kStealthCloseRipple,
+                      child: Center(
+                        child: Icon(
+                          Icons.close,
+                          size: 20,
+                          color: _closeHovered
+                              ? palette.windowFg
+                              : palette.windowSubTextFg,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildButton(_StealthButtonState state, TelegramPalette palette) {
+    final opacity = state == _StealthButtonState.cooldown ? 0.5 : 1.0;
+
+    String label;
+    IconData? icon;
+    switch (state) {
+      case _StealthButtonState.nonPremium:
+        label = 'UNLOCK';
+        icon = Icons.lock;
+      case _StealthButtonState.cooldown:
+        final remaining = widget.cooldownTill!.difference(_now);
+        label = 'COOLDOWN IN ${_formatCountdown(remaining)}';
+      case _StealthButtonState.ready:
+        label = widget.onActivate != null ? 'ENABLE AND OPEN' : 'ENABLE';
+    }
+
+    return GestureDetector(
+      onTap: _onButtonTap,
+      child: Container(
+        width: double.infinity,
+        height: _kStealthButtonHeight,
+        padding: _kStealthButtonPadding,
+        decoration: BoxDecoration(
+          color: palette.activeButtonBg.withValues(alpha: opacity),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, color: palette.activeButtonFg, size: 16),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: palette.activeButtonFg,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StealthFeatureRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String description;
+  final Color accentColor;
+  final Color titleColor;
+  final Color descColor;
+
+  const _StealthFeatureRow({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.accentColor,
+    required this.titleColor,
+    required this.descColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Icon(icon, color: accentColor, size: 22),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 10, maxHeight: 20),
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: titleColor,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 2),
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 20),
+                child: Text(
+                  description,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: descColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StealthToast extends StatefulWidget {
+  final String message;
+  final VoidCallback onDismiss;
+
+  const _StealthToast({
+    required this.message,
+    required this.onDismiss,
+  });
+
+  @override
+  State<_StealthToast> createState() => _StealthToastState();
+}
+
+class _StealthToastState extends State<_StealthToast>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _anim = AnimationController(
+      vsync: this,
+      duration: _kStealthToastDuration,
+    )..forward();
+    _anim.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        widget.onDismiss();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _anim.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      bottom: 60,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: AnimatedBuilder(
+          animation: _anim,
+          builder: (context, child) {
+            final fadeIn = (_anim.value * 6.67).clamp(0.0, 1.0);
+            final fadeOut = _anim.value > 0.75
+                ? ((1.0 - _anim.value) / 0.25).clamp(0.0, 1.0)
+                : 1.0;
+            return Opacity(
+              opacity: fadeIn * fadeOut,
+              child: child,
+            );
+          },
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 480),
+            padding: const EdgeInsets.fromLTRB(19, 13, 19, 12),
+            decoration: BoxDecoration(
+              color: const Color(0xE6333333),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              widget.message,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
       ),
     );
   }

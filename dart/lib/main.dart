@@ -709,6 +709,20 @@ class _UniClientAppState extends State<UniClientApp>
               isForceMuted: cmd['isForceMuted'] == true,
             );
           }
+
+        case 'showStealthDialog':
+          final navCtx = _navigatorKey.currentContext;
+          if (navCtx != null) {
+            final isPremium = cmd['isPremium'] != false;
+            final cooldownSec = (cmd['cooldownSeconds'] as num?)?.toInt();
+            showStoryStealthModeDialog(
+              navCtx,
+              isPremium: isPremium,
+              cooldownTill: cooldownSec != null
+                  ? DateTime.now().add(Duration(seconds: cooldownSec))
+                  : null,
+            );
+          }
       }
     } catch (e) {
       Debug.error('DEBUG_CMD', 'Error processing command', e, null);
