@@ -931,18 +931,31 @@ class PollOption {
 }
 
 // ── Keyboard button (reply keyboard & inline keyboard) ──
+enum KeyboardButtonColor { normal, primary, danger, success }
+
 class KeyboardButton {
   final String text;
   final String type; // text, request_phone, request_location, request_poll, request_peer, web_view, simple_web_view
   final String url;
+  final KeyboardButtonColor color;
 
-  const KeyboardButton({required this.text, this.type = 'text', this.url = ''});
+  const KeyboardButton({required this.text, this.type = 'text', this.url = '', this.color = KeyboardButtonColor.normal});
 
-  factory KeyboardButton.fromJson(Map<String, dynamic> j) => KeyboardButton(
-    text: j['text'] as String? ?? '',
-    type: j['type'] as String? ?? 'text',
-    url: j['url'] as String? ?? '',
-  );
+  factory KeyboardButton.fromJson(Map<String, dynamic> j) {
+    final colorStr = j['color'] as String? ?? '';
+    final color = switch (colorStr) {
+      'primary' => KeyboardButtonColor.primary,
+      'danger' => KeyboardButtonColor.danger,
+      'success' => KeyboardButtonColor.success,
+      _ => KeyboardButtonColor.normal,
+    };
+    return KeyboardButton(
+      text: j['text'] as String? ?? '',
+      type: j['type'] as String? ?? 'text',
+      url: j['url'] as String? ?? '',
+      color: color,
+    );
+  }
 }
 
 class InlineKeyboardButton {

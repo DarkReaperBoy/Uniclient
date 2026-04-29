@@ -10214,6 +10214,9 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 		}
 		switch rm := markup.(type) {
 		case *tg.ReplyKeyboardMarkup:
+			type styler interface {
+				GetStyle() (tg.KeyboardButtonStyle, bool)
+			}
 			rows := make([][]map[string]interface{}, 0, len(rm.Rows))
 			for _, row := range rm.Rows {
 				btns := make([]map[string]interface{}, 0, len(row.Buttons))
@@ -10236,6 +10239,17 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 						b["url"] = bt.URL
 					default:
 						b["type"] = "text"
+					}
+					if s, ok := btn.(styler); ok {
+						if style, ok := s.GetStyle(); ok {
+							if style.BgPrimary {
+								b["color"] = "primary"
+							} else if style.BgDanger {
+								b["color"] = "danger"
+							} else if style.BgSuccess {
+								b["color"] = "success"
+							}
+						}
 					}
 					btns = append(btns, b)
 				}

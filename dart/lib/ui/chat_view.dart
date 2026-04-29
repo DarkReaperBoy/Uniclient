@@ -5625,6 +5625,14 @@ class _BotReplyKeyboard extends StatelessWidget {
     required this.onButtonPressed,
   });
 
+  static const _normalMargin = 10.0;
+  static const _normalHeight = 38.0;
+  static const _normalPadding = 10.0;
+  static const _tinyMargin = 4.0;
+  static const _tinyHeight = 25.0;
+  static const _tinyPadding = 3.0;
+  static const _minButtonWidth = 56.0;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -5633,72 +5641,72 @@ class _BotReplyKeyboard extends StatelessWidget {
         ? AppColors.historyComposeAreaBgNight
         : AppColors.historyComposeAreaBg;
 
-    final rowCount = keyboard.rows.length;
-    final useTiny = !keyboard.resize && rowCount > 4;
-    final buttonHeight = useTiny ? 25.0 : 38.0;
-    final buttonMargin = useTiny ? 4.0 : 10.0;
-    final buttonPadding = useTiny ? 3.0 : 10.0;
-    final textTopPad = useTiny ? 2.0 : 9.0;
-
-    final naturalHeight = keyboard.rows.fold<double>(0.0, (sum, row) {
-      return sum + buttonHeight + buttonMargin;
-    }) + buttonMargin;
-    final maxHeight = keyboard.resize ? naturalHeight : 200.0;
-
     return AnimatedSize(
       duration: const Duration(milliseconds: 200),
       curve: Curves.easeInOut,
-      child: Container(
-        constraints: BoxConstraints(maxHeight: maxHeight),
-        color: composeBg,
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(buttonMargin / 2),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: keyboard.rows.map((row) {
-              return Padding(
-                padding: EdgeInsets.symmetric(vertical: buttonMargin / 2),
-                child: Row(
-                  children: row.map((btn) {
-                    return Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(horizontal: buttonMargin / 2),
-                        child: _BotKeyboardButton(
-                          text: btn.text,
-                          height: buttonHeight,
-                          padding: buttonPadding,
-                          textTopPad: textTopPad,
-                          isDark: isDark,
-                          useTiny: useTiny,
-                          onPressed: () => onButtonPressed(btn.text),
+      child: LayoutBuilder(builder: (context, constraints) {
+        final maxCols = keyboard.rows.fold<int>(0, (m, r) => r.length > m ? r.length : m);
+        final useTiny = maxCols > 0 &&
+            (constraints.maxWidth - _normalMargin) / maxCols < _minButtonWidth + _normalMargin * 2 + _normalPadding * 2;
+        final bMargin = useTiny ? _tinyMargin : _normalMargin;
+        final bHeight = useTiny ? _tinyHeight : _normalHeight;
+        final bPad = useTiny ? _tinyPadding : _normalPadding;
+
+        final naturalHeight = keyboard.rows.length * (bHeight + bMargin) + bMargin;
+        final maxHeight = keyboard.resize ? naturalHeight : 200.0;
+
+        return Container(
+          constraints: BoxConstraints(maxHeight: maxHeight),
+          color: composeBg,
+          child: SingleChildScrollView(
+            padding: EdgeInsets.all(bMargin / 2),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: keyboard.rows.map((row) {
+                return Padding(
+                  padding: EdgeInsets.symmetric(vertical: bMargin / 2),
+                  child: Row(
+                    children: row.map((btn) {
+                      return Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(horizontal: bMargin / 2),
+                          child: _BotKeyboardButton(
+                            text: btn.text,
+                            color: btn.color,
+                            height: bHeight,
+                            padding: bPad,
+                            isDark: isDark,
+                            useTiny: useTiny,
+                            onPressed: () => onButtonPressed(btn.text),
+                          ),
                         ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              );
-            }).toList(),
+                      );
+                    }).toList(),
+                  ),
+                );
+              }).toList(),
+            ),
           ),
-        ),
-      ),
+        );
+      }),
     );
   }
 }
 
 class _BotKeyboardButton extends StatefulWidget {
   final String text;
+  final KeyboardButtonColor color;
   final double height;
   final double padding;
-  final double textTopPad;
   final bool isDark;
   final bool useTiny;
   final VoidCallback onPressed;
 
   const _BotKeyboardButton({
     required this.text,
+    required this.color,
     required this.height,
     required this.padding,
-    required this.textTopPad,
     required this.isDark,
     required this.useTiny,
     required this.onPressed,
@@ -5711,44 +5719,57 @@ class _BotKeyboardButton extends StatefulWidget {
 class _BotKeyboardButtonState extends State<_BotKeyboardButton> {
   bool _pressed = false;
 
+  ({Color bg, Color pressed, Color text}) _colorSet() {
+    if (widget.isDark) {
+      return switch (widget.color) {
+        KeyboardButtonColor.primary => (bg: const Color(0xFF568bc8), pressed: const Color(0xFF4a7cb5), text: Colors.white),
+        KeyboardButtonColor.danger => (bg: const Color(0xFFc44040), pressed: const Color(0xFFa83636), text: Colors.white),
+        KeyboardButtonColor.success => (bg: const Color(0xFF49a856), pressed: const Color(0xFF3e9249), text: Colors.white),
+        KeyboardButtonColor.normal => (bg: const Color(0xFF2b3945), pressed: const Color(0xFF3a4957), text: Colors.white),
+      };
+    }
+    return switch (widget.color) {
+      KeyboardButtonColor.primary => (bg: const Color(0xFF40a7e3), pressed: const Color(0xFF3694cc), text: Colors.white),
+      KeyboardButtonColor.danger => (bg: const Color(0xFFdf3f40), pressed: const Color(0xFFc83636), text: Colors.white),
+      KeyboardButtonColor.success => (bg: const Color(0xFF59b660), pressed: const Color(0xFF4da054), text: Colors.white),
+      KeyboardButtonColor.normal => (bg: const Color(0xFFe4e7eb), pressed: const Color(0xFFd0d4d9), text: Colors.black),
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
-    final botKbBg = widget.isDark
-        ? const Color(0xFF2b3945)
-        : const Color(0xFFe4e7eb);
-    final botKbDownBg = widget.isDark
-        ? const Color(0xFF3a4957)
-        : const Color(0xFFd0d4d9);
-    final botKbColor = widget.isDark
-        ? const Color(0xFFffffff)
-        : const Color(0xFF000000);
+    final cs = _colorSet();
 
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) {
-        setState(() => _pressed = false);
-        widget.onPressed();
-      },
-      onTapCancel: () => setState(() => _pressed = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 100),
-        height: widget.height,
-        decoration: BoxDecoration(
-          color: _pressed ? botKbDownBg : botKbBg,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        padding: EdgeInsets.symmetric(horizontal: widget.padding),
-        alignment: Alignment.center,
-        child: Text(
-          widget.text,
-          style: TextStyle(
-            fontSize: widget.useTiny ? 13 : 15,
-            fontWeight: FontWeight.w600,
-            color: botKbColor,
+    return Tooltip(
+      message: widget.text,
+      waitDuration: const Duration(milliseconds: 350),
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) {
+          setState(() => _pressed = false);
+          widget.onPressed();
+        },
+        onTapCancel: () => setState(() => _pressed = false),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 100),
+          height: widget.height,
+          decoration: BoxDecoration(
+            color: _pressed ? cs.pressed : cs.bg,
+            borderRadius: BorderRadius.circular(10),
           ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
+          padding: EdgeInsets.symmetric(horizontal: widget.padding),
+          alignment: Alignment.center,
+          child: Text(
+            widget.text,
+            style: TextStyle(
+              fontSize: widget.useTiny ? 13 : 15,
+              fontWeight: FontWeight.w600,
+              color: cs.text,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+          ),
         ),
       ),
     );
