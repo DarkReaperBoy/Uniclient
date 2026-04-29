@@ -847,7 +847,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_export.dart -->
 
-- [ ] Per-chat/topic settings screen: media options + format/location + date range filter (CalendarBox min Aug 2013, time editing HH:MM, 600s safety offset) — spec §29.4
 - [ ] Progress screen: step rows 30px height (semibold label + windowSubTextFg info, proportional width), 3px progress bar (sineInOut 200ms, opacity crossfade), "Skip file" link after 5000ms, about label text, 200×44px Cancel button (attentionBoxButton), up to 3 visible rows — spec §29.5
 - [ ] Stop confirmation dialog: "Are you sure?" / "Stop" red / "Cancel" — spec §29.6
 - [ ] Completion screen: 3 done rows at progress=1.0, "Show My Data" 200×44px button opens folder, panel title reverts — spec §29.7
