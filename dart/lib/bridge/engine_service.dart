@@ -3500,6 +3500,37 @@ class EngineService {
     height: p.height,
     duration: p.duration,
   );
+
+  Future<List<ConnectedBotInfo>> getConnectedBots(String accountId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetConnectedBots', Uint8List.fromList(payload));
+      final list = json.decode(utf8.decode(respBytes)) as List<dynamic>;
+      return list.map((e) => ConnectedBotInfo.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (e) {
+      Debug.error('ENGINE', 'getConnectedBots failed', e);
+      return [];
+    }
+  }
+
+  Future<void> toggleConnectedBotPaused(String accountId, String chatId, {required bool paused}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'paused': paused,
+    }));
+    await _callAsync('__engine', 'ToggleConnectedBotPaused', Uint8List.fromList(payload));
+  }
+
+  Future<void> disablePeerConnectedBot(String accountId, String chatId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+    }));
+    await _callAsync('__engine', 'DisablePeerConnectedBot', Uint8List.fromList(payload));
+  }
 }
 
 class EngineException implements Exception {

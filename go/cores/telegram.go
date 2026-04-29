@@ -21272,3 +21272,89 @@ func (t *TelegramCore) SendPaymentForm(chatID, msgID string, formData map[string
 	}
 	return nil
 }
+
+// GetConnectedBots returns business bots connected to this account as simplified maps.
+func (t *TelegramCore) GetConnectedBots() ([]map[string]interface{}, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	result, err := t.api.AccountGetConnectedBots(t.ctx)
+	if err != nil {
+		return nil, err
+	}
+	var bots []map[string]interface{}
+	for _, cb := range result.ConnectedBots {
+		botName := ""
+		for _, u := range result.Users {
+			if user, ok := u.(*tg.User); ok && user.ID == cb.BotID {
+				botName = user.FirstName
+				if user.LastName != "" {
+					botName += " " + user.LastName
+				}
+				break
+			}
+		}
+		m := map[string]interface{}{
+			"bot_id":           strconv.FormatInt(cb.BotID, 10),
+			"bot_name":         botName,
+			"can_reply":        cb.Rights.Reply,
+			"exclude_selected": cb.Recipients.ExcludeSelected,
+			"existing_chats":   cb.Recipients.ExistingChats,
+			"new_chats":        cb.Recipients.NewChats,
+			"contacts":         cb.Recipients.Contacts,
+			"non_contacts":     cb.Recipients.NonContacts,
+		}
+		var userIDs []string
+		if users, ok := cb.Recipients.GetUsers(); ok {
+			for _, uid := range users {
+				userIDs = append(userIDs, strconv.FormatInt(uid, 10))
+			}
+		}
+		m["user_ids"] = userIDs
+		bots = append(bots, m)
+	}
+	return bots, nil
+}
+
+// ToggleConnectedBotPaused pauses or resumes a connected bot for a specific peer.
+func (t *TelegramCore) ToggleConnectedBotPaused(chatID string, paused bool) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return err
+	}
+	inputPeer, err := t.toInputPeer(peer)
+	if err != nil {
+		return err
+	}
+	_, err = t.api.AccountToggleConnectedBotPaused(t.ctx, &tg.AccountToggleConnectedBotPausedRequest{
+		Peer:   inputPeer,
+		Paused: paused,
+	})
+	return err
+}
+
+// DisablePeerConnectedBot removes a connected bot from a specific peer.
+func (t *TelegramCore) DisablePeerConnectedBot(chatID string) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return err
+	}
+	inputPeer, err := t.toInputPeer(peer)
+	if err != nil {
+		return err
+	}
+	_, err = t.api.AccountDisablePeerConnectedBot(t.ctx, inputPeer)
+	return err
+}

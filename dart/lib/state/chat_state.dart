@@ -68,6 +68,11 @@ class ChatState extends ChangeNotifier {
   final List<String> _chatOpenHistory = []; // chatId list, most-recent first
   static const _maxChatOpenHistory = 30;
 
+  // ── Business bot bar state (§30.11) ──
+  ConnectedBotInfo? _connectedBot;
+  bool _connectedBotPaused = false;
+  final Map<String, List<ConnectedBotInfo>> _connectedBotsCache = {};
+
   // ── Export top bar state (§29.9) ──
   bool _exportActive = false;
   String _exportStepLabel = '';
@@ -154,6 +159,8 @@ class ChatState extends ChangeNotifier {
   List<CachedMessage> get messages => _messages;
   List<CachedMessage> get pinnedMessages => _pinnedMessages;
   GroupCallInfo? get activeGroupCall => _activeGroupCall;
+  ConnectedBotInfo? get connectedBot => _connectedBot;
+  bool get connectedBotPaused => _connectedBotPaused;
   bool get loadingMessages => _loadingMessages;
   bool get hasMoreMessages => _hasMoreMessages;
   bool get hasArchivedChats => _hasArchivedChats;
@@ -624,6 +631,8 @@ class ChatState extends ChangeNotifier {
     // Fetch member avatars and online count for group chats.
     _groupOnlineCount = 0;
     _activeGroupCall = null;
+    _connectedBot = null;
+    _connectedBotPaused = false;
     _scheduledCount = 0;
     _isScheduledView = false;
     _linkedChatId = '';
@@ -637,6 +646,9 @@ class ChatState extends ChangeNotifier {
       }
     } else {
       _senderAvatars.clear();
+      if (chat.type == ChatType.dm) {
+        _loadConnectedBot(chat.accountId, chat.chatId);
+      }
     }
     _startPolling();
     notifyListeners();
@@ -1354,6 +1366,56 @@ class ChatState extends ChangeNotifier {
     } catch (e) {
       // TODO: show error to user
     }
+  }
+
+  // ── Business bot bar (§30.11) ──
+
+  Future<void> _loadConnectedBot(String accountId, String chatId) async {
+    try {
+      List<ConnectedBotInfo>? bots = _connectedBotsCache[accountId];
+      if (bots == null) {
+        bots = await _engine.getConnectedBots(accountId);
+        _connectedBotsCache[accountId] = bots;
+      }
+      final chat = _activeChat;
+      if (chat == null || chat.chatId != chatId) return;
+      for (final bot in bots) {
+        if (bot.appliesTo(chatId, isContact: chat.isContact)) {
+          _connectedBot = bot;
+          _connectedBotPaused = false;
+          notifyListeners();
+          return;
+        }
+      }
+      _connectedBot = null;
+      notifyListeners();
+    } catch (_) {
+      _connectedBot = null;
+    }
+  }
+
+  Future<void> toggleConnectedBotPaused() async {
+    final chat = _activeChat;
+    final bot = _connectedBot;
+    if (chat == null || bot == null) return;
+    final newPaused = !_connectedBotPaused;
+    try {
+      await _engine.toggleConnectedBotPaused(chat.accountId, chat.chatId, paused: newPaused);
+      _connectedBotPaused = newPaused;
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> removeConnectedBot() async {
+    final chat = _activeChat;
+    if (chat == null || _connectedBot == null) return;
+    try {
+      await _engine.disablePeerConnectedBot(chat.accountId, chat.chatId);
+      _connectedBot = null;
+      _connectedBotPaused = false;
+      _connectedBotsCache.remove(chat.accountId);
+      notifyListeners();
+    } catch (_) {}
   }
 
   /// Re-fetch the latest messages for the active chat and merge.

@@ -2911,6 +2911,40 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return getAllPrivacySettings(e, params.AccountID)
 
+	case "GetConnectedBots":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		bots, err := e.GetConnectedBots(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(bots)
+
+	case "ToggleConnectedBotPaused":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Paused    bool   `json:"paused"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.ToggleConnectedBotPaused(params.AccountID, params.ChatID, params.Paused)
+
+	case "DisablePeerConnectedBot":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.DisablePeerConnectedBot(params.AccountID, params.ChatID)
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}

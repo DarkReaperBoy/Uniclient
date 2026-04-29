@@ -598,6 +598,36 @@ class _ChatViewState extends State<ChatView>
     );
   }
 
+  void _showBusinessBotMenu(BuildContext context, ChatState chatState) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bot = chatState.connectedBot;
+    if (bot == null) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: Text(bot.botName.isNotEmpty ? bot.botName : 'Business Bot'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () {
+              Navigator.pop(ctx);
+              chatState.removeConnectedBot();
+            },
+            child: Row(
+              children: [
+                Icon(Icons.block, color: isDark ? Colors.red.shade300 : Colors.red, size: 20),
+                const SizedBox(width: 12),
+                Text(
+                  'Remove bot from this chat',
+                  style: TextStyle(color: isDark ? Colors.red.shade300 : Colors.red),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Jump to the replied-to message when a user taps a reply preview.
   /// If the target message is already loaded, calls `jumpToMessage` with its
   /// timestamp so it becomes the newest visible (index 0 in the reversed list)
@@ -3198,6 +3228,14 @@ class _ChatViewState extends State<ChatView>
               onShowAll: chatState.pinnedMessages.length > 1
                   ? () => _showAllPinnedMessages(context, chatState)
                   : null,
+            ),
+          // Business bot bar (§30.11) — shown when a connected business bot manages this chat.
+          if (chatState.connectedBot != null)
+            _BusinessBotBar(
+              bot: chatState.connectedBot!,
+              paused: chatState.connectedBotPaused,
+              onTogglePause: () => chatState.toggleConnectedBotPaused(),
+              onManage: () => _showBusinessBotMenu(context, chatState),
             ),
           // Contact status / action bar (§4.5) — shown for non-contact DMs, blocked users, or bots.
           if (_shouldShowContactStatusBar(chat))
@@ -6694,6 +6732,120 @@ class _GroupCallUserpic extends StatelessWidget {
     );
 
     return avatar;
+  }
+}
+
+/// Business bot status bar (§30.11) — shown when a connected business bot manages this chat.
+class _BusinessBotBar extends StatelessWidget {
+  final ConnectedBotInfo bot;
+  final bool paused;
+  final VoidCallback? onTogglePause;
+  final VoidCallback? onManage;
+
+  const _BusinessBotBar({
+    required this.bot,
+    this.paused = false,
+    this.onTogglePause,
+    this.onManage,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final barBg = isDark ? const Color(0xFF1B2734) : const Color(0xFFFFFFFF);
+    final shadowColor = isDark ? const Color(0x5604080E) : const Color(0x18000000);
+    final textColor = isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222);
+    final subtitleColor = isDark ? const Color(0xFF7E8B99) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
+    final pausedColor = isDark ? const Color(0xFFE8A94D) : const Color(0xFFD5850F);
+
+    return Container(
+      height: 44,
+      decoration: BoxDecoration(
+        color: barBg,
+        border: Border(bottom: BorderSide(color: shadowColor, width: 1)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 13),
+        child: Row(
+          children: [
+            Icon(
+              Icons.smart_toy_outlined,
+              size: 20,
+              color: paused ? pausedColor : accentColor,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    bot.botName.isNotEmpty ? bot.botName : 'Business Bot',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: textColor,
+                    ),
+                  ),
+                  Text(
+                    paused ? 'Paused' : 'Managing this chat',
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: paused ? pausedColor : subtitleColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Pause/Resume toggle button.
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: onTogglePause,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        paused ? Icons.play_arrow : Icons.pause,
+                        size: 18,
+                        color: accentColor,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        paused ? 'Resume' : 'Pause',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: accentColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            // More options button.
+            SizedBox(
+              width: 36,
+              height: 36,
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                iconSize: 20,
+                icon: Icon(Icons.more_vert, color: subtitleColor),
+                onPressed: onManage,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

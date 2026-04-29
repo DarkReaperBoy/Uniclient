@@ -1573,6 +1573,53 @@ class ChatRemovedEvent {
   const ChatRemovedEvent({this.accountId = '', this.chatId = ''});
 }
 
+class ConnectedBotInfo {
+  final String botId;
+  final String botName;
+  final bool canReply;
+  final bool excludeSelected;
+  final bool existingChats;
+  final bool newChats;
+  final bool contacts;
+  final bool nonContacts;
+  final List<String> userIds;
+
+  const ConnectedBotInfo({
+    this.botId = '',
+    this.botName = '',
+    this.canReply = false,
+    this.excludeSelected = false,
+    this.existingChats = false,
+    this.newChats = false,
+    this.contacts = false,
+    this.nonContacts = false,
+    this.userIds = const [],
+  });
+
+  factory ConnectedBotInfo.fromJson(Map<String, dynamic> j) => ConnectedBotInfo(
+    botId: j['bot_id'] as String? ?? '',
+    botName: j['bot_name'] as String? ?? '',
+    canReply: j['can_reply'] as bool? ?? false,
+    excludeSelected: j['exclude_selected'] as bool? ?? false,
+    existingChats: j['existing_chats'] as bool? ?? false,
+    newChats: j['new_chats'] as bool? ?? false,
+    contacts: j['contacts'] as bool? ?? false,
+    nonContacts: j['non_contacts'] as bool? ?? false,
+    userIds: (j['user_ids'] as List<dynamic>?)?.map((e) => e as String).toList() ?? [],
+  );
+
+  bool appliesTo(String peerId, {required bool isContact}) {
+    if (excludeSelected) {
+      return !userIds.contains(peerId);
+    }
+    if (userIds.contains(peerId)) return true;
+    if (existingChats) return true;
+    if (contacts && isContact) return true;
+    if (nonContacts && !isContact) return true;
+    return false;
+  }
+}
+
 class MsgReceivedEvent {
   final String accountId;
   final String chatId;

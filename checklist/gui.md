@@ -853,8 +853,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_view.dart, message_bubble.dart, info_panel.dart (partial bot awareness) — new: dart/lib/ui/bot_panels.dart -->
 
-- [ ] Business bot bar in chat header: pause/resume toggle + manage/remove options — spec §30.11
-
 ---
 
 ## §31 — Saved Messages

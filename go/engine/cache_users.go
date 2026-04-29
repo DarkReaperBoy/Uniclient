@@ -1555,3 +1555,51 @@ func (e *Engine) GetLanguages(accountID string) ([]LanguageInfo, error) {
 	}
 	return nil, fmt.Errorf("not supported")
 }
+
+type connectedBotsGetter interface {
+	GetConnectedBots() ([]map[string]interface{}, error)
+}
+
+func (e *Engine) GetConnectedBots(accountID string) ([]map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not connected", accountID)
+	}
+	g, ok := acc.Core.(connectedBotsGetter)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support connected bots")
+	}
+	return g.GetConnectedBots()
+}
+
+type connectedBotPauser interface {
+	ToggleConnectedBotPaused(chatID string, paused bool) error
+}
+
+func (e *Engine) ToggleConnectedBotPaused(accountID, chatID string, paused bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not connected", accountID)
+	}
+	p, ok := acc.Core.(connectedBotPauser)
+	if !ok {
+		return fmt.Errorf("platform does not support connected bot pausing")
+	}
+	return p.ToggleConnectedBotPaused(chatID, paused)
+}
+
+type connectedBotDisabler interface {
+	DisablePeerConnectedBot(chatID string) error
+}
+
+func (e *Engine) DisablePeerConnectedBot(accountID, chatID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not connected", accountID)
+	}
+	d, ok := acc.Core.(connectedBotDisabler)
+	if !ok {
+		return fmt.Errorf("platform does not support disabling connected bots")
+	}
+	return d.DisablePeerConnectedBot(chatID)
+}
