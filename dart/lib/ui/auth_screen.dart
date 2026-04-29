@@ -567,7 +567,10 @@ class _AuthScreenState extends State<AuthScreen>
       return 'Wrong password, try again.';
     }
     if (raw.contains('FLOOD_WAIT')) return 'Too many attempts. Please try again later.';
-    if (raw.contains('CODE_INVALID')) return 'Wrong recovery code.';
+    if (raw.contains('CODE_INVALID')) return 'Invalid code. Please try again.';
+    if (raw.contains('EMAIL_HASH_EXPIRED')) return 'Email confirmation expired.';
+    if (raw.contains('EMAIL_NOT_ALLOWED')) return 'This email address is not allowed.';
+    if (raw.contains('EMAIL_INVALID')) return 'Please enter a valid email address.';
     if (raw.contains('PASSWORD_RECOVERY_NA')) return 'Recovery not available.';
     if (raw.contains('PASSWORD_RECOVERY_EXPIRED')) return 'Recovery code expired.';
     return raw;

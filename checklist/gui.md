@@ -841,8 +841,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/auth_screen.dart (partial login-time check), new: dart/lib/ui/two_factor_auth.dart -->
 
-- [ ] All 9 error states mapped to user-facing strings: PASSWORD_HASH_INVALID, SRP_PASSWORD_CHANGED, SRP_ID_INVALID (silent retry), CODE_INVALID, EMAIL_INVALID, EMAIL_HASH_EXPIRED, EMAIL_NOT_ALLOWED, RECOVERY_NA/EXPIRED, FLOOD_WAIT — spec §28.12
-
 ---
 
 ## §29 — Chat Export

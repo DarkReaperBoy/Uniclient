@@ -3678,6 +3678,9 @@ class _CloudPasswordEmailState extends State<_CloudPasswordEmail> {
         if (errMsg.contains('EMAIL_INVALID')) {
           _error = 'Please enter a valid email address.';
           _emailFocus.requestFocus();
+        } else if (errMsg.contains('EMAIL_NOT_ALLOWED')) {
+          _error = 'This email address is not allowed.';
+          _emailFocus.requestFocus();
         } else if (errMsg.contains('FLOOD_WAIT')) {
           _error = 'Too many attempts. Please try again later.';
         } else if (errMsg.contains('PASSWORD_HASH_INVALID') || errMsg.contains('SRP_PASSWORD_CHANGED')) {

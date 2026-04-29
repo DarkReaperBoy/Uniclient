@@ -17,6 +17,10 @@ class AuthState extends ChangeNotifier {
   bool _submitting = false;
   String? _error;
 
+  // SRP_ID_INVALID silent-retry state (spec §28.12).
+  int _srpRetryCount = 0;
+  DateTime? _lastSrpRetry;
+
   StreamSubscription<AuthStateEvent>? _sub;
   Timer? _autoPollTimer;
 
@@ -92,9 +96,29 @@ class AuthState extends ChangeNotifier {
       final result = await _engine.submitAuthInput(auth.accountId, input);
       _currentAuth = result;
       _submitting = false;
+      _srpRetryCount = 0;
       Debug.log('AUTH', 'submitInput → state=${result?.state} label=${result?.label}');
     } catch (e, stack) {
-      _error = e.toString();
+      final errStr = e.toString();
+      if (errStr.contains('SRP_ID_INVALID')) {
+        final now = DateTime.now();
+        if (_lastSrpRetry != null && now.difference(_lastSrpRetry!).inSeconds < 60) {
+          _srpRetryCount++;
+        } else {
+          _srpRetryCount = 1;
+        }
+        _lastSrpRetry = now;
+        if (_srpRetryCount < 2) {
+          Debug.log('AUTH', 'SRP_ID_INVALID — silent retry');
+          _submitting = false;
+          notifyListeners();
+          await submitInput(input);
+          return;
+        }
+        _error = 'Server error. Please try again later.';
+      } else {
+        _error = errStr;
+      }
       _submitting = false;
       Debug.error('AUTH', 'submitInput failed', e, stack);
     }
