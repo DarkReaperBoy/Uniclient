@@ -4044,6 +4044,15 @@ const _kFullContentFade = 0.6;
 const _kGoodFadeDuration = Duration(milliseconds: 200);
 const _kMaxSegmentsCount = 180;
 
+// §32.7 Story Repost View
+const _kStoryRepostBg = Color(0x40000000);
+const _kStoryRepostSimpleRadius = 10.0;
+const _kStoryRepostSimplePadding = EdgeInsets.fromLTRB(8, 2, 8, 2);
+const _kStoryRepostQuoteBarWidth = 2.0;
+const _kStoryRepostQuoteRadius = 4.0;
+const _kStoryRepostQuotePadding = EdgeInsets.fromLTRB(8, 4, 8, 4);
+const _kStoryRepostMaxWidth = 200.0;
+
 // §32.5 Story Reply Compose
 const _kStoryComposeBg = Color(0xFF2C333D);
 const _kStoryComposeBgHover = Color(0xFF323A45);
@@ -4107,6 +4116,118 @@ class _ReactionBubblePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _ReactionBubblePainter old) => old.color != color;
+}
+
+// §32.7 Story Repost View
+class _StoryRepostView extends StatelessWidget {
+  final StoryItem story;
+  final bool useQuoteStyle;
+  final VoidCallback? onTap;
+
+  const _StoryRepostView({
+    required this.story,
+    this.useQuoteStyle = false,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (!story.isRepost) return const SizedBox.shrink();
+
+    final name = story.fwdFromName.isNotEmpty
+        ? story.fwdFromName
+        : 'Reposted Story';
+    final subtitle = story.fwdModified ? 'Modified' : 'Reposted';
+
+    if (useQuoteStyle) {
+      return _buildQuoteVariant(name, subtitle);
+    }
+    return _buildSimpleVariant(name, subtitle);
+  }
+
+  Widget _buildSimpleVariant(String name, String subtitle) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: _kStoryRepostMaxWidth),
+        padding: _kStoryRepostSimplePadding,
+        decoration: BoxDecoration(
+          color: _kStoryRepostBg,
+          borderRadius: BorderRadius.circular(_kStoryRepostSimpleRadius),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              name,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            Text(
+              subtitle,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.7),
+                fontSize: 12,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuoteVariant(String name, String subtitle) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: _kStoryRepostMaxWidth),
+        padding: _kStoryRepostQuotePadding,
+        decoration: BoxDecoration(
+          color: _kStoryRepostBg,
+          borderRadius: BorderRadius.circular(_kStoryRepostQuoteRadius),
+          border: const Border(
+            left: BorderSide(
+              color: Colors.white70,
+              width: _kStoryRepostQuoteBarWidth,
+            ),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              name,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            Text(
+              subtitle,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.7),
+                fontSize: 12,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _StoryReactionsPanel extends StatefulWidget {
@@ -4831,6 +4952,7 @@ class _StoriesViewerState extends State<StoriesViewer>
               ),
               _buildProgressBar(w),
               if (!headerOutside) _buildHeader(story),
+              if (story.isRepost) _buildRepostView(story),
               _buildNavTapZones(),
               if (story.caption.isNotEmpty) _buildCaption(story, w),
               _buildFooter(story),
@@ -5165,6 +5287,17 @@ class _StoriesViewerState extends State<StoriesViewer>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildRepostView(StoryItem story) {
+    return Positioned(
+      top: _kStoriesProgressPadding.top + _kStoriesProgressHeight + 48,
+      left: 12,
+      child: _StoryRepostView(
+        story: story,
+        useQuoteStyle: story.fwdModified,
       ),
     );
   }

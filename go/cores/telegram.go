@@ -14669,15 +14669,19 @@ func (t *TelegramCore) FetchPeerStoriesData(peerID string) (string, error) {
 	if err != nil { return "", err }
 
 	type storyItem struct {
-		ID        int     `json:"id"`
-		Date      int     `json:"date"`
-		Caption   string  `json:"caption"`
-		MediaType string  `json:"media_type"`
-		FileRef   FileRef `json:"file_ref"`
-		Views     int     `json:"views"`
-		Pinned    bool    `json:"pinned"`
-		Edited    bool    `json:"edited"`
-		Privacy   string  `json:"privacy"`
+		ID            int     `json:"id"`
+		Date          int     `json:"date"`
+		Caption       string  `json:"caption"`
+		MediaType     string  `json:"media_type"`
+		FileRef       FileRef `json:"file_ref"`
+		Views         int     `json:"views"`
+		Pinned        bool    `json:"pinned"`
+		Edited        bool    `json:"edited"`
+		Privacy       string  `json:"privacy"`
+		FwdFromName   string  `json:"fwd_from_name,omitempty"`
+		FwdFromPeerID string  `json:"fwd_from_peer_id,omitempty"`
+		FwdStoryID    int     `json:"fwd_story_id,omitempty"`
+		FwdModified   bool    `json:"fwd_modified,omitempty"`
 	}
 
 	var items []storyItem
@@ -14749,6 +14753,18 @@ func (t *TelegramCore) FetchPeerStoriesData(peerID string) (string, error) {
 				t.cacheFileInfo(d.ID, d.AccessHash, d.FileReference)
 				item.FileRef = ref
 				item.MediaType = "video"
+			}
+		}
+
+		if fwd, ok := si.GetFwdFrom(); ok {
+			item.FwdModified = fwd.Modified
+			if name, ok := fwd.GetFromName(); ok && name != "" {
+				item.FwdFromName = name
+			} else if from, ok := fwd.GetFrom(); ok {
+				item.FwdFromPeerID = peerToID(from)
+			}
+			if sid, ok := fwd.GetStoryID(); ok {
+				item.FwdStoryID = sid
 			}
 		}
 

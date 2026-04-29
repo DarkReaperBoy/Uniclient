@@ -2209,6 +2209,10 @@ class StoryItem {
   final bool pinned;
   final bool edited;
   final StoryPrivacy privacy;
+  final String fwdFromName;
+  final String fwdFromPeerId;
+  final int fwdStoryId;
+  final bool fwdModified;
 
   const StoryItem({
     required this.id,
@@ -2224,10 +2228,15 @@ class StoryItem {
     this.pinned = false,
     this.edited = false,
     this.privacy = StoryPrivacy.public,
+    this.fwdFromName = '',
+    this.fwdFromPeerId = '',
+    this.fwdStoryId = 0,
+    this.fwdModified = false,
   });
 
   bool get isVideo => mediaType == 'video';
   bool get hasMedia => localPath.isNotEmpty;
+  bool get isRepost => fwdFromName.isNotEmpty || fwdFromPeerId.isNotEmpty;
 
   factory StoryItem.fromJson(Map<String, dynamic> j) {
     final fileRef = j['file_ref'] as Map<String, dynamic>? ?? {};
@@ -2252,6 +2261,10 @@ class StoryItem {
       pinned: j['pinned'] as bool? ?? false,
       edited: j['edited'] as bool? ?? false,
       privacy: priv,
+      fwdFromName: j['fwd_from_name'] as String? ?? '',
+      fwdFromPeerId: j['fwd_from_peer_id'] as String? ?? '',
+      fwdStoryId: (j['fwd_story_id'] as num?)?.toInt() ?? 0,
+      fwdModified: j['fwd_modified'] as bool? ?? false,
     );
   }
 }
