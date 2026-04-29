@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -4019,12 +4020,24 @@ class _PipButtonState extends State<_PipButton> {
 const _kStoriesMaxWidth = 540.0;
 const _kStoriesMaxHeight = 960.0;
 const _kStoriesRadius = 8.0;
-const _kStoriesPreviewWidth = 80.0;
-const _kStoriesPreviewGap = 8.0;
 const _kStoriesProgressHeight = 2.0;
 const _kStoriesProgressGap = 4.0;
-const _kStoriesProgressPadding = EdgeInsets.symmetric(horizontal: 12, vertical: 8);
+const _kStoriesProgressPadding = EdgeInsets.fromLTRB(8, 7, 8, 6);
 const _kStoriesCaptionMaxLines = 2;
+const _kSiblingWidthRatio = 0.448;
+const _kSiblingMinWidth = 200.0;
+const _kSiblingFade = 0.5;
+const _kSiblingFadeOver = 0.4;
+const _kSiblingScaleOver = 0.05;
+const _kSiblingUserpicRatio = 0.3;
+const _kSiblingOutsidePart = 0.24;
+const _kOpacityActive = 1.0;
+const _kOpacityInactive = 0.4;
+const _kHeaderOutsideHeight = 48.0;
+const _kPhotoDuration = Duration(seconds: 5);
+const _kFullContentFade = 0.6;
+const _kGoodFadeDuration = Duration(milliseconds: 200);
+const _kMaxSegmentsCount = 180;
 
 class StoriesViewer extends StatefulWidget {
   final List<StoryItem> stories;
@@ -4078,6 +4091,9 @@ class _StoriesViewerState extends State<StoriesViewer>
   late int _currentIndex;
   bool _captionExpanded = false;
   late final FocusNode _focusNode;
+  bool _paused = false;
+  bool _leftSiblingHovered = false;
+  bool _rightSiblingHovered = false;
 
   Player? _videoPlayer;
   VideoController? _videoController;
@@ -4095,7 +4111,7 @@ class _StoriesViewerState extends State<StoriesViewer>
     _focusNode = FocusNode();
     _storyTimer = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 5),
+      duration: _kPhotoDuration,
     );
     _storyTimer.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
@@ -4154,8 +4170,39 @@ class _StoriesViewerState extends State<StoriesViewer>
     if (mounted) setState(() {});
   }
 
+  void _pausePlayback() {
+    if (_paused) return;
+    _paused = true;
+    if (_current.isVideo && _videoPlayer != null) {
+      _videoPlayer!.pause();
+    } else {
+      _storyTimer.stop();
+    }
+    setState(() {});
+  }
+
+  void _resumePlayback() {
+    if (!_paused) return;
+    _paused = false;
+    if (_current.isVideo && _videoPlayer != null) {
+      _videoPlayer!.play();
+    } else {
+      _storyTimer.forward();
+    }
+    setState(() {});
+  }
+
+  void _togglePause() {
+    if (_paused) {
+      _resumePlayback();
+    } else {
+      _pausePlayback();
+    }
+  }
+
   void _goToNext() {
     if (_currentIndex < widget.stories.length - 1) {
+      _paused = false;
       setState(() => _currentIndex++);
       _loadStory();
     } else {
@@ -4165,6 +4212,7 @@ class _StoriesViewerState extends State<StoriesViewer>
 
   void _goToPrev() {
     if (_currentIndex > 0) {
+      _paused = false;
       setState(() => _currentIndex--);
       _loadStory();
     }
@@ -4172,6 +4220,7 @@ class _StoriesViewerState extends State<StoriesViewer>
 
   void _goToIndex(int idx) {
     if (idx < 0 || idx >= widget.stories.length || idx == _currentIndex) return;
+    _paused = false;
     setState(() => _currentIndex = idx);
     _loadStory();
   }
@@ -4189,15 +4238,7 @@ class _StoriesViewerState extends State<StoriesViewer>
         _goToNext();
         return KeyEventResult.handled;
       case LogicalKeyboardKey.space:
-        if (_current.isVideo && _videoPlayer != null) {
-          _videoPlayer!.playOrPause();
-        } else {
-          if (_storyTimer.isAnimating) {
-            _storyTimer.stop();
-          } else {
-            _storyTimer.forward();
-          }
-        }
+        _togglePause();
         return KeyEventResult.handled;
       default:
         return KeyEventResult.ignored;
@@ -4208,10 +4249,19 @@ class _StoriesViewerState extends State<StoriesViewer>
     final dt = DateTime.fromMillisecondsSinceEpoch(timestamp * 1000);
     final now = DateTime.now();
     final diff = now.difference(dt);
-    if (diff.inMinutes < 1) return 'just now';
-    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    return '${diff.inDays}d ago';
+    if (diff.inSeconds < 61) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} minutes ago';
+    if (diff.inHours < 12) return '${diff.inHours} hours ago';
+    final hh = dt.hour.toString().padLeft(2, '0');
+    final mm = dt.minute.toString().padLeft(2, '0');
+    if (dt.year == now.year && dt.month == now.month && dt.day == now.day) {
+      return 'Today at $hh:$mm';
+    }
+    final yesterday = now.subtract(const Duration(days: 1));
+    if (dt.year == yesterday.year && dt.month == yesterday.month && dt.day == yesterday.day) {
+      return 'Yesterday at $hh:$mm';
+    }
+    return '${dt.day}.${dt.month.toString().padLeft(2, '0')}.${dt.year} at $hh:$mm';
   }
 
   @override
@@ -4221,11 +4271,20 @@ class _StoriesViewerState extends State<StoriesViewer>
     double storyW = _kStoriesMaxWidth;
     double storyH = _kStoriesMaxHeight;
     final scale = math.min(
-      (screenSize.width - 200) / storyW,
+      (screenSize.width * 0.5) / storyW,
       (screenSize.height - 40) / storyH,
     ).clamp(0.3, 1.0);
     storyW *= scale;
     storyH *= scale;
+
+    final headerOutside = screenSize.height > storyH + _kHeaderOutsideHeight + 40;
+
+    final availSiblingW = math.max(0.0, (screenSize.width - storyW) / 2 - 8);
+    final siblingMinW = math.min(_kSiblingMinWidth * scale, availSiblingW);
+    final siblingW = (availSiblingW * _kSiblingWidthRatio)
+        .clamp(siblingMinW, availSiblingW);
+    final siblingH = storyH * 0.65;
+    final showSiblings = siblingW >= 60;
 
     return Focus(
       focusNode: _focusNode,
@@ -4241,13 +4300,33 @@ class _StoriesViewerState extends State<StoriesViewer>
               child: Container(color: const Color(0xE6000000)),
             ),
             Center(
-              child: Row(
+              child: Column(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  ..._buildSiblingPreviews(isLeft: true, scale: scale),
-                  _buildStoryCard(storyW, storyH),
-                  ..._buildSiblingPreviews(isLeft: false, scale: scale),
+                  if (headerOutside) _buildOutsideHeader(),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      if (showSiblings) ...[
+                        _buildSiblingPreview(
+                          isLeft: true,
+                          width: siblingW,
+                          height: siblingH,
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      _buildStoryCard(storyW, storyH, headerOutside: headerOutside),
+                      if (showSiblings) ...[
+                        const SizedBox(width: 8),
+                        _buildSiblingPreview(
+                          isLeft: false,
+                          width: siblingW,
+                          height: siblingH,
+                        ),
+                      ],
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -4257,7 +4336,7 @@ class _StoriesViewerState extends State<StoriesViewer>
     );
   }
 
-  Widget _buildStoryCard(double w, double h) {
+  Widget _buildStoryCard(double w, double h, {required bool headerOutside}) {
     final story = _current;
 
     return SizedBox(
@@ -4272,7 +4351,7 @@ class _StoriesViewerState extends State<StoriesViewer>
             children: [
               _buildStoryContent(story, w, h),
               _buildProgressBar(w),
-              _buildHeader(story),
+              if (!headerOutside) _buildHeader(story),
               _buildNavTapZones(),
               if (story.caption.isNotEmpty) _buildCaption(story, w),
               _buildFooter(story),
@@ -4321,8 +4400,68 @@ class _StoriesViewerState extends State<StoriesViewer>
     );
   }
 
+  Widget _buildOutsideHeader() {
+    final story = _current;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (widget.peerAvatarPath != null && widget.peerAvatarPath!.isNotEmpty)
+            ClipOval(
+              child: Image.file(
+                File(widget.peerAvatarPath!),
+                width: 28,
+                height: 28,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _avatarFallback(28),
+              ),
+            )
+          else
+            _avatarFallback(28),
+          const SizedBox(width: 10),
+          Text(
+            widget.peerName,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            _formatDate(story.date),
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.8),
+              fontSize: 11,
+            ),
+          ),
+          Text(
+            ' • ${_currentIndex + 1}/${widget.stories.length}',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.8),
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _avatarFallback(double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.blueGrey,
+      ),
+      child: Icon(Icons.person, size: size * 0.6, color: Colors.white70),
+    );
+  }
+
   Widget _buildProgressBar(double width) {
-    final count = widget.stories.length;
+    final count = widget.stories.length.clamp(0, _kMaxSegmentsCount);
     if (count == 0) return const SizedBox.shrink();
 
     return Positioned(
@@ -4341,9 +4480,9 @@ class _StoriesViewerState extends State<StoriesViewer>
                 child: SizedBox(
                   height: _kStoriesProgressHeight,
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(1),
+                    borderRadius: BorderRadius.circular(_kStoriesProgressHeight / 2),
                     child: i < _currentIndex
-                        ? Container(color: Colors.white)
+                        ? Container(color: Colors.white.withValues(alpha: _kOpacityActive))
                         : i == _currentIndex
                             ? AnimatedBuilder(
                                 animation: _current.isVideo && _videoDuration.inMilliseconds > 0
@@ -4357,13 +4496,15 @@ class _StoriesViewerState extends State<StoriesViewer>
                                       : _storyTimer.value;
                                   return LinearProgressIndicator(
                                     value: progress.clamp(0.0, 1.0),
-                                    backgroundColor: Colors.white38,
-                                    valueColor: const AlwaysStoppedAnimation(Colors.white),
+                                    backgroundColor: Colors.white.withValues(alpha: _kOpacityInactive),
+                                    valueColor: AlwaysStoppedAnimation(
+                                      Colors.white.withValues(alpha: _kOpacityActive),
+                                    ),
                                     minHeight: _kStoriesProgressHeight,
                                   );
                                 },
                               )
-                            : Container(color: Colors.white38),
+                            : Container(color: Colors.white.withValues(alpha: _kOpacityInactive)),
                   ),
                 ),
               ),
@@ -4376,7 +4517,7 @@ class _StoriesViewerState extends State<StoriesViewer>
 
   Widget _buildHeader(StoryItem story) {
     return Positioned(
-      top: _kStoriesProgressPadding.top + _kStoriesProgressHeight + 8,
+      top: _kStoriesProgressPadding.top + _kStoriesProgressHeight + 4,
       left: 12,
       right: 12,
       child: Row(
@@ -4385,28 +4526,15 @@ class _StoriesViewerState extends State<StoriesViewer>
             ClipOval(
               child: Image.file(
                 File(widget.peerAvatarPath!),
-                width: 32,
-                height: 32,
+                width: 28,
+                height: 28,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  width: 32,
-                  height: 32,
-                  color: Colors.blueGrey,
-                  child: const Icon(Icons.person, size: 18, color: Colors.white70),
-                ),
+                errorBuilder: (_, __, ___) => _avatarFallback(28),
               ),
             )
           else
-            Container(
-              width: 32,
-              height: 32,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.blueGrey,
-              ),
-              child: const Icon(Icons.person, size: 18, color: Colors.white70),
-            ),
-          const SizedBox(width: 8),
+            _avatarFallback(28),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -4422,16 +4550,38 @@ class _StoriesViewerState extends State<StoriesViewer>
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                Text(
-                  _formatDate(story.date),
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 11,
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      _formatDate(story.date),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.8),
+                        fontSize: 11,
+                      ),
+                    ),
+                    Text(
+                      ' • ${_currentIndex + 1}/${widget.stories.length}',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.8),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
+          if (_paused)
+            GestureDetector(
+              onTap: _resumePlayback,
+              child: const Icon(Icons.play_arrow, color: Colors.white70, size: 24),
+            )
+          else
+            GestureDetector(
+              onTap: _pausePlayback,
+              child: const Icon(Icons.pause, color: Colors.white70, size: 24),
+            ),
+          const SizedBox(width: 8),
           GestureDetector(
             onTap: () => Navigator.of(context).maybePop(),
             child: const Icon(Icons.close, color: Colors.white70, size: 24),
@@ -4443,43 +4593,38 @@ class _StoriesViewerState extends State<StoriesViewer>
 
   Widget _buildNavTapZones() {
     return Positioned.fill(
-      child: Row(
-        children: [
-          Expanded(
-            flex: 1,
-            child: GestureDetector(
-              onTap: _goToPrev,
-              behavior: HitTestBehavior.translucent,
-              child: const SizedBox.expand(),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: GestureDetector(
-              onTap: () {
-                if (_current.isVideo && _videoPlayer != null) {
-                  _videoPlayer!.playOrPause();
-                } else {
-                  if (_storyTimer.isAnimating) {
-                    _storyTimer.stop();
-                  } else {
-                    _storyTimer.forward();
-                  }
-                }
-              },
-              behavior: HitTestBehavior.translucent,
-              child: const SizedBox.expand(),
-            ),
-          ),
-          Expanded(
-            flex: 1,
-            child: GestureDetector(
-              onTap: _goToNext,
-              behavior: HitTestBehavior.translucent,
-              child: const SizedBox.expand(),
-            ),
-          ),
-        ],
+      child: GestureDetector(
+        onLongPressStart: (_) => _pausePlayback(),
+        onLongPressEnd: (_) => _resumePlayback(),
+        behavior: HitTestBehavior.translucent,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final thirdW = constraints.maxWidth / 3;
+            return Row(
+              children: [
+                SizedBox(
+                  width: thirdW,
+                  child: GestureDetector(
+                    onTap: _goToPrev,
+                    behavior: HitTestBehavior.translucent,
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+                Expanded(
+                  child: const SizedBox.expand(),
+                ),
+                SizedBox(
+                  width: thirdW,
+                  child: GestureDetector(
+                    onTap: _goToNext,
+                    behavior: HitTestBehavior.translucent,
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -4552,37 +4697,89 @@ class _StoriesViewerState extends State<StoriesViewer>
     );
   }
 
-  List<Widget> _buildSiblingPreviews({required bool isLeft, required double scale}) {
+  Widget _buildSiblingPreview({
+    required bool isLeft,
+    required double width,
+    required double height,
+  }) {
     final idx = isLeft ? _currentIndex - 1 : _currentIndex + 1;
     if (idx < 0 || idx >= widget.stories.length) {
-      return [SizedBox(width: _kStoriesPreviewWidth * scale + _kStoriesPreviewGap)];
+      return SizedBox(width: width);
     }
 
-    final previewH = _kStoriesMaxHeight * scale * 0.6;
-    final previewW = _kStoriesPreviewWidth * scale;
     final story = widget.stories[idx];
+    final isHovered = isLeft ? _leftSiblingHovered : _rightSiblingHovered;
+    final opacity = isHovered ? _kSiblingFadeOver : _kSiblingFade;
+    final scaleVal = isHovered ? 1.0 + _kSiblingScaleOver : 1.0;
+    final userpicSize = width * _kSiblingUserpicRatio;
 
-    return [
-      if (!isLeft) const SizedBox(width: _kStoriesPreviewGap),
-      GestureDetector(
+    return MouseRegion(
+      onEnter: (_) => setState(() {
+        if (isLeft) _leftSiblingHovered = true; else _rightSiblingHovered = true;
+      }),
+      onExit: (_) => setState(() {
+        if (isLeft) _leftSiblingHovered = false; else _rightSiblingHovered = false;
+      }),
+      child: GestureDetector(
         onTap: () => _goToIndex(idx),
-        child: Opacity(
-          opacity: 0.5,
-          child: SizedBox(
-            width: previewW,
-            height: previewH,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(_kStoriesRadius * 0.6),
-              child: Container(
-                color: Colors.grey.shade900,
-                child: _buildPreviewContent(story, previewW, previewH),
+        child: AnimatedScale(
+          scale: scaleVal,
+          duration: _kGoodFadeDuration,
+          child: AnimatedOpacity(
+            opacity: opacity,
+            duration: _kGoodFadeDuration,
+            child: SizedBox(
+              width: width,
+              height: height,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(_kStoriesRadius),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Container(color: Colors.black),
+                    ImageFiltered(
+                      imageFilter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: _buildPreviewContent(story, width, height),
+                    ),
+                    Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (widget.peerAvatarPath != null && widget.peerAvatarPath!.isNotEmpty)
+                            ClipOval(
+                              child: Image.file(
+                                File(widget.peerAvatarPath!),
+                                width: userpicSize,
+                                height: userpicSize,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => _avatarFallback(userpicSize),
+                              ),
+                            )
+                          else
+                            _avatarFallback(userpicSize),
+                          const SizedBox(height: 8),
+                          Text(
+                            widget.peerName,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: isHovered ? 1.0 : 0.8),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
         ),
       ),
-      if (isLeft) const SizedBox(width: _kStoriesPreviewGap),
-    ];
+    );
   }
 
   Widget _buildPreviewContent(StoryItem story, double w, double h) {
