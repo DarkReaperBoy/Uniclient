@@ -1320,6 +1320,12 @@ class ContactInfo {
   final bool isOnline;
   final int storyCount;
   final bool hasUnreadStory;
+  final bool isVerified;
+  final bool isPremium;
+  final bool isScam;
+  final bool isFake;
+  final String lastSeenKind;
+  final int lastSeenTs;
 
   const ContactInfo({
     required this.userId,
@@ -1331,6 +1337,12 @@ class ContactInfo {
     this.isOnline = false,
     this.storyCount = 0,
     this.hasUnreadStory = false,
+    this.isVerified = false,
+    this.isPremium = false,
+    this.isScam = false,
+    this.isFake = false,
+    this.lastSeenKind = '',
+    this.lastSeenTs = 0,
   });
 
   bool get hasStories => storyCount > 0;

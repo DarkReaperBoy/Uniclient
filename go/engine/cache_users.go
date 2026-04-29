@@ -503,6 +503,12 @@ type ContactInfo struct {
 	IsOnline       bool   `json:"is_online"`
 	StoryCount     int32  `json:"story_count,omitempty"`
 	HasUnreadStory bool   `json:"has_unread_story,omitempty"`
+	IsVerified     bool   `json:"is_verified,omitempty"`
+	IsPremium      bool   `json:"is_premium,omitempty"`
+	IsScam         bool   `json:"is_scam,omitempty"`
+	IsFake         bool   `json:"is_fake,omitempty"`
+	LastSeenKind   string `json:"last_seen_kind,omitempty"`
+	LastSeenTs     int64  `json:"last_seen_ts,omitempty"`
 }
 
 // GetContacts fetches the contact list from the connected core.
@@ -523,6 +529,10 @@ func (e *Engine) GetContacts(accountID string) ([]ContactInfo, error) {
 	contacts := make([]ContactInfo, 0, len(users))
 	for _, u := range users {
 		e.UpsertUser(accountID, u)
+		var lastSeenTs int64
+		if u.LastSeen != nil {
+			lastSeenTs = u.LastSeen.Unix()
+		}
 		contacts = append(contacts, ContactInfo{
 			UserID:         u.ID,
 			Username:       u.Username,
@@ -533,6 +543,12 @@ func (e *Engine) GetContacts(accountID string) ([]ContactInfo, error) {
 			IsOnline:       u.IsOnline,
 			StoryCount:     int32(u.StoryCount),
 			HasUnreadStory: u.HasUnreadStory,
+			IsVerified:     u.IsVerified,
+			IsPremium:      u.IsPremium,
+			IsScam:         u.IsScam,
+			IsFake:         u.IsFake,
+			LastSeenKind:   u.LastSeenKind,
+			LastSeenTs:     lastSeenTs,
 		})
 	}
 	return contacts, nil

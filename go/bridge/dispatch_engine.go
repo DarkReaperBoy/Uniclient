@@ -1493,6 +1493,12 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 				IsOnline:       c.IsOnline,
 				StoryCount:     c.StoryCount,
 				HasUnreadStory: c.HasUnreadStory,
+				IsVerified:     c.IsVerified,
+				IsPremium:      c.IsPremium,
+				IsScam:         c.IsScam,
+				IsFake:         c.IsFake,
+				LastSeenKind:   c.LastSeenKind,
+				LastSeenTs:     c.LastSeenTs,
 			})
 		}
 		return proto.Marshal(resp)

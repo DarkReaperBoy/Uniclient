@@ -574,9 +574,15 @@ class _ContactRow extends StatefulWidget {
 class _ContactRowState extends State<_ContactRow> {
   bool _hovered = false;
 
-  static const _rowHeightDefault = 56.0;
-  static const _rowHeightWithStories = 52.0;
+  static const _rowHeight = 56.0;
   static const _avatarSize = 42.0;
+  static const _avatarLeft = 16.0;
+  static const _avatarTop = 7.0;
+  static const _nameLeft = 74.0;
+  static const _nameTop = 9.0;
+  static const _statusLeft = 74.0;
+  static const _statusTop = 30.0;
+  static const _rightPad = 16.0;
   static const _ringStrokeUnread = 2.0;
   static const _ringStrokeRead = 1.0;
   static const _ringGap = 2.0;
@@ -591,11 +597,152 @@ class _ContactRowState extends State<_ContactRow> {
     Color(0xFFF06292),
   ];
 
+  static const _onlineColor = Color(0xFF4dc920);
+  static const _statusOnlineColor = Color(0xFF4fae4e);
+  static const _statusOfflineDay = Color(0xFF999999);
+  static const _statusOfflineNight = Color(0xFF6C7883);
+  static const _statusHoverDay = Color(0xFF7c99b2);
+  static const _statusHoverNight = Color(0xFF7c99b2);
+
+  String _statusText(ContactInfo c) {
+    if (c.isOnline || c.lastSeenKind == 'online') return 'online';
+    switch (c.lastSeenKind) {
+      case 'recently':
+        return 'last seen recently';
+      case 'within_week':
+        return 'last seen within a week';
+      case 'within_month':
+        return 'last seen within a month';
+      case 'long_ago':
+        return 'last seen a long time ago';
+      case 'exact':
+        if (c.lastSeenTs > 0) {
+          final dt = DateTime.fromMillisecondsSinceEpoch(c.lastSeenTs * 1000);
+          final now = DateTime.now();
+          final diff = now.difference(dt);
+          if (diff.inDays == 0) {
+            final h = dt.hour.toString().padLeft(2, '0');
+            final m = dt.minute.toString().padLeft(2, '0');
+            return 'last seen today at $h:$m';
+          } else if (diff.inDays == 1) {
+            final h = dt.hour.toString().padLeft(2, '0');
+            final m = dt.minute.toString().padLeft(2, '0');
+            return 'last seen yesterday at $h:$m';
+          } else {
+            final months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            final h = dt.hour.toString().padLeft(2, '0');
+            final m = dt.minute.toString().padLeft(2, '0');
+            return 'last seen ${months[dt.month - 1]} ${dt.day} at $h:$m';
+          }
+        }
+        return 'last seen a long time ago';
+      default:
+        return 'last seen a long time ago';
+    }
+  }
+
+  Color _statusColor(ContactInfo c) {
+    if (c.isOnline || c.lastSeenKind == 'online') return _statusOnlineColor;
+    if (_hovered) return widget.isDark ? _statusHoverNight : _statusHoverDay;
+    return widget.isDark ? _statusOfflineNight : _statusOfflineDay;
+  }
+
+  void _showContextMenu(BuildContext context, Offset position) {
+    final isDark = widget.isDark;
+    final contact = widget.contact;
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx + 1, position.dy + 1),
+      items: [
+        PopupMenuItem(value: 'edit', child: Row(children: [
+          Icon(Icons.edit, size: 20, color: isDark ? const Color(0xFFF5F5F5) : const Color(0xFF222222)),
+          const SizedBox(width: 12),
+          const Text('Edit Contact'),
+        ])),
+        PopupMenuItem(value: 'share', child: Row(children: [
+          Icon(Icons.person_add, size: 20, color: isDark ? const Color(0xFFF5F5F5) : const Color(0xFF222222)),
+          const SizedBox(width: 12),
+          const Text('Share Contact'),
+        ])),
+        PopupMenuItem(value: 'delete', child: Row(children: [
+          Icon(Icons.delete, size: 20, color: Theme.of(context).colorScheme.error),
+          const SizedBox(width: 12),
+          Text('Delete Contact', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+        ])),
+        if (!contact.isBot)
+          PopupMenuItem(value: 'block', child: Row(children: [
+            Icon(Icons.block, size: 20, color: Theme.of(context).colorScheme.error),
+            const SizedBox(width: 12),
+            Text('Block User', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          ])),
+      ],
+    ).then((value) {
+      if (value == null || !mounted) return;
+      switch (value) {
+        case 'delete':
+          _deleteContact(contact);
+        case 'block':
+          _blockUser(contact);
+        default:
+          break;
+      }
+    });
+  }
+
+  void _deleteContact(ContactInfo contact) {
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final account = appState.activeAccount;
+    if (account == null) return;
+    showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Contact'),
+        content: Text('Delete ${contact.label} from your contacts?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Delete', style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+          ),
+        ],
+      ),
+    ).then((confirmed) {
+      if (confirmed == true) {
+        engine.deleteContact(account.id, contact.userId);
+      }
+    });
+  }
+
+  void _blockUser(ContactInfo contact) {
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final account = appState.activeAccount;
+    if (account == null) return;
+    showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Block User'),
+        content: Text('Block ${contact.label}?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Block', style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+          ),
+        ],
+      ),
+    ).then((confirmed) {
+      if (confirmed == true) {
+        engine.blockUser(account.id, contact.userId);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final contact = widget.contact;
     final hasStories = contact.hasStories;
-    final rowHeight = hasStories ? _rowHeightWithStories : _rowHeightDefault;
     final colorIndex = contact.userId.hashCode.abs() % _avatarColors.length;
     final avatarColor = _avatarColors[colorIndex];
     final initials = _initials(
@@ -603,6 +750,8 @@ class _ContactRowState extends State<_ContactRow> {
 
     final ringStroke = contact.hasUnreadStory ? _ringStrokeUnread : _ringStrokeRead;
     final ringOuterSize = hasStories ? _avatarSize + (ringStroke + _ringGap) * 2 : _avatarSize;
+    final avatarOffsetX = hasStories ? _avatarLeft - (ringOuterSize - _avatarSize) / 2 : _avatarLeft;
+    final avatarOffsetY = hasStories ? _avatarTop - (ringOuterSize - _avatarSize) / 2 : _avatarTop;
 
     Widget avatarWidget = contact.avatarB64.isNotEmpty
         ? ClipOval(
@@ -653,7 +802,7 @@ class _ContactRowState extends State<_ContactRow> {
                   width: 10,
                   height: 10,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF4dc920),
+                    color: _onlineColor,
                     shape: BoxShape.circle,
                     border: Border.all(
                       color: _hovered ? widget.hoverBg : widget.bgColor,
@@ -667,54 +816,116 @@ class _ContactRowState extends State<_ContactRow> {
       );
     }
 
+    final statusText = _statusText(contact);
+    final statusColor = _statusColor(contact);
+
+    final nameBadges = <InlineSpan>[];
+    if (contact.isVerified) {
+      nameBadges.add(const WidgetSpan(
+        alignment: PlaceholderAlignment.middle,
+        child: Padding(
+          padding: EdgeInsets.only(left: 4),
+          child: Icon(Icons.verified, size: 16, color: Color(0xFF40a7e3)),
+        ),
+      ));
+    }
+    if (contact.isPremium) {
+      nameBadges.add(const WidgetSpan(
+        alignment: PlaceholderAlignment.middle,
+        child: Padding(
+          padding: EdgeInsets.only(left: 4),
+          child: Icon(Icons.star, size: 16, color: Color(0xFF8b5cf6)),
+        ),
+      ));
+    }
+    if (contact.isScam) {
+      nameBadges.add(WidgetSpan(
+        alignment: PlaceholderAlignment.middle,
+        child: Padding(
+          padding: const EdgeInsets.only(left: 4),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+            decoration: BoxDecoration(
+              color: const Color(0xFFe53935),
+              borderRadius: BorderRadius.circular(3),
+            ),
+            child: const Text('SCAM', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700)),
+          ),
+        ),
+      ));
+    } else if (contact.isFake) {
+      nameBadges.add(WidgetSpan(
+        alignment: PlaceholderAlignment.middle,
+        child: Padding(
+          padding: const EdgeInsets.only(left: 4),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+            decoration: BoxDecoration(
+              color: const Color(0xFFe53935),
+              borderRadius: BorderRadius.circular(3),
+            ),
+            child: const Text('FAKE', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700)),
+          ),
+        ),
+      ));
+    }
+
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
         onTap: widget.onTap,
+        onTertiaryTapDown: (_) => widget.onTap(),
+        onSecondaryTapDown: (details) => _showContextMenu(context, details.globalPosition),
         behavior: HitTestBehavior.opaque,
-        child: Container(
-          height: rowHeight,
-          color: _hovered ? widget.hoverBg : Colors.transparent,
-          padding: EdgeInsets.only(
-            left: hasStories ? 18.0 : 16.0,
-            right: 16,
-          ),
-          child: Row(
-            children: [
-              avatarArea,
-              SizedBox(width: hasStories ? 70.0 - 18.0 - ringOuterSize : 12.0),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      contact.label,
+        child: Material(
+          color: Colors.transparent,
+          child: Ink(
+            color: _hovered ? widget.hoverBg : Colors.transparent,
+            child: SizedBox(
+              height: _rowHeight,
+              child: Stack(
+                children: [
+                  Positioned(
+                    left: avatarOffsetX,
+                    top: avatarOffsetY,
+                    child: avatarArea,
+                  ),
+                  Positioned(
+                    left: _nameLeft,
+                    top: _nameTop,
+                    right: _rightPad,
+                    child: RichText(
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      text: TextSpan(
+                        text: contact.label,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: widget.textColor,
+                        ),
+                        children: nameBadges,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: _statusLeft,
+                    top: _statusTop,
+                    right: _rightPad,
+                    child: Text(
+                      statusText,
                       style: TextStyle(
                         fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: widget.textColor,
+                        color: statusColor,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (contact.phone.isNotEmpty || contact.username.isNotEmpty)
-                      Text(
-                        contact.phone.isNotEmpty
-                            ? contact.phone
-                            : '@${contact.username}',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: widget.subtextColor,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),

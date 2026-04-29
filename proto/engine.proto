@@ -714,6 +714,12 @@ message EngineContactInfo {
   bool   is_online        = 7;
   int32  story_count      = 8;
   bool   has_unread_story = 9;
+  bool   is_verified      = 10;
+  bool   is_premium       = 11;
+  bool   is_scam          = 12;
+  bool   is_fake          = 13;
+  string last_seen_kind   = 14;
+  int64  last_seen_ts     = 15;
 }
 
 message EngineGetContactsRequest {

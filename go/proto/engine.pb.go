@@ -5922,6 +5922,12 @@ type EngineContactInfo struct {
 	IsOnline       bool                   `protobuf:"varint,7,opt,name=is_online,json=isOnline,proto3" json:"is_online,omitempty"`
 	StoryCount     int32                  `protobuf:"varint,8,opt,name=story_count,json=storyCount,proto3" json:"story_count,omitempty"`
 	HasUnreadStory bool                   `protobuf:"varint,9,opt,name=has_unread_story,json=hasUnreadStory,proto3" json:"has_unread_story,omitempty"`
+	IsVerified     bool                   `protobuf:"varint,10,opt,name=is_verified,json=isVerified,proto3" json:"is_verified,omitempty"`
+	IsPremium      bool                   `protobuf:"varint,11,opt,name=is_premium,json=isPremium,proto3" json:"is_premium,omitempty"`
+	IsScam         bool                   `protobuf:"varint,12,opt,name=is_scam,json=isScam,proto3" json:"is_scam,omitempty"`
+	IsFake         bool                   `protobuf:"varint,13,opt,name=is_fake,json=isFake,proto3" json:"is_fake,omitempty"`
+	LastSeenKind   string                 `protobuf:"bytes,14,opt,name=last_seen_kind,json=lastSeenKind,proto3" json:"last_seen_kind,omitempty"`
+	LastSeenTs     int64                  `protobuf:"varint,15,opt,name=last_seen_ts,json=lastSeenTs,proto3" json:"last_seen_ts,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -6017,6 +6023,48 @@ func (x *EngineContactInfo) GetHasUnreadStory() bool {
 		return x.HasUnreadStory
 	}
 	return false
+}
+
+func (x *EngineContactInfo) GetIsVerified() bool {
+	if x != nil {
+		return x.IsVerified
+	}
+	return false
+}
+
+func (x *EngineContactInfo) GetIsPremium() bool {
+	if x != nil {
+		return x.IsPremium
+	}
+	return false
+}
+
+func (x *EngineContactInfo) GetIsScam() bool {
+	if x != nil {
+		return x.IsScam
+	}
+	return false
+}
+
+func (x *EngineContactInfo) GetIsFake() bool {
+	if x != nil {
+		return x.IsFake
+	}
+	return false
+}
+
+func (x *EngineContactInfo) GetLastSeenKind() string {
+	if x != nil {
+		return x.LastSeenKind
+	}
+	return ""
+}
+
+func (x *EngineContactInfo) GetLastSeenTs() int64 {
+	if x != nil {
+		return x.LastSeenTs
+	}
+	return 0
 }
 
 type EngineGetContactsRequest struct {
@@ -11618,7 +11666,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
 	"\amembers\x18\x03 \x03(\tR\amembers\"J\n" +
 	"\x19EngineCreateGroupResponse\x12-\n" +
-	"\x04chat\x18\x01 \x01(\v2\x19.uniclient.EngineChatInfoR\x04chat\"\x9f\x02\n" +
+	"\x04chat\x18\x01 \x01(\v2\x19.uniclient.EngineChatInfoR\x04chat\"\xd9\x03\n" +
 	"\x11EngineContactInfo\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1a\n" +
 	"\busername\x18\x02 \x01(\tR\busername\x12!\n" +
@@ -11630,7 +11678,17 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\tis_online\x18\a \x01(\bR\bisOnline\x12\x1f\n" +
 	"\vstory_count\x18\b \x01(\x05R\n" +
 	"storyCount\x12(\n" +
-	"\x10has_unread_story\x18\t \x01(\bR\x0ehasUnreadStory\"9\n" +
+	"\x10has_unread_story\x18\t \x01(\bR\x0ehasUnreadStory\x12\x1f\n" +
+	"\vis_verified\x18\n" +
+	" \x01(\bR\n" +
+	"isVerified\x12\x1d\n" +
+	"\n" +
+	"is_premium\x18\v \x01(\bR\tisPremium\x12\x17\n" +
+	"\ais_scam\x18\f \x01(\bR\x06isScam\x12\x17\n" +
+	"\ais_fake\x18\r \x01(\bR\x06isFake\x12$\n" +
+	"\x0elast_seen_kind\x18\x0e \x01(\tR\flastSeenKind\x12 \n" +
+	"\flast_seen_ts\x18\x0f \x01(\x03R\n" +
+	"lastSeenTs\"9\n" +
 	"\x18EngineGetContactsRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\"U\n" +

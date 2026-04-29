@@ -10600,6 +10600,8 @@ func (t *TelegramCore) convertUser(user *tg.User) *User {
 		IsContact:   user.Contact,
 		IsVerified:  user.Verified,
 		IsPremium:   user.Premium,
+		IsScam:      user.Scam,
+		IsFake:      user.Fake,
 		EmojiStatusID: extractEmojiStatusID(user.EmojiStatus),
 		Platform:    tgPlatform,
 	}
@@ -10633,6 +10635,7 @@ func (t *TelegramCore) convertUser(user *tg.User) *User {
 		default:
 			emit = false
 		}
+		u.LastSeenKind = kind
 		if emit {
 			isOnline := u.IsOnline
 			t.fireUpdate(Update{

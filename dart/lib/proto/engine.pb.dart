@@ -7562,6 +7562,14 @@ class EngineContactInfo extends $pb.GeneratedMessage {
     $core.String? avatarB64,
     $core.bool? isBot,
     $core.bool? isOnline,
+    $core.int? storyCount,
+    $core.bool? hasUnreadStory,
+    $core.bool? isVerified,
+    $core.bool? isPremium,
+    $core.bool? isScam,
+    $core.bool? isFake,
+    $core.String? lastSeenKind,
+    $fixnum.Int64? lastSeenTs,
   }) {
     final $result = create();
     if (userId != null) {
@@ -7585,6 +7593,30 @@ class EngineContactInfo extends $pb.GeneratedMessage {
     if (isOnline != null) {
       $result.isOnline = isOnline;
     }
+    if (storyCount != null) {
+      $result.storyCount = storyCount;
+    }
+    if (hasUnreadStory != null) {
+      $result.hasUnreadStory = hasUnreadStory;
+    }
+    if (isVerified != null) {
+      $result.isVerified = isVerified;
+    }
+    if (isPremium != null) {
+      $result.isPremium = isPremium;
+    }
+    if (isScam != null) {
+      $result.isScam = isScam;
+    }
+    if (isFake != null) {
+      $result.isFake = isFake;
+    }
+    if (lastSeenKind != null) {
+      $result.lastSeenKind = lastSeenKind;
+    }
+    if (lastSeenTs != null) {
+      $result.lastSeenTs = lastSeenTs;
+    }
     return $result;
   }
   EngineContactInfo._() : super();
@@ -7601,6 +7633,12 @@ class EngineContactInfo extends $pb.GeneratedMessage {
     ..aOB(7, _omitFieldNames ? '' : 'isOnline')
     ..a<$core.int>(8, _omitFieldNames ? '' : 'storyCount', $pb.PbFieldType.O3)
     ..aOB(9, _omitFieldNames ? '' : 'hasUnreadStory')
+    ..aOB(10, _omitFieldNames ? '' : 'isVerified')
+    ..aOB(11, _omitFieldNames ? '' : 'isPremium')
+    ..aOB(12, _omitFieldNames ? '' : 'isScam')
+    ..aOB(13, _omitFieldNames ? '' : 'isFake')
+    ..aOS(14, _omitFieldNames ? '' : 'lastSeenKind')
+    ..aInt64(15, _omitFieldNames ? '' : 'lastSeenTs')
     ..hasRequiredFields = false
   ;
 
@@ -7705,6 +7743,60 @@ class EngineContactInfo extends $pb.GeneratedMessage {
   $core.bool hasHasUnreadStory() => $_has(8);
   @$pb.TagNumber(9)
   void clearHasUnreadStory() => clearField(9);
+
+  @$pb.TagNumber(10)
+  $core.bool get isVerified => $_getBF(9);
+  @$pb.TagNumber(10)
+  set isVerified($core.bool v) { $_setBool(9, v); }
+  @$pb.TagNumber(10)
+  $core.bool hasIsVerified() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearIsVerified() => clearField(10);
+
+  @$pb.TagNumber(11)
+  $core.bool get isPremium => $_getBF(10);
+  @$pb.TagNumber(11)
+  set isPremium($core.bool v) { $_setBool(10, v); }
+  @$pb.TagNumber(11)
+  $core.bool hasIsPremium() => $_has(10);
+  @$pb.TagNumber(11)
+  void clearIsPremium() => clearField(11);
+
+  @$pb.TagNumber(12)
+  $core.bool get isScam => $_getBF(11);
+  @$pb.TagNumber(12)
+  set isScam($core.bool v) { $_setBool(11, v); }
+  @$pb.TagNumber(12)
+  $core.bool hasIsScam() => $_has(11);
+  @$pb.TagNumber(12)
+  void clearIsScam() => clearField(12);
+
+  @$pb.TagNumber(13)
+  $core.bool get isFake => $_getBF(12);
+  @$pb.TagNumber(13)
+  set isFake($core.bool v) { $_setBool(12, v); }
+  @$pb.TagNumber(13)
+  $core.bool hasIsFake() => $_has(12);
+  @$pb.TagNumber(13)
+  void clearIsFake() => clearField(13);
+
+  @$pb.TagNumber(14)
+  $core.String get lastSeenKind => $_getSZ(13);
+  @$pb.TagNumber(14)
+  set lastSeenKind($core.String v) { $_setString(13, v); }
+  @$pb.TagNumber(14)
+  $core.bool hasLastSeenKind() => $_has(13);
+  @$pb.TagNumber(14)
+  void clearLastSeenKind() => clearField(14);
+
+  @$pb.TagNumber(15)
+  $fixnum.Int64 get lastSeenTs => $_getI64(14);
+  @$pb.TagNumber(15)
+  set lastSeenTs($fixnum.Int64 v) { $_setInt64(14, v); }
+  @$pb.TagNumber(15)
+  $core.bool hasLastSeenTs() => $_has(14);
+  @$pb.TagNumber(15)
+  void clearLastSeenTs() => clearField(15);
 }
 
 class EngineGetContactsRequest extends $pb.GeneratedMessage {

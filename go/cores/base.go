@@ -143,15 +143,18 @@ type User struct {
 	IsOnline    bool   `json:"is_online"`
 	IsContact   bool   `json:"is_contact"`
 	IsBlocked   bool   `json:"is_blocked"`
-	LastSeen    *time.Time `json:"last_seen,omitempty"`
-	IsVerified    bool   `json:"is_verified,omitempty"`
-	IsPremium     bool   `json:"is_premium,omitempty"`
-	EmojiStatusID string `json:"emoji_status_id,omitempty"`
-	BotMenuText   string `json:"bot_menu_text,omitempty"`
-	Role          string `json:"role,omitempty"`
-	Platform      string `json:"platform"`
-	StoryCount    int    `json:"story_count,omitempty"`
-	HasUnreadStory bool  `json:"has_unread_story,omitempty"`
+	LastSeen      *time.Time `json:"last_seen,omitempty"`
+	LastSeenKind  string     `json:"last_seen_kind,omitempty"`
+	IsVerified    bool       `json:"is_verified,omitempty"`
+	IsPremium     bool       `json:"is_premium,omitempty"`
+	IsScam        bool       `json:"is_scam,omitempty"`
+	IsFake        bool       `json:"is_fake,omitempty"`
+	EmojiStatusID string     `json:"emoji_status_id,omitempty"`
+	BotMenuText   string     `json:"bot_menu_text,omitempty"`
+	Role          string     `json:"role,omitempty"`
+	Platform      string     `json:"platform"`
+	StoryCount    int        `json:"story_count,omitempty"`
+	HasUnreadStory bool      `json:"has_unread_story,omitempty"`
 }
 
 // Dialog represents a conversation (DM, group, channel, or topic) in the chat list.

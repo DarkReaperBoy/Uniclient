@@ -3591,6 +3591,12 @@ class EngineService {
     isOnline: p.isOnline,
     storyCount: p.storyCount,
     hasUnreadStory: p.hasUnreadStory,
+    isVerified: p.isVerified,
+    isPremium: p.isPremium,
+    isScam: p.isScam,
+    isFake: p.isFake,
+    lastSeenKind: _safeStr(p.lastSeenKind),
+    lastSeenTs: p.lastSeenTs.toInt(),
   );
 
   static SearchResult _searchResultFromProto(epb.EngineSearchResult p) => SearchResult(

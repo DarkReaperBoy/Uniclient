@@ -872,7 +872,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/hamburger_drawer.dart, chat_list_panel.dart (partial contact references) — new: dart/lib/ui/contacts_screen.dart -->
 
-- [ ] Contact list rows: 56px height, 42px avatar at (16,7), name (semibold, verified/premium/scam badges), status (3 color states: online/offline/hover, status types including Custom), ripple hover, click=chat/middle-click=new window/right-click=context menu — spec §33.4
 - [ ] Add Contact dialog: first+last name + PhoneInput with country code picker (CountrySelectBox 320px), language-aware name ordering, phone validation ≥8 digits, Tab-to-submit flow, retry for non-Telegram phone — spec §33.5
 - [ ] Edit Contact dialog: cover 108px (avatar 72×72, name+status reactive), name/last-name InputFields, notes multi-line (premium char limit), photo buttons (Suggest/Set personal/Reset), delete button — spec §33.6
 - [ ] Share Contact box: grid 4 columns 108px rows, multi-select with name-color animation 150ms, search (local+remote), hidden send button when no selection, comment field — spec §33.8
