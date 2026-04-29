@@ -3,12 +3,14 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
+import '../utils/country_data.dart';
 
 const double _boxWideWidth = 364;
 const double _boxTitleHeight = 48;
@@ -430,9 +432,7 @@ class _ContactsBoxState extends State<_ContactsBox> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   TextButton(
-                    onPressed: () {
-                      // TODO: open AddContactBox (§33.5)
-                    },
+                    onPressed: () => _showAddContactBox(context),
                     style: TextButton.styleFrom(
                       foregroundColor: buttonColor,
                       textStyle: const TextStyle(
@@ -465,6 +465,22 @@ class _ContactsBoxState extends State<_ContactsBox> {
       ),
     ),
     );
+  }
+
+  void _showAddContactBox(BuildContext context) {
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+    showDialog<bool>(
+      context: context,
+      builder: (ctx) => _AddContactBox(
+        appState: appState,
+        engine: engine,
+      ),
+    ).then((added) {
+      if (added == true && mounted) {
+        _loadContacts();
+      }
+    });
   }
 
   void _openChat(ContactInfo contact) {
@@ -956,6 +972,632 @@ class _ContactRowState extends State<_ContactRow> {
       return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
     }
     return parts.first[0].toUpperCase();
+  }
+}
+
+class _AddContactBox extends StatefulWidget {
+  final AppState appState;
+  final EngineService engine;
+
+  const _AddContactBox({required this.appState, required this.engine});
+
+  @override
+  State<_AddContactBox> createState() => _AddContactBoxState();
+}
+
+class _AddContactBoxState extends State<_AddContactBox> {
+  final _firstNameCtrl = TextEditingController();
+  final _lastNameCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  final _codeCtrl = TextEditingController();
+  late final FocusNode _firstNameFocus;
+  late final FocusNode _lastNameFocus;
+  late final FocusNode _phoneFocus;
+  CountryInfo _selectedCountry = countries.firstWhere((c) => c.iso == 'US');
+  bool _saving = false;
+  String? _error;
+  bool _retry = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _firstNameFocus = FocusNode();
+    _lastNameFocus = FocusNode();
+    _phoneFocus = FocusNode();
+    _codeCtrl.text = _selectedCountry.dialCode;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _firstNameFocus.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _firstNameCtrl.dispose();
+    _lastNameCtrl.dispose();
+    _phoneCtrl.dispose();
+    _codeCtrl.dispose();
+    _firstNameFocus.dispose();
+    _lastNameFocus.dispose();
+    _phoneFocus.dispose();
+    super.dispose();
+  }
+
+  bool _isValidPhone(String phone) {
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
+    if (digits == '333' || RegExp(r'^42\d\d$').hasMatch(digits)) return true;
+    return digits.length >= 8;
+  }
+
+  void _onCodeChanged(String val) {
+    final code = val.replaceAll(RegExp(r'\D'), '');
+    if (code.isEmpty) return;
+    final match = countries.where((c) => c.dialCode == code).firstOrNull;
+    if (match != null && match != _selectedCountry) {
+      setState(() => _selectedCountry = match);
+    }
+  }
+
+  void _showCountryPicker() {
+    showDialog(
+      context: context,
+      builder: (ctx) => _CountrySelectBox(
+        selected: _selectedCountry,
+        onSelect: (country) {
+          setState(() {
+            _selectedCountry = country;
+            _codeCtrl.text = country.dialCode;
+          });
+          Navigator.of(ctx).pop();
+        },
+      ),
+    );
+  }
+
+  void _submit() {
+    if (_retry) {
+      _resetForm();
+      return;
+    }
+
+    final firstName = _firstNameCtrl.text.trim();
+    final lastName = _lastNameCtrl.text.trim();
+    if (firstName.isEmpty && lastName.isEmpty) {
+      setState(() => _error = 'Please enter a name');
+      return;
+    }
+
+    final code = _codeCtrl.text.replaceAll(RegExp(r'\D'), '');
+    final number = _phoneCtrl.text.replaceAll(RegExp(r'\D'), '');
+    final fullPhone = '+$code$number';
+
+    if (!_isValidPhone(number)) {
+      setState(() => _error = 'Please enter a valid phone number');
+      return;
+    }
+
+    _save(fullPhone, firstName, lastName);
+  }
+
+  void _resetForm() {
+    setState(() {
+      _firstNameCtrl.clear();
+      _lastNameCtrl.clear();
+      _phoneCtrl.clear();
+      _error = null;
+      _retry = false;
+    });
+    _firstNameFocus.requestFocus();
+  }
+
+  Future<void> _save(String phone, String firstName, String lastName) async {
+    final account = widget.appState.activeAccount;
+    if (account == null) return;
+
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+
+    try {
+      await widget.engine.addContact(account.id, phone, firstName, lastName);
+      if (mounted) {
+        Navigator.of(context).pop(true);
+      }
+    } catch (e) {
+      if (mounted) {
+        final msg = e.toString();
+        if (msg.contains('not on Telegram') || msg.contains('PHONE_NOT_OCCUPIED') || msg.contains('no new users')) {
+          setState(() {
+            _saving = false;
+            _error = 'This phone number is not on Telegram yet.';
+            _retry = true;
+          });
+        } else {
+          setState(() {
+            _saving = false;
+            _error = msg.replaceFirst('Exception: ', '');
+          });
+        }
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final labelColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final borderColor = isDark ? const Color(0xFF2B3A49) : const Color(0xFFDADADA);
+    final focusBorderColor = isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
+    final buttonColor = isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
+    final errorColor = const Color(0xFFe53935);
+
+    return Dialog(
+      backgroundColor: bgColor,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: _boxWideWidth, minWidth: _boxWideWidth),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              height: _boxTitleHeight,
+              child: Row(
+                children: [
+                  const SizedBox(width: 24),
+                  Text(
+                    'Add Contact',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 2),
+            // First name field
+            Padding(
+              padding: const EdgeInsets.fromLTRB(49, 0, 14, 0),
+              child: _InputField(
+                controller: _firstNameCtrl,
+                focusNode: _firstNameFocus,
+                label: 'First name',
+                textColor: textColor,
+                labelColor: labelColor,
+                borderColor: borderColor,
+                focusBorderColor: focusBorderColor,
+                onSubmitted: (_) => _lastNameFocus.requestFocus(),
+              ),
+            ),
+            const SizedBox(height: 9),
+            // Last name field
+            Padding(
+              padding: const EdgeInsets.fromLTRB(49, 0, 14, 0),
+              child: _InputField(
+                controller: _lastNameCtrl,
+                focusNode: _lastNameFocus,
+                label: 'Last name',
+                textColor: textColor,
+                labelColor: labelColor,
+                borderColor: borderColor,
+                focusBorderColor: focusBorderColor,
+                onSubmitted: (_) => _phoneFocus.requestFocus(),
+              ),
+            ),
+            const SizedBox(height: 30),
+            // Phone number with country code
+            Padding(
+              padding: const EdgeInsets.fromLTRB(49, 0, 14, 0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Country code trigger
+                  Container(
+                    width: 90,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(color: borderColor, width: 1),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Text('+', style: TextStyle(fontSize: 15, color: textColor)),
+                        SizedBox(
+                          width: 40,
+                          child: TextField(
+                            controller: _codeCtrl,
+                            style: TextStyle(fontSize: 15, color: textColor),
+                            decoration: const InputDecoration(
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(vertical: 8),
+                            ),
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(5)],
+                            onChanged: _onCodeChanged,
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: _showCountryPicker,
+                          behavior: HitTestBehavior.opaque,
+                          child: SizedBox(
+                            width: 30,
+                            height: 44,
+                            child: Center(
+                              child: Icon(Icons.arrow_drop_down, size: 20, color: labelColor),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Phone number
+                  Expanded(
+                    child: _InputField(
+                      controller: _phoneCtrl,
+                      focusNode: _phoneFocus,
+                      label: 'Phone number',
+                      textColor: textColor,
+                      labelColor: labelColor,
+                      borderColor: borderColor,
+                      focusBorderColor: focusBorderColor,
+                      keyboardType: TextInputType.phone,
+                      inputFormatters: [_PhoneNumberFormatter()],
+                      onSubmitted: (_) => _submit(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(49, 0, 14, 0),
+                child: Text(
+                  _error!,
+                  style: TextStyle(fontSize: 13, color: errorColor),
+                ),
+              ),
+            ],
+            const SizedBox(height: 14),
+            // Buttons
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    style: TextButton.styleFrom(
+                      foregroundColor: buttonColor,
+                      textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    ),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: _saving ? null : _submit,
+                    style: TextButton.styleFrom(
+                      foregroundColor: buttonColor,
+                      textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    ),
+                    child: _saving
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: buttonColor),
+                          )
+                        : Text(_retry ? 'Try Other Contact' : 'Add'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InputField extends StatelessWidget {
+  final TextEditingController controller;
+  final FocusNode? focusNode;
+  final String label;
+  final Color textColor;
+  final Color labelColor;
+  final Color borderColor;
+  final Color focusBorderColor;
+  final TextInputType? keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
+  final ValueChanged<String>? onSubmitted;
+
+  const _InputField({
+    required this.controller,
+    this.focusNode,
+    required this.label,
+    required this.textColor,
+    required this.labelColor,
+    required this.borderColor,
+    required this.focusBorderColor,
+    this.keyboardType,
+    this.inputFormatters,
+    this.onSubmitted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      focusNode: focusNode,
+      style: TextStyle(fontSize: 15, color: textColor),
+      keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
+      textInputAction: onSubmitted != null ? TextInputAction.next : null,
+      onSubmitted: onSubmitted,
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(fontSize: 14, color: labelColor),
+        floatingLabelStyle: TextStyle(fontSize: 12, color: focusBorderColor),
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(vertical: 8),
+        enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: borderColor)),
+        focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: focusBorderColor, width: 2)),
+      ),
+    );
+  }
+}
+
+class _PhoneNumberFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) {
+      return const TextEditingValue(text: '', selection: TextSelection.collapsed(offset: 0));
+    }
+    final buf = StringBuffer();
+    for (var i = 0; i < digits.length; i++) {
+      if (i > 0 && i % 3 == 0) buf.write(' ');
+      buf.write(digits[i]);
+    }
+    final formatted = buf.toString();
+    final digitsBeforeCursor = newValue.text
+        .substring(0, newValue.selection.end.clamp(0, newValue.text.length))
+        .replaceAll(RegExp(r'\D'), '')
+        .length;
+    var cursor = 0;
+    var count = 0;
+    for (var i = 0; i < formatted.length && count < digitsBeforeCursor; i++) {
+      cursor = i + 1;
+      if (formatted[i] != ' ') count++;
+    }
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: cursor.clamp(0, formatted.length)),
+    );
+  }
+}
+
+class _CountrySelectBox extends StatefulWidget {
+  final CountryInfo selected;
+  final void Function(CountryInfo) onSelect;
+
+  const _CountrySelectBox({required this.selected, required this.onSelect});
+
+  @override
+  State<_CountrySelectBox> createState() => _CountrySelectBoxState();
+}
+
+class _CountrySelectBoxState extends State<_CountrySelectBox> {
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+  int _selectedIndex = 0;
+  late final ScrollController _scrollCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollCtrl = ScrollController();
+    final idx = countries.indexWhere((c) => c.iso == widget.selected.iso);
+    if (idx >= 0) _selectedIndex = idx;
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  List<CountryInfo> get _filtered {
+    if (_query.isEmpty) return countries.toList();
+    final queryWords = _query.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    return countries.where((c) {
+      final nameLower = c.name.toLowerCase();
+      final nameWords = nameLower.split(RegExp(r'[\s\-]+'));
+      for (final qw in queryWords) {
+        final matchesWord = nameWords.any((w) => w.startsWith(qw));
+        final matchesCode = c.dialCode.startsWith(qw);
+        final matchesIso = c.iso.toLowerCase().startsWith(qw);
+        if (!matchesWord && !matchesCode && !matchesIso) return false;
+      }
+      return true;
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final hoverBg = isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
+    final searchBg = isDark ? const Color(0xFF242F3D) : const Color(0xFFF1F1F1);
+    final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFE8E8E8);
+    final buttonColor = isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
+    final filtered = _filtered;
+
+    return Dialog(
+      backgroundColor: bgColor,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 320, maxHeight: 500),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              height: 54,
+              child: Row(
+                children: [
+                  const SizedBox(width: 24),
+                  Text(
+                    'Choose a country',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+              child: SizedBox(
+                height: 36,
+                child: TextField(
+                  controller: _searchCtrl,
+                  autofocus: true,
+                  style: TextStyle(fontSize: 13, color: textColor),
+                  decoration: InputDecoration(
+                    hintText: 'Search',
+                    hintStyle: TextStyle(fontSize: 13, color: subtextColor),
+                    prefixIcon: Icon(Icons.search, size: 18, color: subtextColor),
+                    filled: true,
+                    fillColor: searchBg,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide.none),
+                  ),
+                  onChanged: (v) {
+                    setState(() {
+                      _query = v.toLowerCase().trim();
+                      _selectedIndex = 0;
+                    });
+                  },
+                ),
+              ),
+            ),
+            Divider(height: 1, color: dividerColor),
+            Flexible(
+              child: filtered.isEmpty
+                  ? SizedBox(
+                      height: 100,
+                      child: Center(
+                        child: Text('No countries found', style: TextStyle(fontSize: 14, color: subtextColor)),
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: _scrollCtrl,
+                      shrinkWrap: true,
+                      itemCount: filtered.length,
+                      itemExtent: 36,
+                      itemBuilder: (ctx, i) {
+                        final c = filtered[i];
+                        return _CountryRow(
+                          country: c,
+                          textColor: textColor,
+                          codeColor: subtextColor,
+                          hoverBg: hoverBg,
+                          onTap: () => widget.onSelect(c),
+                        );
+                      },
+                    ),
+            ),
+            Divider(height: 1, color: dividerColor),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: TextButton.styleFrom(
+                      foregroundColor: buttonColor,
+                      textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    ),
+                    child: const Text('Cancel'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CountryRow extends StatefulWidget {
+  final CountryInfo country;
+  final Color textColor;
+  final Color codeColor;
+  final Color hoverBg;
+  final VoidCallback onTap;
+
+  const _CountryRow({
+    required this.country,
+    required this.textColor,
+    required this.codeColor,
+    required this.hoverBg,
+    required this.onTap,
+  });
+
+  @override
+  State<_CountryRow> createState() => _CountryRowState();
+}
+
+class _CountryRowState extends State<_CountryRow> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          height: 36,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          color: _hovered ? widget.hoverBg : Colors.transparent,
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  widget.country.name,
+                  style: TextStyle(fontSize: 14, color: widget.textColor),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '+${widget.country.dialCode}',
+                style: TextStyle(fontSize: 14, color: widget.codeColor),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
