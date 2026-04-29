@@ -866,7 +866,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_list_row.dart (partial story ring) — new: dart/lib/ui/stories.dart -->
 
-- [ ] Stories bar (chat list): collapsed (35px, 21px avatar, 16px shift, unread ring 1.5px, max 3 thumbs) + expanded (77px, 42px avatar, name 11px below), expansion/collapse triggers (0.72/0.68 overscroll ratio), gradient ring (#0dcc39→#0992ef), segmented arcs for multiple stories, tooltip up to 3 names — spec §32.1
 - [ ] Story viewer overlay: 540×960px max, 8px corner radius, header inside/outside based on space, sibling previews (blurred, width ratio 0.448, 0.5 opacity), progress bar (2px, 4px gaps), photo 5000ms / video from player, left-third-prev / right-two-thirds-next tap navigation, fade on interaction (0.6 opacity), preloading (3 peers, 5 stories, 10 concurrent) — spec §32.2
 - [ ] Story header: margin (12,4,12,8), avatar 28px, name/date labels, counter "3/7", privacy badges (Close Friends green star / Contacts / Selected / Public=none), timestamp formatting, play/pause + volume buttons — spec §32.3
 - [ ] Story reactions panel: 210/420px expandable, like button 42×42px, reaction bubble with two tail circles, scale-out 1000ms, weather areas with temp — spec §32.4

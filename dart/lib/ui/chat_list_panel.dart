@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -141,6 +142,7 @@ class _ChatListPanelState extends State<ChatListPanel>
   static const _kDragToFilterThresholdY = 75.0;
   final ScrollController _chatListScrollCtrl = ScrollController();
   final GlobalKey _chatListKey = GlobalKey();
+  final GlobalKey<_StoriesBarState> _storiesBarKey = GlobalKey<_StoriesBarState>();
   int? _reorderPinnedIdx; // 0-based index within pinned items
   int? _reorderPointer;
   Offset? _reorderStartPos;
@@ -189,12 +191,27 @@ class _ChatListPanelState extends State<ChatListPanel>
         setState(() => _showArchived = false);
       }
     });
+    _chatListScrollCtrl.addListener(_onChatListScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.read<AppState>().onShowArchiveRequested = () {
         if (mounted && !_showArchived) _toggleArchived();
       };
     });
+  }
+
+  void _onChatListScroll() {
+    final bar = _storiesBarKey.currentState;
+    if (bar == null) return;
+    final pos = _chatListScrollCtrl.position;
+    if (pos.pixels <= 0 && pos.outOfRange) {
+      final overscrollRatio = pos.pixels.abs() / pos.viewportDimension;
+      if (overscrollRatio > 0.72 && !bar._expanded) {
+        bar._setExpanded(true);
+      }
+    } else if (pos.pixels > 50 && bar._expanded) {
+      bar._setExpanded(false);
+    }
   }
 
   void _toggleArchived() {
@@ -388,6 +405,7 @@ class _ChatListPanelState extends State<ChatListPanel>
       appState.onShowArchiveRequested = null;
     }
     _archiveAnimCtrl.dispose();
+    _chatListScrollCtrl.removeListener(_onChatListScroll);
     _chatListScrollCtrl.dispose();
     _reorderOverlay?.remove();
     _reorderOverlay = null;
@@ -614,6 +632,14 @@ class _ChatListPanelState extends State<ChatListPanel>
                 onTap: (chat) => chatState.openChat(chat),
               ),
           ],
+          // Spec §32.1: Stories bar above chat list (only when not searching/collapsed).
+          if (!widget.collapsed && !_searching)
+            _StoriesBar(
+              key: _storiesBarKey,
+              chats: accountChats,
+              onStoryTap: (chat) => _openStories(context, chat),
+              isDark: theme.brightness == Brightness.dark,
+            ),
           // Chat list / Recent Contacts (spec §2.2: recent contacts shown
           // when search focused with empty query, below Top Peers strip).
           Expanded(
@@ -2203,6 +2229,382 @@ class _TopPeersStrip extends StatelessWidget {
     }
     return t[0].toUpperCase();
   }
+}
+
+/// Spec §32.1: Horizontal stories bar above the chat list.
+/// Two states: collapsed (35px, stacked mini-thumbs) and expanded (77px, full
+/// avatars with names). Expands on overscroll, collapses on scroll-down.
+class _StoriesBar extends StatefulWidget {
+  final List<ChatInfo> chats;
+  final void Function(ChatInfo) onStoryTap;
+  final bool isDark;
+
+  const _StoriesBar({
+    super.key,
+    required this.chats,
+    required this.onStoryTap,
+    required this.isDark,
+  });
+
+  @override
+  State<_StoriesBar> createState() => _StoriesBarState();
+}
+
+class _StoriesBarState extends State<_StoriesBar>
+    with SingleTickerProviderStateMixin {
+  static const _collapsedHeight = 35.0;
+  static const _expandedHeight = 77.0;
+
+  static const _smallPhoto = 21.0;
+  static const _smallShift = 16.0;
+  static const _smallMaxThumbs = 3;
+
+  static const _fullPhoto = 42.0;
+  static const _fullItemWidth = 72.0;
+
+  static const _unreadLineSmall = 1.5;
+  static const _unreadLineFull = 2.0;
+  static const _readLineFull = 1.0;
+
+  static const _readOpacity = 0.6;
+
+  bool _expanded = true;
+  late AnimationController _expandController;
+  late Animation<double> _expandAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _expandController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+      value: _expanded ? 1.0 : 0.0,
+    );
+    _expandAnimation = CurvedAnimation(
+      parent: _expandController,
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
+  void dispose() {
+    _expandController.dispose();
+    super.dispose();
+  }
+
+  List<ChatInfo> get _storyPeers {
+    final peers = widget.chats
+        .where((c) => c.storyCount > 0 && !c.isArchived)
+        .toList();
+    peers.sort((a, b) {
+      if (a.hasUnreadStory != b.hasUnreadStory) {
+        return a.hasUnreadStory ? -1 : 1;
+      }
+      return b.lastMsgTime.compareTo(a.lastMsgTime);
+    });
+    return peers;
+  }
+
+  void _setExpanded(bool expanded) {
+    if (_expanded == expanded) return;
+    setState(() {
+      _expanded = expanded;
+      if (_expanded) {
+        _expandController.forward();
+      } else {
+        _expandController.reverse();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final peers = _storyPeers;
+    if (peers.isEmpty) return const SizedBox.shrink();
+
+    return AnimatedBuilder(
+      animation: _expandAnimation,
+      builder: (context, child) {
+        final t = _expandAnimation.value;
+        final height =
+            _collapsedHeight + (_expandedHeight - _collapsedHeight) * t;
+        return SizedBox(
+          height: height,
+          child: t < 0.5
+              ? _buildCollapsed(peers)
+              : _buildExpanded(peers),
+        );
+      },
+    );
+  }
+
+  Widget _buildCollapsed(List<ChatInfo> peers) {
+    final shown = peers.take(_smallMaxThumbs).toList();
+    final extraCount = peers.length - shown.length;
+    return GestureDetector(
+      onTap: () => _setExpanded(true),
+      child: Padding(
+      padding: const EdgeInsets.only(left: 10, top: 4),
+      child: SizedBox(
+        height: _collapsedHeight,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            for (var i = shown.length - 1; i >= 0; i--)
+              Positioned(
+                left: i * _smallShift + 4,
+                top: 4,
+                child: _StoryAvatar(
+                  chat: shown[i],
+                  size: _smallPhoto,
+                  ringWidth: shown[i].hasUnreadStory ? _unreadLineSmall : 0,
+                  hasUnread: shown[i].hasUnreadStory,
+                  isDark: widget.isDark,
+                  onTap: () => widget.onStoryTap(shown[i]),
+                ),
+              ),
+            if (extraCount > 0)
+              Positioned(
+                left: shown.length * _smallShift + 8,
+                top: 8,
+                child: Text(
+                  '+$extraCount',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: widget.isDark
+                        ? const Color(0xFF8A8A8A)
+                        : const Color(0xFF999999),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    ),
+    );
+  }
+
+  Widget _buildExpanded(List<ChatInfo> peers) {
+    return ListView.builder(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.only(left: 6, right: 6),
+      itemCount: peers.length,
+      itemBuilder: (context, index) {
+        final chat = peers[index];
+        final opacity =
+            chat.hasUnreadStory ? 1.0 : _readOpacity;
+        return Opacity(
+          opacity: opacity,
+          child: SizedBox(
+            width: _fullItemWidth,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 9),
+                _StoryAvatar(
+                  chat: chat,
+                  size: _fullPhoto,
+                  ringWidth: chat.hasUnreadStory
+                      ? _unreadLineFull
+                      : _readLineFull,
+                  hasUnread: chat.hasUnreadStory,
+                  isDark: widget.isDark,
+                  onTap: () => widget.onStoryTap(chat),
+                ),
+                const SizedBox(height: 3),
+                SizedBox(
+                  width: _fullItemWidth - 4,
+                  child: Text(
+                    chat.title.split(RegExp(r'\s+')).first,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: widget.isDark
+                          ? const Color(0xFFaaaaaa)
+                          : const Color(0xFF666666),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _StoryAvatar extends StatelessWidget {
+  final ChatInfo chat;
+  final double size;
+  final double ringWidth;
+  final bool hasUnread;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _StoryAvatar({
+    required this.chat,
+    required this.size,
+    required this.ringWidth,
+    required this.hasUnread,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  static const _avatarColors = [
+    Color(0xFFe17076),
+    Color(0xFF7bc862),
+    Color(0xFFe5ca77),
+    Color(0xFF65aadd),
+    Color(0xFFa695e7),
+    Color(0xFFee7aae),
+    Color(0xFF6ec9cb),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final ringOffset = ringWidth > 0 ? ringWidth * 1.5 : 0.0;
+    final totalSize = size + ringOffset * 2;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: totalSize,
+        height: totalSize,
+        child: CustomPaint(
+          painter: _StoriesBarRingPainter(
+            storyCount: chat.storyCount,
+            hasUnread: hasUnread,
+            isDark: isDark,
+            photoRadius: size / 2,
+            lineWidth: ringWidth,
+          ),
+          child: Center(
+            child: SizedBox(
+              width: size,
+              height: size,
+              child: chat.avatarPath.isNotEmpty
+                  ? ClipOval(
+                      child: Image.file(
+                        File(chat.avatarPath),
+                        width: size,
+                        height: size,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) =>
+                            _fallbackAvatar(),
+                      ),
+                    )
+                  : _fallbackAvatar(),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _fallbackAvatar() {
+    final colorIndex = chat.chatId.hashCode.abs() % 7;
+    final color = _avatarColors[colorIndex];
+    final t = chat.title.trim();
+    String initials;
+    if (t.isEmpty) {
+      initials = '?';
+    } else {
+      final words = t.split(RegExp(r'\s+'));
+      if (words.length >= 2 && words[0].isNotEmpty && words[1].isNotEmpty) {
+        initials = '${words[0][0]}${words[1][0]}'.toUpperCase();
+      } else {
+        initials = t[0].toUpperCase();
+      }
+    }
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        initials,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: size * 0.38,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+class _StoriesBarRingPainter extends CustomPainter {
+  final int storyCount;
+  final bool hasUnread;
+  final bool isDark;
+  final double photoRadius;
+  final double lineWidth;
+
+  _StoriesBarRingPainter({
+    required this.storyCount,
+    required this.hasUnread,
+    required this.isDark,
+    required this.photoRadius,
+    required this.lineWidth,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (storyCount <= 0 || lineWidth <= 0) return;
+
+    final center = Offset(size.width / 2, size.height / 2);
+    final ringRadius = photoRadius + lineWidth * 1.5;
+
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = lineWidth
+      ..strokeCap = StrokeCap.round;
+
+    if (hasUnread) {
+      paint.shader = const LinearGradient(
+        begin: Alignment.topRight,
+        end: Alignment.bottomLeft,
+        colors: [Color(0xFF0dcc39), Color(0xFF0992ef)],
+      ).createShader(Rect.fromCircle(center: center, radius: ringRadius));
+    } else {
+      paint.color = isDark
+          ? const Color(0xFF3e546a)
+          : const Color(0xFFbbbbbb);
+    }
+
+    if (storyCount == 1) {
+      canvas.drawCircle(center, ringRadius, paint);
+    } else {
+      const fullCircleUnits = 5760.0;
+      const separatorUnits = 160.0;
+      final separatorRadians =
+          (separatorUnits / fullCircleUnits) * 2 * math.pi;
+      final totalSep = storyCount * separatorRadians;
+      final arcPerStory = (2 * math.pi - totalSep) / storyCount;
+
+      var startAngle = -math.pi / 2;
+      final rect = Rect.fromCircle(center: center, radius: ringRadius);
+      for (var i = 0; i < storyCount; i++) {
+        canvas.drawArc(rect, startAngle, arcPerStory, false, paint);
+        startAngle += arcPerStory + separatorRadians;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_StoriesBarRingPainter old) =>
+      storyCount != old.storyCount ||
+      hasUnread != old.hasUnread ||
+      isDark != old.isDark ||
+      photoRadius != old.photoRadius ||
+      lineWidth != old.lineWidth;
 }
 
 /// Recent Contacts list: vertical list of recent DM contacts shown below the
