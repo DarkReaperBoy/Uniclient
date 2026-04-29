@@ -847,8 +847,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_export.dart -->
 
-- [ ] Export settings persistence: 1000ms debounce save; persist types, fullChats, media types, size limit, format, path, availableAt — spec §29.10
-
 ---
 
 ## §30 — Bot Interactions

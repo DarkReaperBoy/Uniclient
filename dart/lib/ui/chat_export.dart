@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/telegram_palette.dart';
 
@@ -257,6 +260,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   List<_ExportStepInfo> _exportSteps = [];
   Timer? _exportTimer;
   Timer? _skipFileTimer;
+  Timer? _saveSettingsTimer;
   bool _showSkipFile = false;
   int _currentStepIndex = 0;
   int _totalFiles = 0;
@@ -315,6 +319,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _scrollController.addListener(_updateShadows);
+    _loadExportSettings();
   }
 
   void _updateShadows() {
@@ -329,10 +334,107 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     }
   }
 
+  String get _exportSettingsPath {
+    final dir = context.read<AppState>().configDir;
+    return dir.isEmpty ? '' : '$dir/export_settings.json';
+  }
+
+  void _loadExportSettings() {
+    final path = _exportSettingsPath;
+    if (path.isEmpty) return;
+    try {
+      final file = File(path);
+      if (!file.existsSync()) return;
+      final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+      _personalInfo = (data['personalInfo'] as bool?) ?? _personalInfo;
+      _contacts = (data['contacts'] as bool?) ?? _contacts;
+      _stories = (data['stories'] as bool?) ?? _stories;
+      _profileMusic = (data['profileMusic'] as bool?) ?? _profileMusic;
+      _personalChats = (data['personalChats'] as bool?) ?? _personalChats;
+      _botChats = (data['botChats'] as bool?) ?? _botChats;
+      _privateGroups = (data['privateGroups'] as bool?) ?? _privateGroups;
+      _privateChannels = (data['privateChannels'] as bool?) ?? _privateChannels;
+      _publicGroups = (data['publicGroups'] as bool?) ?? _publicGroups;
+      _publicChannels = (data['publicChannels'] as bool?) ?? _publicChannels;
+      _privateGroupsOnlyMy = (data['privateGroupsOnlyMy'] as bool?) ?? _privateGroupsOnlyMy;
+      _privateChannelsOnlyMy = (data['privateChannelsOnlyMy'] as bool?) ?? _privateChannelsOnlyMy;
+      _publicGroupsOnlyMy = (data['publicGroupsOnlyMy'] as bool?) ?? _publicGroupsOnlyMy;
+      _publicChannelsOnlyMy = (data['publicChannelsOnlyMy'] as bool?) ?? _publicChannelsOnlyMy;
+      _mediaPhotos = (data['mediaPhotos'] as bool?) ?? _mediaPhotos;
+      _mediaVideo = (data['mediaVideo'] as bool?) ?? _mediaVideo;
+      _mediaVoice = (data['mediaVoice'] as bool?) ?? _mediaVoice;
+      _mediaVideoMessage = (data['mediaVideoMessage'] as bool?) ?? _mediaVideoMessage;
+      _mediaSticker = (data['mediaSticker'] as bool?) ?? _mediaSticker;
+      _mediaGif = (data['mediaGif'] as bool?) ?? _mediaGif;
+      _mediaFile = (data['mediaFile'] as bool?) ?? _mediaFile;
+      _sizeSliderPos = (data['sizeSliderPos'] as num?)?.toDouble() ?? _sizeSliderPos;
+      _sessions = (data['sessions'] as bool?) ?? _sessions;
+      _otherData = (data['otherData'] as bool?) ?? _otherData;
+      final fmt = data['format'] as String?;
+      if (fmt != null) {
+        _format = _ExportFormat.values.firstWhere(
+          (e) => e.name == fmt,
+          orElse: () => _format,
+        );
+      }
+    } catch (_) {}
+  }
+
+  void _saveExportSettings() {
+    final path = _exportSettingsPath;
+    if (path.isEmpty) return;
+    try {
+      File(path).writeAsStringSync(jsonEncode({
+        'personalInfo': _personalInfo,
+        'contacts': _contacts,
+        'stories': _stories,
+        'profileMusic': _profileMusic,
+        'personalChats': _personalChats,
+        'botChats': _botChats,
+        'privateGroups': _privateGroups,
+        'privateChannels': _privateChannels,
+        'publicGroups': _publicGroups,
+        'publicChannels': _publicChannels,
+        'privateGroupsOnlyMy': _privateGroupsOnlyMy,
+        'privateChannelsOnlyMy': _privateChannelsOnlyMy,
+        'publicGroupsOnlyMy': _publicGroupsOnlyMy,
+        'publicChannelsOnlyMy': _publicChannelsOnlyMy,
+        'mediaPhotos': _mediaPhotos,
+        'mediaVideo': _mediaVideo,
+        'mediaVoice': _mediaVoice,
+        'mediaVideoMessage': _mediaVideoMessage,
+        'mediaSticker': _mediaSticker,
+        'mediaGif': _mediaGif,
+        'mediaFile': _mediaFile,
+        'sizeSliderPos': _sizeSliderPos,
+        'sessions': _sessions,
+        'otherData': _otherData,
+        'format': _format.name,
+      }));
+    } catch (_) {}
+  }
+
+  void _scheduleSave() {
+    _saveSettingsTimer?.cancel();
+    _saveSettingsTimer = Timer(
+      const Duration(milliseconds: 1000),
+      _saveExportSettings,
+    );
+  }
+
+  void _updateSetting(VoidCallback fn) {
+    setState(fn);
+    _scheduleSave();
+  }
+
   @override
   void dispose() {
     _exportTimer?.cancel();
     _skipFileTimer?.cancel();
+    if (_saveSettingsTimer?.isActive ?? false) {
+      _saveSettingsTimer!.cancel();
+      _saveExportSettings();
+    }
     _scrollController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     context.read<ChatState>().stopExportBar();
@@ -807,7 +909,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                     'Personal information',
                     'Exports profile photos, name, bio, etc.',
                     _personalInfo,
-                    (v) => setState(() => _personalInfo = v!),
+                    (v) => _updateSetting(() => _personalInfo = v!),
                     textColor,
                     subtextColor,
                   ),
@@ -815,7 +917,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                     'Contact list',
                     'Exports names and phone numbers.',
                     _contacts,
-                    (v) => setState(() => _contacts = v!),
+                    (v) => _updateSetting(() => _contacts = v!),
                     textColor,
                     subtextColor,
                   ),
@@ -823,7 +925,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                     'Stories',
                     'Exports your stories.',
                     _stories,
-                    (v) => setState(() => _stories = v!),
+                    (v) => _updateSetting(() => _stories = v!),
                     textColor,
                     subtextColor,
                   ),
@@ -831,7 +933,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                     'Profile music',
                     'Exports your profile music.',
                     _profileMusic,
-                    (v) => setState(() => _profileMusic = v!),
+                    (v) => _updateSetting(() => _profileMusic = v!),
                     textColor,
                     subtextColor,
                   ),
@@ -841,45 +943,45 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                   _buildChatTypeOption(
                     'Personal chats',
                     _personalChats,
-                    (v) => setState(() => _personalChats = v!),
+                    (v) => _updateSetting(() => _personalChats = v!),
                     textColor,
                     hasSubOption: false,
                   ),
                   _buildChatTypeOption(
                     'Bot chats',
                     _botChats,
-                    (v) => setState(() => _botChats = v!),
+                    (v) => _updateSetting(() => _botChats = v!),
                     textColor,
                     hasSubOption: false,
                   ),
                   _buildChatTypeOption(
                     'Private groups',
                     _privateGroups,
-                    (v) => setState(() => _privateGroups = v!),
+                    (v) => _updateSetting(() => _privateGroups = v!),
                     textColor,
                     hasSubOption: true,
                     subChecked: _privateGroupsOnlyMy,
                     subEnabled: true,
                     onSubChanged: (v) =>
-                        setState(() => _privateGroupsOnlyMy = v!),
+                        _updateSetting(() => _privateGroupsOnlyMy = v!),
                     parentChecked: _privateGroups,
                   ),
                   _buildChatTypeOption(
                     'Private channels',
                     _privateChannels,
-                    (v) => setState(() => _privateChannels = v!),
+                    (v) => _updateSetting(() => _privateChannels = v!),
                     textColor,
                     hasSubOption: true,
                     subChecked: _privateChannelsOnlyMy,
                     subEnabled: true,
                     onSubChanged: (v) =>
-                        setState(() => _privateChannelsOnlyMy = v!),
+                        _updateSetting(() => _privateChannelsOnlyMy = v!),
                     parentChecked: _privateChannels,
                   ),
                   _buildChatTypeOption(
                     'Public groups',
                     _publicGroups,
-                    (v) => setState(() => _publicGroups = v!),
+                    (v) => _updateSetting(() => _publicGroups = v!),
                     textColor,
                     hasSubOption: true,
                     subChecked: _publicGroupsOnlyMy,
@@ -890,7 +992,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                   _buildChatTypeOption(
                     'Public channels',
                     _publicChannels,
-                    (v) => setState(() => _publicChannels = v!),
+                    (v) => _updateSetting(() => _publicChannels = v!),
                     textColor,
                     hasSubOption: true,
                     subChecked: _publicChannelsOnlyMy,
@@ -915,7 +1017,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                     'Active sessions',
                     'Exports device and login info.',
                     _sessions,
-                    (v) => setState(() => _sessions = v!),
+                    (v) => _updateSetting(() => _sessions = v!),
                     textColor,
                     subtextColor,
                   ),
@@ -923,7 +1025,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                     'Other data',
                     'Exports web login tokens, contacts block list, etc.',
                     _otherData,
-                    (v) => setState(() => _otherData = v!),
+                    (v) => _updateSetting(() => _otherData = v!),
                     textColor,
                     subtextColor,
                   ),
@@ -1130,19 +1232,19 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
       children: [
         _buildSectionHeader('Media', headerColor),
         _buildMediaCheckbox('Photos', _mediaPhotos,
-            (v) => setState(() => _mediaPhotos = v!), textColor),
+            (v) => _updateSetting(() => _mediaPhotos = v!), textColor),
         _buildMediaCheckbox('Video files', _mediaVideo,
-            (v) => setState(() => _mediaVideo = v!), textColor),
+            (v) => _updateSetting(() => _mediaVideo = v!), textColor),
         _buildMediaCheckbox('Voice messages', _mediaVoice,
-            (v) => setState(() => _mediaVoice = v!), textColor),
+            (v) => _updateSetting(() => _mediaVoice = v!), textColor),
         _buildMediaCheckbox('Video messages', _mediaVideoMessage,
-            (v) => setState(() => _mediaVideoMessage = v!), textColor),
+            (v) => _updateSetting(() => _mediaVideoMessage = v!), textColor),
         _buildMediaCheckbox('Stickers', _mediaSticker,
-            (v) => setState(() => _mediaSticker = v!), textColor),
+            (v) => _updateSetting(() => _mediaSticker = v!), textColor),
         _buildMediaCheckbox('GIFs', _mediaGif,
-            (v) => setState(() => _mediaGif = v!), textColor),
+            (v) => _updateSetting(() => _mediaGif = v!), textColor),
         _buildMediaCheckbox('Files', _mediaFile,
-            (v) => setState(() => _mediaFile = v!), textColor),
+            (v) => _updateSetting(() => _mediaFile = v!), textColor),
         // Size limit slider
         Padding(
           padding: const EdgeInsets.fromLTRB(22, 8, 22, 0),
@@ -1169,7 +1271,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
               min: 0,
               max: 99,
               divisions: 99,
-              onChanged: (v) => setState(() => _sizeSliderPos = v),
+              onChanged: (v) => _updateSetting(() => _sizeSliderPos = v),
             ),
           ),
         ),
@@ -1243,7 +1345,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
             child: Radio<_ExportFormat>(
               value: value,
               groupValue: _format,
-              onChanged: (v) => setState(() => _format = v!),
+              onChanged: (v) => _updateSetting(() => _format = v!),
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               visualDensity: VisualDensity.compact,
             ),
@@ -1321,19 +1423,19 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                 children: [
                   _buildSectionHeader('Media', headerColor),
                   _buildMediaCheckbox('Photos', _mediaPhotos,
-                      (v) => setState(() => _mediaPhotos = v!), textColor),
+                      (v) => _updateSetting(() => _mediaPhotos = v!), textColor),
                   _buildMediaCheckbox('Video files', _mediaVideo,
-                      (v) => setState(() => _mediaVideo = v!), textColor),
+                      (v) => _updateSetting(() => _mediaVideo = v!), textColor),
                   _buildMediaCheckbox('Voice messages', _mediaVoice,
-                      (v) => setState(() => _mediaVoice = v!), textColor),
+                      (v) => _updateSetting(() => _mediaVoice = v!), textColor),
                   _buildMediaCheckbox('Video messages', _mediaVideoMessage,
-                      (v) => setState(() => _mediaVideoMessage = v!), textColor),
+                      (v) => _updateSetting(() => _mediaVideoMessage = v!), textColor),
                   _buildMediaCheckbox('Stickers', _mediaSticker,
-                      (v) => setState(() => _mediaSticker = v!), textColor),
+                      (v) => _updateSetting(() => _mediaSticker = v!), textColor),
                   _buildMediaCheckbox('GIFs', _mediaGif,
-                      (v) => setState(() => _mediaGif = v!), textColor),
+                      (v) => _updateSetting(() => _mediaGif = v!), textColor),
                   _buildMediaCheckbox('Files', _mediaFile,
-                      (v) => setState(() => _mediaFile = v!), textColor),
+                      (v) => _updateSetting(() => _mediaFile = v!), textColor),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(22, 8, 22, 0),
                     child: Row(
@@ -1359,7 +1461,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                         min: 0,
                         max: 99,
                         divisions: 99,
-                        onChanged: (v) => setState(() => _sizeSliderPos = v),
+                        onChanged: (v) => _updateSetting(() => _sizeSliderPos = v),
                       ),
                     ),
                   ),
@@ -1423,7 +1525,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
           GestureDetector(
             onTap: () async {
               final chosen = await _showChooseFormatBox();
-              if (chosen != null) setState(() => _format = chosen);
+              if (chosen != null) _updateSetting(() => _format = chosen);
             },
             child: Text(
               formatName,
