@@ -2827,8 +2827,6 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
   bool _obscureConfirm = true;
   String _error = '';
   bool _loading = false;
-  bool _showFireworks = false;
-
   late _ForgotPasswordAction _forgotAction;
   int _pendingResetDate = 0;
   String _countdownText = '';
@@ -2936,15 +2934,15 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
       if (_pendingResetDate > 0) {
         try { await widget.engine.cancelResetPassword(widget.accountId); } catch (_) {}
       }
-      setState(() { _showFireworks = true; _loading = false; });
-      await Future<void>.delayed(const Duration(milliseconds: 1000));
-      if (!mounted) return;
+      setState(() => _loading = false);
       Navigator.of(context).pushReplacement(settingsPageRoute(
-        _CloudPasswordManage(
+        _CloudPasswordDone(
           accountId: widget.accountId,
           engine: widget.engine,
+          message: 'Password confirmed!',
           currentPassword: password,
-          onChanged: widget.onSuccess,
+          onDone: widget.onSuccess,
+          navigateToManage: true,
         ),
       ));
     } catch (e) {
@@ -3194,14 +3192,12 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
         ),
         title: Text(title, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
       ),
-      body: Stack(
-        children: [
-          Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 40),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 40),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
               _InteractivePasswordIcon(
                 textController: _passwordController,
                 size: 100,
@@ -3328,18 +3324,6 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
             ],
           ),
         ),
-          ),
-          if (_showFireworks)
-            Positioned.fill(
-              child: IgnorePointer(
-                child: _FireworksOverlay(
-                  onComplete: () {
-                    if (mounted) setState(() => _showFireworks = false);
-                  },
-                ),
-              ),
-            ),
-        ],
       ),
     );
   }
@@ -3420,12 +3404,14 @@ class _CloudPasswordHintState extends State<_CloudPasswordHint> {
           hint: hint,
         );
         if (!mounted) return;
-        widget.onSuccess();
-        if (!mounted) return;
-        Navigator.of(context).popUntil((route) => route.isFirst || route.settings.name == 'privacy');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Password updated successfully.'), behavior: SnackBarBehavior.floating),
-        );
+        Navigator.of(context).pushReplacement(settingsPageRoute(
+          _CloudPasswordDone(
+            accountId: widget.accountId,
+            engine: widget.engine,
+            message: 'Password updated!',
+            onDone: widget.onSuccess,
+          ),
+        ));
       } catch (e) {
         if (!mounted) return;
         setState(() { _loading = false; _error = e.toString().replaceFirst('Exception: ', ''); });
@@ -3672,15 +3658,16 @@ class _CloudPasswordEmailState extends State<_CloudPasswordEmail> {
         }
       }
 
-      widget.onSuccess();
       if (!mounted) return;
       final effectivePassword = widget.emailOnly ? widget.currentPassword : widget.newPassword;
       Navigator.of(context).pushReplacement(settingsPageRoute(
-        _CloudPasswordManage(
+        _CloudPasswordDone(
           accountId: widget.accountId,
           engine: widget.engine,
+          message: widget.emailOnly ? 'Email updated!' : 'Password is set!',
           currentPassword: effectivePassword,
-          onChanged: widget.onSuccess,
+          onDone: widget.onSuccess,
+          navigateToManage: true,
         ),
       ));
     } catch (e) {
@@ -3891,15 +3878,24 @@ class _CloudPasswordEmailConfirmState extends State<_CloudPasswordEmailConfirm> 
       } else {
         await widget.engine.confirmPasswordEmail(widget.accountId, code);
         if (!mounted) return;
-        widget.onDone();
-        if (!mounted) return;
         if (widget.currentPassword.isNotEmpty) {
           Navigator.of(context).pushReplacement(settingsPageRoute(
-            _CloudPasswordManage(
+            _CloudPasswordDone(
               accountId: widget.accountId,
               engine: widget.engine,
+              message: 'Email confirmed!',
               currentPassword: widget.currentPassword,
-              onChanged: widget.onDone,
+              onDone: widget.onDone,
+              navigateToManage: true,
+            ),
+          ));
+        } else {
+          Navigator.of(context).pushReplacement(settingsPageRoute(
+            _CloudPasswordDone(
+              accountId: widget.accountId,
+              engine: widget.engine,
+              message: 'Email confirmed!',
+              onDone: widget.onDone,
             ),
           ));
         }
@@ -4195,6 +4191,126 @@ class _CloudPasswordEmailConfirmState extends State<_CloudPasswordEmailConfirm> 
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ── CloudPasswordDone: Completion screen with fireworks + thumbs-up ──
+
+class _CloudPasswordDone extends StatefulWidget {
+  final String accountId;
+  final EngineService engine;
+  final String message;
+  final String? currentPassword;
+  final VoidCallback? onDone;
+  final bool navigateToManage;
+
+  const _CloudPasswordDone({
+    required this.accountId,
+    required this.engine,
+    required this.message,
+    this.currentPassword,
+    this.onDone,
+    this.navigateToManage = false,
+  });
+
+  @override
+  State<_CloudPasswordDone> createState() => _CloudPasswordDoneState();
+}
+
+class _CloudPasswordDoneState extends State<_CloudPasswordDone>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _fireworksCtrl;
+  late final List<_Particle> _particles;
+  bool _navigated = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final rng = math.Random();
+    _particles = List.generate(50, (_) => _Particle(rng));
+    _fireworksCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..forward();
+    Future<void>.delayed(const Duration(milliseconds: 2000), _navigate);
+  }
+
+  void _navigate() {
+    if (_navigated || !mounted) return;
+    _navigated = true;
+    if (widget.navigateToManage && widget.currentPassword != null) {
+      Navigator.of(context).pushReplacement(settingsPageRoute(
+        _CloudPasswordManage(
+          accountId: widget.accountId,
+          engine: widget.engine,
+          currentPassword: widget.currentPassword!,
+          onChanged: widget.onDone ?? () {},
+        ),
+      ));
+    } else {
+      widget.onDone?.call();
+      if (mounted) {
+        Navigator.of(context).popUntil(
+          (route) => route.isFirst || route.settings.name == 'privacy',
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _fireworksCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: bgColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        automaticallyImplyLeading: false,
+        title: Text(
+          'Two-Step Verification',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
+        ),
+      ),
+      body: Stack(
+        children: [
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('\u{1F44D}', style: TextStyle(fontSize: 80)),
+                const SizedBox(height: 19),
+                Text(
+                  widget.message,
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: AnimatedBuilder(
+                animation: _fireworksCtrl,
+                builder: (context, _) => CustomPaint(
+                  painter: _FireworksPainter(_particles, _fireworksCtrl.value),
+                  size: Size.infinite,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
