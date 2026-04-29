@@ -1085,6 +1085,114 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(map[string]string{"link": link})
 
+	case "GetExportedChatInvites":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Revoked   bool   `json:"revoked"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		links, err := e.GetExportedChatInvites(params.AccountID, params.ChatID, params.Revoked)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]interface{}{"links": links})
+
+	case "CreateChatInviteLink":
+		var params struct {
+			AccountID       string `json:"account_id"`
+			ChatID          string `json:"chat_id"`
+			Label           string `json:"label"`
+			ExpireDate      int    `json:"expire_date"`
+			UsageLimit      int    `json:"usage_limit"`
+			RequestApproval bool   `json:"request_approval"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		link, err := e.CreateChatInviteLink(params.AccountID, params.ChatID, params.Label, params.ExpireDate, params.UsageLimit, params.RequestApproval)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(link)
+
+	case "EditChatInviteLink":
+		var params struct {
+			AccountID       string `json:"account_id"`
+			ChatID          string `json:"chat_id"`
+			Link            string `json:"link"`
+			Label           string `json:"label"`
+			ExpireDate      int    `json:"expire_date"`
+			UsageLimit      int    `json:"usage_limit"`
+			RequestApproval bool   `json:"request_approval"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		link, err := e.EditChatInviteLink(params.AccountID, params.ChatID, params.Link, params.Label, params.ExpireDate, params.UsageLimit, params.RequestApproval)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(link)
+
+	case "RevokeChatInviteLink":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Link      string `json:"link"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		link, err := e.RevokeChatInviteLink(params.AccountID, params.ChatID, params.Link)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(link)
+
+	case "DeleteRevokedChatInviteLink":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Link      string `json:"link"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.DeleteRevokedChatInviteLink(params.AccountID, params.ChatID, params.Link); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
+	case "DeleteAllRevokedChatInvites":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.DeleteAllRevokedChatInvites(params.AccountID, params.ChatID); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
+	case "GetAdminsWithInvites":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		admins, err := e.GetAdminsWithInvites(params.AccountID, params.ChatID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]interface{}{"admins": admins})
+
 	case "GetChatUsername":
 		var params struct {
 			AccountID string `json:"account_id"`

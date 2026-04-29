@@ -1423,6 +1423,83 @@ class EngineService {
     return data['link'] as String? ?? '';
   }
 
+  Future<List<Map<String, dynamic>>> getExportedChatInvites(String accountId, String chatId, {bool revoked = false}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'revoked': revoked,
+    }));
+    final respBytes = await _callAsync('__engine', 'GetExportedChatInvites', Uint8List.fromList(payload));
+    final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    final list = data['links'] as List<dynamic>? ?? [];
+    return list.cast<Map<String, dynamic>>();
+  }
+
+  Future<Map<String, dynamic>> createChatInviteLink(String accountId, String chatId, {String label = '', int expireDate = 0, int usageLimit = 0, bool requestApproval = false}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'label': label,
+      'expire_date': expireDate,
+      'usage_limit': usageLimit,
+      'request_approval': requestApproval,
+    }));
+    final respBytes = await _callAsync('__engine', 'CreateChatInviteLink', Uint8List.fromList(payload));
+    return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> editChatInviteLink(String accountId, String chatId, String link, {String label = '', int expireDate = 0, int usageLimit = 0, bool requestApproval = false}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'link': link,
+      'label': label,
+      'expire_date': expireDate,
+      'usage_limit': usageLimit,
+      'request_approval': requestApproval,
+    }));
+    final respBytes = await _callAsync('__engine', 'EditChatInviteLink', Uint8List.fromList(payload));
+    return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> revokeChatInviteLink(String accountId, String chatId, String link) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'link': link,
+    }));
+    final respBytes = await _callAsync('__engine', 'RevokeChatInviteLink', Uint8List.fromList(payload));
+    return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+  }
+
+  Future<void> deleteRevokedChatInviteLink(String accountId, String chatId, String link) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'link': link,
+    }));
+    await _callAsync('__engine', 'DeleteRevokedChatInviteLink', Uint8List.fromList(payload));
+  }
+
+  Future<void> deleteAllRevokedChatInvites(String accountId, String chatId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+    }));
+    await _callAsync('__engine', 'DeleteAllRevokedChatInvites', Uint8List.fromList(payload));
+  }
+
+  Future<List<Map<String, dynamic>>> getAdminsWithInvites(String accountId, String chatId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+    }));
+    final respBytes = await _callAsync('__engine', 'GetAdminsWithInvites', Uint8List.fromList(payload));
+    final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    final list = data['admins'] as List<dynamic>? ?? [];
+    return list.cast<Map<String, dynamic>>();
+  }
+
   Future<String> getChatUsername(String accountId, String chatId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

@@ -1023,3 +1023,101 @@ func (e *Engine) ToggleAntiSpam(accountID, chatID string, enabled bool) error {
 	}
 	return fmt.Errorf("platform does not support anti-spam toggle")
 }
+
+func (e *Engine) GetExportedChatInvites(accountID, chatID string, revoked bool) ([]map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type provider interface {
+		GetExportedChatInvites(chatID string, revoked bool) ([]map[string]interface{}, error)
+	}
+	if p, ok := acc.Core.(provider); ok {
+		return p.GetExportedChatInvites(chatID, revoked)
+	}
+	return nil, fmt.Errorf("platform does not support invite link listing")
+}
+
+func (e *Engine) CreateChatInviteLink(accountID, chatID, label string, expireDate, usageLimit int, requestApproval bool) (map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type creator interface {
+		CreateChatInviteLink(chatID, label string, expireDate, usageLimit int, requestApproval bool) (map[string]interface{}, error)
+	}
+	if c, ok := acc.Core.(creator); ok {
+		return c.CreateChatInviteLink(chatID, label, expireDate, usageLimit, requestApproval)
+	}
+	return nil, fmt.Errorf("platform does not support invite link creation")
+}
+
+func (e *Engine) EditChatInviteLink(accountID, chatID, link, label string, expireDate, usageLimit int, requestApproval bool) (map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type editor interface {
+		EditChatInviteLink(chatID, link, label string, expireDate, usageLimit int, requestApproval bool) (map[string]interface{}, error)
+	}
+	if ed, ok := acc.Core.(editor); ok {
+		return ed.EditChatInviteLink(chatID, link, label, expireDate, usageLimit, requestApproval)
+	}
+	return nil, fmt.Errorf("platform does not support invite link editing")
+}
+
+func (e *Engine) RevokeChatInviteLink(accountID, chatID, link string) (map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type revoker interface {
+		RevokeChatInviteLink(chatID, link string) (map[string]interface{}, error)
+	}
+	if r, ok := acc.Core.(revoker); ok {
+		return r.RevokeChatInviteLink(chatID, link)
+	}
+	return nil, fmt.Errorf("platform does not support invite link revoking")
+}
+
+func (e *Engine) DeleteRevokedChatInviteLink(accountID, chatID, link string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type deleter interface {
+		DeleteRevokedChatInviteLink(chatID, link string) error
+	}
+	if d, ok := acc.Core.(deleter); ok {
+		return d.DeleteRevokedChatInviteLink(chatID, link)
+	}
+	return fmt.Errorf("platform does not support invite link deletion")
+}
+
+func (e *Engine) DeleteAllRevokedChatInvites(accountID, chatID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type deleter interface {
+		DeleteAllRevokedChatInvites(chatID string) error
+	}
+	if d, ok := acc.Core.(deleter); ok {
+		return d.DeleteAllRevokedChatInvites(chatID)
+	}
+	return fmt.Errorf("platform does not support deleting all revoked invites")
+}
+
+func (e *Engine) GetAdminsWithInvites(accountID, chatID string) ([]map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type provider interface {
+		GetAdminsWithInvites(chatID string) ([]map[string]interface{}, error)
+	}
+	if p, ok := acc.Core.(provider); ok {
+		return p.GetAdminsWithInvites(chatID)
+	}
+	return nil, fmt.Errorf("platform does not support admins with invites")
+}

@@ -825,7 +825,7 @@ Status key: `[ ]` not started · `[x]` done
 <!-- dart files: dart/lib/ui/admin_tools.dart -->
 
 
-- [ ] Invite links box: permanent link + "Create New Link" + active list + revoked list + "Delete All" + other-admins section; link rows with color-coded progress-arc badge (6 states), context menu (Copy/Share/QR/Edit/Revoke/Delete), single-link info box with joined-users list, QR Code dialog; create/edit form (label, expiry, usage, approval toggle, subscription credits) — spec §26.6
+
 - [ ] Member list with 5 role tabs (Members/Admins/Restricted/Kicked/Profile): search bar with debounced server query, 16/200 pagination with online sort, row 56px with avatar/name/badge/rank, Add button per role, context menu (View/Edit Tag/Promote/Restrict/Remove/Promoted-by), banned-users sublist with Unban — spec §26.7–26.8
 
 ---

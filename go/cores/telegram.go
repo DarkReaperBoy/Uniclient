@@ -20046,6 +20046,145 @@ func (t *TelegramCore) GetInviteLink(chatID string) (string, error) {
 	return t.ExportChatInvite(chatID)
 }
 
+func inviteLinkFromExported(inv *tg.ChatInviteExported) map[string]interface{} {
+	m := map[string]interface{}{
+		"link":          inv.Link,
+		"label":         inv.Title,
+		"admin_id":      strconv.FormatInt(inv.AdminID, 10),
+		"date":          inv.Date,
+		"start_date":    inv.StartDate,
+		"expire_date":   inv.ExpireDate,
+		"usage_limit":   inv.UsageLimit,
+		"usage":         inv.Usage,
+		"requested":     inv.Requested,
+		"permanent":     inv.Permanent,
+		"revoked":       inv.Revoked,
+		"need_approval": inv.RequestNeeded,
+	}
+	return m
+}
+
+func (t *TelegramCore) GetExportedChatInvites(chatID string, revoked bool) ([]map[string]interface{}, error) {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil { return nil, err }
+	defer unlock()
+	req := &tg.MessagesGetExportedChatInvitesRequest{
+		Peer:    inputPeer,
+		AdminID: &tg.InputUserSelf{},
+		Revoked: revoked,
+		Limit:   100,
+	}
+	result, err := t.api.MessagesGetExportedChatInvites(t.ctx, req)
+	if err != nil { return nil, err }
+	var links []map[string]interface{}
+	for _, inv := range result.Invites {
+		if exported, ok := inv.(*tg.ChatInviteExported); ok {
+			links = append(links, inviteLinkFromExported(exported))
+		}
+	}
+	return links, nil
+}
+
+func (t *TelegramCore) CreateChatInviteLink(chatID, label string, expireDate, usageLimit int, requestApproval bool) (map[string]interface{}, error) {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil { return nil, err }
+	defer unlock()
+	req := &tg.MessagesExportChatInviteRequest{
+		Peer:          inputPeer,
+		RequestNeeded: requestApproval,
+	}
+	if label != "" { req.SetTitle(label) }
+	if expireDate > 0 { req.SetExpireDate(expireDate) }
+	if usageLimit > 0 && !requestApproval { req.SetUsageLimit(usageLimit) }
+	result, err := t.api.MessagesExportChatInvite(t.ctx, req)
+	if err != nil { return nil, err }
+	if inv, ok := result.(*tg.ChatInviteExported); ok {
+		return inviteLinkFromExported(inv), nil
+	}
+	return nil, fmt.Errorf("unexpected response type")
+}
+
+func (t *TelegramCore) EditChatInviteLink(chatID, link, label string, expireDate, usageLimit int, requestApproval bool) (map[string]interface{}, error) {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil { return nil, err }
+	defer unlock()
+	req := &tg.MessagesEditExportedChatInviteRequest{
+		Peer:          inputPeer,
+		Link:          link,
+		RequestNeeded: requestApproval,
+	}
+	req.SetTitle(label)
+	req.SetExpireDate(expireDate)
+	if !requestApproval { req.SetUsageLimit(usageLimit) }
+	result, err := t.api.MessagesEditExportedChatInvite(t.ctx, req)
+	if err != nil { return nil, err }
+	if inv, ok := result.GetInvite().(*tg.ChatInviteExported); ok {
+		return inviteLinkFromExported(inv), nil
+	}
+	return nil, fmt.Errorf("unexpected response type")
+}
+
+func (t *TelegramCore) RevokeChatInviteLink(chatID, link string) (map[string]interface{}, error) {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil { return nil, err }
+	defer unlock()
+	result, err := t.api.MessagesEditExportedChatInvite(t.ctx, &tg.MessagesEditExportedChatInviteRequest{
+		Peer: inputPeer, Link: link, Revoked: true,
+	})
+	if err != nil { return nil, err }
+	if inv, ok := result.GetInvite().(*tg.ChatInviteExported); ok {
+		return inviteLinkFromExported(inv), nil
+	}
+	return nil, fmt.Errorf("unexpected response type")
+}
+
+func (t *TelegramCore) DeleteRevokedChatInviteLink(chatID, link string) error {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil { return err }
+	defer unlock()
+	_, err = t.api.MessagesDeleteExportedChatInvite(t.ctx, &tg.MessagesDeleteExportedChatInviteRequest{
+		Peer: inputPeer, Link: link,
+	})
+	return err
+}
+
+func (t *TelegramCore) DeleteAllRevokedChatInvites(chatID string) error {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil { return err }
+	defer unlock()
+	_, err = t.api.MessagesDeleteRevokedExportedChatInvites(t.ctx, &tg.MessagesDeleteRevokedExportedChatInvitesRequest{
+		Peer:    inputPeer,
+		AdminID: &tg.InputUserSelf{},
+	})
+	return err
+}
+
+func (t *TelegramCore) GetAdminsWithInvites(chatID string) ([]map[string]interface{}, error) {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil { return nil, err }
+	defer unlock()
+	result, err := t.api.MessagesGetAdminsWithInvites(t.ctx, inputPeer)
+	if err != nil { return nil, err }
+	var admins []map[string]interface{}
+	for _, a := range result.Admins {
+		name := ""
+		for _, u := range result.Users {
+			if user, ok := u.(*tg.User); ok && user.ID == a.AdminID {
+				name = user.FirstName
+				if user.LastName != "" { name += " " + user.LastName }
+				break
+			}
+		}
+		admins = append(admins, map[string]interface{}{
+			"admin_id":              strconv.FormatInt(a.AdminID, 10),
+			"admin_name":            name,
+			"invites_count":         a.InvitesCount,
+			"revoked_invites_count": a.RevokedInvitesCount,
+		})
+	}
+	return admins, nil
+}
+
 // AddMembers adds one or more users to a group or channel.
 func (t *TelegramCore) AddMembers(chatID string, userIDs []string) error {
 	t.mu.RLock()

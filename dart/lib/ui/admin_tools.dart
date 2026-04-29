@@ -639,44 +639,15 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
   }
 
   Future<void> _showInviteLink() async {
-    final engine = context.read<EngineService>();
-    try {
-      final link = await engine.getInviteLink(
-        widget.chat.accountId,
-        widget.chat.chatId,
-      );
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('Invite Link'),
-            content: SelectableText(link),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: link));
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Link copied')),
-                  );
-                },
-                child: const Text('Copy'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Close'),
-              ),
-            ],
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to get invite link: $e')),
-        );
-      }
-    }
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => _InviteLinksBox(
+        accountId: widget.chat.accountId,
+        chatId: widget.chat.chatId,
+        isChannel: _isChannel,
+      ),
+    );
   }
 
   String _formatCount(int count) {
@@ -3233,6 +3204,923 @@ class _AdminLogFilterDialogState extends State<_AdminLogFilterDialog> {
             ),
           ),
       ],
+    );
+  }
+}
+
+// ── Invite Links Box (§26.6) ──
+
+class _InviteLinkData {
+  final String link;
+  final String label;
+  final String adminId;
+  final int date;
+  final int startDate;
+  final int expireDate;
+  final int usageLimit;
+  final int usage;
+  final int requested;
+  final bool permanent;
+  final bool revoked;
+  final bool needApproval;
+
+  _InviteLinkData({
+    required this.link,
+    this.label = '',
+    this.adminId = '',
+    this.date = 0,
+    this.startDate = 0,
+    this.expireDate = 0,
+    this.usageLimit = 0,
+    this.usage = 0,
+    this.requested = 0,
+    this.permanent = false,
+    this.revoked = false,
+    this.needApproval = false,
+  });
+
+  factory _InviteLinkData.fromMap(Map<String, dynamic> m) {
+    return _InviteLinkData(
+      link: m['link'] as String? ?? '',
+      label: m['label'] as String? ?? '',
+      adminId: m['admin_id'] as String? ?? '',
+      date: (m['date'] as num?)?.toInt() ?? 0,
+      startDate: (m['start_date'] as num?)?.toInt() ?? 0,
+      expireDate: (m['expire_date'] as num?)?.toInt() ?? 0,
+      usageLimit: (m['usage_limit'] as num?)?.toInt() ?? 0,
+      usage: (m['usage'] as num?)?.toInt() ?? 0,
+      requested: (m['requested'] as num?)?.toInt() ?? 0,
+      permanent: m['permanent'] as bool? ?? false,
+      revoked: m['revoked'] as bool? ?? false,
+      needApproval: m['need_approval'] as bool? ?? false,
+    );
+  }
+
+  double get progress {
+    if (permanent) return -1;
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    double expProg = -1;
+    double useProg = -1;
+    if (expireDate > 0 && startDate > 0 && expireDate > startDate) {
+      expProg = (now - startDate) / (expireDate - startDate);
+    }
+    if (usageLimit > 0) {
+      useProg = usage / usageLimit;
+    }
+    if (expProg < 0 && useProg < 0) return -1;
+    if (expProg < 0) return useProg;
+    if (useProg < 0) return expProg;
+    return expProg > useProg ? expProg : useProg;
+  }
+
+  String get displayName {
+    if (label.isNotEmpty) return label;
+    var s = link;
+    s = s.replaceFirst('https://', '');
+    s = s.replaceFirst('t.me/+', '');
+    s = s.replaceFirst('t.me/joinchat/', '');
+    return s;
+  }
+
+  String get statusText {
+    final parts = <String>[];
+    if (usage > 0) parts.add('$usage joined');
+    if (usageLimit > 0) parts.add('${usageLimit - usage} remaining');
+    if (expireDate > 0) {
+      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      final remaining = expireDate - now;
+      if (remaining > 0) {
+        if (remaining > 86400) {
+          parts.add('${remaining ~/ 86400}d left');
+        } else if (remaining > 3600) {
+          parts.add('${remaining ~/ 3600}h left');
+        } else {
+          parts.add('${remaining ~/ 60}m left');
+        }
+      } else {
+        parts.add('expired');
+      }
+    }
+    if (revoked) parts.add('revoked');
+    if (parts.isEmpty) parts.add('no limit');
+    return parts.join(' \u00b7 ');
+  }
+}
+
+enum _LinkColorState { permanent, expiring, expireSoon, expired, revoked }
+
+_LinkColorState _linkColorState(_InviteLinkData d) {
+  if (d.revoked) return _LinkColorState.revoked;
+  final p = d.progress;
+  if (p < 0) return _LinkColorState.permanent;
+  if (p >= 1.0) return _LinkColorState.expired;
+  if (p >= 0.75) return _LinkColorState.expireSoon;
+  return _LinkColorState.expiring;
+}
+
+Color _linkColor(_LinkColorState state, TelegramPalette palette) {
+  switch (state) {
+    case _LinkColorState.permanent:
+      return palette.msgFile1Bg;
+    case _LinkColorState.expiring:
+      return palette.msgFile2Bg;
+    case _LinkColorState.expireSoon:
+      return palette.msgFile4Bg;
+    case _LinkColorState.expired:
+      return palette.msgFile3Bg;
+    case _LinkColorState.revoked:
+      return palette.windowSubTextFg;
+  }
+}
+
+class _LinkArcPainter extends CustomPainter {
+  final double progress;
+  final Color color;
+  _LinkArcPainter({required this.progress, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final r = size.width / 2;
+    final paint = Paint()
+      ..color = color.withValues(alpha: 0.2)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(r, r), r, paint);
+
+    final icon = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(r, r), r * 0.55, icon);
+
+    if (progress >= 0 && progress < 1.0) {
+      final arcPaint = Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5
+        ..strokeCap = StrokeCap.round;
+      const fullAngle = 2 * 3.14159265;
+      final sweep = fullAngle * (1.0 - progress);
+      canvas.drawArc(
+        Rect.fromCircle(center: Offset(r, r), radius: r - 1.5),
+        -3.14159265 / 2,
+        sweep,
+        false,
+        arcPaint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_LinkArcPainter old) => old.progress != progress || old.color != color;
+}
+
+class _InviteLinksBox extends StatefulWidget {
+  final String accountId;
+  final String chatId;
+  final bool isChannel;
+  const _InviteLinksBox({required this.accountId, required this.chatId, required this.isChannel});
+
+  @override
+  State<_InviteLinksBox> createState() => _InviteLinksBoxState();
+}
+
+class _InviteLinksBoxState extends State<_InviteLinksBox> {
+  List<_InviteLinkData> _activeLinks = [];
+  List<_InviteLinkData> _revokedLinks = [];
+  List<Map<String, dynamic>> _adminsWithInvites = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAll();
+  }
+
+  Future<void> _loadAll() async {
+    final engine = context.read<EngineService>();
+    try {
+      final active = await engine.getExportedChatInvites(widget.accountId, widget.chatId);
+      final revoked = await engine.getExportedChatInvites(widget.accountId, widget.chatId, revoked: true);
+      List<Map<String, dynamic>> admins = [];
+      try {
+        admins = await engine.getAdminsWithInvites(widget.accountId, widget.chatId);
+      } catch (_) {}
+      if (mounted) {
+        setState(() {
+          _activeLinks = active.map(_InviteLinkData.fromMap).toList();
+          _revokedLinks = revoked.map(_InviteLinkData.fromMap).toList();
+          _adminsWithInvites = admins;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load invite links: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _createNewLink() async {
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => _CreateEditLinkForm(
+        accountId: widget.accountId,
+        chatId: widget.chatId,
+      ),
+    );
+    if (result != null) _loadAll();
+  }
+
+  Future<void> _revokeLink(_InviteLinkData link) async {
+    final engine = context.read<EngineService>();
+    try {
+      await engine.revokeChatInviteLink(widget.accountId, widget.chatId, link.link);
+      _loadAll();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      }
+    }
+  }
+
+  Future<void> _deleteLink(_InviteLinkData link) async {
+    final engine = context.read<EngineService>();
+    try {
+      await engine.deleteRevokedChatInviteLink(widget.accountId, widget.chatId, link.link);
+      _loadAll();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      }
+    }
+  }
+
+  Future<void> _deleteAllRevoked() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete All Revoked Links'),
+        content: const Text('Are you sure you want to delete all revoked links?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Delete', style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final engine = context.read<EngineService>();
+    try {
+      await engine.deleteAllRevokedChatInvites(widget.accountId, widget.chatId);
+      _loadAll();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      }
+    }
+  }
+
+  void _editLink(_InviteLinkData link) async {
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => _CreateEditLinkForm(
+        accountId: widget.accountId,
+        chatId: widget.chatId,
+        existingLink: link,
+      ),
+    );
+    if (result != null) _loadAll();
+  }
+
+  void _showLinkInfo(_InviteLinkData link) {
+    showDialog(
+      context: context,
+      builder: (ctx) => _LinkInfoBox(
+        accountId: widget.accountId,
+        chatId: widget.chatId,
+        link: link,
+        onRevoke: () { Navigator.pop(ctx); _revokeLink(link); },
+        onEdit: () { Navigator.pop(ctx); _editLink(link); },
+        onDelete: link.revoked ? () { Navigator.pop(ctx); _deleteLink(link); } : null,
+      ),
+    );
+  }
+
+  void _showLinkContextMenu(_InviteLinkData link, TapDownDetails details) {
+    final palette = PaletteProvider.of(context);
+    final pos = details.globalPosition;
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(pos.dx, pos.dy, pos.dx, pos.dy),
+      items: [
+        PopupMenuItem(value: 'copy', child: Row(children: [
+          Icon(Icons.copy, size: 20, color: palette.windowFg), const SizedBox(width: 12),
+          const Text('Copy Link'),
+        ])),
+        PopupMenuItem(value: 'share', child: Row(children: [
+          Icon(Icons.share, size: 20, color: palette.windowFg), const SizedBox(width: 12),
+          const Text('Share Link'),
+        ])),
+        if (!link.revoked) ...[
+          PopupMenuItem(value: 'edit', child: Row(children: [
+            Icon(Icons.edit, size: 20, color: palette.windowFg), const SizedBox(width: 12),
+            const Text('Edit Link'),
+          ])),
+          PopupMenuItem(value: 'revoke', child: Row(children: [
+            Icon(Icons.link_off, size: 20, color: palette.windowFg), const SizedBox(width: 12),
+            const Text('Revoke Link'),
+          ])),
+        ],
+        if (link.revoked)
+          PopupMenuItem(value: 'delete', child: Row(children: [
+            Icon(Icons.delete, size: 20, color: Theme.of(context).colorScheme.error), const SizedBox(width: 12),
+            Text('Delete Link', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          ])),
+      ],
+    ).then((action) {
+      if (action == null) return;
+      switch (action) {
+        case 'copy':
+          Clipboard.setData(ClipboardData(text: link.link));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Link copied')));
+        case 'share':
+          Clipboard.setData(ClipboardData(text: link.link));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Link copied to clipboard')));
+        case 'edit':
+          _editLink(link);
+        case 'revoke':
+          _revokeLink(link);
+        case 'delete':
+          _deleteLink(link);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = PaletteProvider.of(context);
+    final textColor = palette.windowFg;
+    final subColor = palette.windowSubTextFg;
+
+    return Dialog(
+      backgroundColor: palette.boxBg,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 364, maxHeight: 600),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 16, 8, 0),
+              child: Row(
+                children: [
+                  Expanded(child: Text('Invite Links', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor))),
+                  IconButton(icon: Icon(Icons.close, color: subColor, size: 20), onPressed: () => Navigator.pop(context)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 4),
+            Flexible(
+              child: _loading
+                ? const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator()))
+                : ListView(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.only(bottom: 16),
+                    children: [
+                      ..._buildPermanentLink(palette, textColor, subColor),
+                      _buildCreateButton(palette, textColor),
+                      if (_activeLinks.where((l) => !l.permanent).isNotEmpty) ...[
+                        _buildSectionHeader('My Links', textColor, subColor),
+                        ..._activeLinks.where((l) => !l.permanent).map((l) => _buildLinkRow(l, palette, textColor, subColor)),
+                      ],
+                      if (_revokedLinks.isNotEmpty) ...[
+                        _buildRevokedHeader(textColor, subColor),
+                        ..._revokedLinks.map((l) => _buildLinkRow(l, palette, textColor, subColor)),
+                      ],
+                      if (_adminsWithInvites.isNotEmpty) ...[
+                        _buildSectionHeader('Other Admins', textColor, subColor),
+                        ..._adminsWithInvites.map((a) => _buildAdminRow(a, palette, textColor, subColor)),
+                      ],
+                    ],
+                  ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildPermanentLink(TelegramPalette palette, Color textColor, Color subColor) {
+    final perm = _activeLinks.where((l) => l.permanent).toList();
+    if (perm.isEmpty) return [];
+    final link = perm.first;
+    final colorState = _linkColorState(link);
+    final color = _linkColor(colorState, palette);
+    return [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(22, 8, 22, 4),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 42, height: 42,
+                child: CustomPaint(
+                  painter: _LinkArcPainter(progress: link.progress, color: color),
+                  child: Center(child: Icon(Icons.link, color: Colors.white, size: 18)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(link.displayName, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: textColor), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 2),
+                    Text(link.statusText, style: TextStyle(fontSize: 12, color: subColor)),
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: Icon(Icons.copy, size: 20, color: palette.windowBgActive),
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: link.link));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Link copied')));
+                },
+              ),
+              IconButton(
+                icon: Icon(Icons.share, size: 20, color: palette.windowBgActive),
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: link.link));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Link copied to clipboard')));
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    ];
+  }
+
+  Widget _buildCreateButton(TelegramPalette palette, Color textColor) {
+    return InkWell(
+      onTap: _createNewLink,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(22, 12, 22, 4),
+        child: Row(
+          children: [
+            Container(
+              width: 42, height: 42,
+              decoration: BoxDecoration(
+                color: palette.windowBgActive,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.add_link, color: Colors.white, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Text('Create a New Link', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: palette.windowBgActive)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title, Color textColor, Color subColor) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 16, 22, 4),
+      child: Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: palette.windowActiveTextFg)),
+    );
+  }
+
+  TelegramPalette get palette => PaletteProvider.of(context);
+
+  Widget _buildRevokedHeader(Color textColor, Color subColor) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 16, 22, 4),
+      child: Row(
+        children: [
+          Expanded(child: Text('Revoked Links', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: palette.windowActiveTextFg))),
+          if (_revokedLinks.isNotEmpty)
+            GestureDetector(
+              onTap: _deleteAllRevoked,
+              child: Text('Delete All', style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.error)),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLinkRow(_InviteLinkData link, TelegramPalette palette, Color textColor, Color subColor) {
+    final colorState = _linkColorState(link);
+    final color = _linkColor(colorState, palette);
+    return InkWell(
+      onTap: () => _showLinkInfo(link),
+      onSecondaryTapDown: (d) => _showLinkContextMenu(link, d),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 6),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 42, height: 42,
+              child: CustomPaint(
+                painter: _LinkArcPainter(progress: link.progress, color: color),
+                child: Center(child: Icon(Icons.link, color: Colors.white, size: 16)),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(link.displayName, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: textColor), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 2),
+                  Text(link.statusText, style: TextStyle(fontSize: 12, color: subColor)),
+                ],
+              ),
+            ),
+            GestureDetector(
+              onTapDown: (d) => _showLinkContextMenu(link, d),
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: Icon(Icons.more_vert, size: 18, color: subColor),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAdminRow(Map<String, dynamic> admin, TelegramPalette palette, Color textColor, Color subColor) {
+    final name = admin['admin_name'] as String? ?? 'Admin';
+    final count = admin['invites_count'] as int? ?? 0;
+    final revokedCount = admin['revoked_invites_count'] as int? ?? 0;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 6),
+      child: Row(
+        children: [
+          CircleAvatar(radius: 21, backgroundColor: palette.windowBgActive,
+            child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?', style: const TextStyle(color: Colors.white, fontSize: 16))),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: textColor)),
+                const SizedBox(height: 2),
+                Text('$count links${revokedCount > 0 ? ', $revokedCount revoked' : ''}',
+                  style: TextStyle(fontSize: 12, color: subColor)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Single Link Info Box (§26.6.4) ──
+
+class _LinkInfoBox extends StatelessWidget {
+  final String accountId;
+  final String chatId;
+  final _InviteLinkData link;
+  final VoidCallback? onRevoke;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+
+  const _LinkInfoBox({
+    required this.accountId,
+    required this.chatId,
+    required this.link,
+    this.onRevoke,
+    this.onEdit,
+    this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = PaletteProvider.of(context);
+    final textColor = palette.windowFg;
+    final subColor = palette.windowSubTextFg;
+    final colorState = _linkColorState(link);
+    final color = _linkColor(colorState, palette);
+
+    return Dialog(
+      backgroundColor: palette.boxBg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 364),
+        child: Padding(
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text('Invite Link', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+                  const Spacer(),
+                  IconButton(icon: Icon(Icons.close, size: 20, color: subColor), onPressed: () => Navigator.pop(context)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: GestureDetector(
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: link.link));
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Link copied')));
+                  },
+                  child: Text(
+                    link.link.replaceFirst('https://', ''),
+                    style: TextStyle(fontSize: 14, color: palette.windowBgActive),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (!link.revoked && link.progress < 1.0) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: link.link));
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Link copied')));
+                        },
+                        icon: const Icon(Icons.copy, size: 18),
+                        label: const Text('Copy'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: link.link));
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Link copied to clipboard')));
+                        },
+                        icon: const Icon(Icons.share, size: 18),
+                        label: const Text('Share'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+              ],
+              Divider(color: subColor.withValues(alpha: 0.2)),
+              const SizedBox(height: 4),
+              _infoRow('Joined', '${link.usage}', textColor, subColor),
+              if (link.usageLimit > 0)
+                _infoRow('Remaining', '${link.usageLimit - link.usage}', textColor, subColor),
+              if (link.expireDate > 0)
+                _infoRow('Expires', _formatExpiry(link.expireDate), textColor, subColor),
+              if (link.requested > 0)
+                _infoRow('Pending', '${link.requested}', textColor, subColor),
+              const SizedBox(height: 8),
+              if (!link.revoked) ...[
+                if (onEdit != null)
+                  TextButton.icon(onPressed: onEdit, icon: const Icon(Icons.edit, size: 18), label: const Text('Edit Link')),
+                if (onRevoke != null)
+                  TextButton.icon(
+                    onPressed: onRevoke,
+                    icon: Icon(Icons.link_off, size: 18, color: Theme.of(context).colorScheme.error),
+                    label: Text('Revoke Link', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                  ),
+              ],
+              if (link.revoked && onDelete != null)
+                TextButton.icon(
+                  onPressed: onDelete,
+                  icon: Icon(Icons.delete, size: 18, color: Theme.of(context).colorScheme.error),
+                  label: Text('Delete Link', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _infoRow(String label, String value, Color textColor, Color subColor) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(fontSize: 13, color: subColor)),
+          Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: textColor)),
+        ],
+      ),
+    );
+  }
+
+  String _formatExpiry(int ts) {
+    final dt = DateTime.fromMillisecondsSinceEpoch(ts * 1000);
+    final now = DateTime.now();
+    if (dt.isBefore(now)) return 'Expired';
+    final diff = dt.difference(now);
+    if (diff.inDays > 0) return 'in ${diff.inDays}d';
+    if (diff.inHours > 0) return 'in ${diff.inHours}h';
+    return 'in ${diff.inMinutes}m';
+  }
+}
+
+// ── Create / Edit Link Form (§26.6.6) ──
+
+class _CreateEditLinkForm extends StatefulWidget {
+  final String accountId;
+  final String chatId;
+  final _InviteLinkData? existingLink;
+  const _CreateEditLinkForm({required this.accountId, required this.chatId, this.existingLink});
+
+  @override
+  State<_CreateEditLinkForm> createState() => _CreateEditLinkFormState();
+}
+
+class _CreateEditLinkFormState extends State<_CreateEditLinkForm> {
+  late final TextEditingController _labelCtrl;
+  int _expireOption = 2592000;
+  int _usageLimitOption = 0;
+  bool _requestApproval = false;
+  bool _saving = false;
+
+  bool get _isEdit => widget.existingLink != null;
+
+  static const _expireOptions = <int, String>{
+    0: 'Never',
+    3600: '1 hour',
+    86400: '1 day',
+    604800: '7 days',
+    2592000: '30 days',
+  };
+
+  static const _usageOptions = <int, String>{
+    0: 'Unlimited',
+    1: '1 use',
+    10: '10 uses',
+    100: '100 uses',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _labelCtrl = TextEditingController(text: widget.existingLink?.label ?? '');
+    if (_isEdit) {
+      final el = widget.existingLink!;
+      _requestApproval = el.needApproval;
+      if (el.expireDate > 0) {
+        final dur = el.expireDate - (el.startDate > 0 ? el.startDate : el.date);
+        _expireOption = _expireOptions.keys.firstWhere(
+          (k) => k > 0 && (dur - k).abs() < k * 0.1,
+          orElse: () => 2592000,
+        );
+      } else {
+        _expireOption = 0;
+      }
+      _usageLimitOption = _usageOptions.keys.contains(el.usageLimit) ? el.usageLimit : 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _labelCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    final engine = context.read<EngineService>();
+    final label = _labelCtrl.text.trim();
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final expireDate = _expireOption > 0 ? now + _expireOption : 0;
+    final usageLimit = _requestApproval ? 0 : _usageLimitOption;
+
+    try {
+      if (_isEdit) {
+        await engine.editChatInviteLink(
+          widget.accountId, widget.chatId, widget.existingLink!.link,
+          label: label, expireDate: expireDate, usageLimit: usageLimit,
+          requestApproval: _requestApproval,
+        );
+      } else {
+        await engine.createChatInviteLink(
+          widget.accountId, widget.chatId,
+          label: label, expireDate: expireDate, usageLimit: usageLimit,
+          requestApproval: _requestApproval,
+        );
+      }
+      if (mounted) Navigator.pop(context, {'ok': true});
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = PaletteProvider.of(context);
+    final textColor = palette.windowFg;
+    final subColor = palette.windowSubTextFg;
+
+    return Dialog(
+      backgroundColor: palette.boxBg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 364),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(child: Text(_isEdit ? 'Edit Link' : 'Create New Link',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor))),
+                  IconButton(icon: Icon(Icons.close, size: 20, color: subColor), onPressed: () => Navigator.pop(context)),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text('Link Name', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: palette.windowActiveTextFg)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _labelCtrl,
+                maxLength: 32,
+                decoration: InputDecoration(
+                  hintText: 'Label (optional)',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  counterText: '',
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text('Expire After', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: palette.windowActiveTextFg)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8, runSpacing: 6,
+                children: _expireOptions.entries.map((e) => ChoiceChip(
+                  label: Text(e.value, style: TextStyle(fontSize: 13, color: _expireOption == e.key ? Colors.white : textColor)),
+                  selected: _expireOption == e.key,
+                  selectedColor: palette.windowBgActive,
+                  onSelected: (_) => setState(() => _expireOption = e.key),
+                )).toList(),
+              ),
+              if (!_requestApproval) ...[
+                const SizedBox(height: 16),
+                Text('Usage Limit', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: palette.windowActiveTextFg)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8, runSpacing: 6,
+                  children: _usageOptions.entries.map((e) => ChoiceChip(
+                    label: Text(e.value, style: TextStyle(fontSize: 13, color: _usageLimitOption == e.key ? Colors.white : textColor)),
+                    selected: _usageLimitOption == e.key,
+                    selectedColor: palette.windowBgActive,
+                    onSelected: (_) => setState(() => _usageLimitOption = e.key),
+                  )).toList(),
+                ),
+              ],
+              const SizedBox(height: 16),
+              SwitchListTile(
+                title: Text('Approve New Members', style: TextStyle(fontSize: 14, color: textColor)),
+                subtitle: Text('Requests to join must be approved by an admin', style: TextStyle(fontSize: 12, color: subColor)),
+                value: _requestApproval,
+                onChanged: (v) => setState(() => _requestApproval = v),
+                activeTrackColor: palette.windowBgActive,
+                contentPadding: EdgeInsets.zero,
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity, height: 42,
+                child: FilledButton(
+                  onPressed: _saving ? null : _save,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: palette.windowBgActive,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: _saving
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : Text(_isEdit ? 'Save' : 'Create', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
