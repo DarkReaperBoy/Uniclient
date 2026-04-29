@@ -1616,6 +1616,100 @@ class _SavedMessagesIconPainter extends CustomPainter {
   bool shouldRepaint(_SavedMessagesIconPainter oldDelegate) => false;
 }
 
+class MyNotesUserpic extends StatelessWidget {
+  final double size;
+  final double borderRadius;
+
+  const MyNotesUserpic({super.key, required this.size, this.borderRadius = -1});
+
+  @override
+  Widget build(BuildContext context) {
+    final r = borderRadius < 0 ? size / 2 : borderRadius;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(r),
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: CustomPaint(
+          size: Size(size, size),
+          painter: const _MyNotesIconPainter(),
+        ),
+      ),
+    );
+  }
+}
+
+class _MyNotesIconPainter extends CustomPainter {
+  const _MyNotesIconPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width;
+    final center = Offset(s / 2, s / 2);
+    final radius = s / 2;
+
+    final bgPaint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0xFF5caffa), Color(0xFF408acf)],
+      ).createShader(Rect.fromCircle(center: center, radius: radius));
+
+    canvas.drawCircle(center, radius, bgPaint);
+
+    // Notepad/document icon — matches Telegram's dialogsMyNotesUserpic asset
+    final iconPaint = Paint()
+      ..color = const Color(0xFFFFFFFF)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = s * 0.05
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final w = s * 0.36;
+    final h = s * 0.42;
+    final left = (s - w) / 2;
+    final top = (s - h) / 2;
+    final right = left + w;
+    final bottom = top + h;
+    final fold = s * 0.10;
+    final lineGap = h * 0.22;
+
+    // Page outline with folded corner
+    final page = Path()
+      ..moveTo(left, top)
+      ..lineTo(right - fold, top)
+      ..lineTo(right, top + fold)
+      ..lineTo(right, bottom)
+      ..lineTo(left, bottom)
+      ..close();
+    canvas.drawPath(page, iconPaint);
+
+    // Fold line
+    final foldPath = Path()
+      ..moveTo(right - fold, top)
+      ..lineTo(right - fold, top + fold)
+      ..lineTo(right, top + fold);
+    canvas.drawPath(foldPath, iconPaint);
+
+    // Text lines
+    final lineLeft = left + w * 0.18;
+    final lineRight = right - w * 0.18;
+    final lineY1 = top + fold + lineGap;
+    final lineY2 = lineY1 + lineGap;
+    final linePaint = Paint()
+      ..color = const Color(0xFFFFFFFF)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = s * 0.04
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawLine(Offset(lineLeft, lineY1), Offset(lineRight, lineY1), linePaint);
+    canvas.drawLine(Offset(lineLeft, lineY2), Offset(lineRight * 0.85, lineY2), linePaint);
+  }
+
+  @override
+  bool shouldRepaint(_MyNotesIconPainter oldDelegate) => false;
+}
+
 /// Hover-tracking wrapper that exposes hover state to its builder.
 /// Used for Spec §2 unread pill Over/Active color variants.
 class _HoverBuilder extends StatefulWidget {

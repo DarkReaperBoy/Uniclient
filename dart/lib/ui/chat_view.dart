@@ -23,7 +23,7 @@ import '../state/chat_state.dart';
 import '../theme/theme.dart';
 import '../theme/wallpaper.dart';
 import '../data/emoji_data.dart';
-import 'chat_list_row.dart' show ForwardDragData, SavedMessagesUserpic;
+import 'chat_list_row.dart' show ForwardDragData, MyNotesUserpic, SavedMessagesUserpic;
 import 'sticker_pack_viewer.dart';
 import 'message_bubble.dart';
 import 'popup_menu.dart';
@@ -3165,6 +3165,7 @@ class _ChatViewState extends State<ChatView>
                               : null,
                           isScheduledView: widget.isScheduledView || chatState.isScheduledView,
                           onExitScheduled: () => chatState.toggleScheduledView(),
+                          activeSublist: chatState.activeSublist,
                         ),
                       ),
                       // Selection bar slides in from below
@@ -3853,6 +3854,9 @@ class _ChatTopBar extends StatelessWidget {
   final bool isScheduledView;
   final VoidCallback? onExitScheduled;
 
+  /// §31.4: Active saved sublist (when browsing Saved Messages sublists).
+  final SavedSublistInfo? activeSublist;
+
   const _ChatTopBar({
     required this.chat,
     this.typingUser,
@@ -3879,13 +3883,20 @@ class _ChatTopBar extends StatelessWidget {
     this.parentChat,
     this.isScheduledView = false,
     this.onExitScheduled,
+    this.activeSublist,
   });
 
   /// Format a last-seen descriptor per Telegram Desktop spec §1.4 / §7588.
   static String _formatLastSeen(({String kind, int lastSeenMs}) ls) =>
       formatChatLastSeen(ls);
 
-  static Widget _chatAvatar(ChatInfo chat, ThemeData theme, double radius) {
+  static Widget _chatAvatar(ChatInfo chat, ThemeData theme, double radius, {SavedSublistInfo? activeSublist}) {
+    if (activeSublist != null) {
+      if (activeSublist.isSelf) {
+        return MyNotesUserpic(size: radius * 2);
+      }
+      return _sublistAvatar(activeSublist, radius);
+    }
     if (chat.title == 'Saved Messages' && chat.type == ChatType.dm) {
       return SavedMessagesUserpic(size: radius * 2);
     }
@@ -3902,6 +3913,47 @@ class _ChatTopBar extends StatelessWidget {
       );
     }
     return _fallbackAvatar(chat, theme, radius);
+  }
+
+  static Widget _sublistAvatar(SavedSublistInfo sub, double radius) {
+    if (sub.avatarPath.isNotEmpty) {
+      return ClipOval(
+        child: Image.file(
+          File(sub.avatarPath),
+          width: radius * 2,
+          height: radius * 2,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _sublistFallbackAvatar(sub, radius),
+        ),
+      );
+    }
+    return _sublistFallbackAvatar(sub, radius);
+  }
+
+  static Widget _sublistFallbackAvatar(SavedSublistInfo sub, double radius) {
+    const colors = [
+      Color(0xFFE17076), Color(0xFF7BC862), Color(0xFFE5CA77),
+      Color(0xFF65AADD), Color(0xFFA695E7), Color(0xFFEE7AAE),
+      Color(0xFF6EC9CB),
+    ];
+    final id = int.tryParse(sub.peerId) ?? 0;
+    final color = colors[id.abs() % colors.length];
+    final parts = sub.peerName.trim().split(RegExp(r'\s+'));
+    final initials = parts.length >= 2
+        ? '${parts.first[0]}${parts.last[0]}'.toUpperCase()
+        : (parts.first.isNotEmpty ? parts.first[0].toUpperCase() : '?');
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: color,
+      child: Text(
+        initials,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: radius * 0.8,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
   }
 
   /// Show the chat-level action menu anchored to the more_vert button.
@@ -4263,7 +4315,12 @@ class _ChatTopBar extends StatelessWidget {
     Color? subtitleColor;
     final bool isTopic = chat.type == ChatType.topic && activeTopic != null;
     final bool isTyping = typingUser != null;
-    if (isTyping) {
+    if (activeSublist != null) {
+      subtitle = 'Saved Messages';
+      subtitleColor = isDark
+          ? const Color(0xFF98b4d3)
+          : const Color(0xFF999999);
+    } else if (isTyping) {
       subtitle = ''; // rendered via _TopBarTypingDots widget instead
       subtitleColor = theme.colorScheme.primary;
     } else if (isTopic) {
@@ -4357,7 +4414,7 @@ class _ChatTopBar extends StatelessWidget {
                     Positioned(
                       left: 2,
                       top: 5,
-                      child: _chatAvatar(chat, theme, 21),
+                      child: _chatAvatar(chat, theme, 21, activeSublist: activeSublist),
                     ),
                   ],
                 ),
@@ -4508,9 +4565,11 @@ class _ChatTopBar extends StatelessWidget {
                           ],
                           Flexible(
                             child: Text(
-                              isTopic && activeTopic != null && activeTopic!.isGeneral
-                                  ? '# ${chat.title.isNotEmpty ? chat.title : chat.chatId}'
-                                  : (chat.title.isNotEmpty ? chat.title : chat.chatId),
+                              activeSublist != null
+                                  ? activeSublist!.peerName
+                                  : isTopic && activeTopic != null && activeTopic!.isGeneral
+                                      ? '# ${chat.title.isNotEmpty ? chat.title : chat.chatId}'
+                                      : (chat.title.isNotEmpty ? chat.title : chat.chatId),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.titleMedium,

@@ -13,7 +13,7 @@ import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import 'chat_export.dart';
-import 'chat_list_row.dart' show SavedMessagesUserpic;
+import 'chat_list_row.dart' show MyNotesUserpic, SavedMessagesUserpic;
 import 'chat_view.dart' show formatChatLastSeen;
 import 'confirm_box.dart';
 import 'admin_tools.dart' show showEditAdminBox, showEditPeerInfoBox, showEditRestrictedBox;
@@ -337,6 +337,7 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
   final VoidCallback? onMuteToggle;
   final ChatType chatType;
   final bool isSelf;
+  final bool isMyNotes;
   final int storyCount;
   final bool hasUnreadStory;
   final List<Color>? profileBgColors;
@@ -365,6 +366,7 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
     this.onMuteToggle,
     this.chatType = ChatType.dm,
     this.isSelf = false,
+    this.isMyNotes = false,
     this.storyCount = 0,
     this.hasUnreadStory = false,
     this.profileBgColors,
@@ -464,7 +466,9 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
                         SizedBox(
                           width: avatarDisplaySize,
                           height: avatarDisplaySize,
-                          child: isSelf
+                          child: isMyNotes
+                              ? MyNotesUserpic(size: avatarDisplaySize)
+                              : isSelf
                               ? SavedMessagesUserpic(size: avatarDisplaySize)
                               : avatarPath.isNotEmpty
                                   ? ClipOval(
@@ -1609,10 +1613,14 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
           SliverPersistentHeader(
             pinned: true,
             delegate: _FlexibleCoverDelegate(
-              displayName: widget.chat.title.isNotEmpty
-                  ? widget.chat.title
-                  : widget.chat.chatId,
-              statusText: statusText,
+              displayName: widget.chatState.activeSublist != null
+                  ? widget.chatState.activeSublist!.peerName
+                  : (widget.chat.title.isNotEmpty
+                      ? widget.chat.title
+                      : widget.chat.chatId),
+              statusText: widget.chatState.activeSublist != null
+                  ? 'Saved Messages'
+                  : statusText,
               statusColor: statusColor,
               avatarPath: widget.chat.avatarPath,
               avatarColor: _AvatarHeader._avatarColors[colorIndex],
@@ -1631,6 +1639,7 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
               chatType: widget.chat.type,
               isSelf: widget.chat.title == 'Saved Messages' &&
                   widget.chat.type == ChatType.dm,
+              isMyNotes: widget.chatState.activeSublist?.isSelf == true,
               storyCount: widget.chat.storyCount,
               hasUnreadStory: widget.chat.hasUnreadStory,
               emojiStatusId: widget.chat.emojiStatusId,
@@ -1956,9 +1965,13 @@ class _AvatarHeader extends StatelessWidget {
     final isDm = chat.type == ChatType.dm;
     final isSavedMessages = chat.title == 'Saved Messages' && isDm;
     final chatState = context.read<ChatState>();
+    final activeSub = chatState.activeSublist;
     final String statusText;
     final Color? statusColor;
-    if (isSavedMessages) {
+    if (activeSub != null) {
+      statusText = 'Saved Messages';
+      statusColor = theme.textTheme.bodySmall?.color;
+    } else if (isSavedMessages) {
       final count = chatState.savedSublistsTotalCount;
       statusText = count > 0 ? '$count chats' : (chatState.savedSublistsLoading ? 'Loading...' : '');
       statusColor = theme.textTheme.bodySmall?.color;
@@ -1975,7 +1988,9 @@ class _AvatarHeader extends StatelessWidget {
         SizedBox(
           width: 80,
           height: 80,
-          child: (chat.title == 'Saved Messages' && chat.type == ChatType.dm)
+          child: chatState.activeSublist?.isSelf == true
+              ? const MyNotesUserpic(size: 80)
+              : (chat.title == 'Saved Messages' && chat.type == ChatType.dm)
               ? const SavedMessagesUserpic(size: 80)
               : chat.avatarPath.isNotEmpty
                   ? ClipOval(
@@ -1994,7 +2009,9 @@ class _AvatarHeader extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Text(
-            chat.title.isNotEmpty ? chat.title : chat.chatId,
+            activeSub != null
+                ? activeSub.peerName
+                : (chat.title.isNotEmpty ? chat.title : chat.chatId),
             style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
             textAlign: TextAlign.center,
             maxLines: 2,

@@ -64,11 +64,12 @@ class ChatState extends ChangeNotifier {
   final Map<String, List<ForumTopic>> _forumRecentTopics = {};
   final Set<String> _forumTopicsFetching = {};
 
-  // §31.2–31.3: Saved Messages sublist state.
+  // §31.2–31.4: Saved Messages sublist state.
   List<SavedSublistInfo> _savedSublists = [];
   bool _isViewingSavedSublists = false;
   int _savedSublistsTotalCount = 0;
   bool _savedSublistsLoading = false;
+  SavedSublistInfo? _activeSublist;
 
   // §24.5: Recently opened chats for Ctrl+Tab switcher overlay.
   final List<String> _chatOpenHistory = []; // chatId list, most-recent first
@@ -257,11 +258,12 @@ class ChatState extends ChangeNotifier {
     return _forumViewAsMessages.contains('${chat.accountId}:${chat.chatId}');
   }
 
-  // §31.2–31.3: Saved sublists getters
+  // §31.2–31.4: Saved sublists getters
   List<SavedSublistInfo> get savedSublists => _savedSublists;
   bool get isViewingSavedSublists => _isViewingSavedSublists;
   int get savedSublistsTotalCount => _savedSublistsTotalCount;
   bool get savedSublistsLoading => _savedSublistsLoading;
+  SavedSublistInfo? get activeSublist => _activeSublist;
 
   void toggleForumViewAsMessages() {
     final chat = _forumParentChat;
@@ -811,8 +813,19 @@ class ChatState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void openSavedSublist(SavedSublistInfo sublist) {
+    _activeSublist = sublist;
+    notifyListeners();
+  }
+
+  void closeSavedSublist() {
+    _activeSublist = null;
+    notifyListeners();
+  }
+
   void closeSavedSublists() {
     _isViewingSavedSublists = false;
+    _activeSublist = null;
     _savedSublists = [];
     _savedSublistsTotalCount = 0;
     _savedSublistsLoading = false;
@@ -858,6 +871,7 @@ class ChatState extends ChangeNotifier {
   void closeChat() {
     _stopPolling();
     _activeChat = null;
+    _activeSublist = null;
     _openedUnreadCount = 0;
     _messages = [];
     _pinnedMessages = [];

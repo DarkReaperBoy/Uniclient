@@ -4097,10 +4097,7 @@ class _SavedSublistsView extends StatelessWidget {
                             sublist: sub,
                             isDark: isDark,
                             onTap: () {
-                              final chat = chatState.activeChat;
-                              if (chat != null) {
-                                chatState.notifyListeners();
-                              }
+                              chatState.openSavedSublist(sub);
                             },
                           );
                         },
@@ -4278,7 +4275,7 @@ class _SavedSublistRowState extends State<_SavedSublistRow> {
       return SizedBox(
         width: 46,
         height: 46,
-        child: _MyNotesAvatar(size: 46),
+        child: MyNotesUserpic(size: 46),
       );
     }
     final initials = _getInitials(sub.peerName);
@@ -4359,30 +4356,3 @@ class _SavedSublistRowState extends State<_SavedSublistRow> {
   }
 }
 
-class _MyNotesAvatar extends StatelessWidget {
-  final double size;
-  const _MyNotesAvatar({required this.size});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF5CAFFA), Color(0xFF408ACF)],
-        ),
-      ),
-      child: Center(
-        child: Icon(
-          Icons.description_outlined,
-          color: Colors.white,
-          size: size * 0.5,
-        ),
-      ),
-    );
-  }
-}
