@@ -82,9 +82,10 @@ class ChatState extends ChangeNotifier {
   static const _kLoadedSublistsMinCount = 20;
   static const _kRecentSublistsMax = 6;
 
-  // §31.6: Saved reaction tags
+  // §31.6–31.7: Saved reaction tags + selection state
   List<SavedReactionTagInfo> _savedReactionTags = [];
   bool _savedReactionTagsLoading = false;
+  final Set<String> _selectedReactionTagIds = {};
 
   // §24.5: Recently opened chats for Ctrl+Tab switcher overlay.
   final List<String> _chatOpenHistory = []; // chatId list, most-recent first
@@ -288,9 +289,42 @@ class ChatState extends ChangeNotifier {
   bool get savedSublistsHasMore => _savedSublistsHasMore;
   SavedSublistInfo? get activeSublist => _activeSublist;
 
-  // §31.6: Reaction tags getters
+  // §31.6–31.7: Reaction tags getters + selection
   List<SavedReactionTagInfo> get savedReactionTags => _savedReactionTags;
   bool get savedReactionTagsLoading => _savedReactionTagsLoading;
+  Set<String> get selectedReactionTagIds => Set.unmodifiable(_selectedReactionTagIds);
+
+  String _reactionTagKey(SavedReactionTagInfo tag) =>
+      tag.isCustomEmoji ? 'custom:${tag.customId}' : 'emoji:${tag.emoji}';
+
+  void toggleReactionTag(SavedReactionTagInfo tag, {bool multiSelect = false}) {
+    final key = _reactionTagKey(tag);
+    if (!multiSelect) {
+      if (_selectedReactionTagIds.contains(key) && _selectedReactionTagIds.length == 1) {
+        _selectedReactionTagIds.clear();
+      } else {
+        _selectedReactionTagIds.clear();
+        _selectedReactionTagIds.add(key);
+      }
+    } else {
+      if (_selectedReactionTagIds.contains(key)) {
+        _selectedReactionTagIds.remove(key);
+      } else {
+        _selectedReactionTagIds.add(key);
+      }
+    }
+    notifyListeners();
+  }
+
+  void clearReactionTagSelection() {
+    if (_selectedReactionTagIds.isNotEmpty) {
+      _selectedReactionTagIds.clear();
+      notifyListeners();
+    }
+  }
+
+  bool isReactionTagSelected(SavedReactionTagInfo tag) =>
+      _selectedReactionTagIds.contains(_reactionTagKey(tag));
 
   void toggleForumViewAsMessages() {
     final chat = _forumParentChat;
@@ -953,6 +987,7 @@ class ChatState extends ChangeNotifier {
     _savedSublistsAccountId = '';
     _savedReactionTags = [];
     _savedReactionTagsLoading = false;
+    _selectedReactionTagIds.clear();
     notifyListeners();
   }
 

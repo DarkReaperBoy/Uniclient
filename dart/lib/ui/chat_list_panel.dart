@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 
@@ -4043,6 +4044,344 @@ class _TopicUnreadBadge extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// §31.7a SearchTags Strip — reaction tag filter chips for Saved Messages
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _SearchTagsStrip extends StatelessWidget {
+  final List<SavedReactionTagInfo> tags;
+  final ChatState chatState;
+
+  const _SearchTagsStrip({required this.tags, required this.chatState});
+
+  @override
+  Widget build(BuildContext context) {
+    if (tags.isEmpty) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.only(left: 8, right: 8, top: 4, bottom: 10),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 4,
+        children: tags.map((tag) {
+          final selected = chatState.isReactionTagSelected(tag);
+          return _SearchTagChip(
+            tag: tag,
+            selected: selected,
+            isDark: isDark,
+            onTap: (multiSelect) => chatState.toggleReactionTag(tag, multiSelect: multiSelect),
+            onContextMenu: (offset) => _showTagContextMenu(context, offset, tag),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  void _showTagContextMenu(BuildContext context, Offset position, SavedReactionTagInfo tag) {
+    final hasTitle = tag.title.isNotEmpty;
+    showTelegramMenu<String>(
+      context: context,
+      position: position,
+      items: [
+        TelegramMenuItem(
+          value: 'edit',
+          label: hasTitle ? 'Edit tag name' : 'Add tag name',
+          icon: const Icon(Icons.edit_outlined, size: 20),
+        ),
+        TelegramMenuItem(
+          value: 'filter',
+          label: 'Filter by this tag',
+          icon: const Icon(Icons.filter_alt_outlined, size: 20),
+        ),
+        TelegramMenuItem(
+          value: 'remove',
+          label: 'Remove tag',
+          icon: const Icon(Icons.close, size: 20),
+          isAttention: true,
+        ),
+      ],
+    ).then((action) {
+      if (action == 'edit') {
+        _showEditTagDialog(context, tag);
+      } else if (action == 'filter') {
+        chatState.toggleReactionTag(tag);
+      }
+    });
+  }
+
+  void _showEditTagDialog(BuildContext context, SavedReactionTagInfo tag) {
+    final controller = TextEditingController(text: tag.title);
+    final hasTitle = tag.title.isNotEmpty;
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return _EditTagNameDialog(
+          title: hasTitle ? 'Edit tag name' : 'Add tag name',
+          emoji: tag.isCustomEmoji ? null : tag.emoji,
+          controller: controller,
+          onSave: (text) {
+            chatState.renameSavedReactionTag(
+              emoji: tag.emoji,
+              customId: tag.customId,
+              title: text,
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _SearchTagChip extends StatelessWidget {
+  final SavedReactionTagInfo tag;
+  final bool selected;
+  final bool isDark;
+  final void Function(bool multiSelect) onTap;
+  final void Function(Offset position) onContextMenu;
+
+  const _SearchTagChip({
+    required this.tag,
+    required this.selected,
+    required this.isDark,
+    required this.onTap,
+    required this.onContextMenu,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = selected
+        ? (isDark ? const Color(0xFF2B5278) : const Color(0xFF419FD9))
+        : (isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1));
+    final textColor = selected
+        ? Colors.white
+        : (isDark ? const Color(0xFF8B9BAA) : const Color(0xFF999999));
+
+    final label = _composeLabel();
+    final emojiText = tag.isCustomEmoji ? '\u{2B50}' : tag.emoji;
+
+    return GestureDetector(
+      onTapDown: (details) {
+        final isShift = HardwareKeyboard.instance.logicalKeysPressed
+            .any((k) => k == LogicalKeyboardKey.shiftLeft || k == LogicalKeyboardKey.shiftRight);
+        onTap(isShift);
+      },
+      onSecondaryTapUp: (details) => onContextMenu(details.globalPosition),
+      child: CustomPaint(
+        painter: _TagChipPainter(
+          bgColor: bgColor,
+          leftRadius: 6,
+          rightRadius: 3,
+          arrowWidth: 5,
+          dotSize: 5,
+          dotSkip: 2,
+          dotColor: Theme.of(context).colorScheme.surface,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.only(left: 5, top: 2, right: 12, bottom: 2),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (emojiText.isNotEmpty)
+                Text(emojiText, style: const TextStyle(fontSize: 14)),
+              if (emojiText.isNotEmpty && label.isNotEmpty)
+                const SizedBox(width: 6),
+              if (label.isNotEmpty)
+                Text(
+                  label,
+                  style: TextStyle(fontSize: 12, color: textColor),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _composeLabel() {
+    final t = tag.title;
+    final c = tag.count;
+    if (t.isNotEmpty && c > 0) return '$t $c';
+    if (t.isNotEmpty) return t;
+    if (c > 0) return '$c';
+    return '';
+  }
+}
+
+class _TagChipPainter extends CustomPainter {
+  final Color bgColor;
+  final double leftRadius;
+  final double rightRadius;
+  final double arrowWidth;
+  final double dotSize;
+  final double dotSkip;
+  final Color dotColor;
+
+  _TagChipPainter({
+    required this.bgColor,
+    required this.leftRadius,
+    required this.rightRadius,
+    required this.arrowWidth,
+    required this.dotSize,
+    required this.dotSkip,
+    required this.dotColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final midY = h / 2;
+    final bodyW = w - arrowWidth;
+
+    final path = Path();
+    // Start at top-left corner
+    path.moveTo(leftRadius, 0);
+    path.lineTo(bodyW - rightRadius, 0);
+    path.arcToPoint(Offset(bodyW, rightRadius), radius: Radius.circular(rightRadius));
+    // Arrow notch (right side)
+    path.lineTo(bodyW, midY - rightRadius);
+    path.arcToPoint(Offset(bodyW, midY - 0.01), radius: Radius.circular(rightRadius), clockwise: false);
+    path.lineTo(w, midY);
+    path.lineTo(bodyW, midY + 0.01);
+    path.arcToPoint(Offset(bodyW, midY + rightRadius), radius: Radius.circular(rightRadius), clockwise: false);
+    path.lineTo(bodyW, h - rightRadius);
+    path.arcToPoint(Offset(bodyW - rightRadius, h), radius: Radius.circular(rightRadius));
+    path.lineTo(leftRadius, h);
+    path.arcToPoint(Offset(0, h - leftRadius), radius: Radius.circular(leftRadius));
+    path.lineTo(0, leftRadius);
+    path.arcToPoint(Offset(leftRadius, 0), radius: Radius.circular(leftRadius));
+    path.close();
+
+    canvas.drawPath(path, Paint()..color = bgColor);
+
+    // Punched-out dot near the tail
+    final dotCx = bodyW + dotSkip + dotSize / 2;
+    if (dotCx + dotSize / 2 <= w) {
+      canvas.drawCircle(
+        Offset(dotCx - dotSize / 2 + 1, midY),
+        dotSize / 2,
+        Paint()..color = dotColor,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_TagChipPainter old) =>
+      old.bgColor != bgColor || old.dotColor != dotColor;
+}
+
+// §31.7b EditTagNameBox
+class _EditTagNameDialog extends StatefulWidget {
+  final String title;
+  final String? emoji;
+  final TextEditingController controller;
+  final void Function(String text) onSave;
+
+  const _EditTagNameDialog({
+    required this.title,
+    this.emoji,
+    required this.controller,
+    required this.onSave,
+  });
+
+  @override
+  State<_EditTagNameDialog> createState() => _EditTagNameDialogState();
+}
+
+class _EditTagNameDialogState extends State<_EditTagNameDialog> {
+  static const _kTagNameLimit = 12;
+  bool _hasError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_onChanged);
+  }
+
+  void _onChanged() {
+    if (_hasError && widget.controller.text.length <= _kTagNameLimit) {
+      setState(() => _hasError = false);
+    }
+  }
+
+  void _save() {
+    final text = widget.controller.text;
+    if (text.characters.length > _kTagNameLimit) {
+      setState(() => _hasError = true);
+      return;
+    }
+    widget.onSave(text);
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final charCount = widget.controller.text.characters.length;
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: SizedBox(
+        width: 320,
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(widget.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              Text(
+                'Tag names are visible only to you.',
+                style: TextStyle(fontSize: 13, color: theme.hintColor),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: widget.controller,
+                autofocus: true,
+                maxLength: _kTagNameLimit * 2,
+                decoration: InputDecoration(
+                  prefixText: widget.emoji != null ? '${widget.emoji} ' : null,
+                  hintText: 'Tag name',
+                  counterText: '$charCount/$_kTagNameLimit',
+                  counterStyle: TextStyle(
+                    color: charCount > _kTagNameLimit ? Colors.red : theme.hintColor,
+                    fontSize: 12,
+                  ),
+                  errorText: _hasError ? 'Tag name is too long' : null,
+                  border: const OutlineInputBorder(),
+                ),
+                onSubmitted: (_) => _save(),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: _save,
+                    child: const Text('Save'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onChanged);
+    super.dispose();
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // §31.2–31.3 Saved Messages Sublists View
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -4106,6 +4445,8 @@ class _SavedSublistsViewState extends State<_SavedSublistsView> {
             onBack: chatState.closeSavedSublists,
             totalCount: chatState.savedSublistsTotalCount,
           ),
+          if (chatState.savedReactionTags.isNotEmpty)
+            _SearchTagsStrip(tags: chatState.savedReactionTags, chatState: chatState),
           Expanded(
             child: loading && sublists.isEmpty
                 ? const Center(child: CircularProgressIndicator())
