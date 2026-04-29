@@ -1776,12 +1776,14 @@ class _PasscodeLockScreen extends StatefulWidget {
 }
 
 class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   static const _duration = Duration(milliseconds: 180);
+  static const _errorDuration = Duration(milliseconds: 150);
   static const _curveIn = Curves.easeOutCirc;
   static const _curveOut = Curves.easeInCirc;
 
   late final AnimationController _anim;
+  late final AnimationController _errorAnim;
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
   bool _obscure = true;
@@ -1792,6 +1794,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
   void initState() {
     super.initState();
     _anim = AnimationController(vsync: this, duration: _duration);
+    _errorAnim = AnimationController(vsync: this, duration: _errorDuration);
     _anim.addStatusListener(_onAnimStatus);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final locked = context.read<AppState>().passcodeLocked;
@@ -1828,6 +1831,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
   void dispose() {
     _anim.removeStatusListener(_onAnimStatus);
     _anim.dispose();
+    _errorAnim.dispose();
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -1837,21 +1841,33 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
     final appState = context.read<AppState>();
     final entered = _controller.text;
     if (entered.isEmpty) {
-      setState(() => _error = 'Please enter your passcode');
+      _showError('Please enter your passcode');
       return;
     }
     if (!appState.passcodeCanTry()) {
-      setState(() => _error = 'Please try again later');
+      _showError('Please try again later');
       return;
     }
     if (appState.checkPasscode(entered)) {
       return;
     }
-    setState(() => _error = 'Wrong passcode');
+    _showError('Wrong passcode');
+  }
+
+  void _showError(String msg) {
+    setState(() => _error = msg);
+    _errorAnim.forward(from: 0.0);
     _controller.selection = TextSelection(
       baseOffset: 0,
       extentOffset: _controller.text.length,
     );
+    _focusNode.requestFocus();
+  }
+
+  void _clearError() {
+    if (_error.isEmpty) return;
+    setState(() => _error = '');
+    _errorAnim.reverse();
   }
 
   @override
@@ -1902,40 +1918,40 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
                   top: inputY,
                   child: SizedBox(
                     width: 225,
-                    child: TextField(
-                      controller: _controller,
-                      focusNode: _focusNode,
-                      obscureText: _obscure,
-                      onChanged: (_) {
-                        if (_error.isNotEmpty) setState(() => _error = '');
-                      },
-                      onSubmitted: (_) => _submit(),
-                      decoration: InputDecoration(
-                        hintText: 'Your passcode',
-                        hintStyle: TextStyle(color: subtextColor),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _obscure ? Icons.visibility_off : Icons.visibility,
-                            color: subtextColor,
-                            size: 20,
+                    child: AnimatedBuilder(
+                      animation: _errorAnim,
+                      builder: (context, _) {
+                        final t = _errorAnim.value;
+                        final enabledColor = Color.lerp(subtextColor, errorColor, t)!;
+                        final focusedColor = Color.lerp(accentColor, errorColor, t)!;
+                        return TextField(
+                          controller: _controller,
+                          focusNode: _focusNode,
+                          obscureText: _obscure,
+                          onChanged: (_) => _clearError(),
+                          onSubmitted: (_) => _submit(),
+                          decoration: InputDecoration(
+                            hintText: 'Your passcode',
+                            hintStyle: TextStyle(color: subtextColor),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscure ? Icons.visibility_off : Icons.visibility,
+                                color: subtextColor,
+                                size: 20,
+                              ),
+                              onPressed: () => setState(() => _obscure = !_obscure),
+                            ),
+                            enabledBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: enabledColor),
+                            ),
+                            focusedBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: focusedColor, width: 2),
+                            ),
+                            contentPadding: const EdgeInsets.fromLTRB(1, 27, 1, 6),
                           ),
-                          onPressed: () => setState(() => _obscure = !_obscure),
-                        ),
-                        enabledBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(color: subtextColor),
-                        ),
-                        focusedBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(color: accentColor, width: 2),
-                        ),
-                        errorBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(color: errorColor, width: 2),
-                        ),
-                        focusedErrorBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(color: errorColor, width: 2),
-                        ),
-                        contentPadding: const EdgeInsets.fromLTRB(1, 27, 1, 6),
-                      ),
-                      style: TextStyle(fontSize: 16, color: textColor),
+                          style: TextStyle(fontSize: 16, color: textColor),
+                        );
+                      },
                     ),
                   ),
                 ),
