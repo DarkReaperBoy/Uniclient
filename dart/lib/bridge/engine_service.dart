@@ -2485,6 +2485,21 @@ class EngineService {
     await _callAsync('__engine', 'RemoveCloudPassword', Uint8List.fromList(payload));
   }
 
+  Future<void> confirmPasswordEmail(String accountId, String code) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'code': code,
+    }));
+    await _callAsync('__engine', 'ConfirmPasswordEmail', Uint8List.fromList(payload));
+  }
+
+  Future<void> resendPasswordEmail(String accountId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+    }));
+    await _callAsync('__engine', 'ResendPasswordEmail', Uint8List.fromList(payload));
+  }
+
   // ── Passkeys ──
 
   Future<List<Map<String, dynamic>>> getPasskeyList(String accountId) async {

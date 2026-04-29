@@ -1182,6 +1182,14 @@ type cloudPasswordRemover interface {
 	RemoveCloudPassword(password string) error
 }
 
+type cloudPasswordEmailConfirmer interface {
+	AccountConfirmPasswordEmail(code string) (bool, error)
+}
+
+type cloudPasswordEmailResender interface {
+	AccountResendPasswordEmail() (bool, error)
+}
+
 func (e *Engine) GetCloudPasswordState(accountID string) (cores.CloudPasswordState, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -1228,6 +1236,32 @@ func (e *Engine) RemoveCloudPassword(accountID, password string) error {
 		return fmt.Errorf("platform does not support cloud password")
 	}
 	return p.RemoveCloudPassword(password)
+}
+
+func (e *Engine) ConfirmPasswordEmail(accountID, code string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found")
+	}
+	p, ok := acc.Core.(cloudPasswordEmailConfirmer)
+	if !ok {
+		return fmt.Errorf("platform does not support email confirmation")
+	}
+	_, err := p.AccountConfirmPasswordEmail(code)
+	return err
+}
+
+func (e *Engine) ResendPasswordEmail(accountID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found")
+	}
+	p, ok := acc.Core.(cloudPasswordEmailResender)
+	if !ok {
+		return fmt.Errorf("platform does not support email resend")
+	}
+	_, err := p.AccountResendPasswordEmail()
+	return err
 }
 
 type passkeyListProvider interface {

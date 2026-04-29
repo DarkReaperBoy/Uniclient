@@ -2745,13 +2745,16 @@ class _CloudPasswordStart extends StatelessWidget {
                 style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 5),
               Text(
                 'Set an additional password that will be required to log in to your Telegram account.',
                 style: TextStyle(fontSize: 14, color: subtextColor, height: 1.4),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 15),
+              const SizedBox(height: 61),
+              const SizedBox(height: 61),
+              const SizedBox(height: 19),
               SizedBox(
                 width: 300,
                 height: 42,
@@ -2910,10 +2913,10 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
     final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
     final errorColor = isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F);
 
-    final title = _isCreateMode ? 'Two-Step Verification' : 'Two-Step Verification';
-    final subtitle = _isCreateMode ? 'Enter a new password' : 'Enter your password';
+    final title = 'Two-Step Verification';
+    final subtitle = _isCreateMode ? 'Set Password' : 'Enter your password';
     final description = _isCreateMode
-        ? 'Please create a password that you will remember.'
+        ? 'Please set an additional password to protect your account.'
         : 'Your account is protected with an additional password.';
 
     return Scaffold(
@@ -2947,7 +2950,7 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
               Text(subtitle, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
               const SizedBox(height: 5),
               Text(description, style: TextStyle(fontSize: 14, color: subtextColor, height: 1.4), textAlign: TextAlign.center),
-              const SizedBox(height: 24),
+              const SizedBox(height: 15),
               SizedBox(
                 width: 256,
                 height: 61,
@@ -2958,7 +2961,7 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
                     obscureText: _obscure,
                     onSubmitted: (_) => _isCreateMode ? FocusScope.of(context).nextFocus() : _submit(),
                     decoration: InputDecoration(
-                      hintText: _isCreateMode ? 'Enter password' : 'Password',
+                      hintText: _isCreateMode ? 'Enter a password' : 'Password',
                       hintStyle: TextStyle(color: subtextColor),
                       suffixIcon: IconButton(
                         icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility, color: subtextColor),
@@ -2982,7 +2985,7 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
                       obscureText: _obscureConfirm,
                       onSubmitted: (_) => _submit(),
                       decoration: InputDecoration(
-                        hintText: 'Re-enter password',
+                        hintText: 'Re-enter your password',
                         hintStyle: TextStyle(color: subtextColor),
                         suffixIcon: IconButton(
                           icon: Icon(_obscureConfirm ? Icons.visibility_off : Icons.visibility, color: subtextColor),
@@ -3102,11 +3105,21 @@ class _CloudPasswordHintState extends State<_CloudPasswordHint> {
 
   void _submit() {
     final hint = _hintController.text;
+    if (hint.isEmpty) {
+      setState(() => _error = 'Please enter a hint');
+      _hintFocus.requestFocus();
+      return;
+    }
     if (hint == widget.newPassword) {
-      setState(() => _error = 'Hint must be different from your password');
+      setState(() => _error = 'The hint must be different from your password');
+      _hintFocus.requestFocus();
       return;
     }
 
+    _navigateToEmail(hint);
+  }
+
+  void _navigateToEmail(String hint) {
     Navigator.of(context).pushReplacement(settingsPageRoute(
       _CloudPasswordEmail(
         accountId: widget.accountId,
@@ -3139,7 +3152,7 @@ class _CloudPasswordHintState extends State<_CloudPasswordHint> {
           icon: Icon(Icons.arrow_back, color: textColor),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: Text('Password Hint', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+        title: Text('Two-Step Verification', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -3147,37 +3160,36 @@ class _CloudPasswordHintState extends State<_CloudPasswordHint> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.lightbulb_outline, size: 48, color: accentColor),
+              _AnimatedSettingsIcon(
+                icon: Icons.lightbulb_outline,
+                size: 100,
+                color: accentColor,
               ),
               const SizedBox(height: 19),
-              Text('Password Hint', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+              Text('Add a Hint', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
               const SizedBox(height: 5),
               Text(
-                'You can create an optional hint for your password.',
+                'Your hint will be displayed when you enter a password.',
                 style: TextStyle(fontSize: 14, color: subtextColor, height: 1.4),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 15),
               SizedBox(
                 width: 256,
-                child: TextField(
-                  controller: _hintController,
-                  focusNode: _hintFocus,
-                  onSubmitted: (_) => _submit(),
-                  decoration: InputDecoration(
-                    hintText: 'Password hint (optional)',
-                    hintStyle: TextStyle(color: subtextColor),
-                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _error.isNotEmpty ? errorColor : subtextColor)),
-                    focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _error.isNotEmpty ? errorColor : accentColor, width: 2)),
+                height: 61,
+                child: Center(
+                  child: TextField(
+                    controller: _hintController,
+                    focusNode: _hintFocus,
+                    onSubmitted: (_) => _submit(),
+                    decoration: InputDecoration(
+                      hintText: 'Password hint',
+                      hintStyle: TextStyle(color: subtextColor),
+                      enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _error.isNotEmpty ? errorColor : subtextColor)),
+                      focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _error.isNotEmpty ? errorColor : accentColor, width: 2)),
+                    ),
+                    style: TextStyle(fontSize: 15, color: textColor),
                   ),
-                  style: TextStyle(fontSize: 15, color: textColor),
                 ),
               ),
               if (_error.isNotEmpty)
@@ -3188,7 +3200,12 @@ class _CloudPasswordHintState extends State<_CloudPasswordHint> {
                     child: Text(_error, style: TextStyle(fontSize: 13, color: errorColor), textAlign: TextAlign.center),
                   ),
                 ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 28),
+              TextButton(
+                onPressed: () => _navigateToEmail(''),
+                child: Text('Skip', style: TextStyle(fontSize: 14, color: accentColor)),
+              ),
+              const SizedBox(height: 16),
               SizedBox(
                 width: 300,
                 height: 42,
@@ -3200,22 +3217,6 @@ class _CloudPasswordHintState extends State<_CloudPasswordHint> {
                   ),
                   child: const Text('Continue', style: TextStyle(fontSize: 15, color: Colors.white)),
                 ),
-              ),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pushReplacement(settingsPageRoute(
-                    _CloudPasswordEmail(
-                      accountId: widget.accountId,
-                      engine: widget.engine,
-                      newPassword: widget.newPassword,
-                      currentPassword: widget.currentPassword,
-                      hint: '',
-                      onSuccess: widget.onSuccess,
-                    ),
-                  ));
-                },
-                child: Text('Skip', style: TextStyle(fontSize: 14, color: subtextColor)),
               ),
             ],
           ),
@@ -3275,6 +3276,11 @@ class _CloudPasswordEmailState extends State<_CloudPasswordEmail> {
 
   Future<void> _submit() async {
     final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      setState(() => _error = 'Please enter your email');
+      _emailFocus.requestFocus();
+      return;
+    }
     await _setPassword(email);
   }
 
@@ -3320,23 +3326,52 @@ class _CloudPasswordEmailState extends State<_CloudPasswordEmail> {
         email: email,
       );
       if (!mounted) return;
-      widget.onSuccess();
-      Navigator.of(context).popUntil((route) => route.isFirst || route.settings.name == 'privacy');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(email.isNotEmpty
-                ? 'Password set. Please check your email to confirm.'
-                : 'Two-Step Verification password has been set.'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+
+      if (email.isNotEmpty) {
+        final state = await widget.engine.getCloudPasswordState(widget.accountId);
+        if (!mounted) return;
+        final unconfirmed = state?['unconfirmedEmail'] as String? ?? '';
+        if (unconfirmed.isNotEmpty) {
+          Navigator.of(context).pushReplacement(settingsPageRoute(
+            _CloudPasswordEmailConfirm(
+              accountId: widget.accountId,
+              engine: widget.engine,
+              emailPattern: unconfirmed,
+              currentPassword: widget.newPassword,
+              onDone: () {
+                widget.onSuccess();
+              },
+            ),
+          ));
+          return;
+        }
       }
+
+      widget.onSuccess();
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(settingsPageRoute(
+        _CloudPasswordManage(
+          accountId: widget.accountId,
+          engine: widget.engine,
+          currentPassword: widget.newPassword,
+          onChanged: widget.onSuccess,
+        ),
+      ));
     } catch (e) {
       if (!mounted) return;
+      final errMsg = e.toString().replaceFirst('Exception: ', '');
       setState(() {
         _loading = false;
-        _error = e.toString().replaceFirst('Exception: ', '');
+        if (errMsg.contains('EMAIL_INVALID')) {
+          _error = 'Please enter a valid email address.';
+          _emailFocus.requestFocus();
+        } else if (errMsg.contains('FLOOD_WAIT')) {
+          _error = 'Too many attempts. Please try again later.';
+        } else if (errMsg.contains('PASSWORD_HASH_INVALID') || errMsg.contains('SRP_PASSWORD_CHANGED')) {
+          _error = 'Password has expired. Please start over.';
+        } else {
+          _error = errMsg;
+        }
       });
     }
   }
@@ -3361,7 +3396,7 @@ class _CloudPasswordEmailState extends State<_CloudPasswordEmail> {
           icon: Icon(Icons.arrow_back, color: textColor),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: Text('Recovery Email', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+        title: Text('Two-Step Verification', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -3369,14 +3404,10 @@ class _CloudPasswordEmailState extends State<_CloudPasswordEmail> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.email_outlined, size: 48, color: accentColor),
+              _AnimatedSettingsIcon(
+                icon: Icons.email_outlined,
+                size: 100,
+                color: accentColor,
               ),
               const SizedBox(height: 19),
               Text('Recovery Email', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
@@ -3386,21 +3417,24 @@ class _CloudPasswordEmailState extends State<_CloudPasswordEmail> {
                 style: TextStyle(fontSize: 14, color: subtextColor, height: 1.4),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 15),
               SizedBox(
                 width: 256,
-                child: TextField(
-                  controller: _emailController,
-                  focusNode: _emailFocus,
-                  keyboardType: TextInputType.emailAddress,
-                  onSubmitted: (_) => _submit(),
-                  decoration: InputDecoration(
-                    hintText: 'Recovery email',
-                    hintStyle: TextStyle(color: subtextColor),
-                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _error.isNotEmpty ? errorColor : subtextColor)),
-                    focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _error.isNotEmpty ? errorColor : accentColor, width: 2)),
+                height: 61,
+                child: Center(
+                  child: TextField(
+                    controller: _emailController,
+                    focusNode: _emailFocus,
+                    keyboardType: TextInputType.emailAddress,
+                    onSubmitted: (_) => _submit(),
+                    decoration: InputDecoration(
+                      hintText: 'Your email',
+                      hintStyle: TextStyle(color: subtextColor),
+                      enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _error.isNotEmpty ? errorColor : subtextColor)),
+                      focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _error.isNotEmpty ? errorColor : accentColor, width: 2)),
+                    ),
+                    style: TextStyle(fontSize: 15, color: textColor),
                   ),
-                  style: TextStyle(fontSize: 15, color: textColor),
                 ),
               ),
               if (_error.isNotEmpty)
@@ -3411,7 +3445,12 @@ class _CloudPasswordEmailState extends State<_CloudPasswordEmail> {
                     child: Text(_error, style: TextStyle(fontSize: 13, color: errorColor), textAlign: TextAlign.center),
                   ),
                 ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 28),
+              TextButton(
+                onPressed: _loading ? null : _skip,
+                child: Text('Skip', style: TextStyle(fontSize: 14, color: accentColor)),
+              ),
+              const SizedBox(height: 16),
               SizedBox(
                 width: 300,
                 height: 42,
@@ -3423,13 +3462,8 @@ class _CloudPasswordEmailState extends State<_CloudPasswordEmail> {
                   ),
                   child: _loading
                       ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('Continue', style: TextStyle(fontSize: 15, color: Colors.white)),
+                      : const Text('Save', style: TextStyle(fontSize: 15, color: Colors.white)),
                 ),
-              ),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: _loading ? null : _skip,
-                child: Text('Skip', style: TextStyle(fontSize: 14, color: subtextColor)),
               ),
             ],
           ),
@@ -3445,12 +3479,14 @@ class _CloudPasswordEmailConfirm extends StatefulWidget {
   final String accountId;
   final EngineService engine;
   final String emailPattern;
+  final String currentPassword;
   final VoidCallback onDone;
 
   const _CloudPasswordEmailConfirm({
     required this.accountId,
     required this.engine,
     required this.emailPattern,
+    this.currentPassword = '',
     required this.onDone,
   });
 
@@ -3462,45 +3498,80 @@ class _CloudPasswordEmailConfirmState extends State<_CloudPasswordEmailConfirm> 
   final _codeController = TextEditingController();
   final _codeFocus = FocusNode();
   String _error = '';
+  String _info = '';
   bool _loading = false;
 
   @override
   void initState() {
     super.initState();
-    _codeController.addListener(_clearError);
+    _codeController.addListener(_clearMessages);
     WidgetsBinding.instance.addPostFrameCallback((_) => _codeFocus.requestFocus());
   }
 
-  void _clearError() {
-    if (_error.isNotEmpty) setState(() => _error = '');
+  void _clearMessages() {
+    if (_error.isNotEmpty || _info.isNotEmpty) {
+      setState(() { _error = ''; _info = ''; });
+    }
   }
 
   @override
   void dispose() {
-    _codeController.removeListener(_clearError);
+    _codeController.removeListener(_clearMessages);
     _codeController.dispose();
     _codeFocus.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
-    final code = _codeController.text.trim();
+    final code = _codeController.text.replaceAll(RegExp(r'[^0-9]'), '');
     if (code.isEmpty) {
-      setState(() => _error = 'Please enter the confirmation code');
+      setState(() => _error = 'Invalid code. Please try again.');
       return;
     }
 
-    setState(() { _loading = true; _error = ''; });
+    setState(() { _loading = true; _error = ''; _info = ''; });
     try {
-      await widget.engine.checkCloudPassword(widget.accountId, code);
+      await widget.engine.confirmPasswordEmail(widget.accountId, code);
       if (!mounted) return;
       widget.onDone();
+      if (!mounted) return;
+      if (widget.currentPassword.isNotEmpty) {
+        Navigator.of(context).pushReplacement(settingsPageRoute(
+          _CloudPasswordManage(
+            accountId: widget.accountId,
+            engine: widget.engine,
+            currentPassword: widget.currentPassword,
+            onChanged: widget.onDone,
+          ),
+        ));
+      }
     } catch (e) {
       if (!mounted) return;
+      final errMsg = e.toString().replaceFirst('Exception: ', '');
       setState(() {
         _loading = false;
-        _error = e.toString().replaceFirst('Exception: ', '');
+        if (errMsg.contains('CODE_INVALID')) {
+          _error = 'Invalid code. Please try again.';
+        } else if (errMsg.contains('EMAIL_HASH_EXPIRED')) {
+          _error = 'Email confirmation expired.';
+        } else if (errMsg.contains('FLOOD_WAIT')) {
+          _error = 'Too many attempts. Please try again later.';
+        } else {
+          _error = errMsg;
+        }
       });
+    }
+  }
+
+  Future<void> _resend() async {
+    setState(() { _error = ''; _info = ''; });
+    try {
+      await widget.engine.resendPasswordEmail(widget.accountId);
+      if (!mounted) return;
+      setState(() => _info = 'Code resent.');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
     }
   }
 
@@ -3513,6 +3584,7 @@ class _CloudPasswordEmailConfirmState extends State<_CloudPasswordEmailConfirm> 
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
     final errorColor = isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F);
+    final infoColor = isDark ? const Color(0xFF4CAF50) : const Color(0xFF388E3C);
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -3524,7 +3596,7 @@ class _CloudPasswordEmailConfirmState extends State<_CloudPasswordEmailConfirm> 
           icon: Icon(Icons.arrow_back, color: textColor),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: Text('Email Confirmation', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+        title: Text('Two-Step Verification', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -3532,38 +3604,37 @@ class _CloudPasswordEmailConfirmState extends State<_CloudPasswordEmailConfirm> 
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.mark_email_read_outlined, size: 48, color: accentColor),
+              _AnimatedSettingsIcon(
+                icon: Icons.mark_email_read_outlined,
+                size: 100,
+                color: accentColor,
               ),
               const SizedBox(height: 19),
-              Text('Check Your Email', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+              Text('Check your email', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
               const SizedBox(height: 5),
               Text(
-                'Please enter the code we\'ve sent to ${widget.emailPattern}',
+                'We\'ve sent a code to ${widget.emailPattern}',
                 style: TextStyle(fontSize: 14, color: subtextColor, height: 1.4),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 15),
               SizedBox(
                 width: 256,
-                child: TextField(
-                  controller: _codeController,
-                  focusNode: _codeFocus,
-                  keyboardType: TextInputType.number,
-                  onSubmitted: (_) => _submit(),
-                  decoration: InputDecoration(
-                    hintText: 'Code',
-                    hintStyle: TextStyle(color: subtextColor),
-                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _error.isNotEmpty ? errorColor : subtextColor)),
-                    focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _error.isNotEmpty ? errorColor : accentColor, width: 2)),
+                height: 61,
+                child: Center(
+                  child: TextField(
+                    controller: _codeController,
+                    focusNode: _codeFocus,
+                    keyboardType: TextInputType.number,
+                    onSubmitted: (_) => _submit(),
+                    decoration: InputDecoration(
+                      hintText: 'Code',
+                      hintStyle: TextStyle(color: subtextColor),
+                      enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _error.isNotEmpty ? errorColor : subtextColor)),
+                      focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _error.isNotEmpty ? errorColor : accentColor, width: 2)),
+                    ),
+                    style: TextStyle(fontSize: 15, color: textColor),
                   ),
-                  style: TextStyle(fontSize: 15, color: textColor),
                 ),
               ),
               if (_error.isNotEmpty)
@@ -3574,7 +3645,20 @@ class _CloudPasswordEmailConfirmState extends State<_CloudPasswordEmailConfirm> 
                     child: Text(_error, style: TextStyle(fontSize: 13, color: errorColor), textAlign: TextAlign.center),
                   ),
                 ),
-              const SizedBox(height: 24),
+              if (_info.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 1),
+                  child: SizedBox(
+                    width: 256,
+                    child: Text(_info, style: TextStyle(fontSize: 13, color: infoColor), textAlign: TextAlign.center),
+                  ),
+                ),
+              const SizedBox(height: 28),
+              TextButton(
+                onPressed: _resend,
+                child: Text('Resend code', style: TextStyle(fontSize: 14, color: accentColor)),
+              ),
+              const SizedBox(height: 16),
               SizedBox(
                 width: 300,
                 height: 42,
