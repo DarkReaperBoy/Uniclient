@@ -13,6 +13,7 @@ import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import 'chat_export.dart';
+import 'chat_list_row.dart' show SavedMessagesUserpic;
 import 'chat_view.dart' show formatChatLastSeen;
 import 'confirm_box.dart';
 import 'admin_tools.dart' show showEditAdminBox, showEditPeerInfoBox, showEditRestrictedBox;
@@ -463,18 +464,20 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
                         SizedBox(
                           width: avatarDisplaySize,
                           height: avatarDisplaySize,
-                          child: avatarPath.isNotEmpty
-                              ? ClipOval(
-                                  child: Image.file(
-                                    File(avatarPath),
-                                    width: avatarDisplaySize,
-                                    height: avatarDisplaySize,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) =>
-                                        _avatarFallback(avatarColor, initials, avatarDisplaySize),
-                                  ),
-                                )
-                              : _avatarFallback(avatarColor, initials, avatarDisplaySize),
+                          child: isSelf
+                              ? SavedMessagesUserpic(size: avatarDisplaySize)
+                              : avatarPath.isNotEmpty
+                                  ? ClipOval(
+                                      child: Image.file(
+                                        File(avatarPath),
+                                        width: avatarDisplaySize,
+                                        height: avatarDisplaySize,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) =>
+                                            _avatarFallback(avatarColor, initials, avatarDisplaySize),
+                                      ),
+                                    )
+                                  : _avatarFallback(avatarColor, initials, avatarDisplaySize),
                         ),
                       ],
                     ),
@@ -1960,17 +1963,19 @@ class _AvatarHeader extends StatelessWidget {
         SizedBox(
           width: 80,
           height: 80,
-          child: chat.avatarPath.isNotEmpty
-              ? ClipOval(
-                  child: Image.file(
-                    File(chat.avatarPath),
-                    width: 80,
-                    height: 80,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _avatarFallback(color, initials),
-                  ),
-                )
-              : _avatarFallback(color, initials),
+          child: (chat.title == 'Saved Messages' && chat.type == ChatType.dm)
+              ? const SavedMessagesUserpic(size: 80)
+              : chat.avatarPath.isNotEmpty
+                  ? ClipOval(
+                      child: Image.file(
+                        File(chat.avatarPath),
+                        width: 80,
+                        height: 80,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _avatarFallback(color, initials),
+                      ),
+                    )
+                  : _avatarFallback(color, initials),
         ),
         const SizedBox(height: 12),
         // Name.

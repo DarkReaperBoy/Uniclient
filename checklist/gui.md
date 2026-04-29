@@ -859,7 +859,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_list_panel.dart, chat_list_row.dart, hamburger_drawer.dart (partial saved-messages reference) — new: dart/lib/ui/saved_messages.dart -->
 
-- [ ] Saved Messages chat list entry: bookmark-icon avatar (vertical gradient #5caffa→#408acf, vector bookmark shape with V-notch), "Saved Messages" name, hamburger menu entry — spec §31.1
 - [ ] Sublist navigation: switch dialog list to saved sublists, sublist rows with peer userpic/message-preview/unread badges, top bar loading→"My Notes"/peer name, info panel with "N chats" subtitle + media-filter 8-type buttons — spec §31.2–31.3
 - [ ] My Notes sublist: self peer, notepad icon avatar (same gradient), "My Notes" display name everywhere — spec §31.4
 - [ ] Sublist loading: auto-load below 20 sublists, first 10 / subsequent 50, pinned sublists separate, 6-entry recent list — spec §31.5

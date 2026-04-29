@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../models/engine_models.dart';
+import 'chat_list_row.dart' show SavedMessagesUserpic;
 
 const _cellWidth = 72.0;
 const _cellHeight = 104.0;
@@ -302,15 +303,7 @@ class _ChatSwitchCell extends StatelessWidget {
     final isSaved = chat.title == 'Saved Messages' && chat.type == ChatType.dm;
 
     if (isSaved) {
-      return Container(
-        width: _userpicSize,
-        height: _userpicSize,
-        decoration: const BoxDecoration(
-          color: Color(0xFF65AADD),
-          shape: BoxShape.circle,
-        ),
-        child: const Icon(Icons.bookmark, color: Colors.white, size: 24),
-      );
+      return const SavedMessagesUserpic(size: _userpicSize);
     }
 
     if (chat.avatarPath.isNotEmpty) {

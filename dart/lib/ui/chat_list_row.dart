@@ -1023,7 +1023,7 @@ class _ChatAvatar extends StatelessWidget {
 
     final Widget avatar;
     if (_isSavedMessages) {
-      avatar = _SavedMessagesUserpic(size: photoSize, isDark: isDark, borderRadius: avatarRadius);
+      avatar = SavedMessagesUserpic(size: photoSize, borderRadius: avatarRadius);
     } else if (chat.avatarPath.isNotEmpty) {
       avatar = ClipRRect(
             borderRadius: BorderRadius.circular(avatarRadius),
@@ -1535,12 +1535,11 @@ bool isSavedMessages(ChatInfo chat) =>
 /// Saved Messages bookmark icon userpic (spec §31.1).
 /// Blue vertical-gradient circle with white bookmark silhouette.
 /// Replaces the normal avatar for the self-chat.
-class _SavedMessagesUserpic extends StatelessWidget {
+class SavedMessagesUserpic extends StatelessWidget {
   final double size;
-  final bool isDark;
   final double borderRadius;
 
-  const _SavedMessagesUserpic({required this.size, required this.isDark, this.borderRadius = -1});
+  const SavedMessagesUserpic({super.key, required this.size, this.borderRadius = -1});
 
   @override
   Widget build(BuildContext context) {
@@ -1552,21 +1551,15 @@ class _SavedMessagesUserpic extends StatelessWidget {
         height: size,
         child: CustomPaint(
           size: Size(size, size),
-          painter: _SavedMessagesIconPainter(isDark: isDark),
+          painter: const _SavedMessagesIconPainter(),
         ),
       ),
     );
   }
 }
 
-/// Custom painter for the Saved Messages bookmark icon.
-/// Spec §31.1: vertical gradient circle + centered bookmark silhouette.
-/// Background: historyPeerSavedMessagesBg → historyPeerSavedMessagesBg2.
-/// Icon: white bookmark with rounded top corners and sharp V-notch bottom.
 class _SavedMessagesIconPainter extends CustomPainter {
-  final bool isDark;
-
-  _SavedMessagesIconPainter({required this.isDark});
+  const _SavedMessagesIconPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1574,59 +1567,53 @@ class _SavedMessagesIconPainter extends CustomPainter {
     final center = Offset(s / 2, s / 2);
     final radius = s / 2;
 
-    // Background: vertical gradient circle.
-    // Day: #65a9e0 → #44b4f0, Night: #2a8dd8 → #46ade5.
     final bgPaint = Paint()
-      ..shader = LinearGradient(
+      ..shader = const LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: isDark
-            ? [const Color(0xFF2a8dd8), const Color(0xFF46ade5)]
-            : [const Color(0xFF65a9e0), const Color(0xFF44b4f0)],
+        colors: [Color(0xFF5caffa), Color(0xFF408acf)],
       ).createShader(Rect.fromCircle(center: center, radius: radius));
 
     canvas.drawCircle(center, radius, bgPaint);
 
-    // Bookmark icon dimensions (spec §31.1):
-    // Width: SafeRound(size * 0.23) * 2 + increment (~22px at 46px)
-    // Height: SafeRound(size * 0.19) * 2 + increment (~18px at 46px)
-    // Notch: SafeRound(size * 0.064) (~3px at 46px)
-    final halfW = (s * 0.23).roundToDouble();
+    final stroke = s * 0.055;
+    final halfStroke = stroke / 2;
+    final halfW = (s * 0.15).roundToDouble();
     final halfH = (s * 0.19).roundToDouble();
-    final bookWidth = halfW * 2 + 1;
-    final bookHeight = halfH * 2 + 1;
+    final bookWidth = halfW * 2 + (s.round() % 2 == 0 ? 0.0 : 1.0);
+    final bookHeight = halfH * 2 + (s.round() % 2 == 0 ? 0.0 : 1.0);
     final notch = (s * 0.064).roundToDouble();
-    final cornerR = s * 0.06; // top corner radius
 
     final left = (s - bookWidth) / 2;
     final top = (s - bookHeight) / 2;
     final right = left + bookWidth;
     final bottom = top + bookHeight;
     final cx = s / 2;
-    final notchY = bottom - notch;
 
-    // Bookmark path: rounded-top rectangle with V-notch at bottom center.
-    final path = Path()
-      ..moveTo(left, top + cornerR)
-      ..quadraticBezierTo(left, top, left + cornerR, top) // top-left round
-      ..lineTo(right - cornerR, top) // top edge
-      ..quadraticBezierTo(right, top, right, top + cornerR) // top-right round
-      ..lineTo(right, bottom) // right side down
-      ..lineTo(cx, notchY) // right-to-center V-notch
-      ..lineTo(left, bottom) // center-to-left V-notch
-      ..close(); // back to start
+    final iconPaint = Paint()
+      ..color = const Color(0xFFFFFFFF)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.butt;
 
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = const Color(0xFFFFFFFF) // historyPeerUserpicFg
-        ..style = PaintingStyle.fill,
-    );
+    final uPath = Path()
+      ..moveTo(left, bottom)
+      ..lineTo(left, top + halfStroke)
+      ..lineTo(right, top + halfStroke)
+      ..lineTo(right, bottom);
+    iconPaint.strokeJoin = StrokeJoin.round;
+    canvas.drawPath(uPath, iconPaint);
+
+    final vPath = Path()
+      ..moveTo(left, bottom)
+      ..lineTo(cx, bottom - notch)
+      ..lineTo(right, bottom);
+    iconPaint.strokeJoin = StrokeJoin.miter;
+    canvas.drawPath(vPath, iconPaint);
   }
 
   @override
-  bool shouldRepaint(_SavedMessagesIconPainter oldDelegate) =>
-      isDark != oldDelegate.isDark;
+  bool shouldRepaint(_SavedMessagesIconPainter oldDelegate) => false;
 }
 
 /// Hover-tracking wrapper that exposes hover state to its builder.

@@ -23,7 +23,7 @@ import '../state/chat_state.dart';
 import '../theme/theme.dart';
 import '../theme/wallpaper.dart';
 import '../data/emoji_data.dart';
-import 'chat_list_row.dart' show ForwardDragData;
+import 'chat_list_row.dart' show ForwardDragData, SavedMessagesUserpic;
 import 'sticker_pack_viewer.dart';
 import 'message_bubble.dart';
 import 'popup_menu.dart';
@@ -3886,6 +3886,9 @@ class _ChatTopBar extends StatelessWidget {
       formatChatLastSeen(ls);
 
   static Widget _chatAvatar(ChatInfo chat, ThemeData theme, double radius) {
+    if (chat.title == 'Saved Messages' && chat.type == ChatType.dm) {
+      return SavedMessagesUserpic(size: radius * 2);
+    }
     if (chat.avatarPath.isNotEmpty) {
       final file = File(chat.avatarPath);
       return ClipOval(
