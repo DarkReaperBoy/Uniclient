@@ -33,6 +33,7 @@ import 'theme/wallpaper.dart';
 import 'ui/titlebar.dart';
 import 'utils/debug.dart';
 import 'utils/system_tray.dart';
+import 'utils/system_unlock.dart';
 import 'utils/web_notifier.dart';
 import 'package:media_kit/media_kit.dart';
 
@@ -1852,6 +1853,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
   static const _errorDuration = Duration(milliseconds: 150);
   static const _curveIn = Curves.easeOutCirc;
   static const _curveOut = Curves.easeInCirc;
+  static const _systemUnlockCooldown = Duration(milliseconds: 1000);
 
   static VoidCallback? _focusPasscode;
 
@@ -1862,10 +1864,14 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
   bool _obscure = true;
   String _error = '';
   bool _visible = false;
+  late final SystemUnlockStatus _unlockStatus;
+  bool _systemUnlockEnabled = false;
+  DateTime _lastSystemUnlockAttempt = DateTime(2000);
 
   @override
   void initState() {
     super.initState();
+    _unlockStatus = getSystemUnlockStatus();
     WidgetsBinding.instance.addObserver(this);
     _focusPasscode = () => _focusNode.requestFocus();
     _anim = AnimationController(vsync: this, duration: _duration);
@@ -1878,8 +1884,28 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
         _anim.value = 1.0;
         _focusNode.requestFocus();
       }
+      _loadSystemUnlockPref();
     });
   }
+
+  Future<void> _loadSystemUnlockPref() async {
+    final appState = context.read<AppState>();
+    final dir = appState.configDir;
+    if (dir.isEmpty) return;
+    final file = File('$dir/local_passcode.json');
+    if (!await file.exists()) return;
+    try {
+      final data = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      if (mounted) {
+        setState(() {
+          _systemUnlockEnabled = data['systemUnlockEnabled'] as bool? ?? false;
+        });
+      }
+    } catch (_) {}
+  }
+
+  bool get _showSystemUnlockButton =>
+      _unlockStatus.unlockType != UnlockType.none && _systemUnlockEnabled;
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -1954,6 +1980,12 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
     if (_error.isEmpty) return;
     setState(() => _error = '');
     _errorAnim.reverse();
+  }
+
+  void _triggerSystemUnlock() {
+    final now = DateTime.now();
+    if (now.difference(_lastSystemUnlockAttempt) < _systemUnlockCooldown) return;
+    _lastSystemUnlockAttempt = now;
   }
 
   @override
@@ -2073,10 +2105,30 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
                     ),
                   ),
                 ),
+                if (_showSystemUnlockButton)
+                  Positioned(
+                    left: (constraints.maxWidth - 48) / 2,
+                    top: inputY + 70 + (_error.isNotEmpty ? 25 : 0) + 42 + 12,
+                    child: IconButton(
+                      iconSize: 28,
+                      style: IconButton.styleFrom(
+                        fixedSize: const Size(48, 48),
+                        shape: const CircleBorder(),
+                      ),
+                      icon: Icon(
+                        _unlockStatus.unlockType == UnlockType.biometrics
+                            ? Icons.fingerprint
+                            : Icons.lock_open_outlined,
+                        color: accentColor,
+                      ),
+                      tooltip: getSystemUnlockLabel(_unlockStatus.unlockType),
+                      onPressed: _triggerSystemUnlock,
+                    ),
+                  ),
                 Positioned(
                   left: 0,
                   right: 0,
-                  top: inputY + 70 + (_error.isNotEmpty ? 25 : 0) + 42 + 16,
+                  top: inputY + 70 + (_error.isNotEmpty ? 25 : 0) + 42 + 16 + (_showSystemUnlockButton ? 52 : 0),
                   child: GestureDetector(
                     onTap: () {
                       // Log out not implemented — just show info

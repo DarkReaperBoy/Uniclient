@@ -8,6 +8,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../utils/system_unlock.dart';
+
 import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 import 'active_sessions_screen.dart';
@@ -4526,18 +4528,23 @@ class _LocalPasscodeManage extends StatefulWidget {
 
 class _LocalPasscodeManageState extends State<_LocalPasscodeManage> {
   int _autoLockSeconds = 0;
+  bool _systemUnlockEnabled = false;
+  late final SystemUnlockStatus _unlockStatus;
 
   @override
   void initState() {
     super.initState();
-    _loadAutoLock();
+    _unlockStatus = getSystemUnlockStatus();
+    _loadSettings();
   }
 
-  Future<void> _loadAutoLock() async {
+  Future<void> _loadSettings() async {
     final data = await _readPasscodeData(widget.configDir);
     if (!mounted) return;
-    setState(
-        () => _autoLockSeconds = data['autoLockSeconds'] as int? ?? 0);
+    setState(() {
+      _autoLockSeconds = data['autoLockSeconds'] as int? ?? 0;
+      _systemUnlockEnabled = data['systemUnlockEnabled'] as bool? ?? false;
+    });
   }
 
   String _formatAutoLock(int seconds) {
@@ -4565,6 +4572,15 @@ class _LocalPasscodeManageState extends State<_LocalPasscodeManage> {
     data['autoLockSeconds'] = result;
     await _writePasscodeData(widget.configDir, data);
     setState(() => _autoLockSeconds = result);
+    widget.onChanged();
+  }
+
+  Future<void> _toggleSystemUnlock(bool value) async {
+    final data = await _readPasscodeData(widget.configDir);
+    data['systemUnlockEnabled'] = value;
+    await _writePasscodeData(widget.configDir, data);
+    if (!mounted) return;
+    setState(() => _systemUnlockEnabled = value);
     widget.onChanged();
   }
 
@@ -4632,6 +4648,8 @@ class _LocalPasscodeManageState extends State<_LocalPasscodeManage> {
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final hoverBg =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
     final errorColor =
         isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F);
 
@@ -4672,6 +4690,22 @@ class _LocalPasscodeManageState extends State<_LocalPasscodeManage> {
             subtextColor: subtextColor,
             hoverBg: hoverBg,
             onTap: _openAutoLock,
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: _unlockStatus.unlockType != UnlockType.none
+                ? _SystemUnlockRow(
+                    label: getSystemUnlockLabel(_unlockStatus.unlockType),
+                    enabled: _systemUnlockEnabled,
+                    textColor: textColor,
+                    subtextColor: subtextColor,
+                    hoverBg: hoverBg,
+                    accentColor: accentColor,
+                    onToggle: _toggleSystemUnlock,
+                  )
+                : const SizedBox.shrink(),
           ),
           const SizedBox(height: 7),
           Container(
@@ -4843,6 +4877,59 @@ class _AutoLockBoxState extends State<_AutoLockBox> {
           child: const Text('Save'),
         ),
       ],
+    );
+  }
+}
+
+class _SystemUnlockRow extends StatelessWidget {
+  final String label;
+  final bool enabled;
+  final Color textColor;
+  final Color subtextColor;
+  final Color hoverBg;
+  final Color accentColor;
+  final ValueChanged<bool> onToggle;
+
+  const _SystemUnlockRow({
+    required this.label,
+    required this.enabled,
+    required this.textColor,
+    required this.subtextColor,
+    required this.hoverBg,
+    required this.accentColor,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => onToggle(!enabled),
+      hoverColor: hoverBg,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(21, 11, 20, 9),
+        child: Row(
+          children: [
+            Icon(Icons.fingerprint, size: 24, color: subtextColor),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(fontSize: 14, color: textColor),
+              ),
+            ),
+            SizedBox(
+              width: 36,
+              height: 20,
+              child: Switch(
+                value: enabled,
+                onChanged: onToggle,
+                activeColor: accentColor,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

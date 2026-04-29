@@ -833,7 +833,6 @@ Status key: `[ ]` not started · `[x]` done
 <!-- dart files: dart/lib/ui/privacy_settings_screen.dart (passcode create/check/manage), dart/lib/main.dart (PasscodeLockScreen overlay) -->
 <!-- §27.1-§27.6 DONE: settings entry point, create/check/manage flows, auto-lock dialog — in privacy_settings_screen.dart -->
 <!-- §27.8 DONE: lock screen overlay with header/input/submit/error/logout, Ctrl+L shortcut, startup auto-lock — in main.dart + app_state.dart -->
-- [ ] System unlock support: capability query (available/withBiometrics/withCompanion), platform UI label resolution, SlideWrap hide when unavailable at runtime, Linux = no biometrics — spec §27.14
 - [ ] Multi-account lock: single global lock, one passcode hash, unlock all windows simultaneously, force-close media viewer/web views, auto-clear passcode when zero accounts — spec §27.15
 
 ---
