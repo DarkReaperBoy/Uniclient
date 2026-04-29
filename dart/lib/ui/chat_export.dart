@@ -141,6 +141,8 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   Timer? _skipFileTimer;
   bool _showSkipFile = false;
   int _currentStepIndex = 0;
+  int _totalFiles = 0;
+  int _totalSizeBytes = 0;
 
   String get _title {
     switch (_phase) {
@@ -323,6 +325,8 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     _exportSteps = _buildExportStepList();
     _currentStepIndex = 0;
     _showSkipFile = false;
+    _totalFiles = 0;
+    _totalSizeBytes = 0;
     setState(() => _phase = ExportPhase.processing);
     _exportTimer =
         Timer.periodic(const Duration(milliseconds: 100), _tickExport);
@@ -366,6 +370,8 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
       step.info = '${(step.progress * 100).toInt()}%';
     } else {
       step.info = 'Done';
+      _totalFiles += 10 + _currentStepIndex * 5;
+      _totalSizeBytes += (512 + _currentStepIndex * 256) * 1024;
       _currentStepIndex++;
       _showSkipFile = false;
       _resetSkipFileTimer();
@@ -1492,23 +1498,108 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     );
   }
 
+  String _formatFileCount(int count) {
+    if (count < 1000) return count.toString();
+    final s = count.toString();
+    final buf = StringBuffer();
+    for (var i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) buf.write(',');
+      buf.write(s[i]);
+    }
+    return buf.toString();
+  }
+
+  String _formatSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) {
+      return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    }
+    if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+  }
+
   Widget _buildCompletedPlaceholder(Color subtextColor) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accentColor =
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final activeFg =
         isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.check_circle_outline, size: 64, color: accentColor),
-          const SizedBox(height: 16),
-          Text(
-            'Your data was successfully exported.',
-            style: TextStyle(fontSize: 14, color: subtextColor),
-            textAlign: TextAlign.center,
+
+    final doneRows = [
+      'Data exported successfully.',
+      'Total files: ${_formatFileCount(_totalFiles)}',
+      'Total size: ${_formatSize(_totalSizeBytes)}',
+    ];
+
+    return Column(
+      children: [
+        const SizedBox(height: 10),
+        for (final label in doneRows)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 5, 22, 5),
+            child: SizedBox(
+              height: 30,
+              child: Column(
+                children: [
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: textColor,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    width: double.infinity,
+                    height: 3,
+                    color: activeFg,
+                  ),
+                ],
+              ),
+            ),
           ),
-        ],
-      ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 10, 22, 0),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Your data was successfully exported.',
+              style: TextStyle(fontSize: 14, color: subtextColor),
+            ),
+          ),
+        ),
+        const Spacer(),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 30),
+          child: SizedBox(
+            width: 200,
+            height: 44,
+            child: ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: activeFg,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              child: const Text('Show My Data'),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
