@@ -251,6 +251,17 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.RemoveMember(req.AccountId, req.ChatId, req.UserId)
 
+	case "UnbanMember":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			UserID    string `json:"user_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.UnbanMember(params.AccountID, params.ChatID, params.UserID)
+
 	case "DemoteAdmin":
 		var req pb.EngineDemoteAdminRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
@@ -672,6 +683,24 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			})
 		}
 		return proto.Marshal(resp)
+
+	case "GetChatMembersByRole":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Role      string `json:"role"`
+			Query     string `json:"query"`
+			Limit     int    `json:"limit"`
+			Offset    int    `json:"offset"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		result, err := e.GetChatMembersByRole(params.AccountID, params.ChatID, params.Role, params.Query, params.Limit, params.Offset)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(result)
 
 	// ── Similar channels ──
 

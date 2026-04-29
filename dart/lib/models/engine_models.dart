@@ -1180,6 +1180,10 @@ class MemberInfo {
   final String role; // "owner", "admin", "member", "restricted", "banned"
   final int storyCount;
   final bool hasUnreadStory;
+  final String customRank;
+  final String promotedBy;
+  final String promotedByID;
+  final int promotedDate;
 
   const MemberInfo({
     required this.userId,
@@ -1191,16 +1195,26 @@ class MemberInfo {
     this.role = 'member',
     this.storyCount = 0,
     this.hasUnreadStory = false,
+    this.customRank = '',
+    this.promotedBy = '',
+    this.promotedByID = '',
+    this.promotedDate = 0,
   });
 
   bool get hasStories => storyCount > 0;
 
-  /// Display label: displayName if available, else username, else userId.
   String get label => displayName.isNotEmpty
       ? displayName
       : username.isNotEmpty
           ? username
           : userId;
+}
+
+class MembersByRoleResult {
+  final List<MemberInfo> members;
+  final int total;
+
+  const MembersByRoleResult({required this.members, required this.total});
 }
 
 // ── Contact info ──

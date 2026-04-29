@@ -232,6 +232,15 @@ class EngineService {
     await _callAsync('__engine', 'RemoveMember', req.writeToBuffer());
   }
 
+  Future<void> unbanChatMember(String accountId, String chatId, String userId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'user_id': userId,
+    }));
+    await _callAsync('__engine', 'UnbanMember', Uint8List.fromList(payload));
+  }
+
   Future<void> demoteAdmin(String accountId, String chatId, String userId) async {
     final req = epb.EngineDemoteAdminRequest()
       ..accountId = accountId
@@ -664,6 +673,47 @@ class EngineService {
     final respBytes = await _callAsync('__engine', 'GetChatMembers', req.writeToBuffer());
     final resp = epb.EngineGetChatMembersResponse.fromBuffer(respBytes);
     return resp.members.map(_memberInfoFromProto).toList();
+  }
+
+  Future<MembersByRoleResult> getChatMembersByRole(
+    String accountId,
+    String chatId, {
+    String role = 'members',
+    String query = '',
+    int limit = 200,
+    int offset = 0,
+  }) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'role': role,
+      'query': query,
+      'limit': limit,
+      'offset': offset,
+    }));
+    final respBytes = await _callAsync('__engine', 'GetChatMembersByRole', Uint8List.fromList(payload));
+    final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    final list = data['members'] as List<dynamic>? ?? [];
+    final members = list.map((m) {
+      final map = m as Map<String, dynamic>;
+      return MemberInfo(
+        userId: map['user_id'] as String? ?? '',
+        username: map['username'] as String? ?? '',
+        displayName: map['display_name'] as String? ?? '',
+        avatarB64: map['avatar_b64'] as String? ?? '',
+        isBot: map['is_bot'] as bool? ?? false,
+        isOnline: map['is_online'] as bool? ?? false,
+        role: map['role'] as String? ?? 'member',
+        customRank: map['custom_rank'] as String? ?? '',
+        promotedBy: map['promoted_by'] as String? ?? '',
+        promotedByID: map['promoted_by_id'] as String? ?? '',
+        promotedDate: map['promoted_date'] as int? ?? 0,
+      );
+    }).toList();
+    return MembersByRoleResult(
+      members: members,
+      total: data['total'] as int? ?? members.length,
+    );
   }
 
   // ── Online count ──

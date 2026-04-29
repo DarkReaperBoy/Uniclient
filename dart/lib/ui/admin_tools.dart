@@ -454,7 +454,13 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           value: adminCount > 0 ? '$adminCount' : '',
           textColor: textColor,
           subTextColor: subTextColor,
-          onTap: () {},
+          onTap: () => showMemberListScreen(
+            context,
+            accountId: widget.chat.accountId,
+            chatId: widget.chat.chatId,
+            isChannel: _isChannel,
+            initialTab: _MemberTab.admins,
+          ),
         ),
         _EditRow(
           icon: Icons.people_outline,
@@ -462,7 +468,13 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           value: memberCount > 0 ? _formatCount(memberCount) : '',
           textColor: textColor,
           subTextColor: subTextColor,
-          onTap: () {},
+          onTap: () => showMemberListScreen(
+            context,
+            accountId: widget.chat.accountId,
+            chatId: widget.chat.chatId,
+            isChannel: _isChannel,
+            initialTab: _MemberTab.members,
+          ),
         ),
         _EditRow(
           icon: Icons.person_remove_outlined,
@@ -470,7 +482,13 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           value: '',
           textColor: textColor,
           subTextColor: subTextColor,
-          onTap: () {},
+          onTap: () => showMemberListScreen(
+            context,
+            accountId: widget.chat.accountId,
+            chatId: widget.chat.chatId,
+            isChannel: _isChannel,
+            initialTab: _MemberTab.kicked,
+          ),
         ),
       ],
     );
@@ -4115,6 +4133,589 @@ class _CreateEditLinkFormState extends State<_CreateEditLinkForm> {
                   child: _saving
                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                     : Text(_isEdit ? 'Save' : 'Create', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// §26.7–26.8  Member List with Role Tabs
+// ═══════════════════════════════════════════════════════════════════════
+
+enum _MemberTab { members, admins, restricted, kicked }
+
+void showMemberListScreen(
+  BuildContext context, {
+  required String accountId,
+  required String chatId,
+  required bool isChannel,
+  _MemberTab initialTab = _MemberTab.members,
+}) {
+  Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (_) => _MemberListScreen(
+        accountId: accountId,
+        chatId: chatId,
+        isChannel: isChannel,
+        initialTab: initialTab,
+      ),
+    ),
+  );
+}
+
+class _MemberListScreen extends StatefulWidget {
+  final String accountId;
+  final String chatId;
+  final bool isChannel;
+  final _MemberTab initialTab;
+
+  const _MemberListScreen({
+    required this.accountId,
+    required this.chatId,
+    required this.isChannel,
+    required this.initialTab,
+  });
+
+  @override
+  State<_MemberListScreen> createState() => _MemberListScreenState();
+}
+
+class _MemberListScreenState extends State<_MemberListScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabCtrl;
+  final _searchCtrl = TextEditingController();
+  Timer? _searchDebounce;
+  String _searchQuery = '';
+
+  final Map<_MemberTab, List<MemberInfo>> _members = {};
+  final Map<_MemberTab, bool> _loading = {};
+  final Map<_MemberTab, bool> _hasMore = {};
+  final Map<_MemberTab, int> _offsets = {};
+
+  static const _firstPageCount = 16;
+  static const _pageSize = 200;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabCtrl = TabController(
+      length: _MemberTab.values.length,
+      vsync: this,
+      initialIndex: widget.initialTab.index,
+    );
+    _tabCtrl.addListener(_onTabChanged);
+    for (final tab in _MemberTab.values) {
+      _members[tab] = [];
+      _loading[tab] = false;
+      _hasMore[tab] = true;
+      _offsets[tab] = 0;
+    }
+    _loadPage(_tabCtrl.index == 0 ? _MemberTab.values[0] : widget.initialTab);
+  }
+
+  @override
+  void dispose() {
+    _tabCtrl.dispose();
+    _searchCtrl.dispose();
+    _searchDebounce?.cancel();
+    super.dispose();
+  }
+
+  void _onTabChanged() {
+    if (_tabCtrl.indexIsChanging) return;
+    final tab = _MemberTab.values[_tabCtrl.index];
+    if (_members[tab]!.isEmpty && _hasMore[tab]!) {
+      _loadPage(tab);
+    }
+  }
+
+  void _onSearchChanged(String text) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 400), () {
+      setState(() => _searchQuery = text.trim());
+      for (final tab in _MemberTab.values) {
+        _members[tab] = [];
+        _offsets[tab] = 0;
+        _hasMore[tab] = true;
+      }
+      _loadPage(_MemberTab.values[_tabCtrl.index]);
+    });
+  }
+
+  String _roleForTab(_MemberTab tab) {
+    switch (tab) {
+      case _MemberTab.members:
+        return 'members';
+      case _MemberTab.admins:
+        return 'admins';
+      case _MemberTab.restricted:
+        return 'restricted';
+      case _MemberTab.kicked:
+        return 'kicked';
+    }
+  }
+
+  Future<void> _loadPage(_MemberTab tab) async {
+    if (_loading[tab]! || !_hasMore[tab]!) return;
+    setState(() => _loading[tab] = true);
+
+    final engine = context.read<EngineService>();
+    final offset = _offsets[tab]!;
+    final limit = offset == 0 ? _firstPageCount : _pageSize;
+
+    try {
+      final result = await engine.getChatMembersByRole(
+        widget.accountId,
+        widget.chatId,
+        role: _roleForTab(tab),
+        query: _searchQuery,
+        limit: limit,
+        offset: offset,
+      );
+      if (!mounted) return;
+      setState(() {
+        _members[tab]!.addAll(result.members);
+        _offsets[tab] = _offsets[tab]! + result.members.length;
+        _hasMore[tab] = result.members.length >= limit;
+        _loading[tab] = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() => _loading[tab] = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final palette = PaletteProvider.of(context);
+    final bgColor = isDark ? const Color(0xFF17212B) : Colors.white;
+    final textColor = isDark ? Colors.white : const Color(0xFF222222);
+    final subColor = isDark ? const Color(0xFF8B9EB0) : const Color(0xFF999999);
+    final accentColor = palette.windowBgActive;
+    final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFE0E0E0);
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: bgColor,
+        foregroundColor: textColor,
+        elevation: 0,
+        title: Text(
+          widget.isChannel ? 'Subscribers' : 'Members',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(90),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                child: SizedBox(
+                  height: 36,
+                  child: TextField(
+                    controller: _searchCtrl,
+                    onChanged: _onSearchChanged,
+                    style: TextStyle(fontSize: 14, color: textColor),
+                    decoration: InputDecoration(
+                      hintText: 'Search',
+                      hintStyle: TextStyle(fontSize: 14, color: subColor),
+                      prefixIcon: Icon(Icons.search, size: 20, color: subColor),
+                      filled: true,
+                      fillColor: isDark ? const Color(0xFF242F3D) : const Color(0xFFF1F1F1),
+                      contentPadding: EdgeInsets.zero,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              TabBar(
+                controller: _tabCtrl,
+                labelColor: accentColor,
+                unselectedLabelColor: subColor,
+                indicatorColor: accentColor,
+                indicatorSize: TabBarIndicatorSize.label,
+                labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                unselectedLabelStyle: const TextStyle(fontSize: 13),
+                tabs: [
+                  Tab(text: widget.isChannel ? 'Subscribers' : 'Members'),
+                  const Tab(text: 'Admins'),
+                  const Tab(text: 'Restricted'),
+                  const Tab(text: 'Removed'),
+                ],
+              ),
+              Divider(height: 1, color: dividerColor),
+            ],
+          ),
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabCtrl,
+        children: _MemberTab.values.map((tab) {
+          return _MemberTabBody(
+            members: _members[tab]!,
+            loading: _loading[tab]!,
+            hasMore: _hasMore[tab]!,
+            tab: tab,
+            isChannel: widget.isChannel,
+            accountId: widget.accountId,
+            chatId: widget.chatId,
+            onLoadMore: () => _loadPage(tab),
+            onRefresh: () {
+              _members[tab] = [];
+              _offsets[tab] = 0;
+              _hasMore[tab] = true;
+              _loadPage(tab);
+            },
+            textColor: textColor,
+            subColor: subColor,
+            accentColor: accentColor,
+            isDark: isDark,
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class _MemberTabBody extends StatelessWidget {
+  final List<MemberInfo> members;
+  final bool loading;
+  final bool hasMore;
+  final _MemberTab tab;
+  final bool isChannel;
+  final String accountId;
+  final String chatId;
+  final VoidCallback onLoadMore;
+  final VoidCallback onRefresh;
+  final Color textColor;
+  final Color subColor;
+  final Color accentColor;
+  final bool isDark;
+
+  const _MemberTabBody({
+    required this.members,
+    required this.loading,
+    required this.hasMore,
+    required this.tab,
+    required this.isChannel,
+    required this.accountId,
+    required this.chatId,
+    required this.onLoadMore,
+    required this.onRefresh,
+    required this.textColor,
+    required this.subColor,
+    required this.accentColor,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading && members.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (members.isEmpty) {
+      return Center(
+        child: Text(
+          tab == _MemberTab.kicked
+              ? 'No removed users'
+              : tab == _MemberTab.restricted
+                  ? 'No restricted users'
+                  : 'No participants found',
+          style: TextStyle(fontSize: 14, color: subColor),
+        ),
+      );
+    }
+
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notif) {
+        if (notif is ScrollEndNotification &&
+            notif.metrics.pixels >= notif.metrics.maxScrollExtent - 100 &&
+            hasMore &&
+            !loading) {
+          onLoadMore();
+        }
+        return false;
+      },
+      child: ListView.builder(
+        itemCount: members.length + (loading ? 1 : 0),
+        itemBuilder: (ctx, i) {
+          if (i >= members.length) {
+            return const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            );
+          }
+          final m = members[i];
+          return _MemberRow(
+            member: m,
+            tab: tab,
+            isChannel: isChannel,
+            accountId: accountId,
+            chatId: chatId,
+            textColor: textColor,
+            subColor: subColor,
+            accentColor: accentColor,
+            isDark: isDark,
+            onRefresh: onRefresh,
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _MemberRow extends StatelessWidget {
+  final MemberInfo member;
+  final _MemberTab tab;
+  final bool isChannel;
+  final String accountId;
+  final String chatId;
+  final Color textColor;
+  final Color subColor;
+  final Color accentColor;
+  final bool isDark;
+  final VoidCallback onRefresh;
+
+  const _MemberRow({
+    required this.member,
+    required this.tab,
+    required this.isChannel,
+    required this.accountId,
+    required this.chatId,
+    required this.textColor,
+    required this.subColor,
+    required this.accentColor,
+    required this.isDark,
+    required this.onRefresh,
+  });
+
+  String _statusText() {
+    if (member.customRank.isNotEmpty) return member.customRank;
+    switch (member.role) {
+      case 'creator':
+        return 'owner';
+      case 'admin':
+        return 'admin';
+      case 'restricted':
+        return 'restricted';
+      case 'banned':
+        return 'banned';
+      default:
+        if (member.isBot) return 'bot';
+        if (member.isOnline) return 'online';
+        return 'offline';
+    }
+  }
+
+  Color _statusColor() {
+    if (member.isOnline && member.role != 'restricted' && member.role != 'banned') {
+      return accentColor;
+    }
+    return subColor;
+  }
+
+  Widget _buildAvatar() {
+    if (member.avatarB64.isNotEmpty) {
+      try {
+        final bytes = base64Decode(member.avatarB64);
+        return CircleAvatar(
+          radius: 21,
+          backgroundImage: MemoryImage(bytes),
+        );
+      } catch (_) {}
+    }
+    final initials = member.displayName.isNotEmpty
+        ? member.displayName.substring(0, 1).toUpperCase()
+        : '?';
+    return CircleAvatar(
+      radius: 21,
+      backgroundColor: accentColor,
+      child: Text(initials, style: const TextStyle(color: Colors.white, fontSize: 16)),
+    );
+  }
+
+  Widget _buildBadge() {
+    if (member.role == 'creator' || member.role == 'admin') {
+      final label = member.customRank.isNotEmpty ? member.customRank : member.role;
+      return Container(
+        margin: const EdgeInsets.only(left: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+        decoration: BoxDecoration(
+          color: accentColor.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: accentColor),
+        ),
+      );
+    }
+    return const SizedBox.shrink();
+  }
+
+  void _showContextMenu(BuildContext context, Offset position) {
+    final engine = context.read<EngineService>();
+    final items = <PopupMenuEntry<String>>[];
+
+    items.add(const PopupMenuItem(value: 'view', child: Text('View Profile')));
+
+    if (tab == _MemberTab.admins || tab == _MemberTab.members) {
+      items.add(const PopupMenuItem(value: 'promote', child: Text('Promote to Admin')));
+      items.add(const PopupMenuItem(value: 'restrict', child: Text('Restrict User')));
+      items.add(PopupMenuItem(
+        value: 'remove',
+        child: Text('Remove from Group', style: TextStyle(color: Colors.red.shade400)),
+      ));
+    }
+    if (tab == _MemberTab.restricted) {
+      items.add(const PopupMenuItem(value: 'restrict', child: Text('Edit Restrictions')));
+      items.add(const PopupMenuItem(value: 'unban', child: Text('Remove Restrictions')));
+    }
+    if (tab == _MemberTab.kicked) {
+      items.add(const PopupMenuItem(value: 'unban', child: Text('Unban')));
+    }
+
+    if (member.promotedBy.isNotEmpty && member.promotedDate > 0) {
+      final dt = DateTime.fromMillisecondsSinceEpoch(member.promotedDate * 1000);
+      final dateStr = '${dt.day}.${dt.month.toString().padLeft(2, '0')}.${dt.year}';
+      final action = tab == _MemberTab.admins ? 'Promoted' : 'Restricted';
+      items.add(PopupMenuItem(
+        enabled: false,
+        child: Text(
+          '$action by ${member.promotedBy} on $dateStr',
+          style: TextStyle(fontSize: 12, color: subColor),
+        ),
+      ));
+    }
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx, position.dy),
+      items: items,
+      color: isDark ? const Color(0xFF1E2C3A) : Colors.white,
+    ).then((action) {
+      if (action == null) return;
+      switch (action) {
+        case 'promote':
+          showEditAdminBox(
+            context,
+            accountId: accountId,
+            chatId: chatId,
+            member: member,
+            isChannel: isChannel,
+          ).then((changed) {
+            if (changed == true) onRefresh();
+          });
+          break;
+        case 'restrict':
+          showEditRestrictedBox(
+            context,
+            accountId: accountId,
+            chatId: chatId,
+            member: member,
+          ).then((changed) {
+            if (changed == true) onRefresh();
+          });
+          break;
+        case 'remove':
+          _confirmRemove(context, engine);
+          break;
+        case 'unban':
+          _doUnban(context, engine);
+          break;
+      }
+    });
+  }
+
+  void _confirmRemove(BuildContext context, EngineService engine) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove Member'),
+        content: Text('Remove ${member.label} from the group?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await engine.removeMember(accountId, chatId, member.userId);
+                onRefresh();
+              } catch (_) {}
+            },
+            child: Text('Remove', style: TextStyle(color: Colors.red.shade400)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _doUnban(BuildContext context, EngineService engine) async {
+    try {
+      await engine.unbanChatMember(accountId, chatId, member.userId);
+      onRefresh();
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onSecondaryTapDown: (d) => _showContextMenu(context, d.globalPosition),
+      onLongPress: () {
+        final box = context.findRenderObject() as RenderBox;
+        final pos = box.localToGlobal(Offset(box.size.width / 2, box.size.height / 2));
+        _showContextMenu(context, pos);
+      },
+      child: SizedBox(
+        height: 56,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              _buildAvatar(),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            member.label,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: textColor,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        _buildBadge(),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _statusText(),
+                      style: TextStyle(fontSize: 13, color: _statusColor()),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               ),
             ],

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"uniclient/cores"
@@ -261,13 +262,17 @@ func (e *Engine) HasFallbackPhoto(accountID string) (bool, error) {
 
 // MemberInfo is the member data returned to the UI for a chat member list.
 type MemberInfo struct {
-	UserID      string `json:"user_id"`
-	Username    string `json:"username,omitempty"`
-	DisplayName string `json:"display_name,omitempty"`
-	AvatarB64   string `json:"avatar_b64,omitempty"`
-	IsBot       bool   `json:"is_bot"`
-	IsOnline    bool   `json:"is_online"`
-	Role        string `json:"role"` // "owner", "admin", "member", "restricted", "banned"
+	UserID       string `json:"user_id"`
+	Username     string `json:"username,omitempty"`
+	DisplayName  string `json:"display_name,omitempty"`
+	AvatarB64    string `json:"avatar_b64,omitempty"`
+	IsBot        bool   `json:"is_bot"`
+	IsOnline     bool   `json:"is_online"`
+	Role         string `json:"role"` // "owner", "admin", "member", "restricted", "banned"
+	CustomRank   string `json:"custom_rank,omitempty"`
+	PromotedBy   string `json:"promoted_by,omitempty"`
+	PromotedByID string `json:"promoted_by_id,omitempty"`
+	PromotedDate int64  `json:"promoted_date,omitempty"`
 }
 
 // GetChatMembers fetches members for a chat from the connected core.
@@ -311,6 +316,74 @@ func (e *Engine) GetChatMembers(accountID, chatID string, limit, offset int) ([]
 		})
 	}
 	return members, nil
+}
+
+type ParticipantsByRoleResult struct {
+	Members []MemberInfo `json:"members"`
+	Total   int          `json:"total"`
+}
+
+func (e *Engine) GetChatMembersByRole(accountID, chatID, role, query string, limit, offset int) (*ParticipantsByRoleResult, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	if limit <= 0 {
+		limit = 200
+	}
+
+	type roleProvider interface {
+		GetParticipantsByRole(chatID, role, query string, limit, offset int) ([]cores.User, map[int64]cores.ParticipantExtra, error)
+	}
+	rp, ok := acc.Core.(roleProvider)
+	if !ok {
+		members, err := e.GetChatMembers(accountID, chatID, limit, offset)
+		if err != nil {
+			return nil, err
+		}
+		return &ParticipantsByRoleResult{Members: members, Total: len(members)}, nil
+	}
+
+	users, extras, err := rp.GetParticipantsByRole(chatID, role, query, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+
+	members := make([]MemberInfo, 0, len(users))
+	for _, u := range users {
+		e.UpsertUser(accountID, u)
+		r := u.Role
+		if r == "" {
+			r = "member"
+		}
+		mi := MemberInfo{
+			UserID:      u.ID,
+			Username:    u.Username,
+			DisplayName: u.DisplayName,
+			AvatarB64:   u.AvatarB64,
+			IsBot:       u.IsBot,
+			IsOnline:    u.IsOnline,
+			Role:        r,
+		}
+		uid, _ := strconv.ParseInt(u.ID, 10, 64)
+		if ex, ok := extras[uid]; ok {
+			mi.CustomRank = ex.CustomRank
+			if ex.PromotedBy != 0 {
+				mi.PromotedByID = strconv.FormatInt(ex.PromotedBy, 10)
+				if cached, err := e.GetUser(accountID, mi.PromotedByID); err == nil && cached != nil {
+					mi.PromotedBy = cached.DisplayName
+				}
+			}
+			if ex.PromotedDate != 0 {
+				mi.PromotedDate = int64(ex.PromotedDate)
+			}
+		}
+		members = append(members, mi)
+	}
+	return &ParticipantsByRoleResult{Members: members, Total: len(members)}, nil
 }
 
 // GetOnlineCount returns the number of online members in a chat.
@@ -569,6 +642,20 @@ func (e *Engine) PromoteAdmin(accountID, chatID, userID string) error {
 		return p.PromoteToAdmin(chatID, userID)
 	}
 	return fmt.Errorf("platform does not support PromoteAdmin")
+}
+
+func (e *Engine) UnbanMember(accountID, chatID, userID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type unbannable interface {
+		UnbanMember(chatID, userID string) error
+	}
+	if u, ok := acc.Core.(unbannable); ok {
+		return u.UnbanMember(chatID, userID)
+	}
+	return fmt.Errorf("platform does not support UnbanMember")
 }
 
 type AdminRights struct {

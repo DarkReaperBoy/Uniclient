@@ -13331,6 +13331,96 @@ func (t *TelegramCore) GetParticipants(chatID string, limit int) ([]User, error)
 	return users, nil
 }
 
+type ParticipantExtra struct {
+	CustomRank   string
+	PromotedBy   int64
+	PromotedDate int
+}
+
+func (t *TelegramCore) GetParticipantsByRole(chatID, role, query string, limit, offset int) ([]User, map[int64]ParticipantExtra, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, nil, ErrAuth
+	}
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return nil, nil, err
+	}
+	ch, ok := peer.(*tg.PeerChannel)
+	if !ok {
+		return nil, nil, fmt.Errorf("not a channel/supergroup")
+	}
+	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
+	if limit <= 0 {
+		limit = 200
+	}
+
+	var filter tg.ChannelParticipantsFilterClass
+	switch role {
+	case "admins":
+		filter = &tg.ChannelParticipantsAdmins{}
+	case "restricted":
+		filter = &tg.ChannelParticipantsBanned{Q: query}
+	case "kicked":
+		filter = &tg.ChannelParticipantsKicked{Q: query}
+	default:
+		filter = &tg.ChannelParticipantsSearch{Q: query}
+	}
+
+	result, err := t.api.ChannelsGetParticipants(t.ctx, &tg.ChannelsGetParticipantsRequest{
+		Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
+		Filter:  filter,
+		Offset:  offset,
+		Limit:   limit,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	cp, ok := result.(*tg.ChannelsChannelParticipants)
+	if !ok {
+		return nil, nil, nil
+	}
+	t.cacheEntities(cp.Users, cp.Chats)
+
+	extras := make(map[int64]ParticipantExtra, len(cp.Participants))
+	roles := make(map[int64]string, len(cp.Participants))
+	for _, p := range cp.Participants {
+		switch pt := p.(type) {
+		case *tg.ChannelParticipantCreator:
+			roles[pt.UserID] = "creator"
+			extras[pt.UserID] = ParticipantExtra{CustomRank: pt.Rank}
+		case *tg.ChannelParticipantAdmin:
+			roles[pt.UserID] = "admin"
+			extras[pt.UserID] = ParticipantExtra{
+				CustomRank:   pt.Rank,
+				PromotedBy:   pt.PromotedBy,
+				PromotedDate: pt.Date,
+			}
+		case *tg.ChannelParticipantBanned:
+			if peer, ok := pt.Peer.(*tg.PeerUser); ok {
+				roles[peer.UserID] = "restricted"
+				if pt.BannedRights.ViewMessages {
+					roles[peer.UserID] = "banned"
+				}
+				extras[peer.UserID] = ParticipantExtra{PromotedBy: pt.KickedBy, PromotedDate: pt.Date}
+			}
+		}
+	}
+
+	var users []User
+	for _, u := range cp.Users {
+		if user, ok := u.(*tg.User); ok {
+			cu := t.convertUser(user)
+			if r, ok := roles[user.ID]; ok {
+				cu.Role = r
+			}
+			users = append(users, *cu)
+		}
+	}
+	return users, extras, nil
+}
+
 // GetCommonChats returns groups and channels shared with a specific user.
 func (t *TelegramCore) GetCommonChats(userID string, limit int) ([]Dialog, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()

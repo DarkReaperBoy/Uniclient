@@ -826,8 +826,6 @@ Status key: `[ ]` not started · `[x]` done
 
 
 
-- [ ] Member list with 5 role tabs (Members/Admins/Restricted/Kicked/Profile): search bar with debounced server query, 16/200 pagination with online sort, row 56px with avatar/name/badge/rank, Add button per role, context menu (View/Edit Tag/Promote/Restrict/Remove/Promoted-by), banned-users sublist with Unban — spec §26.7–26.8
-
 ---
 
 ## §27 — Passcode Lock Screen
