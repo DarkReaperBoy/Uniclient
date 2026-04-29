@@ -82,6 +82,10 @@ class ChatState extends ChangeNotifier {
   static const _kLoadedSublistsMinCount = 20;
   static const _kRecentSublistsMax = 6;
 
+  // §31.6: Saved reaction tags
+  List<SavedReactionTagInfo> _savedReactionTags = [];
+  bool _savedReactionTagsLoading = false;
+
   // §24.5: Recently opened chats for Ctrl+Tab switcher overlay.
   final List<String> _chatOpenHistory = []; // chatId list, most-recent first
   static const _maxChatOpenHistory = 30;
@@ -283,6 +287,10 @@ class ChatState extends ChangeNotifier {
   bool get savedSublistsLoadingMore => _savedSublistsLoadingMore;
   bool get savedSublistsHasMore => _savedSublistsHasMore;
   SavedSublistInfo? get activeSublist => _activeSublist;
+
+  // §31.6: Reaction tags getters
+  List<SavedReactionTagInfo> get savedReactionTags => _savedReactionTags;
+  bool get savedReactionTagsLoading => _savedReactionTagsLoading;
 
   void toggleForumViewAsMessages() {
     final chat = _forumParentChat;
@@ -869,6 +877,7 @@ class ChatState extends ChangeNotifier {
     } catch (_) {}
     _savedSublistsLoading = false;
     notifyListeners();
+    loadSavedReactionTags();
   }
 
   Future<void> loadMoreSavedSublists() async {
@@ -942,7 +951,37 @@ class ChatState extends ChangeNotifier {
     _savedSublistsFirstLoad = true;
     _recentSublists = [];
     _savedSublistsAccountId = '';
+    _savedReactionTags = [];
+    _savedReactionTagsLoading = false;
     notifyListeners();
+  }
+
+  Future<void> loadSavedReactionTags({String sublistPeerId = ''}) async {
+    if (_savedSublistsAccountId.isEmpty) return;
+    _savedReactionTagsLoading = true;
+    notifyListeners();
+    try {
+      final tags = _engine.getSavedReactionTags(
+        _savedSublistsAccountId,
+        sublistPeerId: sublistPeerId,
+      );
+      _savedReactionTags = tags;
+    } catch (_) {}
+    _savedReactionTagsLoading = false;
+    notifyListeners();
+  }
+
+  Future<void> renameSavedReactionTag({String emoji = '', int customId = 0, required String title}) async {
+    if (_savedSublistsAccountId.isEmpty) return;
+    try {
+      _engine.renameSavedReactionTag(
+        _savedSublistsAccountId,
+        emoji: emoji,
+        customId: customId,
+        title: title,
+      );
+      await loadSavedReactionTags();
+    } catch (_) {}
   }
 
   void openTopic(ForumTopic topic) {

@@ -198,6 +198,33 @@ class EngineService {
     );
   }
 
+  List<SavedReactionTagInfo> getSavedReactionTags(String accountId, {String sublistPeerId = ''}) {
+    final req = epb.EngineGetSavedReactionTagsRequest()
+      ..accountId = accountId
+      ..sublistPeerId = sublistPeerId;
+    final respBytes = _callRaw('__engine', 'GetSavedReactionTags', req.writeToBuffer());
+    final resp = epb.EngineGetSavedReactionTagsResponse.fromBuffer(respBytes);
+    return resp.tags.map(_savedReactionTagFromProto).toList();
+  }
+
+  void renameSavedReactionTag(String accountId, {String emoji = '', int customId = 0, String title = ''}) {
+    final req = epb.EngineRenameSavedReactionTagRequest()
+      ..accountId = accountId
+      ..emoji = emoji
+      ..customId = Int64(customId)
+      ..title = title;
+    _callRaw('__engine', 'RenameSavedReactionTag', req.writeToBuffer());
+  }
+
+  static SavedReactionTagInfo _savedReactionTagFromProto(epb.EngineSavedReactionTag t) {
+    return SavedReactionTagInfo(
+      emoji: t.emoji,
+      customId: t.customId.toInt(),
+      title: t.title,
+      count: t.count,
+    );
+  }
+
   void saveDraft(String accountId, String chatId, String text) {
     final req = epb.EngineSaveDraftRequest()
       ..accountId = accountId

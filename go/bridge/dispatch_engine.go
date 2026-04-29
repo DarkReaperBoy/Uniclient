@@ -2997,6 +2997,36 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(resp)
 
+	case "GetSavedReactionTags":
+		var req pb.EngineGetSavedReactionTagsRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		tags, err := e.GetSavedReactionTags(req.AccountId, req.SublistPeerId)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetSavedReactionTagsResponse{}
+		for _, t := range tags {
+			resp.Tags = append(resp.Tags, &pb.EngineSavedReactionTag{
+				Emoji:    sanitizeUTF8(t.Emoji),
+				CustomId: t.CustomID,
+				Title:    sanitizeUTF8(t.Title),
+				Count:    int32(t.Count),
+			})
+		}
+		return proto.Marshal(resp)
+
+	case "RenameSavedReactionTag":
+		var req pb.EngineRenameSavedReactionTagRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		if err := e.RenameSavedReactionTag(req.AccountId, req.Emoji, req.CustomId, req.Title); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}

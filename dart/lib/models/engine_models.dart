@@ -2359,3 +2359,19 @@ class SavedSublistInfo {
     this.unreadCount = 0,
   });
 }
+
+class SavedReactionTagInfo {
+  final String emoji;
+  final int customId;
+  final String title;
+  final int count;
+
+  const SavedReactionTagInfo({
+    this.emoji = '',
+    this.customId = 0,
+    this.title = '',
+    this.count = 0,
+  });
+
+  bool get isCustomEmoji => customId != 0;
+}

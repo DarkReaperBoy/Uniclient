@@ -312,6 +312,13 @@ type SavedSublistInfo struct {
 	UnreadCount int    `json:"unread_count"`
 }
 
+type SavedReactionTagInfo struct {
+	Emoji      string `json:"emoji,omitempty"`
+	CustomID   int64  `json:"custom_id,omitempty"`
+	Title      string `json:"title,omitempty"`
+	Count      int    `json:"count"`
+}
+
 // StickerInfo holds data for a single sticker in a set.
 type StickerInfo struct {
 	Emoji    string `json:"emoji"`

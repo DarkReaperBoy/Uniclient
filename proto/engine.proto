@@ -1237,3 +1237,29 @@ message EngineGetSavedSublistsResponse {
   repeated EngineSavedSublist sublists = 1;
   int32 total_count = 2;
 }
+
+// Saved Reaction Tags (spec §31.6)
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineGetSavedReactionTagsRequest {
+  string account_id       = 1;
+  string sublist_peer_id  = 2; // optional: filter by sublist peer
+}
+
+message EngineSavedReactionTag {
+  string emoji     = 1; // unicode emoji (mutually exclusive with custom_id)
+  int64  custom_id = 2; // custom emoji document ID
+  string title     = 3; // user-assigned tag name
+  int32  count     = 4; // number of messages with this tag
+}
+
+message EngineGetSavedReactionTagsResponse {
+  repeated EngineSavedReactionTag tags = 1;
+}
+
+message EngineRenameSavedReactionTagRequest {
+  string account_id = 1;
+  string emoji      = 2; // unicode emoji (mutually exclusive with custom_id)
+  int64  custom_id  = 3; // custom emoji document ID
+  string title      = 4; // new title (empty to remove)
+}

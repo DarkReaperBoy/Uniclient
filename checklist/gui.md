@@ -859,7 +859,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_list_panel.dart, chat_list_row.dart, hamburger_drawer.dart (partial saved-messages reference) — new: dart/lib/ui/saved_messages.dart -->
 
-- [ ] Reaction tags system: tag data (ReactionId + custom title + count), Unicode emoji and custom animated emoji, refresh/increment/decrement/rename operations — spec §31.6
 - [ ] SearchTags strip: price-tag-shaped chips (18px height, 5/2/7/2 padding, 6px left radius, 3px right radius, 5px arrow tail), selected/normal/promo states, Shift-click multi-select, right-click context menu (Edit tag name/Filter/Remove), promo chip with "Unlock Tags" for non-premium — spec §31.7a
 - [ ] EditTagNameBox: 320px box, emoji preview in field, 12-char limit with "N/12" counter turning red, Save/Cancel, shake error — spec §31.7b
 - [ ] Forward-to-saved tag suggestion toast: emoji selector, 3s auto-dismiss, 2s on mouse-leave, hover pauses — spec §31.8

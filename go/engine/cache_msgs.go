@@ -1036,6 +1036,44 @@ func (e *Engine) GetPinnedSavedSublists(accountID string) ([]cores.SavedSublistI
 	return fetcher.GetPinnedSavedSublists()
 }
 
+type SavedReactionTagsFetcher interface {
+	GetSavedReactionTags(sublistPeerID string) ([]cores.SavedReactionTagInfo, error)
+}
+
+func (e *Engine) GetSavedReactionTags(accountID, sublistPeerID string) ([]cores.SavedReactionTagInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(SavedReactionTagsFetcher)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support saved reaction tags")
+	}
+	return fetcher.GetSavedReactionTags(sublistPeerID)
+}
+
+type SavedReactionTagRenamer interface {
+	RenameSavedReactionTag(emoji string, customID int64, title string) error
+}
+
+func (e *Engine) RenameSavedReactionTag(accountID, emoji string, customID int64, title string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	renamer, ok := acc.Core.(SavedReactionTagRenamer)
+	if !ok {
+		return fmt.Errorf("platform does not support reaction tag rename")
+	}
+	return renamer.RenameSavedReactionTag(emoji, customID, title)
+}
+
 type RecentStickersFetcher interface {
 	GetRecentStickers() ([]cores.StickerInfo, error)
 }

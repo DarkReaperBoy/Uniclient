@@ -10153,12 +10153,12 @@ func (x *EngineGetCustomEmojiThumbsResponse) GetThumbs() []*EngineCustomEmojiThu
 }
 
 type EngineGetSavedSublistsRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	AccountId      string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	Limit          int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
-	OffsetDate     int32                  `protobuf:"varint,3,opt,name=offset_date,json=offsetDate,proto3" json:"offset_date,omitempty"`
-	OffsetId       int32                  `protobuf:"varint,4,opt,name=offset_id,json=offsetId,proto3" json:"offset_id,omitempty"`
-	ExcludePinned  bool                   `protobuf:"varint,5,opt,name=exclude_pinned,json=excludePinned,proto3" json:"exclude_pinned,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	OffsetDate    int32                  `protobuf:"varint,3,opt,name=offset_date,json=offsetDate,proto3" json:"offset_date,omitempty"`
+	OffsetId      int32                  `protobuf:"varint,4,opt,name=offset_id,json=offsetId,proto3" json:"offset_id,omitempty"`
+	ExcludePinned bool                   `protobuf:"varint,5,opt,name=exclude_pinned,json=excludePinned,proto3" json:"exclude_pinned,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -10394,6 +10394,238 @@ func (x *EngineGetSavedSublistsResponse) GetTotalCount() int32 {
 		return x.TotalCount
 	}
 	return 0
+}
+
+type EngineGetSavedReactionTagsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	SublistPeerId string                 `protobuf:"bytes,2,opt,name=sublist_peer_id,json=sublistPeerId,proto3" json:"sublist_peer_id,omitempty"` // optional: filter by sublist peer
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetSavedReactionTagsRequest) Reset() {
+	*x = EngineGetSavedReactionTagsRequest{}
+	mi := &file_proto_engine_proto_msgTypes[161]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetSavedReactionTagsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetSavedReactionTagsRequest) ProtoMessage() {}
+
+func (x *EngineGetSavedReactionTagsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[161]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetSavedReactionTagsRequest.ProtoReflect.Descriptor instead.
+func (*EngineGetSavedReactionTagsRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{161}
+}
+
+func (x *EngineGetSavedReactionTagsRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineGetSavedReactionTagsRequest) GetSublistPeerId() string {
+	if x != nil {
+		return x.SublistPeerId
+	}
+	return ""
+}
+
+type EngineSavedReactionTag struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Emoji         string                 `protobuf:"bytes,1,opt,name=emoji,proto3" json:"emoji,omitempty"`                        // unicode emoji (mutually exclusive with custom_id)
+	CustomId      int64                  `protobuf:"varint,2,opt,name=custom_id,json=customId,proto3" json:"custom_id,omitempty"` // custom emoji document ID
+	Title         string                 `protobuf:"bytes,3,opt,name=title,proto3" json:"title,omitempty"`                        // user-assigned tag name
+	Count         int32                  `protobuf:"varint,4,opt,name=count,proto3" json:"count,omitempty"`                       // number of messages with this tag
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineSavedReactionTag) Reset() {
+	*x = EngineSavedReactionTag{}
+	mi := &file_proto_engine_proto_msgTypes[162]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineSavedReactionTag) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineSavedReactionTag) ProtoMessage() {}
+
+func (x *EngineSavedReactionTag) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[162]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineSavedReactionTag.ProtoReflect.Descriptor instead.
+func (*EngineSavedReactionTag) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{162}
+}
+
+func (x *EngineSavedReactionTag) GetEmoji() string {
+	if x != nil {
+		return x.Emoji
+	}
+	return ""
+}
+
+func (x *EngineSavedReactionTag) GetCustomId() int64 {
+	if x != nil {
+		return x.CustomId
+	}
+	return 0
+}
+
+func (x *EngineSavedReactionTag) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *EngineSavedReactionTag) GetCount() int32 {
+	if x != nil {
+		return x.Count
+	}
+	return 0
+}
+
+type EngineGetSavedReactionTagsResponse struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	Tags          []*EngineSavedReactionTag `protobuf:"bytes,1,rep,name=tags,proto3" json:"tags,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetSavedReactionTagsResponse) Reset() {
+	*x = EngineGetSavedReactionTagsResponse{}
+	mi := &file_proto_engine_proto_msgTypes[163]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetSavedReactionTagsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetSavedReactionTagsResponse) ProtoMessage() {}
+
+func (x *EngineGetSavedReactionTagsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[163]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetSavedReactionTagsResponse.ProtoReflect.Descriptor instead.
+func (*EngineGetSavedReactionTagsResponse) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{163}
+}
+
+func (x *EngineGetSavedReactionTagsResponse) GetTags() []*EngineSavedReactionTag {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
+}
+
+type EngineRenameSavedReactionTagRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	Emoji         string                 `protobuf:"bytes,2,opt,name=emoji,proto3" json:"emoji,omitempty"`                        // unicode emoji (mutually exclusive with custom_id)
+	CustomId      int64                  `protobuf:"varint,3,opt,name=custom_id,json=customId,proto3" json:"custom_id,omitempty"` // custom emoji document ID
+	Title         string                 `protobuf:"bytes,4,opt,name=title,proto3" json:"title,omitempty"`                        // new title (empty to remove)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineRenameSavedReactionTagRequest) Reset() {
+	*x = EngineRenameSavedReactionTagRequest{}
+	mi := &file_proto_engine_proto_msgTypes[164]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineRenameSavedReactionTagRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineRenameSavedReactionTagRequest) ProtoMessage() {}
+
+func (x *EngineRenameSavedReactionTagRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[164]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineRenameSavedReactionTagRequest.ProtoReflect.Descriptor instead.
+func (*EngineRenameSavedReactionTagRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{164}
+}
+
+func (x *EngineRenameSavedReactionTagRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineRenameSavedReactionTagRequest) GetEmoji() string {
+	if x != nil {
+		return x.Emoji
+	}
+	return ""
+}
+
+func (x *EngineRenameSavedReactionTagRequest) GetCustomId() int64 {
+	if x != nil {
+		return x.CustomId
+	}
+	return 0
+}
+
+func (x *EngineRenameSavedReactionTagRequest) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
 }
 
 var File_proto_engine_proto protoreflect.FileDescriptor
@@ -11277,14 +11509,15 @@ const file_proto_engine_proto_rawDesc = "" +
 	"documentId\x12\x1b\n" +
 	"\tthumb_b64\x18\x02 \x01(\tR\bthumbB64\"_\n" +
 	"\"EngineGetCustomEmojiThumbsResponse\x129\n" +
-	"\x06thumbs\x18\x01 \x03(\v2!.uniclient.EngineCustomEmojiThumbR\x06thumbs\"\x92\x01\n" +
+	"\x06thumbs\x18\x01 \x03(\v2!.uniclient.EngineCustomEmojiThumbR\x06thumbs\"\xb9\x01\n" +
 	"\x1dEngineGetSavedSublistsRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x1f\n" +
 	"\voffset_date\x18\x03 \x01(\x05R\n" +
 	"offsetDate\x12\x1b\n" +
-	"\toffset_id\x18\x04 \x01(\x05R\boffsetId\"\xc1\x02\n" +
+	"\toffset_id\x18\x04 \x01(\x05R\boffsetId\x12%\n" +
+	"\x0eexclude_pinned\x18\x05 \x01(\bR\rexcludePinned\"\xc1\x02\n" +
 	"\x12EngineSavedSublist\x12\x17\n" +
 	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12\x1b\n" +
 	"\tpeer_name\x18\x02 \x01(\tR\bpeerName\x12\x1f\n" +
@@ -11302,7 +11535,24 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x1eEngineGetSavedSublistsResponse\x129\n" +
 	"\bsublists\x18\x01 \x03(\v2\x1d.uniclient.EngineSavedSublistR\bsublists\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x05R\n" +
-	"totalCountB\x11Z\x0funiclient/protob\x06proto3"
+	"totalCount\"j\n" +
+	"!EngineGetSavedReactionTagsRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12&\n" +
+	"\x0fsublist_peer_id\x18\x02 \x01(\tR\rsublistPeerId\"w\n" +
+	"\x16EngineSavedReactionTag\x12\x14\n" +
+	"\x05emoji\x18\x01 \x01(\tR\x05emoji\x12\x1b\n" +
+	"\tcustom_id\x18\x02 \x01(\x03R\bcustomId\x12\x14\n" +
+	"\x05title\x18\x03 \x01(\tR\x05title\x12\x14\n" +
+	"\x05count\x18\x04 \x01(\x05R\x05count\"[\n" +
+	"\"EngineGetSavedReactionTagsResponse\x125\n" +
+	"\x04tags\x18\x01 \x03(\v2!.uniclient.EngineSavedReactionTagR\x04tags\"\x8d\x01\n" +
+	"#EngineRenameSavedReactionTagRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x14\n" +
+	"\x05emoji\x18\x02 \x01(\tR\x05emoji\x12\x1b\n" +
+	"\tcustom_id\x18\x03 \x01(\x03R\bcustomId\x12\x14\n" +
+	"\x05title\x18\x04 \x01(\tR\x05titleB\x11Z\x0funiclient/protob\x06proto3"
 
 var (
 	file_proto_engine_proto_rawDescOnce sync.Once
@@ -11316,7 +11566,7 @@ func file_proto_engine_proto_rawDescGZIP() []byte {
 	return file_proto_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 161)
+var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 165)
 var file_proto_engine_proto_goTypes = []any{
 	(*EngineEvent)(nil),                            // 0: uniclient.EngineEvent
 	(*AccountInfo)(nil),                            // 1: uniclient.AccountInfo
@@ -11479,6 +11729,10 @@ var file_proto_engine_proto_goTypes = []any{
 	(*EngineGetSavedSublistsRequest)(nil),          // 158: uniclient.EngineGetSavedSublistsRequest
 	(*EngineSavedSublist)(nil),                     // 159: uniclient.EngineSavedSublist
 	(*EngineGetSavedSublistsResponse)(nil),         // 160: uniclient.EngineGetSavedSublistsResponse
+	(*EngineGetSavedReactionTagsRequest)(nil),      // 161: uniclient.EngineGetSavedReactionTagsRequest
+	(*EngineSavedReactionTag)(nil),                 // 162: uniclient.EngineSavedReactionTag
+	(*EngineGetSavedReactionTagsResponse)(nil),     // 163: uniclient.EngineGetSavedReactionTagsResponse
+	(*EngineRenameSavedReactionTagRequest)(nil),    // 164: uniclient.EngineRenameSavedReactionTagRequest
 }
 var file_proto_engine_proto_depIdxs = []int32{
 	1,   // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
@@ -11516,11 +11770,12 @@ var file_proto_engine_proto_depIdxs = []int32{
 	102, // 32: uniclient.EngineGetStickerSuggestionsResponse.stickers:type_name -> uniclient.EngineStickerInfo
 	156, // 33: uniclient.EngineGetCustomEmojiThumbsResponse.thumbs:type_name -> uniclient.EngineCustomEmojiThumb
 	159, // 34: uniclient.EngineGetSavedSublistsResponse.sublists:type_name -> uniclient.EngineSavedSublist
-	35,  // [35:35] is the sub-list for method output_type
-	35,  // [35:35] is the sub-list for method input_type
-	35,  // [35:35] is the sub-list for extension type_name
-	35,  // [35:35] is the sub-list for extension extendee
-	0,   // [0:35] is the sub-list for field type_name
+	162, // 35: uniclient.EngineGetSavedReactionTagsResponse.tags:type_name -> uniclient.EngineSavedReactionTag
+	36,  // [36:36] is the sub-list for method output_type
+	36,  // [36:36] is the sub-list for method input_type
+	36,  // [36:36] is the sub-list for extension type_name
+	36,  // [36:36] is the sub-list for extension extendee
+	0,   // [0:36] is the sub-list for field type_name
 }
 
 func init() { file_proto_engine_proto_init() }
@@ -11534,7 +11789,7 @@ func file_proto_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   161,
+			NumMessages:   165,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

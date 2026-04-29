@@ -21604,3 +21604,74 @@ func (t *TelegramCore) GetPinnedSavedSublists() ([]SavedSublistInfo, int, error)
 
 	return sublists, totalCount, nil
 }
+
+func (t *TelegramCore) GetSavedReactionTags(sublistPeerID string) ([]SavedReactionTagInfo, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+
+	req := &tg.MessagesGetSavedReactionTagsRequest{
+		Hash: 0,
+	}
+	if sublistPeerID != "" {
+		peer, err := t.resolvePeer(sublistPeerID)
+		if err == nil {
+			if inputPeer, err := t.toInputPeer(peer); err == nil {
+				req.SetPeer(inputPeer)
+			}
+		}
+	}
+
+	result, err := t.api.MessagesGetSavedReactionTags(t.ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	switch r := result.(type) {
+	case *tg.MessagesSavedReactionTags:
+		tags := make([]SavedReactionTagInfo, 0, len(r.Tags))
+		for _, tag := range r.Tags {
+			info := SavedReactionTagInfo{
+				Title: tag.Title,
+				Count: tag.Count,
+			}
+			switch reaction := tag.Reaction.(type) {
+			case *tg.ReactionEmoji:
+				info.Emoji = reaction.Emoticon
+			case *tg.ReactionCustomEmoji:
+				info.CustomID = reaction.DocumentID
+			}
+			tags = append(tags, info)
+		}
+		return tags, nil
+	case *tg.MessagesSavedReactionTagsNotModified:
+		return nil, nil
+	default:
+		return nil, fmt.Errorf("unexpected saved reaction tags type: %T", result)
+	}
+}
+
+func (t *TelegramCore) RenameSavedReactionTag(emoji string, customID int64, title string) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+
+	req := &tg.MessagesUpdateSavedReactionTagRequest{}
+	if customID != 0 {
+		req.Reaction = &tg.ReactionCustomEmoji{DocumentID: customID}
+	} else if emoji != "" {
+		req.Reaction = &tg.ReactionEmoji{Emoticon: emoji}
+	} else {
+		return fmt.Errorf("either emoji or custom_id must be provided")
+	}
+	if title != "" {
+		req.SetTitle(title)
+	}
+
+	_, err := t.api.MessagesUpdateSavedReactionTag(t.ctx, req)
+	return err
+}

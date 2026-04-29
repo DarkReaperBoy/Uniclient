@@ -11893,5 +11893,327 @@ class EngineGetSavedSublistsResponse extends $pb.GeneratedMessage {
   set totalCount($core.int v) { $_setSignedInt32(1, v); }
 }
 
+class EngineGetSavedReactionTagsRequest extends $pb.GeneratedMessage {
+  factory EngineGetSavedReactionTagsRequest({
+    $core.String? accountId,
+    $core.String? sublistPeerId,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (sublistPeerId != null) {
+      $result.sublistPeerId = sublistPeerId;
+    }
+    return $result;
+  }
+
+  EngineGetSavedReactionTagsRequest._() : super();
+
+  factory EngineGetSavedReactionTagsRequest.fromBuffer($core.List<$core.int> i,
+          [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(i, r);
+  factory EngineGetSavedReactionTagsRequest.fromJson($core.String i,
+          [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'EngineGetSavedReactionTagsRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'sublistPeerId')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  EngineGetSavedReactionTagsRequest clone() =>
+      EngineGetSavedReactionTagsRequest()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  EngineGetSavedReactionTagsRequest copyWith(
+          void Function(EngineGetSavedReactionTagsRequest) updates) =>
+      super.copyWith((message) =>
+              updates(message as EngineGetSavedReactionTagsRequest))
+          as EngineGetSavedReactionTagsRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetSavedReactionTagsRequest create() =>
+      EngineGetSavedReactionTagsRequest._();
+  EngineGetSavedReactionTagsRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineGetSavedReactionTagsRequest> createRepeated() =>
+      $pb.PbList<EngineGetSavedReactionTagsRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetSavedReactionTagsRequest getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage
+          .$_defaultFor<EngineGetSavedReactionTagsRequest>(create);
+  static EngineGetSavedReactionTagsRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) {
+    $_setString(0, v);
+  }
+
+  @$pb.TagNumber(2)
+  $core.String get sublistPeerId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set sublistPeerId($core.String v) {
+    $_setString(1, v);
+  }
+}
+
+class EngineSavedReactionTag extends $pb.GeneratedMessage {
+  factory EngineSavedReactionTag({
+    $core.String? emoji,
+    $fixnum.Int64? customId,
+    $core.String? title,
+    $core.int? count,
+  }) {
+    final $result = create();
+    if (emoji != null) {
+      $result.emoji = emoji;
+    }
+    if (customId != null) {
+      $result.customId = customId;
+    }
+    if (title != null) {
+      $result.title = title;
+    }
+    if (count != null) {
+      $result.count = count;
+    }
+    return $result;
+  }
+
+  EngineSavedReactionTag._() : super();
+
+  factory EngineSavedReactionTag.fromBuffer($core.List<$core.int> i,
+          [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(i, r);
+  factory EngineSavedReactionTag.fromJson($core.String i,
+          [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'EngineSavedReactionTag',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'emoji')
+    ..aInt64(2, _omitFieldNames ? '' : 'customId')
+    ..aOS(3, _omitFieldNames ? '' : 'title')
+    ..a<$core.int>(4, _omitFieldNames ? '' : 'count', $pb.PbFieldType.O3)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  EngineSavedReactionTag clone() =>
+      EngineSavedReactionTag()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  EngineSavedReactionTag copyWith(
+          void Function(EngineSavedReactionTag) updates) =>
+      super.copyWith(
+              (message) => updates(message as EngineSavedReactionTag))
+          as EngineSavedReactionTag;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineSavedReactionTag create() => EngineSavedReactionTag._();
+  EngineSavedReactionTag createEmptyInstance() => create();
+  static $pb.PbList<EngineSavedReactionTag> createRepeated() =>
+      $pb.PbList<EngineSavedReactionTag>();
+  @$core.pragma('dart2js:noInline')
+  static EngineSavedReactionTag getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<EngineSavedReactionTag>(create);
+  static EngineSavedReactionTag? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get emoji => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set emoji($core.String v) {
+    $_setString(0, v);
+  }
+
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get customId => $_getI64(1);
+  @$pb.TagNumber(2)
+  set customId($fixnum.Int64 v) {
+    $_setInt64(1, v);
+  }
+
+  @$pb.TagNumber(3)
+  $core.String get title => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set title($core.String v) {
+    $_setString(2, v);
+  }
+
+  @$pb.TagNumber(4)
+  $core.int get count => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set count($core.int v) {
+    $_setSignedInt32(3, v);
+  }
+}
+
+class EngineGetSavedReactionTagsResponse extends $pb.GeneratedMessage {
+  factory EngineGetSavedReactionTagsResponse({
+    $core.Iterable<EngineSavedReactionTag>? tags,
+  }) {
+    final $result = create();
+    if (tags != null) {
+      $result.tags.addAll(tags);
+    }
+    return $result;
+  }
+
+  EngineGetSavedReactionTagsResponse._() : super();
+
+  factory EngineGetSavedReactionTagsResponse.fromBuffer(
+          $core.List<$core.int> i,
+          [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(i, r);
+  factory EngineGetSavedReactionTagsResponse.fromJson($core.String i,
+          [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'EngineGetSavedReactionTagsResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'),
+      createEmptyInstance: create)
+    ..pc<EngineSavedReactionTag>(
+        1, _omitFieldNames ? '' : 'tags', $pb.PbFieldType.PM,
+        subBuilder: EngineSavedReactionTag.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  EngineGetSavedReactionTagsResponse clone() =>
+      EngineGetSavedReactionTagsResponse()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  EngineGetSavedReactionTagsResponse copyWith(
+          void Function(EngineGetSavedReactionTagsResponse) updates) =>
+      super.copyWith((message) =>
+              updates(message as EngineGetSavedReactionTagsResponse))
+          as EngineGetSavedReactionTagsResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetSavedReactionTagsResponse create() =>
+      EngineGetSavedReactionTagsResponse._();
+  EngineGetSavedReactionTagsResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineGetSavedReactionTagsResponse> createRepeated() =>
+      $pb.PbList<EngineGetSavedReactionTagsResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetSavedReactionTagsResponse getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage
+          .$_defaultFor<EngineGetSavedReactionTagsResponse>(create);
+  static EngineGetSavedReactionTagsResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<EngineSavedReactionTag> get tags => $_getList(0);
+}
+
+class EngineRenameSavedReactionTagRequest extends $pb.GeneratedMessage {
+  factory EngineRenameSavedReactionTagRequest({
+    $core.String? accountId,
+    $core.String? emoji,
+    $fixnum.Int64? customId,
+    $core.String? title,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (emoji != null) {
+      $result.emoji = emoji;
+    }
+    if (customId != null) {
+      $result.customId = customId;
+    }
+    if (title != null) {
+      $result.title = title;
+    }
+    return $result;
+  }
+
+  EngineRenameSavedReactionTagRequest._() : super();
+
+  factory EngineRenameSavedReactionTagRequest.fromBuffer(
+          $core.List<$core.int> i,
+          [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(i, r);
+  factory EngineRenameSavedReactionTagRequest.fromJson($core.String i,
+          [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'EngineRenameSavedReactionTagRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'emoji')
+    ..aInt64(3, _omitFieldNames ? '' : 'customId')
+    ..aOS(4, _omitFieldNames ? '' : 'title')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  EngineRenameSavedReactionTagRequest clone() =>
+      EngineRenameSavedReactionTagRequest()..mergeFromMessage(this);
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  EngineRenameSavedReactionTagRequest copyWith(
+          void Function(EngineRenameSavedReactionTagRequest) updates) =>
+      super.copyWith((message) =>
+              updates(message as EngineRenameSavedReactionTagRequest))
+          as EngineRenameSavedReactionTagRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineRenameSavedReactionTagRequest create() =>
+      EngineRenameSavedReactionTagRequest._();
+  EngineRenameSavedReactionTagRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineRenameSavedReactionTagRequest> createRepeated() =>
+      $pb.PbList<EngineRenameSavedReactionTagRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineRenameSavedReactionTagRequest getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage
+          .$_defaultFor<EngineRenameSavedReactionTagRequest>(create);
+  static EngineRenameSavedReactionTagRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) {
+    $_setString(0, v);
+  }
+
+  @$pb.TagNumber(2)
+  $core.String get emoji => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set emoji($core.String v) {
+    $_setString(1, v);
+  }
+
+  @$pb.TagNumber(3)
+  $fixnum.Int64 get customId => $_getI64(2);
+  @$pb.TagNumber(3)
+  set customId($fixnum.Int64 v) {
+    $_setInt64(2, v);
+  }
+
+  @$pb.TagNumber(4)
+  $core.String get title => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set title($core.String v) {
+    $_setString(3, v);
+  }
+}
+
 const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
 const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');
