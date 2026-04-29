@@ -847,7 +847,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_export.dart -->
 
-- [ ] Stop confirmation dialog: "Are you sure?" / "Stop" red / "Cancel" — spec §29.6
 - [ ] Completion screen: 3 done rows at progress=1.0, "Show My Data" 200×44px button opens folder, panel title reverts — spec §29.7
 - [ ] Error states: TAKEOUT_INVALID InformBox (no escape/outside-click dismiss), TAKEOUT_INIT_DELAY with hours remaining, disk/IO error full-panel label (boxTextFgError, panelHeight/4 top), generic API error critical panel — spec §29.8
 - [ ] In-app export top bar: ~36px, 3 labels + FilledSlider, animated slide down/up, click opens panel, lifecycle matches progress — spec §29.9
