@@ -866,7 +866,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_list_row.dart (partial story ring) — new: dart/lib/ui/stories.dart -->
 
-- [ ] Story caption: collapsed FlatLabel, tap-to-expand fadeWrap + sineInOut, pull-to-close 50px threshold, content fade to 0.6 — spec §32.6
 - [ ] Story repost view: simple (10px radius, 8px padding) and quote (messageQuoteStyle) variants — spec §32.7
 - [ ] Story stealth mode dialog: logo icon, feature icons, button states (Non-premium UNLOCK / Cooldown H:MM:SS / Ready ENABLE), 250ms countdown, 4000ms toasts — spec §32.10
 - [ ] Profile stories grid: SubTabs (All/album/Add), responsive column grid (82px min), 2px item skip, album drag-reorder — spec §32.12

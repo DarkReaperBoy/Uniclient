@@ -4025,6 +4025,10 @@ const _kStoriesProgressHeight = 2.0;
 const _kStoriesProgressGap = 4.0;
 const _kStoriesProgressPadding = EdgeInsets.fromLTRB(8, 7, 8, 6);
 const _kStoriesCaptionMaxLines = 2;
+const _kStoriesCaptionPadding = EdgeInsets.fromLTRB(11, 6, 11, 6);
+const _kStoriesCaptionMinWidth = 36.0;
+const _kStoriesCaptionPullThreshold = 50.0;
+const _kStoriesCaptionAnimDuration = Duration(milliseconds: 300);
 const _kSiblingWidthRatio = 0.448;
 const _kSiblingMinWidth = 200.0;
 const _kSiblingFade = 0.5;
@@ -4527,6 +4531,8 @@ class _StoriesViewerState extends State<StoriesViewer>
     with TickerProviderStateMixin {
   late int _currentIndex;
   bool _captionExpanded = false;
+  late final AnimationController _captionAnim;
+  double _captionPullDy = 0.0;
   late final FocusNode _focusNode;
   bool _paused = false;
   bool _leftSiblingHovered = false;
@@ -4553,6 +4559,10 @@ class _StoriesViewerState extends State<StoriesViewer>
     super.initState();
     _currentIndex = widget.initialIndex.clamp(0, widget.stories.length - 1);
     _focusNode = FocusNode();
+    _captionAnim = AnimationController(
+      vsync: this,
+      duration: _kStoriesCaptionAnimDuration,
+    );
     _storyTimer = AnimationController(
       vsync: this,
       duration: _kPhotoDuration,
@@ -4568,6 +4578,7 @@ class _StoriesViewerState extends State<StoriesViewer>
   @override
   void dispose() {
     _storyTimer.dispose();
+    _captionAnim.dispose();
     _focusNode.dispose();
     _disposeVideo();
     super.dispose();
@@ -4586,6 +4597,8 @@ class _StoriesViewerState extends State<StoriesViewer>
   void _loadStory() {
     _disposeVideo();
     _captionExpanded = false;
+    _captionAnim.value = 0.0;
+    _captionPullDy = 0.0;
     _storyTimer.reset();
 
     if (_current.isVideo && _current.hasMedia) {
@@ -4680,6 +4693,10 @@ class _StoriesViewerState extends State<StoriesViewer>
     }
     switch (event.logicalKey) {
       case LogicalKeyboardKey.escape:
+        if (_captionExpanded) {
+          _closeCaption();
+          return KeyEventResult.handled;
+        }
         Navigator.of(context).maybePop();
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowLeft:
@@ -4800,9 +4817,16 @@ class _StoriesViewerState extends State<StoriesViewer>
           child: Stack(
             fit: StackFit.expand,
             children: [
-              AnimatedOpacity(
-                opacity: (_composeFocused || _captionExpanded) ? _kFullContentFade : 1.0,
-                duration: _kGoodFadeDuration,
+              AnimatedBuilder(
+                animation: _captionAnim,
+                builder: (context, child) {
+                  final t = Curves.easeInOutSine.transform(_captionAnim.value);
+                  final captionFade = 1.0 - (1.0 - _kFullContentFade) * t;
+                  final opacity = _composeFocused
+                      ? _kFullContentFade.clamp(0.0, captionFade)
+                      : captionFade;
+                  return Opacity(opacity: opacity, child: child);
+                },
                 child: _buildStoryContent(story, w, h),
               ),
               _buildProgressBar(w),
@@ -5183,45 +5207,120 @@ class _StoriesViewerState extends State<StoriesViewer>
     );
   }
 
+  void _toggleCaption() {
+    if (_captionExpanded) {
+      _captionAnim.reverse(from: _captionAnim.value).then((_) {
+        if (mounted) setState(() => _captionExpanded = false);
+      });
+      _storyTimer.forward();
+    } else {
+      setState(() => _captionExpanded = true);
+      _captionAnim.forward(from: _captionAnim.value);
+      _storyTimer.stop();
+    }
+  }
+
+  void _closeCaption() {
+    _captionAnim.reverse(from: _captionAnim.value).then((_) {
+      if (mounted) setState(() {
+        _captionExpanded = false;
+        _captionPullDy = 0.0;
+      });
+    });
+    _storyTimer.forward();
+  }
+
   Widget _buildCaption(StoryItem story, double width) {
+    final collapsedContent = ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: _kStoriesCaptionMinWidth),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            story.caption,
+            style: const TextStyle(color: _kMediaviewCaptionFg, fontSize: 14),
+            maxLines: _kStoriesCaptionMaxLines,
+            overflow: TextOverflow.ellipsis,
+          ),
+          if (story.caption.length > 80)
+            const Text(
+              'Show more',
+              style: TextStyle(
+                color: _kMediaviewCaptionLinkFg,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+        ],
+      ),
+    );
+
+    final expandedContent = ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: width * 0.6,
+        minWidth: _kStoriesCaptionMinWidth,
+      ),
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        child: Text(
+          story.caption,
+          style: const TextStyle(color: _kMediaviewCaptionFg, fontSize: 14),
+        ),
+      ),
+    );
+
     return Positioned(
       bottom: 48,
       left: 0,
       right: 0,
-      child: GestureDetector(
-        onTap: () => setState(() => _captionExpanded = !_captionExpanded),
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 12),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: _kMediaviewCaptionBg,
-            borderRadius: BorderRadius.circular(_kMediaviewCaptionRadius),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                story.caption,
-                style: const TextStyle(
-                  color: _kMediaviewCaptionFg,
-                  fontSize: 14,
-                ),
-                maxLines: _captionExpanded ? null : _kStoriesCaptionMaxLines,
-                overflow: _captionExpanded ? null : TextOverflow.ellipsis,
-              ),
-              if (!_captionExpanded && story.caption.length > 100)
-                const Text(
-                  'Show more',
-                  style: TextStyle(
-                    color: _kMediaviewCaptionLinkFg,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
+      child: AnimatedBuilder(
+        animation: _captionAnim,
+        builder: (context, _) {
+          final pullFade = _captionPullDy > 0
+              ? (1.0 - (_captionPullDy / (_kStoriesCaptionPullThreshold * 2)).clamp(0.0, 0.4))
+              : 1.0;
+          return Opacity(
+            opacity: pullFade,
+            child: Transform.translate(
+              offset: Offset(0, _captionPullDy > 0 ? _captionPullDy * 0.3 : 0),
+              child: GestureDetector(
+                onTap: _toggleCaption,
+                onVerticalDragUpdate: _captionExpanded
+                    ? (d) => setState(() => _captionPullDy += d.delta.dy)
+                    : null,
+                onVerticalDragEnd: _captionExpanded
+                    ? (d) {
+                        if (_captionPullDy > _kStoriesCaptionPullThreshold) {
+                          _closeCaption();
+                        } else {
+                          setState(() => _captionPullDy = 0.0);
+                        }
+                      }
+                    : null,
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 12),
+                  padding: _kStoriesCaptionPadding,
+                  decoration: BoxDecoration(
+                    color: _kMediaviewCaptionBg,
+                    borderRadius: BorderRadius.circular(_kMediaviewCaptionRadius),
+                  ),
+                  child: AnimatedCrossFade(
+                    firstChild: collapsedContent,
+                    secondChild: expandedContent,
+                    crossFadeState: _captionExpanded
+                        ? CrossFadeState.showSecond
+                        : CrossFadeState.showFirst,
+                    duration: _kStoriesCaptionAnimDuration,
+                    firstCurve: Curves.easeInOutSine,
+                    secondCurve: Curves.easeInOutSine,
+                    sizeCurve: Curves.easeInOutSine,
                   ),
                 ),
-            ],
-          ),
-        ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
