@@ -64,6 +64,12 @@ class ChatState extends ChangeNotifier {
   final Map<String, List<ForumTopic>> _forumRecentTopics = {};
   final Set<String> _forumTopicsFetching = {};
 
+  // §31.2–31.3: Saved Messages sublist state.
+  List<SavedSublistInfo> _savedSublists = [];
+  bool _isViewingSavedSublists = false;
+  int _savedSublistsTotalCount = 0;
+  bool _savedSublistsLoading = false;
+
   // §24.5: Recently opened chats for Ctrl+Tab switcher overlay.
   final List<String> _chatOpenHistory = []; // chatId list, most-recent first
   static const _maxChatOpenHistory = 30;
@@ -250,6 +256,12 @@ class ChatState extends ChangeNotifier {
     if (chat == null) return false;
     return _forumViewAsMessages.contains('${chat.accountId}:${chat.chatId}');
   }
+
+  // §31.2–31.3: Saved sublists getters
+  List<SavedSublistInfo> get savedSublists => _savedSublists;
+  bool get isViewingSavedSublists => _isViewingSavedSublists;
+  int get savedSublistsTotalCount => _savedSublistsTotalCount;
+  bool get savedSublistsLoading => _savedSublistsLoading;
 
   void toggleForumViewAsMessages() {
     final chat = _forumParentChat;
@@ -612,6 +624,11 @@ class ChatState extends ChangeNotifier {
     if (chat.isForum && _forumParentChat?.chatId != chat.chatId) {
       _checkAndOpenForum(chat);
     }
+    if (chat.title == 'Saved Messages' && chat.type == ChatType.dm) {
+      openSavedSublists(chat.accountId);
+    } else if (_isViewingSavedSublists) {
+      closeSavedSublists();
+    }
     _chatOpenHistory.remove(chat.chatId);
     _chatOpenHistory.insert(0, chat.chatId);
     if (_chatOpenHistory.length > _maxChatOpenHistory) {
@@ -775,6 +792,30 @@ class ChatState extends ChangeNotifier {
     _activeTopicId = null;
     _forumHasMore = false;
     _forumLoadingMore = false;
+    notifyListeners();
+  }
+
+  // §31.2–31.3: Saved Messages sublists
+  Future<void> openSavedSublists(String accountId) async {
+    _isViewingSavedSublists = true;
+    _savedSublists = [];
+    _savedSublistsTotalCount = 0;
+    _savedSublistsLoading = true;
+    notifyListeners();
+    try {
+      final (sublists, total) = _engine.getSavedSublists(accountId);
+      _savedSublists = sublists;
+      _savedSublistsTotalCount = total;
+    } catch (_) {}
+    _savedSublistsLoading = false;
+    notifyListeners();
+  }
+
+  void closeSavedSublists() {
+    _isViewingSavedSublists = false;
+    _savedSublists = [];
+    _savedSublistsTotalCount = 0;
+    _savedSublistsLoading = false;
     notifyListeners();
   }
 

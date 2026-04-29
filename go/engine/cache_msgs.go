@@ -998,6 +998,25 @@ func (e *Engine) GetSavedGifs(accountID string) ([]cores.GifInfo, error) {
 	return fetcher.GetSavedGifs()
 }
 
+type SavedSublistsFetcher interface {
+	GetSavedSublists(limit, offsetDate, offsetID int) ([]cores.SavedSublistInfo, int, error)
+}
+
+func (e *Engine) GetSavedSublists(accountID string, limit, offsetDate, offsetID int) ([]cores.SavedSublistInfo, int, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, 0, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, 0, fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(SavedSublistsFetcher)
+	if !ok {
+		return nil, 0, fmt.Errorf("platform does not support saved sublists")
+	}
+	return fetcher.GetSavedSublists(limit, offsetDate, offsetID)
+}
+
 type RecentStickersFetcher interface {
 	GetRecentStickers() ([]cores.StickerInfo, error)
 }

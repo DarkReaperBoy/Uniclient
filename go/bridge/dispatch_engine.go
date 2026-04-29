@@ -2945,6 +2945,32 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.DisablePeerConnectedBot(params.AccountID, params.ChatID)
 
+	case "GetSavedSublists":
+		var req pb.EngineGetSavedSublistsRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		sublists, total, err := e.GetSavedSublists(req.AccountId, int(req.Limit), int(req.OffsetDate), int(req.OffsetId))
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetSavedSublistsResponse{TotalCount: int32(total)}
+		for _, s := range sublists {
+			resp.Sublists = append(resp.Sublists, &pb.EngineSavedSublist{
+				PeerId:      s.PeerID,
+				PeerName:    sanitizeUTF8(s.PeerName),
+				AvatarPath:  s.AvatarPath,
+				Type:        int32(s.Type),
+				IsPinned:    s.IsPinned,
+				TopMessage:  int32(s.TopMessage),
+				LastMsgText: sanitizeUTF8(s.LastMsgText),
+				LastMsgTime: s.LastMsgTime,
+				IsSelf:      s.IsSelf,
+				UnreadCount: int32(s.UnreadCount),
+			})
+		}
+		return proto.Marshal(resp)
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}

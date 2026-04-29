@@ -1207,3 +1207,32 @@ message EngineCustomEmojiThumb {
 message EngineGetCustomEmojiThumbsResponse {
   repeated EngineCustomEmojiThumb thumbs = 1;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Saved Messages Sublists (spec §31.2–31.3)
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineGetSavedSublistsRequest {
+  string account_id = 1;
+  int32  limit      = 2;
+  int32  offset_date = 3;
+  int32  offset_id   = 4;
+}
+
+message EngineSavedSublist {
+  string peer_id       = 1;
+  string peer_name     = 2;
+  string avatar_path   = 3;
+  int32  type          = 4; // 1=user, 2=group, 3=channel
+  bool   is_pinned     = 5;
+  int32  top_message   = 6;
+  string last_msg_text = 7;
+  int64  last_msg_time = 8;
+  bool   is_self       = 9;
+  int32  unread_count  = 10;
+}
+
+message EngineGetSavedSublistsResponse {
+  repeated EngineSavedSublist sublists = 1;
+  int32 total_count = 2;
+}

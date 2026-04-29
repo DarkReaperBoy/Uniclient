@@ -11684,5 +11684,206 @@ class EngineGetCustomEmojiThumbsResponse extends $pb.GeneratedMessage {
   $core.List<EngineCustomEmojiThumb> get thumbs => $_getList(0);
 }
 
+class EngineGetSavedSublistsRequest extends $pb.GeneratedMessage {
+  factory EngineGetSavedSublistsRequest({
+    $core.String? accountId,
+    $core.int? limit,
+    $core.int? offsetDate,
+    $core.int? offsetId,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    if (limit != null) $result.limit = limit;
+    if (offsetDate != null) $result.offsetDate = offsetDate;
+    if (offsetId != null) $result.offsetId = offsetId;
+    return $result;
+  }
+  EngineGetSavedSublistsRequest._() : super();
+  factory EngineGetSavedSublistsRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetSavedSublistsRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..a<$core.int>(2, _omitFieldNames ? '' : 'limit', $pb.PbFieldType.O3)
+    ..a<$core.int>(3, _omitFieldNames ? '' : 'offsetDate', $pb.PbFieldType.O3)
+    ..a<$core.int>(4, _omitFieldNames ? '' : 'offsetId', $pb.PbFieldType.O3)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGetSavedSublistsRequest clone() => EngineGetSavedSublistsRequest()..mergeFromMessage(this);
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineGetSavedSublistsRequest create() => EngineGetSavedSublistsRequest._();
+  EngineGetSavedSublistsRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineGetSavedSublistsRequest> createRepeated() => $pb.PbList<EngineGetSavedSublistsRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetSavedSublistsRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetSavedSublistsRequest>(create);
+  static EngineGetSavedSublistsRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.int get limit => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set limit($core.int v) { $_setSignedInt32(1, v); }
+
+  @$pb.TagNumber(3)
+  $core.int get offsetDate => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set offsetDate($core.int v) { $_setSignedInt32(2, v); }
+
+  @$pb.TagNumber(4)
+  $core.int get offsetId => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set offsetId($core.int v) { $_setSignedInt32(3, v); }
+}
+
+class EngineSavedSublist extends $pb.GeneratedMessage {
+  factory EngineSavedSublist({
+    $core.String? peerId,
+    $core.String? peerName,
+    $core.String? avatarPath,
+    $core.int? type,
+    $core.bool? isPinned,
+    $core.int? topMessage,
+    $core.String? lastMsgText,
+    $fixnum.Int64? lastMsgTime,
+    $core.bool? isSelf,
+    $core.int? unreadCount,
+  }) {
+    final $result = create();
+    if (peerId != null) $result.peerId = peerId;
+    if (peerName != null) $result.peerName = peerName;
+    if (avatarPath != null) $result.avatarPath = avatarPath;
+    if (type != null) $result.type = type;
+    if (isPinned != null) $result.isPinned = isPinned;
+    if (topMessage != null) $result.topMessage = topMessage;
+    if (lastMsgText != null) $result.lastMsgText = lastMsgText;
+    if (lastMsgTime != null) $result.lastMsgTime = lastMsgTime;
+    if (isSelf != null) $result.isSelf = isSelf;
+    if (unreadCount != null) $result.unreadCount = unreadCount;
+    return $result;
+  }
+  EngineSavedSublist._() : super();
+  factory EngineSavedSublist.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineSavedSublist', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'peerId')
+    ..aOS(2, _omitFieldNames ? '' : 'peerName')
+    ..aOS(3, _omitFieldNames ? '' : 'avatarPath')
+    ..a<$core.int>(4, _omitFieldNames ? '' : 'type', $pb.PbFieldType.O3)
+    ..aOB(5, _omitFieldNames ? '' : 'isPinned')
+    ..a<$core.int>(6, _omitFieldNames ? '' : 'topMessage', $pb.PbFieldType.O3)
+    ..aOS(7, _omitFieldNames ? '' : 'lastMsgText')
+    ..aInt64(8, _omitFieldNames ? '' : 'lastMsgTime')
+    ..aOB(9, _omitFieldNames ? '' : 'isSelf')
+    ..a<$core.int>(10, _omitFieldNames ? '' : 'unreadCount', $pb.PbFieldType.O3)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Will be removed in next major version')
+  EngineSavedSublist clone() => EngineSavedSublist()..mergeFromMessage(this);
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineSavedSublist create() => EngineSavedSublist._();
+  EngineSavedSublist createEmptyInstance() => create();
+  static $pb.PbList<EngineSavedSublist> createRepeated() => $pb.PbList<EngineSavedSublist>();
+  @$core.pragma('dart2js:noInline')
+  static EngineSavedSublist getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineSavedSublist>(create);
+  static EngineSavedSublist? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get peerId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set peerId($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.String get peerName => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set peerName($core.String v) { $_setString(1, v); }
+
+  @$pb.TagNumber(3)
+  $core.String get avatarPath => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set avatarPath($core.String v) { $_setString(2, v); }
+
+  @$pb.TagNumber(4)
+  $core.int get type => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set type($core.int v) { $_setSignedInt32(3, v); }
+
+  @$pb.TagNumber(5)
+  $core.bool get isPinned => $_getBF(4);
+  @$pb.TagNumber(5)
+  set isPinned($core.bool v) { $_setBool(4, v); }
+
+  @$pb.TagNumber(6)
+  $core.int get topMessage => $_getIZ(5);
+  @$pb.TagNumber(6)
+  set topMessage($core.int v) { $_setSignedInt32(5, v); }
+
+  @$pb.TagNumber(7)
+  $core.String get lastMsgText => $_getSZ(6);
+  @$pb.TagNumber(7)
+  set lastMsgText($core.String v) { $_setString(6, v); }
+
+  @$pb.TagNumber(8)
+  $fixnum.Int64 get lastMsgTime => $_getI64(7);
+  @$pb.TagNumber(8)
+  set lastMsgTime($fixnum.Int64 v) { $_setInt64(7, v); }
+
+  @$pb.TagNumber(9)
+  $core.bool get isSelf => $_getBF(8);
+  @$pb.TagNumber(9)
+  set isSelf($core.bool v) { $_setBool(8, v); }
+
+  @$pb.TagNumber(10)
+  $core.int get unreadCount => $_getIZ(9);
+  @$pb.TagNumber(10)
+  set unreadCount($core.int v) { $_setSignedInt32(9, v); }
+}
+
+class EngineGetSavedSublistsResponse extends $pb.GeneratedMessage {
+  factory EngineGetSavedSublistsResponse({
+    $core.Iterable<EngineSavedSublist>? sublists,
+    $core.int? totalCount,
+  }) {
+    final $result = create();
+    if (sublists != null) $result.sublists.addAll(sublists);
+    if (totalCount != null) $result.totalCount = totalCount;
+    return $result;
+  }
+  EngineGetSavedSublistsResponse._() : super();
+  factory EngineGetSavedSublistsResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetSavedSublistsResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..pc<EngineSavedSublist>(1, _omitFieldNames ? '' : 'sublists', $pb.PbFieldType.PM, subBuilder: EngineSavedSublist.create)
+    ..a<$core.int>(2, _omitFieldNames ? '' : 'totalCount', $pb.PbFieldType.O3)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGetSavedSublistsResponse clone() => EngineGetSavedSublistsResponse()..mergeFromMessage(this);
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineGetSavedSublistsResponse create() => EngineGetSavedSublistsResponse._();
+  EngineGetSavedSublistsResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineGetSavedSublistsResponse> createRepeated() => $pb.PbList<EngineGetSavedSublistsResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetSavedSublistsResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetSavedSublistsResponse>(create);
+  static EngineGetSavedSublistsResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<EngineSavedSublist> get sublists => $_getList(0);
+
+  @$pb.TagNumber(2)
+  $core.int get totalCount => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set totalCount($core.int v) { $_setSignedInt32(1, v); }
+}
+
 const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
 const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

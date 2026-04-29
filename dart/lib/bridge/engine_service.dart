@@ -161,6 +161,29 @@ class EngineService {
     return resp.chats.map(_chatInfoFromProto).toList();
   }
 
+  (List<SavedSublistInfo>, int) getSavedSublists(String accountId, {int limit = 50, int offsetDate = 0, int offsetId = 0}) {
+    final req = epb.EngineGetSavedSublistsRequest()
+      ..accountId = accountId
+      ..limit = limit
+      ..offsetDate = offsetDate
+      ..offsetId = offsetId;
+    final respBytes = _callRaw('__engine', 'GetSavedSublists', req.writeToBuffer());
+    final resp = epb.EngineGetSavedSublistsResponse.fromBuffer(respBytes);
+    final sublists = resp.sublists.map((s) => SavedSublistInfo(
+      peerId: s.peerId,
+      peerName: s.peerName,
+      avatarPath: s.avatarPath,
+      type: s.type,
+      isPinned: s.isPinned,
+      topMessage: s.topMessage,
+      lastMsgText: s.lastMsgText,
+      lastMsgTime: s.lastMsgTime.toInt(),
+      isSelf: s.isSelf,
+      unreadCount: s.unreadCount,
+    )).toList();
+    return (sublists, resp.totalCount);
+  }
+
   void saveDraft(String accountId, String chatId, String text) {
     final req = epb.EngineSaveDraftRequest()
       ..accountId = accountId

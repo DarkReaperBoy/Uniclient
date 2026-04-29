@@ -21358,3 +21358,130 @@ func (t *TelegramCore) DisablePeerConnectedBot(chatID string) error {
 	_, err = t.api.AccountDisablePeerConnectedBot(t.ctx, inputPeer)
 	return err
 }
+
+func (t *TelegramCore) GetSavedSublists(limit, offsetDate, offsetID int) ([]SavedSublistInfo, int, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, 0, ErrAuth
+	}
+
+	if limit <= 0 {
+		limit = 50
+	}
+
+	req := &tg.MessagesGetSavedDialogsRequest{
+		Limit:      limit,
+		OffsetDate: offsetDate,
+		OffsetID:   offsetID,
+		OffsetPeer: &tg.InputPeerEmpty{},
+	}
+
+	result, err := t.api.MessagesGetSavedDialogs(t.ctx, req)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var dialogs []tg.SavedDialogClass
+	var messages []tg.MessageClass
+	var users []tg.UserClass
+	var chats []tg.ChatClass
+	var totalCount int
+
+	switch r := result.(type) {
+	case *tg.MessagesSavedDialogs:
+		dialogs = r.Dialogs
+		messages = r.Messages
+		users = r.Users
+		chats = r.Chats
+		totalCount = len(r.Dialogs)
+	case *tg.MessagesSavedDialogsSlice:
+		dialogs = r.Dialogs
+		messages = r.Messages
+		users = r.Users
+		chats = r.Chats
+		totalCount = r.Count
+	case *tg.MessagesSavedDialogsNotModified:
+		return nil, r.Count, nil
+	default:
+		return nil, 0, fmt.Errorf("unexpected saved dialogs type: %T", result)
+	}
+
+	userMap := make(map[int64]*tg.User)
+	for _, u := range users {
+		if user, ok := u.(*tg.User); ok {
+			userMap[user.ID] = user
+		}
+	}
+	chatMap := make(map[int64]tg.ChatClass)
+	for _, c := range chats {
+		switch ch := c.(type) {
+		case *tg.Chat:
+			chatMap[ch.ID] = ch
+		case *tg.Channel:
+			chatMap[ch.ID] = ch
+		}
+	}
+
+	msgMap := make(map[int]string)
+	msgTimeMap := make(map[int]int64)
+	for _, m := range messages {
+		if msg, ok := m.(*tg.Message); ok {
+			text := msg.Message
+			if text == "" && msg.Media != nil {
+				text = "[media]"
+			}
+			msgMap[msg.ID] = text
+			msgTimeMap[msg.ID] = int64(msg.Date) * 1000
+		}
+	}
+
+	var sublists []SavedSublistInfo
+	for _, d := range dialogs {
+		sd, ok := d.(*tg.SavedDialog)
+		if !ok {
+			continue
+		}
+
+		var info SavedSublistInfo
+		info.IsPinned = sd.Pinned
+		info.TopMessage = sd.TopMessage
+		info.LastMsgText = msgMap[sd.TopMessage]
+		info.LastMsgTime = msgTimeMap[sd.TopMessage]
+
+		switch p := sd.Peer.(type) {
+		case *tg.PeerUser:
+			info.PeerID = strconv.FormatInt(p.UserID, 10)
+			info.Type = 1 // DM
+			if p.UserID == t.selfID {
+				info.IsSelf = true
+				info.PeerName = "My Notes"
+			} else if user, ok := userMap[p.UserID]; ok {
+				info.PeerName = strings.TrimSpace(user.FirstName + " " + user.LastName)
+			}
+		case *tg.PeerChat:
+			info.PeerID = strconv.FormatInt(p.ChatID, 10)
+			info.Type = 2 // Group
+			if ch, ok := chatMap[p.ChatID]; ok {
+				if chat, ok := ch.(*tg.Chat); ok {
+					info.PeerName = chat.Title
+				}
+			}
+		case *tg.PeerChannel:
+			info.PeerID = strconv.FormatInt(p.ChannelID, 10)
+			info.Type = 3 // Channel
+			if ch, ok := chatMap[p.ChannelID]; ok {
+				if channel, ok := ch.(*tg.Channel); ok {
+					info.PeerName = channel.Title
+				}
+			}
+		}
+
+		if info.PeerName == "" {
+			info.PeerName = info.PeerID
+		}
+		sublists = append(sublists, info)
+	}
+
+	return sublists, totalCount, nil
+}

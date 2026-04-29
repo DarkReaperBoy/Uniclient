@@ -2333,3 +2333,29 @@ class ChatThemeData {
         ?.map((e) => (e as num).toInt()).toList() ?? const [],
   );
 }
+
+class SavedSublistInfo {
+  final String peerId;
+  final String peerName;
+  final String avatarPath;
+  final int type; // 1=DM, 2=group, 3=channel
+  final bool isPinned;
+  final int topMessage;
+  final String lastMsgText;
+  final int lastMsgTime;
+  final bool isSelf;
+  final int unreadCount;
+
+  const SavedSublistInfo({
+    required this.peerId,
+    required this.peerName,
+    this.avatarPath = '',
+    this.type = 1,
+    this.isPinned = false,
+    this.topMessage = 0,
+    this.lastMsgText = '',
+    this.lastMsgTime = 0,
+    this.isSelf = false,
+    this.unreadCount = 0,
+  });
+}

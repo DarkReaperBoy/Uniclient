@@ -1691,6 +1691,11 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
                   theme: widget.theme,
                 ),
               ],
+              if (widget.chat.type == ChatType.dm &&
+                  widget.chat.title == 'Saved Messages') ...[
+                const Divider(height: 24),
+                _SavedMediaFilterSection(theme: widget.theme),
+              ],
               const SizedBox(height: 16),
             ]),
           ),
@@ -1948,15 +1953,22 @@ class _AvatarHeader extends StatelessWidget {
     final color = _avatarColors[colorIndex];
     final initials = _initials(chat.title);
 
-    // Compute status line. For DMs: online (green) / last seen (muted).
-    // For groups/channels/topics: member or subscriber count (muted).
     final isDm = chat.type == ChatType.dm;
-    final String statusText = isDm
-        ? (isOnline ? 'online' : formatChatLastSeen(lastSeen))
-        : _groupStatusText(chat);
-    final Color? statusColor = isDm && isOnline
-        ? const Color(0xFF3BA55C) // online green
-        : theme.textTheme.bodySmall?.color;
+    final isSavedMessages = chat.title == 'Saved Messages' && isDm;
+    final chatState = context.read<ChatState>();
+    final String statusText;
+    final Color? statusColor;
+    if (isSavedMessages) {
+      final count = chatState.savedSublistsTotalCount;
+      statusText = count > 0 ? '$count chats' : (chatState.savedSublistsLoading ? 'Loading...' : '');
+      statusColor = theme.textTheme.bodySmall?.color;
+    } else if (isDm) {
+      statusText = isOnline ? 'online' : formatChatLastSeen(lastSeen);
+      statusColor = isOnline ? const Color(0xFF3BA55C) : theme.textTheme.bodySmall?.color;
+    } else {
+      statusText = _groupStatusText(chat);
+      statusColor = theme.textTheme.bodySmall?.color;
+    }
 
     return Column(
       children: [
@@ -4948,5 +4960,52 @@ class _SimilarChannelRow extends StatelessWidget {
     if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
     if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
     return n.toString();
+  }
+}
+
+class _SavedMediaFilterSection extends StatelessWidget {
+  final ThemeData theme;
+  const _SavedMediaFilterSection({required this.theme});
+
+  static const _filters = <(IconData, String)>[
+    (Icons.photo_outlined, 'Photo'),
+    (Icons.videocam_outlined, 'Video'),
+    (Icons.insert_drive_file_outlined, 'File'),
+    (Icons.music_note_outlined, 'Music'),
+    (Icons.link_outlined, 'Link'),
+    (Icons.poll_outlined, 'Poll'),
+    (Icons.mic_outlined, 'Voice'),
+    (Icons.gif_box_outlined, 'GIF'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: _filters.map((f) {
+          return InkWell(
+            onTap: () {},
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Row(
+                children: [
+                  Icon(f.$1, size: 22, color: theme.colorScheme.primary),
+                  const SizedBox(width: 16),
+                  Text(
+                    f.$2,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: theme.textTheme.bodyLarge?.color,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
   }
 }

@@ -550,6 +550,13 @@ class _ChatListPanelState extends State<ChatListPanel>
       visibleChats = nonArchived;
     }
 
+    if (chatState.isViewingSavedSublists) {
+      return _SavedSublistsView(
+        chatState: chatState,
+        collapsed: widget.collapsed,
+      );
+    }
+
     if (chatState.isViewingForum) {
       return _ForumTopicListView(
         chatState: chatState,
@@ -4029,6 +4036,351 @@ class _TopicUnreadBadge extends StatelessWidget {
           fontWeight: FontWeight.w700,
           color: fg,
           height: 1.0,
+        ),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §31.2–31.3 Saved Messages Sublists View
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _SavedSublistsView extends StatelessWidget {
+  final ChatState chatState;
+  final bool collapsed;
+
+  const _SavedSublistsView({
+    required this.chatState,
+    this.collapsed = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final sublists = chatState.savedSublists;
+    final loading = chatState.savedSublistsLoading;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border(
+          right: BorderSide(color: theme.dividerColor, width: 1),
+        ),
+      ),
+      child: Column(
+        children: [
+          _SavedSublistsHeader(
+            isDark: isDark,
+            onBack: chatState.closeSavedSublists,
+            totalCount: chatState.savedSublistsTotalCount,
+          ),
+          Expanded(
+            child: loading && sublists.isEmpty
+                ? const Center(child: CircularProgressIndicator())
+                : sublists.isEmpty
+                    ? Center(
+                        child: Text(
+                          'No saved messages yet',
+                          style: TextStyle(
+                            color: theme.hintColor,
+                            fontSize: 14,
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: sublists.length,
+                        itemBuilder: (context, index) {
+                          final sub = sublists[index];
+                          return _SavedSublistRow(
+                            sublist: sub,
+                            isDark: isDark,
+                            onTap: () {
+                              final chat = chatState.activeChat;
+                              if (chat != null) {
+                                chatState.notifyListeners();
+                              }
+                            },
+                          );
+                        },
+                      ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SavedSublistsHeader extends StatelessWidget {
+  final bool isDark;
+  final VoidCallback onBack;
+  final int totalCount;
+
+  const _SavedSublistsHeader({
+    required this.isDark,
+    required this.onBack,
+    required this.totalCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      height: 54,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border(
+          bottom: BorderSide(
+            color: isDark ? const Color(0xFF04080E).withAlpha(86) : const Color(0x00000018),
+            width: 1,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back, size: 22),
+            onPressed: onBack,
+            tooltip: 'Back',
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Saved Messages',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (totalCount > 0)
+                  Text(
+                    '$totalCount chats',
+                    style: TextStyle(fontSize: 12, color: theme.hintColor),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SavedSublistRow extends StatefulWidget {
+  final SavedSublistInfo sublist;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _SavedSublistRow({
+    required this.sublist,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  State<_SavedSublistRow> createState() => _SavedSublistRowState();
+}
+
+class _SavedSublistRowState extends State<_SavedSublistRow> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final sub = widget.sublist;
+    final isDark = widget.isDark;
+
+    final bgColor = _hovered
+        ? (isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1))
+        : theme.colorScheme.surface;
+
+    final timeStr = sub.lastMsgTime > 0
+        ? _formatTime(DateTime.fromMillisecondsSinceEpoch(sub.lastMsgTime))
+        : '';
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          height: 62,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          color: bgColor,
+          child: Row(
+            children: [
+              // Avatar
+              _buildAvatar(sub, theme),
+              const SizedBox(width: 12),
+              // Content
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            sub.peerName,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: theme.textTheme.bodyLarge?.color,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                        ),
+                        if (timeStr.isNotEmpty)
+                          Text(
+                            timeStr,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: theme.hintColor,
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            sub.lastMsgText,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: theme.hintColor,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                        ),
+                        if (sub.unreadCount > 0)
+                          _buildUnreadBadge(sub.unreadCount, theme),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAvatar(SavedSublistInfo sub, ThemeData theme) {
+    if (sub.isSelf) {
+      return SizedBox(
+        width: 46,
+        height: 46,
+        child: _MyNotesAvatar(size: 46),
+      );
+    }
+    final initials = _getInitials(sub.peerName);
+    final color = _peerColor(sub.peerId);
+    return Container(
+      width: 46,
+      height: 46,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: color,
+      ),
+      child: Center(
+        child: Text(
+          initials,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUnreadBadge(int count, ThemeData theme) {
+    final text = count > 999 ? '999+' : '$count';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      constraints: const BoxConstraints(minWidth: 20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF40A7E3),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  static String _getInitials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty || parts.first.isEmpty) return '?';
+    if (parts.length == 1) return parts.first[0].toUpperCase();
+    return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+  }
+
+  static Color _peerColor(String peerId) {
+    final id = int.tryParse(peerId) ?? 0;
+    const colors = [
+      Color(0xFFE17076), // red
+      Color(0xFF7BC862), // green
+      Color(0xFFE5CA77), // yellow
+      Color(0xFF65AADD), // blue
+      Color(0xFFA695E7), // purple
+      Color(0xFFEE7AAE), // pink
+      Color(0xFF6EC9CB), // cyan
+    ];
+    return colors[id.abs() % colors.length];
+  }
+
+  static String _formatTime(DateTime dt) {
+    final now = DateTime.now();
+    if (dt.year == now.year && dt.month == now.month && dt.day == now.day) {
+      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    }
+    final diff = now.difference(dt).inDays;
+    if (diff < 7) {
+      const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      return days[dt.weekday - 1];
+    }
+    return '${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')}.${dt.year % 100}';
+  }
+}
+
+class _MyNotesAvatar extends StatelessWidget {
+  final double size;
+  const _MyNotesAvatar({required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF5CAFFA), Color(0xFF408ACF)],
+        ),
+      ),
+      child: Center(
+        child: Icon(
+          Icons.description_outlined,
+          color: Colors.white,
+          size: size * 0.5,
         ),
       ),
     );

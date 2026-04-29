@@ -299,6 +299,19 @@ type GifInfo struct {
 	FileID   string `json:"file_id"`
 }
 
+type SavedSublistInfo struct {
+	PeerID      string `json:"peer_id"`
+	PeerName    string `json:"peer_name"`
+	AvatarPath  string `json:"avatar_path,omitempty"`
+	Type        int    `json:"type"` // 1=user, 2=group, 3=channel
+	IsPinned    bool   `json:"is_pinned"`
+	TopMessage  int    `json:"top_message"`
+	LastMsgText string `json:"last_msg_text,omitempty"`
+	LastMsgTime int64  `json:"last_msg_time,omitempty"`
+	IsSelf      bool   `json:"is_self"`
+	UnreadCount int    `json:"unread_count"`
+}
+
 // StickerInfo holds data for a single sticker in a set.
 type StickerInfo struct {
 	Emoji    string `json:"emoji"`
