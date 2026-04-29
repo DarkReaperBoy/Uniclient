@@ -841,8 +841,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/auth_screen.dart (partial login-time check), new: dart/lib/ui/two_factor_auth.dart -->
 
-- [ ] Settings entry point: "Two-Step Verification" row with Loading.../On/Off reactive label, poll every 60s, navigate to Start/InputCheck/EmailConfirm — spec §28.1
-- [ ] AbstractStep architecture: common Lottie 100×100px header, 256px password/text fields, error ring 150ms, 61px phantom spacer, 300×42px done button, 60s idle auto-close, horizontal slide transitions — spec §28.2
 - [ ] Create password flow: Start screen → Create (interactive lock Lottie) → Hint step → Email step (+ skip warning) → success navigate to Manage — spec §28.3
 - [ ] Email confirmation step: SentCodeField (single field, not per-digit), auto-submit at expected length, resend link with green "Code resent", "Abort" top-bar menu item, recovery path, error handling (CODE_INVALID, EMAIL_HASH_EXPIRED, FLOOD_WAIT) — spec §28.3.5
 - [ ] Check & Manage flow: single password field, "Hint: {hint}" label, 3-state forgot-password machine (Recover/CancelReset/Reset), Cancel Reset countdown timer, Manage screen with Change Password/Email/Disable buttons, deep-link highlight IDs — spec §28.4

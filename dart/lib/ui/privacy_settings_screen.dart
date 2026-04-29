@@ -2826,11 +2826,19 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
   @override
   void initState() {
     super.initState();
+    _passwordController.addListener(_clearError);
+    _confirmController.addListener(_clearError);
     WidgetsBinding.instance.addPostFrameCallback((_) => _passwordFocus.requestFocus());
+  }
+
+  void _clearError() {
+    if (_error.isNotEmpty) setState(() => _error = '');
   }
 
   @override
   void dispose() {
+    _passwordController.removeListener(_clearError);
+    _confirmController.removeListener(_clearError);
     _passwordController.dispose();
     _confirmController.dispose();
     _passwordFocus.dispose();
@@ -2941,57 +2949,69 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
               Text(description, style: TextStyle(fontSize: 14, color: subtextColor, height: 1.4), textAlign: TextAlign.center),
               const SizedBox(height: 24),
               SizedBox(
-                width: 300,
-                child: TextField(
-                  controller: _passwordController,
-                  focusNode: _passwordFocus,
-                  obscureText: _obscure,
-                  onSubmitted: (_) => _isCreateMode ? FocusScope.of(context).nextFocus() : _submit(),
-                  decoration: InputDecoration(
-                    hintText: _isCreateMode ? 'Enter password' : 'Password',
-                    hintStyle: TextStyle(color: subtextColor),
-                    suffixIcon: IconButton(
-                      icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility, color: subtextColor),
-                      onPressed: () => setState(() => _obscure = !_obscure),
+                width: 256,
+                height: 61,
+                child: Center(
+                  child: TextField(
+                    controller: _passwordController,
+                    focusNode: _passwordFocus,
+                    obscureText: _obscure,
+                    onSubmitted: (_) => _isCreateMode ? FocusScope.of(context).nextFocus() : _submit(),
+                    decoration: InputDecoration(
+                      hintText: _isCreateMode ? 'Enter password' : 'Password',
+                      hintStyle: TextStyle(color: subtextColor),
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility, color: subtextColor),
+                        onPressed: () => setState(() => _obscure = !_obscure),
+                      ),
+                      enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _error.isNotEmpty ? errorColor : subtextColor)),
+                      focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _error.isNotEmpty ? errorColor : accentColor, width: 2)),
                     ),
-                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: subtextColor)),
-                    focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: accentColor, width: 2)),
-                    errorBorder: UnderlineInputBorder(borderSide: BorderSide(color: errorColor)),
+                    style: TextStyle(fontSize: 15, color: textColor),
                   ),
-                  style: TextStyle(fontSize: 15, color: textColor),
                 ),
               ),
               if (_isCreateMode) ...[
                 const SizedBox(height: 16),
                 SizedBox(
-                  width: 300,
-                  child: TextField(
-                    controller: _confirmController,
-                    obscureText: _obscureConfirm,
-                    onSubmitted: (_) => _submit(),
-                    decoration: InputDecoration(
-                      hintText: 'Re-enter password',
-                      hintStyle: TextStyle(color: subtextColor),
-                      suffixIcon: IconButton(
-                        icon: Icon(_obscureConfirm ? Icons.visibility_off : Icons.visibility, color: subtextColor),
-                        onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                  width: 256,
+                  height: 61,
+                  child: Center(
+                    child: TextField(
+                      controller: _confirmController,
+                      obscureText: _obscureConfirm,
+                      onSubmitted: (_) => _submit(),
+                      decoration: InputDecoration(
+                        hintText: 'Re-enter password',
+                        hintStyle: TextStyle(color: subtextColor),
+                        suffixIcon: IconButton(
+                          icon: Icon(_obscureConfirm ? Icons.visibility_off : Icons.visibility, color: subtextColor),
+                          onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                        ),
+                        enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: subtextColor)),
+                        focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: accentColor, width: 2)),
                       ),
-                      enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: subtextColor)),
-                      focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: accentColor, width: 2)),
+                      style: TextStyle(fontSize: 15, color: textColor),
                     ),
-                    style: TextStyle(fontSize: 15, color: textColor),
                   ),
                 ),
               ],
+              if (!_isCreateMode) const SizedBox(height: 61),
               if (widget.hint.isNotEmpty && !_isCreateMode && _error.isEmpty)
                 Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text('Hint: ${widget.hint}', style: TextStyle(fontSize: 13, color: subtextColor)),
+                  padding: const EdgeInsets.only(top: 1),
+                  child: SizedBox(
+                    width: 256,
+                    child: Text('Hint: ${widget.hint}', style: TextStyle(fontSize: 13, color: subtextColor), textAlign: TextAlign.center),
+                  ),
                 ),
               if (_error.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(_error, style: TextStyle(fontSize: 13, color: errorColor)),
+                  padding: const EdgeInsets.only(top: 1),
+                  child: SizedBox(
+                    width: 256,
+                    child: Text(_error, style: TextStyle(fontSize: 13, color: errorColor), textAlign: TextAlign.center),
+                  ),
                 ),
               if (!_isCreateMode && widget.hasRecovery) ...[
                 const SizedBox(height: 12),
@@ -3064,11 +3084,17 @@ class _CloudPasswordHintState extends State<_CloudPasswordHint> {
   @override
   void initState() {
     super.initState();
+    _hintController.addListener(_clearError);
     WidgetsBinding.instance.addPostFrameCallback((_) => _hintFocus.requestFocus());
+  }
+
+  void _clearError() {
+    if (_error.isNotEmpty) setState(() => _error = '');
   }
 
   @override
   void dispose() {
+    _hintController.removeListener(_clearError);
     _hintController.dispose();
     _hintFocus.dispose();
     super.dispose();
@@ -3140,7 +3166,7 @@ class _CloudPasswordHintState extends State<_CloudPasswordHint> {
               ),
               const SizedBox(height: 24),
               SizedBox(
-                width: 300,
+                width: 256,
                 child: TextField(
                   controller: _hintController,
                   focusNode: _hintFocus,
@@ -3148,16 +3174,19 @@ class _CloudPasswordHintState extends State<_CloudPasswordHint> {
                   decoration: InputDecoration(
                     hintText: 'Password hint (optional)',
                     hintStyle: TextStyle(color: subtextColor),
-                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: subtextColor)),
-                    focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: accentColor, width: 2)),
+                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _error.isNotEmpty ? errorColor : subtextColor)),
+                    focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _error.isNotEmpty ? errorColor : accentColor, width: 2)),
                   ),
                   style: TextStyle(fontSize: 15, color: textColor),
                 ),
               ),
               if (_error.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(_error, style: TextStyle(fontSize: 13, color: errorColor)),
+                  padding: const EdgeInsets.only(top: 1),
+                  child: SizedBox(
+                    width: 256,
+                    child: Text(_error, style: TextStyle(fontSize: 13, color: errorColor), textAlign: TextAlign.center),
+                  ),
                 ),
               const SizedBox(height: 24),
               SizedBox(
@@ -3228,11 +3257,17 @@ class _CloudPasswordEmailState extends State<_CloudPasswordEmail> {
   @override
   void initState() {
     super.initState();
+    _emailController.addListener(_clearError);
     WidgetsBinding.instance.addPostFrameCallback((_) => _emailFocus.requestFocus());
+  }
+
+  void _clearError() {
+    if (_error.isNotEmpty) setState(() => _error = '');
   }
 
   @override
   void dispose() {
+    _emailController.removeListener(_clearError);
     _emailController.dispose();
     _emailFocus.dispose();
     super.dispose();
@@ -3353,7 +3388,7 @@ class _CloudPasswordEmailState extends State<_CloudPasswordEmail> {
               ),
               const SizedBox(height: 24),
               SizedBox(
-                width: 300,
+                width: 256,
                 child: TextField(
                   controller: _emailController,
                   focusNode: _emailFocus,
@@ -3362,16 +3397,19 @@ class _CloudPasswordEmailState extends State<_CloudPasswordEmail> {
                   decoration: InputDecoration(
                     hintText: 'Recovery email',
                     hintStyle: TextStyle(color: subtextColor),
-                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: subtextColor)),
-                    focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: accentColor, width: 2)),
+                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _error.isNotEmpty ? errorColor : subtextColor)),
+                    focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _error.isNotEmpty ? errorColor : accentColor, width: 2)),
                   ),
                   style: TextStyle(fontSize: 15, color: textColor),
                 ),
               ),
               if (_error.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(_error, style: TextStyle(fontSize: 13, color: errorColor)),
+                  padding: const EdgeInsets.only(top: 1),
+                  child: SizedBox(
+                    width: 256,
+                    child: Text(_error, style: TextStyle(fontSize: 13, color: errorColor), textAlign: TextAlign.center),
+                  ),
                 ),
               const SizedBox(height: 24),
               SizedBox(
@@ -3429,11 +3467,17 @@ class _CloudPasswordEmailConfirmState extends State<_CloudPasswordEmailConfirm> 
   @override
   void initState() {
     super.initState();
+    _codeController.addListener(_clearError);
     WidgetsBinding.instance.addPostFrameCallback((_) => _codeFocus.requestFocus());
+  }
+
+  void _clearError() {
+    if (_error.isNotEmpty) setState(() => _error = '');
   }
 
   @override
   void dispose() {
+    _codeController.removeListener(_clearError);
     _codeController.dispose();
     _codeFocus.dispose();
     super.dispose();
@@ -3507,7 +3551,7 @@ class _CloudPasswordEmailConfirmState extends State<_CloudPasswordEmailConfirm> 
               ),
               const SizedBox(height: 24),
               SizedBox(
-                width: 300,
+                width: 256,
                 child: TextField(
                   controller: _codeController,
                   focusNode: _codeFocus,
@@ -3516,16 +3560,19 @@ class _CloudPasswordEmailConfirmState extends State<_CloudPasswordEmailConfirm> 
                   decoration: InputDecoration(
                     hintText: 'Code',
                     hintStyle: TextStyle(color: subtextColor),
-                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: subtextColor)),
-                    focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: accentColor, width: 2)),
+                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _error.isNotEmpty ? errorColor : subtextColor)),
+                    focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _error.isNotEmpty ? errorColor : accentColor, width: 2)),
                   ),
                   style: TextStyle(fontSize: 15, color: textColor),
                 ),
               ),
               if (_error.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(_error, style: TextStyle(fontSize: 13, color: errorColor)),
+                  padding: const EdgeInsets.only(top: 1),
+                  child: SizedBox(
+                    width: 256,
+                    child: Text(_error, style: TextStyle(fontSize: 13, color: errorColor), textAlign: TextAlign.center),
+                  ),
                 ),
               const SizedBox(height: 24),
               SizedBox(
@@ -3552,7 +3599,7 @@ class _CloudPasswordEmailConfirmState extends State<_CloudPasswordEmailConfirm> 
 
 // ── CloudPasswordManage: Manage existing password ──
 
-class _CloudPasswordManage extends StatelessWidget {
+class _CloudPasswordManage extends StatefulWidget {
   final String accountId;
   final EngineService engine;
   final String currentPassword;
@@ -3566,6 +3613,35 @@ class _CloudPasswordManage extends StatelessWidget {
   });
 
   @override
+  State<_CloudPasswordManage> createState() => _CloudPasswordManageState();
+}
+
+class _CloudPasswordManageState extends State<_CloudPasswordManage> {
+  Timer? _idleTimer;
+  DateTime _lastActivity = DateTime.now();
+  static const _idleTimeout = Duration(minutes: 10);
+  static const _checkInterval = Duration(seconds: 60);
+
+  @override
+  void initState() {
+    super.initState();
+    _idleTimer = Timer.periodic(_checkInterval, (_) {
+      if (DateTime.now().difference(_lastActivity) >= _idleTimeout) {
+        _idleTimer?.cancel();
+        if (mounted) Navigator.of(context).pop();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _idleTimer?.cancel();
+    super.dispose();
+  }
+
+  void _resetIdle() => _lastActivity = DateTime.now();
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -3575,7 +3651,10 @@ class _CloudPasswordManage extends StatelessWidget {
     final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
     final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
-    return Scaffold(
+    return Listener(
+      onPointerDown: (_) => _resetIdle(),
+      onPointerMove: (_) => _resetIdle(),
+      child: Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
         backgroundColor: bgColor,
@@ -3625,16 +3704,17 @@ class _CloudPasswordManage extends StatelessWidget {
                       subtextColor: subtextColor,
                       hoverBg: hoverBg,
                       onTap: () {
+                        _resetIdle();
                         Navigator.of(context).push(settingsPageRoute(
                           _CloudPasswordInput(
-                            accountId: accountId,
-                            engine: engine,
+                            accountId: widget.accountId,
+                            engine: widget.engine,
                             mode: _CloudPasswordMode.change,
                             hint: '',
                             hasRecovery: false,
                             pendingResetDate: 0,
-                            onSuccess: onChanged,
-                            currentPassword: currentPassword,
+                            onSuccess: widget.onChanged,
+                            currentPassword: widget.currentPassword,
                           ),
                         ));
                       },
@@ -3646,14 +3726,15 @@ class _CloudPasswordManage extends StatelessWidget {
                       subtextColor: subtextColor,
                       hoverBg: hoverBg,
                       onTap: () {
+                        _resetIdle();
                         Navigator.of(context).push(settingsPageRoute(
                           _CloudPasswordEmail(
-                            accountId: accountId,
-                            engine: engine,
+                            accountId: widget.accountId,
+                            engine: widget.engine,
                             newPassword: '',
-                            currentPassword: currentPassword,
+                            currentPassword: widget.currentPassword,
                             hint: '',
-                            onSuccess: onChanged,
+                            onSuccess: widget.onChanged,
                           ),
                         ));
                       },
@@ -3664,7 +3745,10 @@ class _CloudPasswordManage extends StatelessWidget {
                       textColor: const Color(0xFFE53935),
                       subtextColor: subtextColor,
                       hoverBg: hoverBg,
-                      onTap: () => _confirmDisable(context),
+                      onTap: () {
+                        _resetIdle();
+                        _confirmDisable(context);
+                      },
                     ),
                   ],
                 ),
@@ -3673,6 +3757,7 @@ class _CloudPasswordManage extends StatelessWidget {
           ),
         ),
       ),
+    ),
     );
   }
 
@@ -3700,8 +3785,8 @@ class _CloudPasswordManage extends StatelessWidget {
     if (confirmed != true || !context.mounted) return;
 
     try {
-      await engine.removeCloudPassword(accountId, currentPassword);
-      onChanged();
+      await widget.engine.removeCloudPassword(widget.accountId, widget.currentPassword);
+      widget.onChanged();
       if (context.mounted) {
         Navigator.of(context).popUntil((route) => route.isFirst || route.settings.name == 'privacy');
         ScaffoldMessenger.of(context).showSnackBar(
