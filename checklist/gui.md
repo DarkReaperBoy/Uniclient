@@ -872,7 +872,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/hamburger_drawer.dart, chat_list_panel.dart (partial contact references) — new: dart/lib/ui/contacts_screen.dart -->
 
-- [ ] Edit Contact dialog: cover 108px (avatar 72×72, name+status reactive), name/last-name InputFields, notes multi-line (premium char limit), photo buttons (Suggest/Set personal/Reset), delete button — spec §33.6
 - [ ] Share Contact box: grid 4 columns 108px rows, multi-select with name-color animation 150ms, search (local+remote), hidden send button when no selection, comment field — spec §33.8
 
 ---

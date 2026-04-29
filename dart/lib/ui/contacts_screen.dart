@@ -666,6 +666,8 @@ class _ContactRowState extends State<_ContactRow> {
   void _showContextMenu(BuildContext context, Offset position) {
     final isDark = widget.isDark;
     final contact = widget.contact;
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
     showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx + 1, position.dy + 1),
@@ -695,19 +697,30 @@ class _ContactRowState extends State<_ContactRow> {
     ).then((value) {
       if (value == null || !mounted) return;
       switch (value) {
+        case 'edit':
+          _editContact(contact, appState, engine);
         case 'delete':
-          _deleteContact(contact);
+          _deleteContact(contact, appState, engine);
         case 'block':
-          _blockUser(contact);
+          _blockUser(contact, appState, engine);
         default:
           break;
       }
     });
   }
 
-  void _deleteContact(ContactInfo contact) {
-    final engine = context.read<EngineService>();
-    final appState = context.read<AppState>();
+  void _editContact(ContactInfo contact, AppState appState, EngineService engine) {
+    showDialog<bool>(
+      context: context,
+      builder: (ctx) => _EditContactBox(
+        appState: appState,
+        engine: engine,
+        contact: contact,
+      ),
+    );
+  }
+
+  void _deleteContact(ContactInfo contact, AppState appState, EngineService engine) {
     final account = appState.activeAccount;
     if (account == null) return;
     showDialog<bool>(
@@ -730,9 +743,7 @@ class _ContactRowState extends State<_ContactRow> {
     });
   }
 
-  void _blockUser(ContactInfo contact) {
-    final engine = context.read<EngineService>();
-    final appState = context.read<AppState>();
+  void _blockUser(ContactInfo contact, AppState appState, EngineService engine) {
     final account = appState.activeAccount;
     if (account == null) return;
     showDialog<bool>(
@@ -1661,5 +1672,471 @@ class _ContactStoryRingPainter extends CustomPainter {
       storyCount != old.storyCount ||
       hasUnread != old.hasUnread ||
       isDark != old.isDark;
+}
+
+// ── Edit Contact Dialog (§33.6) ──
+
+class _EditContactBox extends StatefulWidget {
+  final AppState appState;
+  final EngineService engine;
+  final ContactInfo contact;
+
+  const _EditContactBox({
+    required this.appState,
+    required this.engine,
+    required this.contact,
+  });
+
+  @override
+  State<_EditContactBox> createState() => _EditContactBoxState();
+}
+
+class _EditContactBoxState extends State<_EditContactBox> {
+  late final TextEditingController _firstNameCtrl;
+  late final TextEditingController _lastNameCtrl;
+  late final FocusNode _firstNameFocus;
+  late final FocusNode _lastNameFocus;
+  bool _saving = false;
+  String? _error;
+
+  String get _liveName {
+    final first = _firstNameCtrl.text.trim();
+    final last = _lastNameCtrl.text.trim();
+    if (first.isEmpty && last.isEmpty) return widget.contact.displayName;
+    return '$first $last'.trim();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final parts = _splitName(widget.contact.displayName);
+    _firstNameCtrl = TextEditingController(text: parts.$1);
+    _lastNameCtrl = TextEditingController(text: parts.$2);
+    _firstNameFocus = FocusNode();
+    _lastNameFocus = FocusNode();
+    _firstNameCtrl.addListener(_onNameChanged);
+    _lastNameCtrl.addListener(_onNameChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _firstNameFocus.requestFocus();
+    });
+  }
+
+  void _onNameChanged() => setState(() {});
+
+  static (String, String) _splitName(String displayName) {
+    final trimmed = displayName.trim();
+    if (trimmed.isEmpty) return ('', '');
+    final idx = trimmed.indexOf(' ');
+    if (idx < 0) return (trimmed, '');
+    return (trimmed.substring(0, idx), trimmed.substring(idx + 1).trim());
+  }
+
+  @override
+  void dispose() {
+    _firstNameCtrl.removeListener(_onNameChanged);
+    _lastNameCtrl.removeListener(_onNameChanged);
+    _firstNameCtrl.dispose();
+    _lastNameCtrl.dispose();
+    _firstNameFocus.dispose();
+    _lastNameFocus.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final firstName = _firstNameCtrl.text.trim();
+    final lastName = _lastNameCtrl.text.trim();
+    if (firstName.isEmpty && lastName.isEmpty) {
+      setState(() => _error = 'Please enter a name');
+      return;
+    }
+    final account = widget.appState.activeAccount;
+    if (account == null) return;
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final phone = widget.contact.phone.isNotEmpty
+          ? widget.contact.phone
+          : '+0';
+      await widget.engine.addContact(account.id, phone, firstName, lastName);
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _error = e.toString().replaceFirst('Exception: ', '');
+        });
+      }
+    }
+  }
+
+  void _confirmDelete() {
+    final contact = widget.contact;
+    final engine = widget.engine;
+    final account = widget.appState.activeAccount;
+    if (account == null) return;
+    showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+        final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+        final buttonColor = isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
+        return Dialog(
+          backgroundColor: bgColor,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 320),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Delete Contact',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Are you sure you want to delete ${contact.label} from your contacts?',
+                    style: TextStyle(fontSize: 14, color: textColor),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        style: TextButton.styleFrom(foregroundColor: buttonColor),
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: 8),
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        style: TextButton.styleFrom(foregroundColor: const Color(0xFFe53935)),
+                        child: const Text('Delete'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    ).then((confirmed) {
+      if (confirmed == true) {
+        engine.deleteContact(account!.id, contact.userId);
+        if (mounted) Navigator.of(context).pop(true);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final contact = widget.contact;
+
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF222222);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final borderColor = isDark ? const Color(0xFF2B3A49) : const Color(0xFFDADADA);
+    final focusBorderColor = isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
+    final buttonColor = isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
+    final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFE8E8E8);
+    final settingsBtnBg = isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
+
+    final colorIndex = contact.userId.hashCode.abs() % _ContactRowState._avatarColors.length;
+    final avatarColor = _ContactRowState._avatarColors[colorIndex];
+    final initials = _ContactRowState._initials(
+      contact.displayName.isNotEmpty ? contact.displayName : contact.username,
+    );
+
+    final phoneText = contact.phone.isNotEmpty
+        ? _formatPhone(contact.phone)
+        : 'Mobile hidden';
+
+    return Dialog(
+      backgroundColor: bgColor,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: _boxWideWidth, minWidth: _boxWideWidth),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Title bar
+            SizedBox(
+              height: _boxTitleHeight,
+              child: Row(
+                children: [
+                  const SizedBox(width: 24),
+                  Expanded(
+                    child: Text(
+                      'Edit Contact',
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: Icon(Icons.close, size: 20, color: subtextColor),
+                    splashRadius: 16,
+                  ),
+                  const SizedBox(width: 4),
+                ],
+              ),
+            ),
+            // Cover: 108px height, avatar 72×72 at (19, 18), name at (109, 33), status at (109, 57)
+            SizedBox(
+              height: 108,
+              child: Stack(
+                children: [
+                  Positioned(
+                    left: 19,
+                    top: 18,
+                    child: contact.avatarB64.isNotEmpty
+                        ? ClipOval(
+                            child: Image.memory(
+                              base64Decode(contact.avatarB64),
+                              width: 72,
+                              height: 72,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) =>
+                                  _coverAvatarFallback(avatarColor, initials),
+                            ),
+                          )
+                        : _coverAvatarFallback(avatarColor, initials),
+                  ),
+                  Positioned(
+                    left: 109,
+                    top: 33,
+                    right: 16,
+                    child: Text(
+                      _liveName,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Positioned(
+                    left: 109,
+                    top: 57,
+                    right: 16,
+                    child: Text(
+                      phoneText,
+                      style: TextStyle(fontSize: 13, color: subtextColor),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Name fields
+            Padding(
+              padding: const EdgeInsets.fromLTRB(19, 0, 19, 10),
+              child: _InputField(
+                controller: _firstNameCtrl,
+                focusNode: _firstNameFocus,
+                label: 'First name',
+                textColor: isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000),
+                labelColor: subtextColor,
+                borderColor: borderColor,
+                focusBorderColor: focusBorderColor,
+                onSubmitted: (_) => _lastNameFocus.requestFocus(),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(19, 0, 19, 10),
+              child: _InputField(
+                controller: _lastNameCtrl,
+                focusNode: _lastNameFocus,
+                label: 'Last name',
+                textColor: isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000),
+                labelColor: subtextColor,
+                borderColor: borderColor,
+                focusBorderColor: focusBorderColor,
+                onSubmitted: (_) => _save(),
+              ),
+            ),
+            // Photo management buttons
+            Divider(height: 1, color: dividerColor),
+            _SettingsButtonRow(
+              icon: Icons.add_a_photo_outlined,
+              label: 'Set personal photo',
+              iconColor: buttonColor,
+              textColor: textColor,
+              hoverBg: settingsBtnBg,
+              onTap: () {},
+            ),
+            _SettingsButtonRow(
+              icon: Icons.refresh,
+              label: 'Reset to default',
+              iconColor: buttonColor,
+              textColor: textColor,
+              hoverBg: settingsBtnBg,
+              onTap: () {},
+            ),
+            Divider(height: 1, color: dividerColor),
+            // Delete contact
+            _SettingsButtonRow(
+              icon: Icons.delete_outline,
+              label: 'Delete Contact',
+              iconColor: const Color(0xFFe53935),
+              textColor: const Color(0xFFe53935),
+              hoverBg: settingsBtnBg,
+              onTap: _confirmDelete,
+            ),
+            if (_error != null) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(19, 4, 19, 0),
+                child: Text(
+                  _error!,
+                  style: const TextStyle(fontSize: 13, color: Color(0xFFe53935)),
+                ),
+              ),
+            ],
+            // Footer buttons
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: TextButton.styleFrom(
+                      foregroundColor: buttonColor,
+                      textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    ),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: _saving ? null : _save,
+                    style: TextButton.styleFrom(
+                      foregroundColor: buttonColor,
+                      textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    ),
+                    child: _saving
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: buttonColor),
+                          )
+                        : const Text('Save'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static Widget _coverAvatarFallback(Color color, String initials) {
+    return Container(
+      width: 72,
+      height: 72,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      alignment: Alignment.center,
+      child: Text(
+        initials,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 28,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  static String _formatPhone(String phone) {
+    if (phone.isEmpty) return '';
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
+    if (digits.length <= 3) return '+$digits';
+    final buf = StringBuffer('+');
+    for (var i = 0; i < digits.length; i++) {
+      if (i == digits.length - 10 && digits.length > 10) {
+        buf.write(' ');
+      } else if (i > digits.length - 10) {
+        if ((digits.length - i) == 7) buf.write(' ');
+        if ((digits.length - i) == 4) buf.write(' ');
+      }
+      buf.write(digits[i]);
+    }
+    return buf.toString();
+  }
+}
+
+class _SettingsButtonRow extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final Color iconColor;
+  final Color textColor;
+  final Color hoverBg;
+  final VoidCallback onTap;
+
+  const _SettingsButtonRow({
+    required this.icon,
+    required this.label,
+    required this.iconColor,
+    required this.textColor,
+    required this.hoverBg,
+    required this.onTap,
+  });
+
+  @override
+  State<_SettingsButtonRow> createState() => _SettingsButtonRowState();
+}
+
+class _SettingsButtonRowState extends State<_SettingsButtonRow> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          height: 41,
+          padding: const EdgeInsets.only(left: 21, right: 20),
+          color: _hovered ? widget.hoverBg : Colors.transparent,
+          child: Row(
+            children: [
+              Icon(widget.icon, size: 24, color: widget.iconColor),
+              const SizedBox(width: 15),
+              Expanded(
+                child: Text(
+                  widget.label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: widget.textColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
