@@ -841,7 +841,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/auth_screen.dart (partial login-time check), new: dart/lib/ui/two_factor_auth.dart -->
 
-- [ ] Check & Manage flow: single password field, "Hint: {hint}" label, 3-state forgot-password machine (Recover/CancelReset/Reset), Cancel Reset countdown timer, Manage screen with Change Password/Email/Disable buttons, deep-link highlight IDs — spec §28.4
 - [ ] Change password flow (§28.5), change email only flow (§28.6), password recovery with email + without email (timed reset + countdown, min 60s display) — spec §28.5–28.7
 - [ ] Login-time 2FA screen (PasswordCheckWidget): 380px content, fixed-position password field 300×61px, recovery code field, "Forgot password?" link, Reset Account button, SRP hash computation — spec §28.8
 - [ ] Login email CodeInput (per-digit cells): 40×50px cells, 10px gaps, 4px border, fill/clear 120ms slide, shake error ~300ms, auto-submit on last digit, paste/copy context menu, IME digits-only hint — spec §28.9

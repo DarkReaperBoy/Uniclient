@@ -2692,6 +2692,8 @@ class _P2PPrivacyBoxState extends State<_P2PPrivacyBox> {
 
 enum _CloudPasswordMode { check, create, change }
 
+enum _ForgotPasswordAction { recover, cancelReset, reset }
+
 // ── CloudPasswordStart: Intro screen when no password set ──
 
 class _CloudPasswordStart extends StatelessWidget {
@@ -2825,6 +2827,13 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
   bool _loading = false;
   bool _showFireworks = false;
 
+  late _ForgotPasswordAction _forgotAction;
+  int _pendingResetDate = 0;
+  String _countdownText = '';
+  Timer? _countdownTimer;
+  int _srpIdInvalidCount = 0;
+  DateTime? _lastSrpIdInvalid;
+
   bool get _isCreateMode => widget.mode == _CloudPasswordMode.create || widget.mode == _CloudPasswordMode.change;
 
   @override
@@ -2832,6 +2841,9 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
     super.initState();
     _passwordController.addListener(_clearError);
     _confirmController.addListener(_clearError);
+    _pendingResetDate = widget.pendingResetDate;
+    _forgotAction = _pendingResetDate > 0 ? _ForgotPasswordAction.cancelReset : _ForgotPasswordAction.recover;
+    if (_pendingResetDate > 0) _startCountdown();
     WidgetsBinding.instance.addPostFrameCallback((_) => _passwordFocus.requestFocus());
   }
 
@@ -2839,8 +2851,44 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
     if (_error.isNotEmpty) setState(() => _error = '');
   }
 
+  void _startCountdown() {
+    _countdownTimer?.cancel();
+    _updateCountdownText();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) => _updateCountdownText());
+  }
+
+  void _updateCountdownText() {
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final remaining = _pendingResetDate - now;
+    if (remaining <= 0) {
+      _countdownTimer?.cancel();
+      setState(() {
+        _forgotAction = _ForgotPasswordAction.reset;
+        _countdownText = '';
+      });
+      return;
+    }
+    setState(() => _countdownText = _formatDuration(remaining));
+  }
+
+  String _formatDuration(int seconds) {
+    if (seconds < 60) return '${seconds}s';
+    if (seconds < 3600) {
+      final m = seconds ~/ 60;
+      final s = seconds % 60;
+      return s > 0 ? '${m}m ${s}s' : '${m}m';
+    }
+    final h = seconds ~/ 3600;
+    final m = (seconds % 3600) ~/ 60;
+    if (h < 24) return m > 0 ? '${h}h ${m}m' : '${h}h';
+    final d = h ~/ 24;
+    final rh = h % 24;
+    return rh > 0 ? '${d}d ${rh}h' : '${d}d';
+  }
+
   @override
   void dispose() {
+    _countdownTimer?.cancel();
     _passwordController.removeListener(_clearError);
     _confirmController.removeListener(_clearError);
     _passwordController.dispose();
@@ -2882,6 +2930,9 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
     try {
       await widget.engine.checkCloudPassword(widget.accountId, password);
       if (!mounted) return;
+      if (_pendingResetDate > 0) {
+        try { await widget.engine.cancelResetPassword(widget.accountId); } catch (_) {}
+      }
       setState(() { _showFireworks = true; _loading = false; });
       await Future<void>.delayed(const Duration(milliseconds: 1000));
       if (!mounted) return;
@@ -2895,12 +2946,194 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
       ));
     } catch (e) {
       if (!mounted) return;
+      final errMsg = e.toString();
+      if (errMsg.contains('SRP_ID_INVALID')) {
+        final now = DateTime.now();
+        if (_lastSrpIdInvalid != null && now.difference(_lastSrpIdInvalid!).inSeconds < 60) {
+          _srpIdInvalidCount++;
+        } else {
+          _srpIdInvalidCount = 1;
+        }
+        _lastSrpIdInvalid = now;
+        if (_srpIdInvalidCount >= 2) {
+          setState(() { _loading = false; _error = 'Server error. Please try again later.'; });
+        } else {
+          await _submit();
+          return;
+        }
+      } else {
+        setState(() {
+          _loading = false;
+          if (errMsg.contains('PASSWORD_HASH_INVALID') || errMsg.contains('SRP_PASSWORD_CHANGED')) {
+            _error = 'Wrong password!';
+            _passwordController.selection = TextSelection(baseOffset: 0, extentOffset: _passwordController.text.length);
+          } else if (errMsg.contains('FLOOD_WAIT')) {
+            _error = 'Too many attempts. Please try again later.';
+          } else {
+            _error = errMsg.replaceFirst('Exception: ', '');
+          }
+        });
+      }
+    }
+  }
+
+  Future<void> _onForgotPassword() async {
+    switch (_forgotAction) {
+      case _ForgotPasswordAction.recover:
+        await _handleRecover();
+      case _ForgotPasswordAction.cancelReset:
+        await _handleCancelReset();
+      case _ForgotPasswordAction.reset:
+        await _handleReset();
+    }
+  }
+
+  Future<void> _handleRecover() async {
+    if (widget.hasRecovery) {
+      setState(() { _loading = true; _error = ''; });
+      try {
+        final emailPattern = await widget.engine.requestPasswordRecovery(widget.accountId);
+        if (!mounted) return;
+        setState(() => _loading = false);
+        Navigator.of(context).push(settingsPageRoute(
+          _CloudPasswordEmailConfirm(
+            accountId: widget.accountId,
+            engine: widget.engine,
+            emailPattern: emailPattern,
+            isRecovery: true,
+            onDone: () {
+              widget.onSuccess();
+              Navigator.of(context).popUntil((route) => route.isFirst || route.settings.name == 'privacy');
+            },
+          ),
+        ));
+      } catch (e) {
+        if (!mounted) return;
+        setState(() { _loading = false; _error = e.toString().replaceFirst('Exception: ', ''); });
+      }
+    } else {
+      await _showResetNoEmailConfirm();
+    }
+  }
+
+  Future<void> _showResetNoEmailConfirm() async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E2C3A) : Colors.white,
+        title: Text('Reset Password', style: TextStyle(color: textColor)),
+        content: Text(
+          'Since you haven\'t provided a recovery email when setting up your password, your remaining options are either to remember your password or to reset your account.',
+          style: TextStyle(color: textColor, height: 1.4),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Reset', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _doResetPassword();
+  }
+
+  Future<void> _handleCancelReset() async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E2C3A) : Colors.white,
+        title: Text('Cancel Reset', style: TextStyle(color: textColor)),
+        content: Text('Are you sure you want to cancel the password reset?', style: TextStyle(color: textColor)),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('No')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Yes', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() { _loading = true; _error = ''; });
+    try {
+      await widget.engine.cancelResetPassword(widget.accountId);
+      if (!mounted) return;
+      _countdownTimer?.cancel();
       setState(() {
         _loading = false;
-        _error = e.toString().contains('PASSWORD_HASH_INVALID')
-            ? 'Wrong password. Please try again.'
-            : 'Error: ${e.toString().replaceFirst('Exception: ', '')}';
+        _forgotAction = _ForgotPasswordAction.recover;
+        _pendingResetDate = 0;
+        _countdownText = '';
       });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _loading = false; _error = e.toString().replaceFirst('Exception: ', ''); });
+    }
+  }
+
+  Future<void> _handleReset() async {
+    await _doResetPassword();
+  }
+
+  Future<void> _doResetPassword() async {
+    setState(() { _loading = true; _error = ''; });
+    try {
+      final result = await widget.engine.resetPassword(widget.accountId);
+      if (!mounted) return;
+      if (result['done'] == true) {
+        final state = await widget.engine.getCloudPasswordState(widget.accountId);
+        if (!mounted) return;
+        if (state == null || state['hasPassword'] != true) {
+          widget.onSuccess();
+          Navigator.of(context).popUntil((route) => route.isFirst || route.settings.name == 'privacy');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Cloud password has been removed.'), behavior: SnackBarBehavior.floating),
+          );
+          return;
+        }
+      }
+
+      final untilDate = result['untilDate'] as int? ?? 0;
+      final retryDate = result['retryDate'] as int? ?? 0;
+
+      if (untilDate > 0) {
+        setState(() {
+          _loading = false;
+          _pendingResetDate = untilDate;
+          _forgotAction = _ForgotPasswordAction.cancelReset;
+        });
+        _startCountdown();
+      } else if (retryDate > 0) {
+        final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+        var remaining = retryDate - now;
+        if (remaining < 60) remaining = 60;
+        setState(() {
+          _loading = false;
+          _error = 'You can reset your password in ${_formatDuration(remaining)}.';
+        });
+      } else {
+        setState(() => _loading = false);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _loading = false; _error = e.toString().replaceFirst('Exception: ', ''); });
+    }
+  }
+
+  String get _forgotLinkText {
+    switch (_forgotAction) {
+      case _ForgotPasswordAction.recover:
+        return 'Forgot password?';
+      case _ForgotPasswordAction.cancelReset:
+        return 'Cancel Reset';
+      case _ForgotPasswordAction.reset:
+        return 'Reset Password';
     }
   }
 
@@ -2915,7 +3148,9 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
     final errorColor = isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F);
 
     final title = 'Two-Step Verification';
-    final subtitle = _isCreateMode ? 'Set Password' : 'Enter your password';
+    final subtitle = _isCreateMode
+        ? (widget.mode == _CloudPasswordMode.change ? 'Change Password' : 'Set Password')
+        : 'Enter your password';
     final description = _isCreateMode
         ? 'Please set an additional password to protect your account.'
         : 'Your account is protected with an additional password.';
@@ -2962,7 +3197,7 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
                     obscureText: _obscure,
                     onSubmitted: (_) => _isCreateMode ? FocusScope.of(context).nextFocus() : _submit(),
                     decoration: InputDecoration(
-                      hintText: _isCreateMode ? 'Enter a password' : 'Password',
+                      hintText: _isCreateMode ? 'Enter a password' : 'Current password',
                       hintStyle: TextStyle(color: subtextColor),
                       suffixIcon: IconButton(
                         icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility, color: subtextColor),
@@ -3017,12 +3252,29 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
                     child: Text(_error, style: TextStyle(fontSize: 13, color: errorColor), textAlign: TextAlign.center),
                   ),
                 ),
-              if (!_isCreateMode && widget.hasRecovery) ...[
+              if (!_isCreateMode) ...[
                 const SizedBox(height: 12),
                 TextButton(
-                  onPressed: () {},
-                  child: Text('Forgot password?', style: TextStyle(fontSize: 14, color: accentColor)),
+                  onPressed: _loading ? null : _onForgotPassword,
+                  child: Text(
+                    _forgotLinkText,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: _forgotAction == _ForgotPasswordAction.reset
+                          ? (isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F))
+                          : accentColor,
+                    ),
+                  ),
                 ),
+                if (_forgotAction == _ForgotPasswordAction.cancelReset && _countdownText.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      'Password will be reset in $_countdownText',
+                      style: TextStyle(fontSize: 12, color: subtextColor),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
               ],
               const SizedBox(height: 24),
               SizedBox(
@@ -3799,6 +4051,8 @@ class _CloudPasswordManageState extends State<_CloudPasswordManage> {
   DateTime _lastActivity = DateTime.now();
   static const _idleTimeout = Duration(minutes: 10);
   static const _checkInterval = Duration(seconds: 60);
+  bool _hasRecovery = false;
+  bool _disabling = false;
 
   @override
   void initState() {
@@ -3809,6 +4063,13 @@ class _CloudPasswordManageState extends State<_CloudPasswordManage> {
         if (mounted) Navigator.of(context).pop();
       }
     });
+    _fetchRecoveryState();
+  }
+
+  Future<void> _fetchRecoveryState() async {
+    final state = await widget.engine.getCloudPasswordState(widget.accountId);
+    if (!mounted || state == null) return;
+    setState(() => _hasRecovery = state['hasRecovery'] as bool? ?? false);
   }
 
   @override
@@ -3828,6 +4089,9 @@ class _CloudPasswordManageState extends State<_CloudPasswordManage> {
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
     final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+    final dividerColor = isDark ? const Color(0xFF232E3C) : const Color(0xFFE0E0E0);
+
+    final emailLabel = _hasRecovery ? 'Change Recovery Email' : 'Set Recovery Email';
 
     return Listener(
       onPointerDown: (_) => _resetIdle(),
@@ -3844,96 +4108,122 @@ class _CloudPasswordManageState extends State<_CloudPasswordManage> {
         ),
         title: Text('Two-Step Verification', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
       ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 40),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.verified_user_outlined, size: 48, color: accentColor),
-              ),
-              const SizedBox(height: 19),
-              Text(
-                'Your password is set.',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                'You have Two-Step Verification enabled, so your account is protected with an additional password.',
-                style: TextStyle(fontSize: 14, color: subtextColor, height: 1.4),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: 300,
-                child: Column(
-                  children: [
-                    _ManageRow(
-                      icon: Icons.vpn_key,
-                      label: 'Change Password',
-                      textColor: textColor,
-                      subtextColor: subtextColor,
-                      hoverBg: hoverBg,
-                      onTap: () {
-                        _resetIdle();
-                        Navigator.of(context).push(settingsPageRoute(
-                          _CloudPasswordInput(
-                            accountId: widget.accountId,
-                            engine: widget.engine,
-                            mode: _CloudPasswordMode.change,
-                            hint: '',
-                            hasRecovery: false,
-                            pendingResetDate: 0,
-                            onSuccess: widget.onChanged,
-                            currentPassword: widget.currentPassword,
+      body: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  Container(
+                    width: double.infinity,
+                    color: isDark ? const Color(0xFF0E1621) : const Color(0xFFF0F0F0),
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 100,
+                          height: 100,
+                          decoration: BoxDecoration(
+                            color: accentColor.withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
                           ),
-                        ));
-                      },
-                    ),
-                    _ManageRow(
-                      icon: Icons.email_outlined,
-                      label: 'Change Recovery Email',
-                      textColor: textColor,
-                      subtextColor: subtextColor,
-                      hoverBg: hoverBg,
-                      onTap: () {
-                        _resetIdle();
-                        Navigator.of(context).push(settingsPageRoute(
-                          _CloudPasswordEmail(
-                            accountId: widget.accountId,
-                            engine: widget.engine,
-                            newPassword: '',
-                            currentPassword: widget.currentPassword,
-                            hint: '',
-                            onSuccess: widget.onChanged,
+                          child: Icon(Icons.verified_user_outlined, size: 48, color: accentColor),
+                        ),
+                        const SizedBox(height: 12),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 40),
+                          child: Text(
+                            'Your cloud password is active. You will need it when you log into your Telegram account.',
+                            style: TextStyle(fontSize: 14, color: subtextColor, height: 1.4),
+                            textAlign: TextAlign.center,
                           ),
-                        ));
-                      },
+                        ),
+                      ],
                     ),
-                    _ManageRow(
-                      icon: Icons.delete_outline,
-                      label: 'Disable Password',
-                      textColor: const Color(0xFFE53935),
-                      subtextColor: subtextColor,
-                      hoverBg: hoverBg,
-                      onTap: () {
-                        _resetIdle();
-                        _confirmDisable(context);
-                      },
+                  ),
+                  const SizedBox(height: 8),
+                  _ManageRow(
+                    icon: Icons.vpn_key,
+                    label: 'Change Password',
+                    textColor: textColor,
+                    subtextColor: subtextColor,
+                    hoverBg: hoverBg,
+                    onTap: () {
+                      _resetIdle();
+                      Navigator.of(context).push(settingsPageRoute(
+                        _CloudPasswordInput(
+                          accountId: widget.accountId,
+                          engine: widget.engine,
+                          mode: _CloudPasswordMode.change,
+                          hint: '',
+                          hasRecovery: false,
+                          pendingResetDate: 0,
+                          onSuccess: widget.onChanged,
+                          currentPassword: widget.currentPassword,
+                        ),
+                      ));
+                    },
+                  ),
+                  _ManageRow(
+                    icon: Icons.email_outlined,
+                    label: emailLabel,
+                    textColor: textColor,
+                    subtextColor: subtextColor,
+                    hoverBg: hoverBg,
+                    onTap: () {
+                      _resetIdle();
+                      Navigator.of(context).push(settingsPageRoute(
+                        _CloudPasswordEmail(
+                          accountId: widget.accountId,
+                          engine: widget.engine,
+                          newPassword: '',
+                          currentPassword: widget.currentPassword,
+                          hint: '',
+                          onSuccess: () {
+                            widget.onChanged();
+                            _fetchRecoveryState();
+                          },
+                        ),
+                      ));
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    color: isDark ? const Color(0xFF0E1621) : const Color(0xFFF0F0F0),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    child: Text(
+                      'If you forget your password, you can reset it using your recovery email or by waiting.',
+                      style: TextStyle(fontSize: 13, color: subtextColor, height: 1.4),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+          Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: dividerColor)),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            child: TextButton(
+              onPressed: _disabling ? null : () {
+                _resetIdle();
+                _confirmDisable(context);
+              },
+              child: _disabling
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : Text(
+                      'Turn Password Off',
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F),
+                      ),
+                    ),
+            ),
+          ),
+        ],
       ),
     ),
     );
@@ -3948,7 +4238,7 @@ class _CloudPasswordManageState extends State<_CloudPasswordManage> {
         backgroundColor: isDark ? const Color(0xFF1E2C3A) : Colors.white,
         title: Text('Disable Password', style: TextStyle(color: textColor)),
         content: Text(
-          'Are you sure you want to disable your Two-Step Verification password?',
+          'Are you sure you want to disable your password?',
           style: TextStyle(color: textColor),
         ),
         actions: [
@@ -3962,6 +4252,7 @@ class _CloudPasswordManageState extends State<_CloudPasswordManage> {
     );
     if (confirmed != true || !context.mounted) return;
 
+    setState(() => _disabling = true);
     try {
       await widget.engine.removeCloudPassword(widget.accountId, widget.currentPassword);
       widget.onChanged();
@@ -3973,6 +4264,7 @@ class _CloudPasswordManageState extends State<_CloudPasswordManage> {
       }
     } catch (e) {
       if (context.mounted) {
+        setState(() => _disabling = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed: ${e.toString().replaceFirst("Exception: ", "")}'), behavior: SnackBarBehavior.floating),
         );

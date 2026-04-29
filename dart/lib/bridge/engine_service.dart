@@ -2507,6 +2507,26 @@ class EngineService {
     await _callAsync('__engine', 'CancelPasswordEmail', Uint8List.fromList(payload));
   }
 
+  Future<String> requestPasswordRecovery(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    final respBytes = await _callAsync('__engine', 'RequestPasswordRecovery', Uint8List.fromList(payload));
+    if (respBytes.isEmpty) return '';
+    final decoded = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    return decoded['emailPattern'] as String? ?? '';
+  }
+
+  Future<Map<String, dynamic>> resetPassword(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    final respBytes = await _callAsync('__engine', 'ResetPassword', Uint8List.fromList(payload));
+    if (respBytes.isEmpty) return {};
+    return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+  }
+
+  Future<void> cancelResetPassword(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    await _callAsync('__engine', 'CancelResetPassword', Uint8List.fromList(payload));
+  }
+
   // ── Passkeys ──
 
   Future<List<Map<String, dynamic>>> getPasskeyList(String accountId) async {

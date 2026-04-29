@@ -14617,6 +14617,12 @@ type CloudPasswordState struct {
 	LoginEmailPattern       string `json:"loginEmailPattern"`
 }
 
+type PasswordResetResult struct {
+	Done      bool `json:"done"`
+	UntilDate int  `json:"untilDate"`
+	RetryDate int  `json:"retryDate"`
+}
+
 func (t *TelegramCore) GetCloudPasswordState() (CloudPasswordState, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return CloudPasswordState{}, ErrAuth }
@@ -14692,6 +14698,37 @@ func (t *TelegramCore) SetCloudPassword(currentPassword, newPassword, hint, emai
 
 func (t *TelegramCore) RemoveCloudPassword(currentPassword string) error {
 	return t.SetCloudPassword(currentPassword, "", "", "")
+}
+
+func (t *TelegramCore) RequestPasswordRecovery() (string, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return "", ErrAuth }
+	result, err := t.api.AuthRequestPasswordRecovery(t.ctx)
+	if err != nil { return "", err }
+	return result.EmailPattern, nil
+}
+
+func (t *TelegramCore) ResetPassword() (PasswordResetResult, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return PasswordResetResult{}, ErrAuth }
+	result, err := t.api.AccountResetPassword(t.ctx)
+	if err != nil { return PasswordResetResult{}, err }
+	switch v := result.(type) {
+	case *tg.AccountResetPasswordOk:
+		return PasswordResetResult{Done: true}, nil
+	case *tg.AccountResetPasswordRequestedWait:
+		return PasswordResetResult{UntilDate: v.UntilDate}, nil
+	case *tg.AccountResetPasswordFailedWait:
+		return PasswordResetResult{RetryDate: v.RetryDate}, nil
+	}
+	return PasswordResetResult{}, fmt.Errorf("unexpected reset password result type")
+}
+
+func (t *TelegramCore) CancelResetPassword() error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	_, err := t.api.AccountDeclinePasswordReset(t.ctx)
+	return err
 }
 
 // GetGlobalPrivacy returns the current global privacy settings.

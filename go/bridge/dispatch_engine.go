@@ -2625,6 +2625,41 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.CancelPasswordEmail(params.AccountID)
 
+	case "RequestPasswordRecovery":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		emailPattern, err := e.RequestPasswordRecovery(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]string{"emailPattern": emailPattern})
+
+	case "ResetPassword":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		result, err := e.ResetPassword(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(result)
+
+	case "CancelResetPassword":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.CancelResetPassword(params.AccountID)
+
 	case "GetPasskeyList":
 		var params struct {
 			AccountID string `json:"account_id"`

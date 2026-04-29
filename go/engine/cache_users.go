@@ -1281,6 +1281,54 @@ func (e *Engine) CancelPasswordEmail(accountID string) error {
 	return err
 }
 
+type passwordRecoveryRequester interface {
+	RequestPasswordRecovery() (string, error)
+}
+
+type passwordResetter interface {
+	ResetPassword() (cores.PasswordResetResult, error)
+}
+
+type passwordResetCanceller interface {
+	CancelResetPassword() error
+}
+
+func (e *Engine) RequestPasswordRecovery(accountID string) (string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return "", fmt.Errorf("account not found")
+	}
+	p, ok := acc.Core.(passwordRecoveryRequester)
+	if !ok {
+		return "", fmt.Errorf("platform does not support password recovery")
+	}
+	return p.RequestPasswordRecovery()
+}
+
+func (e *Engine) ResetPassword(accountID string) (cores.PasswordResetResult, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return cores.PasswordResetResult{}, fmt.Errorf("account not found")
+	}
+	p, ok := acc.Core.(passwordResetter)
+	if !ok {
+		return cores.PasswordResetResult{}, fmt.Errorf("platform does not support password reset")
+	}
+	return p.ResetPassword()
+}
+
+func (e *Engine) CancelResetPassword(accountID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found")
+	}
+	p, ok := acc.Core.(passwordResetCanceller)
+	if !ok {
+		return fmt.Errorf("platform does not support cancel reset")
+	}
+	return p.CancelResetPassword()
+}
+
 type passkeyListProvider interface {
 	GetPasskeyList() ([]cores.PasskeyInfo, error)
 }
