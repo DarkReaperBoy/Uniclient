@@ -46,7 +46,7 @@ class ChatState extends ChangeNotifier {
   bool _useVerticalFilters = true;
 
   /// Callback for showing in-app notifications (set by UI layer).
-  void Function(String senderName, String text, String chatTitle)? onNotification;
+  void Function(String accountId, String chatId, String senderName, String text, String chatTitle)? onNotification;
 
   /// Active channel/topic ID within a topic-type group.
   /// Null means "show all" (the default channel).
@@ -1397,6 +1397,8 @@ class ChatState extends ChangeNotifier {
       _recentNotifs.add(now);
 
       onNotification!(
+        event.accountId,
+        event.chatId,
         event.message.senderName,
         event.message.contentText,
         chat?.title ?? '',

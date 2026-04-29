@@ -95,6 +95,10 @@ class _UniClientAppState extends State<UniClientApp>
   Timer? _debugCmdTimer;
   final _navigatorKey = GlobalKey<NavigatorState>();
 
+  // §27.13: In-app notification banner state.
+  _NotifBannerData? _notifBanner;
+  Timer? _notifDismissTimer;
+
   // §3.4: Theme cross-fade — capture old frame, overlay, fade out to reveal new theme.
   static _UniClientAppState? _instance;
   final _themeBoundaryKey = GlobalKey();
@@ -272,12 +276,51 @@ class _UniClientAppState extends State<UniClientApp>
       _webNotifier.updateBadge(chatState.totalUnread);
     }
 
+    // §27.13: Wire up in-app notification callback with passcode-aware content hiding.
+    _chatStateRef ??= chatState;
+    chatState.onNotification = (accountId, chatId, senderName, text, chatTitle) {
+      _showNotificationBanner(appState, chatState, accountId, chatId, senderName, text, chatTitle);
+    };
+
     // Debug command poller — reads /tmp/uniclient_debug_cmd.json for
     // programmatic UI interaction (smoke testing on Wayland). Desktop-only.
     if (kDebugMode && !kIsWeb) {
       _debugCmdTimer = Timer.periodic(const Duration(seconds: 1), (_) {
         _pollDebugCommand(chatState);
       });
+    }
+  }
+
+  void _showNotificationBanner(AppState appState, ChatState chatState,
+      String accountId, String chatId, String senderName, String text, String chatTitle) {
+    final locked = appState.passcodeLocked;
+    _notifDismissTimer?.cancel();
+    setState(() {
+      _notifBanner = _NotifBannerData(
+        title: locked ? 'New message' : (chatTitle.isNotEmpty ? chatTitle : senderName),
+        body: locked ? '' : (chatTitle.isNotEmpty && senderName.isNotEmpty ? '$senderName: $text' : text),
+        accountId: accountId,
+        chatId: chatId,
+        isLocked: locked,
+      );
+    });
+    _notifDismissTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) setState(() => _notifBanner = null);
+    });
+  }
+
+  void _onNotifBannerTap() {
+    final data = _notifBanner;
+    if (data == null) return;
+    _notifDismissTimer?.cancel();
+    setState(() => _notifBanner = null);
+    if (data.isLocked) {
+      _PasscodeLockScreenState._focusPasscode?.call();
+    } else {
+      final chatState = context.read<ChatState>();
+      final chat = chatState.chats.where((c) =>
+          c.accountId == data.accountId && c.chatId == data.chatId).firstOrNull;
+      if (chat != null) chatState.openChat(chat);
     }
   }
 
@@ -597,6 +640,17 @@ class _UniClientAppState extends State<UniClientApp>
               );
             });
           }
+
+        case 'testNotification':
+          final appState = context.read<AppState>();
+          _showNotificationBanner(
+            appState, chatState,
+            cmd['accountId'] as String? ?? '',
+            cmd['chatId'] as String? ?? '',
+            cmd['senderName'] as String? ?? 'Test User',
+            cmd['text'] as String? ?? 'Test notification message',
+            cmd['chatTitle'] as String? ?? 'Test Chat',
+          );
 
         case 'showGroupCallPanel':
           final navCtx = _navigatorKey.currentContext;
@@ -1469,10 +1523,12 @@ class _UniClientAppState extends State<UniClientApp>
 
   @override
   void dispose() {
+    _notifDismissTimer?.cancel();
     _debugCmdTimer?.cancel();
     if (_unreadListener != null && _chatStateRef != null) {
       _chatStateRef!.removeListener(_unreadListener!);
     }
+    if (_chatStateRef != null) _chatStateRef!.onNotification = null;
     _themeFadeCtrl?.dispose();
     _themeCrossFadeImage?.dispose();
     _instance = null;
@@ -1589,6 +1645,15 @@ class _UniClientAppState extends State<UniClientApp>
             ),
             const _ThemeRevertOverlay(),
             const Positioned.fill(child: _PasscodeLockScreen()),
+            if (_notifBanner != null)
+              _InAppNotificationBanner(
+                data: _notifBanner!,
+                onTap: _onNotifBannerTap,
+                onDismiss: () {
+                  _notifDismissTimer?.cancel();
+                  setState(() => _notifBanner = null);
+                },
+              ),
           ],
         ),
         );
@@ -1782,11 +1847,13 @@ class _PasscodeLockScreen extends StatefulWidget {
 }
 
 class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   static const _duration = Duration(milliseconds: 180);
   static const _errorDuration = Duration(milliseconds: 150);
   static const _curveIn = Curves.easeOutCirc;
   static const _curveOut = Curves.easeInCirc;
+
+  static VoidCallback? _focusPasscode;
 
   late final AnimationController _anim;
   late final AnimationController _errorAnim;
@@ -1799,6 +1866,8 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _focusPasscode = () => _focusNode.requestFocus();
     _anim = AnimationController(vsync: this, duration: _duration);
     _errorAnim = AnimationController(vsync: this, duration: _errorDuration);
     _anim.addStatusListener(_onAnimStatus);
@@ -1810,6 +1879,15 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
         _focusNode.requestFocus();
       }
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _visible) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _focusNode.requestFocus();
+      });
+    }
   }
 
   @override
@@ -1835,6 +1913,8 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    if (_focusPasscode == _focusNode.requestFocus) _focusPasscode = null;
     _anim.removeStatusListener(_onAnimStatus);
     _anim.dispose();
     _errorAnim.dispose();
@@ -2015,6 +2095,106 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
               ],
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+class _NotifBannerData {
+  final String title;
+  final String body;
+  final String accountId;
+  final String chatId;
+  final bool isLocked;
+  const _NotifBannerData({
+    required this.title,
+    required this.body,
+    required this.accountId,
+    required this.chatId,
+    required this.isLocked,
+  });
+}
+
+class _InAppNotificationBanner extends StatelessWidget {
+  final _NotifBannerData data;
+  final VoidCallback onTap;
+  final VoidCallback onDismiss;
+  const _InAppNotificationBanner({
+    required this.data,
+    required this.onTap,
+    required this.onDismiss,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF2B3A4A) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF8899A6) : const Color(0xFF666666);
+    final shadowColor = isDark ? const Color(0x40000000) : const Color(0x20000000);
+
+    return Positioned(
+      top: 8,
+      left: 16,
+      right: 16,
+      child: GestureDetector(
+        onTap: onTap,
+        onVerticalDragEnd: (d) {
+          if (d.velocity.pixelsPerSecond.dy < -50) onDismiss();
+        },
+        child: Material(
+          elevation: 0,
+          color: Colors.transparent,
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 400),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [BoxShadow(color: shadowColor, blurRadius: 12, offset: const Offset(0, 4))],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3),
+                  ),
+                  child: const Icon(Icons.chat_bubble_outline, color: Colors.white, size: 18),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        data.title,
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textColor),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (data.body.isNotEmpty)
+                        Text(
+                          data.body,
+                          style: TextStyle(fontSize: 12, color: subtextColor),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: onDismiss,
+                  child: Icon(Icons.close, size: 16, color: subtextColor),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
