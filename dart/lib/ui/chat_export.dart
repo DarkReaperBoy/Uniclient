@@ -1,11 +1,127 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../state/chat_state.dart';
+import '../theme/telegram_palette.dart';
 
 const double _exportPanelWidth = 364;
 const double _exportPanelHeight = 480;
 const double _boxRadius = 8;
 const double _titleBarHeight = 48;
+const double _exportTopBarHeight = 36.0;
+
+class ExportTopBar extends StatefulWidget {
+  const ExportTopBar({super.key});
+
+  static const height = _exportTopBarHeight;
+
+  @override
+  State<ExportTopBar> createState() => _ExportTopBarState();
+}
+
+class _ExportTopBarState extends State<ExportTopBar>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _slideAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _slideAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _slideAnim.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final chatState = context.watch<ChatState>();
+    final palette = PaletteProvider.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final shadowColor = isDark
+        ? const Color(0x5604080e)
+        : const Color(0x18000000);
+
+    return SizeTransition(
+      sizeFactor: CurvedAnimation(
+        parent: _slideAnim,
+        curve: Curves.easeOutCubic,
+      ),
+      axisAlignment: -1.0,
+      child: GestureDetector(
+        onTap: chatState.exportOnTap,
+        behavior: HitTestBehavior.opaque,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              height: _exportTopBarHeight - 1,
+              color: palette.windowBg,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Row(
+                children: [
+                  Text(
+                    'Exporting Data \u2014 ',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: palette.windowBoldFg,
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      chatState.exportStepLabel,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: palette.windowBoldFg,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (chatState.exportInfoText.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: Text(
+                        chatState.exportInfoText,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: palette.windowSubTextFg,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            SizedBox(
+              height: 1,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: Container(color: shadowColor),
+                  ),
+                  FractionallySizedBox(
+                    widthFactor: chatState.exportProgress.clamp(0.0, 1.0),
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      color: palette.windowBgActive,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 enum ExportMode { full, perChat, perTopic }
 
@@ -219,6 +335,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     _skipFileTimer?.cancel();
     _scrollController.dispose();
     WidgetsBinding.instance.removeObserver(this);
+    context.read<ChatState>().stopExportBar();
     super.dispose();
   }
 
@@ -235,6 +352,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
       if (confirmed && mounted) {
         _exportTimer?.cancel();
         _skipFileTimer?.cancel();
+        context.read<ChatState>().stopExportBar();
         Navigator.of(context).pop();
       }
     } else {
@@ -333,9 +451,14 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     _totalFiles = 0;
     _totalSizeBytes = 0;
     setState(() => _phase = ExportPhase.processing);
+    context.read<ChatState>().startExportBar(onTap: _bringPanelToFront);
     _exportTimer =
         Timer.periodic(const Duration(milliseconds: 100), _tickExport);
     _resetSkipFileTimer();
+  }
+
+  void _bringPanelToFront() {
+    // no-op — panel is already a dialog in the overlay
   }
 
   List<_ExportStepInfo> _buildExportStepList() {
@@ -366,6 +489,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
       timer.cancel();
       _skipFileTimer?.cancel();
       setState(() => _phase = ExportPhase.completed);
+      context.read<ChatState>().stopExportBar();
       return;
     }
     final step = _exportSteps[_currentStepIndex];
@@ -381,7 +505,22 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
       _showSkipFile = false;
       _resetSkipFileTimer();
     }
+    _syncExportBar();
     setState(() {});
+  }
+
+  void _syncExportBar() {
+    if (_currentStepIndex >= _exportSteps.length) return;
+    final step = _exportSteps[_currentStepIndex];
+    final totalSteps = _exportSteps.length;
+    final overallProgress = totalSteps > 0
+        ? (_currentStepIndex + step.progress) / totalSteps
+        : 0.0;
+    context.read<ChatState>().updateExportBar(
+          stepLabel: step.label,
+          infoText: '${_currentStepIndex + 1} / $totalSteps',
+          progress: overallProgress,
+        );
   }
 
   void _resetSkipFileTimer() {
@@ -408,6 +547,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   void _triggerTakeoutInvalidError() {
     _exportTimer?.cancel();
     _skipFileTimer?.cancel();
+    context.read<ChatState>().stopExportBar();
     _showExportInformBox(
       'Sorry, your data export session has expired, please try again.',
     );
@@ -417,6 +557,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
       int hoursRemaining, DateTime availableAt) {
     _exportTimer?.cancel();
     _skipFileTimer?.cancel();
+    context.read<ChatState>().stopExportBar();
     const months = [
       'January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December'
@@ -433,6 +574,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   void _triggerDiskError(String path) {
     _exportTimer?.cancel();
     _skipFileTimer?.cancel();
+    context.read<ChatState>().stopExportBar();
     setState(() {
       _phase = ExportPhase.error;
       _errorType = _ExportErrorType.diskIo;
@@ -443,6 +585,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   void _triggerGenericApiError(int code, String type, String description) {
     _exportTimer?.cancel();
     _skipFileTimer?.cancel();
+    context.read<ChatState>().stopExportBar();
     setState(() {
       _phase = ExportPhase.error;
       _errorType = _ExportErrorType.genericApi;

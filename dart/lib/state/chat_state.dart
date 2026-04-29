@@ -68,6 +68,13 @@ class ChatState extends ChangeNotifier {
   final List<String> _chatOpenHistory = []; // chatId list, most-recent first
   static const _maxChatOpenHistory = 30;
 
+  // ── Export top bar state (§29.9) ──
+  bool _exportActive = false;
+  String _exportStepLabel = '';
+  String _exportInfoText = '';
+  double _exportProgress = 0.0;
+  VoidCallback? _exportOnTap;
+
   final List<StreamSubscription<dynamic>> _subs = [];
   Timer? _pollTimer;
   Timer? _loadChatsDebounce;
@@ -186,6 +193,42 @@ class ChatState extends ChangeNotifier {
 
   /// Get sender avatar base64 data by sender ID.
   String? senderAvatar(String senderId) => _senderAvatars[senderId];
+
+  // ── Export top bar getters (§29.9) ──
+  bool get exportActive => _exportActive;
+  String get exportStepLabel => _exportStepLabel;
+  String get exportInfoText => _exportInfoText;
+  double get exportProgress => _exportProgress;
+  VoidCallback? get exportOnTap => _exportOnTap;
+
+  void startExportBar({required VoidCallback onTap}) {
+    _exportActive = true;
+    _exportStepLabel = 'Initializing';
+    _exportInfoText = '';
+    _exportProgress = 0.0;
+    _exportOnTap = onTap;
+    notifyListeners();
+  }
+
+  void updateExportBar({
+    required String stepLabel,
+    required String infoText,
+    required double progress,
+  }) {
+    _exportStepLabel = stepLabel;
+    _exportInfoText = infoText;
+    _exportProgress = progress;
+    notifyListeners();
+  }
+
+  void stopExportBar() {
+    _exportActive = false;
+    _exportStepLabel = '';
+    _exportInfoText = '';
+    _exportProgress = 0.0;
+    _exportOnTap = null;
+    notifyListeners();
+  }
 
   // ── Forum topic list getters (§22.3) ──
   List<ForumTopic> get forumTopics => _forumTopics;

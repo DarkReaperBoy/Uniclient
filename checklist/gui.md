@@ -847,7 +847,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_export.dart -->
 
-- [ ] In-app export top bar: ~36px, 3 labels + FilledSlider, animated slide down/up, click opens panel, lifecycle matches progress — spec §29.9
 - [ ] Export settings persistence: 1000ms debounce save; persist types, fullChats, media types, size limit, format, path, availableAt — spec §29.10
 
 ---

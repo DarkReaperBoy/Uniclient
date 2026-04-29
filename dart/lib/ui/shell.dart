@@ -10,6 +10,7 @@ import '../state/app_state.dart';
 import '../state/auth_state.dart';
 import '../state/chat_state.dart';
 import 'auth_screen.dart';
+import 'chat_export.dart';
 import 'chat_list_panel.dart';
 import 'chat_view.dart';
 import 'filter_column.dart';
@@ -314,6 +315,15 @@ class _UniClientShellState extends State<UniClientShell>
             onHangup: () {},
             onToggleMute: () {},
           ),
+          Expanded(child: layout),
+        ],
+      );
+    }
+
+    if (chatState.exportActive) {
+      layout = Column(
+        children: [
+          const ExportTopBar(),
           Expanded(child: layout),
         ],
       );
