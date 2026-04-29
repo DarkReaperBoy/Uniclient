@@ -899,6 +899,25 @@ class EngineService {
     }
   }
 
+  Future<int> sendStoryWithPhoto(String accountId, String caption, Uint8List photoData) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'caption': caption,
+      'photo_data': photoData.toList(),
+    }));
+    try {
+      final resp = await _callAsync('__engine', 'SendStoryWithPhoto', Uint8List.fromList(payload));
+      if (resp.isNotEmpty) {
+        final data = json.decode(utf8.decode(resp));
+        return data['story_id'] as int? ?? 0;
+      }
+      return 0;
+    } catch (e) {
+      Debug.error('ENGINE', 'sendStoryWithPhoto failed', e);
+      rethrow;
+    }
+  }
+
   // ── Custom emoji thumbnails (for forum topic icons) ──
 
   Future<Map<int, String>> getCustomEmojiThumbs(String accountId, List<int> documentIds) async {

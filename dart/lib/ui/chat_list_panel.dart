@@ -20,6 +20,7 @@ import 'popup_menu.dart';
 import 'confirm_box.dart';
 import 'edit_forum_topic_box.dart';
 import 'shell.dart';
+import 'story_editor.dart';
 
 /// The entire left panel: search bar + chat list.
 /// When [collapsed] is true, renders in avatar-only narrow mode (spec §1:
@@ -2323,7 +2324,6 @@ class _StoriesBarState extends State<_StoriesBar>
   @override
   Widget build(BuildContext context) {
     final peers = _storyPeers;
-    if (peers.isEmpty) return const SizedBox.shrink();
 
     return AnimatedBuilder(
       animation: _expandAnimation,
@@ -2353,9 +2353,24 @@ class _StoriesBarState extends State<_StoriesBar>
         child: Stack(
           clipBehavior: Clip.none,
           children: [
+            Positioned(
+              left: 4,
+              top: 4,
+              child: Container(
+                width: _smallPhoto,
+                height: _smallPhoto,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: widget.isDark
+                      ? const Color(0xFF2B5278)
+                      : const Color(0xFF419FD9),
+                ),
+                child: const Icon(Icons.add, color: Colors.white, size: 12),
+              ),
+            ),
             for (var i = shown.length - 1; i >= 0; i--)
               Positioned(
-                left: i * _smallShift + 4,
+                left: (i + 1) * _smallShift + 4,
                 top: 4,
                 child: _StoryAvatar(
                   chat: shown[i],
@@ -2368,7 +2383,7 @@ class _StoriesBarState extends State<_StoriesBar>
               ),
             if (extraCount > 0)
               Positioned(
-                left: shown.length * _smallShift + 8,
+                left: (shown.length + 1) * _smallShift + 8,
                 top: 8,
                 child: Text(
                   '+$extraCount',
@@ -2392,9 +2407,50 @@ class _StoriesBarState extends State<_StoriesBar>
     return ListView.builder(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.only(left: 6, right: 6),
-      itemCount: peers.length,
+      itemCount: peers.length + 1,
       itemBuilder: (context, index) {
-        final chat = peers[index];
+        if (index == 0) {
+          return SizedBox(
+            width: _fullItemWidth,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 9),
+                GestureDetector(
+                  onTap: () => showStoryEditor(context),
+                  child: Container(
+                    width: _fullPhoto,
+                    height: _fullPhoto,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: widget.isDark
+                          ? const Color(0xFF2B5278)
+                          : const Color(0xFF419FD9),
+                    ),
+                    child: const Icon(Icons.add, color: Colors.white, size: 22),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                SizedBox(
+                  width: _fullItemWidth - 4,
+                  child: Text(
+                    'My Story',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: widget.isDark
+                          ? const Color(0xFFaaaaaa)
+                          : const Color(0xFF666666),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+        final chat = peers[index - 1];
         final opacity =
             chat.hasUnreadStory ? 1.0 : _readOpacity;
         return Opacity(

@@ -1655,3 +1655,22 @@ func (e *Engine) ReorderStoryAlbums(accountID string, albumIDs []int64) error {
 	}
 	return fetcher.ReorderStoryAlbums(ids)
 }
+
+type StorySender interface {
+	SendStoryWithPhoto(text string, photoData []byte) (int, error)
+}
+
+func (e *Engine) SendStoryWithPhoto(accountID, text string, photoData []byte) (int, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return 0, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return 0, fmt.Errorf("account not connected: %s", accountID)
+	}
+	sender, ok := acc.Core.(StorySender)
+	if !ok {
+		return 0, fmt.Errorf("platform does not support sending stories")
+	}
+	return sender.SendStoryWithPhoto(text, photoData)
+}

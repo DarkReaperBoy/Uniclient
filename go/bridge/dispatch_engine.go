@@ -2431,6 +2431,22 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, nil
 
+	case "SendStoryWithPhoto":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Caption   string `json:"caption"`
+			PhotoData []byte `json:"photo_data"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		storyID, err := e.SendStoryWithPhoto(params.AccountID, params.Caption, params.PhotoData)
+		if err != nil {
+			return nil, err
+		}
+		resp := map[string]int{"story_id": storyID}
+		return json.Marshal(resp)
+
 	// ── Send As ──
 
 	case "GetSendAs":
