@@ -11,6 +11,8 @@ enum ExportMode { full, perChat, perTopic }
 
 enum ExportPhase { settings, processing, completed, error }
 
+enum _ExportErrorType { takeoutInvalid, takeoutInitDelay, diskIo, genericApi }
+
 class ExportTarget {
   final ExportMode mode;
   final String? accountId;
@@ -143,6 +145,9 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   int _currentStepIndex = 0;
   int _totalFiles = 0;
   int _totalSizeBytes = 0;
+
+  _ExportErrorType _errorType = _ExportErrorType.genericApi;
+  String _errorDetail = '';
 
   String get _title {
     switch (_phase) {
@@ -398,6 +403,137 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
       _resetSkipFileTimer();
       setState(() {});
     }
+  }
+
+  void _triggerTakeoutInvalidError() {
+    _exportTimer?.cancel();
+    _skipFileTimer?.cancel();
+    _showExportInformBox(
+      'Sorry, your data export session has expired, please try again.',
+    );
+  }
+
+  void _triggerTakeoutInitDelayError(
+      int hoursRemaining, DateTime availableAt) {
+    _exportTimer?.cancel();
+    _skipFileTimer?.cancel();
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    final time =
+        '${availableAt.hour.toString().padLeft(2, '0')}:${availableAt.minute.toString().padLeft(2, '0')}';
+    final date =
+        '${months[availableAt.month - 1]} ${availableAt.day}, ${availableAt.year}';
+    _showExportInformBox(
+      'Please try again in about $hoursRemaining hours, on $date at $time.',
+    );
+  }
+
+  void _triggerDiskError(String path) {
+    _exportTimer?.cancel();
+    _skipFileTimer?.cancel();
+    setState(() {
+      _phase = ExportPhase.error;
+      _errorType = _ExportErrorType.diskIo;
+      _errorDetail = path;
+    });
+  }
+
+  void _triggerGenericApiError(int code, String type, String description) {
+    _exportTimer?.cancel();
+    _skipFileTimer?.cancel();
+    setState(() {
+      _phase = ExportPhase.error;
+      _errorType = _ExportErrorType.genericApi;
+      _errorDetail = '$code: $type\n$description';
+    });
+  }
+
+  void _showExportInformBox(String text) {
+    if (!mounted) return;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final boxBg = isDark ? const Color(0xFF17212B) : Colors.white;
+    final boxTextFg =
+        isDark ? const Color(0xFFAAAAAA) : const Color(0xFF000000);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final closeFg =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => PopScope(
+        canPop: false,
+        child: Dialog(
+          backgroundColor: boxBg,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(3),
+          ),
+          elevation: 4,
+          child: SizedBox(
+            width: 320,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Align(
+                  alignment: Alignment.topRight,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 4, right: 4),
+                    child: IconButton(
+                      icon: Icon(Icons.close, size: 18, color: closeFg),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      splashRadius: 14,
+                      padding: const EdgeInsets.all(8),
+                      constraints: const BoxConstraints(
+                        minWidth: 32,
+                        minHeight: 32,
+                      ),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+                  child: Text(
+                    text,
+                    style: TextStyle(
+                      fontSize: 14,
+                      height: 22 / 14,
+                      color: boxTextFg,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 4, 12, 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        style: TextButton.styleFrom(
+                          foregroundColor: accentColor,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        child: const Text('OK'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -1607,18 +1743,33 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final errorColor =
         isDark ? const Color(0xFFEC3942) : const Color(0xFFD14E4E);
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.error_outline, size: 64, color: errorColor),
-          const SizedBox(height: 16),
-          Text(
-            'Export failed.',
-            style: TextStyle(fontSize: 14, color: errorColor),
-            textAlign: TextAlign.center,
+
+    final String errorText;
+    if (_errorType == _ExportErrorType.diskIo) {
+      errorText =
+          'Disk Error happened :(\nCould not write path:\n$_errorDetail';
+    } else {
+      errorText = 'API Error happened :(\n$_errorDetail';
+    }
+
+    final panelHeight = _isPerChat ? 540.0 : _exportPanelHeight;
+    final topPad = (panelHeight / 4 - _titleBarHeight).clamp(0.0, panelHeight);
+
+    return Padding(
+      padding: EdgeInsets.only(top: topPad),
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 175),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Text(
+              errorText,
+              style: TextStyle(fontSize: 14, color: errorColor),
+              textAlign: TextAlign.center,
+            ),
           ),
-        ],
+        ),
       ),
     );
   }
