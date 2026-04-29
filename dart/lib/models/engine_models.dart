@@ -2195,6 +2195,77 @@ class CloudThemeInfo {
 
 enum StoryPrivacy { public, closeFriends, contacts, selectedContacts }
 
+class StoryMediaAreaCoords {
+  final double x, y, w, h, rotation, radius;
+  const StoryMediaAreaCoords({
+    this.x = 0, this.y = 0, this.w = 0, this.h = 0,
+    this.rotation = 0, this.radius = 0,
+  });
+  factory StoryMediaAreaCoords.fromJson(Map<String, dynamic> j) =>
+      StoryMediaAreaCoords(
+        x: (j['x'] as num?)?.toDouble() ?? 0,
+        y: (j['y'] as num?)?.toDouble() ?? 0,
+        w: (j['w'] as num?)?.toDouble() ?? 0,
+        h: (j['h'] as num?)?.toDouble() ?? 0,
+        rotation: (j['rotation'] as num?)?.toDouble() ?? 0,
+        radius: (j['radius'] as num?)?.toDouble() ?? 0,
+      );
+}
+
+enum StoryMediaAreaType { venue, location, reaction, channelPost, url, weather, unknown }
+
+class StoryMediaArea {
+  final StoryMediaAreaType type;
+  final StoryMediaAreaCoords coords;
+  final double lat, lng;
+  final String title, address, emoji, reaction, url;
+  final bool flipped, dark;
+  final int channelId, msgId, color;
+  final double tempC;
+
+  const StoryMediaArea({
+    required this.type,
+    required this.coords,
+    this.lat = 0, this.lng = 0,
+    this.title = '', this.address = '', this.emoji = '',
+    this.reaction = '', this.url = '',
+    this.flipped = false, this.dark = false,
+    this.channelId = 0, this.msgId = 0, this.color = 0,
+    this.tempC = 0,
+  });
+
+  factory StoryMediaArea.fromJson(Map<String, dynamic> j) {
+    final typeStr = j['type'] as String? ?? '';
+    final type = switch (typeStr) {
+      'venue' => StoryMediaAreaType.venue,
+      'location' => StoryMediaAreaType.location,
+      'reaction' => StoryMediaAreaType.reaction,
+      'channel_post' => StoryMediaAreaType.channelPost,
+      'url' => StoryMediaAreaType.url,
+      'weather' => StoryMediaAreaType.weather,
+      _ => StoryMediaAreaType.unknown,
+    };
+    return StoryMediaArea(
+      type: type,
+      coords: StoryMediaAreaCoords.fromJson(
+          j['coords'] as Map<String, dynamic>? ?? {}),
+      lat: (j['lat'] as num?)?.toDouble() ?? 0,
+      lng: (j['lng'] as num?)?.toDouble() ?? 0,
+      title: j['title'] as String? ?? '',
+      address: j['address'] as String? ?? '',
+      emoji: j['emoji'] as String? ?? '',
+      reaction: j['reaction'] as String? ?? '',
+      url: j['url'] as String? ?? '',
+      flipped: j['flipped'] as bool? ?? false,
+      dark: j['dark'] as bool? ?? false,
+      channelId: (j['channel_id'] as num?)?.toInt() ?? 0,
+      msgId: (j['msg_id'] as num?)?.toInt() ?? 0,
+      color: (j['color'] as num?)?.toInt() ?? 0,
+      tempC: (j['temp_c'] as num?)?.toDouble() ?? 0,
+    );
+  }
+}
+
 class StoryItem {
   final int id;
   final int date;
@@ -2213,6 +2284,7 @@ class StoryItem {
   final String fwdFromPeerId;
   final int fwdStoryId;
   final bool fwdModified;
+  final List<StoryMediaArea> mediaAreas;
 
   const StoryItem({
     required this.id,
@@ -2232,6 +2304,7 @@ class StoryItem {
     this.fwdFromPeerId = '',
     this.fwdStoryId = 0,
     this.fwdModified = false,
+    this.mediaAreas = const [],
   });
 
   bool get isVideo => mediaType == 'video';
@@ -2265,6 +2338,11 @@ class StoryItem {
       fwdFromPeerId: j['fwd_from_peer_id'] as String? ?? '',
       fwdStoryId: (j['fwd_story_id'] as num?)?.toInt() ?? 0,
       fwdModified: j['fwd_modified'] as bool? ?? false,
+      mediaAreas: (j['media_areas'] as List<dynamic>?)
+              ?.map((e) =>
+                  StoryMediaArea.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
     );
   }
 }

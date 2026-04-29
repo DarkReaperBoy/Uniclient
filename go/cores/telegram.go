@@ -14668,20 +14668,47 @@ func (t *TelegramCore) FetchPeerStoriesData(peerID string) (string, error) {
 	result, err := t.api.StoriesGetPeerStories(t.ctx, inputPeer)
 	if err != nil { return "", err }
 
+	type storyMediaAreaCoords struct {
+		X        float64 `json:"x"`
+		Y        float64 `json:"y"`
+		W        float64 `json:"w"`
+		H        float64 `json:"h"`
+		Rotation float64 `json:"rotation"`
+		Radius   float64 `json:"radius,omitempty"`
+	}
+	type storyMediaArea struct {
+		Type        string              `json:"type"`
+		Coords      storyMediaAreaCoords `json:"coords"`
+		Lat         float64             `json:"lat,omitempty"`
+		Lng         float64             `json:"lng,omitempty"`
+		Title       string              `json:"title,omitempty"`
+		Address     string              `json:"address,omitempty"`
+		Emoji       string              `json:"emoji,omitempty"`
+		Reaction    string              `json:"reaction,omitempty"`
+		Flipped     bool                `json:"flipped,omitempty"`
+		Dark        bool                `json:"dark,omitempty"`
+		ChannelID   int64               `json:"channel_id,omitempty"`
+		MsgID       int                 `json:"msg_id,omitempty"`
+		URL         string              `json:"url,omitempty"`
+		TempC       float64             `json:"temp_c,omitempty"`
+		Color       int                 `json:"color,omitempty"`
+	}
+
 	type storyItem struct {
-		ID            int     `json:"id"`
-		Date          int     `json:"date"`
-		Caption       string  `json:"caption"`
-		MediaType     string  `json:"media_type"`
-		FileRef       FileRef `json:"file_ref"`
-		Views         int     `json:"views"`
-		Pinned        bool    `json:"pinned"`
-		Edited        bool    `json:"edited"`
-		Privacy       string  `json:"privacy"`
-		FwdFromName   string  `json:"fwd_from_name,omitempty"`
-		FwdFromPeerID string  `json:"fwd_from_peer_id,omitempty"`
-		FwdStoryID    int     `json:"fwd_story_id,omitempty"`
-		FwdModified   bool    `json:"fwd_modified,omitempty"`
+		ID            int              `json:"id"`
+		Date          int              `json:"date"`
+		Caption       string           `json:"caption"`
+		MediaType     string           `json:"media_type"`
+		FileRef       FileRef          `json:"file_ref"`
+		Views         int              `json:"views"`
+		Pinned        bool             `json:"pinned"`
+		Edited        bool             `json:"edited"`
+		Privacy       string           `json:"privacy"`
+		FwdFromName   string           `json:"fwd_from_name,omitempty"`
+		FwdFromPeerID string           `json:"fwd_from_peer_id,omitempty"`
+		FwdStoryID    int              `json:"fwd_story_id,omitempty"`
+		FwdModified   bool             `json:"fwd_modified,omitempty"`
+		MediaAreas    []storyMediaArea `json:"media_areas,omitempty"`
 	}
 
 	var items []storyItem
@@ -14765,6 +14792,67 @@ func (t *TelegramCore) FetchPeerStoriesData(peerID string) (string, error) {
 			}
 			if sid, ok := fwd.GetStoryID(); ok {
 				item.FwdStoryID = sid
+			}
+		}
+
+		if areas, ok := si.GetMediaAreas(); ok {
+			for _, ma := range areas {
+				coords := ma.GetCoordinates()
+				radius, _ := coords.GetRadius()
+				base := storyMediaArea{
+					Coords: storyMediaAreaCoords{
+						X: coords.X, Y: coords.Y,
+						W: coords.W, H: coords.H,
+						Rotation: coords.Rotation,
+						Radius:   radius,
+					},
+				}
+				switch a := ma.(type) {
+				case *tg.MediaAreaVenue:
+					base.Type = "venue"
+					base.Title = a.Title
+					base.Address = a.Address
+					if gp, ok := a.Geo.(*tg.GeoPoint); ok {
+						base.Lat = gp.Lat; base.Lng = gp.Long
+					}
+				case *tg.MediaAreaGeoPoint:
+					base.Type = "location"
+					if gp, ok := a.Geo.(*tg.GeoPoint); ok {
+						base.Lat = gp.Lat; base.Lng = gp.Long
+					}
+					if addr, ok := a.GetAddress(); ok {
+						base.Address = addr.Street
+						if addr.City != "" {
+							if base.Address != "" { base.Address += ", " }
+							base.Address += addr.City
+						}
+					}
+				case *tg.MediaAreaSuggestedReaction:
+					base.Type = "reaction"
+					base.Flipped = a.Flipped
+					base.Dark = a.Dark
+					switch r := a.Reaction.(type) {
+					case *tg.ReactionEmoji:
+						base.Reaction = r.Emoticon
+					case *tg.ReactionCustomEmoji:
+						base.Reaction = fmt.Sprintf("custom:%d", r.DocumentID)
+					}
+				case *tg.MediaAreaChannelPost:
+					base.Type = "channel_post"
+					base.ChannelID = a.ChannelID
+					base.MsgID = a.MsgID
+				case *tg.MediaAreaURL:
+					base.Type = "url"
+					base.URL = a.URL
+				case *tg.MediaAreaWeather:
+					base.Type = "weather"
+					base.Emoji = a.Emoji
+					base.TempC = a.TemperatureC
+					base.Color = a.Color
+				default:
+					continue
+				}
+				item.MediaAreas = append(item.MediaAreas, base)
 			}
 		}
 

@@ -4070,6 +4070,16 @@ const _kStoryComposePadding = EdgeInsets.fromLTRB(1, 8, 1, 6);
 const _kStoryComposeFieldLeft = 10.0;
 const _kStoryComposeCommentsUnreadSize = 6.0;
 
+// §32.13 Story Interactive Areas
+const _kStoryAreaBg = Color(0x40000000);
+const _kStoryAreaBgHover = Color(0x60000000);
+const _kStoryAreaRadius = 10.0;
+const _kStoryAreaLocationIcon = Icons.location_on;
+const _kStoryAreaLinkIcon = Icons.link;
+const _kStoryAreaChannelIcon = Icons.campaign;
+const _kStoryWeatherFontSize = 14.0;
+const _kStoryReactionBubbleSize = 48.0;
+
 // §32.4 Story Reactions Panel
 const _kStoryReactionsWidth = 210.0;
 const _kStoryReactionsExpandedWidth = 420.0;
@@ -4117,6 +4127,394 @@ class _ReactionBubblePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _ReactionBubblePainter old) => old.color != color;
+}
+
+// §32.13 Story Interactive Areas
+class _StoryInteractiveAreas extends StatelessWidget {
+  final List<StoryMediaArea> areas;
+  final double contentWidth;
+  final double contentHeight;
+  final ValueChanged<String> onReaction;
+  final ValueChanged<String> onUrl;
+  final void Function(int channelId, int msgId) onChannelPost;
+
+  const _StoryInteractiveAreas({
+    required this.areas,
+    required this.contentWidth,
+    required this.contentHeight,
+    required this.onReaction,
+    required this.onUrl,
+    required this.onChannelPost,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        for (final area in areas)
+          _buildArea(context, area),
+      ],
+    );
+  }
+
+  Widget _buildArea(BuildContext context, StoryMediaArea area) {
+    final c = area.coords;
+    final cx = c.x / 100.0 * contentWidth;
+    final cy = c.y / 100.0 * contentHeight;
+    final aw = c.w / 100.0 * contentWidth;
+    final ah = c.h / 100.0 * contentHeight;
+    final left = cx - aw / 2;
+    final top = cy - ah / 2;
+    final radius = c.radius > 0
+        ? c.radius / 100.0 * contentWidth
+        : _kStoryAreaRadius;
+
+    Widget child;
+    switch (area.type) {
+      case StoryMediaAreaType.venue:
+      case StoryMediaAreaType.location:
+        child = _LocationChip(area: area, radius: radius);
+      case StoryMediaAreaType.reaction:
+        child = _ReactionArea(area: area, onReaction: onReaction);
+      case StoryMediaAreaType.channelPost:
+        child = _ChannelPostChip(area: area, radius: radius, onTap: onChannelPost);
+      case StoryMediaAreaType.url:
+        child = _UrlChip(area: area, radius: radius, onTap: onUrl);
+      case StoryMediaAreaType.weather:
+        child = _WeatherChip(area: area, radius: radius);
+      case StoryMediaAreaType.unknown:
+        return const SizedBox.shrink();
+    }
+
+    Widget positioned = Positioned(
+      left: left,
+      top: top,
+      width: aw,
+      height: ah,
+      child: c.rotation != 0
+          ? Transform.rotate(
+              angle: c.rotation * math.pi / 180,
+              child: child,
+            )
+          : child,
+    );
+    return positioned;
+  }
+}
+
+class _LocationChip extends StatefulWidget {
+  final StoryMediaArea area;
+  final double radius;
+  const _LocationChip({required this.area, required this.radius});
+
+  @override
+  State<_LocationChip> createState() => _LocationChipState();
+}
+
+class _LocationChipState extends State<_LocationChip> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = widget.area.title.isNotEmpty
+        ? widget.area.title
+        : widget.area.address.isNotEmpty
+            ? widget.area.address
+            : 'Location';
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () {
+          final lat = widget.area.lat;
+          final lng = widget.area.lng;
+          if (lat != 0 || lng != 0) {
+            Process.run('xdg-open', [
+              'https://maps.google.com/?q=$lat,$lng',
+            ]);
+          }
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          decoration: BoxDecoration(
+            color: _hovered ? _kStoryAreaBgHover : _kStoryAreaBg,
+            borderRadius: BorderRadius.circular(widget.radius),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(_kStoryAreaLocationIcon, color: Colors.white, size: 16),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReactionArea extends StatefulWidget {
+  final StoryMediaArea area;
+  final ValueChanged<String> onReaction;
+  const _ReactionArea({required this.area, required this.onReaction});
+
+  @override
+  State<_ReactionArea> createState() => _ReactionAreaState();
+}
+
+class _ReactionAreaState extends State<_ReactionArea>
+    with SingleTickerProviderStateMixin {
+  bool _hovered = false;
+  late final AnimationController _scaleCtrl;
+  late final Animation<double> _scaleAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _scaleCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _scaleAnim = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.4), weight: 50),
+      TweenSequenceItem(tween: Tween(begin: 1.4, end: 1.0), weight: 50),
+    ]).animate(CurvedAnimation(parent: _scaleCtrl, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _scaleCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final emoji = widget.area.reaction;
+    if (emoji.isEmpty || emoji.startsWith('custom:')) {
+      return const SizedBox.shrink();
+    }
+
+    final dark = widget.area.dark;
+    final flipped = widget.area.flipped;
+    final bgColor = dark ? const Color(0x80000000) : const Color(0x40FFFFFF);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () {
+          _scaleCtrl.forward(from: 0);
+          widget.onReaction(emoji);
+        },
+        child: AnimatedBuilder(
+          animation: _scaleAnim,
+          builder: (context, child) {
+            return Transform(
+              alignment: Alignment.center,
+              transform: Matrix4.identity()
+                ..scale(
+                  flipped ? -_scaleAnim.value : _scaleAnim.value,
+                  _scaleAnim.value,
+                ),
+              child: child,
+            );
+          },
+          child: CustomPaint(
+            painter: _ReactionBubblePainter(
+              color: _hovered
+                  ? bgColor.withValues(alpha: bgColor.a / 255 + 0.15)
+                  : bgColor,
+            ),
+            child: Center(
+              child: Text(
+                emoji,
+                style: TextStyle(fontSize: _kStoryReactionBubbleSize * 0.5),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChannelPostChip extends StatefulWidget {
+  final StoryMediaArea area;
+  final double radius;
+  final void Function(int channelId, int msgId) onTap;
+  const _ChannelPostChip({
+    required this.area,
+    required this.radius,
+    required this.onTap,
+  });
+
+  @override
+  State<_ChannelPostChip> createState() => _ChannelPostChipState();
+}
+
+class _ChannelPostChipState extends State<_ChannelPostChip> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () => widget.onTap(widget.area.channelId, widget.area.msgId),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          decoration: BoxDecoration(
+            color: _hovered ? _kStoryAreaBgHover : _kStoryAreaBg,
+            borderRadius: BorderRadius.circular(widget.radius),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(_kStoryAreaChannelIcon, color: Colors.white, size: 16),
+              SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  'View Post',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _UrlChip extends StatefulWidget {
+  final StoryMediaArea area;
+  final double radius;
+  final ValueChanged<String> onTap;
+  const _UrlChip({
+    required this.area,
+    required this.radius,
+    required this.onTap,
+  });
+
+  @override
+  State<_UrlChip> createState() => _UrlChipState();
+}
+
+class _UrlChipState extends State<_UrlChip> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final uri = Uri.tryParse(widget.area.url);
+    final label = uri?.host ?? widget.area.url;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () => widget.onTap(widget.area.url),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          decoration: BoxDecoration(
+            color: _hovered ? _kStoryAreaBgHover : _kStoryAreaBg,
+            borderRadius: BorderRadius.circular(widget.radius),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(_kStoryAreaLinkIcon, color: Colors.white, size: 16),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    decoration: TextDecoration.underline,
+                    decorationColor: Colors.white54,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WeatherChip extends StatelessWidget {
+  final StoryMediaArea area;
+  final double radius;
+  const _WeatherChip({required this.area, required this.radius});
+
+  @override
+  Widget build(BuildContext context) {
+    final tempC = area.tempC;
+    final tempStr = '${tempC.round()}°';
+    final argb = area.color;
+    final bgColor = Color(argb == 0 ? 0x60000000 : argb);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(radius),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (area.emoji.isNotEmpty) ...[
+            Text(
+              area.emoji,
+              style: const TextStyle(fontSize: _kStoryWeatherFontSize),
+            ),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            tempStr,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: _kStoryWeatherFontSize,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // §32.7 Story Repost View
@@ -4805,6 +5203,23 @@ class _StoriesViewerState extends State<StoriesViewer>
     _loadStory();
   }
 
+  void _handleAreaReaction(String emoji) {
+    setState(() => _liked = true);
+  }
+
+  void _handleAreaUrl(String url) {
+    var u = url;
+    if (!u.startsWith('http://') && !u.startsWith('https://') &&
+        !u.startsWith('tg://')) {
+      u = 'https://$u';
+    }
+    Process.run('xdg-open', [u]);
+  }
+
+  void _handleAreaChannelPost(int channelId, int msgId) {
+    // TODO: navigate to channel message when deep-link navigation is available
+  }
+
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     if (_composeFocused) {
@@ -4956,6 +5371,15 @@ class _StoriesViewerState extends State<StoriesViewer>
               if (!headerOutside) _buildHeader(story),
               if (story.isRepost) _buildRepostView(story),
               _buildNavTapZones(),
+              if (story.mediaAreas.isNotEmpty)
+                _StoryInteractiveAreas(
+                  areas: story.mediaAreas,
+                  contentWidth: w,
+                  contentHeight: h,
+                  onReaction: _handleAreaReaction,
+                  onUrl: _handleAreaUrl,
+                  onChannelPost: _handleAreaChannelPost,
+                ),
               if (story.caption.isNotEmpty) _buildCaption(story, w),
               _buildFooter(story),
             ],
