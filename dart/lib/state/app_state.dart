@@ -33,6 +33,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _passcodeLocked = false;
   int _passcodeBadTries = 0;
   DateTime? _passcodeLastTry;
+  Timer? _autoLockTimer;
+  int _shouldLockAt = 0; // millisecondsSinceEpoch when lock should trigger
+  int _lastNonIdleTime = 0; // millisecondsSinceEpoch of last user interaction
   bool _nativeWindowFrame = false;
   bool _mainMenuAccountsShown = false;
   bool _systemDarkMode = false;
@@ -752,6 +755,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         }
       } catch (_) {}
     }
+    _lastNonIdleTime = DateTime.now().millisecondsSinceEpoch;
+    checkAutoLock(_lastNonIdleTime);
   }
 
   bool get hasLocalPasscode {
@@ -776,6 +781,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _passcodeLocked = false;
     _passcodeBadTries = 0;
     _passcodeLastTry = null;
+    _lastNonIdleTime = DateTime.now().millisecondsSinceEpoch;
+    checkAutoLock(_lastNonIdleTime);
     notifyListeners();
   }
 
@@ -804,6 +811,69 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _passcodeBadTries++;
     _passcodeLastTry = DateTime.now();
     return false;
+  }
+
+  static const _kAutoLockTimeoutLateMs = 3000;
+
+  int _readAutoLockSeconds() {
+    if (_configDir.isEmpty) return 0;
+    final file = File('$_configDir/local_passcode.json');
+    if (!file.existsSync()) return 0;
+    try {
+      final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+      return (data['autoLockSeconds'] as int?) ?? 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  void checkAutoLock([int? lastNonIdle]) {
+    if (!hasLocalPasscode || _passcodeLocked || _accounts.isEmpty) {
+      _autoLockTimer?.cancel();
+      _shouldLockAt = 0;
+      return;
+    }
+    final autoLockSec = _readAutoLockSeconds();
+    if (autoLockSec <= 0) {
+      _autoLockTimer?.cancel();
+      _shouldLockAt = 0;
+      return;
+    }
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final idle = lastNonIdle ?? _lastNonIdleTime;
+    if (idle <= 0) {
+      _lastNonIdleTime = now;
+      _shouldLockAt = now + autoLockSec * 1000;
+      _autoLockTimer?.cancel();
+      _autoLockTimer = Timer(Duration(seconds: autoLockSec), () => checkAutoLock());
+      return;
+    }
+    final shouldLockInMs = autoLockSec * 1000;
+    final checkTimeMs = now - idle;
+    if (checkTimeMs >= shouldLockInMs ||
+        (_shouldLockAt > 0 && now > _shouldLockAt + _kAutoLockTimeoutLateMs)) {
+      lockByPasscode();
+      return;
+    }
+    final remaining = shouldLockInMs - checkTimeMs;
+    _shouldLockAt = idle + shouldLockInMs;
+    _autoLockTimer?.cancel();
+    _autoLockTimer = Timer(Duration(milliseconds: remaining), () => checkAutoLock());
+  }
+
+  void updateNonIdle() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (now - _lastNonIdleTime < 1000) return;
+    _lastNonIdleTime = now;
+    if (hasLocalPasscode && !_passcodeLocked && _readAutoLockSeconds() > 0) {
+      checkAutoLock(_lastNonIdleTime);
+    }
+  }
+
+  void localPasscodeChanged() {
+    _shouldLockAt = 0;
+    _autoLockTimer?.cancel();
+    checkAutoLock(DateTime.now().millisecondsSinceEpoch);
   }
 
   /// Switch to a different account. Notifies listeners so the UI rebuilds
@@ -1250,6 +1320,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _cmdPollTimer?.cancel();
+    _autoLockTimer?.cancel();
     for (final sub in _subs) {
       sub.cancel();
     }

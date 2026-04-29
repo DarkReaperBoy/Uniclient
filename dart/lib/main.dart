@@ -1520,7 +1520,12 @@ class _UniClientAppState extends State<UniClientApp>
       darkTheme: AppTheme.fromPalette(palette),
       themeMode: ThemeMode.light,
       builder: (context, navigator) {
-        return Stack(
+        return Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: (_) => appState.updateNonIdle(),
+          onPointerMove: (_) => appState.updateNonIdle(),
+          onPointerSignal: (_) => appState.updateNonIdle(),
+          child: Stack(
           children: [
             RepaintBoundary(
               key: _themeBoundaryKey,
@@ -1585,6 +1590,7 @@ class _UniClientAppState extends State<UniClientApp>
             const _ThemeRevertOverlay(),
             const Positioned.fill(child: _PasscodeLockScreen()),
           ],
+        ),
         );
       },
       home: const UniClientShell(),

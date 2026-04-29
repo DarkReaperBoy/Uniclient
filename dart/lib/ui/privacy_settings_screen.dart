@@ -313,7 +313,10 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
             Navigator.of(context).pushReplacement(settingsPageRoute(
               _LocalPasscodeManage(
                 configDir: dir,
-                onChanged: () => _loadPasscodeState(),
+                onChanged: () {
+                  _loadPasscodeState();
+                  context.read<AppState>().localPasscodeChanged();
+                },
               ),
             ));
           },
@@ -325,10 +328,14 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
           configDir: dir,
           onCreated: () {
             _loadPasscodeState();
+            context.read<AppState>().localPasscodeChanged();
             Navigator.of(context).pushReplacement(settingsPageRoute(
               _LocalPasscodeManage(
                 configDir: dir,
-                onChanged: () => _loadPasscodeState(),
+                onChanged: () {
+                  _loadPasscodeState();
+                  context.read<AppState>().localPasscodeChanged();
+                },
               ),
             ));
           },
@@ -4558,6 +4565,7 @@ class _LocalPasscodeManageState extends State<_LocalPasscodeManage> {
     data['autoLockSeconds'] = result;
     await _writePasscodeData(widget.configDir, data);
     setState(() => _autoLockSeconds = result);
+    widget.onChanged();
   }
 
   void _changePasscode() {
