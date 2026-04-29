@@ -1209,11 +1209,13 @@ class _ChatListPanelState extends State<ChatListPanel>
     try {
       final stories = await engine.fetchPeerStories(accountId, chat.chatId);
       if (stories.isEmpty || !mounted) return;
+      final selfId = appState.activeAccount?.selfUserId ?? '';
       StoriesViewer.open(
         context,
         stories: stories,
         peerName: chat.title,
         peerAvatarPath: chat.avatarPath,
+        isOwnStory: selfId.isNotEmpty && chat.chatId == selfId,
       );
     } catch (e) {
       debugPrint('Failed to load stories: $e');

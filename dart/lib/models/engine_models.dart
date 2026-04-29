@@ -2193,6 +2193,8 @@ class CloudThemeInfo {
   );
 }
 
+enum StoryPrivacy { public, closeFriends, contacts, selectedContacts }
+
 class StoryItem {
   final int id;
   final int date;
@@ -2206,6 +2208,7 @@ class StoryItem {
   final int views;
   final bool pinned;
   final bool edited;
+  final StoryPrivacy privacy;
 
   const StoryItem({
     required this.id,
@@ -2220,6 +2223,7 @@ class StoryItem {
     this.views = 0,
     this.pinned = false,
     this.edited = false,
+    this.privacy = StoryPrivacy.public,
   });
 
   bool get isVideo => mediaType == 'video';
@@ -2227,6 +2231,13 @@ class StoryItem {
 
   factory StoryItem.fromJson(Map<String, dynamic> j) {
     final fileRef = j['file_ref'] as Map<String, dynamic>? ?? {};
+    final privStr = j['privacy'] as String? ?? 'public';
+    final priv = switch (privStr) {
+      'close_friends' => StoryPrivacy.closeFriends,
+      'contacts' => StoryPrivacy.contacts,
+      'selected_contacts' => StoryPrivacy.selectedContacts,
+      _ => StoryPrivacy.public,
+    };
     return StoryItem(
       id: (j['id'] as num?)?.toInt() ?? 0,
       date: (j['date'] as num?)?.toInt() ?? 0,
@@ -2240,6 +2251,7 @@ class StoryItem {
       views: (j['views'] as num?)?.toInt() ?? 0,
       pinned: j['pinned'] as bool? ?? false,
       edited: j['edited'] as bool? ?? false,
+      privacy: priv,
     );
   }
 }

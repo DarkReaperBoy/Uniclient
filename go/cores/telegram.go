@@ -14677,6 +14677,7 @@ func (t *TelegramCore) FetchPeerStoriesData(peerID string) (string, error) {
 		Views     int     `json:"views"`
 		Pinned    bool    `json:"pinned"`
 		Edited    bool    `json:"edited"`
+		Privacy   string  `json:"privacy"`
 	}
 
 	var items []storyItem
@@ -14684,11 +14685,20 @@ func (t *TelegramCore) FetchPeerStoriesData(peerID string) (string, error) {
 		si, ok := sc.(*tg.StoryItem)
 		if !ok { continue }
 
+		privacy := "public"
+		if si.CloseFriends {
+			privacy = "close_friends"
+		} else if si.SelectedContacts {
+			privacy = "selected_contacts"
+		} else if si.Contacts {
+			privacy = "contacts"
+		}
 		item := storyItem{
 			ID:      si.ID,
 			Date:    si.Date,
 			Pinned:  si.Pinned,
 			Edited:  si.Edited,
+			Privacy: privacy,
 		}
 		if caption, ok := si.GetCaption(); ok {
 			item.Caption = caption

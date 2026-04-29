@@ -4044,6 +4044,7 @@ class StoriesViewer extends StatefulWidget {
   final int initialIndex;
   final String peerName;
   final String? peerAvatarPath;
+  final bool isOwnStory;
 
   const StoriesViewer({
     super.key,
@@ -4051,6 +4052,7 @@ class StoriesViewer extends StatefulWidget {
     this.initialIndex = 0,
     this.peerName = '',
     this.peerAvatarPath,
+    this.isOwnStory = false,
   });
 
   static void open(
@@ -4059,6 +4061,7 @@ class StoriesViewer extends StatefulWidget {
     int initialIndex = 0,
     String peerName = '',
     String? peerAvatarPath,
+    bool isOwnStory = false,
   }) {
     if (stories.isEmpty) return;
     Navigator.of(context).push(
@@ -4075,6 +4078,7 @@ class StoriesViewer extends StatefulWidget {
               initialIndex: initialIndex,
               peerName: peerName,
               peerAvatarPath: peerAvatarPath,
+              isOwnStory: isOwnStory,
             ),
           );
         },
@@ -4094,6 +4098,10 @@ class _StoriesViewerState extends State<StoriesViewer>
   bool _paused = false;
   bool _leftSiblingHovered = false;
   bool _rightSiblingHovered = false;
+  bool _muted = false;
+  bool _playHovered = false;
+  bool _volumeHovered = false;
+  bool _closeHovered = false;
 
   Player? _videoPlayer;
   VideoController? _videoController;
@@ -4407,19 +4415,30 @@ class _StoriesViewerState extends State<StoriesViewer>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (widget.peerAvatarPath != null && widget.peerAvatarPath!.isNotEmpty)
-            ClipOval(
-              child: Image.file(
-                File(widget.peerAvatarPath!),
-                width: 28,
-                height: 28,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _avatarFallback(28),
-              ),
-            )
-          else
-            _avatarFallback(28),
-          const SizedBox(width: 10),
+          SizedBox(
+            width: 28,
+            height: 28,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                if (widget.peerAvatarPath != null && widget.peerAvatarPath!.isNotEmpty)
+                  ClipOval(
+                    child: Image.file(
+                      File(widget.peerAvatarPath!),
+                      width: 28,
+                      height: 28,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _avatarFallback(28),
+                    ),
+                  )
+                else
+                  _avatarFallback(28),
+                if (widget.isOwnStory)
+                  _buildPrivacyBadge(story.privacy),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
           Text(
             widget.peerName,
             style: const TextStyle(
@@ -4443,6 +4462,23 @@ class _StoriesViewerState extends State<StoriesViewer>
               fontSize: 11,
             ),
           ),
+          const SizedBox(width: 8),
+          _buildStoryControlButton(
+            icon: _paused ? Icons.play_arrow : Icons.pause,
+            onTap: _paused ? _resumePlayback : _pausePlayback,
+            hovered: _playHovered,
+            onHover: (v) => setState(() => _playHovered = v),
+          ),
+          if (_current.isVideo)
+            _buildStoryControlButton(
+              icon: _muted ? Icons.volume_off : Icons.volume_up,
+              onTap: () {
+                setState(() => _muted = !_muted);
+                _videoPlayer?.setVolume(_muted ? 0.0 : 100.0);
+              },
+              hovered: _volumeHovered,
+              onHover: (v) => setState(() => _volumeHovered = v),
+            ),
         ],
       ),
     );
@@ -4515,78 +4551,149 @@ class _StoriesViewerState extends State<StoriesViewer>
     );
   }
 
+  Widget _buildPrivacyBadge(StoryPrivacy privacy) {
+    if (privacy == StoryPrivacy.public) return const SizedBox.shrink();
+    final (IconData icon, Color color) = switch (privacy) {
+      StoryPrivacy.closeFriends => (Icons.star, const Color(0xFF4DCC5E)),
+      StoryPrivacy.contacts => (Icons.people, Colors.white),
+      StoryPrivacy.selectedContacts => (Icons.person_outline, Colors.white),
+      StoryPrivacy.public => (Icons.public, Colors.white),
+    };
+    return Positioned(
+      right: -5,
+      bottom: -4,
+      child: Container(
+        width: 16,
+        height: 16,
+        decoration: BoxDecoration(
+          color: const Color(0xFF000000),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.black, width: 2),
+        ),
+        child: Icon(icon, size: 10, color: color),
+      ),
+    );
+  }
+
+  Widget _buildStoryControlButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    required bool hovered,
+    required ValueChanged<bool> onHover,
+    bool disabled = false,
+  }) {
+    final opacity = disabled ? 0.45 : (hovered ? 1.0 : 0.65);
+    return MouseRegion(
+      onEnter: (_) => onHover(true),
+      onExit: (_) => onHover(false),
+      child: GestureDetector(
+        onTap: disabled ? null : onTap,
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: Center(
+            child: Icon(icon, color: Colors.white.withValues(alpha: opacity), size: 24),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildHeader(StoryItem story) {
     return Positioned(
       top: _kStoriesProgressPadding.top + _kStoriesProgressHeight + 4,
       left: 12,
       right: 12,
-      child: Row(
-        children: [
-          if (widget.peerAvatarPath != null && widget.peerAvatarPath!.isNotEmpty)
-            ClipOval(
-              child: Image.file(
-                File(widget.peerAvatarPath!),
-                width: 28,
-                height: 28,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _avatarFallback(28),
+      bottom: null,
+      child: SizedBox(
+        height: 40,
+        child: Row(
+          children: [
+            SizedBox(
+              width: 28,
+              height: 28,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  if (widget.peerAvatarPath != null && widget.peerAvatarPath!.isNotEmpty)
+                    ClipOval(
+                      child: Image.file(
+                        File(widget.peerAvatarPath!),
+                        width: 28,
+                        height: 28,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _avatarFallback(28),
+                      ),
+                    )
+                  else
+                    _avatarFallback(28),
+                  if (widget.isOwnStory)
+                    _buildPrivacyBadge(story.privacy),
+                ],
               ),
-            )
-          else
-            _avatarFallback(28),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  widget.peerName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    widget.peerName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Row(
-                  children: [
-                    Text(
-                      _formatDate(story.date),
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.8),
-                        fontSize: 11,
+                  Row(
+                    children: [
+                      Text(
+                        _formatDate(story.date),
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.8),
+                          fontSize: 11,
+                        ),
                       ),
-                    ),
-                    Text(
-                      ' • ${_currentIndex + 1}/${widget.stories.length}',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.8),
-                        fontSize: 11,
+                      Text(
+                        ' • ${_currentIndex + 1}/${widget.stories.length}',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.8),
+                          fontSize: 11,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-          if (_paused)
-            GestureDetector(
-              onTap: _resumePlayback,
-              child: const Icon(Icons.play_arrow, color: Colors.white70, size: 24),
-            )
-          else
-            GestureDetector(
-              onTap: _pausePlayback,
-              child: const Icon(Icons.pause, color: Colors.white70, size: 24),
+            _buildStoryControlButton(
+              icon: _paused ? Icons.play_arrow : Icons.pause,
+              onTap: _paused ? _resumePlayback : _pausePlayback,
+              hovered: _playHovered,
+              onHover: (v) => setState(() => _playHovered = v),
             ),
-          const SizedBox(width: 8),
-          GestureDetector(
-            onTap: () => Navigator.of(context).maybePop(),
-            child: const Icon(Icons.close, color: Colors.white70, size: 24),
-          ),
-        ],
+            if (_current.isVideo)
+              _buildStoryControlButton(
+                icon: _muted ? Icons.volume_off : Icons.volume_up,
+                onTap: () {
+                  setState(() => _muted = !_muted);
+                  _videoPlayer?.setVolume(_muted ? 0.0 : 100.0);
+                },
+                hovered: _volumeHovered,
+                onHover: (v) => setState(() => _volumeHovered = v),
+              ),
+            _buildStoryControlButton(
+              icon: Icons.close,
+              onTap: () => Navigator.of(context).maybePop(),
+              hovered: _closeHovered,
+              onHover: (v) => setState(() => _closeHovered = v),
+            ),
+          ],
+        ),
       ),
     );
   }

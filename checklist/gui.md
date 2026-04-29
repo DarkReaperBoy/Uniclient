@@ -866,7 +866,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_list_row.dart (partial story ring) — new: dart/lib/ui/stories.dart -->
 
-- [ ] Story header: margin (12,4,12,8), avatar 28px, name/date labels, counter "3/7", privacy badges (Close Friends green star / Contacts / Selected / Public=none), timestamp formatting, play/pause + volume buttons — spec §32.3
 - [ ] Story reactions panel: 210/420px expandable, like button 42×42px, reaction bubble with two tail circles, scale-out 1000ms, weather areas with temp — spec §32.4
 - [ ] Story reply compose: dark #2c333d background, radius 21px, attachment button, field heightMin 36px/heightMax 72px, all buttons 42×42px, comments controls with unread dot — spec §32.5
 - [ ] Story caption: collapsed FlatLabel, tap-to-expand fadeWrap + sineInOut, pull-to-close 50px threshold, content fade to 0.6 — spec §32.6
