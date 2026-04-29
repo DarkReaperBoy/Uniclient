@@ -1296,6 +1296,44 @@ func (e *Engine) BotCallback(accountID, chatID, msgID, data string) (string, err
 	return answerer.GetBotCallbackAnswer(chatID, msgID, []byte(data))
 }
 
+type URLAuthRequester interface {
+	RequestURLAuth(chatID string, msgID string, buttonID int) (map[string]interface{}, error)
+}
+
+func (e *Engine) RequestURLAuth(accountID, chatID, msgID string, buttonID int) (map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	requester, ok := acc.Core.(URLAuthRequester)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support URL auth")
+	}
+	return requester.RequestURLAuth(chatID, msgID, buttonID)
+}
+
+type URLAuthAccepter interface {
+	AcceptURLAuth(chatID string, msgID string, buttonID int, writeAllowed bool, sharePhone bool) (string, error)
+}
+
+func (e *Engine) AcceptURLAuth(accountID, chatID, msgID string, buttonID int, writeAllowed, sharePhone bool) (string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return "", fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return "", fmt.Errorf("account not connected: %s", accountID)
+	}
+	accepter, ok := acc.Core.(URLAuthAccepter)
+	if !ok {
+		return "", fmt.Errorf("platform does not support URL auth")
+	}
+	return accepter.AcceptURLAuth(chatID, msgID, buttonID, writeAllowed, sharePhone)
+}
+
 type BotWebViewRequester interface {
 	RequestBotWebView(chatID string, botID string) (string, error)
 }

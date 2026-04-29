@@ -983,6 +983,18 @@ class ChatState extends ChangeNotifier {
     return _engine.requestBotWebView(chat.accountId, chat.chatId, botId);
   }
 
+  Future<Map<String, dynamic>> requestUrlAuth(String msgId, int buttonId) async {
+    final chat = _activeChat;
+    if (chat == null) return {'type': 'default'};
+    return _engine.requestUrlAuth(chat.accountId, chat.chatId, msgId, buttonId);
+  }
+
+  Future<String> acceptUrlAuth(String msgId, int buttonId, bool writeAllowed, bool sharePhone) async {
+    final chat = _activeChat;
+    if (chat == null) return '';
+    return _engine.acceptUrlAuth(chat.accountId, chat.chatId, msgId, buttonId, writeAllowed, sharePhone);
+  }
+
   Future<void> retryPending(String localId) async {
     await _engine.retryPending(localId);
   }

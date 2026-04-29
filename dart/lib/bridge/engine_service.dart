@@ -2209,6 +2209,43 @@ class EngineService {
     }
   }
 
+  Future<Map<String, dynamic>> requestUrlAuth(String accountId, String chatId, String msgId, int buttonId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'msg_id': msgId,
+      'button_id': buttonId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'RequestURLAuth', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return {'type': 'default'};
+      return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    } catch (e) {
+      Debug.error('ENGINE', 'requestUrlAuth failed', e);
+      return {'type': 'error', 'message': e.toString()};
+    }
+  }
+
+  Future<String> acceptUrlAuth(String accountId, String chatId, String msgId, int buttonId, bool writeAllowed, bool sharePhone) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'msg_id': msgId,
+      'button_id': buttonId,
+      'write_allowed': writeAllowed,
+      'share_phone': sharePhone,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'AcceptURLAuth', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return '';
+      final m = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return m['url'] as String? ?? '';
+    } catch (e) {
+      Debug.error('ENGINE', 'acceptUrlAuth failed', e);
+      return '';
+    }
+  }
+
   Future<void> pinMessage(String accountId, String chatId, String msgId, bool pinned) async {
     final req = epb.EnginePinMessageRequest()
       ..accountId = accountId

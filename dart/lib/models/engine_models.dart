@@ -992,6 +992,7 @@ class InlineKeyboardButton {
   final String data;
   final String query;
   final String copyText;
+  final int buttonId;
   final KeyboardButtonColor color;
 
   const InlineKeyboardButton({
@@ -1001,6 +1002,7 @@ class InlineKeyboardButton {
     this.data = '',
     this.query = '',
     this.copyText = '',
+    this.buttonId = 0,
     this.color = KeyboardButtonColor.normal,
   });
 
@@ -1019,6 +1021,7 @@ class InlineKeyboardButton {
       data: j['data'] as String? ?? '',
       query: j['query'] as String? ?? '',
       copyText: j['copy_text'] as String? ?? '',
+      buttonId: j['button_id'] as int? ?? 0,
       color: color,
     );
   }

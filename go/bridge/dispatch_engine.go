@@ -1989,6 +1989,40 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(map[string]string{"url": url})
 
+	case "RequestURLAuth":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			MsgID     string `json:"msg_id"`
+			ButtonID  int    `json:"button_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		result, err := e.RequestURLAuth(params.AccountID, params.ChatID, params.MsgID, params.ButtonID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(result)
+
+	case "AcceptURLAuth":
+		var params struct {
+			AccountID    string `json:"account_id"`
+			ChatID       string `json:"chat_id"`
+			MsgID        string `json:"msg_id"`
+			ButtonID     int    `json:"button_id"`
+			WriteAllowed bool   `json:"write_allowed"`
+			SharePhone   bool   `json:"share_phone"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		url, err := e.AcceptURLAuth(params.AccountID, params.ChatID, params.MsgID, params.ButtonID, params.WriteAllowed, params.SharePhone)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]string{"url": url})
+
 	case "GetInlineBotResults":
 		var params struct {
 			AccountID string `json:"account_id"`

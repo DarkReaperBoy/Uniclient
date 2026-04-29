@@ -6533,6 +6533,274 @@ class _InlineKeyboard extends StatelessWidget {
   }
 }
 
+Future<Map<String, dynamic>?> showUrlAuthDialog(
+  BuildContext context,
+  Map<String, dynamic> authData,
+  String fallbackUrl,
+) {
+  return showDialog<Map<String, dynamic>>(
+    context: context,
+    builder: (ctx) => _UrlAuthDialog(authData: authData, fallbackUrl: fallbackUrl),
+  );
+}
+
+class _UrlAuthDialog extends StatefulWidget {
+  final Map<String, dynamic> authData;
+  final String fallbackUrl;
+  const _UrlAuthDialog({required this.authData, required this.fallbackUrl});
+  @override
+  State<_UrlAuthDialog> createState() => _UrlAuthDialogState();
+}
+
+class _UrlAuthDialogState extends State<_UrlAuthDialog> {
+  late bool _authorize;
+  late bool _allowMessages;
+
+  @override
+  void initState() {
+    super.initState();
+    _authorize = true;
+    _allowMessages = widget.authData['request_write_access'] == true;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final domain = widget.authData['domain'] as String? ?? '';
+    final botName = widget.authData['bot_name'] as String? ?? '';
+    final botVerified = widget.authData['bot_verified'] == true;
+    final verifiedAppName = widget.authData['verified_app_name'] as String? ?? '';
+    final browser = widget.authData['browser'] as String? ?? '';
+    final platform = widget.authData['platform'] as String? ?? '';
+    final ip = widget.authData['ip'] as String? ?? '';
+    final region = widget.authData['region'] as String? ?? '';
+    final hasBotName = botName.isNotEmpty;
+    final hasDeviceInfo = browser.isNotEmpty || platform.isNotEmpty;
+    final hasLocationInfo = ip.isNotEmpty;
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 320),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 14, 8, 0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text.rich(
+                      TextSpan(children: [
+                        const TextSpan(text: 'Log in to '),
+                        if (verifiedAppName.isEmpty)
+                          TextSpan(
+                            text: '(unverified) ',
+                            style: TextStyle(color: theme.colorScheme.error, fontSize: 14),
+                          ),
+                        TextSpan(
+                          text: domain,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                      ]),
+                      style: TextStyle(fontSize: 14, color: theme.textTheme.bodyLarge?.color),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () => Navigator.of(context).pop(),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                  ),
+                ],
+              ),
+            ),
+            if (hasBotName) ...[
+              const SizedBox(height: 12),
+              Center(
+                child: Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3),
+                  ),
+                  child: Center(
+                    child: Text(
+                      botName.isNotEmpty ? botName[0].toUpperCase() : 'B',
+                      style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        botName,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                          color: theme.textTheme.bodyLarge?.color,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (botVerified) ...[
+                      const SizedBox(width: 4),
+                      Icon(Icons.verified, size: 16, color: isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3)),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+            if (hasDeviceInfo || hasLocationInfo) ...[
+              const Divider(height: 1),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
+                child: Column(
+                  children: [
+                    if (hasDeviceInfo)
+                      _buildInfoRow(
+                        Icons.devices,
+                        '${browser.isNotEmpty ? browser : "Unknown browser"} on ${platform.isNotEmpty ? platform : "Unknown platform"}',
+                        theme,
+                      ),
+                    if (hasDeviceInfo && hasLocationInfo) const SizedBox(height: 8),
+                    if (hasLocationInfo)
+                      _buildInfoRow(
+                        Icons.location_on_outlined,
+                        '${ip}${region.isNotEmpty ? ' ($region)' : ''}',
+                        theme,
+                      ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+            ],
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 12, 22, 0),
+              child: Column(
+                children: [
+                  _buildCheckbox(
+                    'Log in as ${_getCurrentUserName(context)}',
+                    _authorize,
+                    (v) => setState(() {
+                      _authorize = v ?? false;
+                      if (!_authorize) _allowMessages = false;
+                    }),
+                    enabled: true,
+                    theme: theme,
+                  ),
+                  if (hasBotName) ...[
+                    const SizedBox(height: 4),
+                    _buildCheckbox(
+                      'Allow $botName to message me',
+                      _allowMessages,
+                      (v) => setState(() => _allowMessages = v ?? false),
+                      enabled: _authorize,
+                      theme: theme,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  FilledButton(
+                    onPressed: () => Navigator.of(context).pop({
+                      'action': 'accept',
+                      'write_allowed': _authorize && _allowMessages,
+                      'share_phone': false,
+                    }),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(40),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    ),
+                    child: Text(_authorize ? 'Log in' : 'Open link'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: TextButton.styleFrom(
+                      minimumSize: const Size.fromHeight(40),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    ),
+                    child: const Text('Cancel'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String text, ThemeData theme) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: theme.textTheme.bodySmall?.color),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(fontSize: 14, color: theme.textTheme.bodyLarge?.color),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCheckbox(String label, bool value, ValueChanged<bool?> onChanged, {required bool enabled, required ThemeData theme}) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 18,
+          height: 18,
+          child: Checkbox(
+            value: value,
+            onChanged: enabled ? onChanged : null,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: GestureDetector(
+            onTap: enabled ? () => onChanged(!value) : null,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                color: enabled ? theme.textTheme.bodyLarge?.color : theme.disabledColor,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _getCurrentUserName(BuildContext context) {
+    try {
+      final appState = context.read<AppState>();
+      final active = appState.activeAccount;
+      if (active != null) return active.displayName;
+    } catch (_) {}
+    return 'your account';
+  }
+}
+
 class _InlineButton extends StatefulWidget {
   final InlineKeyboardButton button;
   final String messageId;
@@ -6645,13 +6913,51 @@ class _InlineButtonState extends State<_InlineButton>
     final btn = widget.button;
     switch (btn.type) {
       case 'url':
-      case 'url_auth':
         if (btn.url.isNotEmpty) {
           var url = btn.url;
           if (!url.startsWith('http://') && !url.startsWith('https://')) {
             url = 'https://$url';
           }
           Process.run('xdg-open', [url]);
+        }
+      case 'url_auth':
+        if (_loading) return;
+        setState(() => _loading = true);
+        try {
+          final chatState = context.read<ChatState>();
+          final authData = await chatState.requestUrlAuth(widget.messageId, btn.buttonId);
+          if (!mounted) return;
+          final authType = authData['type'] as String? ?? 'default';
+          if (authType == 'request') {
+            final result = await showUrlAuthDialog(context, authData, btn.url);
+            if (result == null || !mounted) return;
+            if (result['action'] == 'accept') {
+              final url = await chatState.acceptUrlAuth(
+                widget.messageId,
+                btn.buttonId,
+                result['write_allowed'] as bool? ?? false,
+                result['share_phone'] as bool? ?? false,
+              );
+              final openUrl = url.isNotEmpty ? url : btn.url;
+              if (openUrl.isNotEmpty) Process.run('xdg-open', [openUrl]);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Logged in to ${authData['domain'] ?? 'website'}'),
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+              }
+            } else if (result['action'] == 'open') {
+              if (btn.url.isNotEmpty) Process.run('xdg-open', [btn.url]);
+            }
+          } else {
+            if (btn.url.isNotEmpty) Process.run('xdg-open', [btn.url]);
+          }
+        } catch (_) {
+          if (btn.url.isNotEmpty) Process.run('xdg-open', [btn.url]);
+        } finally {
+          if (mounted) setState(() => _loading = false);
         }
       case 'copy':
         if (btn.copyText.isNotEmpty) {

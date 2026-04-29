@@ -10311,6 +10311,10 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 					case *tg.KeyboardButtonURLAuth:
 						b["type"] = "url_auth"
 						b["url"] = bt.URL
+						b["button_id"] = bt.ButtonID
+						if fwd, ok := bt.GetFwdText(); ok {
+							b["fwd_text"] = fwd
+						}
 					case *tg.KeyboardButtonWebView:
 						b["type"] = "web_view"
 						b["url"] = bt.URL
@@ -14099,6 +14103,80 @@ func (t *TelegramCore) GetBotCallbackAnswer(chatID string, msgID string, data []
 	})
 	if err != nil { return "", err }
 	return result.Message, nil
+}
+
+// RequestURLAuth requests URL auth metadata for an inline keyboard button.
+// Returns a JSON map: {"type":"request","domain":...,"bot_name":...,...} or {"type":"default"}.
+func (t *TelegramCore) RequestURLAuth(chatID string, msgID string, buttonID int) (map[string]interface{}, error) {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil { return nil, err }
+	defer unlock()
+	id, err := tgMsgID(msgID)
+	if err != nil { return nil, err }
+	req := &tg.MessagesRequestURLAuthRequest{}
+	req.SetPeer(inputPeer)
+	req.SetMsgID(id)
+	req.SetButtonID(buttonID)
+	result, err := t.api.MessagesRequestURLAuth(t.ctx, req)
+	if err != nil { return nil, err }
+	out := map[string]interface{}{}
+	switch r := result.(type) {
+	case *tg.URLAuthResultRequest:
+		out["type"] = "request"
+		out["domain"] = r.Domain
+		out["request_write_access"] = r.RequestWriteAccess
+		out["request_phone_number"] = r.RequestPhoneNumber
+		if bot, ok := r.Bot.(*tg.User); ok {
+			out["bot_id"] = fmt.Sprintf("%d", bot.ID)
+			out["bot_name"] = userDisplayName(bot)
+			if bot.Verified { out["bot_verified"] = true }
+			if photo, ok := bot.Photo.(*tg.UserProfilePhoto); ok {
+				out["bot_photo_id"] = fmt.Sprintf("%d", photo.PhotoID)
+			}
+		}
+		if v, ok := r.GetBrowser(); ok { out["browser"] = v }
+		if v, ok := r.GetPlatform(); ok { out["platform"] = v }
+		if v, ok := r.GetIP(); ok { out["ip"] = v }
+		if v, ok := r.GetRegion(); ok { out["region"] = v }
+		if v, ok := r.GetVerifiedAppName(); ok { out["verified_app_name"] = v }
+		if r.MatchCodesFirst {
+			out["match_codes_first"] = true
+			if codes, ok := r.GetMatchCodes(); ok {
+				out["match_codes"] = codes
+			}
+		}
+	case *tg.URLAuthResultAccepted:
+		out["type"] = "accepted"
+		if u, ok := r.GetURL(); ok { out["url"] = u }
+	default:
+		out["type"] = "default"
+	}
+	return out, nil
+}
+
+// AcceptURLAuth accepts a URL auth request and returns the result URL to open.
+func (t *TelegramCore) AcceptURLAuth(chatID string, msgID string, buttonID int, writeAllowed bool, sharePhone bool) (string, error) {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil { return "", err }
+	defer unlock()
+	id, err := tgMsgID(msgID)
+	if err != nil { return "", err }
+	req := &tg.MessagesAcceptURLAuthRequest{}
+	req.SetPeer(inputPeer)
+	req.SetMsgID(id)
+	req.SetButtonID(buttonID)
+	req.WriteAllowed = writeAllowed
+	req.SharePhoneNumber = sharePhone
+	req.SetFlags()
+	result, err := t.api.MessagesAcceptURLAuth(t.ctx, req)
+	if err != nil { return "", err }
+	switch r := result.(type) {
+	case *tg.URLAuthResultAccepted:
+		if u, ok := r.GetURL(); ok { return u, nil }
+		return "", nil
+	default:
+		return "", nil
+	}
 }
 
 // RequestBotWebView opens the main web view for a bot and returns the URL.
