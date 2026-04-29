@@ -1191,6 +1191,51 @@ message EngineFetchPeerStoriesResponse {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// Story Albums (profile stories grid)
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineGetStoryAlbumsRequest {
+  string account_id = 1;
+}
+
+message EngineStoryAlbum {
+  int64  id    = 1;
+  string title = 2;
+  int32  count = 3;
+}
+
+message EngineGetStoryAlbumsResponse {
+  repeated EngineStoryAlbum albums = 1;
+}
+
+message EngineGetAlbumStoriesRequest {
+  string account_id = 1;
+  int64  album_id   = 2;
+  int32  offset     = 3;
+  int32  limit      = 4;
+}
+
+message EngineGetAlbumStoriesResponse {
+  string stories_json = 1;
+  int32  total_count  = 2;
+}
+
+message EngineCreateStoryAlbumRequest {
+  string account_id = 1;
+  string title      = 2;
+}
+
+message EngineCreateStoryAlbumResponse {
+  int64  album_id = 1;
+  string title    = 2;
+}
+
+message EngineReorderStoryAlbumsRequest {
+  string account_id      = 1;
+  repeated int64 album_ids = 2;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // Custom Emoji Thumbnails (for forum topic icons)
 // ═══════════════════════════════════════════════════════════════════════
 

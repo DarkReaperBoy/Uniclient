@@ -2573,6 +2573,63 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			StoriesJson: storiesJSON,
 		})
 
+	case "GetStoryAlbums":
+		var req pb.EngineGetStoryAlbumsRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		albums, err := e.GetStoryAlbums(req.AccountId)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetStoryAlbumsResponse{}
+		for _, a := range albums {
+			resp.Albums = append(resp.Albums, &pb.EngineStoryAlbum{
+				Id:    a.ID,
+				Title: a.Title,
+				Count: int32(a.Count),
+			})
+		}
+		return proto.Marshal(resp)
+
+	case "GetAlbumStories":
+		var req pb.EngineGetAlbumStoriesRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		storiesJSON, totalCount, err := e.GetAlbumStories(req.AccountId, int64(req.AlbumId), int(req.Offset), int(req.Limit))
+		if err != nil {
+			return nil, err
+		}
+		return proto.Marshal(&pb.EngineGetAlbumStoriesResponse{
+			StoriesJson: storiesJSON,
+			TotalCount:  int32(totalCount),
+		})
+
+	case "CreateStoryAlbum":
+		var req pb.EngineCreateStoryAlbumRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		albumID, title, err := e.CreateStoryAlbum(req.AccountId, req.Title)
+		if err != nil {
+			return nil, err
+		}
+		return proto.Marshal(&pb.EngineCreateStoryAlbumResponse{
+			AlbumId: albumID,
+			Title:   title,
+		})
+
+	case "ReorderStoryAlbums":
+		var req pb.EngineReorderStoryAlbumsRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		if err := e.ReorderStoryAlbums(req.AccountId, req.AlbumIds); err != nil {
+			return nil, err
+		}
+		return []byte{}, nil
+
 	case "GetDefaultHistoryTTL":
 		var params struct {
 			AccountID string `json:"account_id"`

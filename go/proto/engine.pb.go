@@ -10004,6 +10004,430 @@ func (x *EngineFetchPeerStoriesResponse) GetStoriesJson() string {
 	return ""
 }
 
+type EngineGetStoryAlbumsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetStoryAlbumsRequest) Reset() {
+	*x = EngineGetStoryAlbumsRequest{}
+	mi := &file_proto_engine_proto_msgTypes[155]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetStoryAlbumsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetStoryAlbumsRequest) ProtoMessage() {}
+
+func (x *EngineGetStoryAlbumsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[155]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetStoryAlbumsRequest.ProtoReflect.Descriptor instead.
+func (*EngineGetStoryAlbumsRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{155}
+}
+
+func (x *EngineGetStoryAlbumsRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+type EngineStoryAlbum struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Title         string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	Count         int32                  `protobuf:"varint,3,opt,name=count,proto3" json:"count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineStoryAlbum) Reset() {
+	*x = EngineStoryAlbum{}
+	mi := &file_proto_engine_proto_msgTypes[156]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineStoryAlbum) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineStoryAlbum) ProtoMessage() {}
+
+func (x *EngineStoryAlbum) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[156]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineStoryAlbum.ProtoReflect.Descriptor instead.
+func (*EngineStoryAlbum) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{156}
+}
+
+func (x *EngineStoryAlbum) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *EngineStoryAlbum) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *EngineStoryAlbum) GetCount() int32 {
+	if x != nil {
+		return x.Count
+	}
+	return 0
+}
+
+type EngineGetStoryAlbumsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Albums        []*EngineStoryAlbum    `protobuf:"bytes,1,rep,name=albums,proto3" json:"albums,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetStoryAlbumsResponse) Reset() {
+	*x = EngineGetStoryAlbumsResponse{}
+	mi := &file_proto_engine_proto_msgTypes[157]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetStoryAlbumsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetStoryAlbumsResponse) ProtoMessage() {}
+
+func (x *EngineGetStoryAlbumsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[157]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetStoryAlbumsResponse.ProtoReflect.Descriptor instead.
+func (*EngineGetStoryAlbumsResponse) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{157}
+}
+
+func (x *EngineGetStoryAlbumsResponse) GetAlbums() []*EngineStoryAlbum {
+	if x != nil {
+		return x.Albums
+	}
+	return nil
+}
+
+type EngineGetAlbumStoriesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	AlbumId       int64                  `protobuf:"varint,2,opt,name=album_id,json=albumId,proto3" json:"album_id,omitempty"`
+	Offset        int32                  `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"`
+	Limit         int32                  `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetAlbumStoriesRequest) Reset() {
+	*x = EngineGetAlbumStoriesRequest{}
+	mi := &file_proto_engine_proto_msgTypes[158]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetAlbumStoriesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetAlbumStoriesRequest) ProtoMessage() {}
+
+func (x *EngineGetAlbumStoriesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[158]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetAlbumStoriesRequest.ProtoReflect.Descriptor instead.
+func (*EngineGetAlbumStoriesRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{158}
+}
+
+func (x *EngineGetAlbumStoriesRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineGetAlbumStoriesRequest) GetAlbumId() int64 {
+	if x != nil {
+		return x.AlbumId
+	}
+	return 0
+}
+
+func (x *EngineGetAlbumStoriesRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *EngineGetAlbumStoriesRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+type EngineGetAlbumStoriesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	StoriesJson   string                 `protobuf:"bytes,1,opt,name=stories_json,json=storiesJson,proto3" json:"stories_json,omitempty"`
+	TotalCount    int32                  `protobuf:"varint,2,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetAlbumStoriesResponse) Reset() {
+	*x = EngineGetAlbumStoriesResponse{}
+	mi := &file_proto_engine_proto_msgTypes[159]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetAlbumStoriesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetAlbumStoriesResponse) ProtoMessage() {}
+
+func (x *EngineGetAlbumStoriesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[159]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetAlbumStoriesResponse.ProtoReflect.Descriptor instead.
+func (*EngineGetAlbumStoriesResponse) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{159}
+}
+
+func (x *EngineGetAlbumStoriesResponse) GetStoriesJson() string {
+	if x != nil {
+		return x.StoriesJson
+	}
+	return ""
+}
+
+func (x *EngineGetAlbumStoriesResponse) GetTotalCount() int32 {
+	if x != nil {
+		return x.TotalCount
+	}
+	return 0
+}
+
+type EngineCreateStoryAlbumRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	Title         string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineCreateStoryAlbumRequest) Reset() {
+	*x = EngineCreateStoryAlbumRequest{}
+	mi := &file_proto_engine_proto_msgTypes[160]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineCreateStoryAlbumRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineCreateStoryAlbumRequest) ProtoMessage() {}
+
+func (x *EngineCreateStoryAlbumRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[160]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineCreateStoryAlbumRequest.ProtoReflect.Descriptor instead.
+func (*EngineCreateStoryAlbumRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{160}
+}
+
+func (x *EngineCreateStoryAlbumRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineCreateStoryAlbumRequest) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+type EngineCreateStoryAlbumResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AlbumId       int64                  `protobuf:"varint,1,opt,name=album_id,json=albumId,proto3" json:"album_id,omitempty"`
+	Title         string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineCreateStoryAlbumResponse) Reset() {
+	*x = EngineCreateStoryAlbumResponse{}
+	mi := &file_proto_engine_proto_msgTypes[161]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineCreateStoryAlbumResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineCreateStoryAlbumResponse) ProtoMessage() {}
+
+func (x *EngineCreateStoryAlbumResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[161]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineCreateStoryAlbumResponse.ProtoReflect.Descriptor instead.
+func (*EngineCreateStoryAlbumResponse) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{161}
+}
+
+func (x *EngineCreateStoryAlbumResponse) GetAlbumId() int64 {
+	if x != nil {
+		return x.AlbumId
+	}
+	return 0
+}
+
+func (x *EngineCreateStoryAlbumResponse) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+type EngineReorderStoryAlbumsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	AlbumIds      []int64                `protobuf:"varint,2,rep,packed,name=album_ids,json=albumIds,proto3" json:"album_ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineReorderStoryAlbumsRequest) Reset() {
+	*x = EngineReorderStoryAlbumsRequest{}
+	mi := &file_proto_engine_proto_msgTypes[162]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineReorderStoryAlbumsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineReorderStoryAlbumsRequest) ProtoMessage() {}
+
+func (x *EngineReorderStoryAlbumsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[162]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineReorderStoryAlbumsRequest.ProtoReflect.Descriptor instead.
+func (*EngineReorderStoryAlbumsRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{162}
+}
+
+func (x *EngineReorderStoryAlbumsRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineReorderStoryAlbumsRequest) GetAlbumIds() []int64 {
+	if x != nil {
+		return x.AlbumIds
+	}
+	return nil
+}
+
 type EngineGetCustomEmojiThumbsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
@@ -10014,7 +10438,7 @@ type EngineGetCustomEmojiThumbsRequest struct {
 
 func (x *EngineGetCustomEmojiThumbsRequest) Reset() {
 	*x = EngineGetCustomEmojiThumbsRequest{}
-	mi := &file_proto_engine_proto_msgTypes[155]
+	mi := &file_proto_engine_proto_msgTypes[163]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10026,7 +10450,7 @@ func (x *EngineGetCustomEmojiThumbsRequest) String() string {
 func (*EngineGetCustomEmojiThumbsRequest) ProtoMessage() {}
 
 func (x *EngineGetCustomEmojiThumbsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[155]
+	mi := &file_proto_engine_proto_msgTypes[163]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10039,7 +10463,7 @@ func (x *EngineGetCustomEmojiThumbsRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use EngineGetCustomEmojiThumbsRequest.ProtoReflect.Descriptor instead.
 func (*EngineGetCustomEmojiThumbsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{155}
+	return file_proto_engine_proto_rawDescGZIP(), []int{163}
 }
 
 func (x *EngineGetCustomEmojiThumbsRequest) GetAccountId() string {
@@ -10066,7 +10490,7 @@ type EngineCustomEmojiThumb struct {
 
 func (x *EngineCustomEmojiThumb) Reset() {
 	*x = EngineCustomEmojiThumb{}
-	mi := &file_proto_engine_proto_msgTypes[156]
+	mi := &file_proto_engine_proto_msgTypes[164]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10078,7 +10502,7 @@ func (x *EngineCustomEmojiThumb) String() string {
 func (*EngineCustomEmojiThumb) ProtoMessage() {}
 
 func (x *EngineCustomEmojiThumb) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[156]
+	mi := &file_proto_engine_proto_msgTypes[164]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10091,7 +10515,7 @@ func (x *EngineCustomEmojiThumb) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineCustomEmojiThumb.ProtoReflect.Descriptor instead.
 func (*EngineCustomEmojiThumb) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{156}
+	return file_proto_engine_proto_rawDescGZIP(), []int{164}
 }
 
 func (x *EngineCustomEmojiThumb) GetDocumentId() int64 {
@@ -10117,7 +10541,7 @@ type EngineGetCustomEmojiThumbsResponse struct {
 
 func (x *EngineGetCustomEmojiThumbsResponse) Reset() {
 	*x = EngineGetCustomEmojiThumbsResponse{}
-	mi := &file_proto_engine_proto_msgTypes[157]
+	mi := &file_proto_engine_proto_msgTypes[165]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10129,7 +10553,7 @@ func (x *EngineGetCustomEmojiThumbsResponse) String() string {
 func (*EngineGetCustomEmojiThumbsResponse) ProtoMessage() {}
 
 func (x *EngineGetCustomEmojiThumbsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[157]
+	mi := &file_proto_engine_proto_msgTypes[165]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10142,7 +10566,7 @@ func (x *EngineGetCustomEmojiThumbsResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use EngineGetCustomEmojiThumbsResponse.ProtoReflect.Descriptor instead.
 func (*EngineGetCustomEmojiThumbsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{157}
+	return file_proto_engine_proto_rawDescGZIP(), []int{165}
 }
 
 func (x *EngineGetCustomEmojiThumbsResponse) GetThumbs() []*EngineCustomEmojiThumb {
@@ -10165,7 +10589,7 @@ type EngineGetSavedSublistsRequest struct {
 
 func (x *EngineGetSavedSublistsRequest) Reset() {
 	*x = EngineGetSavedSublistsRequest{}
-	mi := &file_proto_engine_proto_msgTypes[158]
+	mi := &file_proto_engine_proto_msgTypes[166]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10177,7 +10601,7 @@ func (x *EngineGetSavedSublistsRequest) String() string {
 func (*EngineGetSavedSublistsRequest) ProtoMessage() {}
 
 func (x *EngineGetSavedSublistsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[158]
+	mi := &file_proto_engine_proto_msgTypes[166]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10190,7 +10614,7 @@ func (x *EngineGetSavedSublistsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineGetSavedSublistsRequest.ProtoReflect.Descriptor instead.
 func (*EngineGetSavedSublistsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{158}
+	return file_proto_engine_proto_rawDescGZIP(), []int{166}
 }
 
 func (x *EngineGetSavedSublistsRequest) GetAccountId() string {
@@ -10246,7 +10670,7 @@ type EngineSavedSublist struct {
 
 func (x *EngineSavedSublist) Reset() {
 	*x = EngineSavedSublist{}
-	mi := &file_proto_engine_proto_msgTypes[159]
+	mi := &file_proto_engine_proto_msgTypes[167]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10258,7 +10682,7 @@ func (x *EngineSavedSublist) String() string {
 func (*EngineSavedSublist) ProtoMessage() {}
 
 func (x *EngineSavedSublist) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[159]
+	mi := &file_proto_engine_proto_msgTypes[167]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10271,7 +10695,7 @@ func (x *EngineSavedSublist) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineSavedSublist.ProtoReflect.Descriptor instead.
 func (*EngineSavedSublist) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{159}
+	return file_proto_engine_proto_rawDescGZIP(), []int{167}
 }
 
 func (x *EngineSavedSublist) GetPeerId() string {
@@ -10354,7 +10778,7 @@ type EngineGetSavedSublistsResponse struct {
 
 func (x *EngineGetSavedSublistsResponse) Reset() {
 	*x = EngineGetSavedSublistsResponse{}
-	mi := &file_proto_engine_proto_msgTypes[160]
+	mi := &file_proto_engine_proto_msgTypes[168]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10366,7 +10790,7 @@ func (x *EngineGetSavedSublistsResponse) String() string {
 func (*EngineGetSavedSublistsResponse) ProtoMessage() {}
 
 func (x *EngineGetSavedSublistsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[160]
+	mi := &file_proto_engine_proto_msgTypes[168]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10379,7 +10803,7 @@ func (x *EngineGetSavedSublistsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineGetSavedSublistsResponse.ProtoReflect.Descriptor instead.
 func (*EngineGetSavedSublistsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{160}
+	return file_proto_engine_proto_rawDescGZIP(), []int{168}
 }
 
 func (x *EngineGetSavedSublistsResponse) GetSublists() []*EngineSavedSublist {
@@ -10406,7 +10830,7 @@ type EngineGetSavedReactionTagsRequest struct {
 
 func (x *EngineGetSavedReactionTagsRequest) Reset() {
 	*x = EngineGetSavedReactionTagsRequest{}
-	mi := &file_proto_engine_proto_msgTypes[161]
+	mi := &file_proto_engine_proto_msgTypes[169]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10418,7 +10842,7 @@ func (x *EngineGetSavedReactionTagsRequest) String() string {
 func (*EngineGetSavedReactionTagsRequest) ProtoMessage() {}
 
 func (x *EngineGetSavedReactionTagsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[161]
+	mi := &file_proto_engine_proto_msgTypes[169]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10431,7 +10855,7 @@ func (x *EngineGetSavedReactionTagsRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use EngineGetSavedReactionTagsRequest.ProtoReflect.Descriptor instead.
 func (*EngineGetSavedReactionTagsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{161}
+	return file_proto_engine_proto_rawDescGZIP(), []int{169}
 }
 
 func (x *EngineGetSavedReactionTagsRequest) GetAccountId() string {
@@ -10460,7 +10884,7 @@ type EngineSavedReactionTag struct {
 
 func (x *EngineSavedReactionTag) Reset() {
 	*x = EngineSavedReactionTag{}
-	mi := &file_proto_engine_proto_msgTypes[162]
+	mi := &file_proto_engine_proto_msgTypes[170]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10472,7 +10896,7 @@ func (x *EngineSavedReactionTag) String() string {
 func (*EngineSavedReactionTag) ProtoMessage() {}
 
 func (x *EngineSavedReactionTag) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[162]
+	mi := &file_proto_engine_proto_msgTypes[170]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10485,7 +10909,7 @@ func (x *EngineSavedReactionTag) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineSavedReactionTag.ProtoReflect.Descriptor instead.
 func (*EngineSavedReactionTag) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{162}
+	return file_proto_engine_proto_rawDescGZIP(), []int{170}
 }
 
 func (x *EngineSavedReactionTag) GetEmoji() string {
@@ -10525,7 +10949,7 @@ type EngineGetSavedReactionTagsResponse struct {
 
 func (x *EngineGetSavedReactionTagsResponse) Reset() {
 	*x = EngineGetSavedReactionTagsResponse{}
-	mi := &file_proto_engine_proto_msgTypes[163]
+	mi := &file_proto_engine_proto_msgTypes[171]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10537,7 +10961,7 @@ func (x *EngineGetSavedReactionTagsResponse) String() string {
 func (*EngineGetSavedReactionTagsResponse) ProtoMessage() {}
 
 func (x *EngineGetSavedReactionTagsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[163]
+	mi := &file_proto_engine_proto_msgTypes[171]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10550,7 +10974,7 @@ func (x *EngineGetSavedReactionTagsResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use EngineGetSavedReactionTagsResponse.ProtoReflect.Descriptor instead.
 func (*EngineGetSavedReactionTagsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{163}
+	return file_proto_engine_proto_rawDescGZIP(), []int{171}
 }
 
 func (x *EngineGetSavedReactionTagsResponse) GetTags() []*EngineSavedReactionTag {
@@ -10572,7 +10996,7 @@ type EngineRenameSavedReactionTagRequest struct {
 
 func (x *EngineRenameSavedReactionTagRequest) Reset() {
 	*x = EngineRenameSavedReactionTagRequest{}
-	mi := &file_proto_engine_proto_msgTypes[164]
+	mi := &file_proto_engine_proto_msgTypes[172]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10584,7 +11008,7 @@ func (x *EngineRenameSavedReactionTagRequest) String() string {
 func (*EngineRenameSavedReactionTagRequest) ProtoMessage() {}
 
 func (x *EngineRenameSavedReactionTagRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[164]
+	mi := &file_proto_engine_proto_msgTypes[172]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10597,7 +11021,7 @@ func (x *EngineRenameSavedReactionTagRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use EngineRenameSavedReactionTagRequest.ProtoReflect.Descriptor instead.
 func (*EngineRenameSavedReactionTagRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{164}
+	return file_proto_engine_proto_rawDescGZIP(), []int{172}
 }
 
 func (x *EngineRenameSavedReactionTagRequest) GetAccountId() string {
@@ -11499,7 +11923,37 @@ const file_proto_engine_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
 	"\apeer_id\x18\x02 \x01(\tR\x06peerId\"C\n" +
 	"\x1eEngineFetchPeerStoriesResponse\x12!\n" +
-	"\fstories_json\x18\x01 \x01(\tR\vstoriesJson\"e\n" +
+	"\fstories_json\x18\x01 \x01(\tR\vstoriesJson\"<\n" +
+	"\x1bEngineGetStoryAlbumsRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\"N\n" +
+	"\x10EngineStoryAlbum\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x14\n" +
+	"\x05title\x18\x02 \x01(\tR\x05title\x12\x14\n" +
+	"\x05count\x18\x03 \x01(\x05R\x05count\"S\n" +
+	"\x1cEngineGetStoryAlbumsResponse\x123\n" +
+	"\x06albums\x18\x01 \x03(\v2\x1b.uniclient.EngineStoryAlbumR\x06albums\"\x86\x01\n" +
+	"\x1cEngineGetAlbumStoriesRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x19\n" +
+	"\balbum_id\x18\x02 \x01(\x03R\aalbumId\x12\x16\n" +
+	"\x06offset\x18\x03 \x01(\x05R\x06offset\x12\x14\n" +
+	"\x05limit\x18\x04 \x01(\x05R\x05limit\"c\n" +
+	"\x1dEngineGetAlbumStoriesResponse\x12!\n" +
+	"\fstories_json\x18\x01 \x01(\tR\vstoriesJson\x12\x1f\n" +
+	"\vtotal_count\x18\x02 \x01(\x05R\n" +
+	"totalCount\"T\n" +
+	"\x1dEngineCreateStoryAlbumRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x14\n" +
+	"\x05title\x18\x02 \x01(\tR\x05title\"Q\n" +
+	"\x1eEngineCreateStoryAlbumResponse\x12\x19\n" +
+	"\balbum_id\x18\x01 \x01(\x03R\aalbumId\x12\x14\n" +
+	"\x05title\x18\x02 \x01(\tR\x05title\"]\n" +
+	"\x1fEngineReorderStoryAlbumsRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x1b\n" +
+	"\talbum_ids\x18\x02 \x03(\x03R\balbumIds\"e\n" +
 	"!EngineGetCustomEmojiThumbsRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12!\n" +
@@ -11566,7 +12020,7 @@ func file_proto_engine_proto_rawDescGZIP() []byte {
 	return file_proto_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 165)
+var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 173)
 var file_proto_engine_proto_goTypes = []any{
 	(*EngineEvent)(nil),                            // 0: uniclient.EngineEvent
 	(*AccountInfo)(nil),                            // 1: uniclient.AccountInfo
@@ -11723,16 +12177,24 @@ var file_proto_engine_proto_goTypes = []any{
 	(*EngineSendCallRatingRequest)(nil),            // 152: uniclient.EngineSendCallRatingRequest
 	(*EngineFetchPeerStoriesRequest)(nil),          // 153: uniclient.EngineFetchPeerStoriesRequest
 	(*EngineFetchPeerStoriesResponse)(nil),         // 154: uniclient.EngineFetchPeerStoriesResponse
-	(*EngineGetCustomEmojiThumbsRequest)(nil),      // 155: uniclient.EngineGetCustomEmojiThumbsRequest
-	(*EngineCustomEmojiThumb)(nil),                 // 156: uniclient.EngineCustomEmojiThumb
-	(*EngineGetCustomEmojiThumbsResponse)(nil),     // 157: uniclient.EngineGetCustomEmojiThumbsResponse
-	(*EngineGetSavedSublistsRequest)(nil),          // 158: uniclient.EngineGetSavedSublistsRequest
-	(*EngineSavedSublist)(nil),                     // 159: uniclient.EngineSavedSublist
-	(*EngineGetSavedSublistsResponse)(nil),         // 160: uniclient.EngineGetSavedSublistsResponse
-	(*EngineGetSavedReactionTagsRequest)(nil),      // 161: uniclient.EngineGetSavedReactionTagsRequest
-	(*EngineSavedReactionTag)(nil),                 // 162: uniclient.EngineSavedReactionTag
-	(*EngineGetSavedReactionTagsResponse)(nil),     // 163: uniclient.EngineGetSavedReactionTagsResponse
-	(*EngineRenameSavedReactionTagRequest)(nil),    // 164: uniclient.EngineRenameSavedReactionTagRequest
+	(*EngineGetStoryAlbumsRequest)(nil),            // 155: uniclient.EngineGetStoryAlbumsRequest
+	(*EngineStoryAlbum)(nil),                       // 156: uniclient.EngineStoryAlbum
+	(*EngineGetStoryAlbumsResponse)(nil),           // 157: uniclient.EngineGetStoryAlbumsResponse
+	(*EngineGetAlbumStoriesRequest)(nil),           // 158: uniclient.EngineGetAlbumStoriesRequest
+	(*EngineGetAlbumStoriesResponse)(nil),          // 159: uniclient.EngineGetAlbumStoriesResponse
+	(*EngineCreateStoryAlbumRequest)(nil),          // 160: uniclient.EngineCreateStoryAlbumRequest
+	(*EngineCreateStoryAlbumResponse)(nil),         // 161: uniclient.EngineCreateStoryAlbumResponse
+	(*EngineReorderStoryAlbumsRequest)(nil),        // 162: uniclient.EngineReorderStoryAlbumsRequest
+	(*EngineGetCustomEmojiThumbsRequest)(nil),      // 163: uniclient.EngineGetCustomEmojiThumbsRequest
+	(*EngineCustomEmojiThumb)(nil),                 // 164: uniclient.EngineCustomEmojiThumb
+	(*EngineGetCustomEmojiThumbsResponse)(nil),     // 165: uniclient.EngineGetCustomEmojiThumbsResponse
+	(*EngineGetSavedSublistsRequest)(nil),          // 166: uniclient.EngineGetSavedSublistsRequest
+	(*EngineSavedSublist)(nil),                     // 167: uniclient.EngineSavedSublist
+	(*EngineGetSavedSublistsResponse)(nil),         // 168: uniclient.EngineGetSavedSublistsResponse
+	(*EngineGetSavedReactionTagsRequest)(nil),      // 169: uniclient.EngineGetSavedReactionTagsRequest
+	(*EngineSavedReactionTag)(nil),                 // 170: uniclient.EngineSavedReactionTag
+	(*EngineGetSavedReactionTagsResponse)(nil),     // 171: uniclient.EngineGetSavedReactionTagsResponse
+	(*EngineRenameSavedReactionTagRequest)(nil),    // 172: uniclient.EngineRenameSavedReactionTagRequest
 }
 var file_proto_engine_proto_depIdxs = []int32{
 	1,   // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
@@ -11768,14 +12230,15 @@ var file_proto_engine_proto_depIdxs = []int32{
 	140, // 30: uniclient.EngineGetFeaturedStickerPacksResponse.packs:type_name -> uniclient.EngineStickerPackSummary
 	140, // 31: uniclient.EngineSearchStickerSetsResponse.packs:type_name -> uniclient.EngineStickerPackSummary
 	102, // 32: uniclient.EngineGetStickerSuggestionsResponse.stickers:type_name -> uniclient.EngineStickerInfo
-	156, // 33: uniclient.EngineGetCustomEmojiThumbsResponse.thumbs:type_name -> uniclient.EngineCustomEmojiThumb
-	159, // 34: uniclient.EngineGetSavedSublistsResponse.sublists:type_name -> uniclient.EngineSavedSublist
-	162, // 35: uniclient.EngineGetSavedReactionTagsResponse.tags:type_name -> uniclient.EngineSavedReactionTag
-	36,  // [36:36] is the sub-list for method output_type
-	36,  // [36:36] is the sub-list for method input_type
-	36,  // [36:36] is the sub-list for extension type_name
-	36,  // [36:36] is the sub-list for extension extendee
-	0,   // [0:36] is the sub-list for field type_name
+	156, // 33: uniclient.EngineGetStoryAlbumsResponse.albums:type_name -> uniclient.EngineStoryAlbum
+	164, // 34: uniclient.EngineGetCustomEmojiThumbsResponse.thumbs:type_name -> uniclient.EngineCustomEmojiThumb
+	167, // 35: uniclient.EngineGetSavedSublistsResponse.sublists:type_name -> uniclient.EngineSavedSublist
+	170, // 36: uniclient.EngineGetSavedReactionTagsResponse.tags:type_name -> uniclient.EngineSavedReactionTag
+	37,  // [37:37] is the sub-list for method output_type
+	37,  // [37:37] is the sub-list for method input_type
+	37,  // [37:37] is the sub-list for extension type_name
+	37,  // [37:37] is the sub-list for extension extendee
+	0,   // [0:37] is the sub-list for field type_name
 }
 
 func init() { file_proto_engine_proto_init() }
@@ -11789,7 +12252,7 @@ func file_proto_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   165,
+			NumMessages:   173,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

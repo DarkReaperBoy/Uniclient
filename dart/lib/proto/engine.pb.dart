@@ -11573,6 +11573,274 @@ class EngineFetchPeerStoriesResponse extends $pb.GeneratedMessage {
   set storiesJson($core.String v) { $_setString(0, v); }
 }
 
+// ── Story Albums ──
+
+class EngineGetStoryAlbumsRequest extends $pb.GeneratedMessage {
+  factory EngineGetStoryAlbumsRequest({$core.String? accountId}) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    return $result;
+  }
+  EngineGetStoryAlbumsRequest._() : super();
+  factory EngineGetStoryAlbumsRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetStoryAlbumsRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..hasRequiredFields = false;
+  @$core.Deprecated('Use deepCopy instead')
+  EngineGetStoryAlbumsRequest clone() => EngineGetStoryAlbumsRequest()..mergeFromMessage(this);
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineGetStoryAlbumsRequest create() => EngineGetStoryAlbumsRequest._();
+  EngineGetStoryAlbumsRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineGetStoryAlbumsRequest> createRepeated() => $pb.PbList<EngineGetStoryAlbumsRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetStoryAlbumsRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetStoryAlbumsRequest>(create);
+  static EngineGetStoryAlbumsRequest? _defaultInstance;
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+}
+
+class EngineStoryAlbum extends $pb.GeneratedMessage {
+  factory EngineStoryAlbum({$fixnum.Int64? id, $core.String? title, $core.int? count}) {
+    final $result = create();
+    if (id != null) $result.id = id;
+    if (title != null) $result.title = title;
+    if (count != null) $result.count = count;
+    return $result;
+  }
+  EngineStoryAlbum._() : super();
+  factory EngineStoryAlbum.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineStoryAlbum', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aInt64(1, _omitFieldNames ? '' : 'id')
+    ..aOS(2, _omitFieldNames ? '' : 'title')
+    ..a<$core.int>(3, _omitFieldNames ? '' : 'count', $pb.PbFieldType.O3)
+    ..hasRequiredFields = false;
+  @$core.Deprecated('Use deepCopy instead')
+  EngineStoryAlbum clone() => EngineStoryAlbum()..mergeFromMessage(this);
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineStoryAlbum create() => EngineStoryAlbum._();
+  EngineStoryAlbum createEmptyInstance() => create();
+  static $pb.PbList<EngineStoryAlbum> createRepeated() => $pb.PbList<EngineStoryAlbum>();
+  @$core.pragma('dart2js:noInline')
+  static EngineStoryAlbum getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineStoryAlbum>(create);
+  static EngineStoryAlbum? _defaultInstance;
+  @$pb.TagNumber(1)
+  $fixnum.Int64 get id => $_getI64(0);
+  @$pb.TagNumber(1)
+  set id($fixnum.Int64 v) { $_setInt64(0, v); }
+  @$pb.TagNumber(2)
+  $core.String get title => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set title($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(3)
+  $core.int get count => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set count($core.int v) { $_setSignedInt32(2, v); }
+}
+
+class EngineGetStoryAlbumsResponse extends $pb.GeneratedMessage {
+  factory EngineGetStoryAlbumsResponse({$core.Iterable<EngineStoryAlbum>? albums}) {
+    final $result = create();
+    if (albums != null) $result.albums.addAll(albums);
+    return $result;
+  }
+  EngineGetStoryAlbumsResponse._() : super();
+  factory EngineGetStoryAlbumsResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetStoryAlbumsResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..pc<EngineStoryAlbum>(1, _omitFieldNames ? '' : 'albums', $pb.PbFieldType.PM, subBuilder: EngineStoryAlbum.create)
+    ..hasRequiredFields = false;
+  @$core.Deprecated('Use deepCopy instead')
+  EngineGetStoryAlbumsResponse clone() => EngineGetStoryAlbumsResponse()..mergeFromMessage(this);
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineGetStoryAlbumsResponse create() => EngineGetStoryAlbumsResponse._();
+  EngineGetStoryAlbumsResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineGetStoryAlbumsResponse> createRepeated() => $pb.PbList<EngineGetStoryAlbumsResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetStoryAlbumsResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetStoryAlbumsResponse>(create);
+  static EngineGetStoryAlbumsResponse? _defaultInstance;
+  @$pb.TagNumber(1)
+  $core.List<EngineStoryAlbum> get albums => $_getList(0);
+}
+
+class EngineGetAlbumStoriesRequest extends $pb.GeneratedMessage {
+  factory EngineGetAlbumStoriesRequest({$core.String? accountId, $fixnum.Int64? albumId, $core.int? offset, $core.int? limit}) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    if (albumId != null) $result.albumId = albumId;
+    if (offset != null) $result.offset = offset;
+    if (limit != null) $result.limit = limit;
+    return $result;
+  }
+  EngineGetAlbumStoriesRequest._() : super();
+  factory EngineGetAlbumStoriesRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetAlbumStoriesRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aInt64(2, _omitFieldNames ? '' : 'albumId')
+    ..a<$core.int>(3, _omitFieldNames ? '' : 'offset', $pb.PbFieldType.O3)
+    ..a<$core.int>(4, _omitFieldNames ? '' : 'limit', $pb.PbFieldType.O3)
+    ..hasRequiredFields = false;
+  @$core.Deprecated('Use deepCopy instead')
+  EngineGetAlbumStoriesRequest clone() => EngineGetAlbumStoriesRequest()..mergeFromMessage(this);
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineGetAlbumStoriesRequest create() => EngineGetAlbumStoriesRequest._();
+  EngineGetAlbumStoriesRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineGetAlbumStoriesRequest> createRepeated() => $pb.PbList<EngineGetAlbumStoriesRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetAlbumStoriesRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetAlbumStoriesRequest>(create);
+  static EngineGetAlbumStoriesRequest? _defaultInstance;
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get albumId => $_getI64(1);
+  @$pb.TagNumber(2)
+  set albumId($fixnum.Int64 v) { $_setInt64(1, v); }
+  @$pb.TagNumber(3)
+  $core.int get offset => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set offset($core.int v) { $_setSignedInt32(2, v); }
+  @$pb.TagNumber(4)
+  $core.int get limit => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set limit($core.int v) { $_setSignedInt32(3, v); }
+}
+
+class EngineGetAlbumStoriesResponse extends $pb.GeneratedMessage {
+  factory EngineGetAlbumStoriesResponse({$core.String? storiesJson, $core.int? totalCount}) {
+    final $result = create();
+    if (storiesJson != null) $result.storiesJson = storiesJson;
+    if (totalCount != null) $result.totalCount = totalCount;
+    return $result;
+  }
+  EngineGetAlbumStoriesResponse._() : super();
+  factory EngineGetAlbumStoriesResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetAlbumStoriesResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'storiesJson')
+    ..a<$core.int>(2, _omitFieldNames ? '' : 'totalCount', $pb.PbFieldType.O3)
+    ..hasRequiredFields = false;
+  @$core.Deprecated('Use deepCopy instead')
+  EngineGetAlbumStoriesResponse clone() => EngineGetAlbumStoriesResponse()..mergeFromMessage(this);
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineGetAlbumStoriesResponse create() => EngineGetAlbumStoriesResponse._();
+  EngineGetAlbumStoriesResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineGetAlbumStoriesResponse> createRepeated() => $pb.PbList<EngineGetAlbumStoriesResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetAlbumStoriesResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetAlbumStoriesResponse>(create);
+  static EngineGetAlbumStoriesResponse? _defaultInstance;
+  @$pb.TagNumber(1)
+  $core.String get storiesJson => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set storiesJson($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(2)
+  $core.int get totalCount => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set totalCount($core.int v) { $_setSignedInt32(1, v); }
+}
+
+class EngineCreateStoryAlbumRequest extends $pb.GeneratedMessage {
+  factory EngineCreateStoryAlbumRequest({$core.String? accountId, $core.String? title}) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    if (title != null) $result.title = title;
+    return $result;
+  }
+  EngineCreateStoryAlbumRequest._() : super();
+  factory EngineCreateStoryAlbumRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineCreateStoryAlbumRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'title')
+    ..hasRequiredFields = false;
+  @$core.Deprecated('Use deepCopy instead')
+  EngineCreateStoryAlbumRequest clone() => EngineCreateStoryAlbumRequest()..mergeFromMessage(this);
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineCreateStoryAlbumRequest create() => EngineCreateStoryAlbumRequest._();
+  EngineCreateStoryAlbumRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineCreateStoryAlbumRequest> createRepeated() => $pb.PbList<EngineCreateStoryAlbumRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineCreateStoryAlbumRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineCreateStoryAlbumRequest>(create);
+  static EngineCreateStoryAlbumRequest? _defaultInstance;
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(2)
+  $core.String get title => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set title($core.String v) { $_setString(1, v); }
+}
+
+class EngineCreateStoryAlbumResponse extends $pb.GeneratedMessage {
+  factory EngineCreateStoryAlbumResponse({$fixnum.Int64? albumId, $core.String? title}) {
+    final $result = create();
+    if (albumId != null) $result.albumId = albumId;
+    if (title != null) $result.title = title;
+    return $result;
+  }
+  EngineCreateStoryAlbumResponse._() : super();
+  factory EngineCreateStoryAlbumResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineCreateStoryAlbumResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aInt64(1, _omitFieldNames ? '' : 'albumId')
+    ..aOS(2, _omitFieldNames ? '' : 'title')
+    ..hasRequiredFields = false;
+  @$core.Deprecated('Use deepCopy instead')
+  EngineCreateStoryAlbumResponse clone() => EngineCreateStoryAlbumResponse()..mergeFromMessage(this);
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineCreateStoryAlbumResponse create() => EngineCreateStoryAlbumResponse._();
+  EngineCreateStoryAlbumResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineCreateStoryAlbumResponse> createRepeated() => $pb.PbList<EngineCreateStoryAlbumResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineCreateStoryAlbumResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineCreateStoryAlbumResponse>(create);
+  static EngineCreateStoryAlbumResponse? _defaultInstance;
+  @$pb.TagNumber(1)
+  $fixnum.Int64 get albumId => $_getI64(0);
+  @$pb.TagNumber(1)
+  set albumId($fixnum.Int64 v) { $_setInt64(0, v); }
+  @$pb.TagNumber(2)
+  $core.String get title => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set title($core.String v) { $_setString(1, v); }
+}
+
+class EngineReorderStoryAlbumsRequest extends $pb.GeneratedMessage {
+  factory EngineReorderStoryAlbumsRequest({$core.String? accountId, $core.Iterable<$fixnum.Int64>? albumIds}) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    if (albumIds != null) $result.albumIds.addAll(albumIds);
+    return $result;
+  }
+  EngineReorderStoryAlbumsRequest._() : super();
+  factory EngineReorderStoryAlbumsRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineReorderStoryAlbumsRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..p<$fixnum.Int64>(2, _omitFieldNames ? '' : 'albumIds', $pb.PbFieldType.K6)
+    ..hasRequiredFields = false;
+  @$core.Deprecated('Use deepCopy instead')
+  EngineReorderStoryAlbumsRequest clone() => EngineReorderStoryAlbumsRequest()..mergeFromMessage(this);
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineReorderStoryAlbumsRequest create() => EngineReorderStoryAlbumsRequest._();
+  EngineReorderStoryAlbumsRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineReorderStoryAlbumsRequest> createRepeated() => $pb.PbList<EngineReorderStoryAlbumsRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineReorderStoryAlbumsRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineReorderStoryAlbumsRequest>(create);
+  static EngineReorderStoryAlbumsRequest? _defaultInstance;
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(2)
+  $core.List<$fixnum.Int64> get albumIds => $_getList(1);
+}
+
 class EngineGetCustomEmojiThumbsRequest extends $pb.GeneratedMessage {
   factory EngineGetCustomEmojiThumbsRequest({
     $core.String? accountId,

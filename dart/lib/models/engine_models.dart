@@ -2269,6 +2269,18 @@ class StoryItem {
   }
 }
 
+class StoryAlbumInfo {
+  final int id;
+  final String title;
+  final int count;
+
+  const StoryAlbumInfo({
+    required this.id,
+    required this.title,
+    this.count = 0,
+  });
+}
+
 // ── Scheduled messages ──
 
 enum SendMenuType {

@@ -1366,6 +1366,54 @@ class EngineService {
     return items.map((j) => StoryItem.fromJson(j as Map<String, dynamic>)).toList();
   }
 
+  Future<List<StoryAlbumInfo>> getStoryAlbums(String accountId) async {
+    final req = epb.EngineGetStoryAlbumsRequest()
+      ..accountId = accountId;
+    final respBytes = await _callAsync('__engine', 'GetStoryAlbums', req.writeToBuffer());
+    final resp = epb.EngineGetStoryAlbumsResponse.fromBuffer(respBytes);
+    return resp.albums.map((a) => StoryAlbumInfo(
+      id: a.id.toInt(),
+      title: a.title,
+      count: a.count,
+    )).toList();
+  }
+
+  Future<({List<dynamic> stories, int totalCount})> getAlbumStories(
+    String accountId, int albumId, {int offset = 0, int limit = 50}
+  ) async {
+    final req = epb.EngineGetAlbumStoriesRequest()
+      ..accountId = accountId
+      ..albumId = Int64(albumId)
+      ..offset = offset
+      ..limit = limit;
+    final respBytes = await _callAsync('__engine', 'GetAlbumStories', req.writeToBuffer());
+    final resp = epb.EngineGetAlbumStoriesResponse.fromBuffer(respBytes);
+    final List<dynamic> items = resp.storiesJson.isEmpty
+        ? []
+        : json.decode(resp.storiesJson);
+    return (stories: items, totalCount: resp.totalCount);
+  }
+
+  Future<StoryAlbumInfo> createStoryAlbum(String accountId, String title) async {
+    final req = epb.EngineCreateStoryAlbumRequest()
+      ..accountId = accountId
+      ..title = title;
+    final respBytes = await _callAsync('__engine', 'CreateStoryAlbum', req.writeToBuffer());
+    final resp = epb.EngineCreateStoryAlbumResponse.fromBuffer(respBytes);
+    return StoryAlbumInfo(
+      id: resp.albumId.toInt(),
+      title: resp.title,
+      count: 0,
+    );
+  }
+
+  Future<void> reorderStoryAlbums(String accountId, List<int> albumIds) async {
+    final req = epb.EngineReorderStoryAlbumsRequest()
+      ..accountId = accountId
+      ..albumIds.addAll(albumIds.map((id) => Int64(id)));
+    await _callAsync('__engine', 'ReorderStoryAlbums', req.writeToBuffer());
+  }
+
   // ── Contacts ──
 
   Future<List<ContactInfo>> getContacts(String accountId) async {

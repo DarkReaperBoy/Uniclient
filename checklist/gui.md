@@ -866,7 +866,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_list_row.dart (partial story ring) — new: dart/lib/ui/stories.dart -->
 
-- [ ] Profile stories grid: SubTabs (All/album/Add), responsive column grid (82px min), 2px item skip, album drag-reorder — spec §32.12
 - [ ] Story interactive areas: Location/SuggestedReaction/ChannelPost/UrlArea/WeatherArea with normalized coordinates + rotation transforms — spec §32.13
 - [ ] Story creation editor: 9:16 canvas (540×960px, 8px radius, zoom 1.0-8.0), two 48px button bars, video trim slider (12 thumbnail frames, 8×48px handles, 1-60s), sticker placement with drag/scale/rotate (0.2-6.0), text tool (align/bg-style/font-picker/10 swatches+HSL), drawing tool (5 brushes, vertical 280px size slider), caption bar reusing compose controls, privacy selector (32px chip row), duration picker (6h/12h/24h/48h), save-to-profile + allow-sharing toggles, post button (36px accent circle, upload progress ring, 150ms checkmark crossfade) — spec §32.15
 

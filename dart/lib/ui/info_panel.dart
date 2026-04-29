@@ -3105,6 +3105,10 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
   List<SharedMediaItem>? _gridItems;
   bool _gridLoading = false;
 
+  List<StoryAlbumInfo>? _storyAlbums;
+  bool _albumsLoading = false;
+  int _activeStoryAlbumId = 0; // 0 = "All"
+
   static const _types = [
     ('photo', Icons.photo_outlined, 'Photos'),
     ('video', Icons.videocam_outlined, 'Videos'),
@@ -3123,7 +3127,6 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
   static const _expandableTypes = {'photo', 'video', 'stories', 'gifts', 'gif', 'file', 'audio', 'link', 'voice'};
 
   static const _subTabSets = <String, List<(String, String)>>{
-    'stories': [('archive', 'Archive'), ('recent', 'Recent')],
     'gifts': [('all', 'All'), ('unique', 'Unique'), ('limited', 'Limited')],
   };
 
@@ -3147,6 +3150,9 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
       _gridItems = null;
       _gridLoading = true;
     });
+    if (type == 'stories') {
+      _loadStoryAlbums();
+    }
     _loadGridItems(type);
   }
 
@@ -3180,6 +3186,109 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
     }
   }
 
+  Future<void> _loadStoryAlbums() async {
+    if (_albumsLoading) return;
+    setState(() => _albumsLoading = true);
+    try {
+      final engine = context.read<EngineService>();
+      final albums = await engine.getStoryAlbums(widget.accountId);
+      if (mounted) {
+        setState(() {
+          _storyAlbums = albums;
+          _albumsLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _albumsLoading = false);
+    }
+  }
+
+  void _onStoryAlbumSelected(int albumId) {
+    setState(() => _activeStoryAlbumId = albumId);
+    if (albumId == 0) {
+      _loadGridItems('stories');
+    } else {
+      _loadAlbumStories(albumId);
+    }
+  }
+
+  Future<void> _loadAlbumStories(int albumId) async {
+    setState(() {
+      _gridItems = null;
+      _gridLoading = true;
+    });
+    try {
+      final engine = context.read<EngineService>();
+      final result = await engine.getAlbumStories(
+        widget.accountId, albumId, limit: 100,
+      );
+      if (mounted && _activeStoryAlbumId == albumId) {
+        final items = result.stories.map((j) {
+          final m = j as Map<String, dynamic>;
+          return SharedMediaItem(
+            msgId: 'story_${m['id']}',
+            timestamp: (m['date'] as num?)?.toInt() ?? 0,
+            mediaType: m['media_type'] == 'video' ? 4 : 1,
+            thumbB64: m['thumb_b64'] as String? ?? '',
+            localPath: m['local_path'] as String? ?? '',
+          );
+        }).toList();
+        setState(() {
+          _gridItems = items;
+          _gridLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _gridLoading = false);
+    }
+  }
+
+  Future<void> _createAlbum() async {
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final controller = TextEditingController();
+        return AlertDialog(
+          title: const Text('New Album'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(hintText: 'Album name'),
+            onSubmitted: (v) => Navigator.of(ctx).pop(v.trim()),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+              child: const Text('Create'),
+            ),
+          ],
+        );
+      },
+    );
+    if (name == null || name.isEmpty) return;
+    try {
+      final engine = context.read<EngineService>();
+      await engine.createStoryAlbum(widget.accountId, name);
+      _loadStoryAlbums();
+    } catch (_) {}
+  }
+
+  Future<void> _reorderAlbums(List<StoryAlbumInfo> newOrder) async {
+    setState(() => _storyAlbums = newOrder);
+    try {
+      final engine = context.read<EngineService>();
+      await engine.reorderStoryAlbums(
+        widget.accountId, newOrder.map((a) => a.id).toList(),
+      );
+    } catch (_) {
+      _loadStoryAlbums();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final visible =
@@ -3191,11 +3300,9 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
     final accentColor =
         isDark ? const Color(0xFF6AB2F2) : const Color(0xFF168acd);
 
-    final hasStories = (widget.counts['stories'] ?? 0) > 0;
     final hasGifts = (widget.counts['gifts'] ?? 0) > 0;
-    final showSubTabs = hasStories || hasGifts;
-    final subTabKey = hasStories ? 'stories' : (hasGifts ? 'gifts' : '');
-    final subTabs = _subTabSets[subTabKey] ?? [];
+    final showGiftSubTabs = hasGifts && _expandedGridType == 'gifts';
+    final subTabs = _subTabSets['gifts'] ?? [];
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -3227,16 +3334,6 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
               });
             },
           ),
-          if (showSubTabs && subTabs.isNotEmpty)
-            _SubTabChips(
-              tabs: subTabs,
-              activeTab: _activeSubTab.isEmpty
-                  ? subTabs.first.$1
-                  : _activeSubTab,
-              accentColor: accentColor,
-              theme: widget.theme,
-              onSelected: (tab) => setState(() => _activeSubTab = tab),
-            ),
           for (final (type, icon, label) in visible) ...[
             _SharedMediaRow(
               icon: icon,
@@ -3250,6 +3347,26 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
                   ? () => _toggleGrid(type)
                   : null,
             ),
+            if (_expandedGridType == type && type == 'stories')
+              _StoryAlbumTabs(
+                albums: _storyAlbums ?? [],
+                activeAlbumId: _activeStoryAlbumId,
+                accentColor: accentColor,
+                theme: widget.theme,
+                onSelected: _onStoryAlbumSelected,
+                onAdd: _createAlbum,
+                onReorder: _reorderAlbums,
+              ),
+            if (_expandedGridType == type && type == 'gifts' && showGiftSubTabs && subTabs.isNotEmpty)
+              _SubTabChips(
+                tabs: subTabs,
+                activeTab: _activeSubTab.isEmpty
+                    ? subTabs.first.$1
+                    : _activeSubTab,
+                accentColor: accentColor,
+                theme: widget.theme,
+                onSelected: (tab) => setState(() => _activeSubTab = tab),
+              ),
             if (_expandedGridType == type)
               if (_gridTypes.contains(type))
                 _MediaGrid(
@@ -3430,6 +3547,143 @@ class _SubTabChips extends StatelessWidget {
             fontWeight: FontWeight.w500,
             color: isActive ? Colors.white : theme.textTheme.bodyMedium?.color,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StoryAlbumTabs extends StatefulWidget {
+  final List<StoryAlbumInfo> albums;
+  final int activeAlbumId;
+  final Color accentColor;
+  final ThemeData theme;
+  final ValueChanged<int> onSelected;
+  final VoidCallback onAdd;
+  final ValueChanged<List<StoryAlbumInfo>> onReorder;
+
+  const _StoryAlbumTabs({
+    required this.albums,
+    required this.activeAlbumId,
+    required this.accentColor,
+    required this.theme,
+    required this.onSelected,
+    required this.onAdd,
+    required this.onReorder,
+  });
+
+  @override
+  State<_StoryAlbumTabs> createState() => _StoryAlbumTabsState();
+}
+
+class _StoryAlbumTabsState extends State<_StoryAlbumTabs> {
+  int? _dragIndex;
+  int? _dropTarget;
+
+  Widget _buildChip(String label, bool isActive, VoidCallback onTap) {
+    final isDark = widget.theme.brightness == Brightness.dark;
+    final inactiveColor = isDark ? const Color(0xFF3e546a) : const Color(0xFFbbbbbb);
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: isActive ? widget.accentColor : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isActive ? widget.accentColor : inactiveColor,
+            width: 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: isActive ? Colors.white : widget.theme.textTheme.bodyMedium?.color,
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            _buildChip('All', widget.activeAlbumId == 0, () => widget.onSelected(0)),
+            for (int i = 0; i < widget.albums.length; i++) ...[
+              const SizedBox(width: 8),
+              Draggable<int>(
+                data: i,
+                feedback: Material(
+                  color: Colors.transparent,
+                  child: Opacity(
+                    opacity: 0.8,
+                    child: _buildChip(widget.albums[i].title, false, () {}),
+                  ),
+                ),
+                childWhenDragging: Opacity(
+                  opacity: 0.3,
+                  child: _buildChip(widget.albums[i].title, false, () {}),
+                ),
+                onDragStarted: () => setState(() => _dragIndex = i),
+                onDragEnd: (_) => setState(() { _dragIndex = null; _dropTarget = null; }),
+                child: DragTarget<int>(
+                  onWillAcceptWithDetails: (details) {
+                    setState(() => _dropTarget = i);
+                    return details.data != i;
+                  },
+                  onLeave: (_) => setState(() => _dropTarget = null),
+                  onAcceptWithDetails: (details) {
+                    final from = details.data;
+                    if (from == i) return;
+                    final reordered = List<StoryAlbumInfo>.from(widget.albums);
+                    final item = reordered.removeAt(from);
+                    reordered.insert(i, item);
+                    widget.onReorder(reordered);
+                  },
+                  builder: (ctx, candidateData, rejectedData) {
+                    return Container(
+                      decoration: _dropTarget == i && _dragIndex != i
+                          ? BoxDecoration(
+                              border: Border(left: BorderSide(color: widget.accentColor, width: 2)),
+                            )
+                          : null,
+                      child: _buildChip(
+                        widget.albums[i].title,
+                        widget.activeAlbumId == widget.albums[i].id,
+                        () => widget.onSelected(widget.albums[i].id),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: widget.onAdd,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: widget.theme.brightness == Brightness.dark
+                        ? const Color(0xFF3e546a)
+                        : const Color(0xFFbbbbbb),
+                    width: 1,
+                  ),
+                ),
+                child: Icon(Icons.add, size: 16,
+                  color: widget.theme.textTheme.bodyMedium?.color),
+              ),
+            ),
+          ],
         ),
       ),
     );

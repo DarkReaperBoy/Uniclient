@@ -14776,6 +14776,118 @@ func (t *TelegramCore) FetchPeerStoriesData(peerID string) (string, error) {
 	return string(data), nil
 }
 
+type StoryAlbumInfo struct {
+	ID    int64  `json:"id"`
+	Title string `json:"title"`
+	Count int    `json:"count"`
+}
+
+func (t *TelegramCore) GetStoryAlbums(peerID string) ([]StoryAlbumInfo, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return nil, ErrAuth }
+	var inputPeer tg.InputPeerClass
+	if peerID == "" {
+		inputPeer = &tg.InputPeerSelf{}
+	} else {
+		ip, unlock, err := t.withPeer(peerID)
+		if err != nil { return nil, err }
+		defer unlock()
+		inputPeer = ip
+	}
+	result, err := t.api.StoriesGetAlbums(t.ctx, &tg.StoriesGetAlbumsRequest{
+		Peer: inputPeer,
+		Hash: 0,
+	})
+	if err != nil { return nil, err }
+	modified, ok := result.AsModified()
+	if !ok { return nil, nil }
+	var albums []StoryAlbumInfo
+	for _, a := range modified.Albums {
+		albums = append(albums, StoryAlbumInfo{
+			ID:    int64(a.AlbumID),
+			Title: a.Title,
+		})
+	}
+	return albums, nil
+}
+
+func (t *TelegramCore) GetAlbumStories(peerID string, albumID int, offset, limit int) (string, int, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return "", 0, ErrAuth }
+	var inputPeer tg.InputPeerClass
+	if peerID == "" {
+		inputPeer = &tg.InputPeerSelf{}
+	} else {
+		ip, unlock, err := t.withPeer(peerID)
+		if err != nil { return "", 0, err }
+		defer unlock()
+		inputPeer = ip
+	}
+	if limit <= 0 { limit = 50 }
+	result, err := t.api.StoriesGetAlbumStories(t.ctx, &tg.StoriesGetAlbumStoriesRequest{
+		Peer:    inputPeer,
+		AlbumID: albumID,
+		Offset:  offset,
+		Limit:   limit,
+	})
+	if err != nil { return "", 0, err }
+
+	type storyEntry struct {
+		ID        int    `json:"id"`
+		Date      int    `json:"date"`
+		Caption   string `json:"caption,omitempty"`
+		MediaType string `json:"media_type"`
+		ThumbB64  string `json:"thumb_b64,omitempty"`
+		LocalPath string `json:"local_path,omitempty"`
+	}
+	var entries []storyEntry
+	for _, sc := range result.Stories {
+		si, ok := sc.(*tg.StoryItem)
+		if !ok { continue }
+		entry := storyEntry{ID: si.ID, Date: si.Date}
+		if caption, ok := si.GetCaption(); ok {
+			entry.Caption = caption
+		}
+		switch md := si.Media.(type) {
+		case *tg.MessageMediaPhoto:
+			entry.MediaType = "photo"
+			if p, ok := md.Photo.(*tg.Photo); ok {
+				entry.ThumbB64 = extractStrippedThumbB64(p.Sizes)
+			}
+		case *tg.MessageMediaDocument:
+			entry.MediaType = "video"
+			if d, ok := md.Document.(*tg.Document); ok {
+				entry.ThumbB64 = extractStrippedThumbB64(d.Thumbs)
+			}
+		}
+		entries = append(entries, entry)
+	}
+	data, err := json.Marshal(entries)
+	if err != nil { return "", 0, err }
+	return string(data), result.Count, nil
+}
+
+func (t *TelegramCore) CreateStoryAlbum(title string) (int64, string, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return 0, "", ErrAuth }
+	album, err := t.api.StoriesCreateAlbum(t.ctx, &tg.StoriesCreateAlbumRequest{
+		Peer:  &tg.InputPeerSelf{},
+		Title: title,
+	})
+	if err != nil { return 0, "", err }
+	return int64(album.AlbumID), album.Title, nil
+}
+
+func (t *TelegramCore) ReorderStoryAlbums(albumIDs []int) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	_, err := t.api.StoriesReorderAlbums(t.ctx, &tg.StoriesReorderAlbumsRequest{
+		Peer:  &tg.InputPeerSelf{},
+		Order: albumIDs,
+	})
+	return err
+}
+
 // GetConfig returns the current Telegram server configuration.
 func (t *TelegramCore) GetConfig() (int, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()

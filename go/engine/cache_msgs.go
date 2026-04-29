@@ -1578,3 +1578,80 @@ func (e *Engine) FetchPeerStories(accountID, peerID string) (string, error) {
 	out, _ := json.Marshal(items)
 	return string(out), nil
 }
+
+type StoryAlbumFetcher interface {
+	GetStoryAlbums(peerID string) ([]StoryAlbumInfo, error)
+	GetAlbumStories(peerID string, albumID int, offset, limit int) (string, int, error)
+	CreateStoryAlbum(title string) (int64, string, error)
+	ReorderStoryAlbums(albumIDs []int) error
+}
+
+type StoryAlbumInfo struct {
+	ID    int64  `json:"id"`
+	Title string `json:"title"`
+	Count int    `json:"count"`
+}
+
+func (e *Engine) GetStoryAlbums(accountID string) ([]StoryAlbumInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(StoryAlbumFetcher)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support story albums")
+	}
+	return fetcher.GetStoryAlbums("")
+}
+
+func (e *Engine) GetAlbumStories(accountID string, albumID int64, offset, limit int) (string, int, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return "", 0, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return "", 0, fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(StoryAlbumFetcher)
+	if !ok {
+		return "", 0, fmt.Errorf("platform does not support story albums")
+	}
+	return fetcher.GetAlbumStories("", int(albumID), offset, limit)
+}
+
+func (e *Engine) CreateStoryAlbum(accountID, title string) (int64, string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return 0, "", fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return 0, "", fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(StoryAlbumFetcher)
+	if !ok {
+		return 0, "", fmt.Errorf("platform does not support story albums")
+	}
+	return fetcher.CreateStoryAlbum(title)
+}
+
+func (e *Engine) ReorderStoryAlbums(accountID string, albumIDs []int64) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(StoryAlbumFetcher)
+	if !ok {
+		return fmt.Errorf("platform does not support story albums")
+	}
+	ids := make([]int, len(albumIDs))
+	for i, id := range albumIDs {
+		ids[i] = int(id)
+	}
+	return fetcher.ReorderStoryAlbums(ids)
+}
