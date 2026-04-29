@@ -830,16 +830,9 @@ Status key: `[ ]` not started · `[x]` done
 
 ## §27 — Passcode Lock Screen
 
-<!-- dart files: none yet — create dart/lib/ui/passcode_screen.dart -->
-
-- [ ] Settings entry point: Privacy & Security row with reactive "On"/"Off" label, navigate to Check (with passcode) or Create (without) — spec §27.1
-- [ ] Passcode create flow: Lottie "local_passcode_enter" 100px, two PasswordInput fields 256px, validation (empty + mismatch), error label auto-hides on typing — spec §27.2
-- [ ] Passcode check flow: single PasswordInput, flood protection passcodeCanTry(), wrong/correct passcode handling — spec §27.3
-- [ ] Passcode management page: Change Passcode + Auto-Lock + System Unlock toggle (platform labels) + Disable Passcode (confirmation) — spec §27.4
-- [ ] Passcode change flow: same as create + "same as current" validation, 10-min idle timer — spec §27.5
-- [ ] Auto-lock timer dialog: 320px box, 5 radio options (1m/5m/1h/5h/Custom), Custom radio + TimeInput HH:MM 52px, max 23:59, 0:00 = error — spec §27.6
-- [ ] Legacy PasscodeBox modal: stacked fields old/new/reenter/hint/email, dynamic title, confirmation toasts — spec §27.7
-- [ ] Lock screen full-window overlay: header text, 225px input, 225px submit button, logout link, error text, system-unlock button with platform icon, "Unlock later" label, 1000ms cooldown — spec §27.8
+<!-- dart files: dart/lib/ui/privacy_settings_screen.dart (passcode create/check/manage), dart/lib/main.dart (PasscodeLockScreen overlay) -->
+<!-- §27.1-§27.6 DONE: settings entry point, create/check/manage flows, auto-lock dialog — in privacy_settings_screen.dart -->
+<!-- §27.8 DONE: lock screen overlay with header/input/submit/error/logout, Ctrl+L shortcut, startup auto-lock — in main.dart + app_state.dart -->
 - [ ] Lock/unlock transition: easeOutCirc in / easeInCirc out, pixmap capture crossfade, ~150-200ms — spec §27.9
 - [ ] Brute-force protection: border-error animation 150ms, select+focus on error, bad-tries counter + timestamp, error clears on typing — spec §27.10
 - [ ] Auto-lock timer logic: checkAutoLock(), 3000ms late-timeout grace, Ctrl+L shortcut, lockByPasscode iterates windows — spec §27.11–27.12

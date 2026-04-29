@@ -1128,6 +1128,9 @@ class _ShortcutListenerState extends State<ShortcutListener>
       return true;
     });
     sys.registerHandler(ShortcutCommand.lockTelegram, () {
+      try {
+        context.read<AppState>().lockByPasscode();
+      } catch (_) {}
       return true;
     });
     sys.registerHandler(ShortcutCommand.closeTelegram, () {

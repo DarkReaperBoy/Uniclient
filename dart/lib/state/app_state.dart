@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -29,6 +30,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   String? _initError;
 
   String _configDir = '';
+  bool _passcodeLocked = false;
+  int _passcodeBadTries = 0;
+  DateTime? _passcodeLastTry;
   bool _nativeWindowFrame = false;
   bool _mainMenuAccountsShown = false;
   bool _systemDarkMode = false;
@@ -164,6 +168,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// Whether a new account can be added (under the limit).
   bool get canAddAccount => _accounts.length < maxAccountLimit;
 
+  bool get passcodeLocked => _passcodeLocked;
   bool get nativeWindowFrame => _nativeWindowFrame;
   bool get showChatNameInTitle => _showChatNameInTitle;
   bool get showAccountNameInTitle => _showAccountNameInTitle;
@@ -711,6 +716,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       }
       _initialized = true;
       Debug.log('APP', 'Engine initialized, ${_accounts.length} accounts');
+      _checkPasscodeAtStartup();
       notifyListeners();
 
       // Connect all accounts (async — don't block init).
@@ -733,6 +739,71 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _accounts = accounts;
     _initialized = true;
     notifyListeners();
+  }
+
+  void _checkPasscodeAtStartup() {
+    if (_configDir.isEmpty) return;
+    final file = File('$_configDir/local_passcode.json');
+    if (file.existsSync()) {
+      try {
+        final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+        if ((data['hash'] as String? ?? '').isNotEmpty) {
+          _passcodeLocked = true;
+        }
+      } catch (_) {}
+    }
+  }
+
+  bool get hasLocalPasscode {
+    if (_configDir.isEmpty) return false;
+    final file = File('$_configDir/local_passcode.json');
+    if (!file.existsSync()) return false;
+    try {
+      final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+      return (data['hash'] as String? ?? '').isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void lockByPasscode() {
+    if (!hasLocalPasscode) return;
+    _passcodeLocked = true;
+    notifyListeners();
+  }
+
+  void unlockPasscode() {
+    _passcodeLocked = false;
+    _passcodeBadTries = 0;
+    _passcodeLastTry = null;
+    notifyListeners();
+  }
+
+  bool passcodeCanTry() {
+    if (_passcodeBadTries < 3) return true;
+    final last = _passcodeLastTry;
+    if (last == null) return true;
+    final elapsed = DateTime.now().difference(last).inSeconds;
+    return elapsed >= _passcodeBadTries * 5;
+  }
+
+  bool checkPasscode(String entered) {
+    if (_configDir.isEmpty) return false;
+    final file = File('$_configDir/local_passcode.json');
+    if (!file.existsSync()) return false;
+    try {
+      final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+      final storedHash = data['hash'] as String? ?? '';
+      final bytes = utf8.encode(entered);
+      final hash = sha256.convert(bytes).toString();
+      if (hash == storedHash) {
+        unlockPasscode();
+        return true;
+      }
+    } catch (_) {}
+    _passcodeBadTries++;
+    _passcodeLastTry = DateTime.now();
+    return false;
   }
 
   /// Switch to a different account. Notifies listeners so the UI rebuilds

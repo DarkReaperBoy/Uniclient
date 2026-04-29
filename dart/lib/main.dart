@@ -940,6 +940,10 @@ class _UniClientAppState extends State<UniClientApp>
       return;
     }
     if (lc == 'ctrl+l' || lc == 'control+l') {
+      try {
+        final ctx = _navigatorKey.currentContext;
+        if (ctx != null) ctx.read<AppState>().lockByPasscode();
+      } catch (_) {}
       return;
     }
     if (lc == 'ctrl+tab' || lc == 'control+tab') {
@@ -1579,6 +1583,8 @@ class _UniClientAppState extends State<UniClientApp>
               },
             ),
             const _ThemeRevertOverlay(),
+            if (appState.passcodeLocked)
+              const Positioned.fill(child: _PasscodeLockScreen()),
           ],
         );
       },
@@ -1758,6 +1764,180 @@ class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _PasscodeLockScreen extends StatefulWidget {
+  const _PasscodeLockScreen();
+
+  @override
+  State<_PasscodeLockScreen> createState() => _PasscodeLockScreenState();
+}
+
+class _PasscodeLockScreenState extends State<_PasscodeLockScreen> {
+  final _controller = TextEditingController();
+  final _focusNode = FocusNode();
+  bool _obscure = true;
+  String _error = '';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _focusNode.requestFocus());
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final appState = context.read<AppState>();
+    final entered = _controller.text;
+    if (entered.isEmpty) {
+      setState(() => _error = 'Please enter your passcode');
+      return;
+    }
+    if (!appState.passcodeCanTry()) {
+      setState(() => _error = 'Please try again later');
+      return;
+    }
+    if (appState.checkPasscode(entered)) {
+      return;
+    }
+    setState(() => _error = 'Wrong passcode');
+    _controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _controller.text.length,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final errorColor = isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F);
+
+    return Material(
+      color: bgColor,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final inputY = constraints.maxHeight / 3;
+          return Stack(
+            children: [
+              Positioned(
+                left: 0,
+                right: 0,
+                top: inputY - 80,
+                child: Text(
+                  'Please enter your passcode',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 19, color: textColor),
+                ),
+              ),
+              Positioned(
+                left: (constraints.maxWidth - 225) / 2,
+                top: inputY,
+                child: SizedBox(
+                  width: 225,
+                  child: TextField(
+                    controller: _controller,
+                    focusNode: _focusNode,
+                    obscureText: _obscure,
+                    onChanged: (_) {
+                      if (_error.isNotEmpty) setState(() => _error = '');
+                    },
+                    onSubmitted: (_) => _submit(),
+                    decoration: InputDecoration(
+                      hintText: 'Your passcode',
+                      hintStyle: TextStyle(color: subtextColor),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscure ? Icons.visibility_off : Icons.visibility,
+                          color: subtextColor,
+                          size: 20,
+                        ),
+                        onPressed: () => setState(() => _obscure = !_obscure),
+                      ),
+                      enabledBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: subtextColor),
+                      ),
+                      focusedBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: accentColor, width: 2),
+                      ),
+                      errorBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: errorColor, width: 2),
+                      ),
+                      focusedErrorBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: errorColor, width: 2),
+                      ),
+                      contentPadding: const EdgeInsets.fromLTRB(1, 27, 1, 6),
+                    ),
+                    style: TextStyle(fontSize: 16, color: textColor),
+                  ),
+                ),
+              ),
+              if (_error.isNotEmpty)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: inputY + 70,
+                  child: Text(
+                    _error,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 13, color: errorColor),
+                  ),
+                ),
+              Positioned(
+                left: (constraints.maxWidth - 225) / 2,
+                top: inputY + 70 + (_error.isNotEmpty ? 25 : 0),
+                child: SizedBox(
+                  width: 225,
+                  height: 42,
+                  child: FilledButton(
+                    onPressed: _submit,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: accentColor,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                    child: const Text(
+                      'Submit',
+                      style: TextStyle(fontSize: 15, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                top: inputY + 70 + (_error.isNotEmpty ? 25 : 0) + 42 + 16,
+                child: GestureDetector(
+                  onTap: () {
+                    // Log out not implemented — just show info
+                  },
+                  child: Text(
+                    'Log out',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: accentColor,
+                      decoration: TextDecoration.none,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
