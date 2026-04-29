@@ -13747,6 +13747,7 @@ type BotCommandEntry struct {
 	BotID       string `json:"bot_id"`
 	BotName     string `json:"bot_name"`
 	BotUsername string `json:"bot_username"`
+	AvatarB64   string `json:"avatar_b64,omitempty"`
 }
 
 // GetChatBotCommands returns bot commands available in a chat.
@@ -13778,6 +13779,13 @@ func (t *TelegramCore) GetChatBotCommands(chatID string) ([]BotCommandEntry, err
 			if u, ok := userMap[p.UserID]; ok {
 				e.BotName = userDisplayName(u)
 				e.BotUsername = u.Username
+				if photo, ok := u.Photo.(*tg.UserProfilePhoto); ok {
+					if thumb, ok := photo.GetStrippedThumb(); ok && len(thumb) > 0 {
+						if jpg := tgStrippedToJPEG(thumb); len(jpg) > 0 {
+							e.AvatarB64 = base64.StdEncoding.EncodeToString(jpg)
+						}
+					}
+				}
 			}
 			entries = append(entries, e)
 		}
@@ -13821,6 +13829,13 @@ func (t *TelegramCore) extractBotCommands(botInfos []tg.BotInfo, userMap map[int
 			if u, ok := userMap[uid]; ok {
 				e.BotName = userDisplayName(u)
 				e.BotUsername = u.Username
+				if photo, ok := u.Photo.(*tg.UserProfilePhoto); ok {
+					if thumb, ok := photo.GetStrippedThumb(); ok && len(thumb) > 0 {
+						if jpg := tgStrippedToJPEG(thumb); len(jpg) > 0 {
+							e.AvatarB64 = base64.StdEncoding.EncodeToString(jpg)
+						}
+					}
+				}
 			}
 			entries = append(entries, e)
 		}

@@ -1336,6 +1336,7 @@ class BotCommandInfo {
   final String botId;
   final String botName;
   final String botUsername;
+  final String avatarB64;
 
   const BotCommandInfo({
     required this.command,
@@ -1343,6 +1344,7 @@ class BotCommandInfo {
     this.botId = '',
     this.botName = '',
     this.botUsername = '',
+    this.avatarB64 = '',
   });
 
   factory BotCommandInfo.fromJson(Map<String, dynamic> j) => BotCommandInfo(
@@ -1351,6 +1353,7 @@ class BotCommandInfo {
     botId: j['bot_id'] as String? ?? '',
     botName: j['bot_name'] as String? ?? '',
     botUsername: j['bot_username'] as String? ?? '',
+    avatarB64: j['avatar_b64'] as String? ?? '',
   );
 }
 

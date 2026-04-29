@@ -10971,7 +10971,7 @@ class _AutocompletePanel extends StatelessWidget {
   }
 }
 
-class _CommandAutocompletePanel extends StatelessWidget {
+class _CommandAutocompletePanel extends StatefulWidget {
   final List<BotCommandInfo> commands;
   final int selectedIndex;
   final ValueChanged<int> onPick;
@@ -10985,94 +10985,128 @@ class _CommandAutocompletePanel extends StatelessWidget {
   });
 
   @override
+  State<_CommandAutocompletePanel> createState() => _CommandAutocompletePanelState();
+}
+
+class _CommandAutocompletePanelState extends State<_CommandAutocompletePanel>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _fadeController;
+
+  static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
+  static const _userpicPalette = [
+    Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77), Color(0xFF65aadd),
+    Color(0xFFa695e7), Color(0xFFee7aae), Color(0xFF6ec9cb), Color(0xFFe8a64e),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF17212b) : Colors.white;
     final hoverColor = isDark ? const Color(0xFF202b36) : const Color(0xFFf1f1f1);
     final borderColor = theme.dividerColor;
-    final subtitleColor = isDark ? const Color(0xFF5b7a93) : const Color(0xFF999999);
+    final descColor = isDark ? const Color(0xFF5b7a93) : const Color(0xFF999999);
 
-    return TextFieldTapRegion(
-      child: Container(
-        constraints: const BoxConstraints(maxHeight: 180),
-        decoration: BoxDecoration(
-          color: bgColor,
-          border: Border(
-            top: BorderSide(color: borderColor, width: 1),
+    return FadeTransition(
+      opacity: _fadeController,
+      child: TextFieldTapRegion(
+        child: Container(
+          constraints: const BoxConstraints(maxHeight: 180),
+          decoration: BoxDecoration(
+            color: bgColor,
+            border: Border(
+              top: BorderSide(color: borderColor, width: 1),
+              bottom: BorderSide(color: borderColor, width: 1),
+            ),
           ),
-        ),
-        child: ListView.builder(
-          shrinkWrap: true,
-          padding: EdgeInsets.zero,
-          itemCount: commands.length,
-          itemBuilder: (context, index) {
-            final cmd = commands[index];
-            final isSelected = index == selectedIndex;
-            return MouseRegion(
-              onEnter: (_) => onHover(index),
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => onPick(index),
-                child: Container(
-                  height: 40,
-                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 0),
-                  color: isSelected ? hoverColor : null,
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 33,
-                        height: 33,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF3a5368) : const Color(0xFF5eaade),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Center(
-                            child: Text(
-                              '/',
-                              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700, height: 1),
+          child: ListView.builder(
+            shrinkWrap: true,
+            padding: EdgeInsets.zero,
+            itemCount: widget.commands.length,
+            itemBuilder: (context, index) {
+              final cmd = widget.commands[index];
+              final isSelected = index == widget.selectedIndex;
+              final numId = int.tryParse(cmd.botId) ?? cmd.botId.hashCode.abs();
+              final avatarColor = _userpicPalette[_colorRemap[numId.abs() % 7]];
+              return MouseRegion(
+                onEnter: (_) => widget.onHover(index),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => widget.onPick(index),
+                  child: Container(
+                    height: 40,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                    color: isSelected ? hoverColor : null,
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 16.5,
+                          backgroundColor: cmd.avatarB64.isNotEmpty ? null : avatarColor,
+                          backgroundImage: cmd.avatarB64.isNotEmpty
+                              ? MemoryImage(base64Decode(cmd.avatarB64))
+                              : null,
+                          child: cmd.avatarB64.isEmpty
+                              ? Text(
+                                  cmd.botName.isNotEmpty ? cmd.botName[0].toUpperCase() : '/',
+                                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                                )
+                              : null,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '/${cmd.command}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: theme.textTheme.bodyMedium?.color,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '/${cmd.command}',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: theme.textTheme.bodyMedium?.color,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            if (cmd.description.isNotEmpty)
-                              Text(
+                        if (cmd.description.isNotEmpty)
+                          Flexible(
+                            flex: 0,
+                            child: Padding(
+                              padding: const EdgeInsets.only(left: 8),
+                              child: Text(
                                 cmd.description,
-                                style: TextStyle(fontSize: 12, color: subtitleColor),
+                                style: TextStyle(fontSize: 13, color: descColor),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
-                          ],
-                        ),
-                      ),
-                      if (cmd.botUsername.isNotEmpty)
-                        Text(
-                          '@${cmd.botUsername}',
-                          style: TextStyle(fontSize: 12, color: subtitleColor),
-                        ),
-                    ],
+                            ),
+                          ),
+                        if (cmd.botUsername.isNotEmpty) ...[
+                          const SizedBox(width: 4),
+                          Text(
+                            '@${cmd.botUsername}',
+                            style: TextStyle(fontSize: 12, color: descColor),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );

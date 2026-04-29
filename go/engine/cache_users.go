@@ -455,6 +455,7 @@ type BotCommandInfo struct {
 	BotID       string `json:"bot_id"`
 	BotName     string `json:"bot_name"`
 	BotUsername string `json:"bot_username"`
+	AvatarB64   string `json:"avatar_b64,omitempty"`
 }
 
 // GetChatBotCommands returns bot commands available in a chat.
@@ -485,6 +486,7 @@ func (e *Engine) GetChatBotCommands(accountID, chatID string) ([]BotCommandInfo,
 			BotID:       e.BotID,
 			BotName:     e.BotName,
 			BotUsername: e.BotUsername,
+			AvatarB64:   e.AvatarB64,
 		})
 	}
 	return result, nil
