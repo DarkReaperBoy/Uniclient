@@ -971,6 +971,44 @@ class ChatState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void togglePinSavedSublist(SavedSublistInfo sub) {
+    // Toggle pinned state locally — backend wiring (MessagesToggleSavedDialogPin) TBD.
+    final wasPinned = sub.isPinned;
+    if (wasPinned) {
+      _pinnedSublists.removeWhere((s) => s.peerId == sub.peerId);
+      _regularSublists.insert(0, SavedSublistInfo(
+        peerId: sub.peerId, peerName: sub.peerName, avatarPath: sub.avatarPath,
+        type: sub.type, isPinned: false, topMessage: sub.topMessage,
+        lastMsgText: sub.lastMsgText, lastMsgTime: sub.lastMsgTime,
+        isSelf: sub.isSelf, unreadCount: sub.unreadCount,
+      ));
+    } else {
+      _regularSublists.removeWhere((s) => s.peerId == sub.peerId);
+      _pinnedSublists.add(SavedSublistInfo(
+        peerId: sub.peerId, peerName: sub.peerName, avatarPath: sub.avatarPath,
+        type: sub.type, isPinned: true, topMessage: sub.topMessage,
+        lastMsgText: sub.lastMsgText, lastMsgTime: sub.lastMsgTime,
+        isSelf: sub.isSelf, unreadCount: sub.unreadCount,
+      ));
+    }
+    _updateRecentSublists();
+    notifyListeners();
+  }
+
+  void markSavedSublistRead(SavedSublistInfo sub) {
+    notifyListeners();
+  }
+
+  void deleteSavedSublist(SavedSublistInfo sub) {
+    _pinnedSublists.removeWhere((s) => s.peerId == sub.peerId);
+    _regularSublists.removeWhere((s) => s.peerId == sub.peerId);
+    if (_activeSublist?.peerId == sub.peerId) {
+      _activeSublist = null;
+    }
+    _updateRecentSublists();
+    notifyListeners();
+  }
+
   void closeSavedSublists() {
     _isViewingSavedSublists = false;
     _activeSublist = null;

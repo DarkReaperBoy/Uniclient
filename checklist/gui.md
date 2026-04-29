@@ -859,7 +859,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_list_panel.dart, chat_list_row.dart, hamburger_drawer.dart (partial saved-messages reference) — new: dart/lib/ui/saved_messages.dart -->
 
-- [ ] Subsection tabs strip: 36px horizontal (or 64px vertical) with toggle button, per-tab label + badge, active indicator animation 150ms, hidden scrollbar, wheel-Y→scroll-X, scroll-to-active, drag-reorder for pinned sublists, right-click dialogs sidebar context menu — spec §31.9
 - [ ] Tagged dialog rows: height 72px (96px forum), tag pills row at 52px/77px, 10px font, pre-rendered QImage cache — spec §31.10
 
 ---

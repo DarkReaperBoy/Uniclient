@@ -3267,6 +3267,16 @@ class _ChatViewState extends State<ChatView>
               groupCall: chatState.activeGroupCall!,
               onJoin: () => chatState.joinGroupCall(),
             ),
+          // §31.9: Subsection tabs strip for Saved Messages sublists.
+          if (chat.title == 'Saved Messages' && chat.type == ChatType.dm && chatState.isViewingSavedSublists && chatState.savedSublists.isNotEmpty)
+            _SubsectionTabsStrip(
+              sublists: chatState.savedSublists,
+              activeSublist: chatState.activeSublist,
+              onSelectSublist: (sub) => chatState.openSavedSublist(sub),
+              onCloseSublist: () => chatState.closeSavedSublist(),
+              hasMore: chatState.savedSublistsHasMore,
+              onLoadMore: () => chatState.loadMoreSavedSublists(),
+            ),
           // Pinned message bar (if any pinned messages).
           if (chatState.pinnedMessages.isNotEmpty && !_pinnedBarDismissed)
             _PinnedBar(
@@ -6990,6 +7000,401 @@ class _BusinessBotBar extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// §31.9: Subsection tabs strip for Saved Messages sublists.
+class _SubsectionTabsStrip extends StatefulWidget {
+  final List<SavedSublistInfo> sublists;
+  final SavedSublistInfo? activeSublist;
+  final ValueChanged<SavedSublistInfo> onSelectSublist;
+  final VoidCallback? onCloseSublist;
+  final bool hasMore;
+  final VoidCallback? onLoadMore;
+
+  const _SubsectionTabsStrip({
+    required this.sublists,
+    this.activeSublist,
+    required this.onSelectSublist,
+    this.onCloseSublist,
+    this.hasMore = false,
+    this.onLoadMore,
+  });
+
+  @override
+  State<_SubsectionTabsStrip> createState() => _SubsectionTabsStripState();
+}
+
+class _SubsectionTabsStripState extends State<_SubsectionTabsStrip> {
+  final _scrollController = ScrollController();
+  static const _stripHeight = 36.0;
+  static const _toggleWidth = 64.0;
+  static const _strictSkip = 18.0;
+  static const _labelTop = 9.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_checkLoadMore);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToActive());
+  }
+
+  @override
+  void didUpdateWidget(_SubsectionTabsStrip old) {
+    super.didUpdateWidget(old);
+    if (widget.activeSublist?.peerId != old.activeSublist?.peerId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToActive());
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_checkLoadMore);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _checkLoadMore() {
+    if (!widget.hasMore || widget.onLoadMore == null) return;
+    if (!_scrollController.hasClients) return;
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    final viewportDim = _scrollController.position.viewportDimension;
+    if (maxScroll <= 3 * viewportDim) {
+      widget.onLoadMore!();
+    }
+  }
+
+  void _scrollToActive() {
+    if (widget.activeSublist == null || !_scrollController.hasClients) return;
+    final idx = widget.sublists.indexWhere((s) => s.peerId == widget.activeSublist!.peerId);
+    if (idx < 0) return;
+    // Estimate tab positions — measure would be better but this approximation works
+    // since tab widths are label-dependent. We use a rough average.
+    // For precise scrolling, we'd need GlobalKeys per tab, but the peek-affordance
+    // behavior handles approximate well.
+    final context = this.context;
+    if (!mounted) return;
+
+    // Find the actual RenderBox of the active tab via its key — if we have it.
+    // Fallback: estimate from index.
+    final pos = _scrollController.position;
+    final viewport = pos.viewportDimension;
+
+    // Estimate: average tab width ~80px (strictSkip 18 + ~62px label avg)
+    const avgTabWidth = 80.0;
+    final tabStart = idx * avgTabWidth;
+    final tabEnd = tabStart + avgTabWidth;
+    final add = math.min(viewport - avgTabWidth, avgTabWidth) / 2;
+
+    if (tabStart < pos.pixels) {
+      final target = (tabStart - add).clamp(0.0, pos.maxScrollExtent);
+      _scrollController.animateTo(target, duration: const Duration(milliseconds: 150), curve: Curves.easeOutCubic);
+    } else if (tabEnd > pos.pixels + viewport) {
+      final target = math.min(tabStart, tabEnd - viewport).clamp(0.0, pos.maxScrollExtent);
+      _scrollController.animateTo(target, duration: const Duration(milliseconds: 150), curve: Curves.easeOutCubic);
+    }
+  }
+
+  void _showTabContextMenu(BuildContext context, SavedSublistInfo sub, Offset position) {
+    final chatState = context.read<ChatState>();
+    showTelegramMenu<String>(
+      context: context,
+      position: position,
+      items: [
+        TelegramMenuItem(
+          value: 'pin',
+          icon: Icon(sub.isPinned ? Icons.push_pin : Icons.push_pin_outlined),
+          label: sub.isPinned ? 'Unpin' : 'Pin',
+        ),
+        const TelegramMenuItem(
+          value: 'mark_read',
+          icon: Icon(Icons.done_all),
+          label: 'Mark as Read',
+        ),
+        const TelegramMenuItem.separator(),
+        const TelegramMenuItem(
+          value: 'delete',
+          icon: Icon(Icons.delete_outline),
+          label: 'Delete',
+          isAttention: true,
+        ),
+      ],
+    ).then((action) {
+      if (action == null) return;
+      switch (action) {
+        case 'pin':
+          chatState.togglePinSavedSublist(sub);
+        case 'mark_read':
+          chatState.markSavedSublistRead(sub);
+        case 'delete':
+          chatState.deleteSavedSublist(sub);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final shadowFg = isDark ? const Color(0x5604080e) : const Color(0x18000000);
+    final windowBg = isDark ? const Color(0xFF17212b) : Colors.white;
+    final menuIconFg = isDark ? const Color(0xFF7b8a97) : const Color(0xFF999999);
+    final tabInactiveFg = isDark ? const Color(0xFF7b8a97) : const Color(0xFF999999);
+    final tabActiveFg = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd);
+    final hoverBg = isDark ? const Color(0xFF202b36) : const Color(0xFFf1f1f1);
+
+    final sublists = widget.sublists;
+
+    return Container(
+      height: _stripHeight,
+      decoration: BoxDecoration(
+        color: windowBg,
+        border: Border(bottom: BorderSide(color: shadowFg, width: 1)),
+      ),
+      child: Row(
+        children: [
+          // Toggle button — 64px, shows flip icon
+          SizedBox(
+            width: _toggleWidth,
+            height: _stripHeight,
+            child: InkWell(
+              onTap: widget.onCloseSublist,
+              child: Icon(
+                Icons.view_sidebar_outlined,
+                size: 20,
+                color: menuIconFg,
+              ),
+            ),
+          ),
+          // 1px vertical shadow separator
+          Container(width: 1, height: _stripHeight, color: shadowFg),
+          // Scrollable tabs
+          Expanded(
+            child: Listener(
+              onPointerSignal: (event) {
+                if (event is PointerScrollEvent && _scrollController.hasClients) {
+                  // Wheel-Y → scroll-X redirection per spec §31.9a
+                  final dx = event.scrollDelta.dx;
+                  final dy = event.scrollDelta.dy;
+                  if (dx.abs() + dy.abs() > 0 && dx.abs() < dy.abs()) {
+                    final newOffset = (_scrollController.offset - dy)
+                        .clamp(0.0, _scrollController.position.maxScrollExtent);
+                    _scrollController.jumpTo(newOffset);
+                  }
+                }
+              },
+              child: ScrollConfiguration(
+                behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+                child: ListView.builder(
+                  controller: _scrollController,
+                  scrollDirection: Axis.horizontal,
+                  physics: const ClampingScrollPhysics(),
+                  itemCount: sublists.length + 1, // +1 for "All" tab
+                  itemBuilder: (context, index) {
+                    if (index == 0) {
+                      // "All" tab — active when no sublist selected
+                      final isActive = widget.activeSublist == null;
+                      return _SubsectionTab(
+                        label: 'All',
+                        isActive: isActive,
+                        activeFg: tabActiveFg,
+                        inactiveFg: tabInactiveFg,
+                        hoverBg: hoverBg,
+                        onTap: () {
+                          if (widget.onCloseSublist != null) widget.onCloseSublist!();
+                        },
+                      );
+                    }
+                    final sub = sublists[index - 1];
+                    final isActive = widget.activeSublist?.peerId == sub.peerId;
+                    return GestureDetector(
+                      onSecondaryTapUp: (details) {
+                        _showTabContextMenu(context, sub, details.globalPosition);
+                      },
+                      child: _SubsectionTab(
+                        label: sub.isSelf ? 'My Notes' : sub.peerName,
+                        isActive: isActive,
+                        activeFg: tabActiveFg,
+                        inactiveFg: tabInactiveFg,
+                        hoverBg: hoverBg,
+                        unreadCount: sub.unreadCount,
+                        avatarPath: sub.avatarPath,
+                        isSelf: sub.isSelf,
+                        onTap: () => widget.onSelectSublist(sub),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SubsectionTab extends StatefulWidget {
+  final String label;
+  final bool isActive;
+  final Color activeFg;
+  final Color inactiveFg;
+  final Color hoverBg;
+  final int unreadCount;
+  final String? avatarPath;
+  final bool isSelf;
+  final VoidCallback onTap;
+
+  const _SubsectionTab({
+    required this.label,
+    required this.isActive,
+    required this.activeFg,
+    required this.inactiveFg,
+    required this.hoverBg,
+    this.unreadCount = 0,
+    this.avatarPath,
+    this.isSelf = false,
+    required this.onTap,
+  });
+
+  @override
+  State<_SubsectionTab> createState() => _SubsectionTabState();
+}
+
+class _SubsectionTabState extends State<_SubsectionTab> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final fg = widget.isActive ? widget.activeFg : widget.inactiveFg;
+
+    // Measure label width for tab sizing: strictSkip (18px) + label text width
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: widget.label,
+        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+      ),
+      maxLines: 1,
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    double tabWidth = 18.0 + textPainter.width;
+
+    // Add space for avatar prefix (16px icon + 4px gap)
+    if (widget.avatarPath != null || widget.isSelf) {
+      tabWidth += 20.0;
+    }
+
+    // Add badge width
+    if (widget.unreadCount > 0) {
+      final badgeText = widget.unreadCount > 999 ? '999+' : '${widget.unreadCount}';
+      final badgePainter = TextPainter(
+        text: TextSpan(text: badgeText, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+        maxLines: 1,
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final badgeW = math.max(18.0, badgePainter.width + 10);
+      tabWidth += badgeW + 5;
+    }
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          width: tabWidth,
+          height: 36,
+          color: _hovered
+              ? (widget.isActive
+                  ? (isDark ? const Color(0xFF1a3a5c) : const Color(0xFFe8f0fe))
+                  : widget.hoverBg)
+              : Colors.transparent,
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Peer avatar thumbnail prefix
+              if (widget.isSelf)
+                Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Icon(Icons.bookmark, size: 16, color: fg),
+                )
+              else if (widget.avatarPath != null && widget.avatarPath!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: ClipOval(
+                    child: Image.file(
+                      File(widget.avatarPath!),
+                      width: 16,
+                      height: 16,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _miniAvatarFallback(fg),
+                    ),
+                  ),
+                )
+              else if (widget.avatarPath != null)
+                Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: _miniAvatarFallback(fg),
+                ),
+              // Label
+              Text(
+                widget.label,
+                maxLines: 1,
+                overflow: TextOverflow.clip,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: fg,
+                ),
+              ),
+              // Unread badge
+              if (widget.unreadCount > 0)
+                Padding(
+                  padding: const EdgeInsets.only(left: 5),
+                  child: Container(
+                    constraints: const BoxConstraints(minWidth: 18),
+                    height: 18,
+                    padding: const EdgeInsets.symmetric(horizontal: 5),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF3e546a) : const Color(0xFFbbbbbb),
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      widget.unreadCount > 999 ? '999+' : '${widget.unreadCount}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _miniAvatarFallback(Color fg) {
+    return Container(
+      width: 16,
+      height: 16,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: fg.withValues(alpha: 0.3),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        widget.label.isNotEmpty ? widget.label[0].toUpperCase() : '?',
+        style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: fg),
       ),
     );
   }
