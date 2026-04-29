@@ -11690,12 +11690,14 @@ class EngineGetSavedSublistsRequest extends $pb.GeneratedMessage {
     $core.int? limit,
     $core.int? offsetDate,
     $core.int? offsetId,
+    $core.bool? excludePinned,
   }) {
     final $result = create();
     if (accountId != null) $result.accountId = accountId;
     if (limit != null) $result.limit = limit;
     if (offsetDate != null) $result.offsetDate = offsetDate;
     if (offsetId != null) $result.offsetId = offsetId;
+    if (excludePinned != null) $result.excludePinned = excludePinned;
     return $result;
   }
   EngineGetSavedSublistsRequest._() : super();
@@ -11706,6 +11708,7 @@ class EngineGetSavedSublistsRequest extends $pb.GeneratedMessage {
     ..a<$core.int>(2, _omitFieldNames ? '' : 'limit', $pb.PbFieldType.O3)
     ..a<$core.int>(3, _omitFieldNames ? '' : 'offsetDate', $pb.PbFieldType.O3)
     ..a<$core.int>(4, _omitFieldNames ? '' : 'offsetId', $pb.PbFieldType.O3)
+    ..aOB(5, _omitFieldNames ? '' : 'excludePinned')
     ..hasRequiredFields = false
   ;
 
@@ -11739,6 +11742,11 @@ class EngineGetSavedSublistsRequest extends $pb.GeneratedMessage {
   $core.int get offsetId => $_getIZ(3);
   @$pb.TagNumber(4)
   set offsetId($core.int v) { $_setSignedInt32(3, v); }
+
+  @$pb.TagNumber(5)
+  $core.bool get excludePinned => $_getBF(4);
+  @$pb.TagNumber(5)
+  set excludePinned($core.bool v) { $_setBool(4, v); }
 }
 
 class EngineSavedSublist extends $pb.GeneratedMessage {

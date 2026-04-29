@@ -10153,11 +10153,12 @@ func (x *EngineGetCustomEmojiThumbsResponse) GetThumbs() []*EngineCustomEmojiThu
 }
 
 type EngineGetSavedSublistsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
-	OffsetDate    int32                  `protobuf:"varint,3,opt,name=offset_date,json=offsetDate,proto3" json:"offset_date,omitempty"`
-	OffsetId      int32                  `protobuf:"varint,4,opt,name=offset_id,json=offsetId,proto3" json:"offset_id,omitempty"`
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	AccountId      string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	Limit          int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	OffsetDate     int32                  `protobuf:"varint,3,opt,name=offset_date,json=offsetDate,proto3" json:"offset_date,omitempty"`
+	OffsetId       int32                  `protobuf:"varint,4,opt,name=offset_id,json=offsetId,proto3" json:"offset_id,omitempty"`
+	ExcludePinned  bool                   `protobuf:"varint,5,opt,name=exclude_pinned,json=excludePinned,proto3" json:"exclude_pinned,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -10218,6 +10219,13 @@ func (x *EngineGetSavedSublistsRequest) GetOffsetId() int32 {
 		return x.OffsetId
 	}
 	return 0
+}
+
+func (x *EngineGetSavedSublistsRequest) GetExcludePinned() bool {
+	if x != nil {
+		return x.ExcludePinned
+	}
+	return false
 }
 
 type EngineSavedSublist struct {

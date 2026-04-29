@@ -999,10 +999,10 @@ func (e *Engine) GetSavedGifs(accountID string) ([]cores.GifInfo, error) {
 }
 
 type SavedSublistsFetcher interface {
-	GetSavedSublists(limit, offsetDate, offsetID int) ([]cores.SavedSublistInfo, int, error)
+	GetSavedSublists(limit, offsetDate, offsetID int, excludePinned bool) ([]cores.SavedSublistInfo, int, error)
 }
 
-func (e *Engine) GetSavedSublists(accountID string, limit, offsetDate, offsetID int) ([]cores.SavedSublistInfo, int, error) {
+func (e *Engine) GetSavedSublists(accountID string, limit, offsetDate, offsetID int, excludePinned bool) ([]cores.SavedSublistInfo, int, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
 		return nil, 0, fmt.Errorf("account not found: %s", accountID)
@@ -1014,7 +1014,26 @@ func (e *Engine) GetSavedSublists(accountID string, limit, offsetDate, offsetID 
 	if !ok {
 		return nil, 0, fmt.Errorf("platform does not support saved sublists")
 	}
-	return fetcher.GetSavedSublists(limit, offsetDate, offsetID)
+	return fetcher.GetSavedSublists(limit, offsetDate, offsetID, excludePinned)
+}
+
+type PinnedSavedSublistsFetcher interface {
+	GetPinnedSavedSublists() ([]cores.SavedSublistInfo, int, error)
+}
+
+func (e *Engine) GetPinnedSavedSublists(accountID string) ([]cores.SavedSublistInfo, int, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, 0, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, 0, fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(PinnedSavedSublistsFetcher)
+	if !ok {
+		return nil, 0, fmt.Errorf("platform does not support pinned saved sublists")
+	}
+	return fetcher.GetPinnedSavedSublists()
 }
 
 type RecentStickersFetcher interface {

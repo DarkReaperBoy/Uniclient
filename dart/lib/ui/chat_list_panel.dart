@@ -4046,7 +4046,7 @@ class _TopicUnreadBadge extends StatelessWidget {
 // §31.2–31.3 Saved Messages Sublists View
 // ══════════════════════════════════════════════════════════════════════════════
 
-class _SavedSublistsView extends StatelessWidget {
+class _SavedSublistsView extends StatefulWidget {
   final ChatState chatState;
   final bool collapsed;
 
@@ -4056,11 +4056,41 @@ class _SavedSublistsView extends StatelessWidget {
   });
 
   @override
+  State<_SavedSublistsView> createState() => _SavedSublistsViewState();
+}
+
+class _SavedSublistsViewState extends State<_SavedSublistsView> {
+  final _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final pos = _scrollController.position;
+    if (pos.pixels >= pos.maxScrollExtent - 200) {
+      widget.chatState.loadMoreSavedSublists();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final chatState = widget.chatState;
     final sublists = chatState.savedSublists;
     final loading = chatState.savedSublistsLoading;
+    final loadingMore = chatState.savedSublistsLoadingMore;
 
     return Container(
       decoration: BoxDecoration(
@@ -4090,8 +4120,15 @@ class _SavedSublistsView extends StatelessWidget {
                         ),
                       )
                     : ListView.builder(
-                        itemCount: sublists.length,
+                        controller: _scrollController,
+                        itemCount: sublists.length + (loadingMore ? 1 : 0),
                         itemBuilder: (context, index) {
+                          if (index >= sublists.length) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              child: Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))),
+                            );
+                          }
                           final sub = sublists[index];
                           return _SavedSublistRow(
                             sublist: sub,

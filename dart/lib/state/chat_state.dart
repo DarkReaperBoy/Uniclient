@@ -64,12 +64,23 @@ class ChatState extends ChangeNotifier {
   final Map<String, List<ForumTopic>> _forumRecentTopics = {};
   final Set<String> _forumTopicsFetching = {};
 
-  // §31.2–31.4: Saved Messages sublist state.
-  List<SavedSublistInfo> _savedSublists = [];
+  // §31.2–31.5: Saved Messages sublist state with pagination.
+  List<SavedSublistInfo> _pinnedSublists = [];
+  List<SavedSublistInfo> _regularSublists = [];
   bool _isViewingSavedSublists = false;
   int _savedSublistsTotalCount = 0;
   bool _savedSublistsLoading = false;
+  bool _savedSublistsLoadingMore = false;
+  bool _savedSublistsHasMore = true;
+  int _savedSublistsOffsetDate = 0;
+  int _savedSublistsOffsetId = 0;
+  bool _savedSublistsFirstLoad = true;
   SavedSublistInfo? _activeSublist;
+  List<SavedSublistInfo> _recentSublists = [];
+  static const _kFirstPerPage = 10;
+  static const _kPerPage = 50;
+  static const _kLoadedSublistsMinCount = 20;
+  static const _kRecentSublistsMax = 6;
 
   // §24.5: Recently opened chats for Ctrl+Tab switcher overlay.
   final List<String> _chatOpenHistory = []; // chatId list, most-recent first
@@ -258,11 +269,19 @@ class ChatState extends ChangeNotifier {
     return _forumViewAsMessages.contains('${chat.accountId}:${chat.chatId}');
   }
 
-  // §31.2–31.4: Saved sublists getters
-  List<SavedSublistInfo> get savedSublists => _savedSublists;
+  // §31.2–31.5: Saved sublists getters
+  List<SavedSublistInfo> get savedSublists {
+    final pinnedIds = _pinnedSublists.map((s) => s.peerId).toSet();
+    final deduped = _regularSublists.where((s) => !pinnedIds.contains(s.peerId)).toList();
+    return [..._pinnedSublists, ...deduped];
+  }
+  List<SavedSublistInfo> get pinnedSublists => _pinnedSublists;
+  List<SavedSublistInfo> get recentSublists => _recentSublists;
   bool get isViewingSavedSublists => _isViewingSavedSublists;
   int get savedSublistsTotalCount => _savedSublistsTotalCount;
   bool get savedSublistsLoading => _savedSublistsLoading;
+  bool get savedSublistsLoadingMore => _savedSublistsLoadingMore;
+  bool get savedSublistsHasMore => _savedSublistsHasMore;
   SavedSublistInfo? get activeSublist => _activeSublist;
 
   void toggleForumViewAsMessages() {
@@ -797,20 +816,106 @@ class ChatState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // §31.2–31.3: Saved Messages sublists
+  // §31.2–31.5: Saved Messages sublists with pagination
+  String _savedSublistsAccountId = '';
+
   Future<void> openSavedSublists(String accountId) async {
     _isViewingSavedSublists = true;
-    _savedSublists = [];
+    _savedSublistsAccountId = accountId;
+    _pinnedSublists = [];
+    _regularSublists = [];
     _savedSublistsTotalCount = 0;
     _savedSublistsLoading = true;
+    _savedSublistsHasMore = true;
+    _savedSublistsOffsetDate = 0;
+    _savedSublistsOffsetId = 0;
+    _savedSublistsFirstLoad = true;
+    _recentSublists = [];
     notifyListeners();
     try {
-      final (sublists, total) = _engine.getSavedSublists(accountId);
-      _savedSublists = sublists;
+      // Load pinned sublists separately (spec §31.5)
+      try {
+        final (pinned, _) = _engine.getPinnedSavedSublists(accountId);
+        _pinnedSublists = pinned;
+      } catch (_) {}
+
+      // First batch: kFirstPerPage=10 non-pinned sublists
+      final (sublists, total) = _engine.getSavedSublists(
+        accountId,
+        limit: _kFirstPerPage,
+        excludePinned: true,
+      );
+      _regularSublists = sublists;
       _savedSublistsTotalCount = total;
+      _savedSublistsFirstLoad = false;
+
+      if (sublists.isNotEmpty) {
+        final last = sublists.last;
+        _savedSublistsOffsetDate = (last.lastMsgTime ~/ 1000);
+        _savedSublistsOffsetId = last.topMessage;
+      }
+      _savedSublistsHasMore = sublists.length >= _kFirstPerPage;
+
+      _updateRecentSublists();
+
+      // Auto-load more if below kLoadedSublistsMinCount=20 (spec §31.5)
+      final totalLoaded = _pinnedSublists.length + _regularSublists.length;
+      if (totalLoaded < _kLoadedSublistsMinCount && _savedSublistsHasMore) {
+        _savedSublistsLoading = false;
+        notifyListeners();
+        await _loadMoreSavedSublistsInternal();
+        return;
+      }
     } catch (_) {}
     _savedSublistsLoading = false;
     notifyListeners();
+  }
+
+  Future<void> loadMoreSavedSublists() async {
+    if (_savedSublistsLoadingMore || !_savedSublistsHasMore || _savedSublistsAccountId.isEmpty) return;
+    await _loadMoreSavedSublistsInternal();
+  }
+
+  Future<void> _loadMoreSavedSublistsInternal() async {
+    _savedSublistsLoadingMore = true;
+    notifyListeners();
+    try {
+      final (sublists, total) = _engine.getSavedSublists(
+        _savedSublistsAccountId,
+        limit: _kPerPage,
+        offsetDate: _savedSublistsOffsetDate,
+        offsetId: _savedSublistsOffsetId,
+        excludePinned: true,
+      );
+      _regularSublists = [..._regularSublists, ...sublists];
+      _savedSublistsTotalCount = total;
+
+      if (sublists.isNotEmpty) {
+        final last = sublists.last;
+        _savedSublistsOffsetDate = (last.lastMsgTime ~/ 1000);
+        _savedSublistsOffsetId = last.topMessage;
+      }
+      _savedSublistsHasMore = sublists.length >= _kPerPage;
+
+      _updateRecentSublists();
+
+      // Continue auto-loading if still below minimum (spec §31.5)
+      final totalLoaded = _pinnedSublists.length + _regularSublists.length;
+      if (totalLoaded < _kLoadedSublistsMinCount && _savedSublistsHasMore) {
+        _savedSublistsLoadingMore = false;
+        notifyListeners();
+        await _loadMoreSavedSublistsInternal();
+        return;
+      }
+    } catch (_) {}
+    _savedSublistsLoadingMore = false;
+    notifyListeners();
+  }
+
+  void _updateRecentSublists() {
+    final all = [..._pinnedSublists, ..._regularSublists];
+    all.sort((a, b) => b.lastMsgTime.compareTo(a.lastMsgTime));
+    _recentSublists = all.take(_kRecentSublistsMax).toList();
   }
 
   void openSavedSublist(SavedSublistInfo sublist) {
@@ -826,9 +931,17 @@ class ChatState extends ChangeNotifier {
   void closeSavedSublists() {
     _isViewingSavedSublists = false;
     _activeSublist = null;
-    _savedSublists = [];
+    _pinnedSublists = [];
+    _regularSublists = [];
     _savedSublistsTotalCount = 0;
     _savedSublistsLoading = false;
+    _savedSublistsLoadingMore = false;
+    _savedSublistsHasMore = true;
+    _savedSublistsOffsetDate = 0;
+    _savedSublistsOffsetId = 0;
+    _savedSublistsFirstLoad = true;
+    _recentSublists = [];
+    _savedSublistsAccountId = '';
     notifyListeners();
   }
 

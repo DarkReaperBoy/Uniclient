@@ -2950,7 +2950,33 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
-		sublists, total, err := e.GetSavedSublists(req.AccountId, int(req.Limit), int(req.OffsetDate), int(req.OffsetId))
+		sublists, total, err := e.GetSavedSublists(req.AccountId, int(req.Limit), int(req.OffsetDate), int(req.OffsetId), req.ExcludePinned)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetSavedSublistsResponse{TotalCount: int32(total)}
+		for _, s := range sublists {
+			resp.Sublists = append(resp.Sublists, &pb.EngineSavedSublist{
+				PeerId:      s.PeerID,
+				PeerName:    sanitizeUTF8(s.PeerName),
+				AvatarPath:  s.AvatarPath,
+				Type:        int32(s.Type),
+				IsPinned:    s.IsPinned,
+				TopMessage:  int32(s.TopMessage),
+				LastMsgText: sanitizeUTF8(s.LastMsgText),
+				LastMsgTime: s.LastMsgTime,
+				IsSelf:      s.IsSelf,
+				UnreadCount: int32(s.UnreadCount),
+			})
+		}
+		return proto.Marshal(resp)
+
+	case "GetPinnedSavedSublists":
+		var req pb.EngineGetSavedSublistsRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		sublists, total, err := e.GetPinnedSavedSublists(req.AccountId)
 		if err != nil {
 			return nil, err
 		}

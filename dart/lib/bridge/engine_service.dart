@@ -161,15 +161,30 @@ class EngineService {
     return resp.chats.map(_chatInfoFromProto).toList();
   }
 
-  (List<SavedSublistInfo>, int) getSavedSublists(String accountId, {int limit = 50, int offsetDate = 0, int offsetId = 0}) {
+  (List<SavedSublistInfo>, int) getSavedSublists(String accountId, {int limit = 50, int offsetDate = 0, int offsetId = 0, bool excludePinned = false}) {
     final req = epb.EngineGetSavedSublistsRequest()
       ..accountId = accountId
       ..limit = limit
       ..offsetDate = offsetDate
-      ..offsetId = offsetId;
+      ..offsetId = offsetId
+      ..excludePinned = excludePinned;
     final respBytes = _callRaw('__engine', 'GetSavedSublists', req.writeToBuffer());
     final resp = epb.EngineGetSavedSublistsResponse.fromBuffer(respBytes);
-    final sublists = resp.sublists.map((s) => SavedSublistInfo(
+    final sublists = resp.sublists.map(_savedSublistFromProto).toList();
+    return (sublists, resp.totalCount);
+  }
+
+  (List<SavedSublistInfo>, int) getPinnedSavedSublists(String accountId) {
+    final req = epb.EngineGetSavedSublistsRequest()
+      ..accountId = accountId;
+    final respBytes = _callRaw('__engine', 'GetPinnedSavedSublists', req.writeToBuffer());
+    final resp = epb.EngineGetSavedSublistsResponse.fromBuffer(respBytes);
+    final sublists = resp.sublists.map(_savedSublistFromProto).toList();
+    return (sublists, resp.totalCount);
+  }
+
+  static SavedSublistInfo _savedSublistFromProto(epb.EngineSavedSublist s) {
+    return SavedSublistInfo(
       peerId: s.peerId,
       peerName: s.peerName,
       avatarPath: s.avatarPath,
@@ -180,8 +195,7 @@ class EngineService {
       lastMsgTime: s.lastMsgTime.toInt(),
       isSelf: s.isSelf,
       unreadCount: s.unreadCount,
-    )).toList();
-    return (sublists, resp.totalCount);
+    );
   }
 
   void saveDraft(String accountId, String chatId, String text) {
