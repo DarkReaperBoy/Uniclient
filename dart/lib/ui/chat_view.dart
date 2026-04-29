@@ -2485,7 +2485,7 @@ class _ChatViewState extends State<ChatView>
   void _debounceInlineQuery() {
     _inlineBotDebounce?.cancel();
     setState(() => _inlineBotLoading = true);
-    _inlineBotDebounce = Timer(const Duration(milliseconds: 400), _fetchInlineResults);
+    _inlineBotDebounce = Timer(const Duration(milliseconds: 350), _fetchInlineResults);
   }
 
   void _fetchInlineResults() {
@@ -3352,6 +3352,29 @@ class _ChatViewState extends State<ChatView>
                     ),
                   ),
                 ),
+                if (_inlineBotResults != null && _inlineBotResults!.results.isNotEmpty)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: _InlineBotResultsPanel(
+                      results: _inlineBotResults!,
+                      gallery: _inlineBotResults!.gallery,
+                      onPick: _pickInlineResult,
+                      loading: _inlineBotLoading,
+                      onSwitchPM: _inlineBotResults!.switchPM.isNotEmpty ? () {
+                        final botId = _inlineBotUserId;
+                        if (botId != null) {
+                          final chatState = context.read<ChatState>();
+                          chatState.openChatById(botId);
+                          final param = _inlineBotResults!.switchPMParam;
+                          if (param.isNotEmpty) {
+                            chatState.sendMessage('/start $param');
+                          }
+                        }
+                      } : null,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -3409,13 +3432,6 @@ class _ChatViewState extends State<ChatView>
               selectedIndex: _acSelectedIndex,
               onPick: (i) => _acPickIndex(i),
               onHover: (i) => setState(() => _acSelectedIndex = i),
-            ),
-          if (_inlineBotResults != null && _inlineBotResults!.results.isNotEmpty)
-            _InlineBotResultsPanel(
-              results: _inlineBotResults!,
-              gallery: _inlineBotResults!.gallery,
-              onPick: _pickInlineResult,
-              loading: _inlineBotLoading,
             ),
           // Per-chat theme chooser (§25.11).
           if (chatState.showThemeChooser)
@@ -11253,7 +11269,7 @@ class _StickerSuggestionPanel extends StatelessWidget {
   }
 }
 
-class _InlineBotResultsPanel extends StatelessWidget {
+class _InlineBotResultsPanel extends StatefulWidget {
   final InlineBotResults results;
   final bool gallery;
   final ValueChanged<InlineBotResult> onPick;
@@ -11269,19 +11285,75 @@ class _InlineBotResultsPanel extends StatelessWidget {
   });
 
   @override
+  State<_InlineBotResultsPanel> createState() => _InlineBotResultsPanelState();
+}
+
+class _InlineBotResultsPanelState extends State<_InlineBotResultsPanel>
+    with SingleTickerProviderStateMixin {
+  static const double _panelMinH = 278.0;
+  static const double _panelMaxH = 640.0;
+  static const double _panelHeightRatio = 0.75;
+  static const double _panelRadius = 8.0;
+  static const double _contentPad = 11.0;
+  static const double _itemSkip = 3.0;
+  static const double _rowMargin = 6.0;
+  static const double _mosaicRowHeight = 96.0;
+  static const double _stickerSize = 64.0;
+  static const double _minItemWidth = 48.0;
+
+  late final AnimationController _fadeCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
+    _fadeCtrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _fadeCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF17212b) : Colors.white;
 
-    return SizedBox(
-      height: 200,
-      child: DecoratedBox(
+    return FadeTransition(
+      opacity: _fadeCtrl,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: _panelMinH, maxHeight: _panelMaxH),
+        margin: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: bgColor,
-          border: Border(top: BorderSide(color: isDark ? const Color(0xFF1e2c3a) : const Color(0xFFe8e8e8))),
+          borderRadius: BorderRadius.circular(_panelRadius),
+          boxShadow: [
+            BoxShadow(
+              color: isDark ? const Color(0x40000000) : const Color(0x18000000),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
-        child: gallery ? _buildGalleryGrid(isDark) : _buildListView(isDark),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (widget.results.switchPM.isNotEmpty)
+              _SwitchPMButton(
+                text: widget.results.switchPM,
+                onTap: widget.onSwitchPM,
+                isDark: isDark,
+              ),
+            Flexible(
+              child: widget.gallery ? _buildGalleryGrid(isDark) : _buildListView(isDark),
+            ),
+            if (widget.loading)
+              const LinearProgressIndicator(minHeight: 2),
+          ],
+        ),
       ),
     );
   }
@@ -11289,27 +11361,27 @@ class _InlineBotResultsPanel extends StatelessWidget {
   Widget _buildGalleryGrid(bool isDark) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final availW = constraints.maxWidth - 6; // 3px padding each side
-        final rows = _packMosaicRows(results.results, availW);
+        final availW = constraints.maxWidth - _contentPad * 2;
+        final rows = _packMosaicRows(widget.results.results, availW);
         return ListView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: _contentPad, vertical: _contentPad),
           itemCount: rows.length,
           itemBuilder: (context, rowIndex) {
             final row = rows[rowIndex];
             return Padding(
-              padding: EdgeInsets.only(top: rowIndex > 0 ? 3 : 0),
+              padding: EdgeInsets.only(top: rowIndex > 0 ? _itemSkip : 0, bottom: _rowMargin),
               child: SizedBox(
                 height: row.height,
                 child: Row(
                   children: [
                     for (int i = 0; i < row.items.length; i++) ...[
-                      if (i > 0) const SizedBox(width: 3),
+                      if (i > 0) const SizedBox(width: _itemSkip),
                       SizedBox(
                         width: row.widths[i],
                         height: row.height,
                         child: _GalleryResultItem(
                           item: row.items[i],
-                          onTap: () => onPick(row.items[i]),
+                          onTap: () => widget.onPick(row.items[i]),
                           isDark: isDark,
                         ),
                       ),
@@ -11324,10 +11396,6 @@ class _InlineBotResultsPanel extends StatelessWidget {
     );
   }
 
-  static const double _mosaicRowHeight = 96.0;
-  static const double _mosaicSkip = 3.0;
-  static const double _mosaicMinWidth = 48.0;
-
   List<_MosaicRow> _packMosaicRows(List<InlineBotResult> items, double availW) {
     final rows = <_MosaicRow>[];
     int i = 0;
@@ -11337,14 +11405,17 @@ class _InlineBotResultsPanel extends StatelessWidget {
       double usedW = 0;
       while (i < items.length) {
         final item = items[i];
+        final isSticker = item.type == 'sticker';
         double iw;
-        if (item.thumbW > 0 && item.thumbH > 0) {
+        if (isSticker) {
+          iw = _stickerSize;
+        } else if (item.thumbW > 0 && item.thumbH > 0) {
           iw = (item.thumbW / item.thumbH) * _mosaicRowHeight;
         } else {
           iw = _mosaicRowHeight;
         }
-        if (iw < _mosaicMinWidth) iw = _mosaicMinWidth;
-        final skipW = rowItems.isEmpty ? 0.0 : _mosaicSkip;
+        if (iw < _minItemWidth) iw = _minItemWidth;
+        final skipW = rowItems.isEmpty ? 0.0 : _itemSkip;
         if (rowItems.isNotEmpty && usedW + skipW + iw > availW) break;
         rowItems.add(item);
         intrinsicWidths.add(iw);
@@ -11352,8 +11423,11 @@ class _InlineBotResultsPanel extends StatelessWidget {
         i++;
       }
       if (rowItems.isEmpty) break;
-      final totalSkip = (rowItems.length - 1) * _mosaicSkip;
+      final totalSkip = (rowItems.length - 1) * _itemSkip;
       final totalIntrinsic = intrinsicWidths.fold(0.0, (s, w) => s + w);
+      final hasSticker = rowItems.any((r) => r.type == 'sticker');
+      final rowH = hasSticker ? _stickerSize : _mosaicRowHeight;
+      if (totalIntrinsic <= 0) break;
       final scale = (availW - totalSkip) / totalIntrinsic;
       final scaledWidths = <double>[];
       double remaining = availW - totalSkip;
@@ -11366,24 +11440,26 @@ class _InlineBotResultsPanel extends StatelessWidget {
           remaining -= sw;
         }
       }
-      final rowH = _mosaicRowHeight * scale;
-      rows.add(_MosaicRow(items: rowItems, widths: scaledWidths, height: rowH.clamp(48.0, 200.0)));
+      final finalH = (rowH * scale).clamp(48.0, 200.0);
+      rows.add(_MosaicRow(items: rowItems, widths: scaledWidths, height: finalH));
     }
     return rows;
   }
 
   Widget _buildListView(bool isDark) {
     return ListView.separated(
-      padding: EdgeInsets.zero,
-      itemCount: results.results.length,
+      padding: const EdgeInsets.symmetric(vertical: _contentPad),
+      itemCount: widget.results.results.length,
       separatorBuilder: (_, __) => Divider(
         height: 1,
         thickness: 1,
+        indent: _contentPad,
+        endIndent: _contentPad,
         color: isDark ? const Color(0xFF1e2c3a) : const Color(0xFFe8e8e8),
       ),
       itemBuilder: (context, index) {
-        final item = results.results[index];
-        return _ListResultItem(item: item, onTap: () => onPick(item), isDark: isDark);
+        final item = widget.results.results[index];
+        return _ListResultItem(item: item, onTap: () => widget.onPick(item), isDark: isDark);
       },
     );
   }
@@ -11545,11 +11621,15 @@ class _ListResultItem extends StatefulWidget {
 class _ListResultItemState extends State<_ListResultItem> {
   bool _hovered = false;
 
+  static const double _thumbSize = 64.0;
+  static const double _thumbSkip = 10.0;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final hoverColor = widget.isDark ? const Color(0xFF202b36) : const Color(0xFFf1f1f1);
     final thumbBg = widget.isDark ? const Color(0xFF1e2c3a) : const Color(0xFFf0f0f0);
+    final hasThumb = widget.item.thumbUrl.isNotEmpty || widget.item.thumbB64.isNotEmpty;
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
@@ -11558,22 +11638,37 @@ class _ListResultItemState extends State<_ListResultItem> {
         behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,
         child: Container(
-          height: 64,
+          constraints: const BoxConstraints(minHeight: 64),
           padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
           color: _hovered ? hoverColor : null,
           child: Row(
             children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: thumbBg,
-                  borderRadius: BorderRadius.circular(6),
+              if (hasThumb || _hasTypeIcon())
+                Container(
+                  width: _thumbSize,
+                  height: _thumbSize - 12,
+                  decoration: BoxDecoration(
+                    color: thumbBg,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: _buildListThumb(),
+                )
+              else
+                Container(
+                  width: _thumbSize,
+                  height: _thumbSize - 12,
+                  decoration: BoxDecoration(
+                    color: _letterAvatarColor(),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    widget.item.title.isNotEmpty ? widget.item.title[0].toUpperCase() : '?',
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: Colors.white),
+                  ),
                 ),
-                clipBehavior: Clip.antiAlias,
-                child: _buildListThumb(),
-              ),
-              const SizedBox(width: 10),
+              const SizedBox(width: _thumbSkip),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -11587,7 +11682,7 @@ class _ListResultItemState extends State<_ListResultItem> {
                           fontWeight: FontWeight.w600,
                           color: theme.textTheme.bodyMedium?.color,
                         ),
-                        maxLines: 1,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                     if (widget.item.description.isNotEmpty)
@@ -11610,17 +11705,31 @@ class _ListResultItemState extends State<_ListResultItem> {
     );
   }
 
+  bool _hasTypeIcon() {
+    return const {'photo', 'gif', 'video', 'audio', 'voice', 'sticker', 'document', 'file'}
+        .contains(widget.item.type);
+  }
+
+  Color _letterAvatarColor() {
+    final hash = widget.item.id.hashCode;
+    const colors = [
+      Color(0xFF5b8cc2), Color(0xFF6bb76d), Color(0xFFd47b4f),
+      Color(0xFF9b72c1), Color(0xFFca555b), Color(0xFF5caaae),
+    ];
+    return colors[hash.abs() % colors.length];
+  }
+
   Widget _buildListThumb() {
     if (widget.item.thumbUrl.isNotEmpty) {
       return Image.network(widget.item.thumbUrl, fit: BoxFit.cover,
-          width: 48, height: 48,
+          width: _thumbSize, height: _thumbSize - 12,
           errorBuilder: (_, __, ___) => Center(child: _thumbIcon()));
     }
     if (widget.item.thumbB64.isNotEmpty) {
       try {
         final bytes = base64Decode(widget.item.thumbB64);
         return Image.memory(bytes, fit: BoxFit.cover,
-            width: 48, height: 48, gaplessPlayback: true,
+            width: _thumbSize, height: _thumbSize - 12, gaplessPlayback: true,
             errorBuilder: (_, __, ___) => Center(child: _thumbIcon()));
       } catch (_) {}
     }

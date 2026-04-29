@@ -853,7 +853,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_view.dart, message_bubble.dart, info_panel.dart (partial bot awareness) — new: dart/lib/ui/bot_panels.dart -->
 
-- [ ] Inline bot results panel: trigger on `@botname `, 345px panel 278-640px height, mosaic grid layout, photo/GIF 96px, sticker 64px, video/article/file cards, 350ms debounce query, 33ms repaint throttle, Switch PM button — spec §30.3
 - [ ] Reply keyboard: full-width below compose, show/hide 200ms, SingleUse/ForceReply/Persistent/Resize flags, normal (38px) and tiny (25px) button styles, 4 color states (Normal/Primary/Danger/Success), corner rounding, 350ms tooltips — spec §30.4
 - [ ] Inline keyboard buttons: margin 2px, height 36px, all button types (Default/Url/Callback/RequestPhone/RequestLocation/SwitchInline/Game/Buy/Auth/WebView/CopyText etc.), type icons at bottom-right, hover 200ms animation, loading radial on callbacks, fast-buttons numbered badges — spec §30.5
 - [ ] Web/Mini Apps: SeparatePanel 384×694px, header (bot name + close + back + settings), bottom bar, main button (40px, visible/hidden/active/inactive/progress states, custom colors), secondary button (4 positions), progress indicator 200ms fade, menu popup maxHeight 360px, theme integration, loading state machine, confirmation dialogs — spec §30.6
