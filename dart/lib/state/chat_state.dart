@@ -25,6 +25,7 @@ class ChatState extends ChangeNotifier {
   final Map<String, ({String kind, int lastSeenMs})> _userLastSeen = {};
   final Map<String, String> _senderAvatars = {}; // senderId → base64 avatar thumbnail
   final Map<String, String> _altQualityPaths = {}; // "msgId:seq" → local path
+  final Map<String, DownloadProgressEvent> _downloadProgress = {}; // msgId → latest progress
   int _groupOnlineCount = 0; // online members in active group/channel chat
   GroupCallInfo? _activeGroupCall; // active group call in current chat
   PersonalCallInfo? _activePersonalCall; // active 1:1 call
@@ -139,6 +140,8 @@ class ChatState extends ChangeNotifier {
     _subs.add(_engine.onAccountList.listen((_) {
       _debouncedLoadChats();
     }));
+    // Download progress → track bytes received for radial indicators.
+    _subs.add(_engine.onDownloadProgress.listen(_handleDownloadProgress));
     // Download complete → update message's local path in-memory.
     _subs.add(_engine.onDownloadComplete.listen(_handleDownloadComplete));
     // User status → track online/offline for DM avatar dots.
@@ -1918,8 +1921,17 @@ class ChatState extends ChangeNotifier {
     _engine.requestDownload(msg.accountId, msg.chatId, msg.msgId, seq: seq);
   }
 
+  void _handleDownloadProgress(DownloadProgressEvent event) {
+    if (_disposed) return;
+    _downloadProgress[event.msgId] = event;
+    notifyListeners();
+  }
+
+  DownloadProgressEvent? getDownloadProgress(String msgId) => _downloadProgress[msgId];
+
   void _handleDownloadComplete(DownloadCompleteEvent event) {
     if (_disposed) return;
+    _downloadProgress.remove(event.msgId);
     if (event.seq > 0) {
       _altQualityPaths['${event.msgId}:${event.seq}'] = event.localPath;
       notifyListeners();

@@ -2526,8 +2526,65 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
                   ),
                 ),
 
+              // §35.25: Download overlay for photos/videos/GIFs — radial progress + cancel.
+              if (!hasFullImage && message.mediaType != 6 && message.mediaType != 5) ...[
+                Positioned.fill(
+                  child: Container(color: Colors.black.withValues(alpha: 0.3)),
+                ),
+                Positioned.fill(
+                  child: Center(
+                    child: Builder(builder: (ctx) {
+                      final dlState = message.mediaDownloadState;
+                      final isDownloading = dlState == 1;
+                      final isFailed = dlState == 3;
+                      final progress = ctx.watch<ChatState>().getDownloadProgress(message.msgId);
+                      return GestureDetector(
+                        onTap: () {
+                          if (isDownloading) {
+                            ctx.read<EngineService>().cancelDownload(
+                                message.accountId, message.chatId, message.msgId);
+                          } else if (!isFailed) {
+                            ctx.read<ChatState>().requestDownload(message);
+                          }
+                        },
+                        child: SizedBox(
+                          width: 44,
+                          height: 44,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.4),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              if (isDownloading)
+                                CustomPaint(
+                                  size: const Size(44, 44),
+                                  painter: _DownloadProgressPainter(
+                                    progress: progress?.progress ?? 0,
+                                    strokeWidth: 3,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              Icon(
+                                isDownloading ? Icons.close : Icons.arrow_downward,
+                                color: Colors.white,
+                                size: 22,
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+              ],
               // Video overlay: centered play button (not for GIFs — they auto-play).
-              if (message.mediaType == 2)
+              if (message.mediaType == 2 && hasFullImage)
                 Positioned.fill(
                   child: Center(
                     child: Container(
@@ -3173,6 +3230,8 @@ class _VoiceIndicatorState extends State<_VoiceIndicator> {
     final isPlaying = audio.isPlayingMsg(widget.message.msgId);
     final progress = isActive ? audio.progress : 0.0;
     final downloading = widget.message.mediaDownloadState == 1;
+    final dlProgress = context.watch<ChatState>().getDownloadProgress(widget.message.msgId);
+    final accentColor = widget.theme.colorScheme.primary;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -3184,27 +3243,40 @@ class _VoiceIndicatorState extends State<_VoiceIndicator> {
             mainAxisSize: MainAxisSize.min,
             children: [
               GestureDetector(
-                onTap: downloading ? null : _onPlayPause,
-                child: Container(
+                onTap: downloading
+                    ? () => context.read<EngineService>().cancelDownload(
+                          widget.message.accountId, widget.message.chatId, widget.message.msgId)
+                    : _onPlayPause,
+                child: SizedBox(
                   width: 44,
                   height: 44,
-                  decoration: BoxDecoration(
-                    color: widget.theme.colorScheme.primary.withValues(alpha: 0.15),
-                    shape: BoxShape.circle,
-                  ),
-                  child: downloading
-                      ? Padding(
-                          padding: const EdgeInsets.all(10),
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: widget.theme.colorScheme.primary,
-                          ),
-                        )
-                      : Icon(
-                          isPlaying ? Icons.pause : Icons.play_arrow,
-                          size: 24,
-                          color: widget.theme.colorScheme.primary,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: accentColor.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
                         ),
+                      ),
+                      if (downloading)
+                        CustomPaint(
+                          size: const Size(44, 44),
+                          painter: _DownloadProgressPainter(
+                            progress: dlProgress?.progress ?? 0,
+                            strokeWidth: 2,
+                            color: accentColor,
+                          ),
+                        ),
+                      Icon(
+                        downloading ? Icons.close : (isPlaying ? Icons.pause : Icons.play_arrow),
+                        size: 24,
+                        color: accentColor,
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -3260,30 +3332,42 @@ class _VoiceIndicatorState extends State<_VoiceIndicator> {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          isActive && audio.duration.inMilliseconds > 0
-                              ? _formatDurationMs(audio.position)
-                              : widget.message.mediaDuration > 0
-                                  ? _VisualMedia._formatDuration(widget.message.mediaDuration)
-                                  : '',
-                          style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color),
-                        ),
-                        if (isActive && audio.duration.inMilliseconds > 0) ...[
+                        if (downloading && dlProgress != null && dlProgress.bytesTotal > 0)
                           Text(
-                            ' / ${_formatDurationMs(audio.duration)}',
+                            _formatDownloadProgress(dlProgress.bytesRecv, dlProgress.bytesTotal),
+                            style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color),
+                          )
+                        else if (widget.message.mediaDownloadState == 3)
+                          Text(
+                            'Failed',
+                            style: TextStyle(fontSize: 12, color: widget.theme.colorScheme.error),
+                          )
+                        else ...[
+                          Text(
+                            isActive && audio.duration.inMilliseconds > 0
+                                ? _formatDurationMs(audio.position)
+                                : widget.message.mediaDuration > 0
+                                    ? _VisualMedia._formatDuration(widget.message.mediaDuration)
+                                    : '',
                             style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color),
                           ),
-                        ] else if (widget.message.mediaDuration > 0 && widget.message.mediaSizeLabel.isNotEmpty) ...[
-                          Text(' · ', style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color)),
-                          Text(
-                            widget.message.mediaSizeLabel,
-                            style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color),
-                          ),
-                        ] else if (widget.message.mediaSizeLabel.isNotEmpty) ...[
-                          Text(
-                            widget.message.mediaSizeLabel,
-                            style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color),
-                          ),
+                          if (isActive && audio.duration.inMilliseconds > 0) ...[
+                            Text(
+                              ' / ${_formatDurationMs(audio.duration)}',
+                              style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color),
+                            ),
+                          ] else if (widget.message.mediaDuration > 0 && widget.message.mediaSizeLabel.isNotEmpty) ...[
+                            Text(' · ', style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color)),
+                            Text(
+                              widget.message.mediaSizeLabel,
+                              style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color),
+                            ),
+                          ] else if (widget.message.mediaSizeLabel.isNotEmpty) ...[
+                            Text(
+                              widget.message.mediaSizeLabel,
+                              style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color),
+                            ),
+                          ],
                         ],
                       ],
                     ),
@@ -3479,15 +3563,26 @@ class _AudioIndicator extends StatelessWidget {
       message.mediaFileName, message.audioTitle, message.audioPerformer,
     );
     final hasCover = message.mediaThumbB64.isNotEmpty;
-    final isDownloaded = message.mediaDownloadState == 2;
-    final isDownloading = message.mediaDownloadState == 1;
+    final dlState = message.mediaDownloadState;
+    final isDownloaded = dlState == 2;
+    final isDownloading = dlState == 1;
+    final isFailed = dlState == 3;
+    final progress = context.watch<ChatState>().getDownloadProgress(message.msgId);
 
-    final statusParts = <String>[];
-    if (message.mediaDuration > 0) {
-      statusParts.add(_VisualMedia._formatDuration(message.mediaDuration));
-    }
-    if (message.mediaSizeLabel.isNotEmpty) {
-      statusParts.add(message.mediaSizeLabel);
+    String statusText;
+    if (isFailed) {
+      statusText = 'Failed';
+    } else if (isDownloading && progress != null && progress.bytesTotal > 0) {
+      statusText = _formatDownloadProgress(progress.bytesRecv, progress.bytesTotal);
+    } else {
+      final parts = <String>[];
+      if (message.mediaDuration > 0) {
+        parts.add(_VisualMedia._formatDuration(message.mediaDuration));
+      }
+      if (message.mediaSizeLabel.isNotEmpty) {
+        parts.add(message.mediaSizeLabel);
+      }
+      statusText = parts.join(' \u00b7 ');
     }
 
     return GestureDetector(
@@ -3500,7 +3595,7 @@ class _AudioIndicator extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildIcon(hasCover, isDownloaded, isDownloading),
+              _buildIcon(hasCover, isDownloaded, isDownloading, progress?.progress ?? 0),
               const SizedBox(width: 11),
               Flexible(
                 child: Column(
@@ -3516,11 +3611,14 @@ class _AudioIndicator extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    if (statusParts.isNotEmpty) ...[
+                    if (statusText.isNotEmpty) ...[
                       const SizedBox(height: 2),
                       Text(
-                        statusParts.join(' \u00b7 '),
-                        style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color),
+                        statusText,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isFailed ? theme.colorScheme.error : theme.textTheme.bodySmall?.color,
+                        ),
                       ),
                     ],
                   ],
@@ -3533,62 +3631,83 @@ class _AudioIndicator extends StatelessWidget {
     );
   }
 
-  Widget _buildIcon(bool hasCover, bool isDownloaded, bool isDownloading) {
+  Widget _buildIcon(bool hasCover, bool isDownloaded, bool isDownloading, double dlProgress) {
     if (hasCover) {
-      return ClipOval(
-        child: SizedBox(
-          width: 44,
-          height: 44,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Image.memory(
+      return SizedBox(
+        width: 44,
+        height: 44,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            ClipOval(
+              child: Image.memory(
                 base64Decode(message.mediaThumbB64),
                 width: 44,
                 height: 44,
                 fit: BoxFit.cover,
                 gaplessPlayback: true,
-                errorBuilder: (_, __, ___) => _defaultIcon(isDownloaded, isDownloading),
+                errorBuilder: (_, __, ___) => _defaultIcon(isDownloaded, isDownloading, dlProgress),
               ),
-              Container(
+            ),
+            ClipOval(
+              child: Container(
                 width: 44,
                 height: 44,
                 color: Colors.black.withValues(alpha: 0.3),
               ),
-              Icon(
-                isDownloaded ? Icons.play_arrow : (isDownloading ? Icons.close : Icons.arrow_downward),
-                size: 22,
-                color: Colors.white,
+            ),
+            if (isDownloading)
+              CustomPaint(
+                size: const Size(44, 44),
+                painter: _DownloadProgressPainter(
+                  progress: dlProgress,
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
               ),
-            ],
-          ),
-        ),
-      );
-    }
-    return _defaultIcon(isDownloaded, isDownloading);
-  }
-
-  Widget _defaultIcon(bool isDownloaded, bool isDownloading) {
-    return Container(
-      width: 44,
-      height: 44,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primary,
-        shape: BoxShape.circle,
-      ),
-      child: isDownloading
-          ? Padding(
-              padding: const EdgeInsets.all(10),
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Colors.white,
-              ),
-            )
-          : Icon(
-              isDownloaded ? Icons.play_arrow : Icons.arrow_downward,
+            Icon(
+              isDownloaded ? Icons.play_arrow : (isDownloading ? Icons.close : Icons.arrow_downward),
               size: 22,
               color: Colors.white,
             ),
+          ],
+        ),
+      );
+    }
+    return _defaultIcon(isDownloaded, isDownloading, dlProgress);
+  }
+
+  Widget _defaultIcon(bool isDownloaded, bool isDownloading, double dlProgress) {
+    return SizedBox(
+      width: 44,
+      height: 44,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary,
+              shape: BoxShape.circle,
+            ),
+          ),
+          if (isDownloading)
+            CustomPaint(
+              size: const Size(44, 44),
+              painter: _DownloadProgressPainter(
+                progress: dlProgress,
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            ),
+          Icon(
+            isDownloaded ? Icons.play_arrow : (isDownloading ? Icons.close : Icons.arrow_downward),
+            size: 22,
+            color: Colors.white,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -4092,6 +4211,60 @@ class _ContactIndicator extends StatelessWidget {
   }
 }
 
+String _formatBytes(int bytes) {
+  if (bytes < 1024) return '$bytes B';
+  if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+  return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+}
+
+String _formatDownloadProgress(int bytesRecv, int bytesTotal) {
+  if (bytesTotal <= 0) return '';
+  return '${_formatBytes(bytesRecv)} / ${_formatBytes(bytesTotal)}';
+}
+
+class _DownloadProgressPainter extends CustomPainter {
+  final double progress;
+  final double strokeWidth;
+  final Color color;
+
+  _DownloadProgressPainter({
+    required this.progress,
+    required this.strokeWidth,
+    required this.color,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (math.min(size.width, size.height) - strokeWidth) / 2;
+
+    final bgPaint = Paint()
+      ..color = color.withValues(alpha: 0.2)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth;
+    canvas.drawCircle(center, radius, bgPaint);
+
+    final arcPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      -math.pi / 2,
+      2 * math.pi * progress.clamp(0.0, 1.0),
+      false,
+      arcPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_DownloadProgressPainter oldDelegate) =>
+      oldDelegate.progress != progress ||
+      oldDelegate.strokeWidth != strokeWidth ||
+      oldDelegate.color != color;
+}
+
 /// File/document attachment indicator.
 class _FileIndicator extends StatelessWidget {
   final CachedMessage message;
@@ -4111,14 +4284,6 @@ class _FileIndicator extends StatelessWidget {
     if (available < 4) return '${name.substring(0, maxLen - 3)}…';
     final half = available ~/ 2;
     return '${stem.substring(0, half)}…${stem.substring(stem.length - (available - half))}$ext';
-  }
-
-  IconData _stateIcon() {
-    switch (message.mediaDownloadState) {
-      case 1: return Icons.close;
-      case 2: return Icons.insert_drive_file;
-      default: return Icons.arrow_downward;
-    }
   }
 
   void _onTap(BuildContext context) {
@@ -4141,7 +4306,22 @@ class _FileIndicator extends StatelessWidget {
     final fileName = message.mediaFileName.isNotEmpty ? message.mediaFileName : 'File';
     final ext = fileName.contains('.') ? fileName.split('.').last.toUpperCase() : '';
     final displayName = _middleTruncate(fileName, 32);
-    final isDownloading = message.mediaDownloadState == 1;
+    final dlState = message.mediaDownloadState;
+    final isDownloading = dlState == 1;
+    final isFailed = dlState == 3;
+    final isLoaded = dlState == 2;
+    final progress = context.watch<ChatState>().getDownloadProgress(message.msgId);
+
+    String statusText;
+    if (isFailed) {
+      statusText = 'Failed';
+    } else if (isDownloading && progress != null && progress.bytesTotal > 0) {
+      statusText = _formatDownloadProgress(progress.bytesRecv, progress.bytesTotal);
+    } else {
+      statusText = message.mediaSizeLabel;
+    }
+
+    final accentColor = theme.colorScheme.primary;
 
     return GestureDetector(
       onTap: () => _onTap(context),
@@ -4153,24 +4333,37 @@ class _FileIndicator extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
+              SizedBox(
                 width: 44,
                 height: 44,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
-                ),
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.insert_drive_file, size: 20, color: theme.colorScheme.primary),
-                        if (ext.isNotEmpty && ext.length <= 4)
-                          Text(ext, style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: theme.colorScheme.primary)),
-                      ],
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: accentColor.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.insert_drive_file, size: 20, color: accentColor),
+                          if (ext.isNotEmpty && ext.length <= 4)
+                            Text(ext, style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: accentColor)),
+                        ],
+                      ),
                     ),
+                    if (isDownloading)
+                      CustomPaint(
+                        size: const Size(44, 44),
+                        painter: _DownloadProgressPainter(
+                          progress: progress?.progress ?? 0,
+                          strokeWidth: 3,
+                          color: accentColor,
+                        ),
+                      ),
                     Positioned(
                       right: 2,
                       bottom: 2,
@@ -4178,18 +4371,14 @@ class _FileIndicator extends StatelessWidget {
                         width: 16,
                         height: 16,
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.primary,
+                          color: accentColor,
                           shape: BoxShape.circle,
                         ),
-                        child: isDownloading
-                            ? Padding(
-                                padding: const EdgeInsets.all(2),
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 1.5,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : Icon(_stateIcon(), size: 10, color: Colors.white),
+                        child: Icon(
+                          isDownloading ? Icons.close : (isLoaded ? Icons.insert_drive_file : Icons.arrow_downward),
+                          size: 10,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ],
@@ -4201,21 +4390,22 @@ class _FileIndicator extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 0),
-                      child: Text(
-                        displayName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
-                      ),
+                    Text(
+                      displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
                     ),
-                    const SizedBox(height: 2),
-                    if (message.mediaSizeLabel.isNotEmpty)
+                    if (statusText.isNotEmpty) ...[
+                      const SizedBox(height: 2),
                       Text(
-                        message.mediaSizeLabel,
-                        style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color),
+                        statusText,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isFailed ? theme.colorScheme.error : theme.textTheme.bodySmall?.color,
+                        ),
                       ),
+                    ],
                   ],
                 ),
               ),
