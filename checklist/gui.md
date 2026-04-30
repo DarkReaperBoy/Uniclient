@@ -878,8 +878,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/hamburger_drawer.dart (Calls menu entry) — new: dart/lib/ui/calls_history.dart -->
 
-- [ ] Create conference call box: PeerListBox, "New Call" title, reactive "Create Call"/"Start Call" button, per-row Video+Audio element buttons (36×52px), selection checkbox, share-invite-link button, prioritized contacts section, participant limit toast, join-link box, re-activate header — spec §34.17
-
 ---
 
 ## §35 — Empty, Error & Loading States

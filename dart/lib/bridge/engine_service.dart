@@ -1389,6 +1389,21 @@ class EngineService {
     }
   }
 
+  Future<({String callId, String inviteLink})?> createConferenceCall(String accountId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'CreateConferenceCall', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      final result = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return (callId: result['call_id'] as String? ?? '', inviteLink: result['invite_link'] as String? ?? '');
+    } catch (e) {
+      Debug.error('ENGINE', 'createConferenceCall failed', e);
+      return null;
+    }
+  }
+
   Future<void> clearCallHistory(String accountId, {bool revoke = false}) async {
     final req = epb.EngineClearCallHistoryRequest()
       ..accountId = accountId

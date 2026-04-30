@@ -1185,6 +1185,24 @@ func (e *Engine) JoinGroupCall(accountID, chatID string) (string, error) {
 	return cs.ID, nil
 }
 
+func (e *Engine) CreateConferenceCall(accountID string) (string, string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return "", "", fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return "", "", fmt.Errorf("account not connected: %s", accountID)
+	}
+	type confCreator interface {
+		CreateConferenceCall() (string, string, error)
+	}
+	cc, ok := acc.Core.(confCreator)
+	if !ok {
+		return "", "", fmt.Errorf("conference calls not supported by this platform")
+	}
+	return cc.CreateConferenceCall()
+}
+
 func (e *Engine) SendCallRating(accountID, callID string, rating int, comment string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {

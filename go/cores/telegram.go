@@ -19823,6 +19823,41 @@ func (t *TelegramCore) PhoneCreateConferenceCall(request *tg.PhoneCreateConferen
 	return t.api.PhoneCreateConferenceCall(t.ctx, request)
 }
 
+// CreateConferenceCall creates an empty conference call and returns (callID, inviteLink).
+func (t *TelegramCore) CreateConferenceCall() (string, string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return "", "", ErrAuth
+	}
+	var ridBuf [4]byte
+	if _, err := rand.Read(ridBuf[:]); err != nil {
+		return "", "", fmt.Errorf("rand: %w", err)
+	}
+	rid := int(binary.LittleEndian.Uint32(ridBuf[:]))
+	req := &tg.PhoneCreateConferenceCallRequest{
+		RandomID: rid,
+	}
+	updates, err := t.api.PhoneCreateConferenceCall(t.ctx, req)
+	if err != nil {
+		return "", "", err
+	}
+	upd, ok := updates.(*tg.Updates)
+	if !ok {
+		return "", "", fmt.Errorf("unexpected updates type: %T", updates)
+	}
+	for _, u := range upd.Updates {
+		if gc, ok := u.(*tg.UpdateGroupCall); ok {
+			if call, ok := gc.Call.(*tg.GroupCall); ok {
+				callID := strconv.FormatInt(call.ID, 10)
+				link, _ := call.GetInviteLink()
+				return callID, link, nil
+			}
+		}
+	}
+	return "", "", fmt.Errorf("conference call created but no GroupCall found in updates")
+}
+
 // PhoneCreateGroupCall creates a new group call in a chat.
 func (t *TelegramCore) PhoneCreateGroupCall(request *tg.PhoneCreateGroupCallRequest) (tg.UpdatesClass, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()

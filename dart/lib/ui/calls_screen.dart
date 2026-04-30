@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
@@ -818,7 +819,13 @@ class _CreateCallButtonState extends State<_CreateCallButton>
 }
 
 class _CreateCallBox extends StatefulWidget {
-  const _CreateCallBox();
+  final List<String> prioritize;
+  final int discardedInviteMsgId;
+
+  const _CreateCallBox({
+    this.prioritize = const [],
+    this.discardedInviteMsgId = 0,
+  });
 
   @override
   State<_CreateCallBox> createState() => _CreateCallBoxState();
@@ -827,11 +834,14 @@ class _CreateCallBox extends StatefulWidget {
 class _CreateCallBoxState extends State<_CreateCallBox> {
   List<ContactInfo>? _contacts;
   bool _loading = true;
+  bool _creatingLink = false;
   final Set<String> _selectedIds = {};
   final Map<String, bool> _selectedVideo = {};
   bool _lastSelectWithVideo = false;
   final _searchController = TextEditingController();
   String _searchQuery = '';
+
+  static const _confcallSizeLimit = 200;
 
   @override
   void initState() {
@@ -873,6 +883,19 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
         c.username.toLowerCase().contains(q)).toList();
   }
 
+  List<ContactInfo> get _prioritizedContacts {
+    if (widget.prioritize.isEmpty || _contacts == null) return [];
+    final pSet = widget.prioritize.toSet();
+    return _contacts!.where((c) => pSet.contains(c.userId)).toList();
+  }
+
+  List<ContactInfo> get _mainContacts {
+    final filtered = _filteredContacts;
+    if (widget.prioritize.isEmpty) return filtered;
+    final pSet = widget.prioritize.toSet();
+    return filtered.where((c) => !pSet.contains(c.userId)).toList();
+  }
+
   void _toggleContact(String userId, {bool? video}) {
     setState(() {
       if (_selectedIds.contains(userId)) {
@@ -884,6 +907,15 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
           _selectedVideo.remove(userId);
         }
       } else {
+        if (_selectedIds.length >= _confcallSizeLimit) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("You can't add more participants to this call."),
+              duration: Duration(seconds: 2),
+            ),
+          );
+          return;
+        }
         _selectedIds.add(userId);
         final useVideo = video ?? _lastSelectWithVideo;
         _selectedVideo[userId] = useVideo;
@@ -893,15 +925,32 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
   }
 
   Future<void> _createCall() async {
-    if (_selectedIds.isEmpty) return;
     final engine = context.read<EngineService>();
     final accountId = context.read<AppState>().activeAccountId;
 
     try {
-      final userId = _selectedIds.first;
-      final video = _selectedVideo[userId] ?? false;
-      await engine.startCall(accountId, userId, video: video);
-      if (mounted) Navigator.of(context).pop(true);
+      if (_selectedIds.length == 1 && widget.discardedInviteMsgId == 0) {
+        final userId = _selectedIds.first;
+        final video = _selectedVideo[userId] ?? false;
+        await engine.startCall(accountId, userId, video: video);
+        if (mounted) Navigator.of(context).pop(true);
+      } else {
+        final result = await engine.createConferenceCall(accountId);
+        if (result != null && result.inviteLink.isNotEmpty) {
+          if (mounted) {
+            Navigator.of(context).pop(true);
+            _showLinkBox(context, result.inviteLink, initial: true);
+          }
+        } else if (result != null) {
+          if (mounted) Navigator.of(context).pop(true);
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Failed to create conference call')),
+            );
+          }
+        }
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -909,6 +958,52 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
         );
       }
     }
+  }
+
+  Future<void> _shareInviteLink() async {
+    if (_creatingLink) return;
+    setState(() => _creatingLink = true);
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+
+    try {
+      final result = await engine.createConferenceCall(accountId);
+      if (result != null && result.inviteLink.isNotEmpty) {
+        if (mounted) {
+          Navigator.of(context).pop(true);
+          _showLinkBox(context, result.inviteLink, initial: true);
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(result == null ? 'Failed to create call' : 'No invite link returned')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _creatingLink = false);
+    }
+  }
+
+  void _showLinkBox(BuildContext ctx, String link, {bool initial = false}) {
+    final engine = ctx.read<EngineService>();
+    final appState = ctx.read<AppState>();
+    showDialog(
+      context: ctx,
+      builder: (c) => Provider<EngineService>.value(
+        value: engine,
+        child: ChangeNotifierProvider.value(
+          value: appState,
+          child: _ConferenceCallLinkBox(link: link, initial: initial),
+        ),
+      ),
+    );
   }
 
   @override
@@ -923,6 +1018,7 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
 
     final hasSelection = _selectedIds.isNotEmpty;
     final buttonLabel = hasSelection ? 'Start Call' : 'Create Call';
+    final isReactivate = widget.discardedInviteMsgId != 0;
 
     return Dialog(
       backgroundColor: bgColor,
@@ -933,26 +1029,34 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(
-              height: 48,
-              child: Padding(
-                padding: const EdgeInsets.only(left: 24, top: 13),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'New Call',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: textColor,
+            if (isReactivate)
+              _ReactivateHeader(
+                textColor: textColor,
+                subtextColor: subtextColor,
+                accentColor: accentColor,
+                dividerColor: dividerColor,
+              )
+            else
+              SizedBox(
+                height: 48,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 24, top: 13),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'New Call',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: textColor,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               child: SizedBox(
@@ -989,12 +1093,14 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
                         ),
                       ),
                     )
-                  : _buildContactsList(
+                  : _buildFullList(
                       isDark: isDark,
                       textColor: textColor,
                       subtextColor: subtextColor,
                       accentColor: accentColor,
                       hoverBg: hoverBg,
+                      dividerColor: dividerColor,
+                      isReactivate: isReactivate,
                     ),
             ),
             Divider(height: 1, color: dividerColor),
@@ -1007,21 +1113,18 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
                     onPressed: () => Navigator.of(context).pop(false),
                     child: Text(
                       'Close',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: subtextColor,
-                      ),
+                      style: TextStyle(fontSize: 14, color: subtextColor),
                     ),
                   ),
                   const SizedBox(width: 8),
                   TextButton(
-                    onPressed: hasSelection ? _createCall : null,
+                    onPressed: _createCall,
                     child: Text(
                       buttonLabel,
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: hasSelection ? accentColor : subtextColor,
+                        color: accentColor,
                       ),
                     ),
                   ),
@@ -1034,15 +1137,20 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
     );
   }
 
-  Widget _buildContactsList({
+  Widget _buildFullList({
     required bool isDark,
     required Color textColor,
     required Color subtextColor,
     required Color accentColor,
     required Color hoverBg,
+    required Color dividerColor,
+    required bool isReactivate,
   }) {
-    final contacts = _filteredContacts;
-    if (contacts.isEmpty) {
+    final prioritized = _prioritizedContacts;
+    final main = _mainContacts;
+    final showInviteLink = !isReactivate;
+
+    if (main.isEmpty && prioritized.isEmpty) {
       return Center(
         child: Text(
           _searchQuery.isEmpty ? 'No contacts found' : 'No results',
@@ -1052,26 +1160,340 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
     }
 
     return ListView.builder(
-      itemCount: contacts.length,
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      itemCount: (showInviteLink ? 1 : 0) +
+          (prioritized.isNotEmpty ? prioritized.length + 1 : 0) +
+          main.length,
       itemBuilder: (context, index) {
-        final contact = contacts[index];
-        final selected = _selectedIds.contains(contact.userId);
-        final isVideo = _selectedVideo[contact.userId] ?? false;
+        var offset = 0;
 
-        return _ConfInviteRow(
-          contact: contact,
-          selected: selected,
-          isVideo: isVideo,
-          isDark: isDark,
-          textColor: textColor,
-          subtextColor: subtextColor,
-          accentColor: accentColor,
-          hoverBg: hoverBg,
-          onTap: () => _toggleContact(contact.userId),
-          onVideoTap: () => _toggleContact(contact.userId, video: true),
-          onAudioTap: () => _toggleContact(contact.userId, video: false),
-        );
+        if (showInviteLink) {
+          if (index == 0) {
+            return _InviteLinkButton(
+              accentColor: accentColor,
+              hoverBg: hoverBg,
+              isLoading: _creatingLink,
+              onTap: _shareInviteLink,
+            );
+          }
+          offset = 1;
+        }
+
+        if (prioritized.isNotEmpty) {
+          final pIndex = index - offset;
+          if (pIndex < prioritized.length) {
+            final contact = prioritized[pIndex];
+            return _buildRow(contact, isDark, textColor, subtextColor, accentColor, hoverBg);
+          }
+          if (pIndex == prioritized.length) {
+            return Divider(height: 1, color: dividerColor);
+          }
+          offset += prioritized.length + 1;
+        }
+
+        final mIndex = index - offset;
+        if (mIndex < main.length) {
+          return _buildRow(main[mIndex], isDark, textColor, subtextColor, accentColor, hoverBg);
+        }
+        return const SizedBox.shrink();
       },
+    );
+  }
+
+  Widget _buildRow(
+    ContactInfo contact,
+    bool isDark,
+    Color textColor,
+    Color subtextColor,
+    Color accentColor,
+    Color hoverBg,
+  ) {
+    final selected = _selectedIds.contains(contact.userId);
+    final isVideo = _selectedVideo[contact.userId] ?? false;
+    return _ConfInviteRow(
+      contact: contact,
+      selected: selected,
+      isVideo: isVideo,
+      isDark: isDark,
+      textColor: textColor,
+      subtextColor: subtextColor,
+      accentColor: accentColor,
+      hoverBg: hoverBg,
+      onTap: () => _toggleContact(contact.userId),
+      onVideoTap: () => _toggleContact(contact.userId, video: true),
+      onAudioTap: () => _toggleContact(contact.userId, video: false),
+    );
+  }
+}
+
+class _InviteLinkButton extends StatefulWidget {
+  final Color accentColor;
+  final Color hoverBg;
+  final bool isLoading;
+  final VoidCallback onTap;
+
+  const _InviteLinkButton({
+    required this.accentColor,
+    required this.hoverBg,
+    required this.isLoading,
+    required this.onTap,
+  });
+
+  @override
+  State<_InviteLinkButton> createState() => _InviteLinkButtonState();
+}
+
+class _InviteLinkButtonState extends State<_InviteLinkButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.isLoading ? null : widget.onTap,
+          child: Container(
+            height: 40,
+            color: _hovered ? widget.hoverBg : Colors.transparent,
+            child: Stack(
+              children: [
+                Positioned(
+                  left: 23,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: Icon(Icons.link, size: 24, color: widget.accentColor),
+                  ),
+                ),
+                Positioned(
+                  left: 74,
+                  top: 0,
+                  bottom: 0,
+                  right: 8,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: widget.isLoading
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: widget.accentColor,
+                            ),
+                          )
+                        : Text(
+                            'Invite via Link',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: widget.accentColor,
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReactivateHeader extends StatelessWidget {
+  final Color textColor;
+  final Color subtextColor;
+  final Color accentColor;
+  final Color dividerColor;
+
+  const _ReactivateHeader({
+    required this.textColor,
+    required this.subtextColor,
+    required this.accentColor,
+    required this.dividerColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        const SizedBox(height: 32),
+        Icon(Icons.call, size: 48, color: accentColor),
+        const SizedBox(height: 10),
+        Text(
+          'Call Ended',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: textColor,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Text(
+            'Start a new call with the same participants or create a fresh one.',
+            style: TextStyle(fontSize: 13, color: subtextColor),
+            textAlign: TextAlign.center,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Divider(height: 1, color: dividerColor),
+      ],
+    );
+  }
+}
+
+class _ConferenceCallLinkBox extends StatelessWidget {
+  final String link;
+  final bool initial;
+
+  const _ConferenceCallLinkBox({
+    required this.link,
+    this.initial = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 364),
+        child: Padding(
+          padding: const EdgeInsets.only(left: 24, right: 24, top: 32, bottom: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.call, size: 48, color: accentColor),
+              const SizedBox(height: 10),
+              Text(
+                'Call Link',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: textColor,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Text(
+                  'Share this link with people you want to join the call.',
+                  style: TextStyle(fontSize: 13, color: subtextColor),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF131C26) : const Color(0xFFF0F0F0),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: SelectableText(
+                  link,
+                  style: TextStyle(fontSize: 13, color: accentColor),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 42,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          // Copy link to clipboard
+                          final data = ClipboardData(text: link);
+                          Clipboard.setData(data);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Link copied to clipboard'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.copy, size: 18),
+                        label: const Text('Copy Link'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: accentColor,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: SizedBox(
+                      height: 42,
+                      child: OutlinedButton.icon(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.share, size: 18),
+                        label: const Text('Share Link'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: accentColor,
+                          side: BorderSide(color: accentColor),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (initial) ...[
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Expanded(child: Divider()),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: Text('Or', style: TextStyle(fontSize: 13, color: subtextColor)),
+                    ),
+                    const Expanded(child: Divider()),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                GestureDetector(
+                  onTap: () => Navigator.of(context).pop(),
+                  child: Text(
+                    'Join this call yourself',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: accentColor,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
