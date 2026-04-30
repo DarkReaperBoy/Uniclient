@@ -358,76 +358,12 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
   }
 
   Widget _buildInfoRows(ThemeData theme, bool isDark) {
-    final rows = <Widget>[];
     final labelColor = isDark
         ? const Color(0xFF6ab3f3)
         : const Color(0xFF168acd);
     final valueColor = isDark ? Colors.white : Colors.black87;
 
-    if (_isDm && _profile != null) {
-      if (_profile!.phone.isNotEmpty) {
-        rows.add(_infoRow(
-          label: 'Mobile',
-          value: _profile!.phone,
-          labelColor: labelColor,
-          valueColor: valueColor,
-          onLongPress: () {
-            Clipboard.setData(ClipboardData(text: _profile!.phone));
-            showTelegramToast(context, 'Phone copied');
-          },
-        ));
-      }
-      if (_profile!.bio.isNotEmpty) {
-        rows.add(_infoRow(
-          label: _profile!.isBot ? 'About' : 'Bio',
-          value: _profile!.bio,
-          labelColor: labelColor,
-          valueColor: valueColor,
-          multiLine: true,
-        ));
-      }
-      if (_profile!.username.isNotEmpty) {
-        rows.add(_infoRow(
-          label: 'Username',
-          value: '@${_profile!.username}',
-          labelColor: labelColor,
-          valueColor: valueColor,
-          onLongPress: () {
-            Clipboard.setData(ClipboardData(text: '@${_profile!.username}'));
-            showTelegramToast(context, 'Username copied');
-          },
-        ));
-      }
-    } else if ((_isGroup || _isChannel) && _profile != null) {
-      if (_profile!.bio.isNotEmpty) {
-        rows.add(_infoRow(
-          label: 'About',
-          value: _profile!.bio,
-          labelColor: labelColor,
-          valueColor: valueColor,
-          multiLine: true,
-        ));
-      }
-      if (_profile!.username.isNotEmpty) {
-        rows.add(_infoRow(
-          label: 'Link',
-          value: 't.me/${_profile!.username}',
-          labelColor: labelColor,
-          valueColor: valueColor,
-          onLongPress: () {
-            Clipboard.setData(
-                ClipboardData(text: 'https://t.me/${_profile!.username}'));
-            showTelegramToast(context, 'Link copied');
-          },
-        ));
-      }
-    }
-
-    if (rows.isEmpty && !_loadingProfile) {
-      return const SizedBox.shrink();
-    }
-
-    if (_loadingProfile && rows.isEmpty) {
+    if (_loadingProfile && _profile == null) {
       return const Padding(
         padding: EdgeInsets.all(16),
         child: Center(
@@ -440,10 +376,105 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: rows,
+    if (_profile == null) return const SizedBox.shrink();
+    final p = _profile!;
+    final rows = <Widget>[];
+
+    if (_isDm) {
+      // 1. Channel (personal channel)
+      if (p.personalChannelName.isNotEmpty) {
+        rows.add(_infoRow(
+          label: 'Channel',
+          value: p.personalChannelName,
+          labelColor: labelColor,
+          valueColor: valueColor,
+          copyText: p.personalChannelName,
+          copyLabel: 'Channel name copied',
+        ));
+      }
+
+      // 2. Phone
+      if (p.phone.isNotEmpty) {
+        rows.add(_infoRow(
+          label: 'Mobile',
+          value: _formatPhone(p.phone),
+          labelColor: labelColor,
+          valueColor: valueColor,
+          copyText: p.phone,
+          copyLabel: 'Copy Phone Number',
+        ));
+      }
+
+      // 3. Bio / About
+      if (p.bio.isNotEmpty) {
+        rows.add(_infoRow(
+          label: p.isBot ? 'About' : 'Bio',
+          value: p.bio,
+          labelColor: labelColor,
+          valueColor: valueColor,
+          multiLine: true,
+        ));
+      }
+
+      // 4. Username
+      if (p.username.isNotEmpty) {
+        rows.add(_infoRow(
+          label: 'Username',
+          value: '@${p.username}',
+          labelColor: labelColor,
+          valueColor: valueColor,
+          copyText: '@${p.username}',
+          copyLabel: 'Copy Mention',
+        ));
+      }
+
+      // 5. Birthday
+      if (p.hasBirthday) {
+        final isBirthdayToday = _isBirthdayToday(p.birthdayDay, p.birthdayMonth);
+        rows.add(_infoRow(
+          label: isBirthdayToday ? 'Birthday today' : 'Birthday',
+          value: _formatBirthday(p.birthdayDay, p.birthdayMonth, p.birthdayYear),
+          labelColor: labelColor,
+          valueColor: valueColor,
+        ));
+      }
+    } else {
+      // Group / Channel
+      // 1. Link
+      if (p.username.isNotEmpty) {
+        rows.add(_infoRow(
+          label: 'Link',
+          value: 't.me/${p.username}',
+          labelColor: labelColor,
+          valueColor: valueColor,
+          copyText: 'https://t.me/${p.username}',
+          copyLabel: 'Link copied',
+        ));
+      }
+
+      // 2. About
+      if (p.bio.isNotEmpty) {
+        rows.add(_infoRow(
+          label: 'About',
+          value: p.bio,
+          labelColor: labelColor,
+          valueColor: valueColor,
+          multiLine: true,
+        ));
+      }
+    }
+
+    if (rows.isEmpty) return const SizedBox.shrink();
+
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: rows,
+      ),
     );
   }
 
@@ -453,40 +484,78 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
     required Color labelColor,
     required Color valueColor,
     bool multiLine = false,
-    VoidCallback? onLongPress,
+    String? copyText,
+    String? copyLabel,
   }) {
-    return GestureDetector(
-      onLongPress: onLongPress,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          _kInfoPaddingH,
-          _kInfoPaddingTop,
-          _kInfoPaddingH,
-          0,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                color: labelColor,
-                fontSize: 13,
-              ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        _kInfoPaddingH,
+        _kInfoPaddingTop,
+        _kInfoPaddingH,
+        0,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: labelColor,
+              fontSize: 13,
             ),
-            const SizedBox(height: 2),
-            SelectableText(
-              value,
-              maxLines: multiLine ? null : 1,
-              style: TextStyle(
-                color: valueColor,
-                fontSize: 14,
-              ),
+          ),
+          const SizedBox(height: 2),
+          SelectableText(
+            value,
+            maxLines: multiLine ? null : 1,
+            style: TextStyle(
+              color: valueColor,
+              fontSize: 14,
             ),
-          ],
-        ),
+            contextMenuBuilder: copyText != null
+                ? (ctx, editableTextState) {
+                    return AdaptiveTextSelectionToolbar(
+                      anchors: editableTextState.contextMenuAnchors,
+                      children: [
+                        TextSelectionToolbarTextButton(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          onPressed: () {
+                            Clipboard.setData(ClipboardData(text: copyText));
+                            editableTextState.hideToolbar();
+                            showTelegramToast(context, 'Copied to clipboard');
+                          },
+                          child: Text(copyLabel ?? 'Copy'),
+                        ),
+                      ],
+                    );
+                  }
+                : null,
+          ),
+        ],
       ),
     );
+  }
+
+  String _formatPhone(String phone) {
+    if (phone.startsWith('+')) return phone;
+    return '+$phone';
+  }
+
+  String _formatBirthday(int day, int month, int year) {
+    const months = [
+      '', 'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December',
+    ];
+    final monthName = month >= 1 && month <= 12 ? months[month] : '';
+    if (year > 0) {
+      return '$monthName $day, $year';
+    }
+    return '$monthName $day';
+  }
+
+  bool _isBirthdayToday(int day, int month) {
+    final now = DateTime.now();
+    return now.day == day && now.month == month;
   }
 
   Widget _buildButtons(ThemeData theme, bool isDark) {
@@ -509,7 +578,7 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       child: Row(
         children: [
-          if (actionLabel != null)
+          if (actionLabel != null) ...[
             Expanded(
               child: TextButton(
                 onPressed: () {
@@ -532,7 +601,8 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
                 ),
               ),
             ),
-          if (actionLabel != null) const SizedBox(width: 8),
+            const SizedBox(width: 8),
+          ],
           Expanded(
             child: TextButton(
               onPressed: () => Navigator.of(context).pop(),

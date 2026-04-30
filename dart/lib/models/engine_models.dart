@@ -1478,6 +1478,11 @@ class UserProfile {
   final bool isContact;
   final bool isBlocked;
   final String botMenuText;
+  final int birthdayDay;
+  final int birthdayMonth;
+  final int birthdayYear;
+  final String personalChannelId;
+  final String personalChannelName;
 
   const UserProfile({
     required this.userId,
@@ -1489,7 +1494,14 @@ class UserProfile {
     this.isContact = false,
     this.isBlocked = false,
     this.botMenuText = '',
+    this.birthdayDay = 0,
+    this.birthdayMonth = 0,
+    this.birthdayYear = 0,
+    this.personalChannelId = '',
+    this.personalChannelName = '',
   });
+
+  bool get hasBirthday => birthdayDay > 0 && birthdayMonth > 0;
 
   factory UserProfile.fromJson(Map<String, dynamic> j) => UserProfile(
     userId: j['user_id'] as String? ?? '',
@@ -1501,6 +1513,11 @@ class UserProfile {
     isContact: j['is_contact'] as bool? ?? false,
     isBlocked: j['is_blocked'] as bool? ?? false,
     botMenuText: j['bot_menu_text'] as String? ?? '',
+    birthdayDay: j['birthday_day'] as int? ?? 0,
+    birthdayMonth: j['birthday_month'] as int? ?? 0,
+    birthdayYear: j['birthday_year'] as int? ?? 0,
+    personalChannelId: j['personal_channel_id'] as String? ?? '',
+    personalChannelName: j['personal_channel_name'] as String? ?? '',
   );
 }
 

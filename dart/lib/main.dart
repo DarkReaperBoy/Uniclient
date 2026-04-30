@@ -28,6 +28,7 @@ import 'ui/chat_list_row.dart';
 import 'ui/chat_view.dart';
 import 'ui/contacts_screen.dart';
 import 'ui/choose_datetime_box.dart';
+import 'ui/peer_short_info.dart';
 import 'ui/keyboard_shortcuts.dart';
 import 'ui/media_viewer.dart';
 import 'ui/shell.dart';
@@ -707,6 +708,30 @@ class _UniClientAppState extends State<UniClientApp>
               _ => ExportMode.full,
             };
             showExportPanel(navCtx, ExportTarget(mode: mode));
+          }
+
+        case 'showPeerShortInfo':
+          final navCtx = _navigatorKey.currentContext;
+          if (navCtx != null) {
+            final peerId = cmd['peerId'] as String? ?? chatState.activeChat?.chatId ?? '';
+            final peerName = cmd['peerName'] as String? ?? chatState.activeChat?.title ?? 'Unknown';
+            final avatarPath = cmd['avatarPath'] as String? ?? chatState.activeChat?.avatarPath ?? '';
+            final typeStr = cmd['peerType'] as String? ?? 'dm';
+            final peerType = switch (typeStr) {
+              'group' => ChatType.group,
+              'channel' => ChatType.channel,
+              _ => ChatType.dm,
+            };
+            final accountId = chatState.activeChat?.accountId ?? '';
+            showPeerShortInfoBox(
+              navCtx,
+              accountId: accountId,
+              peerId: peerId,
+              peerName: peerName,
+              avatarPath: avatarPath,
+              peerType: peerType,
+              memberCount: chatState.activeChat?.memberCount ?? 0,
+            );
           }
 
         case 'showWebAppPanel':

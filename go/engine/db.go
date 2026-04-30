@@ -123,6 +123,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV20,
 	migrateV21,
 	migrateV22,
+	migrateV23,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -583,6 +584,24 @@ func migrateV22(tx *sql.Tx) error {
 	if !columnExists(tx, "users", "bot_menu_text") {
 		if _, err := tx.Exec(`ALTER TABLE users ADD COLUMN bot_menu_text TEXT`); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+func migrateV23(tx *sql.Tx) error {
+	for _, col := range []string{"birthday_day", "birthday_month", "birthday_year"} {
+		if !columnExists(tx, "users", col) {
+			if _, err := tx.Exec(`ALTER TABLE users ADD COLUMN ` + col + ` INTEGER NOT NULL DEFAULT 0`); err != nil {
+				return err
+			}
+		}
+	}
+	for _, col := range []string{"personal_channel_id", "personal_channel_name"} {
+		if !columnExists(tx, "users", col) {
+			if _, err := tx.Exec(`ALTER TABLE users ADD COLUMN ` + col + ` TEXT`); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

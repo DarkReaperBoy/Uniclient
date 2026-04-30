@@ -23,8 +23,13 @@ type CachedUser struct {
 	IsOnline    bool   `json:"is_online"`
 	IsContact   bool   `json:"is_contact"`
 	IsBlocked   bool   `json:"is_blocked"`
-	BotMenuText string `json:"bot_menu_text,omitempty"`
-	LastSeen    int64  `json:"last_seen,omitempty"`
+	BotMenuText         string `json:"bot_menu_text,omitempty"`
+	LastSeen            int64  `json:"last_seen,omitempty"`
+	BirthdayDay         int    `json:"birthday_day,omitempty"`
+	BirthdayMonth       int    `json:"birthday_month,omitempty"`
+	BirthdayYear        int    `json:"birthday_year,omitempty"`
+	PersonalChannelID   string `json:"personal_channel_id,omitempty"`
+	PersonalChannelName string `json:"personal_channel_name,omitempty"`
 }
 
 // UpsertUser inserts or updates a user profile in the cache.
@@ -36,8 +41,8 @@ func (e *Engine) UpsertUser(accountID string, u cores.User) error {
 	}
 
 	_, err := e.db.Exec(
-		`INSERT INTO users (account_id, user_id, display_name, username, phone, bio, is_bot, is_online, is_contact, is_blocked, bot_menu_text, last_seen, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO users (account_id, user_id, display_name, username, phone, bio, is_bot, is_online, is_contact, is_blocked, bot_menu_text, last_seen, birthday_day, birthday_month, birthday_year, personal_channel_id, personal_channel_name, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(account_id, user_id) DO UPDATE SET
 		     display_name = excluded.display_name,
 		     username = excluded.username,
@@ -49,9 +54,15 @@ func (e *Engine) UpsertUser(accountID string, u cores.User) error {
 		     is_blocked = excluded.is_blocked,
 		     bot_menu_text = COALESCE(NULLIF(excluded.bot_menu_text, ''), users.bot_menu_text),
 		     last_seen = COALESCE(excluded.last_seen, users.last_seen),
+		     birthday_day = CASE WHEN excluded.birthday_day > 0 THEN excluded.birthday_day ELSE users.birthday_day END,
+		     birthday_month = CASE WHEN excluded.birthday_month > 0 THEN excluded.birthday_month ELSE users.birthday_month END,
+		     birthday_year = CASE WHEN excluded.birthday_year > 0 THEN excluded.birthday_year ELSE users.birthday_year END,
+		     personal_channel_id = COALESCE(NULLIF(excluded.personal_channel_id, ''), users.personal_channel_id),
+		     personal_channel_name = COALESCE(NULLIF(excluded.personal_channel_name, ''), users.personal_channel_name),
 		     updated_at = excluded.updated_at`,
 		accountID, u.ID, u.DisplayName, u.Username, u.Phone, u.Bio,
-		boolToInt(u.IsBot), boolToInt(u.IsOnline), boolToInt(u.IsContact), boolToInt(u.IsBlocked), u.BotMenuText, lastSeen, now)
+		boolToInt(u.IsBot), boolToInt(u.IsOnline), boolToInt(u.IsContact), boolToInt(u.IsBlocked), u.BotMenuText, lastSeen,
+		u.BirthdayDay, u.BirthdayMonth, u.BirthdayYear, u.PersonalChannelID, u.PersonalChannelName, now)
 	return err
 }
 
@@ -59,16 +70,21 @@ func (e *Engine) UpsertUser(accountID string, u cores.User) error {
 func (e *Engine) GetUser(accountID, userID string) (*CachedUser, error) {
 	var u CachedUser
 	var displayName, username, phone, bio, avatarPath, botMenuText sql.NullString
+	var personalChannelID, personalChannelName sql.NullString
 	var lastSeen sql.NullInt64
 	var isBot, isOnline, isContact, isBlocked int
 
 	err := e.db.QueryRow(
 		`SELECT account_id, user_id, display_name, username, phone, bio, avatar_path,
-		        is_bot, is_online, is_contact, is_blocked, bot_menu_text, last_seen
+		        is_bot, is_online, is_contact, is_blocked, bot_menu_text, last_seen,
+		        birthday_day, birthday_month, birthday_year,
+		        personal_channel_id, personal_channel_name
 		 FROM users WHERE account_id = ? AND user_id = ?`,
 		accountID, userID).Scan(
 		&u.AccountID, &u.UserID, &displayName, &username, &phone, &bio, &avatarPath,
-		&isBot, &isOnline, &isContact, &isBlocked, &botMenuText, &lastSeen)
+		&isBot, &isOnline, &isContact, &isBlocked, &botMenuText, &lastSeen,
+		&u.BirthdayDay, &u.BirthdayMonth, &u.BirthdayYear,
+		&personalChannelID, &personalChannelName)
 	if err != nil {
 		return nil, err
 	}
@@ -83,6 +99,8 @@ func (e *Engine) GetUser(accountID, userID string) (*CachedUser, error) {
 	u.IsContact = isContact == 1
 	u.IsBlocked = isBlocked == 1
 	u.BotMenuText = botMenuText.String
+	u.PersonalChannelID = personalChannelID.String
+	u.PersonalChannelName = personalChannelName.String
 	if lastSeen.Valid {
 		u.LastSeen = lastSeen.Int64
 	}

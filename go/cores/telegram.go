@@ -13858,6 +13858,22 @@ func (t *TelegramCore) GetFullUser(userID string) (*User, error) {
 					}
 				}
 			}
+			if bday, ok := result.FullUser.GetBirthday(); ok {
+				cu.BirthdayDay = bday.Day
+				cu.BirthdayMonth = bday.Month
+				if y, ok := bday.GetYear(); ok {
+					cu.BirthdayYear = y
+				}
+			}
+			if pcID, ok := result.FullUser.GetPersonalChannelID(); ok && pcID != 0 {
+				cu.PersonalChannelID = fmt.Sprintf("%d", pcID)
+				for _, ch := range result.Chats {
+					if channel, ok := ch.(*tg.Channel); ok && channel.ID == pcID {
+						cu.PersonalChannelName = channel.Title
+						break
+					}
+				}
+			}
 			return cu, nil
 		}
 	}

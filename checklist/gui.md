@@ -903,11 +903,8 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/peer_short_info.dart -->
 
-- [ ] Info rows: labeled key-value rows (24px h-padding, 16px top), fields: channel link, t.me link, phone ("Copy Phone Number"), bio/about (multi-line entity support), @username ("Copy Mention"), birthday (dynamic "Birthday today" label), notes; empty fields hidden via SlideWrap; double-click selects paragraph — spec §38.2
-- [ ] Buttons: "Close" right, "Send Message"/"View Group"/"View Channel" left (type-dependent), no left button for Self — spec §38.2
 - [ ] Animations: 200ms boxDuration easeOutCirc appear/disappear, radial photo loader fade, scrolling parallax (name/status alpha fade + progress bars fade), video loop — spec §38.3
 - [ ] Sizing/positioning: centered in parent, height clamped to parentHeight-margin, 8px scrollbar (3px inset, 150ms show, 1000ms hide delay) — spec §38.4–38.5
-- [ ] Group/bot differences: member/subscriber count in status, no multi-photo, no phone/birthday/notes for groups; "About" label for bots — spec §38.6–38.7
 - [ ] Interaction: close by outside-click or Escape, right-click "Open in New Window", photo navigation (left-third / right-two-thirds click), scrollable info rows with parallax-fixed cover — spec §38.9
 
 ---

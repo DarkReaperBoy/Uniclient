@@ -155,6 +155,11 @@ type User struct {
 	Platform      string     `json:"platform"`
 	StoryCount    int        `json:"story_count,omitempty"`
 	HasUnreadStory bool      `json:"has_unread_story,omitempty"`
+	BirthdayDay   int        `json:"birthday_day,omitempty"`
+	BirthdayMonth int        `json:"birthday_month,omitempty"`
+	BirthdayYear  int        `json:"birthday_year,omitempty"`
+	PersonalChannelID   string `json:"personal_channel_id,omitempty"`
+	PersonalChannelName string `json:"personal_channel_name,omitempty"`
 }
 
 // Dialog represents a conversation (DM, group, channel, or topic) in the chat list.
