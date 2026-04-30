@@ -2747,28 +2747,53 @@ class _RecentContactsList extends StatelessWidget {
         isDark ? const Color(0xFF8a8a8a) : const Color(0xFF999999);
     final hoverBg =
         isDark ? const Color(0xFF202b36) : const Color(0xFFf1f1f1);
+    final subColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
+    final hasChannels =
+        chats.any((c) => c.type == ChatType.channel && !c.isArchived);
 
-    return ListView.builder(
-      itemCount: recent.length,
-      itemExtent: _rowHeight,
-      itemBuilder: (context, index) {
-        final chat = recent[index];
-        final colorIndex = chat.chatId.hashCode.abs() % 7;
-        final color = _avatarColors[colorIndex];
-        final initials = _initials(chat.title);
-        final isOnline = chatState.isChatOnline(chat);
-
-        return _RecentContactRow(
-          chat: chat,
-          avatarColor: color,
-          initials: initials,
-          isOnline: isOnline,
-          nameFg: nameFg,
-          statusFg: statusFg,
-          hoverBg: hoverBg,
-          onTap: () => onTap(chat),
-        );
-      },
+    return CustomScrollView(
+      slivers: [
+        SliverFixedExtentList(
+          itemExtent: _rowHeight,
+          delegate: SliverChildBuilderDelegate(
+            (context, index) {
+              final chat = recent[index];
+              final colorIndex = chat.chatId.hashCode.abs() % 7;
+              final color = _avatarColors[colorIndex];
+              final initials = _initials(chat.title);
+              final isOnline = chatState.isChatOnline(chat);
+              return _RecentContactRow(
+                chat: chat,
+                avatarColor: color,
+                initials: initials,
+                isOnline: isOnline,
+                nameFg: nameFg,
+                statusFg: statusFg,
+                hoverBg: hoverBg,
+                onTap: () => onTap(chat),
+              );
+            },
+            childCount: recent.length,
+          ),
+        ),
+        // §35.8: Empty recent search results section.
+        SliverToBoxAdapter(
+          child: _EmptySuggestionSection(
+            lottieAsset: 'assets/animations/search.json',
+            text: 'Recent search results\nwill appear here.',
+            subColor: subColor,
+          ),
+        ),
+        // §35.9: Empty channels list (only when user has no channels).
+        if (!hasChannels)
+          SliverToBoxAdapter(
+            child: _EmptySuggestionSection(
+              lottieAsset: 'assets/animations/noresults.json',
+              text: 'You are not currently\nsubscribed to any channels.',
+              subColor: subColor,
+            ),
+          ),
+      ],
     );
   }
 
@@ -2780,6 +2805,41 @@ class _RecentContactsList extends StatelessWidget {
       return '${words[0][0]}${words[1][0]}'.toUpperCase();
     }
     return t[0].toUpperCase();
+  }
+}
+
+class _EmptySuggestionSection extends StatelessWidget {
+  final String lottieAsset;
+  final String text;
+  final Color subColor;
+
+  const _EmptySuggestionSection({
+    required this.lottieAsset,
+    required this.text,
+    required this.subColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 100,
+            height: 100,
+            child: Lottie.asset(lottieAsset, fit: BoxFit.contain),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            text,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: subColor),
+          ),
+        ],
+      ),
+    );
   }
 }
 
