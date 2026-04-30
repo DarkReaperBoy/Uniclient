@@ -890,7 +890,7 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_view.dart, shell.dart, hamburger_drawer.dart, settings_screen.dart, info_panel.dart (showDialog calls) — new: dart/lib/ui/dialogs.dart -->
 
-- [ ] CalendarBox (364px, 48×40px cells, 34px highlight circle, nav arrows with long-press fast-jump) and ChooseDateTimeBox (95px content, date 136px + "at" + time 72px) — spec §36.6
+
 - [ ] TimePickerBox: drum/wheel with 16 entries 15m–3mo, activeLineFg band, drag/wheel/arrows — spec §36.6.4
 - [ ] Color picker: 2D HSB gradient square with crosshair (16px), hue+opacity/lightness sliders, H/S/B + R/G/B + hex fields, current/new swatches, bidirectional sync, Enter submit — spec §36.7
 - [ ] Toast/snackbar: padding (19,13,19,12), max 480px, 200ms fade-in / 1000ms fade-out / 160ms slide, default 1500ms duration, centered or edge-attached — spec §36.9

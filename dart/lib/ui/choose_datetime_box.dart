@@ -1,16 +1,28 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-const double _boxWideWidth = 364;
-const double _boxRadius = 3;
+import 'confirm_box.dart';
+
+const double _cellW = 48;
+const double _cellH = 40;
+const double _cellInner = 34;
+const double _daysRowH = 40;
+const double _calPadH = 14;
 const double _scheduleHeight = 95;
 const double _scheduleDateWidth = 136;
 const double _scheduleTimeWidth = 72;
 const double _scheduleAtSkip = 24;
 const double _scheduleDateTop = 38;
 const double _scheduleAtTop = 42;
-const int _kScheduledUntilOnlineTimestamp = 0x7FFFFFFE;
+
+const _monthNames = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+const _weekDays = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 
 const Map<int, String> _repeatPeriods = {
   0: 'Never',
@@ -22,6 +34,459 @@ const Map<int, String> _repeatPeriods = {
   15724800: 'Every 6 months',
   31536000: 'Yearly',
 };
+
+// ─── CalendarBox — spec §36.6.1 ─────────────────────────────────────────────
+
+Future<DateTime?> showCalendarBox(
+  BuildContext context, {
+  DateTime? initialDate,
+  DateTime? minDate,
+  DateTime? maxDate,
+  DateTime? selectedDate,
+}) {
+  return showTelegramBox<DateTime>(
+    context: context,
+    builder: (ctx) => _CalendarBoxWidget(
+      initialDate: initialDate,
+      minDate: minDate ?? DateTime(1970),
+      maxDate: maxDate ?? DateTime(2036, 12, 31),
+      selectedDate: selectedDate,
+    ),
+  );
+}
+
+class _CalendarBoxWidget extends StatefulWidget {
+  final DateTime? initialDate;
+  final DateTime minDate;
+  final DateTime maxDate;
+  final DateTime? selectedDate;
+
+  const _CalendarBoxWidget({
+    this.initialDate,
+    required this.minDate,
+    required this.maxDate,
+    this.selectedDate,
+  });
+
+  @override
+  State<_CalendarBoxWidget> createState() => _CalendarBoxWidgetState();
+}
+
+class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
+  late int _year;
+  late int _month;
+  late int _focusDay;
+  DateTime? _selected;
+  Timer? _fastJumpTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = widget.selectedDate;
+    final base = widget.initialDate ?? widget.selectedDate ?? DateTime.now();
+    _year = base.year;
+    _month = base.month;
+    _focusDay = base.day;
+  }
+
+  @override
+  void dispose() {
+    _fastJumpTimer?.cancel();
+    super.dispose();
+  }
+
+  bool _canGoPrev() {
+    return _year > widget.minDate.year ||
+        (_year == widget.minDate.year && _month > widget.minDate.month);
+  }
+
+  bool _canGoNext() {
+    return _year < widget.maxDate.year ||
+        (_year == widget.maxDate.year && _month < widget.maxDate.month);
+  }
+
+  void _prevMonth() {
+    if (!_canGoPrev()) return;
+    setState(() {
+      _month--;
+      if (_month < 1) {
+        _month = 12;
+        _year--;
+      }
+      _clampFocusDay();
+    });
+  }
+
+  void _nextMonth() {
+    if (!_canGoNext()) return;
+    setState(() {
+      _month++;
+      if (_month > 12) {
+        _month = 1;
+        _year++;
+      }
+      _clampFocusDay();
+    });
+  }
+
+  void _clampFocusDay() {
+    final maxDay = DateTime(_year, _month + 1, 0).day;
+    if (_focusDay > maxDay) _focusDay = maxDay;
+  }
+
+  bool _isDayDisabled(DateTime date) {
+    final dayOnly = DateTime(date.year, date.month, date.day);
+    final minOnly =
+        DateTime(widget.minDate.year, widget.minDate.month, widget.minDate.day);
+    final maxOnly =
+        DateTime(widget.maxDate.year, widget.maxDate.month, widget.maxDate.day);
+    return dayOnly.isBefore(minOnly) || dayOnly.isAfter(maxOnly);
+  }
+
+  void _selectDay(int day) {
+    final date = DateTime(_year, _month, day);
+    if (_isDayDisabled(date)) return;
+    Navigator.of(context).pop(date);
+  }
+
+  void _startFastJump(void Function() action) {
+    _fastJumpTimer?.cancel();
+    _fastJumpTimer = Timer.periodic(const Duration(milliseconds: 150), (_) {
+      action();
+    });
+  }
+
+  void _stopFastJump() {
+    _fastJumpTimer?.cancel();
+    _fastJumpTimer = null;
+  }
+
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.arrowLeft) {
+      _moveFocus(-1);
+      return KeyEventResult.handled;
+    } else if (key == LogicalKeyboardKey.arrowRight) {
+      _moveFocus(1);
+      return KeyEventResult.handled;
+    } else if (key == LogicalKeyboardKey.arrowUp) {
+      _moveFocus(-7);
+      return KeyEventResult.handled;
+    } else if (key == LogicalKeyboardKey.arrowDown) {
+      _moveFocus(7);
+      return KeyEventResult.handled;
+    } else if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter) {
+      _selectDay(_focusDay);
+      return KeyEventResult.handled;
+    } else if (key == LogicalKeyboardKey.escape) {
+      Navigator.of(context).pop();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  void _moveFocus(int delta) {
+    setState(() {
+      final newDay = _focusDay + delta;
+      final daysInMonth = DateTime(_year, _month + 1, 0).day;
+      if (newDay < 1) {
+        if (_canGoPrev()) {
+          _month--;
+          if (_month < 1) {
+            _month = 12;
+            _year--;
+          }
+          final prevDays = DateTime(_year, _month + 1, 0).day;
+          _focusDay = prevDays + newDay;
+        }
+      } else if (newDay > daysInMonth) {
+        if (_canGoNext()) {
+          _focusDay = newDay - daysInMonth;
+          _month++;
+          if (_month > 12) {
+            _month = 1;
+            _year++;
+          }
+        }
+      } else {
+        _focusDay = newDay;
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textFg = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextFg =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentFg =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+    final disabledFg = subtextFg.withValues(alpha: 0.4);
+
+    final daysInMonth = DateTime(_year, _month + 1, 0).day;
+    final startWeekday = DateTime(_year, _month, 1).weekday;
+    final offset = startWeekday - 1;
+    final now = DateTime.now();
+
+    return TelegramBox(
+      wide: true,
+      title: '${_monthNames[_month - 1]} $_year',
+      titleTrailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _NavArrow(
+            icon: Icons.chevron_left,
+            enabled: _canGoPrev(),
+            color: textFg,
+            disabledColor: subtextFg,
+            onTap: _prevMonth,
+            onLongPressStart: () => _startFastJump(_prevMonth),
+            onLongPressEnd: _stopFastJump,
+          ),
+          _NavArrow(
+            icon: Icons.chevron_right,
+            enabled: _canGoNext(),
+            color: textFg,
+            disabledColor: subtextFg,
+            onTap: _nextMonth,
+            onLongPressStart: () => _startFastJump(_nextMonth),
+            onLongPressEnd: _stopFastJump,
+          ),
+          const SizedBox(width: 4),
+        ],
+      ),
+      onConfirm: () => _selectDay(_focusDay),
+      content: Focus(
+        autofocus: true,
+        onKeyEvent: _handleKey,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: _calPadH),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: _daysRowH,
+                child: Row(
+                  children: _weekDays.map((d) {
+                    return SizedBox(
+                      width: _cellW,
+                      height: _daysRowH,
+                      child: Center(
+                        child: Text(
+                          d,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: subtextFg,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              _buildDayGrid(
+                offset,
+                daysInMonth,
+                now,
+                textFg,
+                subtextFg,
+                accentFg,
+                hoverBg,
+                disabledFg,
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+      buttons: [
+        TelegramBoxButton(
+          text: 'Cancel',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDayGrid(
+    int offset,
+    int daysInMonth,
+    DateTime now,
+    Color textFg,
+    Color subtextFg,
+    Color accentFg,
+    Color hoverBg,
+    Color disabledFg,
+  ) {
+    final rows = <Widget>[];
+    var day = 1;
+
+    for (var row = 0; row < 6 && day <= daysInMonth; row++) {
+      final cells = <Widget>[];
+      for (var col = 0; col < 7; col++) {
+        final cellIndex = row * 7 + col;
+        if (cellIndex < offset || day > daysInMonth) {
+          cells.add(const SizedBox(width: _cellW, height: _cellH));
+        } else {
+          final thisDay = day;
+          final date = DateTime(_year, _month, thisDay);
+          final isDisabled = _isDayDisabled(date);
+          final isSelected = _selected != null &&
+              _selected!.year == _year &&
+              _selected!.month == _month &&
+              _selected!.day == thisDay;
+          final isFocused = _focusDay == thisDay;
+          final isToday = now.year == _year &&
+              now.month == _month &&
+              now.day == thisDay;
+
+          cells.add(_DayCell(
+            day: thisDay,
+            isSelected: isSelected,
+            isFocused: isFocused,
+            isToday: isToday,
+            isDisabled: isDisabled,
+            textColor: textFg,
+            accentColor: accentFg,
+            hoverColor: hoverBg,
+            disabledColor: disabledFg,
+            onTap: isDisabled ? null : () => _selectDay(thisDay),
+          ));
+          day++;
+        }
+      }
+      rows.add(Row(children: cells));
+    }
+
+    return Column(mainAxisSize: MainAxisSize.min, children: rows);
+  }
+}
+
+class _NavArrow extends StatelessWidget {
+  final IconData icon;
+  final bool enabled;
+  final Color color;
+  final Color disabledColor;
+  final VoidCallback onTap;
+  final VoidCallback onLongPressStart;
+  final VoidCallback onLongPressEnd;
+
+  const _NavArrow({
+    required this.icon,
+    required this.enabled,
+    required this.color,
+    required this.disabledColor,
+    required this.onTap,
+    required this.onLongPressStart,
+    required this.onLongPressEnd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onLongPressStart: enabled ? (_) => onLongPressStart() : null,
+      onLongPressEnd: enabled ? (_) => onLongPressEnd() : null,
+      child: IconButton(
+        icon: Icon(icon, color: enabled ? color : disabledColor, size: 24),
+        onPressed: enabled ? onTap : null,
+        splashRadius: 16,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+      ),
+    );
+  }
+}
+
+class _DayCell extends StatefulWidget {
+  final int day;
+  final bool isSelected;
+  final bool isFocused;
+  final bool isToday;
+  final bool isDisabled;
+  final Color textColor;
+  final Color accentColor;
+  final Color hoverColor;
+  final Color disabledColor;
+  final VoidCallback? onTap;
+
+  const _DayCell({
+    required this.day,
+    required this.isSelected,
+    required this.isFocused,
+    required this.isToday,
+    required this.isDisabled,
+    required this.textColor,
+    required this.accentColor,
+    required this.hoverColor,
+    required this.disabledColor,
+    this.onTap,
+  });
+
+  @override
+  State<_DayCell> createState() => _DayCellState();
+}
+
+class _DayCellState extends State<_DayCell> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    BoxDecoration? decoration;
+    Color fg;
+
+    if (widget.isSelected) {
+      decoration =
+          BoxDecoration(shape: BoxShape.circle, color: widget.accentColor);
+      fg = Colors.white;
+    } else if (widget.isToday) {
+      decoration = BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: widget.accentColor, width: 1.5),
+      );
+      fg = widget.textColor;
+    } else if (_hovering && !widget.isDisabled) {
+      decoration =
+          BoxDecoration(shape: BoxShape.circle, color: widget.hoverColor);
+      fg = widget.textColor;
+    } else {
+      fg = widget.isDisabled ? widget.disabledColor : widget.textColor;
+    }
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: SizedBox(
+          width: _cellW,
+          height: _cellH,
+          child: Center(
+            child: Container(
+              width: _cellInner,
+              height: _cellInner,
+              decoration: decoration,
+              alignment: Alignment.center,
+              child: Text(
+                '${widget.day}',
+                style: TextStyle(fontSize: 13, color: fg),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── ChooseDateTimeBox — spec §36.6.2 ───────────────────────────────────────
 
 class ChooseDateTimeResult {
   final DateTime dateTime;
@@ -44,7 +509,7 @@ Future<ChooseDateTimeResult?> showChooseDateTimeBox(
   bool isScheduledToUser = false,
   bool isPremium = false,
 }) {
-  return showDialog<ChooseDateTimeResult>(
+  return showTelegramBox<ChooseDateTimeResult>(
     context: context,
     builder: (ctx) => _ChooseDateTimeDialog(
       initialDate: initialDate,
@@ -87,8 +552,8 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
   @override
   void initState() {
     super.initState();
-    final initial = widget.initialDate ??
-        DateTime.now().add(const Duration(minutes: 10));
+    final initial =
+        widget.initialDate ?? DateTime.now().add(const Duration(minutes: 10));
     _selectedDate = DateTime(initial.year, initial.month, initial.day);
     _hourController =
         TextEditingController(text: initial.hour.toString().padLeft(2, '0'));
@@ -174,13 +639,14 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
 
   Future<void> _openCalendar() async {
     final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate.isBefore(now)
-          ? now
-          : _selectedDate,
-      firstDate: now,
-      lastDate: now.add(const Duration(days: 365)),
+    final today = DateTime(now.year, now.month, now.day);
+    final maxDate = today.add(const Duration(days: 365));
+    final picked = await showCalendarBox(
+      context,
+      initialDate: _selectedDate.isBefore(today) ? today : _selectedDate,
+      selectedDate: _selectedDate,
+      minDate: today,
+      maxDate: maxDate,
     );
     if (picked != null && mounted) {
       setState(() => _selectedDate = picked);
@@ -199,15 +665,11 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
   }
 
   String _formatDate(DateTime date) {
-    const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ];
     final now = DateTime.now();
     if (date.year == now.year) {
-      return '${months[date.month - 1]} ${date.day}';
+      return '${_monthNames[date.month - 1]} ${date.day}';
     }
-    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+    return '${_monthNames[date.month - 1]} ${date.day}, ${date.year}';
   }
 
   void _showRepeatMenu() {
@@ -222,10 +684,9 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
         position.dx + 200,
         position.dy,
       ),
-      items: _repeatPeriods.entries.map((e) => PopupMenuItem<int>(
-        value: e.key,
-        child: Text(e.value),
-      )).toList(),
+      items: _repeatPeriods.entries
+          .map((e) => PopupMenuItem<int>(value: e.key, child: Text(e.value)))
+          .toList(),
     ).then((value) {
       if (value != null && mounted) {
         setState(() => _repeatPeriod = value);
@@ -236,269 +697,187 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final boxBg = isDark ? const Color(0xFF17212B) : Colors.white;
-    final titleFg = isDark ? const Color(0xFFE0E3EA) : const Color(0xFF000000);
-    final textFg = isDark ? const Color(0xFFAAAAAA) : const Color(0xFF666666);
-    final accentFg = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
-    final fieldBg = isDark ? const Color(0xFF0E1621) : const Color(0xFFF0F0F0);
-    final fieldBorder = isDark ? const Color(0xFF2B3845) : const Color(0xFFDADADA);
-    final fieldBorderActive = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
-    final errorBorder = const Color(0xFFE53935);
-    final separatorFg = isDark ? const Color(0xFF8B95A5) : const Color(0xFF999999);
+    final titleFg =
+        isDark ? const Color(0xFFE0E3EA) : const Color(0xFF000000);
+    final accentFg =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final fieldBg =
+        isDark ? const Color(0xFF0E1621) : const Color(0xFFF0F0F0);
+    final fieldBorder =
+        isDark ? const Color(0xFF2B3845) : const Color(0xFFDADADA);
+    final fieldBorderActive =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    const errorBorder = Color(0xFFE53935);
+    final separatorFg =
+        isDark ? const Color(0xFF8B95A5) : const Color(0xFF999999);
 
-    return Dialog(
-      backgroundColor: boxBg,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(_boxRadius),
-      ),
-      elevation: 4,
-      child: SizedBox(
-        width: _boxWideWidth,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Title bar with optional "Send when online" menu
-            SizedBox(
-              height: 48,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 8, 0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          widget.isSelfChat
-                              ? 'Set a reminder'
-                              : 'Schedule message',
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w600,
-                            color: titleFg,
-                          ),
-                        ),
+    return TelegramBox(
+      wide: true,
+      title: widget.isSelfChat ? 'Set a reminder' : 'Schedule message',
+      titleTrailing: widget.isScheduledToUser
+          ? IconButton(
+              icon: Icon(Icons.more_vert,
+                  color: separatorFg, size: 20),
+              onPressed: () {
+                final box = context.findRenderObject() as RenderBox;
+                final pos =
+                    box.localToGlobal(Offset(box.size.width - 8, 40));
+                showMenu<String>(
+                  context: context,
+                  position: RelativeRect.fromLTRB(
+                      pos.dx - 200, pos.dy, pos.dx, pos.dy + 48),
+                  items: [
+                    const PopupMenuItem(
+                      value: 'when_online',
+                      child: Row(
+                        children: [
+                          Icon(Icons.person_outline, size: 20),
+                          SizedBox(width: 12),
+                          Text('Send when online'),
+                        ],
                       ),
                     ),
-                    if (widget.isScheduledToUser)
-                      IconButton(
-                        icon: Icon(Icons.more_vert, color: textFg, size: 20),
-                        onPressed: () {
-                          final box =
-                              context.findRenderObject() as RenderBox;
-                          final pos = box.localToGlobal(
-                              Offset(box.size.width - 8, 40));
-                          showMenu<String>(
-                            context: context,
-                            position: RelativeRect.fromLTRB(
-                              pos.dx - 200,
-                              pos.dy,
-                              pos.dx,
-                              pos.dy + 48,
-                            ),
-                            items: [
-                              const PopupMenuItem(
-                                value: 'when_online',
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.person_outline, size: 20),
-                                    SizedBox(width: 12),
-                                    Text('Send when online'),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ).then((v) {
-                            if (v == 'when_online') _sendWhenOnline();
-                          });
+                  ],
+                ).then((v) {
+                  if (v == 'when_online') _sendWhenOnline();
+                });
+              },
+            )
+          : null,
+      onConfirm: () => _submit(),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            height: _scheduleHeight,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                const atText = 'at';
+                final atWidth = _measureTextWidth(
+                  atText,
+                  TextStyle(fontSize: 14, color: separatorFg),
+                );
+                final totalWidth = _scheduleDateWidth +
+                    _scheduleAtSkip +
+                    atWidth +
+                    _scheduleAtSkip +
+                    _scheduleTimeWidth;
+                final leftPad = (constraints.maxWidth - totalWidth) / 2;
+
+                return Stack(
+                  children: [
+                    Positioned(
+                      left: leftPad,
+                      top: _scheduleDateTop,
+                      child: Listener(
+                        onPointerSignal: (event) {
+                          if (event is PointerScrollEvent) {
+                            _scrollDate(event.scrollDelta.dy > 0 ? -1 : 1);
+                          }
                         },
-                      ),
-                  ],
-                ),
-              ),
-            ),
-
-            // Date + "at" + Time row
-            SizedBox(
-              height: _scheduleHeight,
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  const atText = 'at';
-                  final atWidth = _measureTextWidth(
-                    atText,
-                    TextStyle(fontSize: 14, color: separatorFg),
-                  );
-                  final totalWidth = _scheduleDateWidth +
-                      _scheduleAtSkip +
-                      atWidth +
-                      _scheduleAtSkip +
-                      _scheduleTimeWidth;
-                  final leftPad =
-                      (constraints.maxWidth - totalWidth) / 2;
-
-                  return Stack(
-                    children: [
-                      // Date field
-                      Positioned(
-                        left: leftPad,
-                        top: _scheduleDateTop,
-                        child: Listener(
-                          onPointerSignal: (event) {
-                            if (event is PointerScrollEvent) {
-                              _scrollDate(
-                                  event.scrollDelta.dy > 0 ? -1 : 1);
-                            }
-                          },
-                          child: GestureDetector(
-                            onTap: _openCalendar,
-                            child: Container(
-                              width: _scheduleDateWidth,
-                              height: 30,
-                              decoration: BoxDecoration(
-                                color: fieldBg,
-                                border: Border.all(
-                                  color: fieldBorder,
-                                  width: 1,
-                                ),
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                              alignment: Alignment.center,
-                              child: Text(
-                                _formatDate(_selectedDate),
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: titleFg,
-                                ),
-                              ),
+                        child: GestureDetector(
+                          onTap: _openCalendar,
+                          child: Container(
+                            width: _scheduleDateWidth,
+                            height: 30,
+                            decoration: BoxDecoration(
+                              color: fieldBg,
+                              border:
+                                  Border.all(color: fieldBorder, width: 1),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              _formatDate(_selectedDate),
+                              style:
+                                  TextStyle(fontSize: 14, color: titleFg),
                             ),
                           ),
                         ),
                       ),
-                      // "at" label
-                      Positioned(
-                        left: leftPad +
-                            _scheduleDateWidth +
-                            _scheduleAtSkip,
-                        top: _scheduleAtTop,
-                        child: Text(
-                          atText,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: separatorFg,
-                          ),
-                        ),
-                      ),
-                      // Time field
-                      Positioned(
-                        left: leftPad +
-                            _scheduleDateWidth +
-                            _scheduleAtSkip +
-                            atWidth +
-                            _scheduleAtSkip,
-                        top: _scheduleDateTop,
-                        child: AnimatedBuilder(
-                          animation: _shakeAnimation,
-                          builder: (context, child) {
-                            return Transform.translate(
-                              offset:
-                                  Offset(_shakeAnimation.value, 0),
-                              child: child,
-                            );
-                          },
-                          child: _TimeInputField(
-                            hourController: _hourController,
-                            minuteController: _minuteController,
-                            hourFocus: _hourFocus,
-                            minuteFocus: _minuteFocus,
-                            width: _scheduleTimeWidth,
-                            fieldBg: fieldBg,
-                            fieldBorder: _timeError
-                                ? errorBorder
-                                : fieldBorder,
-                            fieldBorderActive: _timeError
-                                ? errorBorder
-                                : fieldBorderActive,
-                            textColor: titleFg,
-                            separatorColor: separatorFg,
-                            onSubmit: () => _submit(),
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-
-            // Repeat period row
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-              child: GestureDetector(
-                onTap: widget.isPremium ? _showRepeatMenu : null,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Repeat: ${_repeatPeriods[_repeatPeriod] ?? "Never"}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: accentFg,
+                    ),
+                    Positioned(
+                      left: leftPad + _scheduleDateWidth + _scheduleAtSkip,
+                      top: _scheduleAtTop,
+                      child: Text(
+                        atText,
+                        style:
+                            TextStyle(fontSize: 14, color: separatorFg),
                       ),
                     ),
-                    const SizedBox(width: 4),
-                    if (widget.isPremium)
-                      Icon(Icons.arrow_drop_down,
-                          size: 18, color: accentFg)
-                    else
-                      Icon(Icons.lock_outline,
-                          size: 14, color: accentFg),
+                    Positioned(
+                      left: leftPad +
+                          _scheduleDateWidth +
+                          _scheduleAtSkip +
+                          atWidth +
+                          _scheduleAtSkip,
+                      top: _scheduleDateTop,
+                      child: AnimatedBuilder(
+                        animation: _shakeAnimation,
+                        builder: (context, child) {
+                          return Transform.translate(
+                            offset: Offset(_shakeAnimation.value, 0),
+                            child: child,
+                          );
+                        },
+                        child: _TimeInputField(
+                          hourController: _hourController,
+                          minuteController: _minuteController,
+                          hourFocus: _hourFocus,
+                          minuteFocus: _minuteFocus,
+                          width: _scheduleTimeWidth,
+                          fieldBg: fieldBg,
+                          fieldBorder:
+                              _timeError ? errorBorder : fieldBorder,
+                          fieldBorderActive: _timeError
+                              ? errorBorder
+                              : fieldBorderActive,
+                          textColor: titleFg,
+                          separatorColor: separatorFg,
+                          onSubmit: () => _submit(),
+                        ),
+                      ),
+                    ),
                   ],
-                ),
-              ),
+                );
+              },
             ),
-
-            // Button row
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 4, 12, 12),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+            child: GestureDetector(
+              onTap: widget.isPremium ? _showRepeatMenu : null,
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: TextButton.styleFrom(
-                      foregroundColor: accentFg,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 10),
-                      textStyle: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    child: const Text('Cancel'),
+                  Text(
+                    'Repeat: ${_repeatPeriods[_repeatPeriod] ?? "Never"}',
+                    style: TextStyle(fontSize: 13, color: accentFg),
                   ),
-                  const SizedBox(width: 8),
-                  TextButton(
-                    onPressed: () {
-                      final isCtrlHeld =
-                          HardwareKeyboard.instance.isControlPressed;
-                      _submit(silent: isCtrlHeld);
-                    },
-                    style: TextButton.styleFrom(
-                      foregroundColor: accentFg,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 10),
-                      textStyle: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    child: const Text('Schedule'),
-                  ),
+                  const SizedBox(width: 4),
+                  if (widget.isPremium)
+                    Icon(Icons.arrow_drop_down, size: 18, color: accentFg)
+                  else
+                    Icon(Icons.lock_outline, size: 14, color: accentFg),
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
+      buttons: [
+        TelegramBoxButton(
+          text: 'Cancel',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        TelegramBoxButton(
+          text: 'Schedule',
+          onPressed: () {
+            final isCtrlHeld = HardwareKeyboard.instance.isControlPressed;
+            _submit(silent: isCtrlHeld);
+          },
+        ),
+      ],
     );
   }
 
