@@ -884,7 +884,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_list_panel.dart (partial _EmptyState for search), chat_view.dart — new: dart/lib/ui/empty_states.dart -->
 
-- [ ] Connection state widget: pill bottom-left, 20px radial spinner, "Connecting..." / "Reconnect in N s... Try now" / proxy states, 1000ms show delay, 150ms fade — spec §35.22
 - [ ] File download states: Ready/Downloading ("X/Y MB" radial)/Loaded/Failed status text, cancel icon during download, path error dialogs — spec §35.24
 - [ ] Media loading three-stage: blurhash → blurred → full-res, loading overlay with radial progress, upload progress fade — spec §35.25
 - [ ] Media viewer / PiP loading spinner: InfiniteRadialAnimation centered — spec §35.26–35.27

@@ -741,6 +741,12 @@ class _UniClientAppState extends State<UniClientApp>
                   : null,
             );
           }
+
+        case 'testConnState':
+          final appState = context.read<AppState>();
+          final stateStr = cmd['state'] as String? ?? 'connecting';
+          final aid = cmd['accountId'] as String? ?? appState.activeAccountId;
+          appState.debugSetConnState(aid, ConnState.fromString(stateStr));
       }
     } catch (e) {
       Debug.error('DEBUG_CMD', 'Error processing command', e, null);

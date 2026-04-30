@@ -636,6 +636,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   ConnState connStateFor(String accountId) =>
       _connStates[accountId] ?? ConnState.disconnected;
 
+  void debugSetConnState(String accountId, ConnState state) {
+    _connStates[accountId] = state;
+    notifyListeners();
+  }
+
   void requestShowArchive() {
     onShowArchiveRequested?.call();
   }

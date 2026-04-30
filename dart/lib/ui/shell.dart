@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/auth_state.dart';
 import '../state/chat_state.dart';
@@ -284,7 +285,16 @@ class _UniClientShellState extends State<UniClientShell>
 
         return Scaffold(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-          body: _buildLayout(context, mode, bodyWidth, windowWidth, showFilters, chatState),
+          body: Stack(
+            children: [
+              _buildLayout(context, mode, bodyWidth, windowWidth, showFilters, chatState),
+              Positioned(
+                left: 0,
+                bottom: 0,
+                child: _ConnectionStateWidget(accountId: appState.activeAccountId),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -881,6 +891,133 @@ class _NoAccountsScreen extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// Spec §35.22: Connection state pill — bottom-left overlay.
+/// Shows spinner after 1000ms delay when not connected. Text "Connecting..."
+/// on hover (or always for disconnected/unstable). Hidden when connected.
+/// 150ms fade animation on show/hide, pill width animates with text.
+class _ConnectionStateWidget extends StatefulWidget {
+  final String accountId;
+  const _ConnectionStateWidget({required this.accountId});
+
+  @override
+  State<_ConnectionStateWidget> createState() => _ConnectionStateWidgetState();
+}
+
+class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
+    with SingleTickerProviderStateMixin {
+  static const _showDelay = Duration(milliseconds: 1000);
+  static const _animDuration = Duration(milliseconds: 150);
+
+  late final AnimationController _fadeAnim;
+  Timer? _showTimer;
+  bool _shouldShow = false;
+  bool _isHovered = false;
+  ConnState? _lastState;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeAnim = AnimationController(vsync: this, duration: _animDuration);
+  }
+
+  @override
+  void dispose() {
+    _showTimer?.cancel();
+    _fadeAnim.dispose();
+    super.dispose();
+  }
+
+  void _syncVisibility(ConnState state) {
+    if (state == _lastState) return;
+    _lastState = state;
+    final wantVisible = state != ConnState.connected;
+
+    if (wantVisible && !_shouldShow && _showTimer == null) {
+      _showTimer = Timer(_showDelay, () {
+        _showTimer = null;
+        if (!mounted) return;
+        setState(() => _shouldShow = true);
+        _fadeAnim.forward();
+      });
+    } else if (!wantVisible) {
+      _showTimer?.cancel();
+      _showTimer = null;
+      if (_shouldShow) {
+        _shouldShow = false;
+        _fadeAnim.reverse();
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final appState = context.watch<AppState>();
+    final state = appState.connStateFor(widget.accountId);
+    final p = context.palette;
+
+    _syncVisibility(state);
+
+    if (!_shouldShow && !_fadeAnim.isAnimating) return const SizedBox.shrink();
+
+    return FadeTransition(
+      opacity: _fadeAnim,
+      child: Padding(
+        padding: const EdgeInsets.all(2),
+        child: MouseRegion(
+          onEnter: (_) => setState(() => _isHovered = true),
+          onExit: (_) => setState(() => _isHovered = false),
+          child: _buildPill(state, p),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPill(ConnState state, TelegramPalette p) {
+    final showText = _isHovered ||
+        state == ConnState.disconnected ||
+        state == ConnState.unstable;
+
+    return AnimatedContainer(
+      duration: _animDuration,
+      decoration: BoxDecoration(
+        color: p.windowBg,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: p.windowShadowFg,
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      padding: EdgeInsets.symmetric(
+        horizontal: showText ? 18 : 5,
+        vertical: 5,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: p.menuIconFg,
+            ),
+          ),
+          if (showText) ...[
+            const SizedBox(width: 8),
+            Text(
+              'Connecting...',
+              style: TextStyle(fontSize: 13, color: p.menuIconFg),
+            ),
+          ],
+        ],
       ),
     );
   }
