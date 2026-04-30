@@ -3340,6 +3340,7 @@ class _ChatViewState extends State<ChatView>
                         : chatState.messages.where((m) => !_hiddenMsgIds.contains(m.msgId)).toList(),
                     loading: chatState.loadingMessages,
                     isGroupChat: chat.type == ChatType.group || chat.type == ChatType.channel || chat.type == ChatType.topic,
+                    chatType: chat.type,
                     senderAvatars: chatState,
                     scrollController: _scrollController,
                     onReply: (msgId) => setState(() => _replyToId = msgId),
@@ -4955,6 +4956,7 @@ class _MessageList extends StatelessWidget {
   final List<CachedMessage> messages;
   final bool loading;
   final bool isGroupChat;
+  final ChatType chatType;
   final ChatState? senderAvatars; // for looking up sender avatar b64 by ID
   final ScrollController scrollController;
   final ValueChanged<String> onReply;
@@ -4980,6 +4982,7 @@ class _MessageList extends StatelessWidget {
     required this.messages,
     required this.loading,
     this.isGroupChat = false,
+    this.chatType = ChatType.unspec,
     this.senderAvatars,
     required this.scrollController,
     required this.onReply,
@@ -5030,12 +5033,10 @@ class _MessageList extends StatelessWidget {
       if (!isGroupChat) {
         return const _ChatIntroWidget();
       }
-      return Center(
-        child: Text(
-          'No messages yet',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      );
+      if (chatType == ChatType.group) {
+        return const Center(child: _GroupAboutServiceMessage());
+      }
+      return const SizedBox.shrink();
     }
 
     // Pre-compute display items: group consecutive album members.
@@ -5082,11 +5083,23 @@ class _MessageList extends StatelessWidget {
             item.originalIndices.any((i) => i == openedUnreadCount - 1);
 
         if (msg.isService) {
+          Widget serviceWidget;
+          if (msg.contentText.contains('created the group')) {
+            serviceWidget = const _GroupAboutServiceMessage();
+          } else if (msg.contentText.contains('created topic')) {
+            serviceWidget = _TopicCreatedServiceMessage(
+              isOwn: msg.isOutgoing,
+              topicColorId: msg.topicColorId,
+              topicName: msg.topicName.isNotEmpty ? msg.topicName : _extractTopicTitle(msg.contentText),
+            );
+          } else {
+            serviceWidget = _ServiceMessage(text: msg.contentText);
+          }
           return Column(
             children: [
               if (showDate) _DateSeparator(timestamp: msg.timestamp, isScheduled: isScheduledView),
               if (showUnreadBar) _UnreadBar(count: openedUnreadCount),
-              _ServiceMessage(text: msg.contentText),
+              serviceWidget,
             ],
           );
         }
@@ -5314,6 +5327,149 @@ class _ServiceMessage extends StatelessWidget {
               fontWeight: FontWeight.w600,
               color: context.palette.msgServiceFg,
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _extractTopicTitle(String text) {
+  final start = text.indexOf('“');
+  final end = text.indexOf('”');
+  if (start >= 0 && end > start) return text.substring(start + 1, end);
+  return '';
+}
+
+class _GroupAboutServiceMessage extends StatelessWidget {
+  const _GroupAboutServiceMessage();
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = context.palette.msgServiceFg;
+    final bg = context.palette.msgServiceBg;
+    return Padding(
+      padding: const EdgeInsets.only(top: 10, bottom: 2),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'You created a group',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: fg),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Groups can have:',
+                style: TextStyle(fontSize: 13, color: fg),
+              ),
+              const SizedBox(height: 10),
+              _BulletItem(text: 'Up to 200,000 members', color: fg),
+              const SizedBox(height: 8),
+              _BulletItem(text: 'Persistent chat history', color: fg),
+              const SizedBox(height: 8),
+              _BulletItem(text: 'Public links such as t.me/title', color: fg),
+              const SizedBox(height: 8),
+              _BulletItem(text: 'Admins with different rights', color: fg),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BulletItem extends StatelessWidget {
+  final String text;
+  final Color color;
+  const _BulletItem({required this.text, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 5),
+            child: Container(
+              width: 4,
+              height: 4,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 13, color: color),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TopicCreatedServiceMessage extends StatelessWidget {
+  final bool isOwn;
+  final int topicColorId;
+  final String topicName;
+
+  const _TopicCreatedServiceMessage({
+    required this.isOwn,
+    required this.topicColorId,
+    required this.topicName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = context.palette.msgServiceFg;
+    final bg = context.palette.msgServiceBg;
+    final header = isOwn ? 'Almost done!' : 'Topic started!';
+    final body = isOwn
+        ? 'Send a message to\nstart the topic.'
+        : 'Send a message\nto start the topic.';
+    return Padding(
+      padding: const EdgeInsets.only(top: 10, bottom: 2),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ForumTopicIcon(
+                colorId: topicColorId,
+                title: topicName,
+                size: ForumTopicIcon.infoSize,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                header,
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: fg),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                body,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: fg),
+              ),
+            ],
           ),
         ),
       ),
