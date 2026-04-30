@@ -3,6 +3,8 @@ import 'notification_types.dart';
 abstract class NotificationManager {
   ManagerType get type;
 
+  bool get handlesSound => false;
+
   void showNotification(NotificationData data, NotificationSettings settings);
 
   void clearForChat(String accountId, String chatId);

@@ -4,16 +4,19 @@ import '../utils/debug.dart';
 import 'notification_manager.dart';
 import 'notification_manager_default.dart';
 import 'notification_manager_native.dart';
+import 'notification_sound.dart';
 import 'notification_types.dart';
 
 export 'notification_types.dart';
 export 'notification_manager.dart';
 export 'notification_manager_default.dart';
 export 'notification_manager_native.dart';
+export 'notification_sound.dart';
 
 class NotificationSystem {
   NotificationManager _manager = DummyManager();
   NotificationSettings _settings = const NotificationSettings();
+  final NotificationSoundPlayer _soundPlayer = NotificationSoundPlayer();
 
   final Map<String, DateTime> _lastNotifPerChat = {};
   final List<DateTime> _recentNotifs = [];
@@ -36,9 +39,13 @@ class NotificationSystem {
   NativeManager? get nativeManager =>
       _manager is NativeManager ? _manager as NativeManager : null;
 
+  NotificationSoundPlayer get soundPlayer => _soundPlayer;
+
   void init(NotificationSettings settings) {
     _settings = settings;
+    _soundPlayer.init();
     _selectManager();
+    _syncNativeSoundPath();
     Debug.log('NOTIF', 'system init, manager=${_manager.type}');
   }
 
@@ -76,6 +83,14 @@ class NotificationSystem {
         _manager = DefaultManager();
       case ManagerType.dummy:
         _manager = DummyManager();
+    }
+    _syncNativeSoundPath();
+  }
+
+  void _syncNativeSoundPath() {
+    final nm = nativeManager;
+    if (nm != null) {
+      nm.defaultSoundPath = _soundPlayer.defaultSoundPath ?? '';
     }
   }
 
@@ -156,6 +171,11 @@ class NotificationSystem {
           : data.avatarPath,
     );
     _manager.showNotification(display, _settings);
+
+    if (!_manager.handlesSound) {
+      _soundPlayer.play(settings: _settings, data: data);
+    }
+
     Debug.log('NOTIF',
         'dispatched to ${_manager.type}: ${content.title}');
   }
@@ -177,6 +197,7 @@ class NotificationSystem {
     _albumBuffer.clear();
     _lastNotifPerChat.clear();
     _recentNotifs.clear();
+    _soundPlayer.dispose();
     _manager.dispose();
   }
 }

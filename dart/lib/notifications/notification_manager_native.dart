@@ -23,6 +23,12 @@ class NativeManager extends NotificationManager {
   @override
   ManagerType get type => ManagerType.native;
 
+  @override
+  bool get handlesSound =>
+      _capabilities.contains('sound-file') && !_inhibited;
+
+  String defaultSoundPath = '';
+
   NotificationActionCallback? onAction;
   NotificationReplyCallback? onReply;
 
@@ -221,7 +227,16 @@ class NativeManager extends NotificationManager {
 
     if (settings.allowSound &&
         !_inhibited &&
+        !data.isSilent &&
+        !data.soundNone &&
         _capabilities.contains('sound-file')) {
+      final soundPath = data.soundDocumentPath.isNotEmpty
+          ? data.soundDocumentPath
+          : defaultSoundPath;
+      if (soundPath.isNotEmpty) {
+        hints[DBusString('sound-file')] =
+            DBusVariant(DBusString(soundPath));
+      }
       hints[DBusString('suppress-sound')] = DBusVariant(DBusBoolean(false));
     } else {
       hints[DBusString('suppress-sound')] = DBusVariant(DBusBoolean(true));

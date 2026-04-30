@@ -46,6 +46,9 @@ class NotificationData {
   final String invoiceTitle;
   final String contactName;
   final bool isLiveLocation;
+  final String soundDocumentPath;
+  final bool soundNone;
+  final int perChatVolume;
 
   const NotificationData({
     required this.accountId,
@@ -82,6 +85,9 @@ class NotificationData {
     this.invoiceTitle = '',
     this.contactName = '',
     this.isLiveLocation = false,
+    this.soundDocumentPath = '',
+    this.soundNone = false,
+    this.perChatVolume = 100,
   });
 
   NotificationData copyWith({
@@ -119,6 +125,9 @@ class NotificationData {
     String? invoiceTitle,
     String? contactName,
     bool? isLiveLocation,
+    String? soundDocumentPath,
+    bool? soundNone,
+    int? perChatVolume,
   }) {
     return NotificationData(
       accountId: accountId ?? this.accountId,
@@ -155,6 +164,9 @@ class NotificationData {
       invoiceTitle: invoiceTitle ?? this.invoiceTitle,
       contactName: contactName ?? this.contactName,
       isLiveLocation: isLiveLocation ?? this.isLiveLocation,
+      soundDocumentPath: soundDocumentPath ?? this.soundDocumentPath,
+      soundNone: soundNone ?? this.soundNone,
+      perChatVolume: perChatVolume ?? this.perChatVolume,
     );
   }
 }
