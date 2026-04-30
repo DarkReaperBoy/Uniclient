@@ -884,7 +884,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_list_panel.dart (partial _EmptyState for search), chat_view.dart — new: dart/lib/ui/empty_states.dart -->
 
-- [ ] Empty shared media tabs: per-type icons at 120px from bottom, labels at 40px, per-type empty/search-empty text variants — spec §35.10
 - [ ] Empty sticker/emoji/GIF panels: icon at 1/3 height, text in normalFont — spec §35.12–35.14
 - [ ] Chat intro (no messages): "No messages here yet..." service bubble, 96px sticker clickable to send, business custom intro support — spec §35.15
 - [ ] New group created / new forum topic service messages with bullet items and topic icon — spec §35.16–35.17

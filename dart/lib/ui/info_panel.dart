@@ -3367,12 +3367,14 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
                   loading: _gridLoading,
                   theme: widget.theme,
                   mediaType: type,
+                  isSearch: _searchActive && _searchController.text.isNotEmpty,
                 )
               else if (_masonryTypes.contains(type))
                 _GifMasonryGrid(
                   items: _gridItems,
                   loading: _gridLoading,
                   theme: widget.theme,
+                  isSearch: _searchActive && _searchController.text.isNotEmpty,
                 )
               else
                 _MediaListView(
@@ -3380,6 +3382,7 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
                   loading: _gridLoading,
                   theme: widget.theme,
                   mediaType: type,
+                  isSearch: _searchActive && _searchController.text.isNotEmpty,
                 ),
           ],
         ],
@@ -3774,16 +3777,23 @@ class _MediaEmptyState extends StatelessWidget {
     final emptyFg = theme.textTheme.bodySmall?.color ?? Colors.grey;
     final icon = _iconForType(mediaType);
     final text = isSearch ? _searchEmptyText(mediaType) : _emptyText(mediaType);
+    const iconSize = 48.0;
+    const totalHeight = _iconTop + _labelTop + 60.0;
 
     return SizedBox(
-      height: _iconTop + _labelTop + 60,
-      child: Column(
+      height: totalHeight,
+      child: Stack(
         children: [
-          const Spacer(flex: 1),
-          Icon(icon, size: 48, color: emptyFg.withAlpha(128)),
-          const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: _labelSkip),
+          Positioned(
+            left: 0,
+            right: 0,
+            top: totalHeight - _iconTop,
+            child: Center(child: Icon(icon, size: iconSize, color: emptyFg)),
+          ),
+          Positioned(
+            left: _labelSkip,
+            right: _labelSkip,
+            top: totalHeight - _labelTop,
             child: ConstrainedBox(
               constraints: const BoxConstraints(minWidth: _minLabelWidth),
               child: Text(
@@ -3793,7 +3803,6 @@ class _MediaEmptyState extends StatelessWidget {
               ),
             ),
           ),
-          const Spacer(flex: 2),
         ],
       ),
     );
@@ -3839,6 +3848,7 @@ class _MediaGrid extends StatelessWidget {
   final bool loading;
   final ThemeData theme;
   final String mediaType;
+  final bool isSearch;
 
   static const _minGridSize = 82.0;
   static const _skip = 2.0;
@@ -3851,6 +3861,7 @@ class _MediaGrid extends StatelessWidget {
     required this.loading,
     required this.theme,
     this.mediaType = 'photo',
+    this.isSearch = false,
   });
 
   @override
@@ -3866,7 +3877,7 @@ class _MediaGrid extends StatelessWidget {
     }
     final mediaItems = items;
     if (mediaItems == null || mediaItems.isEmpty) {
-      return _MediaEmptyState(mediaType: mediaType, theme: theme);
+      return _MediaEmptyState(mediaType: mediaType, theme: theme, isSearch: isSearch);
     }
 
     final grouped = _groupByMonth(mediaItems);
@@ -3944,6 +3955,7 @@ class _GifMasonryGrid extends StatelessWidget {
   final List<SharedMediaItem>? items;
   final bool loading;
   final ThemeData theme;
+  final bool isSearch;
 
   static const _skip = 2.0;
   static const _sidePadding = 3.0;
@@ -3953,6 +3965,7 @@ class _GifMasonryGrid extends StatelessWidget {
     required this.items,
     required this.loading,
     required this.theme,
+    this.isSearch = false,
   });
 
   @override
@@ -3968,7 +3981,7 @@ class _GifMasonryGrid extends StatelessWidget {
     }
     final mediaItems = items;
     if (mediaItems == null || mediaItems.isEmpty) {
-      return _MediaEmptyState(mediaType: 'gif', theme: theme);
+      return _MediaEmptyState(mediaType: 'gif', theme: theme, isSearch: isSearch);
     }
 
     final grouped = _MediaGrid._groupByMonth(mediaItems);
@@ -4097,12 +4110,14 @@ class _MediaListView extends StatelessWidget {
   final bool loading;
   final ThemeData theme;
   final String mediaType;
+  final bool isSearch;
 
   const _MediaListView({
     required this.items,
     required this.loading,
     required this.theme,
     required this.mediaType,
+    this.isSearch = false,
   });
 
   @override
@@ -4118,7 +4133,7 @@ class _MediaListView extends StatelessWidget {
     }
     final mediaItems = items;
     if (mediaItems == null || mediaItems.isEmpty) {
-      return _MediaEmptyState(mediaType: mediaType, theme: theme);
+      return _MediaEmptyState(mediaType: mediaType, theme: theme, isSearch: isSearch);
     }
 
     final grouped = _MediaGrid._groupByMonth(mediaItems);
