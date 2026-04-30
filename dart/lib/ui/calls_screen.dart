@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -11,6 +12,7 @@ import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import 'confirm_box.dart';
 import 'popup_menu.dart';
+import 'settings_style.dart';
 
 class CallsScreen extends StatefulWidget {
   const CallsScreen({super.key});
@@ -287,6 +289,10 @@ class _CallsScreenState extends State<CallsScreen> {
             color: isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF),
             onSelected: (value) {
               switch (value) {
+                case 'settings':
+                  Navigator.of(context).push(
+                    settingsPageRoute(const _CallSettingsScreen()),
+                  );
                 case 'clear_all':
                   _showClearCallHistoryDialog();
               }
@@ -1553,5 +1559,585 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
     final parts = name.trim().split(RegExp(r'\s+'));
     if (parts.length == 1) return parts[0][0].toUpperCase();
     return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// §34.14 Call Settings Screen
+// ---------------------------------------------------------------------------
+
+class _CallSettingsScreen extends StatefulWidget {
+  const _CallSettingsScreen();
+
+  @override
+  State<_CallSettingsScreen> createState() => _CallSettingsScreenState();
+}
+
+class _CallSettingsScreenState extends State<_CallSettingsScreen> {
+  String _outputDevice = 'Default';
+  String _inputDevice = 'Default';
+  String _cameraDevice = 'Default';
+  bool _useSameDevices = true;
+  bool _acceptCalls = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final dividerColor =
+        isDark ? const Color(0xFF101921) : const Color(0xFFF1F1F1);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: bgColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: textColor),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text(
+          'Call Settings',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            color: textColor,
+          ),
+        ),
+      ),
+      body: ListView(
+        children: [
+          // --- Output section ---
+          _CallSettingsSectionHeader(label: 'Output', color: accentColor),
+          _CallSettingsDeviceRow(
+            icon: Icons.volume_up,
+            label: _outputDevice,
+            textColor: textColor,
+            subtextColor: subtextColor,
+            isDark: isDark,
+            onTap: () => _showDevicePicker(
+              title: 'Output Device',
+              current: _outputDevice,
+              onSelected: (d) => setState(() => _outputDevice = d),
+            ),
+          ),
+          Divider(height: 1, color: dividerColor, indent: 60),
+
+          // --- Input section ---
+          _CallSettingsSectionHeader(label: 'Input', color: accentColor),
+          _CallSettingsDeviceRow(
+            icon: Icons.mic,
+            label: _inputDevice,
+            textColor: textColor,
+            subtextColor: subtextColor,
+            isDark: isDark,
+            onTap: () => _showDevicePicker(
+              title: 'Input Device',
+              current: _inputDevice,
+              onSelected: (d) => setState(() => _inputDevice = d),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(60, 8, 22, 12),
+            child: _InputLevelMeter(isDark: isDark, accentColor: accentColor),
+          ),
+          Divider(height: 1, color: dividerColor, indent: 60),
+
+          // --- Call Devices section ---
+          _CallSettingsSectionHeader(label: 'Call Devices', color: accentColor),
+          _CallSettingsToggleRow(
+            label: 'Use same devices for calls',
+            value: _useSameDevices,
+            textColor: textColor,
+            accentColor: accentColor,
+            isDark: isDark,
+            onChanged: (v) => setState(() => _useSameDevices = v),
+          ),
+          _CallSettingsInfoLabel(
+            text: 'When enabled, calls use the same speaker and microphone '
+                'as the rest of the app.',
+            color: subtextColor,
+          ),
+          Divider(height: 1, color: dividerColor, indent: 60),
+
+          // --- Camera section ---
+          _CallSettingsSectionHeader(label: 'Camera', color: accentColor),
+          _CallSettingsDeviceRow(
+            icon: Icons.videocam,
+            label: _cameraDevice,
+            textColor: textColor,
+            subtextColor: subtextColor,
+            isDark: isDark,
+            onTap: () => _showDevicePicker(
+              title: 'Camera',
+              current: _cameraDevice,
+              onSelected: (d) => setState(() => _cameraDevice = d),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
+            child: _CameraPreviewPlaceholder(isDark: isDark),
+          ),
+          Divider(height: 1, color: dividerColor, indent: 60),
+
+          // --- Other section ---
+          _CallSettingsSectionHeader(label: 'Other', color: accentColor),
+          _CallSettingsToggleRow(
+            label: 'Accept incoming calls on this device',
+            value: _acceptCalls,
+            textColor: textColor,
+            accentColor: accentColor,
+            isDark: isDark,
+            onChanged: (v) => setState(() => _acceptCalls = v),
+          ),
+          _CallSettingsInfoLabel(
+            text: 'When disabled, incoming calls will not ring on this device.',
+            color: subtextColor,
+          ),
+          const SizedBox(height: 8),
+          _CallSettingsActionRow(
+            icon: Icons.settings,
+            label: 'Open system sound preferences',
+            textColor: textColor,
+            isDark: isDark,
+            onTap: () {},
+          ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  void _showDevicePicker({
+    required String title,
+    required String current,
+    required ValueChanged<String> onSelected,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentColor =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final devices = ['Default'];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bgColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        title: Text(
+          title,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: textColor,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final device in devices)
+              RadioListTile<String>(
+                value: device,
+                groupValue: current,
+                activeColor: accentColor,
+                title: Text(
+                  device,
+                  style: TextStyle(fontSize: 14, color: textColor),
+                ),
+                onChanged: (v) {
+                  if (v != null) {
+                    onSelected(v);
+                    Navigator.of(ctx).pop();
+                  }
+                },
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: accentColor),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CallSettingsSectionHeader extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _CallSettingsSectionHeader({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 16, 22, 4),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
+    );
+  }
+}
+
+class _CallSettingsDeviceRow extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final Color textColor;
+  final Color subtextColor;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _CallSettingsDeviceRow({
+    required this.icon,
+    required this.label,
+    required this.textColor,
+    required this.subtextColor,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  State<_CallSettingsDeviceRow> createState() => _CallSettingsDeviceRowState();
+}
+
+class _CallSettingsDeviceRowState extends State<_CallSettingsDeviceRow> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final hoverBg =
+        widget.isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: Container(
+          color: _hovered ? hoverBg : Colors.transparent,
+          padding: SettingsStyle.iconRowPadding,
+          child: Row(
+            children: [
+              Icon(widget.icon, size: 24, color: widget.subtextColor),
+              const SizedBox(width: SettingsStyle.iconGap),
+              Expanded(
+                child: Text(
+                  widget.label,
+                  style: TextStyle(
+                    fontSize: SettingsStyle.buttonFontSize,
+                    color: widget.textColor,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Icon(Icons.chevron_right, size: 20, color: widget.subtextColor),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CallSettingsToggleRow extends StatefulWidget {
+  final String label;
+  final bool value;
+  final Color textColor;
+  final Color accentColor;
+  final bool isDark;
+  final ValueChanged<bool> onChanged;
+
+  const _CallSettingsToggleRow({
+    required this.label,
+    required this.value,
+    required this.textColor,
+    required this.accentColor,
+    required this.isDark,
+    required this.onChanged,
+  });
+
+  @override
+  State<_CallSettingsToggleRow> createState() => _CallSettingsToggleRowState();
+}
+
+class _CallSettingsToggleRowState extends State<_CallSettingsToggleRow> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final hoverBg =
+        widget.isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => widget.onChanged(!widget.value),
+        child: Container(
+          color: _hovered ? hoverBg : Colors.transparent,
+          padding: SettingsStyle.iconRowPadding,
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  widget.label,
+                  style: TextStyle(
+                    fontSize: SettingsStyle.buttonFontSize,
+                    color: widget.textColor,
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 36,
+                height: 20,
+                child: Switch(
+                  value: widget.value,
+                  onChanged: widget.onChanged,
+                  activeColor: widget.accentColor,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CallSettingsInfoLabel extends StatelessWidget {
+  final String text;
+  final Color color;
+
+  const _CallSettingsInfoLabel({required this.text, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 4, 22, 8),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: 13, color: color),
+      ),
+    );
+  }
+}
+
+class _CallSettingsActionRow extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final Color textColor;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _CallSettingsActionRow({
+    required this.icon,
+    required this.label,
+    required this.textColor,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  State<_CallSettingsActionRow> createState() => _CallSettingsActionRowState();
+}
+
+class _CallSettingsActionRowState extends State<_CallSettingsActionRow> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final hoverBg =
+        widget.isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
+    final iconColor = widget.isDark
+        ? const Color(0xFF6C7883)
+        : const Color(0xFF999999);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: Container(
+          color: _hovered ? hoverBg : Colors.transparent,
+          padding: SettingsStyle.iconRowPadding,
+          child: Row(
+            children: [
+              Icon(widget.icon, size: 24, color: iconColor),
+              const SizedBox(width: SettingsStyle.iconGap),
+              Expanded(
+                child: Text(
+                  widget.label,
+                  style: TextStyle(
+                    fontSize: SettingsStyle.buttonFontSize,
+                    color: widget.textColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// §34.14 LevelMeter: 18px height, 3px line width, 5px spacing, 44 lines.
+class _InputLevelMeter extends StatefulWidget {
+  final bool isDark;
+  final Color accentColor;
+
+  const _InputLevelMeter({required this.isDark, required this.accentColor});
+
+  @override
+  State<_InputLevelMeter> createState() => _InputLevelMeterState();
+}
+
+class _InputLevelMeterState extends State<_InputLevelMeter>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        return CustomPaint(
+          size: const Size(double.infinity, 18),
+          painter: _LevelMeterPainter(
+            level: _controller.value * 0.35,
+            activeColor: widget.accentColor,
+            inactiveColor: widget.isDark
+                ? const Color(0xFF3B4654)
+                : const Color(0xFFD8D8D8),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _LevelMeterPainter extends CustomPainter {
+  final double level;
+  final Color activeColor;
+  final Color inactiveColor;
+
+  static const int _lineCount = 44;
+  static const double _lineWidth = 3;
+  static const double _spacing = 5;
+
+  _LevelMeterPainter({
+    required this.level,
+    required this.activeColor,
+    required this.inactiveColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final activePaint = Paint()
+      ..color = activeColor
+      ..strokeWidth = _lineWidth
+      ..strokeCap = StrokeCap.round;
+    final inactivePaint = Paint()
+      ..color = inactiveColor
+      ..strokeWidth = _lineWidth
+      ..strokeCap = StrokeCap.round;
+
+    final totalWidth = _lineCount * _lineWidth + (_lineCount - 1) * _spacing;
+    final startX = (size.width - totalWidth) / 2;
+    final clampedStart = startX < 0 ? 0.0 : startX;
+    final activeCount = (level * _lineCount).round();
+
+    for (int i = 0; i < _lineCount; i++) {
+      final x = clampedStart + i * (_lineWidth + _spacing) + _lineWidth / 2;
+      if (x > size.width) break;
+      final paint = i < activeCount ? activePaint : inactivePaint;
+      canvas.drawLine(
+        Offset(x, size.height),
+        Offset(x, 0),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_LevelMeterPainter oldDelegate) =>
+      level != oldDelegate.level;
+}
+
+class _CameraPreviewPlaceholder extends StatelessWidget {
+  final bool isDark;
+
+  const _CameraPreviewPlaceholder({required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor =
+        isDark ? const Color(0xFF0E1621) : const Color(0xFFF0F0F0);
+    final iconColor =
+        isDark ? const Color(0xFF3B4654) : const Color(0xFFBBBBBB);
+    final textColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+
+    return AspectRatio(
+      aspectRatio: 640 / 480,
+      child: Container(
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.videocam_off, size: 48, color: iconColor),
+            const SizedBox(height: 8),
+            Text(
+              'Camera preview',
+              style: TextStyle(fontSize: 13, color: textColor),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
