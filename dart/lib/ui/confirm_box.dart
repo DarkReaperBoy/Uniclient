@@ -1099,3 +1099,207 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
     );
   }
 }
+
+// ─── §36.13 Report Flow ─────────────────────────────────────────────────────
+
+enum ReportTarget { message, channel, group, bot, story, profilePhoto, user }
+
+Future<String?> showReportReasonBox(
+  BuildContext context, {
+  ReportTarget target = ReportTarget.message,
+}) {
+  String title;
+  switch (target) {
+    case ReportTarget.channel:
+      title = 'Report Channel';
+    case ReportTarget.group:
+      title = 'Report Group';
+    case ReportTarget.bot:
+      title = 'Report Bot';
+    case ReportTarget.story:
+      title = 'Report Story';
+    case ReportTarget.profilePhoto:
+      title = 'Report Profile Photo';
+    case ReportTarget.user:
+      title = 'Report User';
+    case ReportTarget.message:
+      title = 'Report Message';
+  }
+
+  return showTelegramBox<String>(
+    context: context,
+    builder: (ctx) => _ReportReasonBox(title: title),
+  );
+}
+
+class _ReportReasonBox extends StatelessWidget {
+  final String title;
+  const _ReportReasonBox({required this.title});
+
+  static const _reasons = [
+    ('Spam', 'spam'),
+    ('Fake Account', 'fake'),
+    ('Violence', 'violence'),
+    ('Child Abuse', 'child_abuse'),
+    ('Pornography', 'pornography'),
+    ('Copyright', 'copyright'),
+    ('Illegal Drugs', 'illegal_drugs'),
+    ('Personal Details', 'personal_details'),
+    ('Other', 'other'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textFg = isDark ? const Color(0xFFE0E3EA) : const Color(0xFF000000);
+    final hoverBg = isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
+
+    return TelegramBox(
+      title: title,
+      showClose: true,
+      content: Padding(
+        padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: _reasons.map((r) {
+            return InkWell(
+              onTap: () => Navigator.of(context).pop(r.$2),
+              hoverColor: hoverBg,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(24, 11, 24, 11),
+                child: Text(
+                  r.$1,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    color: textFg,
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+      scrollableContent: true,
+    );
+  }
+}
+
+Future<String?> showReportDetailsBox(
+  BuildContext context, {
+  bool optional = true,
+}) {
+  return showTelegramBox<String>(
+    context: context,
+    builder: (ctx) => _ReportDetailsBox(optional: optional),
+  );
+}
+
+class _ReportDetailsBox extends StatefulWidget {
+  final bool optional;
+  const _ReportDetailsBox({required this.optional});
+
+  @override
+  State<_ReportDetailsBox> createState() => _ReportDetailsBoxState();
+}
+
+class _ReportDetailsBoxState extends State<_ReportDetailsBox> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!widget.optional && _controller.text.trim().isEmpty) return;
+    Navigator.of(context).pop(_controller.text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textFg = isDark ? const Color(0xFFAAAAAA) : const Color(0xFF000000);
+
+    return TelegramBox(
+      title: 'Report',
+      onConfirm: _submit,
+      content: Padding(
+        padding: kBoxPadding,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Please enter any additional details relevant to your report.',
+              style: TextStyle(fontSize: 14, color: textFg),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _controller,
+              maxLines: 3,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: widget.optional
+                    ? 'Add Comment (Optional)'
+                    : 'Add Comment',
+                border: const OutlineInputBorder(),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      buttons: [
+        TelegramBoxButton(
+          text: 'CANCEL',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        TelegramBoxButton(
+          text: 'REPORT',
+          isDestructive: true,
+          onPressed: _submit,
+        ),
+      ],
+    );
+  }
+}
+
+Future<bool> showReportReactionBox(BuildContext context) async {
+  final result = await showTelegramBox<bool>(
+    context: context,
+    builder: (ctx) {
+      final isDark = Theme.of(ctx).brightness == Brightness.dark;
+      final textFg = isDark ? const Color(0xFFAAAAAA) : const Color(0xFF000000);
+
+      return TelegramBox(
+        title: 'Report Reactions',
+        content: Padding(
+          padding: kBoxPadding,
+          child: Text(
+            'Are you sure you want to report reactions from this user?',
+            style: TextStyle(fontSize: 14, color: textFg),
+          ),
+        ),
+        buttons: [
+          TelegramBoxButton(
+            text: 'CANCEL',
+            onPressed: () => Navigator.of(ctx).pop(false),
+          ),
+          TelegramBoxButton(
+            text: 'BAN USER',
+            isDestructive: true,
+            onPressed: () => Navigator.of(ctx).pop(true),
+          ),
+        ],
+        onConfirm: () => Navigator.of(ctx).pop(true),
+      );
+    },
+  );
+  return result ?? false;
+}

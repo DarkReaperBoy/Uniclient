@@ -1365,14 +1365,11 @@ class _ChatViewState extends State<ChatView>
       }
 
       if (result.resultType == 'choose_option') {
-        final picked = await showDialog<List<int>>(
+        final picked = await showTelegramBox<List<int>>(
           context: context,
-          builder: (ctx) => SimpleDialog(
-            title: Text(result.title.isNotEmpty ? result.title : 'Report'),
-            children: result.options.map((opt) => SimpleDialogOption(
-              onPressed: () => Navigator.pop(ctx, opt.option),
-              child: Text(opt.text),
-            )).toList(),
+          builder: (ctx) => _ReportOptionPicker(
+            title: result.title.isNotEmpty ? result.title : 'Report',
+            options: result.options,
           ),
         );
         if (picked == null || !mounted) return;
@@ -1381,31 +1378,9 @@ class _ChatViewState extends State<ChatView>
       }
 
       if (result.resultType == 'add_comment') {
-        final comment = await showDialog<String>(
-          context: context,
-          builder: (ctx) {
-            final controller = TextEditingController();
-            return AlertDialog(
-              title: const Text('Additional comment'),
-              content: TextField(
-                controller: controller,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  hintText: result.commentOptional ? 'Optional comment...' : 'Describe the issue...',
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Cancel'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, controller.text),
-                  child: const Text('Submit'),
-                ),
-              ],
-            );
-          },
+        final comment = await showReportDetailsBox(
+          context,
+          optional: result.commentOptional,
         );
         if (comment == null || !mounted) return;
         final finalResult = await engine.reportMessage(
@@ -1843,6 +1818,10 @@ class _ChatViewState extends State<ChatView>
         } catch (_) {}
       case 'report':
         try {
+          final reason = await showReportReasonBox(context, target: ReportTarget.user);
+          if (reason == null || !mounted) break;
+          final comment = await showReportDetailsBox(context);
+          if (comment == null || !mounted) break;
           await engine.reportSpam(accountId, senderId);
           if (mounted) {
             showTelegramToast(context, 'User reported');
@@ -14011,6 +13990,51 @@ class _ChatBackground extends StatelessWidget {
         ),
         child,
       ],
+    );
+  }
+}
+
+// ─── §36.13 Report Option Picker (TelegramBox-styled) ───────────────────────
+
+class _ReportOptionPicker extends StatelessWidget {
+  final String title;
+  final List<ReportOptionItem> options;
+  const _ReportOptionPicker({required this.title, required this.options});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textFg = isDark ? const Color(0xFFE0E3EA) : const Color(0xFF000000);
+    final hoverBg = isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
+
+    return TelegramBox(
+      title: title,
+      showClose: true,
+      content: Padding(
+        padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: options.map((opt) {
+            return InkWell(
+              onTap: () => Navigator.of(context).pop(opt.option),
+              hoverColor: hoverBg,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(24, 11, 24, 11),
+                child: Text(
+                  opt.text,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    color: textFg,
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+      scrollableContent: true,
     );
   }
 }

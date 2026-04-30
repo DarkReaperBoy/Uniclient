@@ -891,7 +891,6 @@ Status key: `[ ]` not started · `[x]` done
 <!-- dart files: dart/lib/ui/chat_view.dart, shell.dart, hamburger_drawer.dart, settings_screen.dart, info_panel.dart (showDialog calls) — new: dart/lib/ui/dialogs.dart -->
 
 
-- [ ] Report flow: 9-reason picker → details input → "Report" submit; reaction-report variant — spec §36.13
 - [ ] Share box: MultiSelect search + peer grid + optional comment + send menu (schedule/silent) + Copy Link option, forward options, dark-mode style override — spec §36.14
 
 ---

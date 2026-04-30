@@ -2375,29 +2375,13 @@ class _GroupActionsSection extends StatelessWidget {
     showEditPeerInfoBox(context, chat: chat, members: members);
   }
 
-  void _confirmReport(BuildContext context, ChatState chatState) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Report Group'),
-        content: Text('Report ${chat.title} as spam?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: const Color(0xFFDD4B39)),
-            onPressed: () {
-              chatState.reportSpam(chat.accountId, chat.chatId);
-              Navigator.pop(ctx);
-              showTelegramToast(context, 'Group reported');
-            },
-            child: const Text('Report'),
-          ),
-        ],
-      ),
-    );
+  void _confirmReport(BuildContext context, ChatState chatState) async {
+    final reason = await showReportReasonBox(context, target: ReportTarget.group);
+    if (reason == null || !context.mounted) return;
+    final comment = await showReportDetailsBox(context);
+    if (comment == null || !context.mounted) return;
+    chatState.reportSpam(chat.accountId, chat.chatId);
+    showTelegramToast(context, 'Group reported');
   }
 
   void _confirmLeave(BuildContext context, ChatState chatState) {
@@ -2683,29 +2667,13 @@ class _ChannelActionsSection extends StatelessWidget {
     );
   }
 
-  void _confirmReport(BuildContext context, ChatState chatState) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Report Channel'),
-        content: Text('Report ${chat.title} as spam?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: const Color(0xFFDD4B39)),
-            onPressed: () {
-              chatState.reportSpam(chat.accountId, chat.chatId);
-              Navigator.pop(ctx);
-              showTelegramToast(context, 'Channel reported');
-            },
-            child: const Text('Report'),
-          ),
-        ],
-      ),
-    );
+  void _confirmReport(BuildContext context, ChatState chatState) async {
+    final reason = await showReportReasonBox(context, target: ReportTarget.channel);
+    if (reason == null || !context.mounted) return;
+    final comment = await showReportDetailsBox(context);
+    if (comment == null || !context.mounted) return;
+    chatState.reportSpam(chat.accountId, chat.chatId);
+    showTelegramToast(context, 'Channel reported');
   }
 
   void _confirmLeave(BuildContext context, ChatState chatState) {
