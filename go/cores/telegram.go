@@ -18631,6 +18631,105 @@ func (t *TelegramCore) ClearCallHistory(revoke bool) error {
 	return nil
 }
 
+type CallHistoryEntry struct {
+	MsgID      string `json:"msg_id"`
+	PeerID     string `json:"peer_id"`
+	PeerName   string `json:"peer_name"`
+	AvatarPath string `json:"avatar_path,omitempty"`
+	Timestamp  int64  `json:"timestamp"`
+	Duration   int    `json:"duration"`
+	IsOutgoing bool   `json:"is_outgoing"`
+	IsMissed   bool   `json:"is_missed"`
+	IsVideo    bool   `json:"is_video"`
+}
+
+func (t *TelegramCore) GetCallHistory(offsetID int, limit int) ([]CallHistoryEntry, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+
+	result, err := t.api.MessagesSearch(t.ctx, &tg.MessagesSearchRequest{
+		Peer:     &tg.InputPeerEmpty{},
+		Q:        "",
+		Filter:   &tg.InputMessagesFilterPhoneCalls{},
+		Limit:    limit,
+		OffsetID: offsetID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get call history: %w", err)
+	}
+
+	var rawMsgs []tg.MessageClass
+	switch r := result.(type) {
+	case *tg.MessagesMessages:
+		t.cacheEntities(r.Users, r.Chats)
+		rawMsgs = r.Messages
+	case *tg.MessagesMessagesSlice:
+		t.cacheEntities(r.Users, r.Chats)
+		rawMsgs = r.Messages
+	case *tg.MessagesChannelMessages:
+		t.cacheEntities(r.Users, r.Chats)
+		rawMsgs = r.Messages
+	}
+
+	entries := make([]CallHistoryEntry, 0, len(rawMsgs))
+	for _, m := range rawMsgs {
+		svc, ok := m.(*tg.MessageService)
+		if !ok {
+			continue
+		}
+		action, ok := svc.Action.(*tg.MessageActionPhoneCall)
+		if !ok {
+			continue
+		}
+
+		entry := CallHistoryEntry{
+			MsgID:      strconv.Itoa(svc.ID),
+			Timestamp:  int64(svc.Date),
+			IsOutgoing: svc.Out,
+			IsVideo:    action.Video,
+			Duration:   action.Duration,
+		}
+
+		if action.Reason != nil {
+			switch action.Reason.(type) {
+			case *tg.PhoneCallDiscardReasonBusy, *tg.PhoneCallDiscardReasonMissed:
+				if !svc.Out {
+					entry.IsMissed = true
+				}
+			}
+		}
+		if action.Duration == 0 && !svc.Out {
+			entry.IsMissed = true
+		}
+
+		var peerUserID int64
+		if svc.Out {
+			if p, ok := svc.PeerID.(*tg.PeerUser); ok {
+				peerUserID = p.UserID
+			}
+		} else {
+			if from := svc.FromID; from != nil {
+				if p, ok := from.(*tg.PeerUser); ok {
+					peerUserID = p.UserID
+				}
+			} else if p, ok := svc.PeerID.(*tg.PeerUser); ok {
+				peerUserID = p.UserID
+			}
+		}
+
+		if peerUserID != 0 {
+			entry.PeerID = strconv.FormatInt(peerUserID, 10)
+			entry.PeerName = t.getCachedUserName(peerUserID)
+		}
+
+		entries = append(entries, entry)
+	}
+	return entries, nil
+}
+
 // MessagesDeletePollAnswer removes a vote from a poll.
 func (t *TelegramCore) MessagesDeletePollAnswer(request *tg.MessagesDeletePollAnswerRequest) (tg.UpdatesClass, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()

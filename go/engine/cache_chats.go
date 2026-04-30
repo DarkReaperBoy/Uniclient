@@ -1202,3 +1202,37 @@ func (e *Engine) ClearCallHistory(accountID string, revoke bool) error {
 	}
 	return cc.ClearCallHistory(revoke)
 }
+
+type CallHistoryEntry = cores.CallHistoryEntry
+
+func (e *Engine) GetCallHistory(accountID string, offsetID int, limit int) ([]CallHistoryEntry, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	type callHistoryGetter interface {
+		GetCallHistory(offsetID int, limit int) ([]CallHistoryEntry, error)
+	}
+	ch, ok := acc.Core.(callHistoryGetter)
+	if !ok {
+		return nil, nil
+	}
+	entries, err := ch.GetCallHistory(offsetID, limit)
+	if err != nil {
+		return nil, err
+	}
+	for i := range entries {
+		if entries[i].PeerID != "" {
+			var avatarPath sql.NullString
+			_ = e.db.QueryRow(
+				`SELECT avatar_path FROM chats WHERE account_id = ? AND chat_id = ?`,
+				accountID, entries[i].PeerID,
+			).Scan(&avatarPath)
+			entries[i].AvatarPath = avatarPath.String
+		}
+	}
+	return entries, nil
+}

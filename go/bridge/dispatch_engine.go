@@ -3129,6 +3129,24 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, nil
 
+	case "GetCallHistory":
+		var params struct {
+			AccountID string `json:"account_id"`
+			OffsetID  int    `json:"offset_id"`
+			Limit     int    `json:"limit"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		entries, err := e.GetCallHistory(params.AccountID, params.OffsetID, params.Limit)
+		if err != nil {
+			return nil, err
+		}
+		if entries == nil {
+			entries = []engine.CallHistoryEntry{}
+		}
+		return json.Marshal(entries)
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}

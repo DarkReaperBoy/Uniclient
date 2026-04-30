@@ -17,22 +17,75 @@ class CallsScreen extends StatefulWidget {
 }
 
 class _CallsScreenState extends State<CallsScreen> {
-  bool _hasCallHistory = false;
   List<_ActiveGroupCallEntry> _activeGroupCalls = [];
   StreamSubscription<GroupCallStateEvent>? _groupCallSub;
+
+  List<CallHistoryEntry> _callHistory = [];
+  bool _isLoading = true;
+  bool _loadingMore = false;
+  bool _hasMore = true;
+  final ScrollController _scrollController = ScrollController();
+
+  static const _kFirstPage = 20;
+  static const _kNextPage = 100;
 
   @override
   void initState() {
     super.initState();
     _loadActiveGroupCalls();
+    _loadCallHistory();
     final engine = context.read<EngineService>();
     _groupCallSub = engine.onGroupCallState.listen(_onGroupCallEvent);
+    _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
     _groupCallSub?.cancel();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent - 200 &&
+        !_loadingMore &&
+        _hasMore) {
+      _loadMoreCallHistory();
+    }
+  }
+
+  Future<void> _loadCallHistory() async {
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    final entries = await engine.getCallHistory(accountId, limit: _kFirstPage);
+    if (mounted) {
+      setState(() {
+        _callHistory = entries;
+        _isLoading = false;
+        _hasMore = entries.length >= _kFirstPage;
+      });
+    }
+  }
+
+  Future<void> _loadMoreCallHistory() async {
+    if (_callHistory.isEmpty) return;
+    setState(() => _loadingMore = true);
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    final lastMsgId = int.tryParse(_callHistory.last.msgId) ?? 0;
+    final entries = await engine.getCallHistory(
+      accountId,
+      offsetId: lastMsgId,
+      limit: _kNextPage,
+    );
+    if (mounted) {
+      setState(() {
+        _callHistory.addAll(entries);
+        _loadingMore = false;
+        _hasMore = entries.length >= _kNextPage;
+      });
+    }
   }
 
   Future<void> _loadActiveGroupCalls() async {
@@ -138,7 +191,7 @@ class _CallsScreenState extends State<CallsScreen> {
                     try {
                       await engine.clearCallHistory(accountId, revoke: revoke);
                       if (mounted) {
-                        setState(() => _hasCallHistory = false);
+                        setState(() => _callHistory.clear());
                       }
                     } catch (_) {}
                   },
@@ -212,7 +265,7 @@ class _CallsScreenState extends State<CallsScreen> {
                   ],
                 ),
               ),
-              if (_hasCallHistory)
+              if (_callHistory.isNotEmpty)
                 PopupMenuItem<String>(
                   value: 'clear_all',
                   child: Row(
@@ -250,22 +303,69 @@ class _CallsScreenState extends State<CallsScreen> {
           ),
           Divider(height: 1, color: dividerColor),
           Expanded(
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                child: Text(
-                  'Your recent calls will appear here.',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: subtextColor,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
+            child: _buildCallHistoryList(
+              isDark: isDark,
+              textColor: textColor,
+              subtextColor: subtextColor,
+              accentColor: accentColor,
+              menuIconColor: menuIconColor,
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCallHistoryList({
+    required bool isDark,
+    required Color textColor,
+    required Color subtextColor,
+    required Color accentColor,
+    required Color menuIconColor,
+  }) {
+    if (_isLoading) {
+      return Center(
+        child: Text(
+          'Loading...',
+          style: TextStyle(fontSize: 14, color: subtextColor),
+        ),
+      );
+    }
+
+    if (_callHistory.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Text(
+            'Your recent calls will appear here.',
+            style: TextStyle(fontSize: 14, color: subtextColor),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      controller: _scrollController,
+      itemCount: _callHistory.length + (_loadingMore ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (index >= _callHistory.length) {
+          return const Padding(
+            padding: EdgeInsets.all(16),
+            child: Center(child: SizedBox(
+              width: 20, height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )),
+          );
+        }
+        return _CallHistoryRow(
+          entry: _callHistory[index],
+          isDark: isDark,
+          textColor: textColor,
+          subtextColor: subtextColor,
+          menuIconColor: menuIconColor,
+        );
+      },
     );
   }
 }
@@ -593,5 +693,203 @@ class _CreateCallButtonState extends State<_CreateCallButton> {
         ),
       ],
     );
+  }
+}
+
+class _CallHistoryRow extends StatefulWidget {
+  final CallHistoryEntry entry;
+  final bool isDark;
+  final Color textColor;
+  final Color subtextColor;
+  final Color menuIconColor;
+
+  const _CallHistoryRow({
+    required this.entry,
+    required this.isDark,
+    required this.textColor,
+    required this.subtextColor,
+    required this.menuIconColor,
+  });
+
+  @override
+  State<_CallHistoryRow> createState() => _CallHistoryRowState();
+}
+
+class _CallHistoryRowState extends State<_CallHistoryRow> {
+  bool _hovered = false;
+
+  static const _avatarColors = [
+    Color(0xFFE17076),
+    Color(0xFF7BC862),
+    Color(0xFFE5CA77),
+    Color(0xFF65AADD),
+    Color(0xFFA695E7),
+    Color(0xFFEE7AAE),
+    Color(0xFF6EC9CB),
+  ];
+
+  static const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  String _formatTimestamp(int epochSec) {
+    final dt = DateTime.fromMillisecondsSinceEpoch(epochSec * 1000);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final callDay = DateTime(dt.year, dt.month, dt.day);
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    final timeFmt = '$h:$m';
+
+    if (callDay == today) {
+      return timeFmt;
+    } else if (callDay == yesterday) {
+      return 'yesterday at $timeFmt';
+    } else {
+      return '${_months[dt.month - 1]} ${dt.day} at $timeFmt';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final entry = widget.entry;
+    final hoverBg = widget.isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
+    final arrowColor = entry.isMissed
+        ? (widget.isDark ? const Color(0xFFe85050) : const Color(0xFFdd4b39))
+        : (widget.isDark ? const Color(0xFF49ad55) : const Color(0xFF4dc920));
+
+    final colorIndex = entry.peerId.hashCode.abs() % 7;
+    final avatarColor = _avatarColors[colorIndex];
+    final initials = _getInitials(entry.peerName);
+    final avatarCorner = context.watch<AppState>().avatarCornerRadius;
+    const avatarSize = 42.0;
+    final avatarRadius = avatarSize / 2 * (avatarCorner / 50.0);
+
+    final redialIcon = entry.isVideo ? Icons.videocam : Icons.call;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {},
+        child: Container(
+          height: 56,
+          color: _hovered ? hoverBg : Colors.transparent,
+          padding: const EdgeInsets.only(left: 16, right: 0),
+          child: Row(
+            children: [
+              SizedBox(
+                width: avatarSize,
+                height: avatarSize,
+                child: entry.avatarPath.isNotEmpty
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(avatarRadius),
+                        child: Image.file(
+                          File(entry.avatarPath),
+                          width: avatarSize,
+                          height: avatarSize,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _fallbackAvatar(
+                              avatarColor, initials, avatarSize, avatarRadius),
+                        ),
+                      )
+                    : _fallbackAvatar(avatarColor, initials, avatarSize, avatarRadius),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      entry.peerName.isEmpty ? 'Unknown' : entry.peerName,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: widget.textColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Transform.translate(
+                          offset: const Offset(-2, 1),
+                          child: Icon(
+                            entry.isOutgoing
+                                ? Icons.call_made
+                                : Icons.call_received,
+                            size: 16,
+                            color: arrowColor,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            _formatTimestamp(entry.timestamp),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: widget.subtextColor,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(
+                width: 40,
+                height: 56,
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: () {},
+                  icon: Icon(
+                    redialIcon,
+                    size: 20,
+                    color: _hovered
+                        ? (widget.isDark
+                            ? const Color(0xFFACBBC9)
+                            : const Color(0xFF6A6A6A))
+                        : widget.menuIconColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _fallbackAvatar(Color color, String initials, double size, double radius) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(radius),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        initials,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: size * 0.38,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+
+  String _getInitials(String name) {
+    if (name.isEmpty) return '?';
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length == 1) return parts[0][0].toUpperCase();
+    return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
   }
 }

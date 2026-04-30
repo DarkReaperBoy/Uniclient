@@ -2508,3 +2508,39 @@ class SavedReactionTagInfo {
 
   bool get isCustomEmoji => customId != 0;
 }
+
+class CallHistoryEntry {
+  final String msgId;
+  final String peerId;
+  final String peerName;
+  final String avatarPath;
+  final int timestamp;
+  final int duration;
+  final bool isOutgoing;
+  final bool isMissed;
+  final bool isVideo;
+
+  const CallHistoryEntry({
+    required this.msgId,
+    this.peerId = '',
+    this.peerName = '',
+    this.avatarPath = '',
+    this.timestamp = 0,
+    this.duration = 0,
+    this.isOutgoing = false,
+    this.isMissed = false,
+    this.isVideo = false,
+  });
+
+  factory CallHistoryEntry.fromJson(Map<String, dynamic> j) => CallHistoryEntry(
+    msgId: j['msg_id'] as String? ?? '',
+    peerId: j['peer_id'] as String? ?? '',
+    peerName: j['peer_name'] as String? ?? '',
+    avatarPath: j['avatar_path'] as String? ?? '',
+    timestamp: j['timestamp'] as int? ?? 0,
+    duration: j['duration'] as int? ?? 0,
+    isOutgoing: j['is_outgoing'] as bool? ?? false,
+    isMissed: j['is_missed'] as bool? ?? false,
+    isVideo: j['is_video'] as bool? ?? false,
+  );
+}

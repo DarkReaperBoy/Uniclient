@@ -1379,6 +1379,23 @@ class EngineService {
     await _callAsync('__engine', 'ClearCallHistory', req.writeToBuffer());
   }
 
+  Future<List<CallHistoryEntry>> getCallHistory(String accountId, {int offsetId = 0, int limit = 20}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'offset_id': offsetId,
+      'limit': limit,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetCallHistory', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return [];
+      final list = json.decode(utf8.decode(respBytes)) as List<dynamic>;
+      return list.map((e) => CallHistoryEntry.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (e) {
+      Debug.error('ENGINE', 'getCallHistory failed', e);
+      return [];
+    }
+  }
+
   // ── Stories ──
 
   Future<List<StoryItem>> fetchPeerStories(String accountId, String peerId) async {
