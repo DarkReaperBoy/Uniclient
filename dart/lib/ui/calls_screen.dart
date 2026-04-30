@@ -21,6 +21,7 @@ class _CallsScreenState extends State<CallsScreen> {
   StreamSubscription<GroupCallStateEvent>? _groupCallSub;
 
   List<CallHistoryEntry> _callHistory = [];
+  List<_CallGroup> _groupedCalls = [];
   bool _isLoading = true;
   bool _loadingMore = false;
   bool _hasMore = true;
@@ -62,6 +63,7 @@ class _CallsScreenState extends State<CallsScreen> {
     if (mounted) {
       setState(() {
         _callHistory = entries;
+        _groupedCalls = _groupCallEntries(_callHistory);
         _isLoading = false;
         _hasMore = entries.length >= _kFirstPage;
       });
@@ -82,10 +84,42 @@ class _CallsScreenState extends State<CallsScreen> {
     if (mounted) {
       setState(() {
         _callHistory.addAll(entries);
+        _groupedCalls = _groupCallEntries(_callHistory);
         _loadingMore = false;
         _hasMore = entries.length >= _kNextPage;
       });
     }
+  }
+
+  static String _callTypeKey(CallHistoryEntry e) {
+    if (e.isOutgoing) return 'out';
+    if (e.isMissed) return 'missed';
+    return 'in';
+  }
+
+  static String _dateKey(int epochSec) {
+    final dt = DateTime.fromMillisecondsSinceEpoch(epochSec * 1000);
+    return '${dt.year}-${dt.month}-${dt.day}';
+  }
+
+  static List<_CallGroup> _groupCallEntries(List<CallHistoryEntry> entries) {
+    if (entries.isEmpty) return [];
+    final groups = <_CallGroup>[];
+    var current = [entries.first];
+    for (var i = 1; i < entries.length; i++) {
+      final prev = current.first;
+      final e = entries[i];
+      if (e.peerId == prev.peerId &&
+          _dateKey(e.timestamp) == _dateKey(prev.timestamp) &&
+          _callTypeKey(e) == _callTypeKey(prev)) {
+        current.add(e);
+      } else {
+        groups.add(_CallGroup(current));
+        current = [e];
+      }
+    }
+    groups.add(_CallGroup(current));
+    return groups;
   }
 
   Future<void> _loadActiveGroupCalls() async {
@@ -191,7 +225,10 @@ class _CallsScreenState extends State<CallsScreen> {
                     try {
                       await engine.clearCallHistory(accountId, revoke: revoke);
                       if (mounted) {
-                        setState(() => _callHistory.clear());
+                        setState(() {
+                          _callHistory.clear();
+                          _groupedCalls.clear();
+                        });
                       }
                     } catch (_) {}
                   },
@@ -347,9 +384,9 @@ class _CallsScreenState extends State<CallsScreen> {
 
     return ListView.builder(
       controller: _scrollController,
-      itemCount: _callHistory.length + (_loadingMore ? 1 : 0),
+      itemCount: _groupedCalls.length + (_loadingMore ? 1 : 0),
       itemBuilder: (context, index) {
-        if (index >= _callHistory.length) {
+        if (index >= _groupedCalls.length) {
           return const Padding(
             padding: EdgeInsets.all(16),
             child: Center(child: SizedBox(
@@ -359,7 +396,7 @@ class _CallsScreenState extends State<CallsScreen> {
           );
         }
         return _CallHistoryRow(
-          entry: _callHistory[index],
+          group: _groupedCalls[index],
           isDark: isDark,
           textColor: textColor,
           subtextColor: subtextColor,
@@ -696,15 +733,30 @@ class _CreateCallButtonState extends State<_CreateCallButton> {
   }
 }
 
+class _CallGroup {
+  final List<CallHistoryEntry> entries;
+  _CallGroup(this.entries);
+
+  CallHistoryEntry get newest => entries.first;
+  int get count => entries.length;
+  String get peerId => newest.peerId;
+  String get peerName => newest.peerName;
+  String get avatarPath => newest.avatarPath;
+  bool get isOutgoing => newest.isOutgoing;
+  bool get isMissed => newest.isMissed;
+  bool get isVideo => newest.isVideo;
+  int get timestamp => newest.timestamp;
+}
+
 class _CallHistoryRow extends StatefulWidget {
-  final CallHistoryEntry entry;
+  final _CallGroup group;
   final bool isDark;
   final Color textColor;
   final Color subtextColor;
   final Color menuIconColor;
 
   const _CallHistoryRow({
-    required this.entry,
+    required this.group,
     required this.isDark,
     required this.textColor,
     required this.subtextColor,
@@ -750,22 +802,28 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
     }
   }
 
+  String _formatStatus(_CallGroup group) {
+    final ts = _formatTimestamp(group.timestamp);
+    if (group.count > 1) return '(${group.count}) $ts';
+    return ts;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final entry = widget.entry;
+    final group = widget.group;
     final hoverBg = widget.isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
-    final arrowColor = entry.isMissed
+    final arrowColor = group.isMissed
         ? (widget.isDark ? const Color(0xFFe85050) : const Color(0xFFdd4b39))
         : (widget.isDark ? const Color(0xFF49ad55) : const Color(0xFF4dc920));
 
-    final colorIndex = entry.peerId.hashCode.abs() % 7;
+    final colorIndex = group.peerId.hashCode.abs() % 7;
     final avatarColor = _avatarColors[colorIndex];
-    final initials = _getInitials(entry.peerName);
+    final initials = _getInitials(group.peerName);
     final avatarCorner = context.watch<AppState>().avatarCornerRadius;
     const avatarSize = 42.0;
     final avatarRadius = avatarSize / 2 * (avatarCorner / 50.0);
 
-    final redialIcon = entry.isVideo ? Icons.videocam : Icons.call;
+    final redialIcon = group.isVideo ? Icons.videocam : Icons.call;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -776,17 +834,17 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
         child: Container(
           height: 56,
           color: _hovered ? hoverBg : Colors.transparent,
-          padding: const EdgeInsets.only(left: 16, right: 0),
+          padding: const EdgeInsets.only(left: 16, right: 12),
           child: Row(
             children: [
               SizedBox(
                 width: avatarSize,
                 height: avatarSize,
-                child: entry.avatarPath.isNotEmpty
+                child: group.avatarPath.isNotEmpty
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(avatarRadius),
                         child: Image.file(
-                          File(entry.avatarPath),
+                          File(group.avatarPath),
                           width: avatarSize,
                           height: avatarSize,
                           fit: BoxFit.cover,
@@ -803,7 +861,7 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      entry.peerName.isEmpty ? 'Unknown' : entry.peerName,
+                      group.peerName.isEmpty ? 'Unknown' : group.peerName,
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -818,7 +876,7 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
                         Transform.translate(
                           offset: const Offset(-2, 1),
                           child: Icon(
-                            entry.isOutgoing
+                            group.isOutgoing
                                 ? Icons.call_made
                                 : Icons.call_received,
                             size: 16,
@@ -828,7 +886,7 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
-                            _formatTimestamp(entry.timestamp),
+                            _formatStatus(group),
                             style: TextStyle(
                               fontSize: 13,
                               color: widget.subtextColor,

@@ -878,7 +878,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/hamburger_drawer.dart (Calls menu entry) — new: dart/lib/ui/calls_history.dart -->
 
-- [ ] Call row: 56px height, 42px avatar, name semibold 13px, same-peer/date/type grouping — spec §34.5
 - [ ] Direction/type indicators: incoming (green arrow) / outgoing (green arrow) / missed/busy (red arrow), arrow offset (-2,1), voice vs video icon — spec §34.6
 - [ ] Redial button: 40×56px voice (call_answer) or video (call_camera_active) icon, click starts outgoing call — spec §34.7
 - [ ] Status text: Today "{time}" / Yesterday "yesterday at {time}" / Older "{date} at {time}", grouped "(N) {status}" prefix — spec §34.8
