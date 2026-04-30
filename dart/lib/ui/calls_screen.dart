@@ -8,6 +8,8 @@ import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
+import 'confirm_box.dart';
+import 'popup_menu.dart';
 
 class CallsScreen extends StatefulWidget {
   const CallsScreen({super.key});
@@ -397,10 +399,19 @@ class _CallsScreenState extends State<CallsScreen> {
         }
         return _CallHistoryRow(
           group: _groupedCalls[index],
+          accountId: context.read<AppState>().activeAccountId,
           isDark: isDark,
           textColor: textColor,
           subtextColor: subtextColor,
           menuIconColor: menuIconColor,
+          onDeleted: (group) {
+            setState(() {
+              for (final e in group.entries) {
+                _callHistory.removeWhere((c) => c.msgId == e.msgId);
+              }
+              _groupedCalls = _groupCallEntries(_callHistory);
+            });
+          },
         );
       },
     );
@@ -750,17 +761,21 @@ class _CallGroup {
 
 class _CallHistoryRow extends StatefulWidget {
   final _CallGroup group;
+  final String accountId;
   final bool isDark;
   final Color textColor;
   final Color subtextColor;
   final Color menuIconColor;
+  final void Function(_CallGroup group) onDeleted;
 
   const _CallHistoryRow({
     required this.group,
+    required this.accountId,
     required this.isDark,
     required this.textColor,
     required this.subtextColor,
     required this.menuIconColor,
+    required this.onDeleted,
   });
 
   @override
@@ -808,6 +823,63 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
     return ts;
   }
 
+  void _showContextMenu(BuildContext context, Offset position) async {
+    final group = widget.group;
+    final isDark = widget.isDark;
+    final menuIconColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final attentionColor = isDark ? const Color(0xFFe85050) : const Color(0xFFdd4b39);
+
+    final result = await showTelegramMenu<String>(
+      context: context,
+      position: position,
+      items: [
+        TelegramMenuItem(
+          value: 'delete',
+          icon: Icon(Icons.delete_outline, size: 20, color: attentionColor),
+          label: 'Delete',
+          labelColor: attentionColor,
+          iconColor: attentionColor,
+          isAttention: true,
+        ),
+        TelegramMenuItem(
+          value: 'show_in_chat',
+          icon: Icon(Icons.chat_bubble_outline, size: 20, color: menuIconColor),
+          label: 'Show in Chat',
+        ),
+      ],
+    );
+
+    if (!mounted || result == null) return;
+
+    switch (result) {
+      case 'delete':
+        final confirmResult = await showDeleteConfirmBox(
+          context,
+          mode: group.count > 1 ? DeleteBoxMode.bulkMessages : DeleteBoxMode.singleMessage,
+          messageCount: group.count,
+          peerName: group.peerName,
+        );
+        if (!mounted || !confirmResult.confirmed) return;
+        final engine = context.read<EngineService>();
+        for (final entry in group.entries) {
+          try {
+            await engine.deleteMessage(widget.accountId, group.peerId, entry.msgId);
+          } catch (_) {}
+        }
+        widget.onDeleted(group);
+        break;
+      case 'show_in_chat':
+        final chatState = context.read<ChatState>();
+        chatState.openChatById(group.peerId);
+        final newestTimestamp = group.newest.timestamp * 1000;
+        Future.delayed(const Duration(milliseconds: 300), () {
+          chatState.jumpToMessage(newestTimestamp);
+        });
+        Navigator.of(context).pop();
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final group = widget.group;
@@ -831,6 +903,8 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () {},
+        onSecondaryTapUp: (details) => _showContextMenu(context, details.globalPosition),
+        onLongPressStart: (details) => _showContextMenu(context, details.globalPosition),
         child: Container(
           height: 56,
           color: _hovered ? hoverBg : Colors.transparent,
