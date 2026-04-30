@@ -1,30 +1,260 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/engine_models.dart';
 
-/// Telegram Desktop spec-compliant ConfirmBox (§36.2).
-///
-/// Dimensions: boxWidth=320, boxPadding=EdgeInsets(24,14,24,8),
-/// boxRadius=3, boxBg=white/#17212b, boxLabel=22px lineHeight.
-/// Destructive actions use attentionBoxButton (red confirm text).
+// ─── §36.1 Box/Dialog Infrastructure Constants ───────────────────────────────
 
-const double _boxWidth = 320;
-const EdgeInsets _boxPadding = EdgeInsets.fromLTRB(24, 14, 24, 8);
-const double _boxRadius = 3;
-const double _boxTitleHeight = 48;
-const double _boxMediumSkip = 20;
-const double _boxLittleSkip = 10;
+const double kBoxWidth = 320;
+const double kBoxWideWidth = 364;
+const EdgeInsets kBoxPadding = EdgeInsets.fromLTRB(24, 14, 24, 8);
+const double kBoxRadius = 8;
+const double kBoxTitleHeight = 48;
+const double kBoxMaxListHeight = 492;
+const double kBoxMediumSkip = 20;
+const double kBoxLittleSkip = 10;
+const Duration kBoxDuration = Duration(milliseconds: 200);
 
-/// Show a Telegram-style ConfirmBox dialog.
-///
-/// [text] — body message.
-/// [confirmText] — confirm button label (default "OK").
-/// [cancelText] — cancel button label (default "Cancel").
-/// [onConfirm] — callback when confirmed. Dialog closes automatically.
-/// [onCancel] — optional callback when cancelled.
-/// [isDestructive] — if true, confirm button uses attentionBoxButton (red).
-/// [title] — optional title text.
-/// [inform] — if true, only show confirm button (no cancel). InformBox mode.
+// ─── showTelegramBox — spec §36.1 animation: 200ms easeOutCirc dim, linear
+//     opacity on the box itself ───────────────────────────────────────────────
+
+Future<T?> showTelegramBox<T>({
+  required BuildContext context,
+  required WidgetBuilder builder,
+  bool barrierDismissible = true,
+}) {
+  return showGeneralDialog<T>(
+    context: context,
+    barrierDismissible: barrierDismissible,
+    barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+    barrierColor: Colors.transparent,
+    transitionDuration: kBoxDuration,
+    transitionBuilder: (ctx, animation, _, child) {
+      final dimAnim = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCirc,
+      );
+      return Stack(
+        children: [
+          Positioned.fill(
+            child: IgnorePointer(
+              child: FadeTransition(
+                opacity: dimAnim,
+                child: const ColoredBox(color: Color(0x8A000000)),
+              ),
+            ),
+          ),
+          FadeTransition(
+            opacity: animation,
+            child: Center(child: child),
+          ),
+        ],
+      );
+    },
+    pageBuilder: (ctx, _, __) => builder(ctx),
+  );
+}
+
+// ─── TelegramBoxButton ───────────────────────────────────────────────────────
+
+class TelegramBoxButton {
+  final String text;
+  final VoidCallback? onPressed;
+  final bool isDestructive;
+  final bool isLeft;
+
+  const TelegramBoxButton({
+    required this.text,
+    this.onPressed,
+    this.isDestructive = false,
+    this.isLeft = false,
+  });
+}
+
+// ─── TelegramBox — reusable box chrome (§36.1) ──────────────────────────────
+//
+// 48px title bar (16px semibold at (24,13)), scrollable content 24px h-padding,
+// right-aligned button row, 320/364px width, 8px radius, Enter confirms.
+
+class TelegramBox extends StatefulWidget {
+  final String? title;
+  final Widget? titleTrailing;
+  final bool showClose;
+  final bool wide;
+  final Widget content;
+  final List<TelegramBoxButton> buttons;
+  final VoidCallback? onConfirm;
+
+  const TelegramBox({
+    super.key,
+    this.title,
+    this.titleTrailing,
+    this.showClose = false,
+    this.wide = false,
+    required this.content,
+    this.buttons = const [],
+    this.onConfirm,
+  });
+
+  @override
+  State<TelegramBox> createState() => _TelegramBoxState();
+}
+
+class _TelegramBoxState extends State<TelegramBox> {
+  late final FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode = FocusNode();
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+      if (widget.onConfirm != null) {
+        widget.onConfirm!();
+        return KeyEventResult.handled;
+      }
+    }
+    return KeyEventResult.ignored;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final boxBg = isDark ? const Color(0xFF17212B) : Colors.white;
+    final titleFg =
+        isDark ? const Color(0xFFE0E3EA) : const Color(0xFF000000);
+    final width = widget.wide ? kBoxWideWidth : kBoxWidth;
+
+    return Focus(
+      focusNode: _focusNode,
+      autofocus: true,
+      onKeyEvent: _handleKey,
+      child: Material(
+        color: boxBg,
+        borderRadius: BorderRadius.circular(kBoxRadius),
+        elevation: 4,
+        clipBehavior: Clip.antiAlias,
+        child: SizedBox(
+          width: width,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (widget.title != null) _buildTitleBar(titleFg),
+              Flexible(
+                child: ConstrainedBox(
+                  constraints:
+                      const BoxConstraints(maxHeight: kBoxMaxListHeight),
+                  child: SingleChildScrollView(child: widget.content),
+                ),
+              ),
+              if (widget.buttons.isNotEmpty) _buildButtonRow(isDark),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTitleBar(Color fg) {
+    return SizedBox(
+      height: kBoxTitleHeight,
+      child: Row(
+        children: [
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 13, 0, 0),
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: Text(
+                  widget.title!,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: fg,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (widget.titleTrailing != null) widget.titleTrailing!,
+          if (widget.showClose)
+            SizedBox(
+              width: kBoxTitleHeight,
+              height: kBoxTitleHeight,
+              child: IconButton(
+                icon: Icon(Icons.close, size: 20, color: fg),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildButtonRow(bool isDark) {
+    final attnFg =
+        isDark ? const Color(0xFFEC3942) : const Color(0xFFD14E4E);
+    final accentFg =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+
+    final left = widget.buttons.where((b) => b.isLeft).toList();
+    final right = widget.buttons.where((b) => !b.isLeft).toList();
+
+    Widget btn(TelegramBoxButton b) {
+      final fg = b.isDestructive ? attnFg : accentFg;
+      return ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 30),
+        child: SizedBox(
+          height: 34,
+          child: TextButton(
+            onPressed: b.onPressed,
+            style: TextButton.styleFrom(
+              foregroundColor: fg,
+              overlayColor:
+                  b.isDestructive ? attnFg.withOpacity(0.1) : null,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              textStyle: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            child: Text(b.text),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+      child: Row(
+        children: [
+          for (final b in left) ...[btn(b), const SizedBox(width: 4)],
+          const Spacer(),
+          for (int i = 0; i < right.length; i++) ...[
+            if (i > 0) const SizedBox(width: 4),
+            btn(right[i]),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ─── showConfirmBox — §36.2 ConfirmBox ───────────────────────────────────────
+
 Future<void> showConfirmBox(
   BuildContext context, {
   required String text,
@@ -36,167 +266,54 @@ Future<void> showConfirmBox(
   String? title,
   bool inform = false,
 }) {
-  return showDialog<void>(
+  return showTelegramBox<void>(
     context: context,
-    builder: (ctx) => _ConfirmBoxDialog(
-      text: text,
-      confirmText: confirmText ?? (inform ? 'OK' : 'OK'),
-      cancelText: cancelText ?? 'Cancel',
-      onConfirm: onConfirm,
-      onCancel: onCancel,
-      isDestructive: isDestructive,
-      title: title,
-      inform: inform,
-    ),
+    builder: (ctx) {
+      final isDark = Theme.of(ctx).brightness == Brightness.dark;
+      final textFg =
+          isDark ? const Color(0xFFAAAAAA) : const Color(0xFF000000);
+
+      void confirm() {
+        Navigator.of(ctx).pop();
+        onConfirm?.call();
+      }
+
+      return TelegramBox(
+        title: title,
+        onConfirm: confirm,
+        content: Padding(
+          padding: title != null
+              ? EdgeInsets.fromLTRB(
+                  kBoxPadding.left, 0, kBoxPadding.right, kBoxPadding.bottom)
+              : kBoxPadding,
+          child: Text(
+            text,
+            style: TextStyle(fontSize: 14, height: 22 / 14, color: textFg),
+          ),
+        ),
+        buttons: [
+          if (!inform)
+            TelegramBoxButton(
+              text: cancelText ?? 'Cancel',
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                onCancel?.call();
+              },
+            ),
+          TelegramBoxButton(
+            text: confirmText ?? 'OK',
+            isDestructive: isDestructive,
+            onPressed: confirm,
+          ),
+        ],
+      );
+    },
   );
 }
 
-class _ConfirmBoxDialog extends StatelessWidget {
-  final String text;
-  final String confirmText;
-  final String cancelText;
-  final VoidCallback? onConfirm;
-  final VoidCallback? onCancel;
-  final bool isDestructive;
-  final String? title;
-  final bool inform;
+// ─── Delete / Leave ConfirmBox — §36.2 destructive variant ───────────────────
 
-  const _ConfirmBoxDialog({
-    required this.text,
-    required this.confirmText,
-    required this.cancelText,
-    this.onConfirm,
-    this.onCancel,
-    this.isDestructive = false,
-    this.title,
-    this.inform = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    // Spec colors
-    final boxBg = isDark ? const Color(0xFF17212B) : Colors.white;
-    final boxTitleFg = isDark ? const Color(0xFFE0E3EA) : const Color(0xFF000000);
-    final boxTextFg = isDark ? const Color(0xFFAAAAAA) : const Color(0xFF000000);
-    // attentionBoxButton: red text for destructive confirm
-    final attentionFg = isDark ? const Color(0xFFEC3942) : const Color(0xFFD14E4E);
-    // defaultBoxButton: accent blue
-    final defaultFg = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
-    final cancelFg = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
-
-    final confirmColor = isDestructive ? attentionFg : defaultFg;
-
-    return Dialog(
-      backgroundColor: boxBg,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(_boxRadius),
-      ),
-      elevation: 4,
-      child: SizedBox(
-        width: _boxWidth,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Optional title bar
-            if (title != null)
-              SizedBox(
-                height: _boxTitleHeight,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      title!,
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                        color: boxTitleFg,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            // Body text — boxLabel style (22px line height)
-            Padding(
-              padding: title != null
-                  ? EdgeInsets.fromLTRB(
-                      _boxPadding.left, 0, _boxPadding.right, _boxPadding.bottom)
-                  : _boxPadding,
-              child: Text(
-                text,
-                style: TextStyle(
-                  fontSize: 14,
-                  height: 22 / 14, // boxLabel: 22px line height
-                  color: boxTextFg,
-                ),
-              ),
-            ),
-            // Button row — right-aligned
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 4, 12, 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  if (!inform)
-                    TextButton(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        onCancel?.call();
-                      },
-                      style: TextButton.styleFrom(
-                        foregroundColor: cancelFg,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 10),
-                        textStyle: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      child: Text(cancelText),
-                    ),
-                  const SizedBox(width: 4),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      onConfirm?.call();
-                    },
-                    style: TextButton.styleFrom(
-                      foregroundColor: confirmColor,
-                      overlayColor: isDestructive
-                          ? attentionFg.withOpacity(0.1)
-                          : null,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 10),
-                      textStyle: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    child: Text(confirmText),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Delete / Leave confirmation box — spec §9.5
-// ---------------------------------------------------------------------------
-
-enum DeleteBoxMode {
-  singleMessage,
-  bulkMessages,
-  clearHistory,
-  leaveChat,
-}
+enum DeleteBoxMode { singleMessage, bulkMessages, clearHistory, leaveChat }
 
 class DeleteConfirmResult {
   final bool confirmed;
@@ -224,9 +341,9 @@ Future<DeleteConfirmResult> showDeleteConfirmBox(
   bool showModeratePanel = false,
   bool isSavedMessages = false,
 }) {
-  return showDialog<DeleteConfirmResult>(
+  return showTelegramBox<DeleteConfirmResult>(
     context: context,
-    builder: (ctx) => _DeleteConfirmBoxDialog(
+    builder: (ctx) => _DeleteContent(
       mode: mode,
       chatType: chatType,
       peerName: peerName,
@@ -238,7 +355,7 @@ Future<DeleteConfirmResult> showDeleteConfirmBox(
   ).then((r) => r ?? const DeleteConfirmResult());
 }
 
-class _DeleteConfirmBoxDialog extends StatefulWidget {
+class _DeleteContent extends StatefulWidget {
   final DeleteBoxMode mode;
   final ChatType chatType;
   final String peerName;
@@ -247,7 +364,7 @@ class _DeleteConfirmBoxDialog extends StatefulWidget {
   final bool showModeratePanel;
   final bool isSavedMessages;
 
-  const _DeleteConfirmBoxDialog({
+  const _DeleteContent({
     required this.mode,
     required this.chatType,
     required this.peerName,
@@ -258,11 +375,10 @@ class _DeleteConfirmBoxDialog extends StatefulWidget {
   });
 
   @override
-  State<_DeleteConfirmBoxDialog> createState() =>
-      _DeleteConfirmBoxDialogState();
+  State<_DeleteContent> createState() => _DeleteContentState();
 }
 
-class _DeleteConfirmBoxDialogState extends State<_DeleteConfirmBoxDialog> {
+class _DeleteContentState extends State<_DeleteContent> {
   bool _revoke = false;
   bool _banUser = false;
   bool _reportSpam = false;
@@ -338,121 +454,80 @@ class _DeleteConfirmBoxDialogState extends State<_DeleteConfirmBoxDialog> {
     return null;
   }
 
+  void _confirm() {
+    Navigator.of(context).pop(DeleteConfirmResult(
+      confirmed: true,
+      revoke: _revoke,
+      banUser: _banUser,
+      reportSpam: _reportSpam,
+      deleteAll: _deleteAll,
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final boxBg = isDark ? const Color(0xFF17212B) : Colors.white;
-    final boxTextFg =
+    final textFg =
         isDark ? const Color(0xFFAAAAAA) : const Color(0xFF000000);
-    final attentionFg =
-        isDark ? const Color(0xFFEC3942) : const Color(0xFFD14E4E);
-    final cancelFg =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
-    final checkColor =
+    final checkClr =
         isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
 
-    return Dialog(
-      backgroundColor: boxBg,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(_boxRadius),
-      ),
-      elevation: 4,
-      child: SizedBox(
-        width: _boxWidth,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: _boxPadding,
-              child: Text(
-                _bodyText,
-                style: TextStyle(
-                  fontSize: 14,
-                  height: 22 / 14,
-                  color: boxTextFg,
-                ),
-              ),
+    return TelegramBox(
+      onConfirm: _confirm,
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: kBoxPadding,
+            child: Text(
+              _bodyText,
+              style: TextStyle(fontSize: 14, height: 22 / 14, color: textFg),
             ),
-
-            if (widget.showModeratePanel) ...[
-              SizedBox(height: _boxMediumSkip),
-              _buildCheckbox('Ban User', _banUser, (v) {
-                setState(() => _banUser = v ?? false);
-              }, checkColor, boxTextFg),
-              SizedBox(height: _boxLittleSkip),
-              _buildCheckbox('Report Spam', _reportSpam, (v) {
-                setState(() => _reportSpam = v ?? false);
-              }, checkColor, boxTextFg),
-              SizedBox(height: _boxLittleSkip),
-              _buildCheckbox(
-                'Delete All from ${widget.peerName}',
-                _deleteAll,
-                (v) => setState(() => _deleteAll = v ?? false),
-                checkColor,
-                boxTextFg,
-              ),
-            ],
-
-            if (_revokeLabel != null) ...[
-              SizedBox(height: _boxMediumSkip),
-              _buildCheckbox(_revokeLabel!, _revoke, (v) {
-                setState(() => _revoke = v ?? false);
-              }, checkColor, boxTextFg),
-            ],
-
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 4, 12, 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context)
-                        .pop(const DeleteConfirmResult()),
-                    style: TextButton.styleFrom(
-                      foregroundColor: cancelFg,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 10),
-                      textStyle: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    child: const Text('Cancel'),
-                  ),
-                  const SizedBox(width: 4),
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(
-                      DeleteConfirmResult(
-                        confirmed: true,
-                        revoke: _revoke,
-                        banUser: _banUser,
-                        reportSpam: _reportSpam,
-                        deleteAll: _deleteAll,
-                      ),
-                    ),
-                    style: TextButton.styleFrom(
-                      foregroundColor: attentionFg,
-                      overlayColor: attentionFg.withOpacity(0.1),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 10),
-                      textStyle: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    child: Text(_confirmLabel),
-                  ),
-                ],
-              ),
+          ),
+          if (widget.showModeratePanel) ...[
+            const SizedBox(height: kBoxMediumSkip),
+            _checkbox('Ban User', _banUser,
+                (v) => setState(() => _banUser = v ?? false), checkClr, textFg),
+            const SizedBox(height: kBoxLittleSkip),
+            _checkbox(
+                'Report Spam',
+                _reportSpam,
+                (v) => setState(() => _reportSpam = v ?? false),
+                checkClr,
+                textFg),
+            const SizedBox(height: kBoxLittleSkip),
+            _checkbox(
+              'Delete All from ${widget.peerName}',
+              _deleteAll,
+              (v) => setState(() => _deleteAll = v ?? false),
+              checkClr,
+              textFg,
             ),
           ],
-        ),
+          if (_revokeLabel != null) ...[
+            const SizedBox(height: kBoxMediumSkip),
+            _checkbox(_revokeLabel!, _revoke,
+                (v) => setState(() => _revoke = v ?? false), checkClr, textFg),
+          ],
+        ],
       ),
+      buttons: [
+        TelegramBoxButton(
+          text: 'Cancel',
+          onPressed: () =>
+              Navigator.of(context).pop(const DeleteConfirmResult()),
+        ),
+        TelegramBoxButton(
+          text: _confirmLabel,
+          isDestructive: true,
+          onPressed: _confirm,
+        ),
+      ],
     );
   }
 
-  Widget _buildCheckbox(
+  Widget _checkbox(
     String label,
     bool value,
     ValueChanged<bool?> onChanged,
