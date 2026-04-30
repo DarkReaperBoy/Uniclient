@@ -808,14 +808,17 @@ class _UniClientAppState extends State<UniClientApp>
 
   void _dispatchTap(double x, double y, {int buttons = kPrimaryButton}) {
     final pointer = _pointerCounter++;
+    final device = pointer + 1000;
     final binding = GestureBinding.instance;
     binding.handlePointerEvent(PointerAddedEvent(
       pointer: pointer,
+      device: device,
       position: Offset(x, y),
       kind: PointerDeviceKind.mouse,
     ));
     binding.handlePointerEvent(PointerDownEvent(
       pointer: pointer,
+      device: device,
       position: Offset(x, y),
       buttons: buttons,
       kind: PointerDeviceKind.mouse,
@@ -823,11 +826,13 @@ class _UniClientAppState extends State<UniClientApp>
     Future.delayed(const Duration(milliseconds: 100), () {
       binding.handlePointerEvent(PointerUpEvent(
         pointer: pointer,
+        device: device,
         position: Offset(x, y),
         kind: PointerDeviceKind.mouse,
       ));
       binding.handlePointerEvent(PointerRemovedEvent(
         pointer: pointer,
+        device: device,
         position: Offset(x, y),
         kind: PointerDeviceKind.mouse,
       ));
@@ -836,17 +841,31 @@ class _UniClientAppState extends State<UniClientApp>
 
   void _dispatchLongPress(double x, double y) {
     final pointer = _pointerCounter++;
+    final device = pointer + 1000;
     final binding = GestureBinding.instance;
+    binding.handlePointerEvent(PointerAddedEvent(
+      pointer: pointer,
+      device: device,
+      position: Offset(x, y),
+      kind: PointerDeviceKind.mouse,
+    ));
     binding.handlePointerEvent(PointerDownEvent(
       pointer: pointer,
+      device: device,
       position: Offset(x, y),
       buttons: kPrimaryButton,
       kind: PointerDeviceKind.mouse,
     ));
-    // Hold for 600ms then release.
     Future.delayed(const Duration(milliseconds: 600), () {
       binding.handlePointerEvent(PointerUpEvent(
         pointer: pointer,
+        device: device,
+        position: Offset(x, y),
+        kind: PointerDeviceKind.mouse,
+      ));
+      binding.handlePointerEvent(PointerRemovedEvent(
+        pointer: pointer,
+        device: device,
         position: Offset(x, y),
         kind: PointerDeviceKind.mouse,
       ));

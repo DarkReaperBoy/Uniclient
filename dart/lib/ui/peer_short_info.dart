@@ -182,6 +182,31 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
     });
   }
 
+  void _showContextMenu(BuildContext context, Offset position) {
+    showTelegramMenu<String>(
+      context: context,
+      position: position,
+      items: [
+        TelegramMenuItem<String>(
+          value: 'new_window',
+          icon: const Icon(Icons.open_in_new, size: 20),
+          label: 'Open in New Window',
+        ),
+      ],
+    ).then((value) {
+      if (value == 'new_window' && mounted) {
+        Navigator.of(context).pop();
+        final chatState = context.read<ChatState>();
+        final chat = chatState.chats
+            .where((c) =>
+                c.chatId == widget.peerId &&
+                c.accountId == widget.accountId)
+            .firstOrNull;
+        if (chat != null) chatState.openChat(chat);
+      }
+    });
+  }
+
   bool get _isDm => widget.peerType == ChatType.dm;
   bool get _isGroup => widget.peerType == ChatType.group;
   bool get _isChannel => widget.peerType == ChatType.channel;
@@ -221,24 +246,32 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
         },
         child: Material(
           type: MaterialType.transparency,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: _kBoxWidth,
-              maxHeight: maxHeight,
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(_kBoxRadius),
-              child: Container(
-                color: bgColor,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Flexible(
-                      child:
-                          _buildScrollableContent(theme, isDark, bgColor),
-                    ),
-                    _buildButtons(theme, isDark),
-                  ],
+          child: Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: (event) {
+              if (event.buttons == 2) {
+                _showContextMenu(context, event.position);
+              }
+            },
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: _kBoxWidth,
+                maxHeight: maxHeight,
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(_kBoxRadius),
+                child: Container(
+                  color: bgColor,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child:
+                            _buildScrollableContent(theme, isDark, bgColor),
+                      ),
+                      _buildButtons(theme, isDark),
+                    ],
+                  ),
                 ),
               ),
             ),

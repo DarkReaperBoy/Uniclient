@@ -903,8 +903,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/peer_short_info.dart -->
 
-- [ ] Interaction: close by outside-click or Escape, right-click "Open in New Window", photo navigation (left-third / right-two-thirds click), scrollable info rows with parallax-fixed cover — spec §38.9
-
 ---
 
 ## §39 — Photo & Avatar Cropping Dialog
