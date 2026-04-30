@@ -18,6 +18,7 @@ import 'hamburger_drawer.dart';
 import 'call_screen.dart';
 import 'chat_switch_overlay.dart';
 import 'info_panel.dart';
+import '../theme/theme.dart';
 
 /// Layout modes matching Telegram Desktop's responsive breakpoints.
 enum LayoutMode { oneColumn, twoColumn, threeColumn }
@@ -789,25 +790,29 @@ class _ResizeHandle extends StatelessWidget {
   }
 }
 
-/// Placeholder shown when no chat is selected.
+/// Placeholder shown when no chat is selected — spec §35.6.
+/// Service-message style bubble, centred in the chat pane.
 class _EmptyChatPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final palette = context.palette;
     return Container(
-      color: theme.scaffoldBackgroundColor,
+      color: palette.windowBg,
       child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.chat_bubble_outline, size: 64,
-                color: theme.textTheme.bodySmall?.color),
-            const SizedBox(height: 16),
-            Text('Select a chat to start messaging',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.textTheme.bodySmall?.color,
-                )),
-          ],
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(12, 3, 12, 4),
+          decoration: BoxDecoration(
+            color: palette.msgServiceBg,
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            'Select a chat to start messaging',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: palette.msgServiceFg,
+            ),
+          ),
         ),
       ),
     );

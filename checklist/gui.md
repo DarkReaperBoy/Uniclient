@@ -884,7 +884,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_list_panel.dart (partial _EmptyState for search), chat_view.dart — new: dart/lib/ui/empty_states.dart -->
 
-- [ ] "Select a chat to start messaging" service bubble in chat pane (no chat selected) — spec §35.6
 - [ ] Empty search states: search-waiting Lottie search.tgs 100px / no-results Lottie noresults.tgs 100px with bold "No Results" + truncated query description + "Search in All Messages" link — spec §35.7
 - [ ] Empty recent search, empty channels list — spec §35.8–35.9
 - [ ] Empty shared media tabs: per-type icons at 120px from bottom, labels at 40px, per-type empty/search-empty text variants — spec §35.10
