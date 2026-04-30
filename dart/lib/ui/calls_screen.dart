@@ -880,6 +880,12 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
     }
   }
 
+  void _startRedial(BuildContext context) async {
+    final engine = context.read<EngineService>();
+    final group = widget.group;
+    await engine.startCall(widget.accountId, group.peerId, video: group.isVideo);
+  }
+
   @override
   Widget build(BuildContext context) {
     final group = widget.group;
@@ -979,7 +985,7 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
                 height: 56,
                 child: IconButton(
                   padding: EdgeInsets.zero,
-                  onPressed: () {},
+                  onPressed: () => _startRedial(context),
                   icon: Icon(
                     redialIcon,
                     size: 20,

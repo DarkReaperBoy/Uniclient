@@ -878,7 +878,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/hamburger_drawer.dart (Calls menu entry) — new: dart/lib/ui/calls_history.dart -->
 
-- [ ] Redial button: 40×56px voice (call_answer) or video (call_camera_active) icon, click starts outgoing call — spec §34.7 (blocked on §12 Calls UI — button renders correctly, needs startCall engine bridge)
 - [ ] "Create Call" button: inviteViaLinkButton style, participant-limit divider text, highlight animation, opens conference creation — spec §34.12
 - [ ] Rate call dialog: 5 star buttons 36×36px (windowSubTextFg/lightButtonFg), comment field (max 200 chars) for ratings <5, Send button appears after rating >0 — spec §34.13
 - [ ] Call settings section: output/input device selectors, input LevelMeter (18px, 3px, 5px, 44 lines), camera preview, "Use same devices" + "Accept on this device" toggles — spec §34.14

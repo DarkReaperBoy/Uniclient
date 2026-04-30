@@ -1151,6 +1151,24 @@ func (e *Engine) GetGroupCall(accountID, chatID string) (*GroupCallInfo, error) 
 	return info, nil
 }
 
+func (e *Engine) StartCall(accountID, chatID string, video bool) (string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return "", fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return "", fmt.Errorf("account not connected: %s", accountID)
+	}
+	cs, err := acc.Core.StartCall(chatID, video)
+	if err != nil {
+		return "", err
+	}
+	if cs == nil {
+		return "", fmt.Errorf("StartCall returned nil session")
+	}
+	return cs.ID, nil
+}
+
 // JoinGroupCall joins the active group call in a chat.
 func (e *Engine) JoinGroupCall(accountID, chatID string) (string, error) {
 	acc, ok := e.getAccount(accountID)

@@ -3119,6 +3119,21 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, nil
 
+	case "StartCall":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Video     bool   `json:"video"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		callID, err := e.StartCall(params.AccountID, params.ChatID, params.Video)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]string{"call_id": callID})
+
 	case "ClearCallHistory":
 		var req pb.EngineClearCallHistoryRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

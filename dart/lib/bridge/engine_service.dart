@@ -1372,6 +1372,23 @@ class EngineService {
     await _callAsync('__engine', 'SendCallRating', req.writeToBuffer());
   }
 
+  Future<String?> startCall(String accountId, String chatId, {bool video = false}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'video': video,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'StartCall', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      final result = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return result['call_id'] as String?;
+    } catch (e) {
+      Debug.error('ENGINE', 'startCall failed', e);
+      return null;
+    }
+  }
+
   Future<void> clearCallHistory(String accountId, {bool revoke = false}) async {
     final req = epb.EngineClearCallHistoryRequest()
       ..accountId = accountId
