@@ -1002,7 +1002,7 @@ class _WizardDialogState extends State<_WizardDialog>
             padding: const EdgeInsets.all(16),
             child: Center(
               child: Text(
-                _contacts.isEmpty ? 'No contacts found' : 'No matches',
+                _contacts.isEmpty ? 'No contacts found' : 'No users found.',
                 style: TextStyle(fontSize: 13, color: subtextColor),
               ),
             ),

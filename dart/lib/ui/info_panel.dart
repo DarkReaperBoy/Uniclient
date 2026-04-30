@@ -4790,7 +4790,7 @@ class _MembersSection extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(left: 18, top: 8, bottom: 8),
             child: Text(
-              'No members available',
+              'No users found.',
               style: TextStyle(fontSize: 13, color: theme.textTheme.bodySmall?.color),
             ),
           ),

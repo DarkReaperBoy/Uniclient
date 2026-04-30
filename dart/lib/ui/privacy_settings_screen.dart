@@ -6521,7 +6521,7 @@ class _BlockedUsersScreenState extends State<_BlockedUsersScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'You can block users from their profile pages. Blocked users can\'t send you messages or add you to groups.',
+                "You haven't blocked anyone yet.",
                 style: TextStyle(color: subtextColor, fontSize: 13, height: 1.4),
                 textAlign: TextAlign.center,
               ),

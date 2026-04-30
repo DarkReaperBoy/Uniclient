@@ -2676,17 +2676,42 @@ class _AdminLogScreenState extends State<_AdminLogScreen> {
   }
 
   Widget _buildEmptyState(Color subTextColor) {
+    final bool hasFilter = _searchQuery.isNotEmpty;
+    final String title;
+    final String description;
+
+    if (hasFilter) {
+      title = 'No actions found';
+      description = _searchQuery.trim().isNotEmpty
+          ? "No recent actions that contain '${_searchQuery.trim()}' have been found."
+          : 'No recent actions that match your query were found.';
+    } else {
+      title = 'No actions yet';
+      description = widget.isChannel
+          ? 'No notable actions taken\nby the admins of this channel\nin the last 48 hours.'
+          : 'No notable actions taken by the members and admins of this group in the last 48 hours.';
+    }
+
     return Center(
       child: SizedBox(
-        width: 260,
+        width: 300,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
-          child: Text(
-            _searchQuery.isNotEmpty
-                ? 'No results for this filter'
-                : 'No events found',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 14, color: subTextColor),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: subTextColor),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                description,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: subTextColor, height: 1.4),
+              ),
+            ],
           ),
         ),
       ),
