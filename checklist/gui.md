@@ -897,7 +897,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/notifications/ (notification_system.dart, notification_manager.dart, notification_manager_default.dart, notification_manager_native.dart, notification_types.dart) -->
 
-- [ ] Linux native backends: DBus (RGBA8888 image hint, inline reply via signal_notification_replied, mail-mark-read action, sound-file hint, freedesktop Inhibited DND, hierarchical tracking) + GNotification (HIGH_ priority, PNG userpic) — spec §37.2.1
 - [ ] Windows WinRT toast: XML template (image + 3 text elements), fast reply input + send button, mark-as-read background activation, DND/Focus Assist registry detection, App User Model ID — spec §37.2.2
 - [ ] macOS NSUserNotification: title/subtitle/informativeText/userInfo, "Mark as Read" + reply buttons, sound path, background thread clear, screen-lock detection — spec §37.2.3
 - [ ] Custom in-app popup widget: 320×80px min, frameless (WindowStaysOnTopHint + Tool flags), corner selection (TopLeft/TopRight/BottomLeft/BottomRight/TopCenter), userpic 62×62px at (9,9), close 30×30px, title (semiboldFont, single-line), message (2-line dialogsTextFont), 1px border, 7px inter-notification gap, 6px screen-edge margin, Hide All button (2+ notifications), reply button (hover 200ms fade) with 282px input field (442px TopCenter), Enter submit / Escape dismiss — spec §37.3.2–37.3.4

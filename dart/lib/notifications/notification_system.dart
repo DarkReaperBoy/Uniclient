@@ -33,6 +33,9 @@ class NotificationSystem {
   DefaultManager? get defaultManager =>
       _manager is DefaultManager ? _manager as DefaultManager : null;
 
+  NativeManager? get nativeManager =>
+      _manager is NativeManager ? _manager as NativeManager : null;
+
   void init(NotificationSettings settings) {
     _settings = settings;
     _selectManager();

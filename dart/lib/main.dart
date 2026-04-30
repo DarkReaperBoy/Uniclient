@@ -283,13 +283,10 @@ class _UniClientAppState extends State<UniClientApp>
       _webNotifier.updateBadge(chatState.totalUnread);
     }
 
-    // §37.1: Initialize the notification system with default settings.
-    // Uses DefaultManager (custom in-app popups) since native backends
-    // are not yet implemented (§37.2).
+    // §37.1: Initialize notification system. Uses NativeManager on Linux
+    // (DBus backend §37.2.1), DefaultManager as fallback.
     _chatStateRef ??= chatState;
-    _notifSystem.init(const NotificationSettings(
-      useNativeNotifications: false,
-    ));
+    _notifSystem.init(const NotificationSettings());
     final dm = _notifSystem.defaultManager;
     if (dm != null) {
       dm.onShow = (item) {
@@ -298,6 +295,12 @@ class _UniClientAppState extends State<UniClientApp>
             item.data.senderName, item.data.text, item.data.chatTitle);
       };
       dm.onTap = (accountId, chatId) => _onNotifBannerTap();
+    }
+    final nm = _notifSystem.nativeManager;
+    if (nm != null) {
+      nm.onAction = (accountId, chatId, action) {
+        if (action == 'open') _onNotifBannerTap();
+      };
     }
     chatState.onNotification = (accountId, chatId, senderName, text, chatTitle) {
       _notifSystem.onNewMessage(NotificationData(
