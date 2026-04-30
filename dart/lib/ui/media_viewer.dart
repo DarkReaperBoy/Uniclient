@@ -275,6 +275,8 @@ class _MediaViewerState extends State<MediaViewer>
   ChatState? _chatStateRef;
   int? _activeQualitySeq;
   bool _qualityDownloading = false;
+  bool _isBuffering = false;
+  late final AnimationController _bufferSpinCtrl;
 
   late final AnimationController _saveToastAnim;
   Timer? _saveToastHoldTimer;
@@ -332,6 +334,12 @@ class _MediaViewerState extends State<MediaViewer>
           });
         }
       });
+    _bufferSpinCtrl = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    )..addListener(() {
+        if (mounted) setState(() {});
+      });
     _saveToastAnim = AnimationController(
       duration: _kSaveToastFadeIn,
       reverseDuration: _kSaveToastFadeOut,
@@ -368,6 +376,7 @@ class _MediaViewerState extends State<MediaViewer>
     _saveToastHoldTimer?.cancel();
     _downloadsLinkRecognizer.dispose();
     _saveToastAnim.dispose();
+    _bufferSpinCtrl.dispose();
     _rotationAnimCtrl.dispose();
     _zoomAnimCtrl.dispose();
     _controlsAnim.dispose();
@@ -436,6 +445,16 @@ class _MediaViewerState extends State<MediaViewer>
           if (completed && msg.mediaType == 7) {
             player.seek(Duration.zero);
             player.play();
+          }
+        }),
+        player.stream.buffering.listen((buffering) {
+          if (mounted) {
+            setState(() => _isBuffering = buffering);
+            if (buffering) {
+              _bufferSpinCtrl.repeat();
+            } else {
+              _bufferSpinCtrl.stop();
+            }
           }
         }),
       ];
@@ -525,6 +544,8 @@ class _MediaViewerState extends State<MediaViewer>
     _player = null;
     _videoController = null;
     _isPlaying = false;
+    _isBuffering = false;
+    _bufferSpinCtrl.stop();
     _position = Duration.zero;
     _duration = Duration.zero;
   }
@@ -1722,6 +1743,15 @@ class _MediaViewerState extends State<MediaViewer>
               controls: NoVideoControls,
             ),
           ),
+        );
+      }
+      if (_isBuffering) {
+        videoWidget = Stack(
+          alignment: Alignment.center,
+          children: [
+            videoWidget,
+            _RadialSpinner(animation: _bufferSpinCtrl),
+          ],
         );
       }
       return videoWidget;
@@ -3516,8 +3546,10 @@ class _PipWidgetState extends State<PipOverlayWidget>
 
   bool _hovering = false;
   bool _trackHovering = false;
+  bool _isBuffering = false;
 
   late final AnimationController _snapAnim;
+  late final AnimationController _bufferSpinCtrl;
   double _snapFromX = 0, _snapFromY = 0;
   double _snapToX = 0, _snapToY = 0;
 
@@ -3551,8 +3583,24 @@ class _PipWidgetState extends State<PipOverlayWidget>
       widget.player.stream.duration.listen((dur) {
         if (mounted) setState(() => _duration = dur);
       }),
+      widget.player.stream.buffering.listen((buffering) {
+        if (mounted) {
+          setState(() => _isBuffering = buffering);
+          if (buffering) {
+            _bufferSpinCtrl.repeat();
+          } else {
+            _bufferSpinCtrl.stop();
+          }
+        }
+      }),
     ];
 
+    _bufferSpinCtrl = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    )..addListener(() {
+        if (mounted) setState(() {});
+      });
     _snapAnim = AnimationController(
       duration: _kPipSnapDuration,
       vsync: this,
@@ -3572,6 +3620,7 @@ class _PipWidgetState extends State<PipOverlayWidget>
     if (PipManager.instance._activeState == this) {
       PipManager.instance._activeState = null;
     }
+    _bufferSpinCtrl.dispose();
     _snapAnim.dispose();
     for (final sub in _playerSubs) {
       sub.cancel();
@@ -3794,6 +3843,10 @@ class _PipWidgetState extends State<PipOverlayWidget>
                   fit: BoxFit.contain,
                   controls: NoVideoControls,
                 ),
+                if (_isBuffering)
+                  Center(
+                    child: _RadialSpinner(animation: _bufferSpinCtrl),
+                  ),
                 AnimatedOpacity(
                     opacity: _hovering ? 1.0 : 0.0,
                     duration: const Duration(milliseconds: 150),
@@ -3966,6 +4019,55 @@ class _PipWidgetState extends State<PipOverlayWidget>
       _height = newH;
     });
   }
+}
+
+class _RadialSpinner extends StatelessWidget {
+  final AnimationController animation;
+  const _RadialSpinner({required this.animation});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        color: _kRadialBg,
+      ),
+      padding: const EdgeInsets.all(4),
+      child: CustomPaint(
+        painter: _RadialSpinPainter(
+          rotation: animation.value * 2 * math.pi,
+        ),
+      ),
+    );
+  }
+}
+
+class _RadialSpinPainter extends CustomPainter {
+  final double rotation;
+  _RadialSpinPainter({required this.rotation});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (math.min(size.width, size.height) - 2.5) / 2;
+    final paint = Paint()
+      ..color = _kRadialFg
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      rotation - math.pi / 2,
+      math.pi * 0.75,
+      false,
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_RadialSpinPainter old) => old.rotation != rotation;
 }
 
 class _PipButton extends StatefulWidget {

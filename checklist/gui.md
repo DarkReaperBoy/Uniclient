@@ -884,7 +884,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_list_panel.dart (partial _EmptyState for search), chat_view.dart — new: dart/lib/ui/empty_states.dart -->
 
-- [ ] Media viewer / PiP loading spinner: InfiniteRadialAnimation centered — spec §35.26–35.27
 - [ ] Call status 10-state labels (incoming, connecting, exchanging keys, etc.) — spec §35.30
 
 ---
