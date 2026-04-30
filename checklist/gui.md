@@ -907,9 +907,7 @@ Status key: `[ ]` not started · `[x]` done
 
 ## §39 — Photo & Avatar Cropping Dialog
 
-<!-- dart files: none yet — create dart/lib/ui/photo_crop_editor.dart -->
-
-- [ ] Trigger and layer: full-window layer from own profile upload / set photo / group photo / camera capture, no outside-click dismiss, blurred dimmed background (4× downscale + 24px Gaussian blur + upscale, QColor(16,16,16,192) light / 128 dark), optional about text above image, content margins 20px left/top/right + 146px bottom — spec §39.1–39.2
+<!-- dart files: dart/lib/ui/photo_crop_editor.dart -->
 - [ ] Image display: centered + aspect-fill scaled, rotation + flip via transform, 640px minimum upscale, 10× extreme ratio rejection — spec §39.3
 - [ ] Crop overlay: ellipse (user avatar) / roundedRect (forum) / rect (general) shapes, square-locked for profiles (corner handles only), semi-transparent dark outside (photoCropFadeBg), 2× border + 4× corner indicators, rule-of-thirds 3×3 grid (visible during drag only, 200ms fade), 8 resize handles (10×10px corners, 4 edges when not locked), 20px min crop size, initial centered square — spec §39.4
 - [ ] No zoom controls of any kind (confirmed: no slider/wheel/pinch/keyboard) — spec §39.5

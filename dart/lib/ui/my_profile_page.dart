@@ -13,6 +13,7 @@ import '../state/auth_state.dart';
 import '../state/chat_state.dart';
 import 'confirm_box.dart';
 import 'input_dialogs.dart';
+import 'photo_crop_editor.dart';
 import 'telegram_toast.dart';
 import 'popup_menu.dart';
 import 'settings_style.dart';
@@ -563,16 +564,18 @@ class _ProfilePhotoArea extends StatelessWidget {
     if (accountId == null) return;
     final engine = context.read<EngineService>();
 
-    try {
-      await engine.uploadProfilePhoto(accountId, path);
-      if (context.mounted) {
-        showTelegramToast(context, 'Profile photo updated');
-      }
-    } catch (e) {
-      if (context.mounted) {
-        showTelegramToast(context, 'Failed to update photo: $e');
-      }
-    }
+    await PhotoCropEditor.open(
+      context,
+      imageFile: File(path),
+      shape: PhotoCropShape.ellipse,
+      doneLabel: 'Set Photo',
+      onDone: (croppedFile) async {
+        await engine.uploadProfilePhoto(accountId, croppedFile.path);
+        if (context.mounted) {
+          showTelegramToast(context, 'Profile photo updated');
+        }
+      },
+    );
   }
 
   static Widget _avatarFallback(Color color, String initials) {

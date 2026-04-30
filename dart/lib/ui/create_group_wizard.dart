@@ -13,6 +13,7 @@ import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
+import 'photo_crop_editor.dart';
 import 'telegram_toast.dart';
 
 /// §21: Create Group / Channel Wizard.
@@ -210,14 +211,22 @@ class _WizardDialogState extends State<_WizardDialog>
     if (result == null || result.files.isEmpty) return;
     final path = result.files.first.path;
     if (path == null) return;
-    try {
-      final bytes = await File(path).readAsBytes();
-      if (!mounted) return;
-      setState(() {
-        _photoBytes = bytes;
-        _photoPath = path;
-      });
-    } catch (_) {}
+    if (!mounted) return;
+
+    await PhotoCropEditor.open(
+      context,
+      imageFile: File(path),
+      shape: PhotoCropShape.ellipse,
+      doneLabel: 'Set Photo',
+      onDone: (croppedFile) async {
+        final bytes = await croppedFile.readAsBytes();
+        if (!mounted) return;
+        setState(() {
+          _photoBytes = bytes;
+          _photoPath = croppedFile.path;
+        });
+      },
+    );
   }
 
   void _onUserpicTap() {
