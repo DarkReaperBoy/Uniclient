@@ -901,9 +901,8 @@ Status key: `[ ]` not started · `[x]` done
 
 ## §38 — User Profile Popup (PeerShortInfoBox)
 
-<!-- dart files: none yet — create dart/lib/ui/peer_short_info.dart -->
+<!-- dart files: dart/lib/ui/peer_short_info.dart -->
 
-- [ ] Trigger conditions: Ctrl+Click on "View Profile", click user row in limit boxes, click avatar in gift/premium boxes — spec §38.1
 - [ ] Cover section (304×304px): square userpic area, no-photo solid black, multi-photo progress bars (2px height, 8px padding, 4px gaps, groupCallVideoTextFg, rounded caps), name (15px semibold white at 25px/37px from bottom), status label (groupCallVideoSubTextFg at 25px/14px), "photo set by you"/"public photo" additional status, bottom shadow gradient 80px, top shadow gradient, video profile auto-play loop with radial loader (2px), rounded top corners 6px — spec §38.2
 - [ ] Info rows: labeled key-value rows (24px h-padding, 16px top), fields: channel link, t.me link, phone ("Copy Phone Number"), bio/about (multi-line entity support), @username ("Copy Mention"), birthday (dynamic "Birthday today" label), notes; empty fields hidden via SlideWrap; double-click selects paragraph — spec §38.2
 - [ ] Buttons: "Close" right, "Send Message"/"View Group"/"View Channel" left (type-dependent), no left button for Self — spec §38.2

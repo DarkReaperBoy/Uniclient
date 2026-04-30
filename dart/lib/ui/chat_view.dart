@@ -33,6 +33,7 @@ import 'web_app_panel.dart';
 import 'send_files_box.dart';
 import 'confirm_box.dart';
 import 'input_dialogs.dart';
+import 'peer_short_info.dart';
 import 'call_panel.dart';
 import 'chat_export.dart';
 import 'forum_topic_icon.dart';
@@ -1764,7 +1765,23 @@ class _ChatViewState extends State<ChatView>
 
     switch (result) {
       case 'view_profile':
-        _showSenderProfile(context, chatState, senderId);
+        final ctrlHeld = HardwareKeyboard.instance.logicalKeysPressed
+            .any((k) => k == LogicalKeyboardKey.controlLeft ||
+                        k == LogicalKeyboardKey.controlRight);
+        if (ctrlHeld) {
+          final senderMsg2 = chatState.messages.where((m) => m.senderId == senderId).firstOrNull;
+          final avatarB64 = chatState.senderAvatar(senderId);
+          showPeerShortInfoBox(
+            context,
+            accountId: chat.accountId,
+            peerId: senderId,
+            peerName: profile?.displayName ?? senderMsg2?.senderName ?? senderId,
+            avatarPath: '',
+            peerType: ChatType.dm,
+          );
+        } else {
+          _showSenderProfile(context, chatState, senderId);
+        }
       case 'mention':
         final mention = username.isNotEmpty ? '@$username ' : senderName;
         final text = _composeController.text;
@@ -3989,7 +4006,22 @@ class _ChatTopBar extends StatelessWidget {
       if (value == null) return;
       switch (value) {
         case 'view_profile':
-          onToggleInfo?.call();
+          final ctrlHeld = HardwareKeyboard.instance.logicalKeysPressed
+              .any((k) => k == LogicalKeyboardKey.controlLeft ||
+                          k == LogicalKeyboardKey.controlRight);
+          if (ctrlHeld) {
+            showPeerShortInfoBox(
+              btnCtx,
+              accountId: chat.accountId,
+              peerId: chat.chatId,
+              peerName: chat.title,
+              avatarPath: chat.avatarPath,
+              peerType: chat.type,
+              memberCount: chat.memberCount,
+            );
+          } else {
+            onToggleInfo?.call();
+          }
         case 'view_as_topics':
           chatState.toggleForumViewAsMessages();
         case 'mute':

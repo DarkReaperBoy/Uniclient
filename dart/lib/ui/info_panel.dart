@@ -24,6 +24,7 @@ import 'contacts_screen.dart' show showShareContactBox;
 import 'popup_menu.dart';
 import 'telegram_tooltip.dart';
 import 'telegram_toast.dart';
+import 'peer_short_info.dart';
 
 enum InfoWrapMode { side, narrow, layer }
 
@@ -4917,7 +4918,21 @@ class _MemberRow extends StatelessWidget {
       if (value == null) return;
       switch (value) {
         case 'view_profile':
-          onTap?.call();
+          final ctrlHeld = HardwareKeyboard.instance.logicalKeysPressed
+              .any((k) => k == LogicalKeyboardKey.controlLeft ||
+                          k == LogicalKeyboardKey.controlRight);
+          if (ctrlHeld) {
+            showPeerShortInfoBox(
+              context,
+              accountId: accountId,
+              peerId: member.userId,
+              peerName: member.displayName.isNotEmpty ? member.displayName : member.username,
+              avatarPath: '',
+              peerType: ChatType.dm,
+            );
+          } else {
+            onTap?.call();
+          }
         case 'send_message':
           final chatState = context.read<ChatState>();
           chatState.openChat(ChatInfo(

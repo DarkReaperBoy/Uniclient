@@ -24,6 +24,7 @@ import 'folders_settings_screen.dart' show showEditFolderBox;
 import 'shell.dart';
 import 'story_editor.dart';
 import 'telegram_toast.dart';
+import 'peer_short_info.dart';
 import '../theme/telegram_palette.dart';
 
 /// The entire left panel: search bar + chat list.
@@ -1257,10 +1258,16 @@ class _ChatListPanelState extends State<ChatListPanel>
 
     final isDm = chat.type == ChatType.dm;
 
+    final viewLabel = isDm
+        ? 'View Profile'
+        : chat.type == ChatType.channel
+            ? 'View Channel'
+            : 'View Group';
     showTelegramMenu<String>(
       context: context,
       position: globalPosition,
       items: [
+        TelegramMenuItem(value: 'view_profile', label: viewLabel),
         TelegramMenuItem(value: 'pin', label: chat.isPinned ? 'Unpin' : 'Pin'),
         TelegramMenuItem(
           value: 'mute_submenu',
@@ -1286,6 +1293,23 @@ class _ChatListPanelState extends State<ChatListPanel>
     ).then((value) {
       if (value == null) return;
       switch (value) {
+        case 'view_profile':
+          final ctrlHeld = HardwareKeyboard.instance.logicalKeysPressed
+              .any((k) => k == LogicalKeyboardKey.controlLeft ||
+                          k == LogicalKeyboardKey.controlRight);
+          if (ctrlHeld) {
+            showPeerShortInfoBox(
+              context,
+              accountId: chat.accountId,
+              peerId: chat.chatId,
+              peerName: chat.title,
+              avatarPath: chat.avatarPath,
+              peerType: chat.type,
+              memberCount: chat.memberCount,
+            );
+          } else {
+            chatState.openChat(chat);
+          }
         case 'pin':
           chatState.pinChat(chat.accountId, chat.chatId, !chat.isPinned);
         case 'mute_submenu':
