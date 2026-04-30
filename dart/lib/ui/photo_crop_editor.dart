@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -28,6 +29,9 @@ const Color _kCancelBg = Color(0x33FFFFFF);
 const Color _kDoneLinkFg = Color(0xFF71BAF7);
 
 const Duration _kTransitionDuration = Duration(milliseconds: 200);
+
+const int _kProfilePhotoSize = 640;
+const double _kExtremeRatioLimit = 10.0;
 
 enum PhotoCropShape { ellipse, roundedRect, rect }
 
@@ -92,6 +96,10 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
   ui.Image? _image;
   bool _loading = true;
   bool _saving = false;
+  int _rotationDegrees = 0;
+  bool _flipped = false;
+
+  bool get _isProfilePhoto => widget.shape != PhotoCropShape.rect;
 
   @override
   void initState() {
@@ -105,14 +113,88 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
       final codec = await ui.instantiateImageCodec(bytes);
       final frame = await codec.getNextFrame();
       if (!mounted) return;
+
+      final w = frame.image.width;
+      final h = frame.image.height;
+
+      if (w / h > _kExtremeRatioLimit || h / w > _kExtremeRatioLimit) {
+        frame.image.dispose();
+        if (!mounted) return;
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Bad photo!'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        if (mounted) Navigator.of(context).pop();
+        return;
+      }
+
+      ui.Image img = frame.image;
+      if (_isProfilePhoto &&
+          w < _kProfilePhotoSize &&
+          h < _kProfilePhotoSize) {
+        img = await _upscaleImage(img);
+      }
+
+      if (!mounted) {
+        img.dispose();
+        return;
+      }
       setState(() {
-        _image = frame.image;
+        _image = img;
         _loading = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() => _loading = false);
     }
+  }
+
+  Future<ui.Image> _upscaleImage(ui.Image source) async {
+    final w = source.width;
+    final h = source.height;
+    final scale = math.max(
+      _kProfilePhotoSize / w,
+      _kProfilePhotoSize / h,
+    );
+    final targetW = (w * scale).round();
+    final targetH = (h * scale).round();
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(
+      recorder,
+      Rect.fromLTWH(0, 0, targetW.toDouble(), targetH.toDouble()),
+    );
+    canvas.drawImageRect(
+      source,
+      Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()),
+      Rect.fromLTWH(0, 0, targetW.toDouble(), targetH.toDouble()),
+      Paint()..filterQuality = FilterQuality.high,
+    );
+    final picture = recorder.endRecording();
+    final result = await picture.toImage(targetW, targetH);
+    picture.dispose();
+    source.dispose();
+    return result;
+  }
+
+  void rotate() {
+    setState(() {
+      _rotationDegrees = (_rotationDegrees + 90) % 360;
+    });
+  }
+
+  void toggleFlip() {
+    setState(() {
+      _flipped = !_flipped;
+    });
   }
 
   void _cancel() {
@@ -193,6 +275,8 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
                             : _ImageCropArea(
                                 image: _image!,
                                 shape: widget.shape,
+                                rotationDegrees: _rotationDegrees,
+                                flipped: _flipped,
                               ),
                   ),
                 ],
@@ -243,8 +327,15 @@ class _BlurredBackground extends StatelessWidget {
 class _ImageCropArea extends StatelessWidget {
   final ui.Image image;
   final PhotoCropShape shape;
+  final int rotationDegrees;
+  final bool flipped;
 
-  const _ImageCropArea({required this.image, required this.shape});
+  const _ImageCropArea({
+    required this.image,
+    required this.shape,
+    required this.rotationDegrees,
+    required this.flipped,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -255,25 +346,73 @@ class _ImageCropArea extends StatelessWidget {
         final imgW = image.width.toDouble();
         final imgH = image.height.toDouble();
 
-        final scale = (imgW / imgH > availW / availH)
-            ? availH / imgH
-            : availW / imgW;
-        final displayW = imgW * scale;
-        final displayH = imgH * scale;
+        final isSwapped = rotationDegrees == 90 || rotationDegrees == 270;
+        final effectiveW = isSwapped ? imgH : imgW;
+        final effectiveH = isSwapped ? imgW : imgH;
+
+        final scale = math.min(availW / effectiveW, availH / effectiveH);
+        final displayW = effectiveW * scale;
+        final displayH = effectiveH * scale;
 
         return Center(
-          child: SizedBox(
-            width: displayW,
-            height: displayH,
-            child: RawImage(
+          child: CustomPaint(
+            size: Size(displayW, displayH),
+            painter: _ImagePainter(
               image: image,
-              fit: BoxFit.contain,
+              rotationDegrees: rotationDegrees,
+              flipped: flipped,
+              scale: scale,
             ),
           ),
         );
       },
     );
   }
+}
+
+class _ImagePainter extends CustomPainter {
+  final ui.Image image;
+  final int rotationDegrees;
+  final bool flipped;
+  final double scale;
+
+  _ImagePainter({
+    required this.image,
+    required this.rotationDegrees,
+    required this.flipped,
+    required this.scale,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final imgW = image.width.toDouble();
+    final imgH = image.height.toDouble();
+
+    canvas.save();
+    canvas.translate(size.width / 2, size.height / 2);
+    if (flipped) canvas.scale(-1, 1);
+    canvas.rotate(rotationDegrees * math.pi / 180);
+
+    final dstW = imgW * scale;
+    final dstH = imgH * scale;
+    final srcRect = Rect.fromLTWH(0, 0, imgW, imgH);
+    final dstRect = Rect.fromLTWH(-dstW / 2, -dstH / 2, dstW, dstH);
+
+    canvas.drawImageRect(
+      image,
+      srcRect,
+      dstRect,
+      Paint()..filterQuality = FilterQuality.high,
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_ImagePainter old) =>
+      old.image != image ||
+      old.rotationDegrees != rotationDegrees ||
+      old.flipped != flipped ||
+      old.scale != scale;
 }
 
 class _ControlBar extends StatelessWidget {
