@@ -884,7 +884,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_list_panel.dart (partial _EmptyState for search), chat_view.dart — new: dart/lib/ui/empty_states.dart -->
 
-- [ ] Empty chat list: Lottie no_chats.tgs 120px, "You have no conversations yet.", "New Message" button → Contacts box — spec §35.1
 - [ ] Empty folder: "No chats currently belong to this folder." with inline "Edit" link — spec §35.2
 - [ ] Empty forum, empty saved sublists text states — spec §35.3–35.4
 - [ ] Chat list skeleton loading: 2 placeholder rows matching DialogRow geometry (avatar ellipse + name bar 60px + status bar ~100px), 2s glare animation (1000ms sweep + 1000ms pause), RTL mirroring — spec §35.5 + §35.33

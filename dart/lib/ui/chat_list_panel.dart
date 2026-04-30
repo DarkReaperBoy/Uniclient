@@ -18,6 +18,7 @@ import 'forum_topic_icon.dart';
 import 'media_viewer.dart';
 import 'popup_menu.dart';
 import 'confirm_box.dart';
+import 'contacts_screen.dart' show showContactsBox;
 import 'edit_forum_topic_box.dart';
 import 'shell.dart';
 import 'story_editor.dart';
@@ -3532,19 +3533,61 @@ class _EmptyState extends StatelessWidget {
     final subColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
 
     if (!searching) {
-      // No chats loaded (non-search state).
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.chat_bubble_outline, size: 48, color: subColor),
-            const SizedBox(height: 12),
-            Text(
-              'No chats yet',
-              style: theme.textTheme.bodyMedium?.copyWith(color: subColor),
-            ),
-          ],
-        ),
+      // Spec §35.1: Empty chat list — Lottie 120px, label, subtitle, bottom button.
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          return Column(
+            children: [
+              Expanded(
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 120,
+                        height: 120,
+                        child: Lottie.asset(
+                          'assets/animations/no_chats.json',
+                          fit: BoxFit.contain,
+                          repeat: false,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'You have no\nconversations yet.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: theme.textTheme.bodyLarge?.color,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Your contacts on Telegram',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: subColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(
+                    bottom: 12, left: 16, right: 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => showContactsBox(context),
+                    child: const Text('New Message'),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       );
     }
 
