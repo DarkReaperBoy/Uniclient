@@ -603,8 +603,15 @@ class _UniClientAppState extends State<UniClientApp>
           final state = cmd['state'] as String? ?? 'incoming';
           final callState = switch (state) {
             'connecting' => CallPanelState.connecting,
+            'exchangingKeys' || 'exchanging_keys' => CallPanelState.exchangingKeys,
+            'waiting' => CallPanelState.waiting,
+            'requesting' => CallPanelState.requesting,
+            'ringing' => CallPanelState.ringing,
+            'hangingUp' || 'hanging_up' => CallPanelState.hangingUp,
             'active' => CallPanelState.active,
             'ended' => CallPanelState.ended,
+            'failed' => CallPanelState.failed,
+            'busy' => CallPanelState.busy,
             _ => CallPanelState.incoming,
           };
           final navCtx = _navigatorKey.currentContext;

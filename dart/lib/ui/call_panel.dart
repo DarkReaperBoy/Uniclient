@@ -9,7 +9,35 @@ import 'package:provider/provider.dart';
 import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 
-enum CallPanelState { incoming, connecting, active, ended }
+enum CallPanelState {
+  incoming,
+  connecting,
+  exchangingKeys,
+  waiting,
+  requesting,
+  hangingUp,
+  ended,
+  failed,
+  ringing,
+  busy,
+  active,
+}
+
+String callPanelStateLabel(CallPanelState state, {bool isVideo = false}) {
+  return switch (state) {
+    CallPanelState.incoming => isVideo ? 'incoming video call...' : 'is calling you...',
+    CallPanelState.connecting => 'connecting...',
+    CallPanelState.exchangingKeys => 'exchanging encryption keys...',
+    CallPanelState.waiting => 'waiting...',
+    CallPanelState.requesting => 'requesting...',
+    CallPanelState.hangingUp => 'hanging up...',
+    CallPanelState.ended => 'call ended',
+    CallPanelState.failed => 'failed to connect',
+    CallPanelState.ringing => 'ringing...',
+    CallPanelState.busy => 'line busy',
+    CallPanelState.active => '',
+  };
+}
 
 class CallPanelInfo {
   final String callerId;
@@ -345,7 +373,7 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
         ),
         const SizedBox(height: 8),
         Text(
-          widget.info.isVideo ? 'Incoming video call...' : 'Incoming call...',
+          callPanelStateLabel(widget.info.state, isVideo: widget.info.isVideo),
           style: const TextStyle(
             color: Color(0xAAFFFFFF),
             fontSize: 15,
@@ -407,7 +435,7 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Connecting...',
+                  callPanelStateLabel(widget.info.state, isVideo: widget.info.isVideo),
                   style: TextStyle(
                     color: const Color(0xAAFFFFFF),
                     fontSize: 15,
@@ -688,9 +716,9 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
-        const Text(
-          'Call ended',
-          style: TextStyle(
+        Text(
+          callPanelStateLabel(widget.info.state, isVideo: widget.info.isVideo),
+          style: const TextStyle(
             color: Color(0xAAFFFFFF),
             fontSize: 15,
           ),
@@ -716,16 +744,19 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     switch (widget.info.state) {
       case CallPanelState.incoming:
         content = _buildIncomingState();
-        break;
       case CallPanelState.connecting:
+      case CallPanelState.exchangingKeys:
+      case CallPanelState.waiting:
+      case CallPanelState.requesting:
+      case CallPanelState.ringing:
         content = _buildConnectingState();
-        break;
       case CallPanelState.active:
         content = _buildActiveState();
-        break;
       case CallPanelState.ended:
+      case CallPanelState.failed:
+      case CallPanelState.busy:
+      case CallPanelState.hangingUp:
         content = _buildEndedState();
-        break;
     }
 
     return ConstrainedBox(

@@ -884,8 +884,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_list_panel.dart (partial _EmptyState for search), chat_view.dart — new: dart/lib/ui/empty_states.dart -->
 
-- [ ] Call status 10-state labels (incoming, connecting, exchanging keys, etc.) — spec §35.30
-
 ---
 
 ## §36 — Common Dialog & Modal Patterns
