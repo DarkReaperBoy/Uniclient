@@ -928,6 +928,8 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
       if (_selectedIds.length == 1 && widget.discardedInviteMsgId == 0) {
         final userId = _selectedIds.first;
         final video = _selectedVideo[userId] ?? false;
+        final permOk = await requestCallPermissions(context, video: video);
+        if (!permOk || !mounted) return;
         await engine.startCall(accountId, userId, video: video);
         if (mounted) Navigator.of(context).pop(true);
       } else {
@@ -1816,6 +1818,11 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
   }
 
   void _startRedial(BuildContext context) async {
+    final permOk = await requestCallPermissions(
+      context,
+      video: widget.group.isVideo,
+    );
+    if (!permOk || !context.mounted) return;
     final engine = context.read<EngineService>();
     final group = widget.group;
     await engine.startCall(widget.accountId, group.peerId, video: group.isVideo);

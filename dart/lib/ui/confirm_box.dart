@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -729,6 +731,371 @@ class _RadioRowState extends State<_RadioRow> {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ─── §36.12 Permission Request Dialogs ──────────────────────────────────────
+
+enum PermissionType { microphone, camera }
+
+enum PermissionStatus { granted, canRequest, denied }
+
+Future<PermissionStatus> getPermissionStatus(PermissionType type) async {
+  if (!Platform.isLinux && !Platform.isMacOS && !Platform.isWindows) {
+    return PermissionStatus.granted;
+  }
+  try {
+    if (type == PermissionType.microphone) {
+      final result = await Process.run('pactl', ['list', 'sources', 'short']);
+      if (result.exitCode != 0) return PermissionStatus.denied;
+      final output = result.stdout as String;
+      if (output.trim().isEmpty) return PermissionStatus.denied;
+      return PermissionStatus.granted;
+    } else {
+      final result = await Process.run('ls', ['/dev/video0']);
+      return result.exitCode == 0
+          ? PermissionStatus.granted
+          : PermissionStatus.denied;
+    }
+  } catch (_) {
+    return PermissionStatus.canRequest;
+  }
+}
+
+void openSystemSettingsForPermission(PermissionType type) {
+  if (Platform.isLinux) {
+    Process.run('xdg-open', ['gnome-control-center://sound']).catchError((_) {
+      Process.run('xdg-open', ['x-settings://sound']);
+    });
+  } else if (Platform.isMacOS) {
+    final pane = type == PermissionType.microphone
+        ? 'Privacy_Microphone'
+        : 'Privacy_Camera';
+    Process.run(
+      'open',
+      ['x-apple.systempreferences:com.apple.preference.security?$pane'],
+    );
+  } else if (Platform.isWindows) {
+    final page = type == PermissionType.microphone
+        ? 'ms-settings:privacy-microphone'
+        : 'ms-settings:privacy-webcam';
+    Process.run('cmd', ['/c', 'start', page]);
+  }
+}
+
+String _permissionLabel(PermissionType type) {
+  return switch (type) {
+    PermissionType.microphone => 'microphone',
+    PermissionType.camera => 'camera',
+  };
+}
+
+Future<bool> showPermissionDeniedBox(
+  BuildContext context,
+  PermissionType type,
+) async {
+  final text = type == PermissionType.microphone
+      ? 'UniClient needs microphone access so that you can make calls and record voice messages.'
+      : 'UniClient needs camera access so that you can make video calls.';
+
+  bool openedSettings = false;
+  await showConfirmBox(
+    context,
+    text: text,
+    confirmText: 'Settings',
+    cancelText: 'Cancel',
+    onConfirm: () {
+      openedSettings = true;
+      openSystemSettingsForPermission(type);
+    },
+  );
+  return openedSettings;
+}
+
+Future<bool> requestPermissionOrFail(
+  BuildContext context,
+  PermissionType type, {
+  VoidCallback? onDenied,
+}) async {
+  final status = await getPermissionStatus(type);
+  switch (status) {
+    case PermissionStatus.granted:
+      return true;
+    case PermissionStatus.canRequest:
+      final recheck = await getPermissionStatus(type);
+      if (recheck == PermissionStatus.granted) return true;
+      onDenied?.call();
+      if (context.mounted) {
+        await showPermissionDeniedBox(context, type);
+      }
+      return false;
+    case PermissionStatus.denied:
+      onDenied?.call();
+      if (context.mounted) {
+        await showPermissionDeniedBox(context, type);
+      }
+      return false;
+  }
+}
+
+Future<bool> requestCallPermissions(
+  BuildContext context, {
+  bool video = false,
+  VoidCallback? onDenied,
+}) async {
+  final micOk = await requestPermissionOrFail(
+    context,
+    PermissionType.microphone,
+    onDenied: onDenied,
+  );
+  if (!micOk) return false;
+  if (video) {
+    final camOk = await requestPermissionOrFail(
+      context,
+      PermissionType.camera,
+      onDenied: onDenied,
+    );
+    if (!camOk) return false;
+  }
+  return true;
+}
+
+// ─── §36.12 Screen Share Chooser ────────────────────────────────────────────
+
+class ScreenShareSource {
+  final String id;
+  final String name;
+  final bool isScreen;
+
+  const ScreenShareSource({
+    required this.id,
+    required this.name,
+    this.isScreen = false,
+  });
+}
+
+class ScreenShareResult {
+  final ScreenShareSource source;
+  final bool withAudio;
+
+  const ScreenShareResult({required this.source, this.withAudio = false});
+}
+
+Future<ScreenShareResult?> showScreenShareChooser(BuildContext context) {
+  return showTelegramBox<ScreenShareResult>(
+    context: context,
+    builder: (ctx) => const _ScreenShareChooser(),
+  );
+}
+
+class _ScreenShareChooser extends StatefulWidget {
+  const _ScreenShareChooser();
+
+  @override
+  State<_ScreenShareChooser> createState() => _ScreenShareChooserState();
+}
+
+class _ScreenShareChooserState extends State<_ScreenShareChooser> {
+  List<ScreenShareSource> _sources = [];
+  bool _loading = true;
+  int _selectedIndex = -1;
+  bool _withAudio = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSources();
+  }
+
+  Future<void> _loadSources() async {
+    final sources = <ScreenShareSource>[];
+    try {
+      final xrandr = await Process.run('xrandr', ['--listmonitors']);
+      if (xrandr.exitCode == 0) {
+        final lines = (xrandr.stdout as String).split('\n');
+        for (int i = 1; i < lines.length; i++) {
+          final line = lines[i].trim();
+          if (line.isEmpty) continue;
+          final parts = line.split(RegExp(r'\s+'));
+          final name = parts.length > 1 ? parts.last : 'Screen $i';
+          sources.add(ScreenShareSource(
+            id: 'screen:${i - 1}',
+            name: name,
+            isScreen: true,
+          ));
+        }
+      }
+    } catch (_) {
+      sources.add(const ScreenShareSource(
+        id: 'screen:0',
+        name: 'Entire Screen',
+        isScreen: true,
+      ));
+    }
+
+    if (sources.isEmpty) {
+      sources.add(const ScreenShareSource(
+        id: 'screen:0',
+        name: 'Entire Screen',
+        isScreen: true,
+      ));
+    }
+
+    if (mounted) {
+      setState(() {
+        _sources = sources;
+        _loading = false;
+        if (sources.isNotEmpty) _selectedIndex = 0;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor =
+        isDark ? const Color(0xFFE0E3EA) : const Color(0xFF000000);
+    final subTextColor =
+        isDark ? const Color(0xFF8B9AAD) : const Color(0xFF999999);
+    final accentColor =
+        isDark ? const Color(0xFF6AB3F3) : const Color(0xFF40A7E3);
+    final selectedBorder = accentColor;
+    final cardBg =
+        isDark ? const Color(0xFF1E2C3A) : const Color(0xFFF0F0F0);
+
+    return TelegramBox(
+      title: 'Choose what to share',
+      wide: true,
+      scrollableContent: false,
+      content: SizedBox(
+        height: 340,
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
+                children: [
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: _sources.isEmpty
+                          ? Center(
+                              child: Text(
+                                'No sources available',
+                                style: TextStyle(
+                                    color: subTextColor, fontSize: 14),
+                              ),
+                            )
+                          : GridView.builder(
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                mainAxisSpacing: 8,
+                                crossAxisSpacing: 8,
+                                childAspectRatio: 16 / 10,
+                              ),
+                              itemCount: _sources.length,
+                              itemBuilder: (ctx, i) {
+                                final source = _sources[i];
+                                final selected = i == _selectedIndex;
+                                return GestureDetector(
+                                  onTap: () =>
+                                      setState(() => _selectedIndex = i),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: cardBg,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: selected
+                                            ? selectedBorder
+                                            : Colors.transparent,
+                                        width: 2,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          source.isScreen
+                                              ? Icons.desktop_windows
+                                              : Icons.web_asset,
+                                          size: 40,
+                                          color: selected
+                                              ? accentColor
+                                              : subTextColor,
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          source.name,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: textColor,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: Checkbox(
+                            value: _withAudio,
+                            onChanged: (v) =>
+                                setState(() => _withAudio = v ?? false),
+                            activeColor: accentColor,
+                            materialTapTargetSize:
+                                MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: () =>
+                              setState(() => _withAudio = !_withAudio),
+                          child: Text(
+                            'SHARE AUDIO',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: textColor,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+      ),
+      buttons: [
+        TelegramBoxButton(
+          text: 'CANCEL',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        TelegramBoxButton(
+          text: 'START SHARING',
+          onPressed: _selectedIndex >= 0
+              ? () {
+                  Navigator.of(context).pop(ScreenShareResult(
+                    source: _sources[_selectedIndex],
+                    withAudio: _withAudio,
+                  ));
+                }
+              : null,
+        ),
+      ],
     );
   }
 }

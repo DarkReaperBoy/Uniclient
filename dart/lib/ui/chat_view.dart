@@ -4209,13 +4209,16 @@ class _ChatTopBar extends StatelessWidget {
         TelegramMenuItem(value: 'audio_call', icon: Icon(Icons.call), label: 'Audio Call'),
         TelegramMenuItem(value: 'video_call', icon: Icon(Icons.videocam), label: 'Video Call'),
       ],
-    ).then((value) {
+    ).then((value) async {
       if (value == null || !context.mounted) return;
+      final isVideo = value == 'video_call';
+      final permOk = await requestCallPermissions(context, video: isVideo);
+      if (!permOk || !context.mounted) return;
       showCallPanel(context, CallPanelInfo(
         callerId: chat.chatId,
         callerName: chat.title,
         callerAvatarUrl: chat.avatarPath,
-        isVideo: value == 'video_call',
+        isVideo: isVideo,
         state: CallPanelState.connecting,
       ));
     });
@@ -4230,13 +4233,16 @@ class _ChatTopBar extends StatelessWidget {
         TelegramMenuItem(value: 'audio_call', icon: Icon(Icons.call), label: 'Audio Call'),
         TelegramMenuItem(value: 'video_call', icon: Icon(Icons.videocam), label: 'Video Call'),
       ],
-    ).then((value) {
+    ).then((value) async {
       if (value == null || !context.mounted) return;
+      final isVideo = value == 'video_call';
+      final permOk = await requestCallPermissions(context, video: isVideo);
+      if (!permOk || !context.mounted) return;
       showCallPanel(context, CallPanelInfo(
         callerId: chat.chatId,
         callerName: chat.title,
         callerAvatarUrl: chat.avatarPath,
-        isVideo: value == 'video_call',
+        isVideo: isVideo,
         state: CallPanelState.connecting,
       ));
     });
@@ -4634,7 +4640,9 @@ class _ChatTopBar extends StatelessWidget {
                 },
                 child: _TopBarButton(
                   icon: Icons.call,
-                  onPressed: () {
+                  onPressed: () async {
+                    final permOk = await requestCallPermissions(context);
+                    if (!permOk || !context.mounted) return;
                     showCallPanel(context, CallPanelInfo(
                       callerId: chat.chatId,
                       callerName: chat.title,

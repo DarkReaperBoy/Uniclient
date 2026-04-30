@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
+import 'confirm_box.dart';
 import 'telegram_tooltip.dart';
 
 enum CallPanelState {
@@ -199,6 +200,23 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     final m = seconds ~/ 60;
     final s = seconds % 60;
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _onScreenShareTap() async {
+    if (widget.info.isScreenSharing) {
+      // Stop sharing — no permission needed
+      return;
+    }
+    final result = await showScreenShareChooser(context);
+    if (result != null && mounted) {
+      // Screen share selected — source: result.source, audio: result.withAudio
+    }
+  }
+
+  Future<void> _onCameraTap() async {
+    final ok = await requestPermissionOrFail(context, PermissionType.camera);
+    if (!ok || !mounted) return;
+    // Camera toggle proceeds
   }
 
   void _extractDominantColors() {
@@ -492,14 +510,17 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         _CallControlButton(
-          icon: Icons.screen_share_outlined,
-          label: 'Screencast',
-          onTap: () {},
+          icon: widget.info.isScreenSharing
+              ? Icons.stop_screen_share_outlined
+              : Icons.screen_share_outlined,
+          label: widget.info.isScreenSharing ? 'Stop' : 'Screencast',
+          isActive: widget.info.isScreenSharing,
+          onTap: _onScreenShareTap,
         ),
         _CallControlButton(
           icon: Icons.videocam_outlined,
           label: 'Camera',
-          onTap: () {},
+          onTap: _onCameraTap,
         ),
         _CallActionButton(
           icon: Icons.call_end,
