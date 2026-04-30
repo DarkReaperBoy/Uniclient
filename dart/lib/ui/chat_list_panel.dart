@@ -507,6 +507,24 @@ class _ChatListPanelState extends State<ChatListPanel>
     });
   }
 
+  static bool _hasRecentDmContacts(List<ChatInfo> chats) {
+    return chats.any((c) => c.type == ChatType.dm && !c.isArchived);
+  }
+
+  void _resetToAllMessages() {
+    setState(() {
+      _activeSearchTab = _SearchTab.myMessages;
+      _myMsgSubFilter = _MyMsgSubFilter.all;
+    });
+    final query = _searchController.text;
+    if (query.isNotEmpty) {
+      final chatState = context.read<ChatState>();
+      setState(() {
+        _searchResults = _filterByTab(chatState.searchChats(query), chatState);
+      });
+    }
+  }
+
   bool _isLoadingChats(AppState appState, ChatState chatState) {
     if (_searching) return false;
     if (appState.accounts.isEmpty) return false;
@@ -658,11 +676,13 @@ class _ChatListPanelState extends State<ChatListPanel>
           // when search focused with empty query, below Top Peers strip).
           Expanded(
             child: _searching && _searchController.text.isEmpty
-                ? _RecentContactsList(
-                    chats: accountChats,
-                    onTap: (chat) => chatState.openChat(chat),
-                    chatState: chatState,
-                  )
+                ? _hasRecentDmContacts(accountChats)
+                    ? _RecentContactsList(
+                        chats: accountChats,
+                        onTap: (chat) => chatState.openChat(chat),
+                        chatState: chatState,
+                      )
+                    : const _SearchWaitingState()
                 : visibleChats.isEmpty && !showArchiveRow
                     ? _isLoadingChats(appState, chatState)
                         ? const _ChatListSkeleton()
@@ -670,6 +690,8 @@ class _ChatListPanelState extends State<ChatListPanel>
                             searching: _searching,
                             query: _searchController.text,
                             activeFolderId: chatState.activeFolderId,
+                            activeSearchTab: _activeSearchTab,
+                            onSearchAll: _resetToAllMessages,
                           )
                     : Listener(
                         onPointerDown: _onReorderPointerDown,
@@ -3714,16 +3736,69 @@ class _SkeletonPainter extends CustomPainter {
   bool shouldRepaint(_SkeletonPainter old) => old.progress != progress;
 }
 
+/// Spec §35.7.1: Search waiting state — search focused, no query entered,
+/// no recent contacts to display.
+class _SearchWaitingState extends StatelessWidget {
+  const _SearchWaitingState();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final subColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final topPad = (constraints.maxHeight / 3) - 50;
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 220),
+            child: Padding(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                children: [
+                  SizedBox(height: topPad.clamp(10.0, double.infinity)),
+                  SizedBox(
+                    width: 100,
+                    height: 100,
+                    child: Lottie.asset(
+                      'assets/animations/search.json',
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Search for messages',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: subColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 /// Empty state for chat list.
 class _EmptyState extends StatelessWidget {
   final bool searching;
   final String query;
   final String? activeFolderId;
+  final _SearchTab activeSearchTab;
+  final VoidCallback? onSearchAll;
 
-  /// Max chars to show in the "no results for ..." message before truncating.
   static const _kQueryPreviewLimit = 18;
 
-  const _EmptyState({required this.searching, this.query = '', this.activeFolderId});
+  const _EmptyState({
+    required this.searching,
+    this.query = '',
+    this.activeFolderId,
+    this.activeSearchTab = _SearchTab.myMessages,
+    this.onSearchAll,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -3731,7 +3806,6 @@ class _EmptyState extends StatelessWidget {
     final subColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
 
     if (!searching && activeFolderId != null) {
-      // Spec §35.2: Empty folder — centered FlatLabel, "Edit" inline link.
       return Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -3773,7 +3847,6 @@ class _EmptyState extends StatelessWidget {
     }
 
     if (!searching) {
-      // Spec §35.1: Empty chat list — Lottie 120px, label, subtitle, bottom button.
       return LayoutBuilder(
         builder: (context, constraints) {
           return Column(
@@ -3831,24 +3904,23 @@ class _EmptyState extends StatelessWidget {
       );
     }
 
-    // Search empty state (spec §35.7.2): noresults Lottie 100px + text.
+    final isHashtag = query.startsWith('#');
     final displayQuery = query.length > _kQueryPreviewLimit
         ? '${query.substring(0, _kQueryPreviewLimit)}…'
         : query;
+    final showSearchAllLink = activeSearchTab != _SearchTab.myMessages;
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Spec: icon at 1/3 of available height; min widget height 220px.
-        final topPad = (constraints.maxHeight / 3) - 50; // 50 = half of 100px icon
+        final topPad = (constraints.maxHeight / 3) - 50;
         return SingleChildScrollView(
           child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: 220),
+            constraints: const BoxConstraints(minHeight: 220),
             child: Padding(
-              padding: const EdgeInsets.all(10), // recentPeersEmptyMargin
+              padding: const EdgeInsets.all(10),
               child: Column(
                 children: [
                   SizedBox(height: topPad.clamp(10.0, double.infinity)),
-                  // 100x100 Lottie animation (spec: recentPeersEmptySize).
                   SizedBox(
                     width: 100,
                     height: 100,
@@ -3857,7 +3929,7 @@ class _EmptyState extends StatelessWidget {
                       fit: BoxFit.contain,
                     ),
                   ),
-                  const SizedBox(height: 10), // recentPeersEmptySkip
+                  const SizedBox(height: 10),
                   Text(
                     'No Results',
                     style: theme.textTheme.bodyMedium?.copyWith(
@@ -3867,12 +3939,27 @@ class _EmptyState extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'There were no results\nfor "$displayQuery".',
+                    isHashtag
+                        ? 'Try another hashtag.'
+                        : 'There were no results\nfor "$displayQuery".',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: subColor,
                     ),
                   ),
+                  if (showSearchAllLink && onSearchAll != null) ...[
+                    const SizedBox(height: 8),
+                    GestureDetector(
+                      onTap: onSearchAll,
+                      child: Text(
+                        'Search in All Messages',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
