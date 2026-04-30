@@ -16,6 +16,7 @@ import 'color_picker_box.dart';
 import 'popup_menu.dart';
 import 'settings_style.dart';
 import 'shortcuts_settings_screen.dart';
+import 'telegram_toast.dart';
 import 'theme_editor.dart';
 
 class ChatSettingsScreen extends StatefulWidget {
@@ -1471,12 +1472,7 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to update color: $e'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        showTelegramToast(context, 'Failed to update color: $e');
         setState(() => _saving = false);
       }
     }
@@ -1960,9 +1956,7 @@ class _CloudThemeCardState extends State<_CloudThemeCard> {
         case 'share':
           final link = 'https://t.me/addtheme/${t.slug}';
           Clipboard.setData(ClipboardData(text: link));
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Link copied'), duration: Duration(seconds: 2)),
-          );
+          showTelegramToast(context, 'Link copied');
         case 'edit':
           break;
         case 'delete':
@@ -1990,9 +1984,7 @@ class _CloudThemeCardState extends State<_CloudThemeCard> {
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Theme deleted'), duration: Duration(seconds: 2)),
-              );
+              showTelegramToast(context, 'Theme deleted');
             },
             child: Text('Delete', style: TextStyle(color: isDark ? const Color(0xFFE53935) : const Color(0xFFDD4B39))),
           ),

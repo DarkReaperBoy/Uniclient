@@ -13,6 +13,7 @@ import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../utils/country_data.dart';
 import 'input_dialogs.dart';
+import 'telegram_toast.dart';
 
 const double _boxWideWidth = 364;
 const double _boxTitleHeight = 48;
@@ -2264,23 +2265,13 @@ class _ShareContactBoxState extends State<_ShareContactBox> {
       }
       if (mounted) {
         Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              _selected.length == 1
-                  ? 'Contact shared'
-                  : 'Contact shared to ${_selected.length} chats',
-            ),
-            duration: const Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        showTelegramToast(context, _selected.length == 1
+            ? 'Contact shared'
+            : 'Contact shared to ${_selected.length} chats');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to share contact: $e')),
-        );
+        showTelegramToast(context, 'Failed to share contact: $e');
         setState(() => _sending = false);
       }
     }

@@ -8,6 +8,7 @@ import 'package:image/image.dart' as img;
 
 import '../theme/telegram_palette.dart';
 import '../theme/theme_file.dart';
+import 'telegram_toast.dart';
 import '../theme/theme_name_generator.dart';
 import '../theme/theme_preview.dart';
 
@@ -82,9 +83,7 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
     final path = '$dir/$safeName.tdesktop-theme';
     await File(path).writeAsBytes(bytes);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Saved to $path'), duration: const Duration(seconds: 2)),
-      );
+      showTelegramToast(context, 'Saved to $path');
     }
   }
 
@@ -138,9 +137,7 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
               Navigator.pop(ctx);
               final text = _generatePalettePreview();
               Clipboard.setData(ClipboardData(text: text));
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Palette copied to clipboard'), backgroundColor: accentColor, duration: const Duration(seconds: 2)),
-              );
+              showTelegramToast(context, 'Palette copied to clipboard');
             },
             child: Text('Copy Palette Text', style: TextStyle(color: textColor)),
           ),

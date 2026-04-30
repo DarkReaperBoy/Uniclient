@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import 'chat_export.dart';
 import 'settings_style.dart';
+import 'telegram_toast.dart';
 
 /// Advanced settings page (§14.7). Opened from Settings → Advanced row.
 /// Build order per §14.7.0: 11 sections separated by skip+divider+skip.
@@ -495,12 +496,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         value: appState.showTrayIcon,
         onChanged: (v) {
           if (!appState.setShowTrayIcon(v)) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('At least one of tray icon or taskbar icon must be enabled.'),
-                duration: Duration(seconds: 2),
-              ),
-            );
+            showTelegramToast(context, 'At least one of tray icon or taskbar icon must be enabled.');
           }
         },
         textColor: textColor,
@@ -512,12 +508,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         value: appState.showTaskbarIcon,
         onChanged: (v) {
           if (!appState.setShowTaskbarIcon(v)) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('At least one of tray icon or taskbar icon must be enabled.'),
-                duration: Duration(seconds: 2),
-              ),
-            );
+            showTelegramToast(context, 'At least one of tray icon or taskbar icon must be enabled.');
           }
         },
         textColor: textColor,
@@ -1574,14 +1565,7 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
   }
 
   void _showForceDisabledToast() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Turn off your device\'s power saving mode to change these settings',
-        ),
-        duration: Duration(seconds: 3),
-      ),
-    );
+    showTelegramToast(context, 'Turn off your device\'s power saving mode to change these settings');
   }
 
   @override
@@ -2305,9 +2289,7 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
       case 'share':
         final p = _proxies[index];
         Clipboard.setData(ClipboardData(text: _proxyToUrl(p)));
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Proxy link copied to clipboard')),
-        );
+        showTelegramToast(context, 'Proxy link copied to clipboard');
       case 'qr':
         final p = _proxies[index];
         _showQrDialog(p);
@@ -2419,13 +2401,9 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
         _selectedIndex = _proxies.length - 1;
         _mode = _ProxyMode.custom;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Imported $added proxy(ies)')),
-      );
+      showTelegramToast(context, 'Imported $added proxy(ies)');
     } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No valid proxy URLs found')),
-      );
+      showTelegramToast(context, 'No valid proxy URLs found');
     }
   }
 
@@ -2480,9 +2458,7 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
     final urls =
         _proxies.where((p) => p.isShareable).map(_proxyToUrl).join('\n');
     Clipboard.setData(ClipboardData(text: urls));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Proxy list copied to clipboard')),
-    );
+    showTelegramToast(context, 'Proxy list copied to clipboard');
   }
 }
 
@@ -2547,9 +2523,7 @@ class _EditProxyDialogState extends State<_EditProxyDialog> {
     final host = _hostCtrl.text.trim();
     final port = int.tryParse(_portCtrl.text.trim()) ?? 0;
     if (host.isEmpty || port <= 0 || port > 65535) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid host and port')),
-      );
+      showTelegramToast(context, 'Please enter a valid host and port');
       return;
     }
     Navigator.of(context).pop(_ProxyEntry(
@@ -3166,9 +3140,7 @@ class _ExperimentalSettingsBoxState extends State<ExperimentalSettingsBox> {
   }
 
   void _toast(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), duration: const Duration(seconds: 2)),
-    );
+    showTelegramToast(context, msg);
   }
 
   @override

@@ -22,6 +22,7 @@ import 'popup_menu.dart';
 import 'settings_screen.dart';
 import 'web_app_panel.dart';
 import 'settings_style.dart' show settingsPageRoute;
+import 'telegram_toast.dart';
 
 /// Hamburger menu drawer. Spec §3: 274px wide, 134px cover.
 /// Shows active account profile at top, collapsible account switcher,
@@ -406,13 +407,7 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
       {bool testMode = false}) {
     // Spec §3.2: enforce max accounts limit.
     if (!appState.canAddAccount) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Maximum account limit reached (${appState.maxAccountLimit})',
-          ),
-        ),
-      );
+      showTelegramToast(context, 'Maximum account limit reached (${appState.maxAccountLimit})');
       return;
     }
     final authState = context.read<AuthState>();

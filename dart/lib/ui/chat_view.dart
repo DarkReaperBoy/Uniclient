@@ -27,6 +27,7 @@ import 'chat_list_row.dart' show ForwardDragData, MyNotesUserpic, SavedMessagesU
 import 'sticker_pack_viewer.dart';
 import 'message_bubble.dart';
 import 'popup_menu.dart';
+import 'telegram_toast.dart';
 import 'web_app_panel.dart';
 import 'send_files_box.dart';
 import 'confirm_box.dart';
@@ -747,13 +748,7 @@ class _ChatViewState extends State<ChatView>
     if (replyToId.isEmpty) return;
     final target = chatState.messages.where((m) => m.msgId == replyToId).firstOrNull;
     if (target == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Message not loaded'),
-          duration: Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      showTelegramToast(context, 'Message not loaded');
       return;
     }
     chatState.jumpToMessage(target.timestamp);
@@ -910,10 +905,12 @@ class _ChatViewState extends State<ChatView>
           _insertVoiceTimecode(msg);
         case 'copy_selected':
           Clipboard.setData(ClipboardData(text: selectedText));
+          if (mounted) showTelegramToast(context, 'Text copied to clipboard.');
         case 'translate_selected':
           _translateText(msg, selectedText: selectedText);
         case 'copy':
           Clipboard.setData(ClipboardData(text: msg.contentText));
+          if (mounted) showTelegramToast(context, 'Text copied to clipboard.');
         case 'translate':
           _translateText(msg);
         case 'translate_poll':
@@ -983,9 +980,7 @@ class _ChatViewState extends State<ChatView>
             final url = action.substring('copy_url:'.length);
             Clipboard.setData(ClipboardData(text: url));
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Link copied'), behavior: SnackBarBehavior.floating, duration: Duration(seconds: 2)),
-              );
+              showTelegramToast(context, 'Link copied');
             }
           } else if (action.startsWith('vote_option:')) {
             final idx = int.tryParse(action.substring('vote_option:'.length));
@@ -1036,9 +1031,7 @@ class _ChatViewState extends State<ChatView>
     final sourceFile = File(msg.mediaLocalPath);
     if (!await sourceFile.exists()) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('File not found'), behavior: SnackBarBehavior.floating),
-      );
+      showTelegramToast(context, 'File not found');
       return;
     }
     final downloadsDir = Directory('${Platform.environment['HOME'] ?? '/tmp'}/Downloads');
@@ -1058,13 +1051,7 @@ class _ChatViewState extends State<ChatView>
     }
     await sourceFile.copy(destPath);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Saved to ${destPath.split('/').last}'),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    showTelegramToast(context, 'Saved to ${destPath.split('/').last}');
   }
 
   void _faveSticker(CachedMessage msg) async {
@@ -1074,13 +1061,7 @@ class _ChatViewState extends State<ChatView>
     final engine = context.read<EngineService>();
     final ok = await engine.faveSticker(msg.accountId, fileId, extra: msg.mediaExtra);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(ok ? 'Added to favorites' : 'Failed to add to favorites'),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    showTelegramToast(context, ok ? 'Added to favorites' : 'Failed to add to favorites');
   }
 
   void _saveGif(CachedMessage msg) async {
@@ -1090,13 +1071,7 @@ class _ChatViewState extends State<ChatView>
     final engine = context.read<EngineService>();
     final ok = await engine.saveGif(msg.accountId, fileId, extra: msg.mediaExtra);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(ok ? 'GIF saved' : 'Failed to save GIF'),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    showTelegramToast(context, ok ? 'GIF saved' : 'Failed to save GIF');
   }
 
   void _copyMessageLink(CachedMessage msg, ChatInfo? chat) {
@@ -1112,13 +1087,7 @@ class _ChatViewState extends State<ChatView>
     }
     Clipboard.setData(ClipboardData(text: link));
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Message link copied'),
-        behavior: SnackBarBehavior.floating,
-        duration: Duration(seconds: 2),
-      ),
-    );
+    showTelegramToast(context, 'Message link copied');
   }
 
   void _showInFolder(CachedMessage msg) async {
@@ -1126,9 +1095,7 @@ class _ChatViewState extends State<ChatView>
     final file = File(msg.mediaLocalPath);
     if (!await file.exists()) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('File not found'), behavior: SnackBarBehavior.floating),
-      );
+      showTelegramToast(context, 'File not found');
       return;
     }
     final dir = file.parent.path;
@@ -1254,9 +1221,7 @@ class _ChatViewState extends State<ChatView>
     );
     if (!mounted) return;
     if (result == null || result.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Translation not available'), behavior: SnackBarBehavior.floating, duration: Duration(seconds: 2)),
-      );
+      showTelegramToast(context, 'Translation not available');
       return;
     }
     showDialog(
@@ -1295,9 +1260,7 @@ class _ChatViewState extends State<ChatView>
     );
     if (!mounted) return;
     if (result == null || result.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Translation not available'), behavior: SnackBarBehavior.floating, duration: Duration(seconds: 2)),
-      );
+      showTelegramToast(context, 'Translation not available');
       return;
     }
     showDialog(
@@ -1329,13 +1292,7 @@ class _ChatViewState extends State<ChatView>
     if (chat == null) return;
     final ok = await engine.retractPollVote(msg.accountId, chat.chatId, msg.msgId);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(ok ? 'Vote retracted' : 'Failed to retract vote'),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    showTelegramToast(context, ok ? 'Vote retracted' : 'Failed to retract vote');
     if (ok) chatState.refreshMessages();
   }
 
@@ -1362,13 +1319,7 @@ class _ChatViewState extends State<ChatView>
     if (chat == null) return;
     final ok = await engine.stopPoll(msg.accountId, chat.chatId, msg.msgId);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(ok ? 'Poll stopped' : 'Failed to stop poll'),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    showTelegramToast(context, ok ? 'Poll stopped' : 'Failed to stop poll');
     if (ok) chatState.refreshMessages();
   }
 
@@ -1379,13 +1330,7 @@ class _ChatViewState extends State<ChatView>
     if (chat == null) return;
     final ok = await engine.votePoll(msg.accountId, chat.chatId, msg.msgId, optionIndex);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(ok ? 'Vote submitted' : 'Failed to vote'),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    showTelegramToast(context, ok ? 'Vote submitted' : 'Failed to vote');
     if (ok) chatState.refreshMessages();
   }
 
@@ -1409,16 +1354,12 @@ class _ChatViewState extends State<ChatView>
       if (!mounted) return;
 
       if (result == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Report failed'), behavior: SnackBarBehavior.floating, duration: Duration(seconds: 2)),
-        );
+        showTelegramToast(context, 'Report failed');
         return;
       }
 
       if (result.resultType == 'reported') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Message reported'), behavior: SnackBarBehavior.floating, duration: Duration(seconds: 2)),
-        );
+        showTelegramToast(context, 'Message reported');
         return;
       }
 
@@ -1474,13 +1415,7 @@ class _ChatViewState extends State<ChatView>
           message: comment,
         );
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(finalResult?.resultType == 'reported' ? 'Message reported' : 'Report submitted'),
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        showTelegramToast(context, finalResult?.resultType == 'reported' ? 'Message reported' : 'Report submitted');
         return;
       }
 
@@ -1661,9 +1596,7 @@ class _ChatViewState extends State<ChatView>
       if (copyText.isNotEmpty) {
         Clipboard.setData(ClipboardData(text: copyText));
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Copied'), behavior: SnackBarBehavior.floating, duration: Duration(seconds: 1)),
-          );
+          showTelegramToast(context, 'Copied');
         }
       }
     });
@@ -1675,9 +1608,7 @@ class _ChatViewState extends State<ChatView>
     if (chat == null) return;
     final engine = context.read<EngineService>();
     engine.markChatRead(chat.accountId, chat.chatId, msg.msgId);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Marked as read'), behavior: SnackBarBehavior.floating, duration: Duration(seconds: 2)),
-    );
+    showTelegramToast(context, 'Marked as read');
   }
 
   static String _formatFullDate(DateTime dt) {
@@ -1876,9 +1807,7 @@ class _ChatViewState extends State<ChatView>
         try {
           await engine.deleteContact(accountId, senderId);
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('$senderName removed from contacts')),
-            );
+            showTelegramToast(context, '$senderName removed from contacts');
           }
         } catch (_) {}
       case 'share_contact':
@@ -1886,15 +1815,11 @@ class _ChatViewState extends State<ChatView>
         if (phone.isNotEmpty) {
           Clipboard.setData(ClipboardData(text: phone));
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Contact phone copied: $phone')),
-            );
+            showTelegramToast(context, 'Contact phone copied: $phone');
           }
         } else {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Phone number not available')),
-            );
+            showTelegramToast(context, 'Phone number not available');
           }
         }
       case 'block':
@@ -1904,9 +1829,7 @@ class _ChatViewState extends State<ChatView>
           try {
             await engine.blockUser(accountId, senderId);
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('$senderName blocked')),
-              );
+              showTelegramToast(context, '$senderName blocked');
             }
           } catch (_) {}
         }
@@ -1914,18 +1837,14 @@ class _ChatViewState extends State<ChatView>
         try {
           await engine.unblockUser(accountId, senderId);
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('$senderName unblocked')),
-            );
+            showTelegramToast(context, '$senderName unblocked');
           }
         } catch (_) {}
       case 'report':
         try {
           await engine.reportSpam(accountId, senderId);
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('User reported')),
-            );
+            showTelegramToast(context, 'User reported');
           }
         } catch (_) {}
       case 'promote':
@@ -1960,9 +1879,7 @@ class _ChatViewState extends State<ChatView>
           try {
             await engine.banMember(accountId, chat.chatId, senderId);
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('$senderName banned')),
-              );
+              showTelegramToast(context, '$senderName banned');
             }
           } catch (_) {}
         }
@@ -1973,9 +1890,7 @@ class _ChatViewState extends State<ChatView>
           try {
             await engine.banMember(accountId, chat.chatId, senderId);
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('All messages from $senderName deleted')),
-              );
+              showTelegramToast(context, 'All messages from $senderName deleted');
             }
           } catch (_) {}
         }
@@ -2029,9 +1944,7 @@ class _ChatViewState extends State<ChatView>
                     lastCtrl.text.trim(),
                   );
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('${firstCtrl.text.trim()} added to contacts')),
-                    );
+                    showTelegramToast(context, '${firstCtrl.text.trim()} added to contacts');
                   }
                 } catch (_) {}
               },
@@ -2669,13 +2582,7 @@ class _ChatViewState extends State<ChatView>
     }
     _modifySelection(() => _selectedMsgIds.clear());
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Saved $saved file${saved != 1 ? 's' : ''} to Downloads'),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    showTelegramToast(context, 'Saved $saved file${saved != 1 ? 's' : ''} to Downloads');
   }
 
   /// Harness entry point for spec §24.4 line 2978 "Ctrl+Shift+Enter always
@@ -2748,13 +2655,7 @@ class _ChatViewState extends State<ChatView>
       _lastPreviewUrl = '';
     });
     if (scheduleDate > 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Message scheduled'),
-          behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 2),
-        ),
-      );
+      showTelegramToast(context, 'Message scheduled');
     } else {
       _scrollToBottom();
     }
@@ -4293,9 +4194,7 @@ class _ChatTopBar extends StatelessWidget {
       }
     } catch (e) {
       if (ctx.mounted) {
-        ScaffoldMessenger.of(ctx).showSnackBar(
-          SnackBar(content: Text('Failed to create topic: $e')),
-        );
+        showTelegramToast(ctx, 'Failed to create topic: $e');
       }
     }
   }
@@ -9399,9 +9298,7 @@ class _ComposeAreaState extends State<_ComposeArea>
       await engine.createPoll(accountId, chatId, result.question, result.options);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to create poll: $e')),
-        );
+        showTelegramToast(context, 'Failed to create poll: $e');
       }
     }
   }
@@ -10554,12 +10451,7 @@ class _SendButtonState extends State<_SendButton>
       final msg = widget.type == SendButtonType.round
           ? 'Hold to record video'
           : 'Hold to record';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(msg),
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      showTelegramToast(context, msg);
     }
     _holdFired = false;
   }
@@ -10612,9 +10504,7 @@ class _SendButtonState extends State<_SendButton>
       final msg = widget.type == SendButtonType.round
           ? 'The admins of this group restricted you from sending video messages here.'
           : 'The admins of this group restricted you from sending voice messages here.';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg), duration: const Duration(seconds: 3)),
-      );
+      showTelegramToast(context, msg);
       return;
     }
     switch (widget.type) {
@@ -10629,12 +10519,7 @@ class _SendButtonState extends State<_SendButton>
       case SendButtonType.schedule:
         widget.onSend();
       case SendButtonType.slowmode:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Slow mode is enabled. Please wait before sending another message.'),
-            duration: Duration(seconds: 3),
-          ),
-        );
+        showTelegramToast(context, 'Slow mode is enabled. Please wait before sending another message.');
       case SendButtonType.editPrice:
         break;
     }

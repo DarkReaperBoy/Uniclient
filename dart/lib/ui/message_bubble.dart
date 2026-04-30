@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 
 import 'gesture_utils.dart';
+import 'telegram_toast.dart';
 import 'package:lottie/lottie.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -7246,12 +7247,7 @@ class _InlineButtonState extends State<_InlineButton>
               final openUrl = url.isNotEmpty ? url : btn.url;
               if (openUrl.isNotEmpty) Process.run('xdg-open', [openUrl]);
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Logged in to ${authData['domain'] ?? 'website'}'),
-                    duration: const Duration(seconds: 3),
-                  ),
-                );
+                showTelegramToast(context, 'Logged in to ${authData['domain'] ?? 'website'}');
               }
             } else if (result['action'] == 'open') {
               if (btn.url.isNotEmpty) Process.run('xdg-open', [btn.url]);
@@ -7277,9 +7273,7 @@ class _InlineButtonState extends State<_InlineButton>
           final chatState = context.read<ChatState>();
           final answer = await chatState.botCallback(widget.messageId, btn.data);
           if (answer.isNotEmpty && mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(answer), duration: const Duration(seconds: 3)),
-            );
+            showTelegramToast(context, answer);
           }
         } catch (_) {
         } finally {

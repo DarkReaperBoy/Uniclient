@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 import 'popup_menu.dart';
+import 'telegram_toast.dart';
 
 class LanguageBox extends StatefulWidget {
   const LanguageBox({super.key});
@@ -595,13 +596,7 @@ class _LangMenuToggle extends StatelessWidget {
         final link = 'https://t.me/setlanguage/${lang.langCode}';
         await Clipboard.setData(ClipboardData(text: link));
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Language link copied to clipboard.'),
-              behavior: SnackBarBehavior.floating,
-              duration: Duration(seconds: 2),
-            ),
-          );
+          showTelegramToast(context, 'Language link copied to clipboard.');
         }
       case 'delete':
         appState.addRemovedLanguage(lang.langCode);
@@ -693,13 +688,7 @@ class _SkipLanguagesEditorState extends State<_SkipLanguagesEditor> {
     setState(() {
       if (_selected.contains(langCode)) {
         if (_selected.length <= 1) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('You must keep at least one language.'),
-              behavior: SnackBarBehavior.floating,
-              duration: Duration(seconds: 2),
-            ),
-          );
+          showTelegramToast(context, 'You must keep at least one language.');
           return;
         }
         _selected.remove(langCode);

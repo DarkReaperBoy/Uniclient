@@ -10,6 +10,7 @@ import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../theme/telegram_palette.dart';
 import 'create_group_wizard.dart' show showEditPeerTypeBox;
+import 'telegram_toast.dart';
 
 Future<bool?> showEditPeerInfoBox(
   BuildContext context, {
@@ -620,9 +621,7 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save: $e')),
-        );
+        showTelegramToast(context, 'Failed to save: $e');
       }
     }
   }
@@ -822,7 +821,7 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+        showTelegramToast(context, 'Failed: $e');
       }
     }
   }
@@ -966,12 +965,7 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
     return InkWell(
       onTap: () {
         if (isLocked) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('"Send links" requires "Send text messages" to be allowed.'),
-              duration: Duration(milliseconds: 3000),
-            ),
-          );
+          showTelegramToast(context, '"Send links" requires "Send text messages" to be allowed.');
           return;
         }
         _toggleFlag(flag);
@@ -1159,9 +1153,7 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
   Widget _buildAddExceptionButton(Color accentColor, Color textColor) {
     return InkWell(
       onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Exception list coming soon')),
-        );
+        showTelegramToast(context, 'Exception list coming soon');
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
@@ -1389,7 +1381,7 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+        showTelegramToast(context, 'Failed: $e');
       }
     }
   }
@@ -1986,7 +1978,7 @@ class _EditAdminBoxState extends State<_EditAdminBox>
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+        showTelegramToast(context, 'Failed: $e');
       }
     }
   }
@@ -2013,9 +2005,7 @@ class _EditAdminBoxState extends State<_EditAdminBox>
                 if (mounted) Navigator.pop(context, true);
               } catch (e) {
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to dismiss: $e')),
-                  );
+                  showTelegramToast(context, 'Failed to dismiss: $e');
                 }
               }
             },
@@ -2046,9 +2036,7 @@ class _EditAdminBoxState extends State<_EditAdminBox>
             style: TextButton.styleFrom(foregroundColor: palette.attentionButtonFg),
             onPressed: () {
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Transfer ownership requires 2FA verification')),
-              );
+              showTelegramToast(context, 'Transfer ownership requires 2FA verification');
             },
             child: const Text('Transfer'),
           ),
@@ -3458,9 +3446,7 @@ class _InviteLinksBoxState extends State<_InviteLinksBox> {
     } catch (e) {
       if (mounted) {
         setState(() => _loading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load invite links: $e')),
-        );
+        showTelegramToast(context, 'Failed to load invite links: $e');
       }
     }
   }
@@ -3483,7 +3469,7 @@ class _InviteLinksBoxState extends State<_InviteLinksBox> {
       _loadAll();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+        showTelegramToast(context, 'Failed: $e');
       }
     }
   }
@@ -3495,7 +3481,7 @@ class _InviteLinksBoxState extends State<_InviteLinksBox> {
       _loadAll();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+        showTelegramToast(context, 'Failed: $e');
       }
     }
   }
@@ -3522,7 +3508,7 @@ class _InviteLinksBoxState extends State<_InviteLinksBox> {
       _loadAll();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+        showTelegramToast(context, 'Failed: $e');
       }
     }
   }
@@ -3589,10 +3575,10 @@ class _InviteLinksBoxState extends State<_InviteLinksBox> {
       switch (action) {
         case 'copy':
           Clipboard.setData(ClipboardData(text: link.link));
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Link copied')));
+          showTelegramToast(context, 'Link copied');
         case 'share':
           Clipboard.setData(ClipboardData(text: link.link));
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Link copied to clipboard')));
+          showTelegramToast(context, 'Link copied to clipboard');
         case 'edit':
           _editLink(link);
         case 'revoke':
@@ -3697,14 +3683,14 @@ class _InviteLinksBoxState extends State<_InviteLinksBox> {
                 icon: Icon(Icons.copy, size: 20, color: palette.windowBgActive),
                 onPressed: () {
                   Clipboard.setData(ClipboardData(text: link.link));
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Link copied')));
+                  showTelegramToast(context, 'Link copied');
                 },
               ),
               IconButton(
                 icon: Icon(Icons.share, size: 20, color: palette.windowBgActive),
                 onPressed: () {
                   Clipboard.setData(ClipboardData(text: link.link));
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Link copied to clipboard')));
+                  showTelegramToast(context, 'Link copied to clipboard');
                 },
               ),
             ],
@@ -3887,7 +3873,7 @@ class _LinkInfoBox extends StatelessWidget {
                 child: GestureDetector(
                   onTap: () {
                     Clipboard.setData(ClipboardData(text: link.link));
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Link copied')));
+                    showTelegramToast(context, 'Link copied');
                   },
                   child: Text(
                     link.link.replaceFirst('https://', ''),
@@ -3903,7 +3889,7 @@ class _LinkInfoBox extends StatelessWidget {
                       child: OutlinedButton.icon(
                         onPressed: () {
                           Clipboard.setData(ClipboardData(text: link.link));
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Link copied')));
+                          showTelegramToast(context, 'Link copied');
                         },
                         icon: const Icon(Icons.copy, size: 18),
                         label: const Text('Copy'),
@@ -3914,7 +3900,7 @@ class _LinkInfoBox extends StatelessWidget {
                       child: OutlinedButton.icon(
                         onPressed: () {
                           Clipboard.setData(ClipboardData(text: link.link));
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Link copied to clipboard')));
+                          showTelegramToast(context, 'Link copied to clipboard');
                         },
                         icon: const Icon(Icons.share, size: 18),
                         label: const Text('Share'),
@@ -4069,7 +4055,7 @@ class _CreateEditLinkFormState extends State<_CreateEditLinkForm> {
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+        showTelegramToast(context, 'Failed: $e');
       }
     }
   }

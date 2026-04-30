@@ -14,6 +14,7 @@ import '../state/chat_state.dart';
 import 'confirm_box.dart';
 import 'popup_menu.dart';
 import 'settings_style.dart';
+import 'telegram_toast.dart';
 
 class CallsScreen extends StatefulWidget {
   const CallsScreen({super.key});
@@ -908,12 +909,7 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
         }
       } else {
         if (_selectedIds.length >= _confcallSizeLimit) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("You can't add more participants to this call."),
-              duration: Duration(seconds: 2),
-            ),
-          );
+          showTelegramToast(context, "You can't add more participants to this call.");
           return;
         }
         _selectedIds.add(userId);
@@ -945,17 +941,13 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
           if (mounted) Navigator.of(context).pop(true);
         } else {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Failed to create conference call')),
-            );
+            showTelegramToast(context, 'Failed to create conference call');
           }
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to start call: $e')),
-        );
+        showTelegramToast(context, 'Failed to start call: $e');
       }
     }
   }
@@ -975,16 +967,12 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
         }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(result == null ? 'Failed to create call' : 'No invite link returned')),
-          );
+          showTelegramToast(context, result == null ? 'Failed to create call' : 'No invite link returned');
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$e')),
-        );
+        showTelegramToast(context, '$e');
       }
     } finally {
       if (mounted) setState(() => _creatingLink = false);
@@ -1419,12 +1407,7 @@ class _ConferenceCallLinkBox extends StatelessWidget {
                           // Copy link to clipboard
                           final data = ClipboardData(text: link);
                           Clipboard.setData(data);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Link copied to clipboard'),
-                              duration: Duration(seconds: 2),
-                            ),
-                          );
+                          showTelegramToast(context, 'Link copied to clipboard');
                         },
                         icon: const Icon(Icons.copy, size: 18),
                         label: const Text('Copy Link'),

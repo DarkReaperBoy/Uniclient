@@ -22,6 +22,7 @@ import 'edit_forum_topic_box.dart';
 import 'forum_topic_icon.dart';
 import 'contacts_screen.dart' show showShareContactBox;
 import 'popup_menu.dart';
+import 'telegram_toast.dart';
 
 enum InfoWrapMode { side, narrow, layer }
 
@@ -1353,28 +1354,13 @@ class _TopicInfoMenuButton extends StatelessWidget {
           if (username.isNotEmpty && context.mounted) {
             final link = 'https://t.me/$username/${topic.id}';
             Clipboard.setData(ClipboardData(text: link));
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Topic link copied'),
-                duration: Duration(seconds: 2),
-              ),
-            );
+            showTelegramToast(context, 'Topic link copied');
           } else if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('This group has no public link'),
-                duration: Duration(seconds: 2),
-              ),
-            );
+            showTelegramToast(context, 'This group has no public link');
           }
         } catch (_) {
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Could not get topic link'),
-                duration: Duration(seconds: 2),
-              ),
-            );
+            showTelegramToast(context, 'Could not get topic link');
           }
         }
       case 'edit':
@@ -1395,9 +1381,7 @@ class _TopicInfoMenuButton extends StatelessWidget {
           await chatState.refreshForumTopics();
         } catch (e) {
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Failed to edit topic: $e')),
-            );
+            showTelegramToast(context, 'Failed to edit topic: $e');
           }
         }
       case 'toggle_closed':
@@ -1407,9 +1391,7 @@ class _TopicInfoMenuButton extends StatelessWidget {
           );
         } catch (e) {
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Failed: $e')),
-            );
+            showTelegramToast(context, 'Failed: $e');
           }
         }
       case 'toggle_hidden':
@@ -1419,9 +1401,7 @@ class _TopicInfoMenuButton extends StatelessWidget {
           );
         } catch (e) {
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Failed: $e')),
-            );
+            showTelegramToast(context, 'Failed: $e');
           }
         }
       case 'delete':
@@ -1441,9 +1421,7 @@ class _TopicInfoMenuButton extends StatelessWidget {
             chatState.closeChat();
           } catch (e) {
             if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Failed: $e')),
-              );
+              showTelegramToast(context, 'Failed: $e');
             }
           }
         }
@@ -1900,13 +1878,7 @@ class _UserProfilePageState extends State<_UserProfilePage> {
                       onTap: () {
                         Clipboard.setData(
                             ClipboardData(text: '@${widget.member.username}'));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Username copied'),
-                            duration: Duration(seconds: 2),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
+                        showTelegramToast(context, 'Username copied');
                       },
                     ),
                   _TextWithLabel(
@@ -1916,13 +1888,7 @@ class _UserProfilePageState extends State<_UserProfilePage> {
                     onTap: () {
                       Clipboard.setData(
                           ClipboardData(text: widget.member.userId));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('ID copied'),
-                          duration: Duration(seconds: 2),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
+                      showTelegramToast(context, 'ID copied');
                     },
                   ),
                   if (widget.member.role.isNotEmpty &&
@@ -2154,13 +2120,7 @@ class _ChatDetailsState extends State<_ChatDetails> {
 
   void _copy(String value, String label) {
     Clipboard.setData(ClipboardData(text: value));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$label copied to clipboard'),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    showTelegramToast(context, '$label copied to clipboard');
   }
 
   @override
@@ -2430,13 +2390,7 @@ class _GroupActionsSection extends StatelessWidget {
             onPressed: () {
               chatState.reportSpam(chat.accountId, chat.chatId);
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Group reported'),
-                  duration: Duration(seconds: 2),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
+              showTelegramToast(context, 'Group reported');
             },
             child: const Text('Report'),
           ),
@@ -2744,13 +2698,7 @@ class _ChannelActionsSection extends StatelessWidget {
             onPressed: () {
               chatState.reportSpam(chat.accountId, chat.chatId);
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Channel reported'),
-                  duration: Duration(seconds: 2),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
+              showTelegramToast(context, 'Channel reported');
             },
             child: const Text('Report'),
           ),
@@ -5014,14 +4962,10 @@ class _MemberRow extends StatelessWidget {
           }
         case 'copy_username':
           Clipboard.setData(ClipboardData(text: '@${member.username}'));
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Username copied'), duration: Duration(seconds: 2)),
-          );
+          showTelegramToast(context, 'Username copied');
         case 'copy_id':
           Clipboard.setData(ClipboardData(text: member.userId));
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('ID copied'), duration: Duration(seconds: 2)),
-          );
+          showTelegramToast(context, 'ID copied');
         case 'promote':
           showEditAdminBox(
             context,
@@ -5033,9 +4977,7 @@ class _MemberRow extends StatelessWidget {
         case 'demote':
           engine.demoteAdmin(accountId, chatId, member.userId).catchError((e) {
             if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Failed to demote: $e')),
-              );
+              showTelegramToast(context, 'Failed to demote: $e');
             }
           });
         case 'restrict':
@@ -5048,17 +4990,13 @@ class _MemberRow extends StatelessWidget {
         case 'remove':
           engine.removeMember(accountId, chatId, member.userId).catchError((e) {
             if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Failed to remove: $e')),
-              );
+              showTelegramToast(context, 'Failed to remove: $e');
             }
           });
         case 'ban':
           engine.banMember(accountId, chatId, member.userId).catchError((e) {
             if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Failed to ban: $e')),
-              );
+              showTelegramToast(context, 'Failed to ban: $e');
             }
           });
       }

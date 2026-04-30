@@ -15,6 +15,7 @@ import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 import 'active_sessions_screen.dart';
 import 'settings_style.dart';
+import 'telegram_toast.dart';
 
 class PrivacySettingsScreen extends StatefulWidget {
   const PrivacySettingsScreen({super.key});
@@ -890,14 +891,10 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
         clearShipping: result.shipping,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Payment info cleared.')),
-      );
+      showTelegramToast(context, 'Payment info cleared.');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to clear: $e')),
-      );
+      showTelegramToast(context, 'Failed to clear: $e');
     }
   }
 
@@ -1762,19 +1759,11 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
       );
       if (mounted) {
         setState(() => _hasBirthday = true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Birthday saved'),
-            duration: Duration(milliseconds: 1500),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        showTelegramToast(context, 'Birthday saved');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to set birthday: $e')),
-        );
+        showTelegramToast(context, 'Failed to set birthday: $e');
       }
     }
   }
@@ -1869,9 +1858,7 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save: $e')),
-        );
+        showTelegramToast(context, 'Failed to save: $e');
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -1896,20 +1883,12 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
           _hasFallbackPhoto = true;
           _uploadingFallback = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Public photo updated'),
-            duration: Duration(milliseconds: 1500),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        showTelegramToast(context, 'Public photo updated');
       }
     } catch (e) {
       if (mounted) {
         setState(() => _uploadingFallback = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to set public photo: $e')),
-        );
+        showTelegramToast(context, 'Failed to set public photo: $e');
       }
     }
   }
@@ -1923,20 +1902,12 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
           _hasFallbackPhoto = false;
           _uploadingFallback = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Public photo removed'),
-            duration: Duration(milliseconds: 1500),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        showTelegramToast(context, 'Public photo removed');
       }
     } catch (e) {
       if (mounted) {
         setState(() => _uploadingFallback = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to remove public photo: $e')),
-        );
+        showTelegramToast(context, 'Failed to remove public photo: $e');
       }
     }
   }
@@ -1954,13 +1925,7 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
     return InkWell(
       onTap: () {
         if (!isPremium) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Subscribe to Telegram Premium to change gift settings.'),
-              duration: Duration(seconds: 3),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+          showTelegramToast(context, 'Subscribe to Telegram Premium to change gift settings.');
         } else {
           onChanged(!value);
         }
@@ -2084,13 +2049,7 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
                 onTap: () {
                   if (isPremiumLocked) {
                     setState(() => _selected = 'everyone');
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Subscribe to Telegram Premium to restrict who can send you voice messages.'),
-                        duration: Duration(seconds: 3),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
+                    showTelegramToast(context, 'Subscribe to Telegram Premium to restrict who can send you voice messages.');
                   } else {
                     setState(() => _selected = opt);
                   }
@@ -2110,13 +2069,7 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
                             if (v != null) {
                               if (isPremiumLocked) {
                                 setState(() => _selected = 'everyone');
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Subscribe to Telegram Premium to restrict who can send you voice messages.'),
-                                    duration: Duration(seconds: 3),
-                                    behavior: SnackBarBehavior.floating,
-                                  ),
-                                );
+                                showTelegramToast(context, 'Subscribe to Telegram Premium to restrict who can send you voice messages.');
                               } else {
                                 setState(() => _selected = v);
                               }
@@ -2987,9 +2940,7 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
       widget.onSuccess();
       if (!mounted) return;
       Navigator.of(context).popUntil((route) => route.isFirst || route.settings.name == 'privacy');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cloud password has been removed.'), behavior: SnackBarBehavior.floating),
-      );
+      showTelegramToast(context, 'Cloud password has been removed.');
     } catch (e) {
       if (!mounted) return;
       setState(() { _loading = false; _error = e.toString().replaceFirst('Exception: ', ''); });
@@ -3111,9 +3062,7 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
         if (state == null || state['hasPassword'] != true) {
           widget.onSuccess();
           Navigator.of(context).popUntil((route) => route.isFirst || route.settings.name == 'privacy');
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Cloud password has been removed.'), behavior: SnackBarBehavior.floating),
-          );
+          showTelegramToast(context, 'Cloud password has been removed.');
           return;
         }
       }
@@ -4006,9 +3955,7 @@ class _CloudPasswordEmailConfirmState extends State<_CloudPasswordEmailConfirm> 
         widget.onDone();
         if (!mounted) return;
         Navigator.of(context).popUntil((route) => route.isFirst || route.settings.name == 'privacy');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Cloud password has been removed.'), behavior: SnackBarBehavior.floating),
-        );
+        showTelegramToast(context, 'Cloud password has been removed.');
         return;
       }
       final retryDate = result['retryDate'] as int? ?? 0;
@@ -4551,16 +4498,12 @@ class _CloudPasswordManageState extends State<_CloudPasswordManage> {
       widget.onChanged();
       if (context.mounted) {
         Navigator.of(context).popUntil((route) => route.isFirst || route.settings.name == 'privacy');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Two-Step Verification has been disabled.'), behavior: SnackBarBehavior.floating),
-        );
+        showTelegramToast(context, 'Two-Step Verification has been disabled.');
       }
     } catch (e) {
       if (context.mounted) {
         setState(() => _disabling = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed: ${e.toString().replaceFirst("Exception: ", "")}'), behavior: SnackBarBehavior.floating),
-        );
+        showTelegramToast(context, 'Failed: ${e.toString().replaceFirst("Exception: ", "")}');
       }
     }
   }
@@ -4653,12 +4596,7 @@ class _GlobalTTLScreenState extends State<_GlobalTTLScreen> {
       widget.onChanged(period);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed: ${e.toString().replaceFirst("Exception: ", "")}'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        showTelegramToast(context, 'Failed: ${e.toString().replaceFirst("Exception: ", "")}');
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -5913,9 +5851,7 @@ class _MessagesPrivacyBoxState extends State<_MessagesPrivacyBox> {
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save: $e')),
-        );
+        showTelegramToast(context, 'Failed to save: $e');
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -5977,13 +5913,7 @@ class _MessagesPrivacyBoxState extends State<_MessagesPrivacyBox> {
                 return InkWell(
                   onTap: () {
                     if (isPremiumLocked) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Subscribe to Telegram Premium to restrict who can send you messages.'),
-                          duration: Duration(seconds: 3),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
+                      showTelegramToast(context, 'Subscribe to Telegram Premium to restrict who can send you messages.');
                     } else {
                       setState(() => _selected = key);
                     }

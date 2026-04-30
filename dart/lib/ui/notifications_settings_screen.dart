@@ -12,6 +12,7 @@ import '../state/chat_state.dart';
 import '../models/engine_models.dart';
 import 'popup_menu.dart';
 import 'settings_style.dart';
+import 'telegram_toast.dart';
 
 class NotificationsSettingsScreen extends StatefulWidget {
   const NotificationsSettingsScreen({super.key});
@@ -3119,13 +3120,7 @@ class _RingtonesBoxDialogState extends State<_RingtonesBoxDialog> {
   void _onUploadSound() async {
     if (_tones.length >= _kMaxTones) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              'You can upload at most $_kMaxTones notification sounds.'),
-          backgroundColor: const Color(0xFFDD4B39),
-        ),
-      );
+      showTelegramToast(context, 'You can upload at most $_kMaxTones notification sounds.');
       return;
     }
 
@@ -3141,14 +3136,8 @@ class _RingtonesBoxDialogState extends State<_RingtonesBoxDialog> {
     final bytes = file.size;
 
     if (bytes > _kMaxSizeBytes) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              'The file is too large (${_formatSize(bytes)}). '
-              'Maximum allowed size is ${_formatSize(_kMaxSizeBytes)}.'),
-          backgroundColor: const Color(0xFFDD4B39),
-        ),
-      );
+      showTelegramToast(context, 'The file is too large (${_formatSize(bytes)}). '
+          'Maximum allowed size is ${_formatSize(_kMaxSizeBytes)}.');
       return;
     }
 

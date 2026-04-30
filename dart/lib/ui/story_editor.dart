@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
+import 'telegram_toast.dart';
 
 const double _canvasWidth = 540;
 const double _canvasHeight = 960;
@@ -323,9 +324,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
     } catch (e) {
       setState(() => _posting = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to post story: $e'), backgroundColor: Colors.red),
-        );
+        showTelegramToast(context, 'Failed to post story: $e');
       }
     }
   }

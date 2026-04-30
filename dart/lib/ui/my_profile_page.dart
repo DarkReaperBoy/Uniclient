@@ -13,6 +13,7 @@ import '../state/auth_state.dart';
 import '../state/chat_state.dart';
 import 'confirm_box.dart';
 import 'input_dialogs.dart';
+import 'telegram_toast.dart';
 import 'popup_menu.dart';
 import 'settings_style.dart';
 
@@ -128,23 +129,11 @@ class _MyProfilePageState extends State<MyProfilePage> {
           _birthdayMonth = picked.month;
           _birthdayYear = picked.year;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Birthday saved'),
-            duration: Duration(milliseconds: 1500),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        showTelegramToast(context, 'Birthday saved');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to update birthday: $e'),
-            duration: const Duration(milliseconds: 2000),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        showTelegramToast(context, 'Failed to update birthday: $e');
       }
     }
   }
@@ -374,13 +363,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
   static void _copyToClipboard(BuildContext context, String value, String label) {
     if (value.isEmpty) return;
     Clipboard.setData(ClipboardData(text: value));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$label copied to clipboard'),
-        duration: const Duration(milliseconds: 500),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    showTelegramToast(context, '$label copied to clipboard');
   }
 }
 
@@ -583,23 +566,11 @@ class _ProfilePhotoArea extends StatelessWidget {
     try {
       await engine.uploadProfilePhoto(accountId, path);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profile photo updated'),
-            duration: Duration(milliseconds: 1500),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        showTelegramToast(context, 'Profile photo updated');
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to update photo: $e'),
-            duration: const Duration(milliseconds: 2000),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        showTelegramToast(context, 'Failed to update photo: $e');
       }
     }
   }
@@ -763,13 +734,7 @@ class _PersonalChannelRow extends StatelessWidget {
       onTap: hasChannel
           ? () {
               Clipboard.setData(ClipboardData(text: channelName));
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Channel name copied'),
-                  duration: Duration(milliseconds: 500),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
+              showTelegramToast(context, 'Channel name copied');
             }
           : null,
       hoverColor: hoverBg,
@@ -1088,12 +1053,7 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to update color: $e'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        showTelegramToast(context, 'Failed to update color: $e');
         setState(() => _saving = false);
       }
     }
@@ -1246,13 +1206,7 @@ class _ProfileInfoRow extends StatelessWidget {
       if (selected == 'copy' && value.isNotEmpty) {
         Clipboard.setData(ClipboardData(text: value));
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Copied to clipboard'),
-              duration: const Duration(milliseconds: 500),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+          showTelegramToast(context, 'Copied to clipboard');
         }
       }
     });
@@ -1424,13 +1378,7 @@ class _SettingsAccountRow extends StatelessWidget {
         case 'copy_phone':
           Clipboard.setData(ClipboardData(text: account.phone));
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Phone number copied'),
-                duration: Duration(milliseconds: 500),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
+            showTelegramToast(context, 'Phone number copied');
           }
         case 'mark_read':
           onMarkAllRead();

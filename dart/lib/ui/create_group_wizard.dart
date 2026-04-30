@@ -13,6 +13,7 @@ import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
+import 'telegram_toast.dart';
 
 /// §21: Create Group / Channel Wizard.
 /// Multi-step layered-box flow, all boxes 364px (boxWideWidth).
@@ -933,12 +934,7 @@ class _WizardDialogState extends State<_WizardDialog>
             GestureDetector(
               onTap: () {
                 Clipboard.setData(ClipboardData(text: _inviteLink));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Link copied to clipboard'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
+                showTelegramToast(context, 'Link copied to clipboard');
               },
               child: MouseRegion(
                 cursor: SystemMouseCursors.click,
@@ -1861,9 +1857,7 @@ class _PublicLinksLimitBoxState extends State<_PublicLinksLimitBox> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _revokingChatId = null);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to revoke: $e')),
-      );
+      showTelegramToast(context, 'Failed to revoke: $e');
     }
   }
 
@@ -2675,12 +2669,7 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
                                     color: accentColor,
                                     onTap: () {
                                       Clipboard.setData(ClipboardData(text: _inviteLink));
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('Link copied to clipboard'),
-                                          duration: Duration(seconds: 2),
-                                        ),
-                                      );
+                                      showTelegramToast(context, 'Link copied to clipboard');
                                     },
                                   ),
                                   const SizedBox(width: 12),
@@ -2690,12 +2679,7 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
                                     color: accentColor,
                                     onTap: () {
                                       Clipboard.setData(ClipboardData(text: _inviteLink));
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('Link copied to clipboard'),
-                                          duration: Duration(seconds: 2),
-                                        ),
-                                      );
+                                      showTelegramToast(context, 'Link copied to clipboard');
                                     },
                                   ),
                                 ],

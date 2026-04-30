@@ -17,6 +17,7 @@ import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/telegram_palette.dart';
+import 'telegram_toast.dart';
 
 enum _MediaViewerMode { windowed, maximized, fullscreen }
 
@@ -2558,13 +2559,7 @@ class _MediaViewerState extends State<MediaViewer>
                 onTap: () {
                   Navigator.of(ctx).pop();
                   chatState.forwardMessages([msg.msgId], chat.chatId);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Forwarded to ${chat.title}'),
-                      behavior: SnackBarBehavior.floating,
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
+                  showTelegramToast(context, 'Forwarded to ${chat.title}');
                 },
               );
             },
@@ -2617,13 +2612,7 @@ class _MediaViewerState extends State<MediaViewer>
     final bytes = await file.readAsBytes();
     await Clipboard.setData(ClipboardData(text: msg.mediaLocalPath));
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Image path copied to clipboard'),
-        behavior: SnackBarBehavior.floating,
-        duration: Duration(seconds: 2),
-      ),
-    );
+    showTelegramToast(context, 'Image path copied to clipboard');
   }
 
   void _showMoreMenu(BuildContext btnContext, CachedMessage msg) {
@@ -6194,7 +6183,6 @@ const _kStealthLogoRadius = 16.0;
 const _kStealthButtonHeight = 42.0;
 const _kStealthButtonPadding = EdgeInsets.all(10);
 const _kStealthCountdownInterval = Duration(milliseconds: 250);
-const _kStealthToastDuration = Duration(milliseconds: 4000);
 const _kStealthCloseRipple = 40.0;
 
 enum _StealthButtonState { nonPremium, cooldown, ready }
@@ -6280,27 +6268,16 @@ class _StealthModeDialogState extends State<_StealthModeDialog> {
     final state = _buttonState;
     if (state == _StealthButtonState.nonPremium) {
       Navigator.of(context).pop();
-      _showToast(context, 'Stealth Mode is a Premium feature');
+      showTelegramToast(context, 'Stealth Mode is a Premium feature');
       return;
     }
     if (state == _StealthButtonState.cooldown) return;
 
     widget.onActivate?.call();
     Navigator.of(context).pop();
-    _showToast(context, 'Stealth Mode enabled');
+    showTelegramToast(context, 'Stealth Mode enabled');
   }
 
-  static void _showToast(BuildContext context, String message) {
-    final overlay = Overlay.of(context, rootOverlay: true);
-    late final OverlayEntry entry;
-    entry = OverlayEntry(
-      builder: (_) => _StealthToast(
-        message: message,
-        onDismiss: () => entry.remove(),
-      ),
-    );
-    overlay.insert(entry);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -6523,80 +6500,3 @@ class _StealthFeatureRow extends StatelessWidget {
   }
 }
 
-class _StealthToast extends StatefulWidget {
-  final String message;
-  final VoidCallback onDismiss;
-
-  const _StealthToast({
-    required this.message,
-    required this.onDismiss,
-  });
-
-  @override
-  State<_StealthToast> createState() => _StealthToastState();
-}
-
-class _StealthToastState extends State<_StealthToast>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _anim;
-
-  @override
-  void initState() {
-    super.initState();
-    _anim = AnimationController(
-      vsync: this,
-      duration: _kStealthToastDuration,
-    )..forward();
-    _anim.addStatusListener((status) {
-      if (status == AnimationStatus.completed) {
-        widget.onDismiss();
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _anim.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      bottom: 60,
-      left: 0,
-      right: 0,
-      child: Center(
-        child: AnimatedBuilder(
-          animation: _anim,
-          builder: (context, child) {
-            final fadeIn = (_anim.value * 6.67).clamp(0.0, 1.0);
-            final fadeOut = _anim.value > 0.75
-                ? ((1.0 - _anim.value) / 0.25).clamp(0.0, 1.0)
-                : 1.0;
-            return Opacity(
-              opacity: fadeIn * fadeOut,
-              child: child,
-            );
-          },
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 480),
-            padding: const EdgeInsets.fromLTRB(19, 13, 19, 12),
-            decoration: BoxDecoration(
-              color: const Color(0xE6333333),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              widget.message,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

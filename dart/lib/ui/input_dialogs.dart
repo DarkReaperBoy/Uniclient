@@ -8,6 +8,7 @@ import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 import '../utils/country_data.dart';
 import 'confirm_box.dart';
+import 'telegram_toast.dart';
 
 // ─── §36.4 Input Dialogs ────────────────────────────────────────────────────
 
@@ -946,8 +947,7 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Failed: $e')));
+        showTelegramToast(context, 'Failed: $e');
       }
     }
   }

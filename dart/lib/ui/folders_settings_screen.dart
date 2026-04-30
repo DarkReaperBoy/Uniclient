@@ -11,6 +11,7 @@ import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import 'filter_column.dart';
 import 'settings_style.dart';
+import 'telegram_toast.dart';
 
 const _kFilterIconOrder = <String>[
   'Cat', 'Book', 'Money', 'Game', 'Light', 'Like',
@@ -1436,12 +1437,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
 
   void _createInviteLink() {
     if (_hasExclusions) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Can't create links for this folder."),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      showTelegramToast(context, "Can't create links for this folder.");
       return;
     }
     final f = widget.existingFolder;
@@ -1542,9 +1538,7 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
       switch (action) {
         case 'copy':
           Clipboard.setData(ClipboardData(text: link.url));
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Link copied'), duration: Duration(seconds: 1)),
-          );
+          showTelegramToast(context, 'Link copied');
         case 'delete':
           _deleteInviteLink(link);
       }
@@ -1653,22 +1647,12 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
       return;
     }
     if (!hasIncludeTypes && !hasIncludeChats) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("The folder can't be empty."),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      showTelegramToast(context, "The folder can't be empty.");
       return;
     }
     if (_contacts && _nonContacts && _groups && _channels && _bots &&
         _excludeArchived && !hasIncludeChats) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('This folder would include all your chats.'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      showTelegramToast(context, 'This folder would include all your chats.');
       return;
     }
     final existing = widget.existingFolder;
@@ -2555,9 +2539,7 @@ class _ShowLinkBoxState extends State<_ShowLinkBox> {
     if (updatedLink != null) {
       Navigator.of(context).pop(updatedLink);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to save link changes'), duration: Duration(seconds: 2)),
-      );
+      showTelegramToast(context, 'Failed to save link changes');
     }
   }
 
@@ -2640,9 +2622,7 @@ class _ShowLinkBoxState extends State<_ShowLinkBox> {
                           accentColor: widget.accentColor,
                           onTap: () {
                             Clipboard.setData(ClipboardData(text: widget.link.url));
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Link copied'), duration: Duration(seconds: 1)),
-                            );
+                            showTelegramToast(context, 'Link copied');
                           },
                         ),
                         const SizedBox(width: 8),
@@ -2652,9 +2632,7 @@ class _ShowLinkBoxState extends State<_ShowLinkBox> {
                           accentColor: widget.accentColor,
                           onTap: () {
                             Clipboard.setData(ClipboardData(text: widget.link.url));
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Link copied to share'), duration: Duration(seconds: 1)),
-                            );
+                            showTelegramToast(context, 'Link copied to share');
                           },
                         ),
                       ],
@@ -4023,12 +4001,7 @@ class _ChatlistFolderRemovalDialogState
     if (ok) {
       Navigator.of(context).pop(true);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to leave folder'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      showTelegramToast(context, 'Failed to leave folder');
     }
   }
 

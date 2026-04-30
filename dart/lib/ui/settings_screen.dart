@@ -20,6 +20,7 @@ import 'my_profile_page.dart';
 import 'notifications_settings_screen.dart';
 import 'privacy_settings_screen.dart';
 import 'settings_style.dart';
+import 'telegram_toast.dart';
 
 /// Settings page (§14). Opened from hamburger drawer "Settings" row.
 /// Scrollable panel with profile header at top, then settings navigation rows.
@@ -725,13 +726,7 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
     if (username.isEmpty) return;
     final link = 'https://t.me/$username';
     Clipboard.setData(ClipboardData(text: link));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Link copied: $link'),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    showTelegramToast(context, 'Link copied: $link');
   }
 
   void _showQrDialog(BuildContext context, String username) {
@@ -772,13 +767,7 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
             onPressed: () {
               Clipboard.setData(ClipboardData(text: 'https://t.me/$username'));
               Navigator.of(ctx).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Link copied'),
-                  duration: Duration(seconds: 2),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
+              showTelegramToast(context, 'Link copied');
             },
             child: Text('Copy Link', style: TextStyle(color: accentColor)),
           ),
