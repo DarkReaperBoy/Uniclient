@@ -37,6 +37,7 @@ import 'utils/debug.dart';
 import 'utils/system_tray.dart';
 import 'utils/system_unlock.dart';
 import 'utils/web_notifier.dart';
+import 'notifications/notification_system.dart';
 import 'package:media_kit/media_kit.dart';
 
 void main() {
@@ -98,7 +99,10 @@ class _UniClientAppState extends State<UniClientApp>
   Timer? _debugCmdTimer;
   final _navigatorKey = GlobalKey<NavigatorState>();
 
-  // §27.13: In-app notification banner state.
+  // §37.1: Three-tier notification system.
+  final NotificationSystem _notifSystem = NotificationSystem();
+
+  // §27.13: In-app notification banner state (driven by NotificationSystem).
   _NotifBannerData? _notifBanner;
   Timer? _notifDismissTimer;
 
@@ -279,10 +283,30 @@ class _UniClientAppState extends State<UniClientApp>
       _webNotifier.updateBadge(chatState.totalUnread);
     }
 
-    // §27.13: Wire up in-app notification callback with passcode-aware content hiding.
+    // §37.1: Initialize the notification system with default settings.
+    // Uses DefaultManager (custom in-app popups) since native backends
+    // are not yet implemented (§37.2).
     _chatStateRef ??= chatState;
+    _notifSystem.init(const NotificationSettings(
+      useNativeNotifications: false,
+    ));
+    final dm = _notifSystem.defaultManager;
+    if (dm != null) {
+      dm.onShow = (item) {
+        _showNotificationBanner(appState, chatState,
+            item.data.accountId, item.data.chatId,
+            item.data.senderName, item.data.text, item.data.chatTitle);
+      };
+      dm.onTap = (accountId, chatId) => _onNotifBannerTap();
+    }
     chatState.onNotification = (accountId, chatId, senderName, text, chatTitle) {
-      _showNotificationBanner(appState, chatState, accountId, chatId, senderName, text, chatTitle);
+      _notifSystem.onNewMessage(NotificationData(
+        accountId: accountId,
+        chatId: chatId,
+        senderName: senderName,
+        chatTitle: chatTitle,
+        text: text,
+      ));
     };
 
     // Debug command poller — reads /tmp/uniclient_debug_cmd.json for
@@ -1606,6 +1630,7 @@ class _UniClientAppState extends State<UniClientApp>
   @override
   void dispose() {
     _notifDismissTimer?.cancel();
+    _notifSystem.dispose();
     _debugCmdTimer?.cancel();
     if (_unreadListener != null && _chatStateRef != null) {
       _chatStateRef!.removeListener(_unreadListener!);

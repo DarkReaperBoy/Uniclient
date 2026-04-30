@@ -1777,16 +1777,11 @@ class ChatState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Rate-limit notifications: max 1 per chat per 5 seconds, max 3 total per 5 seconds.
-  final Map<String, DateTime> _lastNotifPerChat = {};
-  final List<DateTime> _recentNotifs = [];
-
   void _handleMsgReceived(MsgReceivedEvent event) {
     if (_disposed) return;
     final isActiveChat = _activeChat?.accountId == event.accountId &&
         _activeChat?.chatId == event.chatId;
     if (isActiveChat && !_isScheduledView) {
-      // Dedup: don't add if already present (by msgId or localId).
       final exists = _messages.any((m) =>
         m.msgId == event.message.msgId ||
         (event.message.localId.isNotEmpty && m.localId == event.message.localId));
@@ -1795,24 +1790,8 @@ class ChatState extends ChangeNotifier {
         notifyListeners();
       }
     } else if (onNotification != null && !event.message.isSent) {
-      final chatKey = '${event.accountId}:${event.chatId}';
       final chat = _chats.where((c) =>
           c.accountId == event.accountId && c.chatId == event.chatId).firstOrNull;
-
-      // Skip muted chats.
-      if (chat != null && chat.isMuted) return;
-
-      // Rate limit: max 1 notification per chat per 5 seconds.
-      final now = DateTime.now();
-      final lastForChat = _lastNotifPerChat[chatKey];
-      if (lastForChat != null && now.difference(lastForChat).inSeconds < 5) return;
-
-      // Global rate limit: max 3 notifications per 5 seconds.
-      _recentNotifs.removeWhere((t) => now.difference(t).inSeconds > 5);
-      if (_recentNotifs.length >= 3) return;
-
-      _lastNotifPerChat[chatKey] = now;
-      _recentNotifs.add(now);
 
       onNotification!(
         event.accountId,

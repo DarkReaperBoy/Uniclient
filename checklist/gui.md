@@ -895,9 +895,8 @@ Status key: `[ ]` not started · `[x]` done
 
 ## §37 — Desktop Notifications
 
-<!-- dart files: none yet — create dart/lib/notifications/ -->
+<!-- dart files: dart/lib/notifications/ (notification_system.dart, notification_manager.dart, notification_manager_default.dart, notification_manager_native.dart, notification_types.dart) -->
 
-- [ ] Three-tier architecture: System scheduler (timing/grouping), Manager base (content/routing), Platform backend (OS delivery); manager selection (native/custom/dummy), kOptionCustomNotification toggle — spec §37.1
 - [ ] Linux native backends: DBus (RGBA8888 image hint, inline reply via signal_notification_replied, mail-mark-read action, sound-file hint, freedesktop Inhibited DND, hierarchical tracking) + GNotification (HIGH_ priority, PNG userpic) — spec §37.2.1
 - [ ] Windows WinRT toast: XML template (image + 3 text elements), fast reply input + send button, mark-as-read background activation, DND/Focus Assist registry detection, App User Model ID — spec §37.2.2
 - [ ] macOS NSUserNotification: title/subtitle/informativeText/userInfo, "Mark as Read" + reply buttons, sound path, background thread clear, screen-lock detection — spec §37.2.3
