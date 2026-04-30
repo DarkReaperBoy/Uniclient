@@ -27,6 +27,8 @@ const double _kBarPadding = 8.0;
 const double _kBarGap = 4.0;
 const double _kInactiveBarOpacity = 0.5;
 const double _kShadowMaxAlpha = 80 / 255;
+const double _kParallaxFactor = 0.3;
+const Duration _kRadialFadeDelay = Duration(milliseconds: 300);
 
 void showPeerShortInfoBox(
   BuildContext context, {
@@ -41,12 +43,28 @@ void showPeerShortInfoBox(
     context: context,
     barrierDismissible: true,
     barrierLabel: 'PeerShortInfo',
-    barrierColor: Colors.black54,
+    barrierColor: Colors.transparent,
     transitionDuration: _kAnimDuration,
     transitionBuilder: (ctx, anim, secondaryAnim, child) {
-      return FadeTransition(
-        opacity: CurvedAnimation(parent: anim, curve: Curves.easeOutCirc),
-        child: child,
+      return Stack(
+        children: [
+          // Barrier: easeOutCirc curve per §38.3
+          IgnorePointer(
+            child: FadeTransition(
+              opacity:
+                  CurvedAnimation(parent: anim, curve: Curves.easeOutCirc),
+              child: const ColoredBox(
+                color: Color(0x8A000000),
+                child: SizedBox.expand(),
+              ),
+            ),
+          ),
+          // Box: linear opacity per §38.3
+          FadeTransition(
+            opacity: anim,
+            child: child,
+          ),
+        ],
       );
     },
     pageBuilder: (ctx, anim, secondaryAnim) {
@@ -88,26 +106,66 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
   bool _loadingProfile = false;
   int _photoCount = 1;
   int _currentPhotoIndex = 0;
+  final ScrollController _scrollController = ScrollController();
+  double _scrollOffset = 0;
+  final FocusNode _focusNode = FocusNode();
+  bool _showRadialLoader = false;
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
+    _focusNode.requestFocus();
     _loadProfile();
+    Future.delayed(_kRadialFadeDelay, () {
+      if (mounted && _loadingProfile) {
+        setState(() => _showRadialLoader = true);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final offset = _scrollController.offset.clamp(0.0, double.infinity);
+    if (offset != _scrollOffset) {
+      setState(() => _scrollOffset = offset);
+    }
+  }
+
+  double get _labelOpacity {
+    final fadeEnd = _kCoverSize - _kShadowHeight;
+    if (_scrollOffset <= 0) return 1.0;
+    if (_scrollOffset >= fadeEnd) return 0.0;
+    return (1.0 - _scrollOffset / fadeEnd).clamp(0.0, 1.0);
   }
 
   Future<void> _loadProfile() async {
     setState(() => _loadingProfile = true);
     try {
       final engine = context.read<EngineService>();
-      final profile = await engine.getUserProfile(widget.accountId, widget.peerId);
+      final profile =
+          await engine.getUserProfile(widget.accountId, widget.peerId);
       if (mounted) {
         setState(() {
           _profile = profile;
           _loadingProfile = false;
+          _showRadialLoader = false;
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _loadingProfile = false);
+      if (mounted) {
+        setState(() {
+          _loadingProfile = false;
+          _showRadialLoader = false;
+        });
+      }
     }
   }
 
@@ -127,7 +185,9 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
     try {
       final chatState = context.read<ChatState>();
       final chat = chatState.activeChat;
-      if (chat != null && chat.title == 'Saved Messages' && widget.peerId == chat.chatId) {
+      if (chat != null &&
+          chat.title == 'Saved Messages' &&
+          widget.peerId == chat.chatId) {
         return true;
       }
       return false;
@@ -142,10 +202,11 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
     final isDark = theme.brightness == Brightness.dark;
     final screenSize = MediaQuery.of(context).size;
     final maxHeight = screenSize.height - 40;
+    final bgColor = isDark ? const Color(0xFF17212b) : Colors.white;
 
     return Center(
       child: KeyboardListener(
-        focusNode: FocusNode()..requestFocus(),
+        focusNode: _focusNode,
         autofocus: true,
         onKeyEvent: (event) {
           if (event is KeyDownEvent &&
@@ -163,19 +224,13 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(_kBoxRadius),
               child: Container(
-                color: isDark ? const Color(0xFF17212b) : Colors.white,
+                color: bgColor,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _buildCover(theme, isDark),
                     Flexible(
-                      child: Scrollbar(
-                        thickness: _kScrollBarWidth,
-                        radius: const Radius.circular(4),
-                        child: SingleChildScrollView(
-                          child: _buildInfoRows(theme, isDark),
-                        ),
-                      ),
+                      child:
+                          _buildScrollableContent(theme, isDark, bgColor),
                     ),
                     _buildButtons(theme, isDark),
                   ],
@@ -188,8 +243,69 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
     );
   }
 
-  Widget _buildCover(ThemeData theme, bool isDark) {
+  Widget _buildScrollableContent(
+      ThemeData theme, bool isDark, Color bgColor) {
+    return Stack(
+      clipBehavior: Clip.hardEdge,
+      children: [
+        Positioned(
+          top: -_scrollOffset * _kParallaxFactor,
+          left: 0,
+          right: 0,
+          height: _kCoverSize,
+          child: _buildCoverBackground(isDark),
+        ),
+        Scrollbar(
+          controller: _scrollController,
+          thickness: _kScrollBarWidth,
+          radius: const Radius.circular(4),
+          child: ListView(
+            controller: _scrollController,
+            shrinkWrap: true,
+            padding: EdgeInsets.zero,
+            children: [
+              _buildCoverOverlay(theme, isDark),
+              Container(
+                color: bgColor,
+                child: _buildInfoRows(theme, isDark),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCoverBackground(bool isDark) {
     final hasAvatar = widget.avatarPath.isNotEmpty;
+    if (hasAvatar) {
+      return Image.file(
+        File(widget.avatarPath),
+        fit: BoxFit.cover,
+        width: _kCoverSize,
+        height: _kCoverSize,
+        errorBuilder: (_, __, ___) => Container(color: Colors.black),
+      );
+    }
+    final displayName = _profile?.displayName.isNotEmpty == true
+        ? _profile!.displayName
+        : widget.peerName;
+    return Container(
+      color: Colors.black,
+      child: Center(
+        child: Text(
+          _initials(displayName),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 80,
+            fontWeight: FontWeight.w300,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCoverOverlay(ThemeData theme, bool isDark) {
     final displayName = _profile?.displayName.isNotEmpty == true
         ? _profile!.displayName
         : widget.peerName;
@@ -208,6 +324,7 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
     }
 
     final topBarAreaHeight = _kBarPadding * 2 + _kBarHeight;
+    final opacity = _labelOpacity;
 
     return SizedBox(
       width: _kCoverSize,
@@ -215,115 +332,103 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // Photo / no-photo background
-          if (hasAvatar)
-            Image.file(
-              File(widget.avatarPath),
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(color: Colors.black),
-            )
-          else
-            Container(
-              color: Colors.black,
-              child: Center(
-                child: Text(
-                  _initials(displayName),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 80,
-                    fontWeight: FontWeight.w300,
-                  ),
-                ),
-              ),
-            ),
-          // Top shadow gradient for progress bars readability
           Positioned(
             left: 0,
             right: 0,
             top: 0,
             height: topBarAreaHeight + 10,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withValues(alpha: _kShadowMaxAlpha),
-                    Colors.transparent,
-                  ],
+            child: Opacity(
+              opacity: opacity,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: _kShadowMaxAlpha),
+                      Colors.transparent,
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-          // Bottom shadow gradient for text readability
           Positioned(
             left: 0,
             right: 0,
             bottom: 0,
             height: _kShadowHeight,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.black.withValues(alpha: _kShadowMaxAlpha),
-                  ],
+            child: Opacity(
+              opacity: opacity,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black.withValues(alpha: _kShadowMaxAlpha),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-          // Multi-photo progress bars
           if (_photoCount > 1)
             Positioned(
               left: _kBarPadding,
               right: _kBarPadding,
               top: _kBarPadding,
               height: _kBarHeight,
-              child: CustomPaint(
-                painter: _PhotoProgressBarsPainter(
-                  count: _photoCount,
-                  activeIndex: _currentPhotoIndex,
-                  barColor: Colors.white,
-                  gap: _kBarGap,
-                  inactiveOpacity: _kInactiveBarOpacity,
+              child: Opacity(
+                opacity: opacity,
+                child: CustomPaint(
+                  painter: _PhotoProgressBarsPainter(
+                    count: _photoCount,
+                    activeIndex: _currentPhotoIndex,
+                    barColor: Colors.white,
+                    gap: _kBarGap,
+                    inactiveOpacity: _kInactiveBarOpacity,
+                  ),
                 ),
               ),
             ),
-          // Name
           Positioned(
             left: _kNameX,
             right: _kNameX,
             bottom: _kNameY,
-            child: Text(
-              displayName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                height: 1.27,
+            child: Opacity(
+              opacity: opacity,
+              child: Text(
+                displayName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  height: 1.27,
+                ),
               ),
             ),
           ),
-          // Status
           Positioned(
             left: _kStatusX,
             right: _kStatusX,
             bottom: _kStatusY,
-            child: Text(
-              statusText,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.7),
-                fontSize: 13,
+            child: Opacity(
+              opacity: opacity,
+              child: Text(
+                statusText,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.7),
+                  fontSize: 13,
+                ),
               ),
             ),
           ),
-          // Photo navigation click zones (left 1/3 = prev, right 2/3 = next)
           if (_photoCount > 1) ...[
             Positioned(
               left: 0,
@@ -352,15 +457,31 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
               ),
             ),
           ],
+          if (_showRadialLoader)
+            Positioned.fill(
+              child: Center(
+                child: AnimatedOpacity(
+                  opacity: 1.0,
+                  duration: _kAnimDuration,
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white.withValues(alpha: 0.8),
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 
   Widget _buildInfoRows(ThemeData theme, bool isDark) {
-    final labelColor = isDark
-        ? const Color(0xFF6ab3f3)
-        : const Color(0xFF168acd);
+    final labelColor =
+        isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd);
     final valueColor = isDark ? Colors.white : Colors.black87;
 
     if (_loadingProfile && _profile == null) {
@@ -381,7 +502,6 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
     final rows = <Widget>[];
 
     if (_isDm) {
-      // 1. Channel (personal channel)
       if (p.personalChannelName.isNotEmpty) {
         rows.add(_infoRow(
           label: 'Channel',
@@ -393,7 +513,6 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
         ));
       }
 
-      // 2. Phone
       if (p.phone.isNotEmpty) {
         rows.add(_infoRow(
           label: 'Mobile',
@@ -405,7 +524,6 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
         ));
       }
 
-      // 3. Bio / About
       if (p.bio.isNotEmpty) {
         rows.add(_infoRow(
           label: p.isBot ? 'About' : 'Bio',
@@ -416,7 +534,6 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
         ));
       }
 
-      // 4. Username
       if (p.username.isNotEmpty) {
         rows.add(_infoRow(
           label: 'Username',
@@ -428,19 +545,18 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
         ));
       }
 
-      // 5. Birthday
       if (p.hasBirthday) {
-        final isBirthdayToday = _isBirthdayToday(p.birthdayDay, p.birthdayMonth);
+        final isBirthdayToday =
+            _isBirthdayToday(p.birthdayDay, p.birthdayMonth);
         rows.add(_infoRow(
           label: isBirthdayToday ? 'Birthday today' : 'Birthday',
-          value: _formatBirthday(p.birthdayDay, p.birthdayMonth, p.birthdayYear),
+          value: _formatBirthday(
+              p.birthdayDay, p.birthdayMonth, p.birthdayYear),
           labelColor: labelColor,
           valueColor: valueColor,
         ));
       }
     } else {
-      // Group / Channel
-      // 1. Link
       if (p.username.isNotEmpty) {
         rows.add(_infoRow(
           label: 'Link',
@@ -452,7 +568,6 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
         ));
       }
 
-      // 2. About
       if (p.bio.isNotEmpty) {
         rows.add(_infoRow(
           label: 'About',
@@ -518,11 +633,14 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
                       anchors: editableTextState.contextMenuAnchors,
                       children: [
                         TextSelectionToolbarTextButton(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 16),
                           onPressed: () {
-                            Clipboard.setData(ClipboardData(text: copyText));
+                            Clipboard.setData(
+                                ClipboardData(text: copyText));
                             editableTextState.hideToolbar();
-                            showTelegramToast(context, 'Copied to clipboard');
+                            showTelegramToast(
+                                context, 'Copied to clipboard');
                           },
                           child: Text(copyLabel ?? 'Copy'),
                         ),
@@ -543,8 +661,19 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
 
   String _formatBirthday(int day, int month, int year) {
     const months = [
-      '', 'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December',
+      '',
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ];
     final monthName = month >= 1 && month <= 12 ? months[month] : '';
     if (year > 0) {
@@ -559,9 +688,8 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
   }
 
   Widget _buildButtons(ThemeData theme, bool isDark) {
-    final buttonColor = isDark
-        ? const Color(0xFF6ab3f3)
-        : const Color(0xFF168acd);
+    final buttonColor =
+        isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd);
 
     String? actionLabel;
     if (!_isSelf) {
@@ -663,7 +791,8 @@ class _PhotoProgressBarsPainter extends CustomPainter {
       final x = i * (barWidth + gap);
       final isActive = i == activeIndex;
       final paint = Paint()
-        ..color = barColor.withValues(alpha: isActive ? 1.0 : inactiveOpacity)
+        ..color =
+            barColor.withValues(alpha: isActive ? 1.0 : inactiveOpacity)
         ..style = PaintingStyle.fill;
       canvas.drawRRect(
         RRect.fromLTRBR(x, 0, x + barWidth, size.height, radius),
