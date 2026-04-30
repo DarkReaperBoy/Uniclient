@@ -29,6 +29,11 @@ const double _kInactiveBarOpacity = 0.5;
 const double _kShadowMaxAlpha = 80 / 255;
 const double _kParallaxFactor = 0.3;
 const Duration _kRadialFadeDelay = Duration(milliseconds: 300);
+const double _kScrollBarInset = 3.0;
+const Duration _kScrollShowDuration = Duration(milliseconds: 150);
+const Duration _kScrollHideDelay = Duration(milliseconds: 1000);
+const double _kBoxMarginTop = 48.0;
+const double _kBoxMarginBottom = 32.0;
 
 void showPeerShortInfoBox(
   BuildContext context, {
@@ -201,7 +206,7 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final screenSize = MediaQuery.of(context).size;
-    final maxHeight = screenSize.height - 40;
+    final maxHeight = screenSize.height - _kBoxMarginTop - _kBoxMarginBottom;
     final bgColor = isDark ? const Color(0xFF17212b) : Colors.white;
 
     return Center(
@@ -255,10 +260,16 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
           height: _kCoverSize,
           child: _buildCoverBackground(isDark),
         ),
-        Scrollbar(
+        RawScrollbar(
           controller: _scrollController,
           thickness: _kScrollBarWidth,
+          crossAxisMargin: _kScrollBarInset,
+          fadeDuration: _kScrollShowDuration,
+          timeToFade: _kScrollHideDelay,
           radius: const Radius.circular(4),
+          thumbColor: isDark
+              ? const Color(0x4DFFFFFF)
+              : const Color(0x66C7C7C7),
           child: ListView(
             controller: _scrollController,
             shrinkWrap: true,

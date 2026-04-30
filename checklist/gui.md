@@ -903,7 +903,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/peer_short_info.dart -->
 
-- [ ] Sizing/positioning: centered in parent, height clamped to parentHeight-margin, 8px scrollbar (3px inset, 150ms show, 1000ms hide delay) — spec §38.4–38.5
 - [ ] Interaction: close by outside-click or Escape, right-click "Open in New Window", photo navigation (left-third / right-two-thirds click), scrollable info rows with parallax-fixed cover — spec §38.9
 
 ---
