@@ -884,7 +884,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_list_panel.dart (partial _EmptyState for search), chat_view.dart — new: dart/lib/ui/empty_states.dart -->
 
-- [ ] Chat intro (no messages): "No messages here yet..." service bubble, 96px sticker clickable to send, business custom intro support — spec §35.15
 - [ ] New group created / new forum topic service messages with bullet items and topic icon — spec §35.16–35.17
 - [ ] Empty member/peer list search, empty blocked users (Lottie blocked_peers_empty.tgs), admin log empty states — spec §35.18–35.21
 - [ ] Connection state widget: pill bottom-left, 20px radial spinner, "Connecting..." / "Reconnect in N s... Try now" / proxy states, 1000ms show delay, 150ms fade — spec §35.22

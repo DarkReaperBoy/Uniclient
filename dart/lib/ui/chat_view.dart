@@ -5027,6 +5027,9 @@ class _MessageList extends StatelessWidget {
           botDescription: botDescription,
         );
       }
+      if (!isGroupChat) {
+        return const _ChatIntroWidget();
+      }
       return Center(
         child: Text(
           'No messages yet',
@@ -6265,6 +6268,128 @@ class _BotStartScreen extends StatelessWidget {
     ];
     final colors = palettes[id % palettes.length];
     return colors;
+  }
+}
+
+/// Spec §35.15: "No messages here yet..." intro for empty DM chats.
+/// Service-bubble style with optional greeting sticker (96px, clickable to send).
+class _ChatIntroWidget extends StatefulWidget {
+  const _ChatIntroWidget();
+
+  @override
+  State<_ChatIntroWidget> createState() => _ChatIntroWidgetState();
+}
+
+class _ChatIntroWidgetState extends State<_ChatIntroWidget> {
+  StickerInfoItem? _greetingSticker;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchGreetingSticker();
+  }
+
+  void _fetchGreetingSticker() async {
+    final chatState = context.read<ChatState>();
+    final chat = chatState.activeChat;
+    if (chat == null) return;
+    final engine = context.read<EngineService>();
+    try {
+      final stickers = await engine.getStickerSuggestions(chat.accountId, '\u{1F44B}');
+      if (!mounted || stickers.isEmpty) return;
+      final withThumb = stickers.where((s) => s.thumbB64.isNotEmpty).toList();
+      if (withThumb.isNotEmpty) {
+        setState(() => _greetingSticker = withThumb[withThumb.length ~/ 2]);
+      }
+    } catch (_) {}
+  }
+
+  void _sendSticker() {
+    final sticker = _greetingSticker;
+    if (sticker == null) return;
+    final chatState = context.read<ChatState>();
+    final chat = chatState.activeChat;
+    if (chat == null) return;
+    final engine = context.read<EngineService>();
+    engine.sendSticker(chat.accountId, chat.chatId, sticker.fileId);
+  }
+
+  bool get _hasVisibleSticker =>
+      _greetingSticker != null && _greetingSticker!.thumbB64.isNotEmpty;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    const introWidth = 224.0;
+    const stickerSize = 96.0;
+
+    return Center(
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_hasVisibleSticker)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 16),
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: _sendSticker,
+                      child: Image.memory(
+                        base64Decode(_greetingSticker!.thumbB64),
+                        width: stickerSize,
+                        height: stickerSize,
+                        fit: BoxFit.contain,
+                        gaplessPlayback: true,
+                      ),
+                    ),
+                  ),
+                ),
+              Container(
+                width: introWidth,
+                padding: const EdgeInsets.fromLTRB(11, 16, 11, 0),
+                decoration: BoxDecoration(
+                  color: palette.msgServiceBg,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(0, 0, 0, 4),
+                      child: Text(
+                        'No messages here yet...',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: palette.msgServiceFg,
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(0, 0, 0, 16),
+                      child: Text(
+                        _hasVisibleSticker
+                            ? 'Send a message or click on the greeting above'
+                            : 'Send a message to start chatting',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: palette.msgServiceFg,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
