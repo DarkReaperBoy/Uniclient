@@ -2202,13 +2202,16 @@ class _VisualMedia extends StatefulWidget {
   State<_VisualMedia> createState() => _VisualMediaState();
 }
 
-class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderStateMixin {
+class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixin {
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
   bool _fullImageLoaded = false;
   Uint8List? _thumbBytes;
   String _lastThumbB64 = '';
   bool _spoilerRevealed = false;
+
+  // §35.25: Upload progress spinner.
+  late AnimationController _uploadSpinController;
 
   // §6.8: Video note auto-play state.
   Player? _vnPlayer;
@@ -2233,11 +2236,16 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
       parent: _fadeController,
       curve: Curves.easeInOut,
     );
+    _uploadSpinController = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    );
     _decodeThumb();
     if (widget.message.mediaLocalPath.isNotEmpty) {
       _fullImageLoaded = true;
       _fadeController.value = 1.0;
     }
+    _syncUploadSpinner();
     _initVideoNoteIfNeeded();
   }
 
@@ -2251,6 +2259,7 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
       _fullImageLoaded = true;
       _fadeController.forward(from: 0.0);
     }
+    _syncUploadSpinner();
     _initVideoNoteIfNeeded();
   }
 
@@ -2348,12 +2357,28 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
     }
   }
 
+  bool get _isUploading =>
+      widget.isOutgoing &&
+      widget.message.status == MsgStatus.sending &&
+      widget.message.hasMedia &&
+      widget.message.mediaType != 6 &&
+      widget.message.mediaType != 5;
+
+  void _syncUploadSpinner() {
+    if (_isUploading) {
+      if (!_uploadSpinController.isAnimating) _uploadSpinController.repeat();
+    } else {
+      if (_uploadSpinController.isAnimating) _uploadSpinController.stop();
+    }
+  }
+
   @override
   void dispose() {
     _scrollPosition?.removeListener(_checkVideoNoteVisibility);
     _scrollPosition = null;
     _disposeVideoNote();
     _fadeController.dispose();
+    _uploadSpinController.dispose();
     super.dispose();
   }
 
@@ -2583,8 +2608,47 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
                   ),
                 ),
               ],
+              // §35.25: Upload progress overlay for outgoing media being uploaded.
+              if (_isUploading && hasFullImage) ...[
+                Positioned.fill(
+                  child: Container(color: Colors.black.withValues(alpha: 0.3)),
+                ),
+                Positioned.fill(
+                  child: Center(
+                    child: SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.4),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          AnimatedBuilder(
+                            animation: _uploadSpinController,
+                            builder: (_, __) => CustomPaint(
+                              size: const Size(44, 44),
+                              painter: _IndeterminateProgressPainter(
+                                rotation: _uploadSpinController.value * 2 * math.pi,
+                                strokeWidth: 3,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          const Icon(Icons.close, color: Colors.white, size: 22),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
               // Video overlay: centered play button (not for GIFs — they auto-play).
-              if (message.mediaType == 2 && hasFullImage)
+              if (message.mediaType == 2 && hasFullImage && !_isUploading)
                 Positioned.fill(
                   child: Center(
                     child: Container(
@@ -4261,6 +4325,49 @@ class _DownloadProgressPainter extends CustomPainter {
   @override
   bool shouldRepaint(_DownloadProgressPainter oldDelegate) =>
       oldDelegate.progress != progress ||
+      oldDelegate.strokeWidth != strokeWidth ||
+      oldDelegate.color != color;
+}
+
+class _IndeterminateProgressPainter extends CustomPainter {
+  final double rotation;
+  final double strokeWidth;
+  final Color color;
+
+  _IndeterminateProgressPainter({
+    required this.rotation,
+    required this.strokeWidth,
+    required this.color,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (math.min(size.width, size.height) - strokeWidth) / 2;
+
+    final bgPaint = Paint()
+      ..color = color.withValues(alpha: 0.2)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth;
+    canvas.drawCircle(center, radius, bgPaint);
+
+    final arcPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      rotation - math.pi / 2,
+      math.pi * 0.75,
+      false,
+      arcPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_IndeterminateProgressPainter oldDelegate) =>
+      oldDelegate.rotation != rotation ||
       oldDelegate.strokeWidth != strokeWidth ||
       oldDelegate.color != color;
 }
