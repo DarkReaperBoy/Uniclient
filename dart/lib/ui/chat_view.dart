@@ -27,6 +27,7 @@ import 'chat_list_row.dart' show ForwardDragData, MyNotesUserpic, SavedMessagesU
 import 'sticker_pack_viewer.dart';
 import 'message_bubble.dart';
 import 'popup_menu.dart';
+import 'telegram_tooltip.dart';
 import 'telegram_toast.dart';
 import 'web_app_panel.dart';
 import 'send_files_box.dart';
@@ -6015,9 +6016,9 @@ class _BotKeyboardButtonState extends State<_BotKeyboardButton> {
   Widget build(BuildContext context) {
     final cs = _colorSet();
 
-    return Tooltip(
+    return TelegramTooltip(
       message: widget.text,
-      waitDuration: const Duration(milliseconds: 350),
+      showDelay: const Duration(milliseconds: 350),
       child: GestureDetector(
         onTapDown: (_) => setState(() => _pressed = true),
         onTapUp: (_) {
@@ -9735,7 +9736,7 @@ class _FormatButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
+    return TelegramTooltip(
       message: tooltip,
       child: InkWell(
         onTap: onTap,
@@ -9805,7 +9806,7 @@ class _ComposeSlotButtonState extends State<_ComposeSlotButton> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: Tooltip(
+      child: TelegramTooltip(
         message: widget.tooltip,
         child: InkResponse(
           onTap: widget.onPressed,
@@ -9845,7 +9846,7 @@ class _BotCommandButtonState extends State<_BotCommandButton> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: Tooltip(
+      child: TelegramTooltip(
         message: 'Bot Commands',
         child: InkResponse(
           onTap: widget.onPressed,
@@ -10162,7 +10163,7 @@ class _ScheduledToggleButtonState extends State<_ScheduledToggleButton> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: Tooltip(
+      child: TelegramTooltip(
         message: 'Scheduled messages',
         child: InkResponse(
           onTap: widget.onPressed,
@@ -10219,7 +10220,7 @@ class _SendAsButton extends StatelessWidget {
       orElse: () => peers.first,
     );
 
-    return Tooltip(
+    return TelegramTooltip(
       message: 'Send as ${selected.displayName}',
       child: InkResponse(
         onTap: () => _showMenu(context),
@@ -10742,7 +10743,7 @@ class _SendButtonState extends State<_SendButton>
         cursor: isSlowmode ? SystemMouseCursors.basic : SystemMouseCursors.click,
         onEnter: (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() => _hovered = false),
-        child: Tooltip(
+        child: TelegramTooltip(
           message: showStars ? 'Send for ${widget.starsToSend} stars' : _tooltipFor(widget.type),
           child: showStars
               ? Padding(

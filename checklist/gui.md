@@ -891,7 +891,6 @@ Status key: `[ ]` not started · `[x]` done
 <!-- dart files: dart/lib/ui/chat_view.dart, shell.dart, hamburger_drawer.dart, settings_screen.dart, info_panel.dart (showDialog calls) — new: dart/lib/ui/dialogs.dart -->
 
 
-- [ ] Tooltip popups: standard (tooltipBg/Fg/BorderFg, 1000ms delay, max 12 lines) + important tooltip (arrow 8×4px, arrowSkip 66px, 200ms show/hide) — spec §36.11
 - [ ] Permission request dialogs: Granted/CanRequest/Denied states, OS microphone/camera request, screen share chooser with thumbnails + Start/Stop/Share Audio — spec §36.12
 - [ ] Report flow: 9-reason picker → details input → "Report" submit; reaction-report variant — spec §36.13
 - [ ] Share box: MultiSelect search + peer grid + optional comment + send menu (schedule/silent) + Copy Link option, forward options, dark-mode style override — spec §36.14

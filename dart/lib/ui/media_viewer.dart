@@ -18,6 +18,7 @@ import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/telegram_palette.dart';
 import 'telegram_toast.dart';
+import 'telegram_tooltip.dart';
 
 enum _MediaViewerMode { windowed, maximized, fullscreen }
 
@@ -3236,7 +3237,7 @@ class _ViewerButtonState extends State<_ViewerButton> {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
+    return TelegramTooltip(
       message: widget.tooltip,
       child: MouseRegion(
         onEnter: (_) => setState(() => _hovering = true),
@@ -4079,7 +4080,7 @@ class _PipButtonState extends State<_PipButton> {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
+    return TelegramTooltip(
       message: widget.tooltip,
       child: MouseRegion(
         onEnter: (_) => setState(() => _hovering = true),

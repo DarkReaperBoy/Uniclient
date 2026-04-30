@@ -9,6 +9,7 @@ import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import 'chat_list_row.dart' show ForwardDragData;
 import 'popup_menu.dart';
+import 'telegram_tooltip.dart';
 
 /// Spec §1/§2: Vertical folder sidebar, 72px wide.
 /// Hamburger menu icon at top, vertical folder buttons (scrollable),
@@ -520,7 +521,7 @@ class _SideBarButton extends StatelessWidget {
         ? FilterColumn.textFgActive(brightness)
         : FilterColumn.textFg(brightness);
 
-    return Tooltip(
+    return TelegramTooltip(
       message: label,
       child: Material(
         color: bgColor,

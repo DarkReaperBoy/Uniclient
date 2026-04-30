@@ -23,6 +23,7 @@ import 'settings_screen.dart';
 import 'web_app_panel.dart';
 import 'settings_style.dart' show settingsPageRoute;
 import 'telegram_toast.dart';
+import 'telegram_tooltip.dart';
 
 /// Hamburger menu drawer. Spec §3: 274px wide, 134px cover.
 /// Shows active account profile at top, collapsible account switcher,
@@ -1447,7 +1448,7 @@ class _FooterSection extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 // Version link with tooltip "Build date: {date}".
-                Tooltip(
+                TelegramTooltip(
                   message: 'Build date: ${const String.fromEnvironment('BUILD_DATE', defaultValue: 'dev')}',
                   child: MouseRegion(
                     cursor: SystemMouseCursors.click,

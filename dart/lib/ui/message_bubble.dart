@@ -11,6 +11,7 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 
 import 'gesture_utils.dart';
 import 'telegram_toast.dart';
+import 'telegram_tooltip.dart';
 import 'package:lottie/lottie.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -535,7 +536,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                                   style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, isDark))),
                             ),
                           if (widget.isScheduledView && message.isScheduled)
-                            Tooltip(
+                            TelegramTooltip(
                               message: _scheduledTooltip(message),
                               child: Text(
                                 _formatScheduledTime(message),
@@ -2836,7 +2837,7 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
                                 style: TextStyle(fontSize: 13, color: AppColors.historyIconFgInverted)),
                           ),
                         if (widget.isScheduledView && message.isScheduled)
-                          Tooltip(
+                          TelegramTooltip(
                             message: _MessageBubbleState._scheduledTooltip(message),
                             child: Text(
                               _MessageBubbleState._formatScheduledTime(message),

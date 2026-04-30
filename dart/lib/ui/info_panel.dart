@@ -22,6 +22,7 @@ import 'edit_forum_topic_box.dart';
 import 'forum_topic_icon.dart';
 import 'contacts_screen.dart' show showShareContactBox;
 import 'popup_menu.dart';
+import 'telegram_tooltip.dart';
 import 'telegram_toast.dart';
 
 enum InfoWrapMode { side, narrow, layer }
@@ -4637,7 +4638,7 @@ class _MembersHeaderButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
+    return TelegramTooltip(
       message: tooltip,
       child: SizedBox(
         width: 38,

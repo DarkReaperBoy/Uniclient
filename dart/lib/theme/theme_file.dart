@@ -505,6 +505,10 @@ Map<String, Color> paletteToMap(TelegramPalette p) => {
   'settingsIconBg4': p.settingsIconBg4,
   'settingsIconBg5': p.settingsIconBg5,
   'settingsIconBg6': p.settingsIconBg6,
+  'tooltipBg': p.tooltipBg,
+  'tooltipFg': p.tooltipFg,
+  'tooltipBorderFg': p.tooltipBorderFg,
+  'importantTooltipBg': p.importantTooltipBg,
   'overviewCheckBg': p.overviewCheckBg,
 };
 
@@ -723,6 +727,10 @@ TelegramPalette paletteFromMap(Map<String, Color> m, TelegramPalette fb) =>
       settingsIconBg4: m['settingsIconBg4'] ?? fb.settingsIconBg4,
       settingsIconBg5: m['settingsIconBg5'] ?? fb.settingsIconBg5,
       settingsIconBg6: m['settingsIconBg6'] ?? fb.settingsIconBg6,
+      tooltipBg: m['tooltipBg'] ?? fb.tooltipBg,
+      tooltipFg: m['tooltipFg'] ?? fb.tooltipFg,
+      tooltipBorderFg: m['tooltipBorderFg'] ?? fb.tooltipBorderFg,
+      importantTooltipBg: m['importantTooltipBg'] ?? fb.importantTooltipBg,
       overviewCheckBg: m['overviewCheckBg'] ?? fb.overviewCheckBg,
     );
 

@@ -138,6 +138,18 @@ class AppTheme {
         radius: const Radius.circular(4),
         thickness: WidgetStateProperty.all(6),
       ),
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(
+          color: p.tooltipBg,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: p.tooltipBorderFg, width: 1),
+        ),
+        textStyle: TextStyle(fontSize: 12, color: p.tooltipFg, height: 1.3),
+        padding: const EdgeInsets.fromLTRB(5, 2, 5, 2),
+        waitDuration: const Duration(milliseconds: 1000),
+        showDuration: Duration.zero,
+        preferBelow: true,
+      ),
     );
   }
 

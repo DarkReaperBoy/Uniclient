@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
+import 'telegram_tooltip.dart';
 
 class StickerPackViewer extends StatefulWidget {
   final CachedMessage message;
@@ -212,7 +213,7 @@ class _StickerTile extends StatelessWidget {
       child = _emojiPlaceholder();
     }
 
-    return Tooltip(
+    return TelegramTooltip(
       message: sticker.emoji,
       child: Padding(
         padding: const EdgeInsets.all(4),

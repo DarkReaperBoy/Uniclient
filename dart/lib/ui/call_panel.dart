@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
+import 'telegram_tooltip.dart';
 
 enum CallPanelState {
   incoming,
@@ -1084,9 +1085,8 @@ class _EncryptionFingerprintState extends State<_EncryptionFingerprint>
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
+    return TelegramTooltip(
       message: 'This call is end-to-end encrypted',
-      waitDuration: const Duration(milliseconds: 1000),
       child: AnimatedBuilder(
         animation: _controller,
         builder: (context, _) {

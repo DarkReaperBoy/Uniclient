@@ -252,6 +252,12 @@ class TelegramPalette {
   final Color settingsIconBg5;
   final Color settingsIconBg6;
 
+  // ── Tooltips ──
+  final Color tooltipBg;
+  final Color tooltipFg;
+  final Color tooltipBorderFg;
+  final Color importantTooltipBg;
+
   // ── Selection Checkbox ──
   final Color overviewCheckBg;
 
@@ -469,6 +475,10 @@ class TelegramPalette {
     required this.settingsIconBg4,
     required this.settingsIconBg5,
     required this.settingsIconBg6,
+    required this.tooltipBg,
+    required this.tooltipFg,
+    required this.tooltipBorderFg,
+    required this.importantTooltipBg,
     required this.overviewCheckBg,
   });
 
@@ -787,6 +797,10 @@ class TelegramPalette {
       settingsIconBg4: settingsIconBg4,
       settingsIconBg5: settingsIconBg5,
       settingsIconBg6: settingsIconBg6,
+      tooltipBg: s(tooltipBg),
+      tooltipFg: s(tooltipFg),
+      tooltipBorderFg: s(tooltipBorderFg),
+      importantTooltipBg: s(importantTooltipBg),
       overviewCheckBg: s(overviewCheckBg),
     );
 
@@ -957,6 +971,8 @@ class TelegramPalette {
       settingsIconBg1: this.settingsIconBg1, settingsIconBg2: this.settingsIconBg2,
       settingsIconBg3: this.settingsIconBg3, settingsIconBg4: this.settingsIconBg4,
       settingsIconBg5: this.settingsIconBg5, settingsIconBg6: this.settingsIconBg6,
+      tooltipBg: this.tooltipBg, tooltipFg: this.tooltipFg,
+      tooltipBorderFg: this.tooltipBorderFg, importantTooltipBg: this.importantTooltipBg,
       overviewCheckBg: this.overviewCheckBg,
     );
   }
@@ -1107,6 +1123,8 @@ class TelegramPalette {
       settingsIconBg1: settingsIconBg1, settingsIconBg2: settingsIconBg2,
       settingsIconBg3: settingsIconBg3, settingsIconBg4: settingsIconBg4,
       settingsIconBg5: settingsIconBg5, settingsIconBg6: settingsIconBg6,
+      tooltipBg: tooltipBg, tooltipFg: tooltipFg,
+      tooltipBorderFg: tooltipBorderFg, importantTooltipBg: importantTooltipBg,
       overviewCheckBg: overviewCheckBg,
     );
   }
@@ -1367,6 +1385,12 @@ class TelegramPalette {
     settingsIconBg5: Color(0xFF9A7BDF),
     settingsIconBg6: Color(0xFF5ABDD6),
 
+    // Tooltips
+    tooltipBg: Color(0xFFEAEEF3),
+    tooltipFg: Color(0xFF9A9FA3),
+    tooltipBorderFg: Color(0xFFD3D5DA),
+    importantTooltipBg: Color(0xFF5D7FA4),
+
     // Selection
     overviewCheckBg: Color(0x40000000),
   );
@@ -1623,6 +1647,12 @@ class TelegramPalette {
     settingsIconBg5: Color(0xFF9A7BDF),
     settingsIconBg6: Color(0xFF5ABDD6),
 
+    // Tooltips
+    tooltipBg: Color(0xFF1F2936),
+    tooltipFg: Color(0xFFB0B6BD),
+    tooltipBorderFg: Color(0xFF354050),
+    importantTooltipBg: Color(0xFF5D7FA4),
+
     // Selection
     overviewCheckBg: Color(0x40000000),
   );
@@ -1844,6 +1874,10 @@ class TelegramPalette {
     settingsIconBg4: Color(0xFFFAAD38),
     settingsIconBg5: Color(0xFF9A7BDF),
     settingsIconBg6: Color(0xFF5ABDD6),
+    tooltipBg: Color(0xFFEAEEF3),
+    tooltipFg: Color(0xFF9A9FA3),
+    tooltipBorderFg: Color(0xFFD3D5DA),
+    importantTooltipBg: Color(0xFF5D7FA4),
     overviewCheckBg: Color(0x40000000),
   );
 
@@ -2063,6 +2097,10 @@ class TelegramPalette {
     settingsIconBg4: Color(0xFFFAAD38),
     settingsIconBg5: Color(0xFF9A7BDF),
     settingsIconBg6: Color(0xFF5ABDD6),
+    tooltipBg: Color(0xFF1F2936),
+    tooltipFg: Color(0xFFB0B6BD),
+    tooltipBorderFg: Color(0xFF354050),
+    importantTooltipBg: Color(0xFF5D7FA4),
     overviewCheckBg: Color(0x40000000),
   );
 }
