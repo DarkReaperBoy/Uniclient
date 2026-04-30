@@ -510,7 +510,7 @@ class _ProfilePhotoArea extends StatelessWidget {
                   bottom: 0,
                   child: _UploadSubButton(
                     isDark: isDark,
-                    onTap: () => _pickAndUploadPhoto(context),
+                    onTap: () => _showAvatarMenu(context),
                   ),
                 ),
               ],
@@ -549,6 +549,50 @@ class _ProfilePhotoArea extends StatelessWidget {
     );
   }
 
+  void _showAvatarMenu(BuildContext context) {
+    final renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (overlay == null) return;
+    final position = RelativeRect.fromRect(
+      renderBox.localToGlobal(Offset.zero) & renderBox.size,
+      Offset.zero & overlay.size,
+    );
+    showMenu<String>(
+      context: context,
+      position: position,
+      items: [
+        const PopupMenuItem<String>(
+          value: 'photo',
+          child: Row(
+            children: [
+              Icon(Icons.photo_library_outlined, size: 20),
+              SizedBox(width: 12),
+              Text('Upload Photo'),
+            ],
+          ),
+        ),
+        const PopupMenuItem<String>(
+          value: 'emoji',
+          child: Row(
+            children: [
+              Icon(Icons.emoji_emotions_outlined, size: 20),
+              SizedBox(width: 12),
+              Text('Set Emoji'),
+            ],
+          ),
+        ),
+      ],
+    ).then((value) {
+      if (value == 'photo') {
+        _pickAndUploadPhoto(context);
+      } else if (value == 'emoji') {
+        _openEmojiBuilder(context);
+      }
+    });
+  }
+
   void _pickAndUploadPhoto(BuildContext context) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.image,
@@ -571,6 +615,24 @@ class _ProfilePhotoArea extends StatelessWidget {
       doneLabel: 'Set Photo',
       onDone: (croppedFile) async {
         await engine.uploadProfilePhoto(accountId, croppedFile.path);
+        if (context.mounted) {
+          showTelegramToast(context, 'Profile photo updated');
+        }
+      },
+    );
+  }
+
+  void _openEmojiBuilder(BuildContext context) async {
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccount?.id;
+    if (accountId == null) return;
+    final engine = context.read<EngineService>();
+
+    await EmojiAvatarBuilder.open(
+      context,
+      shape: PhotoCropShape.ellipse,
+      onDone: (renderedFile) async {
+        await engine.uploadProfilePhoto(accountId, renderedFile.path);
         if (context.mounted) {
           showTelegramToast(context, 'Profile photo updated');
         }

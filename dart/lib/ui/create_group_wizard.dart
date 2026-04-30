@@ -231,35 +231,107 @@ class _WizardDialogState extends State<_WizardDialog>
 
   void _onUserpicTap() {
     if (_photoBytes != null) {
-      showDialog<bool>(
+      showDialog<String>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('Remove Photo'),
+          title: const Text('Change Photo'),
           content: const Text('Choose a new photo or remove the current one?'),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Choose New'),
+              onPressed: () => Navigator.pop(ctx, 'photo'),
+              child: const Text('Choose Photo'),
             ),
             TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
+              onPressed: () => Navigator.pop(ctx, 'emoji'),
+              child: const Text('Set Emoji'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'remove'),
               child: const Text('Remove'),
             ),
           ],
         ),
-      ).then((remove) {
-        if (remove == true) {
+      ).then((result) {
+        if (result == 'remove') {
           setState(() {
             _photoBytes = null;
             _photoPath = null;
           });
-        } else if (remove == false) {
+        } else if (result == 'photo') {
           _pickPhoto();
+        } else if (result == 'emoji') {
+          _pickEmojiAvatar();
         }
       });
     } else {
-      _pickPhoto();
+      _showUserpicMenu();
     }
+  }
+
+  void _showUserpicMenu() {
+    final renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null) {
+      _pickPhoto();
+      return;
+    }
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (overlay == null) {
+      _pickPhoto();
+      return;
+    }
+    final position = RelativeRect.fromRect(
+      renderBox.localToGlobal(Offset.zero) & renderBox.size,
+      Offset.zero & overlay.size,
+    );
+    showMenu<String>(
+      context: context,
+      position: position,
+      items: const [
+        PopupMenuItem<String>(
+          value: 'photo',
+          child: Row(
+            children: [
+              Icon(Icons.photo_library_outlined, size: 20),
+              SizedBox(width: 12),
+              Text('Upload Photo'),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'emoji',
+          child: Row(
+            children: [
+              Icon(Icons.emoji_emotions_outlined, size: 20),
+              SizedBox(width: 12),
+              Text('Set Emoji'),
+            ],
+          ),
+        ),
+      ],
+    ).then((value) {
+      if (value == 'photo') {
+        _pickPhoto();
+      } else if (value == 'emoji') {
+        _pickEmojiAvatar();
+      }
+    });
+  }
+
+  Future<void> _pickEmojiAvatar() async {
+    if (!mounted) return;
+    await EmojiAvatarBuilder.open(
+      context,
+      shape: PhotoCropShape.ellipse,
+      onDone: (renderedFile) async {
+        final bytes = await renderedFile.readAsBytes();
+        if (!mounted) return;
+        setState(() {
+          _photoBytes = bytes;
+          _photoPath = renderedFile.path;
+        });
+      },
+    );
   }
 
   static final _usernameRegex = RegExp(r'^[A-Za-z][A-Za-z0-9_]*$');

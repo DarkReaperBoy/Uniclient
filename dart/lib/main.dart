@@ -633,6 +633,18 @@ class _UniClientAppState extends State<UniClientApp>
             PhotoCropEditor.open(navCtx, imageFile: File(path), shape: shape);
           }
 
+        case 'openEmojiBuilder':
+          final shapeStr = cmd['shape'] as String? ?? 'ellipse';
+          final shape = switch (shapeStr) {
+            'roundedRect' => PhotoCropShape.roundedRect,
+            'rect' => PhotoCropShape.rect,
+            _ => PhotoCropShape.ellipse,
+          };
+          final navCtx = _navigatorKey.currentContext;
+          if (navCtx != null) {
+            EmojiAvatarBuilder.open(navCtx, shape: shape);
+          }
+
         case 'showCallPanel':
           final state = cmd['state'] as String? ?? 'incoming';
           final callState = switch (state) {

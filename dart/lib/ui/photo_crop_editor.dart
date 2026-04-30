@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -925,6 +926,480 @@ class _BarIconButton extends StatelessWidget {
           color: active ? _kDoneLinkFg : _kCancelFg,
           size: 24,
         ),
+      ),
+    );
+  }
+}
+
+// ── §39.9 Sticker/Emoji Avatar Builder ──
+
+const List<List<Color>> _kGradientPresets = [
+  [Color(0xFF6C93FF), Color(0xFF976FFF)],
+  [Color(0xFFFF6B6B), Color(0xFFFF8E53)],
+  [Color(0xFF3EC1D3), Color(0xFF1ABC9C)],
+  [Color(0xFFFCA311), Color(0xFFE76F51)],
+  [Color(0xFFA855F7), Color(0xFFEC4899)],
+  [Color(0xFF14B8A6), Color(0xFF0EA5E9)],
+  [Color(0xFFF97316), Color(0xFFFBBF24)],
+  [Color(0xFFEF4444), Color(0xFFDB2777)],
+];
+
+const List<String> _kSuggestedEmoji = [
+  '😀', '😎', '🥰', '🤗', '🤩', '😇', '🤠', '🥳',
+  '🦊', '🐱', '🐶', '🐼', '🦁', '🐸', '🐵', '🦄',
+  '🌸', '🌺', '🌻', '🍀', '⭐', '🌙', '☀️', '🌈',
+  '❤️', '💜', '💙', '💚', '🧡', '💛', '🖤', '🤍',
+];
+
+const double _kPreviewSize = 200;
+const double _kGradientPickerSize = 40;
+const double _kEmojiGridCellSize = 48;
+const Duration _kSuggestedCycleDuration = Duration(milliseconds: 1500);
+
+class EmojiAvatarBuilder extends StatefulWidget {
+  final PhotoCropShape shape;
+  final Future<void> Function(File renderedFile)? onDone;
+
+  const EmojiAvatarBuilder({
+    super.key,
+    this.shape = PhotoCropShape.ellipse,
+    this.onDone,
+  });
+
+  static Future<void> open(
+    BuildContext context, {
+    PhotoCropShape shape = PhotoCropShape.ellipse,
+    Future<void> Function(File renderedFile)? onDone,
+  }) {
+    return Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.transparent,
+        barrierDismissible: false,
+        transitionDuration: _kTransitionDuration,
+        reverseTransitionDuration: _kTransitionDuration,
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 1),
+              end: Offset.zero,
+            ).animate(CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            )),
+            child: EmojiAvatarBuilder(
+              shape: shape,
+              onDone: onDone,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  @override
+  State<EmojiAvatarBuilder> createState() => _EmojiAvatarBuilderState();
+}
+
+class _EmojiAvatarBuilderState extends State<EmojiAvatarBuilder> {
+  int _gradientIndex = 0;
+  String _selectedEmoji = _kSuggestedEmoji[0];
+  int _suggestedIndex = 0;
+  Timer? _cycleTimer;
+  bool _saving = false;
+  bool _userPicked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _startCycleTimer();
+  }
+
+  @override
+  void dispose() {
+    _cycleTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startCycleTimer() {
+    _cycleTimer?.cancel();
+    _cycleTimer = Timer.periodic(_kSuggestedCycleDuration, (_) {
+      if (_userPicked) return;
+      setState(() {
+        _suggestedIndex = (_suggestedIndex + 1) % _kSuggestedEmoji.length;
+        _selectedEmoji = _kSuggestedEmoji[_suggestedIndex];
+      });
+    });
+  }
+
+  void _selectEmoji(String emoji) {
+    setState(() {
+      _selectedEmoji = emoji;
+      _userPicked = true;
+    });
+    _cycleTimer?.cancel();
+  }
+
+  void _selectGradient(int index) {
+    setState(() => _gradientIndex = index);
+  }
+
+  void _cancel() {
+    Navigator.of(context).pop();
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+
+    try {
+      final file = await _renderToFile();
+      if (widget.onDone != null) {
+        await widget.onDone!(file);
+      }
+      if (mounted) Navigator.of(context).pop();
+    } catch (_) {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<File> _renderToFile() async {
+    const size = _kProfilePhotoSize;
+    const sizeD = size * 1.0;
+    final rect = Rect.fromLTWH(0, 0, sizeD, sizeD);
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder, rect);
+
+    final gradient = _kGradientPresets[_gradientIndex];
+    final paint = Paint()
+      ..shader = ui.Gradient.linear(
+        Offset.zero,
+        Offset(0, sizeD),
+        gradient,
+      );
+
+    if (widget.shape == PhotoCropShape.ellipse) {
+      canvas.drawOval(rect, paint);
+    } else if (widget.shape == PhotoCropShape.roundedRect) {
+      final r = sizeD * _kForumRadiusMultiplier;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(rect, Radius.circular(r)),
+        paint,
+      );
+    } else {
+      canvas.drawRect(rect, paint);
+    }
+
+    final tp = TextPainter(
+      text: TextSpan(
+        text: _selectedEmoji,
+        style: TextStyle(fontSize: sizeD * 0.5),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(
+      canvas,
+      Offset(
+        (size - tp.width) / 2,
+        (size - tp.height) / 2,
+      ),
+    );
+
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(size, size);
+    picture.dispose();
+
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
+    if (byteData == null) throw Exception('Failed to render emoji avatar');
+
+    final file = File(
+      '/tmp/emoji_avatar_${DateTime.now().millisecondsSinceEpoch}.png',
+    );
+    await file.writeAsBytes(Uint8List.view(byteData.buffer));
+    return file;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dimColor = isDark ? _kDimColorDark : _kDimColorLight;
+    final gradient = _kGradientPresets[_gradientIndex];
+    final screenW = MediaQuery.of(context).size.width;
+    final isMobile = screenW < 640;
+
+    return Focus(
+      autofocus: true,
+      onKeyEvent: (_, event) {
+        if (event is! KeyDownEvent) return KeyEventResult.ignored;
+        if (event.logicalKey == LogicalKeyboardKey.escape) {
+          _cancel();
+          return KeyEventResult.handled;
+        }
+        if (event.logicalKey == LogicalKeyboardKey.enter) {
+          _save();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Material(
+        color: Colors.transparent,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            _BlurredBackground(dimColor: dimColor),
+
+            SafeArea(
+              child: Column(
+                children: [
+                  // Back button
+                  Align(
+                    alignment: Alignment.topLeft,
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: IconButton(
+                        onPressed: _cancel,
+                        icon: const Icon(Icons.arrow_back, color: _kCaptionFg),
+                      ),
+                    ),
+                  ),
+
+                  const Spacer(),
+
+                  // Live circular preview
+                  _EmojiPreview(
+                    gradient: gradient,
+                    emoji: _selectedEmoji,
+                    shape: widget.shape,
+                    size: isMobile ? _kPreviewSize * 0.8 : _kPreviewSize,
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Gradient color picker
+                  _GradientPicker(
+                    presets: _kGradientPresets,
+                    selectedIndex: _gradientIndex,
+                    onSelect: _selectGradient,
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Emoji selector grid
+                  Expanded(
+                    child: _EmojiGrid(
+                      selectedEmoji: _selectedEmoji,
+                      onSelect: _selectEmoji,
+                      isMobile: isMobile,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Bottom bar
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: _kControlBarHeight + 20,
+              child: Center(
+                child: SizedBox(
+                  width: _kControlBarWidth,
+                  height: _kControlBarHeight,
+                  child: Row(
+                    children: [
+                      TextButton(
+                        onPressed: _cancel,
+                        style: TextButton.styleFrom(
+                          foregroundColor: _kCancelFg,
+                          backgroundColor: _kCancelBg,
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                        child: const Text('Cancel'),
+                      ),
+                      const Spacer(),
+                      if (_saving)
+                        const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: _kDoneLinkFg,
+                          ),
+                        )
+                      else
+                        TextButton(
+                          onPressed: _save,
+                          style: TextButton.styleFrom(
+                            foregroundColor: _kDoneLinkFg,
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 20),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                          child: const Text('Save'),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmojiPreview extends StatelessWidget {
+  final List<Color> gradient;
+  final String emoji;
+  final PhotoCropShape shape;
+  final double size;
+
+  const _EmojiPreview({
+    required this.gradient,
+    required this.emoji,
+    required this.shape,
+    required this.size,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: gradient,
+        ),
+        shape: shape == PhotoCropShape.ellipse
+            ? BoxShape.circle
+            : BoxShape.rectangle,
+        borderRadius: shape == PhotoCropShape.roundedRect
+            ? BorderRadius.circular(size * _kForumRadiusMultiplier)
+            : shape == PhotoCropShape.rect
+                ? BorderRadius.zero
+                : null,
+      ),
+      alignment: Alignment.center,
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        child: Text(
+          emoji,
+          key: ValueKey(emoji),
+          style: TextStyle(fontSize: size * 0.5),
+        ),
+      ),
+    );
+  }
+}
+
+class _GradientPicker extends StatelessWidget {
+  final List<List<Color>> presets;
+  final int selectedIndex;
+  final ValueChanged<int> onSelect;
+
+  const _GradientPicker({
+    required this.presets,
+    required this.selectedIndex,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: _kGradientPickerSize + 8,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          for (int i = 0; i < presets.length; i++) ...[
+            if (i > 0) const SizedBox(width: 8),
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onSelect(i),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: _kGradientPickerSize,
+                height: _kGradientPickerSize,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: presets[i],
+                  ),
+                  shape: BoxShape.circle,
+                  border: i == selectedIndex
+                      ? Border.all(color: Colors.white, width: 3)
+                      : null,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _EmojiGrid extends StatelessWidget {
+  final String selectedEmoji;
+  final ValueChanged<String> onSelect;
+  final bool isMobile;
+
+  const _EmojiGrid({
+    required this.selectedEmoji,
+    required this.onSelect,
+    required this.isMobile,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final crossCount = isMobile ? 6 : 8;
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 68),
+      decoration: BoxDecoration(
+        color: Colors.black26,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: GridView.builder(
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: crossCount,
+          childAspectRatio: 1,
+        ),
+        itemCount: _kSuggestedEmoji.length,
+        padding: EdgeInsets.zero,
+        itemBuilder: (context, index) {
+          final emoji = _kSuggestedEmoji[index];
+          final isSelected = emoji == selectedEmoji;
+          return GestureDetector(
+            onTap: () => onSelect(emoji),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 100),
+              decoration: BoxDecoration(
+                color:
+                    isSelected ? Colors.white24 : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                emoji,
+                style: TextStyle(
+                  fontSize: isMobile ? 24 : 28,
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
