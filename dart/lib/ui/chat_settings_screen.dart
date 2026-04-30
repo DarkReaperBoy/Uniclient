@@ -12,6 +12,7 @@ import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../theme/telegram_palette.dart';
 import '../theme/wallpaper.dart';
+import 'color_picker_box.dart';
 import 'popup_menu.dart';
 import 'settings_style.dart';
 import 'shortcuts_settings_screen.dart';
@@ -750,15 +751,12 @@ class _AccentColorPalette extends StatelessWidget {
     return true;
   }
 
-  void _showHslPicker(BuildContext context) {
-    showDialog(
+  void _showHslPicker(BuildContext context) async {
+    final result = await showColorPickerBox(
       context: context,
-      builder: (ctx) => _HslColorPickerDialog(
-        initialColor: currentColor,
-        isDark: isDark,
-        onColorPicked: onColorSelected,
-      ),
+      initialColor: currentColor,
     );
+    if (result != null) onColorSelected(result);
   }
 
   static bool _colorsMatch(Color a, Color b) {

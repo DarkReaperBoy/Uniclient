@@ -891,7 +891,6 @@ Status key: `[ ]` not started · `[x]` done
 <!-- dart files: dart/lib/ui/chat_view.dart, shell.dart, hamburger_drawer.dart, settings_screen.dart, info_panel.dart (showDialog calls) — new: dart/lib/ui/dialogs.dart -->
 
 
-- [ ] Color picker: 2D HSB gradient square with crosshair (16px), hue+opacity/lightness sliders, H/S/B + R/G/B + hex fields, current/new swatches, bidirectional sync, Enter submit — spec §36.7
 - [ ] Toast/snackbar: padding (19,13,19,12), max 480px, 200ms fade-in / 1000ms fade-out / 160ms slide, default 1500ms duration, centered or edge-attached — spec §36.9
 - [ ] Context menus: PopupMenu with PanelAnimation, keyboard arrows/Enter/Escape/Right-Left; chat-list menu, message menu, photo menu, document/media menu, link menu, archive menu, forum menu — spec §36.10
 - [ ] Tooltip popups: standard (tooltipBg/Fg/BorderFg, 1000ms delay, max 12 lines) + important tooltip (arrow 8×4px, arrowSkip 66px, 200ms show/hide) — spec §36.11
