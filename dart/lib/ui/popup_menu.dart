@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 const double _kMenuMinWidth = 156.0;
 const double _kMenuMaxWidth = 300.0;
@@ -11,7 +12,6 @@ const double _kShadowOpacity = 0.25;
 const Duration _kOpenDuration = Duration(milliseconds: 200);
 const Duration _kCloseDuration = Duration(milliseconds: 150);
 const double _kScrollPaddingVertical = 8.0;
-const double _kFadeHeight = 0.2;
 
 Color _menuBg(Brightness b) =>
     b == Brightness.dark ? const Color(0xFF17212b) : const Color(0xFFffffff);
@@ -27,7 +27,6 @@ Future<T?> showTelegramMenu<T>({
   required List<TelegramMenuItem<T>> items,
   bool fullAttention = false,
 }) {
-  final overlay = Overlay.of(context);
   final brightness = Theme.of(context).brightness;
   final mediaQuery = MediaQuery.of(context);
   final screenSize = mediaQuery.size;
@@ -163,39 +162,7 @@ class _SineInOutCurve extends Curve {
   }
 }
 
-class _TopFadePainter extends CustomPainter {
-  final Color color;
-  final double fadeHeight;
-  final double animProgress;
-
-  _TopFadePainter({
-    required this.color,
-    required this.fadeHeight,
-    required this.animProgress,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final fadeOpacity = (1.0 - animProgress).clamp(0.0, 1.0);
-    if (fadeOpacity <= 0) return;
-    final h = size.height * fadeHeight;
-    final rect = Rect.fromLTWH(0, 0, size.width, h);
-    final gradient = LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: [color.withOpacity(fadeOpacity), color.withOpacity(0)],
-    ).createShader(rect);
-    canvas.drawRect(rect, Paint()..shader = gradient);
-  }
-
-  @override
-  bool shouldRepaint(_TopFadePainter old) =>
-      color != old.color ||
-      fadeHeight != old.fadeHeight ||
-      animProgress != old.animProgress;
-}
-
-class _TelegramMenuOverlay<T> extends StatelessWidget {
+class _TelegramMenuOverlay<T> extends StatefulWidget {
   final Animation<double> animation;
   final Offset position;
   final List<TelegramMenuItem<T>> items;
@@ -217,17 +184,24 @@ class _TelegramMenuOverlay<T> extends StatelessWidget {
   });
 
   @override
+  State<_TelegramMenuOverlay<T>> createState() =>
+      _TelegramMenuOverlayState<T>();
+}
+
+class _TelegramMenuOverlayState<T> extends State<_TelegramMenuOverlay<T>> {
+  Alignment _origin = Alignment.topLeft;
+
+  @override
   Widget build(BuildContext context) {
-    final bg = _menuBg(brightness);
-    final shadow = _shadowColor(brightness);
-    final bool isDark = brightness == Brightness.dark;
+    final bg = _menuBg(widget.brightness);
+    final shadow = _shadowColor(widget.brightness);
 
     final menuContent = _TelegramMenuContent<T>(
-      items: items,
-      brightness: brightness,
-      onSelected: onSelected,
-      fullAttention: fullAttention,
-      routeAnimation: animation,
+      items: widget.items,
+      brightness: widget.brightness,
+      onSelected: widget.onSelected,
+      fullAttention: widget.fullAttention,
+      routeAnimation: widget.animation,
     );
 
     return LayoutBuilder(builder: (context, constraints) {
@@ -241,8 +215,6 @@ class _TelegramMenuOverlay<T> extends StatelessWidget {
         ),
       );
 
-      double left = position.dx;
-      double top = position.dy;
       const margin = 8.0;
 
       return Stack(
@@ -250,24 +222,31 @@ class _TelegramMenuOverlay<T> extends StatelessWidget {
           Positioned.fill(
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: () => onSelected(null),
+              onTap: () => widget.onSelected(null),
               child: const SizedBox.expand(),
             ),
           ),
           _AnimatedMenuPositioner(
-            animation: animation,
-            position: position,
-            screenSize: screenSize,
+            animation: widget.animation,
+            position: widget.position,
+            screenSize: widget.screenSize,
             margin: margin,
+            onOriginResolved: (origin) {
+              if (origin != _origin) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) setState(() => _origin = origin);
+                });
+              }
+            },
             child: AnimatedBuilder(
-              animation: animation,
+              animation: widget.animation,
               builder: (context, child) {
                 final widthFactor =
-                    0.5 + 0.5 * _panelCurve(animation.value, 0.6);
+                    0.5 + 0.5 * _panelCurve(widget.animation.value, 0.6);
                 final heightFactor =
-                    0.3 + 0.7 * _panelCurve(animation.value, 0.9);
+                    0.3 + 0.7 * _panelCurve(widget.animation.value, 0.9);
                 final opacity =
-                    (0.2 + 0.8 * _panelCurve(animation.value, 0.3))
+                    (0.2 + 0.8 * _panelCurve(widget.animation.value, 0.3))
                         .clamp(0.0, 1.0);
 
                 return Opacity(
@@ -275,19 +254,10 @@ class _TelegramMenuOverlay<T> extends StatelessWidget {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(_kCornerRadius),
                     child: Align(
-                      alignment: AlignmentDirectional.topStart,
+                      alignment: _origin,
                       widthFactor: widthFactor.clamp(0.0, 1.0),
                       heightFactor: heightFactor.clamp(0.0, 1.0),
-                      child: CustomPaint(
-                        foregroundPainter: animation.value < 1.0
-                            ? _TopFadePainter(
-                                color: bg,
-                                fadeHeight: _kFadeHeight,
-                                animProgress: animation.value,
-                              )
-                            : null,
-                        child: child,
-                      ),
+                      child: child,
                     ),
                   ),
                 );
@@ -332,6 +302,7 @@ class _AnimatedMenuPositioner extends StatelessWidget {
   final Size screenSize;
   final double margin;
   final Widget child;
+  final ValueChanged<Alignment>? onOriginResolved;
 
   const _AnimatedMenuPositioner({
     required this.animation,
@@ -339,6 +310,7 @@ class _AnimatedMenuPositioner extends StatelessWidget {
     required this.screenSize,
     required this.margin,
     required this.child,
+    this.onOriginResolved,
   });
 
   @override
@@ -348,6 +320,7 @@ class _AnimatedMenuPositioner extends StatelessWidget {
         position: position,
         screenSize: screenSize,
         margin: margin,
+        onOriginResolved: onOriginResolved,
       ),
       child: child,
     );
@@ -358,11 +331,13 @@ class _MenuPositionDelegate extends SingleChildLayoutDelegate {
   final Offset position;
   final Size screenSize;
   final double margin;
+  final ValueChanged<Alignment>? onOriginResolved;
 
   _MenuPositionDelegate({
     required this.position,
     required this.screenSize,
     required this.margin,
+    this.onOriginResolved,
   });
 
   @override
@@ -378,15 +353,26 @@ class _MenuPositionDelegate extends SingleChildLayoutDelegate {
     double x = position.dx;
     double y = position.dy;
 
+    bool flippedX = false;
+    bool flippedY = false;
+
     if (x + childSize.width > screenSize.width - margin) {
       x = screenSize.width - childSize.width - margin;
+      flippedX = x + childSize.width < position.dx;
     }
     if (x < margin) x = margin;
 
     if (y + childSize.height > screenSize.height - margin) {
       y = screenSize.height - childSize.height - margin;
+      flippedY = y + childSize.height < position.dy;
     }
     if (y < margin) y = margin;
+
+    final origin = Alignment(
+      flippedX ? 1.0 : -1.0,
+      flippedY ? 1.0 : -1.0,
+    );
+    onOriginResolved?.call(origin);
 
     return Offset(x, y);
   }
@@ -397,7 +383,7 @@ class _MenuPositionDelegate extends SingleChildLayoutDelegate {
       screenSize != oldDelegate.screenSize;
 }
 
-class _TelegramMenuContent<T> extends StatelessWidget {
+class _TelegramMenuContent<T> extends StatefulWidget {
   final List<TelegramMenuItem<T>> items;
   final Brightness brightness;
   final ValueChanged<T?> onSelected;
@@ -413,8 +399,72 @@ class _TelegramMenuContent<T> extends StatelessWidget {
   });
 
   @override
+  State<_TelegramMenuContent<T>> createState() =>
+      _TelegramMenuContentState<T>();
+}
+
+class _TelegramMenuContentState<T> extends State<_TelegramMenuContent<T>> {
+  int _focusedIndex = -1;
+  late final List<int> _selectableIndices;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectableIndices = <int>[];
+    for (int i = 0; i < widget.items.length; i++) {
+      if (!widget.items[i].isSeparator) _selectableIndices.add(i);
+    }
+    HardwareKeyboard.instance.addHandler(_handleRawKey);
+  }
+
+  @override
+  void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleRawKey);
+    super.dispose();
+  }
+
+  bool _handleRawKey(KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return false;
+    final key = event.logicalKey;
+
+    if (key == LogicalKeyboardKey.arrowDown) {
+      _moveFocus(1);
+      return true;
+    }
+    if (key == LogicalKeyboardKey.arrowUp) {
+      _moveFocus(-1);
+      return true;
+    }
+    if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter) {
+      if (_focusedIndex >= 0 && _focusedIndex < widget.items.length) {
+        widget.onSelected(widget.items[_focusedIndex].value);
+      }
+      return true;
+    }
+    if (key == LogicalKeyboardKey.escape) {
+      widget.onSelected(null);
+      return true;
+    }
+    return false;
+  }
+
+  void _moveFocus(int direction) {
+    if (_selectableIndices.isEmpty) return;
+    final currentPos = _selectableIndices.indexOf(_focusedIndex);
+    int nextPos;
+    if (currentPos < 0) {
+      nextPos = direction > 0 ? 0 : _selectableIndices.length - 1;
+    } else {
+      nextPos = (currentPos + direction) % _selectableIndices.length;
+      if (nextPos < 0) nextPos += _selectableIndices.length;
+    }
+    setState(() => _focusedIndex = _selectableIndices[nextPos]);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final bool isDark = brightness == Brightness.dark;
+    final bool isDark = widget.brightness == Brightness.dark;
     final separatorColor = isDark
         ? const Color(0xFF232f39)
         : const Color(0xFFf1f1f1);
@@ -422,7 +472,8 @@ class _TelegramMenuContent<T> extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: items.map((item) {
+      children: List.generate(widget.items.length, (i) {
+        final item = widget.items[i];
         if (item.isSeparator) {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 5),
@@ -435,12 +486,18 @@ class _TelegramMenuContent<T> extends StatelessWidget {
 
         return _TelegramRippleItem<T>(
           item: item,
-          brightness: brightness,
-          onSelected: onSelected,
-          fullAttention: fullAttention,
-          routeAnimation: routeAnimation,
+          brightness: widget.brightness,
+          onSelected: widget.onSelected,
+          fullAttention: widget.fullAttention,
+          routeAnimation: widget.routeAnimation,
+          isFocused: _focusedIndex == i,
+          onHover: (hovering) {
+            if (hovering) {
+              setState(() => _focusedIndex = i);
+            }
+          },
         );
-      }).toList(),
+      }),
     );
   }
 }
@@ -451,6 +508,8 @@ class _TelegramRippleItem<T> extends StatefulWidget {
   final ValueChanged<T?> onSelected;
   final bool fullAttention;
   final Animation<double>? routeAnimation;
+  final bool isFocused;
+  final ValueChanged<bool>? onHover;
 
   const _TelegramRippleItem({
     required this.item,
@@ -458,6 +517,8 @@ class _TelegramRippleItem<T> extends StatefulWidget {
     required this.onSelected,
     this.fullAttention = false,
     this.routeAnimation,
+    this.isFocused = false,
+    this.onHover,
   });
 
   @override
@@ -533,10 +594,11 @@ class _TelegramRippleItemState<T> extends State<_TelegramRippleItem<T>>
     Widget buildItemContent(double colorT) {
       final targetTextColor =
           item.labelColor ?? (useRedText ? attentionColor : textColor);
+      final isHighlighted = _hovering || widget.isFocused;
       final targetIconColor =
           item.iconColor ?? (item.isAttention
               ? attentionColor
-              : (_hovering ? iconColorHover : iconColorResting));
+              : (isHighlighted ? iconColorHover : iconColorResting));
       final effectiveTextColor = hasCustomColor
           ? Color.lerp(textColor, targetTextColor, colorT)!
           : targetTextColor;
@@ -583,8 +645,13 @@ class _TelegramRippleItemState<T> extends State<_TelegramRippleItem<T>>
           )
         : buildItemContent(1.0);
 
+    final highlighted = _hovering || widget.isFocused;
+
     return MouseRegion(
-      onEnter: (_) => setState(() => _hovering = true),
+      onEnter: (_) {
+        setState(() => _hovering = true);
+        widget.onHover?.call(true);
+      },
       onExit: (_) => setState(() => _hovering = false),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -598,11 +665,11 @@ class _TelegramRippleItemState<T> extends State<_TelegramRippleItem<T>>
               height: hasIcon ? 29 : 28,
               color: _rippleController.value > 0
                   ? Color.lerp(
-                      _hovering ? hoverColor : null,
+                      highlighted ? hoverColor : null,
                       rippleColor,
                       _rippleController.value,
                     )
-                  : (_hovering ? hoverColor : null),
+                  : (highlighted ? hoverColor : null),
               padding: hasIcon
                   ? const EdgeInsets.only(
                       left: 54, top: 8, right: 17, bottom: 8)

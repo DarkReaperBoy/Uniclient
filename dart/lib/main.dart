@@ -1155,13 +1155,26 @@ class _UniClientAppState extends State<UniClientApp>
     }
     switch (key) {
       case 'enter':
-        final focusNode = FocusManager.instance.primaryFocus;
-        if (focusNode == null) return;
-        final ctx = focusNode.context;
-        if (ctx == null) return;
-        final editableState = ctx.findAncestorStateOfType<EditableTextState>();
-        if (editableState != null) {
-          editableState.performAction(TextInputAction.newline);
+        final tsE = Duration(milliseconds: DateTime.now().millisecondsSinceEpoch);
+        final handledEnter = HardwareKeyboard.instance.handleKeyEvent(KeyDownEvent(
+          physicalKey: PhysicalKeyboardKey.enter,
+          logicalKey: LogicalKeyboardKey.enter,
+          timeStamp: tsE,
+        ));
+        HardwareKeyboard.instance.handleKeyEvent(KeyUpEvent(
+          physicalKey: PhysicalKeyboardKey.enter,
+          logicalKey: LogicalKeyboardKey.enter,
+          timeStamp: tsE,
+        ));
+        if (!handledEnter) {
+          final focusNode = FocusManager.instance.primaryFocus;
+          if (focusNode == null) return;
+          final ctx = focusNode.context;
+          if (ctx == null) return;
+          final editableState = ctx.findAncestorStateOfType<EditableTextState>();
+          if (editableState != null) {
+            editableState.performAction(TextInputAction.newline);
+          }
         }
       case 'backspace':
         final focusNode = FocusManager.instance.primaryFocus;
@@ -1235,17 +1248,34 @@ class _UniClientAppState extends State<UniClientApp>
             if (navCtx != null) Navigator.of(navCtx!, rootNavigator: true).maybePop();
           }
         }
+      case 'down':
+      case 'arrowdown':
+      case 'arrowDown':
+        final tsD = Duration(milliseconds: DateTime.now().millisecondsSinceEpoch);
+        HardwareKeyboard.instance.handleKeyEvent(KeyDownEvent(
+          physicalKey: PhysicalKeyboardKey.arrowDown,
+          logicalKey: LogicalKeyboardKey.arrowDown,
+          timeStamp: tsD,
+        ));
+        HardwareKeyboard.instance.handleKeyEvent(KeyUpEvent(
+          physicalKey: PhysicalKeyboardKey.arrowDown,
+          logicalKey: LogicalKeyboardKey.arrowDown,
+          timeStamp: tsD,
+        ));
       case 'up':
       case 'arrowup':
       case 'arrowUp':
-        // CallbackShortcuts at the MaterialApp level binds ArrowUp to
-        // ChatView.requestEditLastOutgoing, but that path requires routing
-        // through FocusManager (which real OS key events use).
-        // HardwareKeyboard.handleKeyEvent from test code doesn't always
-        // reach the Shortcuts layer, so invoke the hook directly — same
-        // pattern as Ctrl+F above, and it matches what the real Up binding
-        // ends up calling anyway.
-        ChatView.requestEditLastOutgoing();
+        final tsU = Duration(milliseconds: DateTime.now().millisecondsSinceEpoch);
+        HardwareKeyboard.instance.handleKeyEvent(KeyDownEvent(
+          physicalKey: PhysicalKeyboardKey.arrowUp,
+          logicalKey: LogicalKeyboardKey.arrowUp,
+          timeStamp: tsU,
+        ));
+        HardwareKeyboard.instance.handleKeyEvent(KeyUpEvent(
+          physicalKey: PhysicalKeyboardKey.arrowUp,
+          logicalKey: LogicalKeyboardKey.arrowUp,
+          timeStamp: tsU,
+        ));
       case 'tab':
         final ts = Duration(milliseconds: DateTime.now().millisecondsSinceEpoch);
         HardwareKeyboard.instance.handleKeyEvent(KeyDownEvent(
