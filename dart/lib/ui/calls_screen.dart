@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -667,6 +668,7 @@ class _CreateCallButton extends StatefulWidget {
   final Color subtextColor;
   final Color dividerColor;
   final bool isDark;
+  final bool highlightOnShow;
 
   const _CreateCallButton({
     required this.accentColor,
@@ -674,14 +676,64 @@ class _CreateCallButton extends StatefulWidget {
     required this.subtextColor,
     required this.dividerColor,
     required this.isDark,
+    this.highlightOnShow = false,
   });
 
   @override
   State<_CreateCallButton> createState() => _CreateCallButtonState();
 }
 
-class _CreateCallButtonState extends State<_CreateCallButton> {
+class _CreateCallButtonState extends State<_CreateCallButton>
+    with SingleTickerProviderStateMixin {
   bool _hovered = false;
+  late final AnimationController _highlightController;
+  late final Animation<double> _highlightAnim;
+
+  static const _confcallSizeLimit = 200;
+
+  @override
+  void initState() {
+    super.initState();
+    _highlightController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    _highlightAnim = CurvedAnimation(
+      parent: _highlightController,
+      curve: Curves.easeOutCubic,
+    );
+    if (widget.highlightOnShow) {
+      Future.delayed(const Duration(milliseconds: 400), () {
+        if (mounted) _highlightController.forward();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _highlightController.dispose();
+    super.dispose();
+  }
+
+  void _openCreateCallBox() {
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+
+    showDialog<bool>(
+      context: context,
+      builder: (ctx) => Provider<EngineService>.value(
+        value: engine,
+        child: ChangeNotifierProvider.value(
+          value: appState,
+          child: const _CreateCallBox(),
+        ),
+      ),
+    ).then((created) {
+      if (created == true && mounted) {
+        Navigator.of(context).pop();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -692,47 +744,62 @@ class _CreateCallButtonState extends State<_CreateCallButton> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        MouseRegion(
-          onEnter: (_) => setState(() => _hovered = true),
-          onExit: (_) => setState(() => _hovered = false),
-          child: GestureDetector(
-            onTap: () {},
-            child: Container(
-              color: _hovered ? hoverBg : Colors.transparent,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: widget.accentColor,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.add_call,
-                      color: Colors.white,
-                      size: 22,
-                    ),
+        AnimatedBuilder(
+          animation: _highlightAnim,
+          builder: (context, child) {
+            final highlightOpacity = _highlightAnim.value < 0.5
+                ? _highlightAnim.value * 2
+                : (1.0 - _highlightAnim.value) * 2;
+            final highlightBg = highlightOpacity > 0
+                ? widget.accentColor.withValues(alpha: 0.15 * highlightOpacity)
+                : null;
+
+            return MouseRegion(
+              onEnter: (_) => setState(() => _hovered = true),
+              onExit: (_) => setState(() => _hovered = false),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _openCreateCallBox,
+                child: Container(
+                  color: highlightBg ?? (_hovered ? hoverBg : Colors.transparent),
+                  padding: const EdgeInsets.only(
+                    left: 21, top: 11, right: 20, bottom: 9,
                   ),
-                  const SizedBox(width: 14),
-                  Text(
-                    'Create Call',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: widget.accentColor,
-                    ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: widget.accentColor,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.add_call,
+                          color: Colors.white,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Text(
+                        'Create Call',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: widget.accentColor,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
+            );
+          },
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.only(left: 21, right: 20, top: 6, bottom: 8),
           child: Text(
-            'You can create a group call for up to 200 participants.',
+            'You can create a group call for up to $_confcallSizeLimit participants.',
             style: TextStyle(
               fontSize: 13,
               color: widget.subtextColor,
@@ -741,6 +808,463 @@ class _CreateCallButtonState extends State<_CreateCallButton> {
         ),
       ],
     );
+  }
+}
+
+class _CreateCallBox extends StatefulWidget {
+  const _CreateCallBox();
+
+  @override
+  State<_CreateCallBox> createState() => _CreateCallBoxState();
+}
+
+class _CreateCallBoxState extends State<_CreateCallBox> {
+  List<ContactInfo>? _contacts;
+  bool _loading = true;
+  final Set<String> _selectedIds = {};
+  final Map<String, bool> _selectedVideo = {};
+  bool _lastSelectWithVideo = false;
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadContacts();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadContacts() async {
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    try {
+      final contacts = await engine.getContacts(accountId);
+      if (mounted) {
+        setState(() {
+          _contacts = contacts
+              .where((c) => !c.isBot)
+              .toList()
+            ..sort((a, b) => a.displayName.compareTo(b.displayName));
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  List<ContactInfo> get _filteredContacts {
+    final all = _contacts ?? [];
+    if (_searchQuery.isEmpty) return all;
+    final q = _searchQuery.toLowerCase();
+    return all.where((c) =>
+        c.displayName.toLowerCase().contains(q) ||
+        c.username.toLowerCase().contains(q)).toList();
+  }
+
+  void _toggleContact(String userId, {bool? video}) {
+    setState(() {
+      if (_selectedIds.contains(userId)) {
+        if (video != null) {
+          _selectedVideo[userId] = video;
+          _lastSelectWithVideo = video;
+        } else {
+          _selectedIds.remove(userId);
+          _selectedVideo.remove(userId);
+        }
+      } else {
+        _selectedIds.add(userId);
+        final useVideo = video ?? _lastSelectWithVideo;
+        _selectedVideo[userId] = useVideo;
+        if (video != null) _lastSelectWithVideo = video;
+      }
+    });
+  }
+
+  Future<void> _createCall() async {
+    if (_selectedIds.isEmpty) return;
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+
+    try {
+      final userId = _selectedIds.first;
+      final video = _selectedVideo[userId] ?? false;
+      await engine.startCall(accountId, userId, video: video);
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to start call: $e')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFE8E8E8);
+    final hoverBg = isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
+
+    final hasSelection = _selectedIds.isNotEmpty;
+    final buttonLabel = hasSelection ? 'Start Call' : 'Create Call';
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 364, maxHeight: 520),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              height: 48,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 24, top: 13),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'New Call',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: textColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: SizedBox(
+                height: 36,
+                child: TextField(
+                  controller: _searchController,
+                  style: TextStyle(fontSize: 14, color: textColor),
+                  decoration: InputDecoration(
+                    hintText: 'Search',
+                    hintStyle: TextStyle(fontSize: 14, color: subtextColor),
+                    prefixIcon: Icon(Icons.search, size: 20, color: subtextColor),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      borderSide: BorderSide.none,
+                    ),
+                    filled: true,
+                    fillColor: isDark ? const Color(0xFF131C26) : const Color(0xFFF0F0F0),
+                  ),
+                  onChanged: (v) => setState(() => _searchQuery = v),
+                ),
+              ),
+            ),
+            Divider(height: 1, color: dividerColor),
+            Expanded(
+              child: _loading
+                  ? Center(
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: accentColor,
+                        ),
+                      ),
+                    )
+                  : _buildContactsList(
+                      isDark: isDark,
+                      textColor: textColor,
+                      subtextColor: subtextColor,
+                      accentColor: accentColor,
+                      hoverBg: hoverBg,
+                    ),
+            ),
+            Divider(height: 1, color: dividerColor),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: Text(
+                      'Close',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: subtextColor,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: hasSelection ? _createCall : null,
+                    child: Text(
+                      buttonLabel,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: hasSelection ? accentColor : subtextColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContactsList({
+    required bool isDark,
+    required Color textColor,
+    required Color subtextColor,
+    required Color accentColor,
+    required Color hoverBg,
+  }) {
+    final contacts = _filteredContacts;
+    if (contacts.isEmpty) {
+      return Center(
+        child: Text(
+          _searchQuery.isEmpty ? 'No contacts found' : 'No results',
+          style: TextStyle(fontSize: 14, color: subtextColor),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      itemCount: contacts.length,
+      itemBuilder: (context, index) {
+        final contact = contacts[index];
+        final selected = _selectedIds.contains(contact.userId);
+        final isVideo = _selectedVideo[contact.userId] ?? false;
+
+        return _ConfInviteRow(
+          contact: contact,
+          selected: selected,
+          isVideo: isVideo,
+          isDark: isDark,
+          textColor: textColor,
+          subtextColor: subtextColor,
+          accentColor: accentColor,
+          hoverBg: hoverBg,
+          onTap: () => _toggleContact(contact.userId),
+          onVideoTap: () => _toggleContact(contact.userId, video: true),
+          onAudioTap: () => _toggleContact(contact.userId, video: false),
+        );
+      },
+    );
+  }
+}
+
+class _ConfInviteRow extends StatefulWidget {
+  final ContactInfo contact;
+  final bool selected;
+  final bool isVideo;
+  final bool isDark;
+  final Color textColor;
+  final Color subtextColor;
+  final Color accentColor;
+  final Color hoverBg;
+  final VoidCallback onTap;
+  final VoidCallback onVideoTap;
+  final VoidCallback onAudioTap;
+
+  const _ConfInviteRow({
+    required this.contact,
+    required this.selected,
+    required this.isVideo,
+    required this.isDark,
+    required this.textColor,
+    required this.subtextColor,
+    required this.accentColor,
+    required this.hoverBg,
+    required this.onTap,
+    required this.onVideoTap,
+    required this.onAudioTap,
+  });
+
+  @override
+  State<_ConfInviteRow> createState() => _ConfInviteRowState();
+}
+
+class _ConfInviteRowState extends State<_ConfInviteRow> {
+  bool _hovered = false;
+
+  static const _avatarColors = [
+    Color(0xFFE17076),
+    Color(0xFF7BC862),
+    Color(0xFFE5CA77),
+    Color(0xFF65AADD),
+    Color(0xFFA695E7),
+    Color(0xFFEE7AAE),
+    Color(0xFF6EC9CB),
+  ];
+
+  String _lastSeenLabel(ContactInfo c) {
+    if (c.isOnline) return 'online';
+    if (c.lastSeenTs > 0) {
+      final dt = DateTime.fromMillisecondsSinceEpoch(c.lastSeenTs * 1000);
+      final now = DateTime.now();
+      final diff = now.difference(dt);
+      if (diff.inMinutes < 60) return 'last seen ${diff.inMinutes}m ago';
+      if (diff.inHours < 24) return 'last seen ${diff.inHours}h ago';
+      return 'last seen ${diff.inDays}d ago';
+    }
+    return c.lastSeenKind.isNotEmpty ? 'last seen ${c.lastSeenKind}' : '';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.contact;
+    final colorIndex = c.userId.hashCode.abs() % 7;
+    final avatarColor = _avatarColors[colorIndex];
+    final initials = _getInitials(c.displayName);
+    final statusText = _lastSeenLabel(c);
+    final statusColor = c.isOnline ? widget.accentColor : widget.subtextColor;
+    final avatarCorner = context.watch<AppState>().avatarCornerRadius;
+    const avatarSize = 40.0;
+    final avatarRadius = avatarSize / 2 * (avatarCorner / 50.0);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: Container(
+          height: 52,
+          color: _hovered ? widget.hoverBg : Colors.transparent,
+          padding: const EdgeInsets.only(left: 12, right: 8),
+          child: Row(
+            children: [
+              SizedBox(
+                width: avatarSize,
+                height: avatarSize,
+                child: c.avatarB64.isNotEmpty
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(avatarRadius),
+                        child: Image.memory(
+                          base64Decode(c.avatarB64),
+                          width: avatarSize,
+                          height: avatarSize,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _fallbackAvatar(
+                              avatarColor, initials, avatarSize, avatarRadius),
+                        ),
+                      )
+                    : _fallbackAvatar(avatarColor, initials, avatarSize, avatarRadius),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      c.displayName.isEmpty ? c.username : c.displayName,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: widget.textColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (statusText.isNotEmpty) ...[
+                      const SizedBox(height: 1),
+                      Text(
+                        statusText,
+                        style: TextStyle(fontSize: 12, color: statusColor),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              SizedBox(
+                width: 36,
+                height: 52,
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: widget.onVideoTap,
+                  icon: Icon(
+                    Icons.videocam,
+                    size: 20,
+                    color: widget.selected && widget.isVideo
+                        ? widget.accentColor
+                        : (widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999)),
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 36,
+                height: 52,
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: widget.onAudioTap,
+                  icon: Icon(
+                    Icons.call,
+                    size: 20,
+                    color: widget.selected && !widget.isVideo
+                        ? widget.accentColor
+                        : (widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999)),
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 28,
+                child: widget.selected
+                    ? Icon(Icons.check_circle, size: 22, color: widget.accentColor)
+                    : Icon(Icons.radio_button_unchecked, size: 22,
+                        color: widget.isDark ? const Color(0xFF3E546A) : const Color(0xFFD0D0D0)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _fallbackAvatar(Color color, String initials, double size, double radius) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(radius),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        initials,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: size * 0.38,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+
+  String _getInitials(String name) {
+    if (name.isEmpty) return '?';
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length == 1) return parts[0][0].toUpperCase();
+    return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
   }
 }
 
