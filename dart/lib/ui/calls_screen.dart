@@ -1,8 +1,13 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
+import '../models/engine_models.dart';
 import '../state/app_state.dart';
+import '../state/chat_state.dart';
 
 class CallsScreen extends StatefulWidget {
   const CallsScreen({super.key});
@@ -13,6 +18,52 @@ class CallsScreen extends StatefulWidget {
 
 class _CallsScreenState extends State<CallsScreen> {
   bool _hasCallHistory = false;
+  List<_ActiveGroupCallEntry> _activeGroupCalls = [];
+  StreamSubscription<GroupCallStateEvent>? _groupCallSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadActiveGroupCalls();
+    final engine = context.read<EngineService>();
+    _groupCallSub = engine.onGroupCallState.listen(_onGroupCallEvent);
+  }
+
+  @override
+  void dispose() {
+    _groupCallSub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadActiveGroupCalls() async {
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    final chats = engine.getChatList(accountId: accountId, limit: 20);
+    final pinned = chats.where((c) => c.isPinned);
+    final nonPinned = chats.where((c) => !c.isPinned);
+    final candidates = [...pinned, ...nonPinned]
+        .where((c) => c.type == ChatType.group || c.type == ChatType.channel)
+        .take(20)
+        .toList();
+
+    final entries = <_ActiveGroupCallEntry>[];
+    for (final chat in candidates) {
+      try {
+        final gc = await engine.getGroupCall(accountId, chat.chatId);
+        if (gc != null && gc.active) {
+          entries.add(_ActiveGroupCallEntry(chat: chat, callInfo: gc));
+        }
+      } catch (_) {}
+    }
+    if (mounted) {
+      setState(() => _activeGroupCalls = entries);
+    }
+  }
+
+  void _onGroupCallEvent(GroupCallStateEvent event) {
+    _loadActiveGroupCalls();
+  }
 
   void _showClearCallHistoryDialog() {
     final appState = context.read<AppState>();
@@ -181,6 +232,15 @@ class _CallsScreenState extends State<CallsScreen> {
       ),
       body: Column(
         children: [
+          _ActiveGroupCallsSection(
+            entries: _activeGroupCalls,
+            isDark: isDark,
+            textColor: textColor,
+            subtextColor: subtextColor,
+            dividerColor: dividerColor,
+            accentColor: accentColor,
+            menuIconColor: menuIconColor,
+          ),
           _CreateCallButton(
             accentColor: accentColor,
             textColor: textColor,
@@ -207,6 +267,249 @@ class _CallsScreenState extends State<CallsScreen> {
         ],
       ),
     );
+  }
+}
+
+class _ActiveGroupCallEntry {
+  final ChatInfo chat;
+  final GroupCallInfo callInfo;
+  const _ActiveGroupCallEntry({required this.chat, required this.callInfo});
+}
+
+class _ActiveGroupCallsSection extends StatelessWidget {
+  final List<_ActiveGroupCallEntry> entries;
+  final bool isDark;
+  final Color textColor;
+  final Color subtextColor;
+  final Color dividerColor;
+  final Color accentColor;
+  final Color menuIconColor;
+
+  const _ActiveGroupCallsSection({
+    required this.entries,
+    required this.isDark,
+    required this.textColor,
+    required this.subtextColor,
+    required this.dividerColor,
+    required this.accentColor,
+    required this.menuIconColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 200),
+      alignment: Alignment.topCenter,
+      child: entries.isEmpty
+          ? const SizedBox.shrink()
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(left: 16, top: 8, bottom: 4),
+                  child: Text(
+                    'Active Group Calls',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: accentColor,
+                    ),
+                  ),
+                ),
+                for (final entry in entries)
+                  _GroupCallRow(
+                    entry: entry,
+                    isDark: isDark,
+                    textColor: textColor,
+                    subtextColor: subtextColor,
+                    menuIconColor: menuIconColor,
+                  ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Divider(height: 1, color: dividerColor),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+class _GroupCallRow extends StatefulWidget {
+  final _ActiveGroupCallEntry entry;
+  final bool isDark;
+  final Color textColor;
+  final Color subtextColor;
+  final Color menuIconColor;
+
+  const _GroupCallRow({
+    required this.entry,
+    required this.isDark,
+    required this.textColor,
+    required this.subtextColor,
+    required this.menuIconColor,
+  });
+
+  @override
+  State<_GroupCallRow> createState() => _GroupCallRowState();
+}
+
+class _GroupCallRowState extends State<_GroupCallRow> {
+  bool _hovered = false;
+
+  static const _avatarColors = [
+    Color(0xFFE17076),
+    Color(0xFF7BC862),
+    Color(0xFFE5CA77),
+    Color(0xFF65AADD),
+    Color(0xFFA695E7),
+    Color(0xFFEE7AAE),
+    Color(0xFF6EC9CB),
+  ];
+
+  String _chatTypeLabel(ChatInfo chat) {
+    switch (chat.type) {
+      case ChatType.channel:
+        return 'channel';
+      case ChatType.group:
+        return 'group';
+      default:
+        return 'chat';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final chat = widget.entry.chat;
+    final isChannel = chat.type == ChatType.channel;
+    final hoverBg =
+        widget.isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
+
+    final colorIndex = chat.chatId.hashCode.abs() % 7;
+    final avatarColor = _avatarColors[colorIndex];
+    final initials = _getInitials(chat.title);
+    final avatarCorner = context.watch<AppState>().avatarCornerRadius;
+    const avatarSize = 42.0;
+    final avatarRadius = avatarSize / 2 * (avatarCorner / 50.0);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          final chatState = context.read<ChatState>();
+          chatState.openChat(chat);
+          Navigator.of(context).pop();
+        },
+        child: Container(
+          height: 56,
+          color: _hovered ? hoverBg : Colors.transparent,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              SizedBox(
+                width: avatarSize,
+                height: avatarSize,
+                child: chat.avatarPath.isNotEmpty
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(avatarRadius),
+                        child: Image.file(
+                          File(chat.avatarPath),
+                          width: avatarSize,
+                          height: avatarSize,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _fallbackAvatar(
+                              avatarColor, initials, avatarSize, avatarRadius),
+                        ),
+                      )
+                    : _fallbackAvatar(
+                        avatarColor, initials, avatarSize, avatarRadius),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      chat.title,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: widget.textColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _chatTypeLabel(chat),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: widget.subtextColor,
+                      ),
+                      maxLines: 1,
+                    ),
+                  ],
+                ),
+              ),
+              if (isChannel)
+                SizedBox(
+                  width: 40,
+                  height: 56,
+                  child: IconButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: () async {
+                      final engine = context.read<EngineService>();
+                      try {
+                        await engine.joinGroupCall(
+                            chat.accountId, chat.chatId);
+                      } catch (_) {}
+                    },
+                    icon: Icon(
+                      Icons.call,
+                      size: 20,
+                      color: _hovered
+                          ? (widget.isDark
+                              ? const Color(0xFFACBBC9)
+                              : const Color(0xFF6A6A6A))
+                          : widget.menuIconColor,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _fallbackAvatar(
+      Color color, String initials, double size, double radius) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(radius),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        initials,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: size * 0.38,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+
+  String _getInitials(String name) {
+    if (name.isEmpty) return '';
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length == 1) return parts[0][0].toUpperCase();
+    return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
   }
 }
 

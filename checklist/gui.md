@@ -878,7 +878,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/hamburger_drawer.dart (Calls menu entry) — new: dart/lib/ui/calls_history.dart -->
 
-- [ ] Active group calls section: SlideWrap auto-shown, GroupCallRow with channel name + action button — spec §34.3
 - [ ] Call history list: PeerListContent, first 20 / subsequent 100, prepend on new, remove on delete, empty/loading states, no date-group headers — spec §34.4
 - [ ] Call row: 56px height, 42px avatar, name semibold 13px, same-peer/date/type grouping — spec §34.5
 - [ ] Direction/type indicators: incoming (green arrow) / outgoing (green arrow) / missed/busy (red arrow), arrow offset (-2,1), voice vs video icon — spec §34.6
