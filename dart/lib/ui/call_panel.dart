@@ -1422,14 +1422,15 @@ class CallRatingDialog extends StatefulWidget {
 class _CallRatingDialogState extends State<CallRatingDialog> {
   int _selectedRating = 0;
   final _commentController = TextEditingController();
+  final _commentFocusNode = FocusNode();
   bool _submitting = false;
 
-  static const _starSize = 36.0;
-  static const _starPadding = 12.0;
+  static const _kCommentMaxLength = 200;
 
   @override
   void dispose() {
     _commentController.dispose();
+    _commentFocusNode.dispose();
     super.dispose();
   }
 
@@ -1439,176 +1440,147 @@ class _CallRatingDialogState extends State<CallRatingDialog> {
     try {
       final engine = context.read<EngineService>();
       final accountId = context.read<AppState>().activeAccountId;
+      final comment = _selectedRating < 5 ? _commentController.text.trim() : '';
       await engine.sendCallRating(
         accountId,
         widget.callId,
         _selectedRating,
-        _commentController.text.trim(),
+        comment,
       );
     } catch (_) {}
     if (mounted) Navigator.of(context).pop();
   }
 
+  void _setRating(int rating) {
+    setState(() {
+      _selectedRating = rating;
+      if (rating > 0 && rating < 5) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _commentFocusNode.requestFocus();
+        });
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final unselectedColor = isDark
-        ? const Color(0xFF8b95a5)
-        : const Color(0xFF6B7280);
-    const selectedColor = Color(0xFF40a7e3);
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final windowSubTextFg = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final borderColor = isDark ? const Color(0xFF2b3640) : const Color(0xFFD8D8DD);
 
-    return Center(
-      child: Material(
-        color: Colors.transparent,
-        child: Container(
-          width: 340,
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF17212b) : Colors.white,
-            borderRadius: BorderRadius.circular(10),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.3),
-                blurRadius: 20,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 20),
-              Text(
-                'Rate this call',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white : const Color(0xFF222222),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Please rate the quality of this call.',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: unselectedColor,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
+    final showComment = _selectedRating > 0 && _selectedRating < 5;
+
+    return AlertDialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      contentPadding: EdgeInsets.zero,
+      actionsPadding: const EdgeInsets.only(left: 8, right: 8, bottom: 8),
+      title: Text(
+        'Please rate the quality of your call',
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: textColor,
+        ),
+      ),
+      content: SizedBox(
+        width: 364,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(left: 24, top: 12, right: 24),
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(5, (i) {
                   final starIndex = i + 1;
                   final isSelected = starIndex <= _selectedRating;
                   return Padding(
-                    padding: EdgeInsets.symmetric(horizontal: _starPadding),
-                    child: GestureDetector(
-                      onTap: () => setState(() => _selectedRating = starIndex),
-                      child: Icon(
-                        isSelected ? Icons.star_rounded : Icons.star_outline_rounded,
-                        size: _starSize,
-                        color: isSelected ? selectedColor : unselectedColor,
+                    padding: const EdgeInsets.only(top: 4),
+                    child: SizedBox(
+                      width: 36,
+                      height: 36,
+                      child: InkResponse(
+                        onTap: () => _setRating(starIndex),
+                        radius: 18,
+                        child: Icon(
+                          isSelected ? Icons.star_rounded : Icons.star_outline_rounded,
+                          size: 36,
+                          color: isSelected ? accentColor : windowSubTextFg,
+                        ),
                       ),
                     ),
                   );
                 }),
               ),
-              if (_selectedRating > 0 && _selectedRating < 5) ...[
-                const SizedBox(height: 16),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 135),
-                    child: TextField(
-                      controller: _commentController,
-                      maxLines: null,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: isDark ? Colors.white : const Color(0xFF222222),
+            ),
+            if (showComment) ...[
+              Padding(
+                padding: const EdgeInsets.only(left: 24, top: 8, right: 24),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 135),
+                  child: TextField(
+                    controller: _commentController,
+                    focusNode: _commentFocusNode,
+                    maxLines: null,
+                    maxLength: _kCommentMaxLength,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: textColor,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Comment (optional)',
+                      hintStyle: TextStyle(fontSize: 14, color: windowSubTextFg),
+                      counterText: '',
+                      contentPadding: const EdgeInsets.fromLTRB(1, 26, 1, 4),
+                      border: UnderlineInputBorder(
+                        borderSide: BorderSide(color: borderColor),
                       ),
-                      decoration: InputDecoration(
-                        hintText: 'Add an optional comment...',
-                        hintStyle: TextStyle(
-                          fontSize: 14,
-                          color: unselectedColor,
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(
-                            color: isDark
-                                ? const Color(0xFF2b3640)
-                                : const Color(0xFFD8D8DD),
-                          ),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(
-                            color: isDark
-                                ? const Color(0xFF2b3640)
-                                : const Color(0xFFD8D8DD),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(
-                            color: selectedColor,
-                          ),
-                        ),
+                      enabledBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: borderColor),
+                      ),
+                      focusedBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: accentColor),
                       ),
                     ),
+                    onSubmitted: (_) => _submit(),
                   ),
                 ),
-              ],
-              const SizedBox(height: 20),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: Text(
-                          'Not now',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: unselectedColor,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: _selectedRating > 0 ? _submit : null,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: selectedColor,
-                          disabledBackgroundColor: isDark
-                              ? const Color(0xFF2b3640)
-                              : const Color(0xFFD8D8DD),
-                        ),
-                        child: _submitting
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Text('Submit'),
-                      ),
-                    ),
-                  ],
-                ),
               ),
-              const SizedBox(height: 16),
             ],
-          ),
+            const SizedBox(height: 8),
+          ],
         ),
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(
+            'Cancel',
+            style: TextStyle(color: accentColor),
+          ),
+        ),
+        if (_selectedRating > 0)
+          TextButton(
+            onPressed: _submitting ? null : _submit,
+            child: _submitting
+                ? SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: accentColor,
+                    ),
+                  )
+                : Text(
+                    'Send',
+                    style: TextStyle(color: accentColor),
+                  ),
+          ),
+      ],
     );
   }
 }
