@@ -884,7 +884,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_list_panel.dart (partial _EmptyState for search), chat_view.dart — new: dart/lib/ui/empty_states.dart -->
 
-- [ ] Empty forum, empty saved sublists text states — spec §35.3–35.4
 - [ ] Chat list skeleton loading: 2 placeholder rows matching DialogRow geometry (avatar ellipse + name bar 60px + status bar ~100px), 2s glare animation (1000ms sweep + 1000ms pause), RTL mirroring — spec §35.5 + §35.33
 - [ ] "Select a chat to start messaging" service bubble in chat pane (no chat selected) — spec §35.6
 - [ ] Empty search states: search-waiting Lottie search.tgs 100px / no-results Lottie noresults.tgs 100px with bold "No Results" + truncated query description + "Search in All Messages" link — spec §35.7

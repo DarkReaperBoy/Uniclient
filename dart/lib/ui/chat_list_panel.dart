@@ -3769,6 +3769,46 @@ class _TelegramToastState extends State<_TelegramToast>
 // §22.3 Forum Topic List View
 // ══════════════════════════════════════════════════════════════════════════════
 
+class _ForumEmptyState extends StatelessWidget {
+  final VoidCallback onCreateTopic;
+  const _ForumEmptyState({required this.onCreateTopic});
+
+  @override
+  Widget build(BuildContext context) {
+    final subColor = Theme.of(context).textTheme.bodySmall?.color ?? Colors.grey;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(
+                text: 'No topics currently created\nin this group. ',
+                style: TextStyle(fontSize: 13, color: subColor),
+              ),
+              WidgetSpan(
+                alignment: PlaceholderAlignment.baseline,
+                baseline: TextBaseline.alphabetic,
+                child: GestureDetector(
+                  onTap: onCreateTopic,
+                  child: Text(
+                    'Create topic',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
+}
+
 class _ForumTopicListView extends StatefulWidget {
   final ChatState chatState;
   final bool collapsed;
@@ -3841,7 +3881,11 @@ class _ForumTopicListViewState extends State<_ForumTopicListView> {
             ),
             Expanded(
               child: topics.isEmpty
-                  ? const Center(child: CircularProgressIndicator())
+                  ? (widget.chatState.forumFirstLoadDone
+                      ? _ForumEmptyState(
+                          onCreateTopic: () => _showCreateTopicDialog(context, parent, engine),
+                        )
+                      : const Center(child: CircularProgressIndicator()))
                   : ListView.builder(
                       controller: _scrollCtrl,
                       itemCount: topics.length + (hasMore ? 1 : 0),
@@ -5001,11 +5045,15 @@ class _SavedSublistsViewState extends State<_SavedSublistsView> {
                 ? const Center(child: CircularProgressIndicator())
                 : sublists.isEmpty
                     ? Center(
-                        child: Text(
-                          'No saved messages yet',
-                          style: TextStyle(
-                            color: theme.hintColor,
-                            fontSize: 14,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 32),
+                          child: Text(
+                            'You can save messages from\nother chats here.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: theme.textTheme.bodySmall?.color ?? Colors.grey,
+                            ),
                           ),
                         ),
                       )

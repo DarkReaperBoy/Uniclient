@@ -60,6 +60,7 @@ class ChatState extends ChangeNotifier {
   final Set<String> _forumViewAsMessages = {};
   bool _forumHasMore = false;
   bool _forumLoadingMore = false;
+  bool _forumFirstLoadDone = false;
 
   // §22.4: Recent topic names for forum chats (up to 8), keyed by "accountId:chatId".
   final Map<String, List<ForumTopic>> _forumRecentTopics = {};
@@ -274,6 +275,7 @@ class ChatState extends ChangeNotifier {
   String? get activeTopicId => _activeTopicId;
   bool get forumHasMore => _forumHasMore;
   bool get forumLoadingMore => _forumLoadingMore;
+  bool get forumFirstLoadDone => _forumFirstLoadDone;
 
   bool get isForumViewAsMessages {
     final chat = _forumParentChat;
@@ -781,6 +783,7 @@ class ChatState extends ChangeNotifier {
     _activeTopicId = null;
     _forumHasMore = false;
     _forumLoadingMore = false;
+    _forumFirstLoadDone = false;
     notifyListeners();
     try {
       final topics = await _engine.getForumTopics(chat.accountId, chat.chatId);
@@ -791,6 +794,7 @@ class ChatState extends ChangeNotifier {
         _autoPreloadForumTopics(chat);
       }
     } catch (_) {}
+    _forumFirstLoadDone = true;
     final key = '${chat.accountId}:${chat.chatId}';
     _forumRecentTopics[key] = _forumTopics.take(8).toList();
     notifyListeners();
@@ -862,6 +866,7 @@ class ChatState extends ChangeNotifier {
     _activeTopicId = null;
     _forumHasMore = false;
     _forumLoadingMore = false;
+    _forumFirstLoadDone = false;
     notifyListeners();
   }
 
