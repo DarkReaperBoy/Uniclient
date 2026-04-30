@@ -23,6 +23,7 @@ import 'edit_forum_topic_box.dart';
 import 'folders_settings_screen.dart' show showEditFolderBox;
 import 'shell.dart';
 import 'story_editor.dart';
+import '../theme/telegram_palette.dart';
 
 /// The entire left panel: search bar + chat list.
 /// When [collapsed] is true, renders in avatar-only narrow mode (spec §1:
@@ -506,6 +507,16 @@ class _ChatListPanelState extends State<ChatListPanel>
     });
   }
 
+  bool _isLoadingChats(AppState appState, ChatState chatState) {
+    if (_searching) return false;
+    if (appState.accounts.isEmpty) return false;
+    final id = appState.activeAccountId;
+    if (id.isEmpty) return false;
+    if (chatState.chatsForAccount(id).isNotEmpty) return false;
+    final conn = appState.connStateFor(id);
+    return conn == ConnState.connecting || conn == ConnState.connected;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -653,11 +664,13 @@ class _ChatListPanelState extends State<ChatListPanel>
                     chatState: chatState,
                   )
                 : visibleChats.isEmpty && !showArchiveRow
-                    ? _EmptyState(
-                        searching: _searching,
-                        query: _searchController.text,
-                        activeFolderId: chatState.activeFolderId,
-                      )
+                    ? _isLoadingChats(appState, chatState)
+                        ? const _ChatListSkeleton()
+                        : _EmptyState(
+                            searching: _searching,
+                            query: _searchController.text,
+                            activeFolderId: chatState.activeFolderId,
+                          )
                     : Listener(
                         onPointerDown: _onReorderPointerDown,
                         onPointerMove: _onReorderPointerMove,
@@ -3517,6 +3530,188 @@ class _ArchivedChatsRowState extends State<_ArchivedChatsRow> {
     Color(0xFFee7aae), // pink
     Color(0xFF9b86e2), // purple
   ];
+}
+
+/// Spec §35.5 + §35.33: Skeleton loading rows shown during initial chat sync.
+/// 2 placeholder rows matching DialogRow geometry with a glare sweep animation.
+class _ChatListSkeleton extends StatefulWidget {
+  const _ChatListSkeleton();
+
+  @override
+  State<_ChatListSkeleton> createState() => _ChatListSkeletonState();
+}
+
+class _ChatListSkeletonState extends State<_ChatListSkeleton>
+    with SingleTickerProviderStateMixin {
+  static const _rowHeight = 62.0;
+  static const _avatarSize = 46.0;
+  static const _avatarLeft = 10.0;
+  static const _avatarTop = 8.0;
+  static const _contentLeft = 68.0;
+  static const _nameTop = 10.0;
+  static const _nameWidth = 60.0;
+  static const _statusTop = 34.0;
+  static const _rowCount = 2;
+  static const _cycleDuration = Duration(milliseconds: 2000);
+
+  late final AnimationController _controller;
+  late final List<double> _statusWidths;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: _cycleDuration)
+      ..repeat();
+    final rng = math.Random();
+    _statusWidths = List.generate(
+      _rowCount,
+      (_) => 100.0 / 4 + rng.nextDouble() * (100.0 / 2),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        return CustomPaint(
+          painter: _SkeletonPainter(
+            progress: _controller.value,
+            statusWidths: _statusWidths,
+            avatarColor: p.windowBgOver,
+            baseColor: p.windowSubTextFg.withValues(alpha: 0.5),
+            glareColor: p.windowSubTextFg.withValues(alpha: 0.2),
+            bgColor: p.dialogsBg,
+          ),
+          size: const Size(double.infinity, _rowHeight * _rowCount),
+        );
+      },
+    );
+  }
+}
+
+class _SkeletonPainter extends CustomPainter {
+  final double progress;
+  final List<double> statusWidths;
+  final Color avatarColor;
+  final Color baseColor;
+  final Color glareColor;
+  final Color bgColor;
+
+  _SkeletonPainter({
+    required this.progress,
+    required this.statusWidths,
+    required this.avatarColor,
+    required this.baseColor,
+    required this.glareColor,
+    required this.bgColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(Offset.zero & size, Paint()..color = bgColor);
+
+    final nameBarHeight = 14 * 0.7;
+    final statusBarHeight = 13 * 0.7;
+    final nameRadius = nameBarHeight / 2;
+    final statusRadius = statusBarHeight / 2;
+
+    // Glare: first half of cycle (0..0.5) is sweep, second half (0.5..1) is pause.
+    final sweepPhase = progress < 0.5 ? progress / 0.5 : -1.0;
+
+    for (var i = 0; i < _ChatListSkeletonState._rowCount; i++) {
+      final rowTop = i * _ChatListSkeletonState._rowHeight;
+
+      // Avatar circle.
+      final avatarCenter = Offset(
+        _ChatListSkeletonState._avatarLeft + _ChatListSkeletonState._avatarSize / 2,
+        rowTop + _ChatListSkeletonState._avatarTop + _ChatListSkeletonState._avatarSize / 2,
+      );
+      canvas.drawCircle(
+        avatarCenter,
+        _ChatListSkeletonState._avatarSize / 2,
+        Paint()..color = avatarColor,
+      );
+
+      // Name bar.
+      final nameRect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(
+          _ChatListSkeletonState._contentLeft,
+          rowTop + _ChatListSkeletonState._nameTop + (14 - nameBarHeight) / 2,
+          _ChatListSkeletonState._nameWidth,
+          nameBarHeight,
+        ),
+        Radius.circular(nameRadius),
+      );
+      canvas.drawRRect(nameRect, Paint()..color = baseColor);
+
+      // Status bar (randomized width per row).
+      final sw = statusWidths[i];
+      final statusRect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(
+          _ChatListSkeletonState._contentLeft,
+          rowTop + _ChatListSkeletonState._statusTop + (13 - statusBarHeight) / 2,
+          sw,
+          statusBarHeight,
+        ),
+        Radius.circular(statusRadius),
+      );
+      canvas.drawRRect(statusRect, Paint()..color = baseColor);
+
+      // Glare sweep overlay on bars.
+      if (sweepPhase >= 0) {
+        final glareX = sweepPhase * size.width;
+        final glareWidth = size.width * 0.4;
+        final gradient = LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [
+            glareColor.withValues(alpha: 0),
+            glareColor,
+            glareColor.withValues(alpha: 0),
+          ],
+        );
+        final glareRect = Rect.fromLTWH(
+          glareX - glareWidth / 2,
+          rowTop,
+          glareWidth,
+          _ChatListSkeletonState._rowHeight,
+        );
+        final glarePaint = Paint()
+          ..shader = gradient.createShader(glareRect);
+
+        canvas.save();
+        // Clip to name bar, draw glare.
+        canvas.clipRRect(nameRect);
+        canvas.drawRect(glareRect, glarePaint);
+        canvas.restore();
+
+        canvas.save();
+        canvas.clipRRect(statusRect);
+        canvas.drawRect(glareRect, glarePaint);
+        canvas.restore();
+
+        // Glare on avatar circle.
+        canvas.save();
+        canvas.clipPath(Path()..addOval(Rect.fromCircle(
+          center: avatarCenter,
+          radius: _ChatListSkeletonState._avatarSize / 2,
+        )));
+        canvas.drawRect(glareRect, glarePaint);
+        canvas.restore();
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SkeletonPainter old) => old.progress != progress;
 }
 
 /// Empty state for chat list.
