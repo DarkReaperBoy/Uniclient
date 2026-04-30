@@ -890,6 +890,225 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
   }
 }
 
+// ─── TimePickerBox — spec §36.6.4 ──────────────────────────────────────────
+
+const double _drumItemHeight = 40;
+const int _drumVisibleCount = 5;
+const double _drumHeight = _drumItemHeight * _drumVisibleCount;
+const double _drumBandBorder = 2;
+
+const List<int> kDefaultTimePickerValues = [
+  900, 1800, 3600, 7200, 10800, 14400, 28800, 43200,
+  86400, 172800, 259200, 604800, 1209600, 2678400, 5356800, 8035200,
+];
+
+const List<String> _defaultTimePickerLabels = [
+  '15 minutes', '30 minutes', '1 hour', '2 hours', '3 hours', '4 hours',
+  '8 hours', '12 hours', '1 day', '2 days', '3 days', '1 week', '2 weeks',
+  '1 month', '2 months', '3 months',
+];
+
+Future<int?> showTimePickerBox(
+  BuildContext context, {
+  String title = 'Auto-Delete Timer',
+  List<int>? values,
+  List<String>? labels,
+  int? initialValue,
+}) {
+  final v = values ?? kDefaultTimePickerValues;
+  final l = labels ?? _defaultTimePickerLabels;
+  assert(v.length == l.length);
+  int initialIndex = 0;
+  if (initialValue != null) {
+    final idx = v.indexOf(initialValue);
+    if (idx >= 0) initialIndex = idx;
+  }
+  return showTelegramBox<int>(
+    context: context,
+    builder: (ctx) => _TimePickerBoxWidget(
+      title: title,
+      values: v,
+      labels: l,
+      initialIndex: initialIndex,
+    ),
+  );
+}
+
+class _TimePickerBoxWidget extends StatefulWidget {
+  final String title;
+  final List<int> values;
+  final List<String> labels;
+  final int initialIndex;
+
+  const _TimePickerBoxWidget({
+    required this.title,
+    required this.values,
+    required this.labels,
+    required this.initialIndex,
+  });
+
+  @override
+  State<_TimePickerBoxWidget> createState() => _TimePickerBoxWidgetState();
+}
+
+class _TimePickerBoxWidgetState extends State<_TimePickerBoxWidget>
+    with SingleTickerProviderStateMixin {
+  late double _scrollOffset;
+  late int _selectedIndex;
+  late AnimationController _snapController;
+  late Animation<double> _snapAnimation;
+  double _snapFrom = 0;
+  double _snapTo = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedIndex = widget.initialIndex;
+    _scrollOffset = widget.initialIndex * _drumItemHeight;
+    _snapController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    )..addListener(() {
+        setState(() {
+          _scrollOffset =
+              _snapFrom + (_snapTo - _snapFrom) * Curves.easeOutCubic.transform(_snapController.value);
+          _selectedIndex = (_scrollOffset / _drumItemHeight).round().clamp(0, widget.values.length - 1);
+        });
+      });
+  }
+
+  @override
+  void dispose() {
+    _snapController.dispose();
+    super.dispose();
+  }
+
+  double get _maxOffset => (widget.values.length - 1) * _drumItemHeight;
+
+  void _snapToNearest() {
+    final target = (_scrollOffset / _drumItemHeight).round() * _drumItemHeight;
+    final clamped = target.clamp(0.0, _maxOffset);
+    _snapFrom = _scrollOffset;
+    _snapTo = clamped;
+    _snapController.forward(from: 0);
+  }
+
+  void _goToIndex(int index) {
+    final clamped = index.clamp(0, widget.values.length - 1);
+    _snapFrom = _scrollOffset;
+    _snapTo = clamped * _drumItemHeight;
+    _snapController.forward(from: 0);
+  }
+
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.arrowUp) {
+      _goToIndex(_selectedIndex - 1);
+      return KeyEventResult.handled;
+    } else if (key == LogicalKeyboardKey.arrowDown) {
+      _goToIndex(_selectedIndex + 1);
+      return KeyEventResult.handled;
+    } else if (key == LogicalKeyboardKey.escape) {
+      Navigator.of(context).pop();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textFg = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final dimFg = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final bandColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final centerY = (_drumHeight - _drumItemHeight) / 2;
+
+    return TelegramBox(
+      title: widget.title,
+      onKeyEvent: _handleKey,
+      scrollableContent: false,
+      onConfirm: () => Navigator.of(context).pop(widget.values[_selectedIndex]),
+      content: SizedBox(
+        height: _drumHeight,
+        child: Listener(
+          onPointerSignal: (event) {
+            if (event is PointerScrollEvent) {
+              _snapController.stop();
+              setState(() {
+                _scrollOffset = (_scrollOffset + event.scrollDelta.dy).clamp(0.0, _maxOffset);
+                _selectedIndex = (_scrollOffset / _drumItemHeight).round().clamp(0, widget.values.length - 1);
+              });
+              _snapToNearest();
+            }
+          },
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onVerticalDragUpdate: (d) {
+              _snapController.stop();
+              setState(() {
+                _scrollOffset = (_scrollOffset - d.delta.dy).clamp(0.0, _maxOffset);
+                _selectedIndex = (_scrollOffset / _drumItemHeight).round().clamp(0, widget.values.length - 1);
+              });
+            },
+            onVerticalDragEnd: (_) => _snapToNearest(),
+            child: ClipRect(
+              child: Stack(
+                children: [
+                  for (int i = 0; i < widget.labels.length; i++)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      top: centerY + (i * _drumItemHeight) - _scrollOffset,
+                      height: _drumItemHeight,
+                      child: Center(
+                        child: Text(
+                          widget.labels[i],
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: i == _selectedIndex ? textFg : dimFg,
+                            fontWeight: i == _selectedIndex ? FontWeight.w500 : FontWeight.normal,
+                          ),
+                        ),
+                      ),
+                    ),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    top: centerY,
+                    child: IgnorePointer(
+                      child: Container(
+                        height: _drumItemHeight,
+                        decoration: BoxDecoration(
+                          border: Border.symmetric(
+                            horizontal: BorderSide(
+                              color: bandColor,
+                              width: _drumBandBorder,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+      buttons: [
+        TelegramBoxButton(
+          text: 'Cancel',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        TelegramBoxButton(
+          text: 'Done',
+          onPressed: () => Navigator.of(context).pop(widget.values[_selectedIndex]),
+        ),
+      ],
+    );
+  }
+}
+
 class _TimeInputField extends StatelessWidget {
   final TextEditingController hourController;
   final TextEditingController minuteController;

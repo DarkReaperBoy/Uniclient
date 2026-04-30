@@ -10112,6 +10112,7 @@ class _TtlButton extends StatefulWidget {
 
 class _TtlButtonState extends State<_TtlButton> {
   bool _hovered = false;
+  static const _customSentinel = -1;
 
   static String _formatTtl(int seconds) {
     if (seconds <= 0) return 'Off';
@@ -10121,6 +10122,17 @@ class _TtlButtonState extends State<_TtlButton> {
     final days = seconds ~/ 86400;
     if (days < 31) return '${days}d';
     return '${days ~/ 30}mo';
+  }
+
+  Future<void> _openCustomPicker() async {
+    final result = await showTimePickerBox(
+      context,
+      title: 'Auto-Delete Timer',
+      initialValue: widget.ttlPeriod > 0 ? widget.ttlPeriod : null,
+    );
+    if (result != null && result != widget.ttlPeriod) {
+      widget.onChanged?.call(result);
+    }
   }
 
   @override
@@ -10138,6 +10150,10 @@ class _TtlButtonState extends State<_TtlButton> {
             ? 'Auto-delete: ${_formatTtl(widget.ttlPeriod)}'
             : 'Auto-delete messages',
         onSelected: (value) {
+          if (value == _customSentinel) {
+            _openCustomPicker();
+            return;
+          }
           if (value != widget.ttlPeriod) {
             widget.onChanged?.call(value);
           }
@@ -10175,6 +10191,16 @@ class _TtlButtonState extends State<_TtlButton> {
                 ],
               ),
             ),
+          const PopupMenuItem<int>(
+            value: _customSentinel,
+            child: Row(
+              children: [
+                Icon(Icons.tune, size: 20),
+                SizedBox(width: 12),
+                Text('Set Custom Time'),
+              ],
+            ),
+          ),
         ],
         child: SizedBox(
           width: 44,

@@ -84,6 +84,8 @@ class TelegramBox extends StatefulWidget {
   final Widget content;
   final List<TelegramBoxButton> buttons;
   final VoidCallback? onConfirm;
+  final KeyEventResult Function(FocusNode, KeyEvent)? onKeyEvent;
+  final bool scrollableContent;
 
   const TelegramBox({
     super.key,
@@ -94,6 +96,8 @@ class TelegramBox extends StatefulWidget {
     required this.content,
     this.buttons = const [],
     this.onConfirm,
+    this.onKeyEvent,
+    this.scrollableContent = true,
   });
 
   @override
@@ -118,6 +122,10 @@ class _TelegramBoxState extends State<TelegramBox> {
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
+    }
+    if (widget.onKeyEvent != null) {
+      final result = widget.onKeyEvent!(node, event);
+      if (result == KeyEventResult.handled) return result;
     }
     if (event.logicalKey == LogicalKeyboardKey.enter ||
         event.logicalKey == LogicalKeyboardKey.numpadEnter) {
@@ -157,7 +165,9 @@ class _TelegramBoxState extends State<TelegramBox> {
                 child: ConstrainedBox(
                   constraints:
                       const BoxConstraints(maxHeight: kBoxMaxListHeight),
-                  child: SingleChildScrollView(child: widget.content),
+                  child: widget.scrollableContent
+                      ? SingleChildScrollView(child: widget.content)
+                      : widget.content,
                 ),
               ),
               if (widget.buttons.isNotEmpty) _buildButtonRow(isDark),
