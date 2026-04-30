@@ -3119,6 +3119,16 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, nil
 
+	case "ClearCallHistory":
+		var req pb.EngineClearCallHistoryRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		if err := e.ClearCallHistory(req.AccountId, req.Revoke); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}

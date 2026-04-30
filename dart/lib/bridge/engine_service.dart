@@ -1372,6 +1372,13 @@ class EngineService {
     await _callAsync('__engine', 'SendCallRating', req.writeToBuffer());
   }
 
+  Future<void> clearCallHistory(String accountId, {bool revoke = false}) async {
+    final req = epb.EngineClearCallHistoryRequest()
+      ..accountId = accountId
+      ..revoke = revoke;
+    await _callAsync('__engine', 'ClearCallHistory', req.writeToBuffer());
+  }
+
   // ── Stories ──
 
   Future<List<StoryItem>> fetchPeerStories(String accountId, String peerId) async {

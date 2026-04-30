@@ -1329,3 +1329,12 @@ message EngineRenameSavedReactionTagRequest {
   int64  custom_id  = 3; // custom emoji document ID
   string title      = 4; // new title (empty to remove)
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Clear Call History (§34.11)
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineClearCallHistoryRequest {
+  string account_id = 1;
+  bool   revoke     = 2; // "Also delete for other participants"
+}

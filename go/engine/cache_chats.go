@@ -1184,3 +1184,21 @@ func (e *Engine) SendCallRating(accountID, callID string, rating int, comment st
 	}
 	return cr.SendCallRating(callID, rating, comment)
 }
+
+func (e *Engine) ClearCallHistory(accountID string, revoke bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	type callHistoryClearer interface {
+		ClearCallHistory(revoke bool) error
+	}
+	cc, ok := acc.Core.(callHistoryClearer)
+	if !ok {
+		return nil
+	}
+	return cc.ClearCallHistory(revoke)
+}

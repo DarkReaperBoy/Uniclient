@@ -878,7 +878,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/hamburger_drawer.dart (Calls menu entry) — new: dart/lib/ui/calls_history.dart -->
 
-- [ ] Calls box shell: GenericBox, title "Calls", Close button, top-right menu (Call Settings / Clear All red) — spec §34.2
 - [ ] Active group calls section: SlideWrap auto-shown, GroupCallRow with channel name + action button — spec §34.3
 - [ ] Call history list: PeerListContent, first 20 / subsequent 100, prepend on new, remove on delete, empty/loading states, no date-group headers — spec §34.4
 - [ ] Call row: 56px height, 42px avatar, name semibold 13px, same-peer/date/type grouping — spec §34.5

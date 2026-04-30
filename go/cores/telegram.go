@@ -18609,6 +18609,28 @@ func (t *TelegramCore) MessagesDeletePhoneCallHistory(request *tg.MessagesDelete
 	return t.api.MessagesDeletePhoneCallHistory(t.ctx, request)
 }
 
+func (t *TelegramCore) ClearCallHistory(revoke bool) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+	req := &tg.MessagesDeletePhoneCallHistoryRequest{}
+	if revoke {
+		req.SetRevoke(true)
+	}
+	for {
+		result, err := t.api.MessagesDeletePhoneCallHistory(t.ctx, req)
+		if err != nil {
+			return fmt.Errorf("clear call history: %w", err)
+		}
+		if result.Offset == 0 {
+			break
+		}
+	}
+	return nil
+}
+
 // MessagesDeletePollAnswer removes a vote from a poll.
 func (t *TelegramCore) MessagesDeletePollAnswer(request *tg.MessagesDeletePollAnswerRequest) (tg.UpdatesClass, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()

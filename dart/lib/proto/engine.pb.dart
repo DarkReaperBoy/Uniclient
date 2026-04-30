@@ -12765,5 +12765,48 @@ class EngineRenameSavedReactionTagRequest extends $pb.GeneratedMessage {
   }
 }
 
+class EngineClearCallHistoryRequest extends $pb.GeneratedMessage {
+  factory EngineClearCallHistoryRequest({
+    $core.String? accountId,
+    $core.bool? revoke,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    if (revoke != null) $result.revoke = revoke;
+    return $result;
+  }
+  EngineClearCallHistoryRequest._() : super();
+  factory EngineClearCallHistoryRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineClearCallHistoryRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOB(2, _omitFieldNames ? '' : 'revoke')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineClearCallHistoryRequest clone() => EngineClearCallHistoryRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineClearCallHistoryRequest copyWith(void Function(EngineClearCallHistoryRequest) updates) => super.copyWith((message) => updates(message as EngineClearCallHistoryRequest)) as EngineClearCallHistoryRequest;
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineClearCallHistoryRequest create() => EngineClearCallHistoryRequest._();
+  EngineClearCallHistoryRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineClearCallHistoryRequest> createRepeated() => $pb.PbList<EngineClearCallHistoryRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineClearCallHistoryRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineClearCallHistoryRequest>(create);
+  static EngineClearCallHistoryRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.bool get revoke => $_getBF(1);
+  @$pb.TagNumber(2)
+  set revoke($core.bool v) { $_setBool(1, v); }
+}
+
 const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
 const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

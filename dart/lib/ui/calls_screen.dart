@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
-/// Calls History screen (§34). Opened from hamburger drawer "Calls" row.
-/// Shows call history list with direction indicators, redial buttons,
-/// and a "Create Call" action at top.
-/// Empty state: "Your recent calls will appear here."
+import '../bridge/engine_service.dart';
+import '../state/app_state.dart';
+
 class CallsScreen extends StatefulWidget {
   const CallsScreen({super.key});
 
@@ -12,22 +12,112 @@ class CallsScreen extends StatefulWidget {
 }
 
 class _CallsScreenState extends State<CallsScreen> {
+  bool _hasCallHistory = false;
+
+  void _showClearCallHistoryDialog() {
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+    final accountId = appState.activeAccountId;
+    bool revoke = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            final isDark = Theme.of(ctx).brightness == Brightness.dark;
+            final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+            return AlertDialog(
+              backgroundColor: isDark ? const Color(0xFF1E2C3A) : Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              title: Text(
+                'Clear Call History',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: textColor,
+                ),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Are you sure you want to delete all call history?',
+                    style: TextStyle(fontSize: 14, color: textColor),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: Checkbox(
+                          value: revoke,
+                          onChanged: (v) => setDialogState(() => revoke = v ?? false),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setDialogState(() => revoke = !revoke),
+                          child: Text(
+                            'Also delete for other participants',
+                            style: TextStyle(fontSize: 14, color: textColor),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3),
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    Navigator.of(ctx).pop();
+                    try {
+                      await engine.clearCallHistory(accountId, revoke: revoke);
+                      if (mounted) {
+                        setState(() => _hasCallHistory = false);
+                      }
+                    } catch (_) {}
+                  },
+                  child: Text(
+                    'Clear',
+                    style: TextStyle(
+                      color: isDark ? const Color(0xFFe85050) : const Color(0xFFdd4b39),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
     final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
-    final textColor =
-        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subtextColor =
-        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final dividerColor =
-        isDark ? const Color(0xFF101921) : const Color(0xFFE8E8E8);
-    final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
-    final menuIconColor =
-        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFE8E8E8);
+    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final menuIconColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final attentionColor = isDark ? const Color(0xFFe85050) : const Color(0xFFdd4b39);
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -48,12 +138,14 @@ class _CallsScreenState extends State<CallsScreen> {
           ),
         ),
         actions: [
-          // §34.2: Three-dot menu with "Call Settings" and "Clear All".
           PopupMenuButton<String>(
             icon: Icon(Icons.more_vert, color: menuIconColor),
             color: isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF),
             onSelected: (value) {
-              // No-op for now — call settings and clear all require engine support.
+              switch (value) {
+                case 'clear_all':
+                  _showClearCallHistoryDialog();
+              }
             },
             itemBuilder: (context) => [
               PopupMenuItem<String>(
@@ -69,13 +161,26 @@ class _CallsScreenState extends State<CallsScreen> {
                   ],
                 ),
               ),
+              if (_hasCallHistory)
+                PopupMenuItem<String>(
+                  value: 'clear_all',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete, size: 20, color: attentionColor),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Clear All',
+                        style: TextStyle(fontSize: 14, color: attentionColor),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ),
         ],
       ),
       body: Column(
         children: [
-          // §34.12: Create Call button.
           _CreateCallButton(
             accentColor: accentColor,
             textColor: textColor,
@@ -84,7 +189,6 @@ class _CallsScreenState extends State<CallsScreen> {
             isDark: isDark,
           ),
           Divider(height: 1, color: dividerColor),
-          // §34.4: Call history list — empty state.
           Expanded(
             child: Center(
               child: Padding(
@@ -106,7 +210,6 @@ class _CallsScreenState extends State<CallsScreen> {
   }
 }
 
-/// §34.12: "Create Call" button styled as inviteViaLinkButton.
 class _CreateCallButton extends StatefulWidget {
   final Color accentColor;
   final Color textColor;
@@ -142,15 +245,12 @@ class _CreateCallButtonState extends State<_CreateCallButton> {
           onEnter: (_) => setState(() => _hovered = true),
           onExit: (_) => setState(() => _hovered = false),
           child: GestureDetector(
-            onTap: () {
-              // Conference call creation — requires engine support.
-            },
+            onTap: () {},
             child: Container(
               color: _hovered ? hoverBg : Colors.transparent,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
-                  // Floating icon circle.
                   Container(
                     width: 42,
                     height: 42,
@@ -178,7 +278,6 @@ class _CreateCallButtonState extends State<_CreateCallButton> {
             ),
           ),
         ),
-        // Description text below button.
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Text(

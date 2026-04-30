@@ -11244,6 +11244,58 @@ func (x *EngineRenameSavedReactionTagRequest) GetTitle() string {
 	return ""
 }
 
+type EngineClearCallHistoryRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	Revoke        bool                   `protobuf:"varint,2,opt,name=revoke,proto3" json:"revoke,omitempty"` // "Also delete for other participants"
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineClearCallHistoryRequest) Reset() {
+	*x = EngineClearCallHistoryRequest{}
+	mi := &file_proto_engine_proto_msgTypes[175]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineClearCallHistoryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineClearCallHistoryRequest) ProtoMessage() {}
+
+func (x *EngineClearCallHistoryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[175]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineClearCallHistoryRequest.ProtoReflect.Descriptor instead.
+func (*EngineClearCallHistoryRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{175}
+}
+
+func (x *EngineClearCallHistoryRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineClearCallHistoryRequest) GetRevoke() bool {
+	if x != nil {
+		return x.Revoke
+	}
+	return false
+}
+
 var File_proto_engine_proto protoreflect.FileDescriptor
 
 const file_proto_engine_proto_rawDesc = "" +
@@ -12223,7 +12275,11 @@ const file_proto_engine_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x14\n" +
 	"\x05emoji\x18\x02 \x01(\tR\x05emoji\x12\x1b\n" +
 	"\tcustom_id\x18\x03 \x01(\x03R\bcustomId\x12\x14\n" +
-	"\x05title\x18\x04 \x01(\tR\x05titleB\x11Z\x0funiclient/protob\x06proto3"
+	"\x05title\x18\x04 \x01(\tR\x05title\"V\n" +
+	"\x1dEngineClearCallHistoryRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x16\n" +
+	"\x06revoke\x18\x02 \x01(\bR\x06revokeB\x11Z\x0funiclient/protob\x06proto3"
 
 var (
 	file_proto_engine_proto_rawDescOnce sync.Once
@@ -12237,7 +12293,7 @@ func file_proto_engine_proto_rawDescGZIP() []byte {
 	return file_proto_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 175)
+var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 176)
 var file_proto_engine_proto_goTypes = []any{
 	(*EngineEvent)(nil),                            // 0: uniclient.EngineEvent
 	(*AccountInfo)(nil),                            // 1: uniclient.AccountInfo
@@ -12414,6 +12470,7 @@ var file_proto_engine_proto_goTypes = []any{
 	(*EngineSavedReactionTag)(nil),                 // 172: uniclient.EngineSavedReactionTag
 	(*EngineGetSavedReactionTagsResponse)(nil),     // 173: uniclient.EngineGetSavedReactionTagsResponse
 	(*EngineRenameSavedReactionTagRequest)(nil),    // 174: uniclient.EngineRenameSavedReactionTagRequest
+	(*EngineClearCallHistoryRequest)(nil),          // 175: uniclient.EngineClearCallHistoryRequest
 }
 var file_proto_engine_proto_depIdxs = []int32{
 	1,   // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
@@ -12471,7 +12528,7 @@ func file_proto_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   175,
+			NumMessages:   176,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
