@@ -30,6 +30,7 @@ import 'popup_menu.dart';
 import 'web_app_panel.dart';
 import 'send_files_box.dart';
 import 'confirm_box.dart';
+import 'input_dialogs.dart';
 import 'call_panel.dart';
 import 'chat_export.dart';
 import 'forum_topic_icon.dart';
@@ -9351,10 +9352,6 @@ class _ComposeAreaState extends State<_ComposeArea>
     }
 
     final bots = _cachedAttachBots;
-    if (bots == null || bots.isEmpty) {
-      _pickFiles();
-      return;
-    }
 
     if (!mounted) return;
     final button = _attachButtonKey.currentContext?.findRenderObject() as RenderBox?;
@@ -9368,21 +9365,44 @@ class _ComposeAreaState extends State<_ComposeArea>
       context: context,
       position: buttonPos,
       items: [
-        const TelegramMenuItem<int>(value: -1, label: 'Default'),
-        ...bots.asMap().entries.map((e) => TelegramMenuItem<int>(
-          value: e.key,
-          label: e.value.shortName,
-        )),
+        TelegramMenuItem<int>(value: -1, label: 'File', icon: Icon(Icons.insert_drive_file_outlined, size: 20)),
+        TelegramMenuItem<int>(value: -2, label: 'Poll', icon: Icon(Icons.poll_outlined, size: 20)),
+        if (bots != null)
+          ...bots.asMap().entries.map((e) => TelegramMenuItem<int>(
+            value: e.key,
+            label: e.value.shortName,
+          )),
       ],
     );
 
     if (selected == null) return;
     if (selected == -1) {
       _pickFiles();
-    } else {
+    } else if (selected == -2) {
+      _showCreatePollBox();
+    } else if (bots != null && selected >= 0 && selected < bots.length) {
       final bot = bots[selected];
       final chatState = context.read<ChatState>();
       chatState.openChatById(bot.botId.toString());
+    }
+  }
+
+  Future<void> _showCreatePollBox() async {
+    final result = await showCreatePollBox(context);
+    if (result == null || !mounted) return;
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    final chatState = context.read<ChatState>();
+    final chatId = chatState.activeChat?.chatId;
+    if (chatId == null) return;
+    try {
+      await engine.createPoll(accountId, chatId, result.question, result.options);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to create poll: $e')),
+        );
+      }
     }
   }
 

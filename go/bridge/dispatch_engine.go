@@ -1276,6 +1276,49 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, nil
 
+	case "CheckAccountUsername":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Username  string `json:"username"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		ok, err := e.CheckAccountUsername(params.AccountID, params.Username)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]bool{"available": ok})
+
+	case "UpdateAccountUsername":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Username  string `json:"username"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.UpdateAccountUsername(params.AccountID, params.Username); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
+	case "CreatePoll":
+		var params struct {
+			AccountID string   `json:"account_id"`
+			ChatID    string   `json:"chat_id"`
+			Question  string   `json:"question"`
+			Options   []string `json:"options"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		msgID, err := e.CreatePoll(params.AccountID, params.ChatID, params.Question, params.Options)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]string{"msg_id": msgID})
+
 	case "GetAdminedPublicChannels":
 		var params struct {
 			AccountID string `json:"account_id"`

@@ -1767,6 +1767,37 @@ class EngineService {
     await _callAsync('__engine', 'UpdateChannelUsername', Uint8List.fromList(payload));
   }
 
+  Future<bool> checkAccountUsername(String accountId, String username) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'username': username,
+    }));
+    final respBytes = await _callAsync('__engine', 'CheckAccountUsername', Uint8List.fromList(payload));
+    final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    return data['available'] as bool? ?? false;
+  }
+
+  Future<void> updateAccountUsername(String accountId, String username) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'username': username,
+    }));
+    await _callAsync('__engine', 'UpdateAccountUsername', Uint8List.fromList(payload));
+  }
+
+  Future<String> createPoll(String accountId, String chatId, String question, List<String> options) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'question': question,
+      'options': options,
+    }));
+    final respBytes = await _callAsync('__engine', 'CreatePoll', Uint8List.fromList(payload));
+    if (respBytes.isEmpty) return '';
+    final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    return data['msg_id'] as String? ?? '';
+  }
+
   Future<List<PublicLinkInfo>> getAdminedPublicChannels(String accountId) async {
     final payload = utf8.encode(json.encode({'account_id': accountId}));
     final resp = await _callAsync('__engine', 'GetAdminedPublicChannels', Uint8List.fromList(payload));

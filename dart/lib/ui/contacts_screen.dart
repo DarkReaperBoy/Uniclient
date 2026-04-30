@@ -12,6 +12,7 @@ import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../utils/country_data.dart';
+import 'input_dialogs.dart';
 
 const double _boxWideWidth = 364;
 const double _boxTitleHeight = 48;
@@ -469,15 +470,7 @@ class _ContactsBoxState extends State<_ContactsBox> {
   }
 
   void _showAddContactBox(BuildContext context) {
-    final appState = context.read<AppState>();
-    final engine = context.read<EngineService>();
-    showDialog<bool>(
-      context: context,
-      builder: (ctx) => _AddContactBox(
-        appState: appState,
-        engine: engine,
-      ),
-    ).then((added) {
+    showAddContactBox(context).then((added) {
       if (added == true && mounted) {
         _loadContacts();
       }

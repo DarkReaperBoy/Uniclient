@@ -756,6 +756,34 @@ func (e *Engine) CheckChannelUsername(accountID, chatID, username string) (bool,
 	return false, fmt.Errorf("platform does not support channel username check")
 }
 
+func (e *Engine) CheckAccountUsername(accountID, username string) (bool, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return false, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type checker interface {
+		AccountCheckUsername(username string) (bool, error)
+	}
+	if c, ok := acc.Core.(checker); ok {
+		return c.AccountCheckUsername(username)
+	}
+	return false, fmt.Errorf("platform does not support account username check")
+}
+
+func (e *Engine) UpdateAccountUsername(accountID, username string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type updater interface {
+		UpdateUsername(username string) error
+	}
+	if u, ok := acc.Core.(updater); ok {
+		return u.UpdateUsername(username)
+	}
+	return fmt.Errorf("platform does not support account username update")
+}
+
 func (e *Engine) UpdateChannelUsername(accountID, chatID, username string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

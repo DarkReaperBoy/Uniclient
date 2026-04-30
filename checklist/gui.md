@@ -890,7 +890,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/chat_view.dart, shell.dart, hamburger_drawer.dart, settings_screen.dart, info_panel.dart (showDialog calls) — new: dart/lib/ui/dialogs.dart -->
 
-- [ ] Input dialogs: username (live validation + debounced API), add contact (PhoneInput + country), passcode fields, edit invite link, create poll — spec §36.4
 - [ ] SingleChoiceBox: radio selection, auto-close; PopupMenu defaults (8px radius, 200ms show/150ms hide, item padding 17/8/17/7, PanelAnimation clip-reveal) — spec §36.5
 - [ ] CalendarBox (364px, 48×40px cells, 34px highlight circle, nav arrows with long-press fast-jump) and ChooseDateTimeBox (95px content, date 136px + "at" + time 72px) — spec §36.6
 - [ ] TimePickerBox: drum/wheel with 16 entries 15m–3mo, activeLineFg band, drag/wheel/arrows — spec §36.6.4

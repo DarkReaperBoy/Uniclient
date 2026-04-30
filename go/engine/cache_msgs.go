@@ -1500,6 +1500,24 @@ func (e *Engine) SendSticker(accountID, chatID, stickerID string) error {
 	return err
 }
 
+func (e *Engine) CreatePoll(accountID, chatID, question string, options []string) (string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return "", fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return "", fmt.Errorf("account not connected: %s", accountID)
+	}
+	msg, err := acc.Core.CreatePoll(chatID, question, options)
+	if err != nil {
+		return "", err
+	}
+	if msg != nil {
+		return msg.ID, nil
+	}
+	return "", nil
+}
+
 type MessageReporter interface {
 	ReportMessage(chatID string, msgIDs []int, option []byte, message string) (*cores.ReportResult, error)
 }

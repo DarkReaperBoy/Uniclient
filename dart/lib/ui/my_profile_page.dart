@@ -12,6 +12,7 @@ import '../state/app_state.dart';
 import '../state/auth_state.dart';
 import '../state/chat_state.dart';
 import 'confirm_box.dart';
+import 'input_dialogs.dart';
 import 'popup_menu.dart';
 import 'settings_style.dart';
 
@@ -258,13 +259,16 @@ class _MyProfilePageState extends State<MyProfilePage> {
             label: 'Username',
             value: account != null && account.username.isNotEmpty
                 ? '@${account.username}'
-                : '',
+                : 'Set username',
             isDark: isDark,
             copyMenuLabel: 'Copy @mention',
-            onTap: () {
-              if (account != null && account.username.isNotEmpty) {
-                _copyToClipboard(context, '@${account.username}', 'Username');
-              }
+            onTap: () async {
+              if (account == null) return;
+              await showUsernameBox(
+                context,
+                accountId: account.id,
+                currentUsername: account.username,
+              );
             },
           ),
           Padding(
