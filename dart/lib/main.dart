@@ -38,6 +38,7 @@ import 'utils/system_tray.dart';
 import 'utils/system_unlock.dart';
 import 'utils/web_notifier.dart';
 import 'notifications/notification_system.dart';
+import 'ui/notification_popup.dart';
 import 'package:media_kit/media_kit.dart';
 
 void main() {
@@ -102,9 +103,8 @@ class _UniClientAppState extends State<UniClientApp>
   // §37.1: Three-tier notification system.
   final NotificationSystem _notifSystem = NotificationSystem();
 
-  // §27.13: In-app notification banner state (driven by NotificationSystem).
-  _NotifBannerData? _notifBanner;
-  Timer? _notifDismissTimer;
+  // §37.3: DefaultManager reference for custom in-app popup overlay.
+  DefaultManager? _defaultNotifManager;
 
   // §3.4: Theme cross-fade — capture old frame, overlay, fade out to reveal new theme.
   static _UniClientAppState? _instance;
@@ -283,23 +283,16 @@ class _UniClientAppState extends State<UniClientApp>
       _webNotifier.updateBadge(chatState.totalUnread);
     }
 
-    // §37.1: Initialize notification system. Uses NativeManager on Linux
-    // (DBus backend §37.2.1), DefaultManager as fallback.
     _chatStateRef ??= chatState;
     _notifSystem.init(const NotificationSettings());
     final dm = _notifSystem.defaultManager;
     if (dm != null) {
-      dm.onShow = (item) {
-        _showNotificationBanner(appState, chatState,
-            item.data.accountId, item.data.chatId,
-            item.data.senderName, item.data.text, item.data.chatTitle);
-      };
-      dm.onTap = (accountId, chatId) => _onNotifBannerTap();
+      setState(() => _defaultNotifManager = dm);
     }
     final nm = _notifSystem.nativeManager;
     if (nm != null) {
       nm.onAction = (accountId, chatId, action) {
-        if (action == 'open') _onNotifBannerTap();
+        if (action == 'open') _onNotifTap(accountId, chatId);
       };
     }
     chatState.onNotification = (accountId, chatId, senderName, text, chatTitle) {
@@ -321,37 +314,16 @@ class _UniClientAppState extends State<UniClientApp>
     }
   }
 
-  void _showNotificationBanner(AppState appState, ChatState chatState,
-      String accountId, String chatId, String senderName, String text, String chatTitle) {
-    final locked = appState.passcodeLocked;
-    _notifDismissTimer?.cancel();
-    setState(() {
-      _notifBanner = _NotifBannerData(
-        title: locked ? 'New message' : (chatTitle.isNotEmpty ? chatTitle : senderName),
-        body: locked ? '' : (chatTitle.isNotEmpty && senderName.isNotEmpty ? '$senderName: $text' : text),
-        accountId: accountId,
-        chatId: chatId,
-        isLocked: locked,
-      );
-    });
-    _notifDismissTimer = Timer(const Duration(seconds: 5), () {
-      if (mounted) setState(() => _notifBanner = null);
-    });
-  }
-
-  void _onNotifBannerTap() {
-    final data = _notifBanner;
-    if (data == null) return;
-    _notifDismissTimer?.cancel();
-    setState(() => _notifBanner = null);
-    if (data.isLocked) {
+  void _onNotifTap(String accountId, String chatId) {
+    final appState = context.read<AppState>();
+    if (appState.passcodeLocked) {
       _PasscodeLockScreenState._focusPasscode?.call();
-    } else {
-      final chatState = context.read<ChatState>();
-      final chat = chatState.chats.where((c) =>
-          c.accountId == data.accountId && c.chatId == data.chatId).firstOrNull;
-      if (chat != null) chatState.openChat(chat);
+      return;
     }
+    final chatState = context.read<ChatState>();
+    final chat = chatState.chats.where((c) =>
+        c.accountId == accountId && c.chatId == chatId).firstOrNull;
+    if (chat != null) chatState.openChat(chat);
   }
 
   void _pollDebugCommand(ChatState chatState) {
@@ -697,15 +669,13 @@ class _UniClientAppState extends State<UniClientApp>
           }
 
         case 'testNotification':
-          final appState = context.read<AppState>();
-          _showNotificationBanner(
-            appState, chatState,
-            cmd['accountId'] as String? ?? '',
-            cmd['chatId'] as String? ?? '',
-            cmd['senderName'] as String? ?? 'Test User',
-            cmd['text'] as String? ?? 'Test notification message',
-            cmd['chatTitle'] as String? ?? 'Test Chat',
-          );
+          _notifSystem.onNewMessage(NotificationData(
+            accountId: cmd['accountId'] as String? ?? '',
+            chatId: cmd['chatId'] as String? ?? '',
+            senderName: cmd['senderName'] as String? ?? 'Test User',
+            text: cmd['text'] as String? ?? 'Test notification message',
+            chatTitle: cmd['chatTitle'] as String? ?? 'Test Chat',
+          ));
 
         case 'showExportPanel':
           final navCtx = _navigatorKey.currentContext;
@@ -1632,7 +1602,6 @@ class _UniClientAppState extends State<UniClientApp>
 
   @override
   void dispose() {
-    _notifDismissTimer?.cancel();
     _notifSystem.dispose();
     _debugCmdTimer?.cancel();
     if (_unreadListener != null && _chatStateRef != null) {
@@ -1755,14 +1724,15 @@ class _UniClientAppState extends State<UniClientApp>
             ),
             const _ThemeRevertOverlay(),
             const Positioned.fill(child: _PasscodeLockScreen()),
-            if (_notifBanner != null)
-              _InAppNotificationBanner(
-                data: _notifBanner!,
-                onTap: _onNotifBannerTap,
-                onDismiss: () {
-                  _notifDismissTimer?.cancel();
-                  setState(() => _notifBanner = null);
-                },
+            if (_defaultNotifManager != null)
+              Positioned.fill(
+                child: NotificationPopupOverlay(
+                  manager: _defaultNotifManager!,
+                  onTap: _onNotifTap,
+                  onReplySend: (accountId, chatId, text) {
+                    // TODO: wire to engine sendMessage
+                  },
+                ),
               ),
           ],
         ),
@@ -2329,103 +2299,4 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
   }
 }
 
-class _NotifBannerData {
-  final String title;
-  final String body;
-  final String accountId;
-  final String chatId;
-  final bool isLocked;
-  const _NotifBannerData({
-    required this.title,
-    required this.body,
-    required this.accountId,
-    required this.chatId,
-    required this.isLocked,
-  });
-}
-
-class _InAppNotificationBanner extends StatelessWidget {
-  final _NotifBannerData data;
-  final VoidCallback onTap;
-  final VoidCallback onDismiss;
-  const _InAppNotificationBanner({
-    required this.data,
-    required this.onTap,
-    required this.onDismiss,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF2B3A4A) : const Color(0xFFFFFFFF);
-    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subtextColor = isDark ? const Color(0xFF8899A6) : const Color(0xFF666666);
-    final shadowColor = isDark ? const Color(0x40000000) : const Color(0x20000000);
-
-    return Positioned(
-      top: 8,
-      left: 16,
-      right: 16,
-      child: GestureDetector(
-        onTap: onTap,
-        onVerticalDragEnd: (d) {
-          if (d.velocity.pixelsPerSecond.dy < -50) onDismiss();
-        },
-        child: Material(
-          elevation: 0,
-          color: Colors.transparent,
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 400),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: bgColor,
-              borderRadius: BorderRadius.circular(10),
-              boxShadow: [BoxShadow(color: shadowColor, blurRadius: 12, offset: const Offset(0, 4))],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3),
-                  ),
-                  child: const Icon(Icons.chat_bubble_outline, color: Colors.white, size: 18),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        data.title,
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textColor),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (data.body.isNotEmpty)
-                        Text(
-                          data.body,
-                          style: TextStyle(fontSize: 12, color: subtextColor),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: onDismiss,
-                  child: Icon(Icons.close, size: 16, color: subtextColor),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 

@@ -897,12 +897,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/notifications/ (notification_system.dart, notification_manager.dart, notification_manager_default.dart, notification_manager_native.dart, notification_types.dart) -->
 
-- [ ] Windows WinRT toast: XML template (image + 3 text elements), fast reply input + send button, mark-as-read background activation, DND/Focus Assist registry detection, App User Model ID — spec §37.2.2
-- [ ] macOS NSUserNotification: title/subtitle/informativeText/userInfo, "Mark as Read" + reply buttons, sound path, background thread clear, screen-lock detection — spec §37.2.3
-- [ ] Custom in-app popup widget: 320×80px min, frameless (WindowStaysOnTopHint + Tool flags), corner selection (TopLeft/TopRight/BottomLeft/BottomRight/TopCenter), userpic 62×62px at (9,9), close 30×30px, title (semiboldFont, single-line), message (2-line dialogsTextFont), 1px border, 7px inter-notification gap, 6px screen-edge margin, Hide All button (2+ notifications), reply button (hover 200ms fade) with 282px input field (442px TopCenter), Enter submit / Escape dismiss — spec §37.3.2–37.3.4
-- [ ] Notification animations: fade-in 150ms, slow-hide 4000ms easeInCirc, fast-hide 150ms, shift 150ms, action-fade 200ms, 300ms input poll, hover stops all timers — spec §37.3.5
-- [ ] Click/dismiss: left-click=open chat, Ctrl+click=new window, right-click=dismiss, close button, reply submit via api().sendMessage(), Hide All clearAll — spec §37.3.6
-- [ ] Stack overflow: max 5 cap (default 3), FIFO queue, evict oldest non-reply/non-hover, per-corner reverse-iterate stacking with 7px gap, demo mode (150ms fade) — spec §37.3.7
 - [ ] Notification content: title composition (app name/Reminder/forum "Topic (Chat)"/peer name/calendar prefix/account suffix), subtitle (reactor/group sender), text for all message types, spoiler → U+259A blocks, reaction phrasing per media type — spec §37.4
 - [ ] Notification sounds: default msg_incoming.mp3, custom ringtones by DocumentId, per-chat volume (0-100), sound conditions (soundNotify+not-muted+not-silent+not-none) — spec §37.5
 - [ ] Scheduling and grouping: 100ms/500ms/1000ms timing delays, cloud delay logic, 1000ms album grouping, per-thread deduplication by messageId+type, reaction dedup once/hour/item — spec §37.6
