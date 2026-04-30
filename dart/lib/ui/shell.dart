@@ -302,19 +302,42 @@ class _UniClientShellState extends State<UniClientShell>
     }
 
     final groupCall = chatState.activeGroupCall;
-    if (groupCall != null && groupCall.active) {
+    final personalCall = chatState.activePersonalCall;
+    final hasActiveCall = (groupCall != null && groupCall.active) || personalCall != null;
+
+    if (hasActiveCall) {
+      final Widget callBar;
+      if (personalCall != null) {
+        callBar = MinimisedCallBar(
+          isPersonalCall: true,
+          peerName: personalCall.peerName,
+          peerFirstName: personalCall.peerFirstName,
+          isSelfMuted: personalCall.isMuted,
+          isConnecting: personalCall.isConnecting,
+          signalQuality: personalCall.signalQuality,
+          callStartTime: personalCall.startTime,
+          onHangup: () => chatState.setActivePersonalCall(null),
+          onToggleMute: () {
+            chatState.setActivePersonalCall(
+              personalCall.copyWith(isMuted: !personalCall.isMuted),
+            );
+          },
+        );
+      } else {
+        callBar = MinimisedCallBar(
+          peerName: groupCall!.title.isNotEmpty
+              ? groupCall.title
+              : chatState.activeChat?.title ?? 'Group Call',
+          participants: groupCall.participants,
+          isSelfMuted: groupCall.participants.any((p) =>
+              p.userId == (chatState.activeChat?.accountId ?? '') && p.isMuted),
+          onHangup: () {},
+          onToggleMute: () {},
+        );
+      }
       layout = Column(
         children: [
-          MinimisedCallBar(
-            groupName: groupCall.title.isNotEmpty
-                ? groupCall.title
-                : chatState.activeChat?.title ?? 'Group Call',
-            participants: groupCall.participants,
-            isSelfMuted: groupCall.participants.any((p) =>
-                p.userId == (chatState.activeChat?.accountId ?? '') && p.isMuted),
-            onHangup: () {},
-            onToggleMute: () {},
-          ),
+          _SlideWrapCallBar(visible: true, child: callBar),
           Expanded(child: layout),
         ],
       );
@@ -668,6 +691,61 @@ class _InfoLayerOverlay extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _SlideWrapCallBar extends StatefulWidget {
+  final bool visible;
+  final Widget child;
+
+  const _SlideWrapCallBar({required this.visible, required this.child});
+
+  @override
+  State<_SlideWrapCallBar> createState() => _SlideWrapCallBarState();
+}
+
+class _SlideWrapCallBarState extends State<_SlideWrapCallBar>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+      value: widget.visible ? 1.0 : 0.0,
+    );
+  }
+
+  @override
+  void didUpdateWidget(_SlideWrapCallBar old) {
+    super.didUpdateWidget(old);
+    if (widget.visible != old.visible) {
+      if (widget.visible) {
+        _controller.forward();
+      } else {
+        _controller.reverse();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizeTransition(
+      sizeFactor: CurvedAnimation(
+        parent: _controller,
+        curve: Curves.easeInOut,
+      ),
+      axisAlignment: -1.0,
+      child: widget.child,
     );
   }
 }

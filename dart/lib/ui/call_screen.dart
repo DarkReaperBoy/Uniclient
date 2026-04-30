@@ -968,27 +968,35 @@ void showGroupCallPanel(BuildContext context, GroupCallInfo info,
   );
 }
 
-// ── §12.8 Minimised Call TopBar ──
+// ── §34.15 Active Call Top Bar ──
 
-enum _CallBarGradientState { active, muted, connecting, forceMuted }
+enum _CallBarState { connecting, active, muted, forceMuted }
 
 class MinimisedCallBar extends StatefulWidget {
-  final String groupName;
+  final bool isPersonalCall;
+  final String peerName;
+  final String peerFirstName;
   final List<GroupCallParticipant> participants;
   final bool isSelfMuted;
   final bool isForceMuted;
   final bool isConnecting;
+  final int signalQuality;
+  final DateTime? callStartTime;
   final VoidCallback? onToggleMute;
   final VoidCallback? onHangup;
   final VoidCallback? onTap;
 
   const MinimisedCallBar({
     super.key,
-    required this.groupName,
+    this.isPersonalCall = false,
+    required this.peerName,
+    this.peerFirstName = '',
     this.participants = const [],
     this.isSelfMuted = false,
     this.isForceMuted = false,
     this.isConnecting = false,
+    this.signalQuality = 4,
+    this.callStartTime,
     this.onToggleMute,
     this.onHangup,
     this.onTap,
@@ -1005,34 +1013,50 @@ class _MinimisedCallBarState extends State<MinimisedCallBar>
   Timer? _durationTimer;
   int _durationSeconds = 0;
   late AnimationController _gradientAnim;
-  _CallBarGradientState _fromState = _CallBarGradientState.connecting;
-  _CallBarGradientState _toState = _CallBarGradientState.connecting;
+  late AnimationController _muteLineAnim;
+  _CallBarState _fromState = _CallBarState.connecting;
+  _CallBarState _toState = _CallBarState.connecting;
 
   @override
   void initState() {
     super.initState();
     _gradientAnim = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 150),
       value: 1.0,
     );
-    _toState = _resolveGradientState();
+    _muteLineAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 150),
+      value: (widget.isSelfMuted || widget.isForceMuted) ? 1.0 : 0.0,
+    );
+    _toState = _resolveBarState();
     _fromState = _toState;
+    _computeInitialDuration();
     _startDurationTimer();
+  }
+
+  void _computeInitialDuration() {
+    if (widget.callStartTime != null) {
+      _durationSeconds = DateTime.now().difference(widget.callStartTime!).inSeconds;
+      if (_durationSeconds < 0) _durationSeconds = 0;
+    }
   }
 
   @override
   void didUpdateWidget(MinimisedCallBar old) {
     super.didUpdateWidget(old);
-    final newState = _resolveGradientState();
+    final newState = _resolveBarState();
     if (newState != _toState) {
       _fromState = _toState;
       _toState = newState;
-      final stateDistance = (_toState.index - _fromState.index).abs();
-      _gradientAnim.duration = Duration(
-        milliseconds: stateDistance * 300,
-      );
       _gradientAnim.forward(from: 0.0);
+    }
+    final muted = widget.isSelfMuted || widget.isForceMuted;
+    if (muted && _muteLineAnim.value < 1.0) {
+      _muteLineAnim.forward();
+    } else if (!muted && _muteLineAnim.value > 0.0) {
+      _muteLineAnim.reverse();
     }
   }
 
@@ -1040,6 +1064,7 @@ class _MinimisedCallBarState extends State<MinimisedCallBar>
   void dispose() {
     _durationTimer?.cancel();
     _gradientAnim.dispose();
+    _muteLineAnim.dispose();
     super.dispose();
   }
 
@@ -1050,39 +1075,61 @@ class _MinimisedCallBarState extends State<MinimisedCallBar>
     });
   }
 
-  _CallBarGradientState _resolveGradientState() {
-    if (widget.isConnecting) return _CallBarGradientState.connecting;
-    if (widget.isForceMuted) return _CallBarGradientState.forceMuted;
-    if (widget.isSelfMuted) return _CallBarGradientState.muted;
-    return _CallBarGradientState.active;
+  _CallBarState _resolveBarState() {
+    if (widget.isConnecting) return _CallBarState.connecting;
+    if (widget.isPersonalCall) {
+      return (widget.isSelfMuted) ? _CallBarState.muted : _CallBarState.active;
+    }
+    if (widget.isForceMuted) return _CallBarState.forceMuted;
+    if (widget.isSelfMuted) return _CallBarState.muted;
+    return _CallBarState.active;
   }
 
-  String _formatDuration(int seconds) {
+  static String _formatDuration(int seconds) {
+    if (seconds >= 3600) {
+      final h = seconds ~/ 3600;
+      final m = (seconds % 3600) ~/ 60;
+      final s = seconds % 60;
+      return '$h:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+    }
     final m = seconds ~/ 60;
     final s = seconds % 60;
-    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+    return '$m:${s.toString().padLeft(2, '0')}';
   }
 
-  static List<Color> _gradientColors(_CallBarGradientState state) {
+  static List<Color> _gradientColors(_CallBarState state, bool isPersonal) {
+    if (isPersonal) {
+      switch (state) {
+        case _CallBarState.active:
+          return [const Color(0xFF52CE5B), const Color(0xFF00B151)];
+        case _CallBarState.muted:
+        case _CallBarState.connecting:
+          return [const Color(0xFF7F8A96), const Color(0xFF7F8A96)];
+        case _CallBarState.forceMuted:
+          return [const Color(0xFF7F8A96), const Color(0xFF7F8A96)];
+      }
+    }
     switch (state) {
-      case _CallBarGradientState.active:
+      case _CallBarState.active:
         return [const Color(0xFF52CE5B), const Color(0xFF00B151)];
-      case _CallBarGradientState.muted:
-        return [const Color(0xFF7F8A96), const Color(0xFF6B7684)];
-      case _CallBarGradientState.connecting:
+      case _CallBarState.muted:
+        return [const Color(0xFF5B6BBE), const Color(0xFF7B68EE)];
+      case _CallBarState.connecting:
         return [const Color(0xFF7F8A96), const Color(0xFF7F8A96)];
-      case _CallBarGradientState.forceMuted:
+      case _CallBarState.forceMuted:
         return [const Color(0xFF9B59B6), const Color(0xFF7B68EE), const Color(0xFF8E44AD)];
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final isPersonal = widget.isPersonalCall;
+
     return AnimatedBuilder(
       animation: _gradientAnim,
       builder: (context, child) {
-        final fromColors = _gradientColors(_fromState);
-        final toColors = _gradientColors(_toState);
+        final fromColors = _gradientColors(_fromState, isPersonal);
+        final toColors = _gradientColors(_toState, isPersonal);
         final t = Curves.easeInOut.transform(_gradientAnim.value);
 
         final maxLen = math.max(fromColors.length, toColors.length);
@@ -1102,57 +1149,254 @@ class _MinimisedCallBarState extends State<MinimisedCallBar>
       },
       child: Material(
         color: Colors.transparent,
-        child: InkWell(
-          onTap: widget.onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
+        child: Stack(
+          children: [
+            Positioned.fill(
+              left: 41,
+              right: 41 + 12,
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: widget.onTap,
+                child: const SizedBox.expand(),
+              ),
+            ),
+            Row(
               children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          widget.groupName,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _formatDuration(_durationSeconds),
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
+                _CallBarMuteButton(
+                  isMuted: widget.isSelfMuted || widget.isForceMuted,
+                  isForceMuted: widget.isForceMuted,
+                  muteLineAnimation: _muteLineAnim,
+                  onTap: widget.onToggleMute,
                 ),
-                if (widget.participants.isNotEmpty) ...[
-                  const SizedBox(width: 8),
+                if (isPersonal) ...[
+                  const SizedBox(width: 10),
+                  Text(
+                    widget.isConnecting
+                        ? 'Connecting...'
+                        : _formatDuration(_durationSeconds),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      height: 1.0,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  _SignalBars(quality: widget.signalQuality),
+                ],
+                if (!isPersonal && widget.participants.isNotEmpty) ...[
                   _UserpicStrip(participants: widget.participants),
                 ],
                 const SizedBox(width: 8),
-                _MuteToggle(
-                  isMuted: widget.isSelfMuted || widget.isForceMuted,
-                  isForceMuted: widget.isForceMuted,
-                  onTap: widget.onToggleMute,
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final fullText = widget.isConnecting && !isPersonal
+                          ? 'Connecting...'
+                          : widget.peerName;
+                      final shortText = widget.isConnecting && !isPersonal
+                          ? 'Connecting...'
+                          : (widget.peerFirstName.isNotEmpty
+                              ? widget.peerFirstName
+                              : widget.peerName);
+
+                      final style = const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        height: 1.0,
+                      );
+
+                      return Text(
+                        constraints.maxWidth > 150 ? fullText : shortText,
+                        style: style,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      );
+                    },
+                  ),
                 ),
-                const SizedBox(width: 4),
-                _HangupButton(onTap: widget.onHangup),
+                if (isPersonal) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Text(
+                      'End call',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        height: 1.0,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                ],
+                _CallBarHangupButton(onTap: widget.onHangup),
+                const SizedBox(width: 12),
               ],
             ),
-          ),
+          ],
         ),
       ),
     );
   }
+}
+
+class _CallBarMuteButton extends StatelessWidget {
+  final bool isMuted;
+  final bool isForceMuted;
+  final Animation<double> muteLineAnimation;
+  final VoidCallback? onTap;
+
+  const _CallBarMuteButton({
+    required this.isMuted,
+    this.isForceMuted = false,
+    required this.muteLineAnimation,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 41,
+      height: 38,
+      child: InkWell(
+        onTap: isForceMuted ? null : onTap,
+        borderRadius: BorderRadius.circular(16),
+        splashColor: Colors.white24,
+        child: AnimatedBuilder(
+          animation: muteLineAnimation,
+          builder: (context, _) {
+            return CustomPaint(
+              size: const Size(41, 38),
+              painter: _MuteCrossLinePainter(
+                progress: muteLineAnimation.value,
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _MuteCrossLinePainter extends CustomPainter {
+  final double progress;
+
+  _MuteCrossLinePainter({required this.progress});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final iconPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+
+    final micTop = cy - 8;
+    final micBottom = cy + 4;
+    final micLeft = cx - 4;
+    final micRight = cx + 4;
+    final micRadius = 4.0;
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTRB(micLeft, micTop, micRight, micBottom),
+        Radius.circular(micRadius),
+      ),
+      iconPaint,
+    );
+
+    final stemPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(Offset(cx, micBottom), Offset(cx, cy + 9), stemPaint);
+    canvas.drawLine(Offset(cx - 3, cy + 9), Offset(cx + 3, cy + 9), stemPaint);
+
+    final arcPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(
+      Rect.fromCenter(center: Offset(cx, micBottom), width: 14, height: 10),
+      0,
+      3.14159,
+      false,
+      arcPaint,
+    );
+
+    if (progress > 0.0) {
+      final linePaint = Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0
+        ..strokeCap = StrokeCap.round;
+
+      final from = Offset(cx - 8, cy - 8);
+      final to = Offset(cx + 8, cy + 8);
+      final current = Offset.lerp(from, to, progress)!;
+      canvas.drawLine(from, current, linePaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_MuteCrossLinePainter old) => old.progress != progress;
+}
+
+class _SignalBars extends StatelessWidget {
+  final int quality;
+
+  const _SignalBars({required this.quality});
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: const Size(19, 12),
+      painter: _SignalBarsPainter(activeCount: quality.clamp(0, 4)),
+    );
+  }
+}
+
+class _SignalBarsPainter extends CustomPainter {
+  final int activeCount;
+
+  _SignalBarsPainter({required this.activeCount});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const barWidth = 3.0;
+    const skip = 1.0;
+    const barCount = 4;
+    const heights = [3.0, 6.0, 9.0, 12.0];
+
+    for (int i = 0; i < barCount; i++) {
+      final x = i * (barWidth + skip);
+      final h = heights[i];
+      final y = size.height - h;
+      final isActive = i < activeCount;
+
+      final paint = Paint()
+        ..color = Colors.white.withValues(alpha: isActive ? 1.0 : 0.5)
+        ..style = PaintingStyle.fill;
+
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x, y, barWidth, h),
+          const Radius.circular(0.5),
+        ),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SignalBarsPainter old) => old.activeCount != activeCount;
 }
 
 class _UserpicStrip extends StatelessWidget {
@@ -1209,7 +1453,7 @@ class _ParticipantAvatar extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white24, width: 1.5),
+        border: Border.all(color: Colors.white24, width: 2),
         color: hasAvatar ? null : _colorForName(name),
         image: hasAvatar
             ? DecorationImage(
@@ -1248,58 +1492,26 @@ class _ParticipantAvatar extends StatelessWidget {
   }
 }
 
-class _MuteToggle extends StatelessWidget {
-  final bool isMuted;
-  final bool isForceMuted;
+class _CallBarHangupButton extends StatelessWidget {
   final VoidCallback? onTap;
 
-  const _MuteToggle({
-    required this.isMuted,
-    this.isForceMuted = false,
-    this.onTap,
-  });
+  const _CallBarHangupButton({this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 32,
-      height: 32,
-      child: IconButton(
-        onPressed: isForceMuted ? null : onTap,
-        padding: EdgeInsets.zero,
-        iconSize: 18,
-        icon: Icon(
-          isMuted ? Icons.mic_off : Icons.mic,
-          color: Colors.white,
-        ),
-      ),
-    );
-  }
-}
-
-class _HangupButton extends StatelessWidget {
-  final VoidCallback? onTap;
-
-  const _HangupButton({this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 32,
-      height: 32,
-      child: IconButton(
-        onPressed: onTap,
-        padding: EdgeInsets.zero,
-        iconSize: 18,
-        style: IconButton.styleFrom(
-          backgroundColor: const Color(0xFFE53935),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+      width: 41,
+      height: 38,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        splashColor: Colors.white24,
+        child: const Center(
+          child: Icon(
+            Icons.call_end,
+            color: Colors.white,
+            size: 20,
           ),
-        ),
-        icon: const Icon(
-          Icons.call_end,
-          color: Colors.white,
         ),
       ),
     );

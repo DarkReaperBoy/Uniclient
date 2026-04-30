@@ -1853,6 +1853,46 @@ class GroupCallStateEvent {
   });
 }
 
+class PersonalCallInfo {
+  final String callId;
+  final String peerId;
+  final String peerName;
+  final String peerFirstName;
+  final String peerAvatarPath;
+  final bool isMuted;
+  final int signalQuality;
+  final bool isConnecting;
+  final DateTime startTime;
+
+  const PersonalCallInfo({
+    this.callId = '',
+    this.peerId = '',
+    this.peerName = '',
+    this.peerFirstName = '',
+    this.peerAvatarPath = '',
+    this.isMuted = false,
+    this.signalQuality = 4,
+    this.isConnecting = false,
+    required this.startTime,
+  });
+
+  PersonalCallInfo copyWith({
+    bool? isMuted,
+    int? signalQuality,
+    bool? isConnecting,
+  }) => PersonalCallInfo(
+    callId: callId,
+    peerId: peerId,
+    peerName: peerName,
+    peerFirstName: peerFirstName,
+    peerAvatarPath: peerAvatarPath,
+    isMuted: isMuted ?? this.isMuted,
+    signalQuality: signalQuality ?? this.signalQuality,
+    isConnecting: isConnecting ?? this.isConnecting,
+    startTime: startTime,
+  );
+}
+
 class PeerColorEntry {
   final int colorId;
   final List<int> dayColors;

@@ -878,7 +878,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/hamburger_drawer.dart (Calls menu entry) — new: dart/lib/ui/calls_history.dart -->
 
-- [ ] Active call top bar (callBarHeight=38px): mute toggle (41×38px, cross-line animation), duration label, 4 signal bars, info label, hangup button; 1:1 green/gray bg; group animated gradient (3 states); blob animation 100ms update; SlideWrap 200ms show/hide — spec §34.15
 - [ ] Create conference call box: PeerListBox, "New Call" title, reactive "Create Call"/"Start Call" button, per-row Video+Audio element buttons (36×52px), selection checkbox, share-invite-link button, prioritized contacts section, participant limit toast, join-link box, re-activate header — spec §34.17
 
 ---

@@ -624,6 +624,24 @@ class _UniClientAppState extends State<UniClientApp>
             ), callId: cmd['callId'] as String?);
           }
 
+        case 'showCallTopBar':
+          final chatState = context.read<ChatState>();
+          final subAction = cmd['subAction'] as String? ?? 'show';
+          if (subAction == 'hide') {
+            chatState.setActivePersonalCall(null);
+          } else {
+            chatState.setActivePersonalCall(PersonalCallInfo(
+              callId: cmd['callId'] as String? ?? 'test_call_1',
+              peerId: cmd['peerId'] as String? ?? 'test_peer',
+              peerName: cmd['peerName'] as String? ?? 'Test User',
+              peerFirstName: cmd['peerFirstName'] as String? ?? 'Test',
+              isMuted: cmd['isMuted'] == true,
+              signalQuality: (cmd['signalQuality'] as num?)?.toInt() ?? 4,
+              isConnecting: cmd['isConnecting'] == true,
+              startTime: DateTime.now(),
+            ));
+          }
+
         case 'showCallRating':
           final navCtx = _navigatorKey.currentContext;
           if (navCtx != null) {

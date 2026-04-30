@@ -27,6 +27,7 @@ class ChatState extends ChangeNotifier {
   final Map<String, String> _altQualityPaths = {}; // "msgId:seq" → local path
   int _groupOnlineCount = 0; // online members in active group/channel chat
   GroupCallInfo? _activeGroupCall; // active group call in current chat
+  PersonalCallInfo? _activePersonalCall; // active 1:1 call
   int _scheduledCount = 0;
   bool _isScheduledView = false;
   String _linkedChatId = '';
@@ -182,6 +183,12 @@ class ChatState extends ChangeNotifier {
   List<CachedMessage> get messages => _messages;
   List<CachedMessage> get pinnedMessages => _pinnedMessages;
   GroupCallInfo? get activeGroupCall => _activeGroupCall;
+  PersonalCallInfo? get activePersonalCall => _activePersonalCall;
+
+  void setActivePersonalCall(PersonalCallInfo? info) {
+    _activePersonalCall = info;
+    notifyListeners();
+  }
   ConnectedBotInfo? get connectedBot => _connectedBot;
   bool get connectedBotPaused => _connectedBotPaused;
   bool get loadingMessages => _loadingMessages;
