@@ -11147,9 +11147,11 @@ class _RecordLockWidget extends StatelessWidget {
 }
 
 /// Forward dialog — shows a searchable chat list to pick a destination.
-/// ShareBox — spec §9.4 forward dialog.
-/// Grid of recipients (108px rows), multi-select with blue ring + avatar shrink,
-/// search field, self-chat first, comment field slides in on selection.
+/// ShareBox — spec §9.4 / §36.14 forward/share dialog.
+/// MultiSelect search bar with selected-chat pills, peer grid (108px rows),
+/// blue ring + avatar shrink on selection, comment field slides in,
+/// Copy Link button, send menu (schedule/silent), forward options,
+/// dark-mode style override for story/share contexts.
 class _ForwardSendOptions {
   final List<String> chatIds;
   final bool dropAuthor;
@@ -11172,6 +11174,8 @@ class _ShareBox extends StatefulWidget {
   final ValueChanged<_ForwardSendOptions> onSend;
   final bool hasSenders;
   final bool hasCaptions;
+  final String? copyLink;
+  final bool forceDark;
 
   const _ShareBox({
     required this.chats,
@@ -11179,6 +11183,8 @@ class _ShareBox extends StatefulWidget {
     required this.onSend,
     this.hasSenders = true,
     this.hasCaptions = false,
+    this.copyLink,
+    this.forceDark = false,
   });
 
   @override
@@ -11207,10 +11213,14 @@ class _ShareBoxState extends State<_ShareBox> {
   String? _selectedFolderId;
   final Set<String> _selected = {};
   final _commentController = TextEditingController();
+  final _searchController = TextEditingController();
+  final _searchFocusNode = FocusNode();
   bool _showSenderName = true;
   bool _showCaption = true;
   bool _silent = false;
   int _scheduleDate = 0;
+
+  bool get _isDark => widget.forceDark || Theme.of(context).brightness == Brightness.dark;
 
   List<ChatInfo> get _sortedChats {
     final chats = List<ChatInfo>.from(widget.chats);
@@ -11248,91 +11258,45 @@ class _ShareBoxState extends State<_ShareBox> {
     return sorted.where((c) => c.title.toLowerCase().contains(q)).toList();
   }
 
+  ChatInfo? _chatById(String id) =>
+      widget.chats.where((c) => c.chatId == id).firstOrNull;
+
   @override
   void dispose() {
     _commentController.dispose();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final isDark = _isDark;
     final boxBg = isDark ? const Color(0xFF17212b) : Colors.white;
+    final dividerColor = isDark ? const Color(0xFF0e1621) : const Color(0x18000000);
     final filtered = _filteredChats;
     final size = MediaQuery.of(context).size;
     final colCount = _columnsForWidth(size.width);
-    final accentColor = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF40a7e3);
 
-    return Material(
+    final content = Material(
       color: boxBg,
       child: SafeArea(
         child: Column(
           children: [
-            SizedBox(
-              height: 54,
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                  Expanded(
-                    child: Text(
-                      'Forward to...',
-                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                  if (widget.hasSenders || widget.hasCaptions)
-                    _buildMenuButton(context, theme, isDark),
-                ],
-              ),
-            ),
-            Container(
-              height: 1,
-              color: isDark ? const Color(0xFF0e1621) : const Color(0x18000000),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-              child: TextField(
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: 'Search',
-                  prefixIcon: const Icon(Icons.search, size: 20),
-                  isDense: true,
-                  filled: true,
-                  fillColor: isDark ? const Color(0xFF242f3d) : const Color(0xFFf1f1f1),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                ),
-                onChanged: (v) => setState(() => _query = v),
-              ),
-            ),
+            _buildTitleBar(theme, isDark),
+            Container(height: 1, color: dividerColor),
+            _buildMultiSelectBar(isDark),
             if (widget.folders.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 32,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  children: [
-                    _buildFolderTab(context, theme, isDark, null, 'All Chats'),
-                    for (final folder in widget.folders)
-                      _buildFolderTab(context, theme, isDark, folder.id, folder.name),
-                  ],
-                ),
-              ),
+              const SizedBox(height: 4),
+              _buildFolderTabs(isDark),
             ],
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             Expanded(
               child: GridView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: colCount,
-                  childAspectRatio: (_rowHeight - _photoTop) / _rowHeight,
                   mainAxisExtent: _rowHeight,
                   crossAxisSpacing: _columnSkip,
                 ),
@@ -11343,80 +11307,135 @@ class _ShareBoxState extends State<_ShareBox> {
                   return _ShareBoxItem(
                     chat: chat,
                     isSelected: isSelected,
+                    isDark: isDark,
                     onTap: () => _toggleSelection(chat.chatId),
                   );
                 },
               ),
             ),
-            AnimatedSize(
-              duration: _activateDuration,
-              curve: Curves.easeOutCubic,
-              child: _selected.isNotEmpty
-                  ? Padding(
-                      padding: _commentPadding,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(
-                          minHeight: _commentHeightMin,
-                          maxHeight: _commentHeightMax,
-                        ),
-                        child: TextField(
-                          controller: _commentController,
-                          maxLines: null,
-                          decoration: InputDecoration(
-                            hintText: 'Add a comment...',
-                            isDense: true,
-                            filled: true,
-                            fillColor: isDark ? const Color(0xFF242f3d) : const Color(0xFFf1f1f1),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(18),
-                              borderSide: BorderSide.none,
-                            ),
-                            contentPadding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
-                          ),
-                        ),
-                      ),
-                    )
-                  : const SizedBox.shrink(),
-            ),
-            Container(
-              height: 1,
-              color: isDark ? const Color(0xFF0e1621) : const Color(0x18000000),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-              child: Row(
-                children: [
-                  const Spacer(),
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text('Cancel', style: TextStyle(color: theme.hintColor)),
-                  ),
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onSecondaryTapUp: _selected.isEmpty ? null : (details) {
-                      _showSendMenu(context, theme, isDark, details.globalPosition);
-                    },
-                    child: FilledButton(
-                      onPressed: _selected.isEmpty ? null : _doSend,
-                      child: Text(
-                        _selected.length <= 1
-                            ? 'Send'
-                            : 'Send (${_selected.length})',
-                      ),
-                    ),
-                  ),
-                ],
+            _buildCommentField(isDark),
+            Container(height: 1, color: dividerColor),
+            _buildButtonRow(theme, isDark),
+          ],
+        ),
+      ),
+    );
+
+    if (widget.forceDark && theme.brightness != Brightness.dark) {
+      return Theme(
+        data: theme.copyWith(brightness: Brightness.dark),
+        child: content,
+      );
+    }
+    return content;
+  }
+
+  Widget _buildTitleBar(ThemeData theme, bool isDark) {
+    return SizedBox(
+      height: 54,
+      child: Row(
+        children: [
+          IconButton(
+            icon: Icon(Icons.close, color: isDark ? const Color(0xFFe0e3ea) : null),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          Expanded(
+            child: Text(
+              'Forward to...',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: isDark ? const Color(0xFFe0e3ea) : const Color(0xFF000000),
               ),
             ),
-          ],
+          ),
+          if (widget.hasSenders || widget.hasCaptions)
+            _buildMenuButton(context, isDark),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMultiSelectBar(bool isDark) {
+    final chipBg = isDark ? const Color(0xFF2b5278) : const Color(0xFF40a7e3);
+    final chipFg = Colors.white;
+    final searchBg = isDark ? const Color(0xFF242f3d) : const Color(0xFFf1f1f1);
+    final hintColor = isDark ? const Color(0xFF7b8a98) : const Color(0xFF999999);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 36, maxHeight: 120),
+        decoration: BoxDecoration(
+          color: searchBg,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+            child: Wrap(
+              spacing: 4,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                for (final id in _selected)
+                  if (_chatById(id) case final chat?)
+                    _SelectedChip(
+                      label: chat.title == 'Saved Messages' && chat.type == ChatType.dm
+                          ? 'Saved Messages'
+                          : chat.title,
+                      bgColor: chipBg,
+                      fgColor: chipFg,
+                      onRemove: () => _toggleSelection(id),
+                    ),
+                IntrinsicWidth(
+                  child: TextField(
+                    controller: _searchController,
+                    focusNode: _searchFocusNode,
+                    autofocus: true,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: isDark ? const Color(0xFFe0e3ea) : const Color(0xFF000000),
+                    ),
+                    decoration: InputDecoration(
+                      hintText: _selected.isEmpty ? 'Search' : null,
+                      hintStyle: TextStyle(fontSize: 13, color: hintColor),
+                      isDense: true,
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                    ),
+                    onChanged: (v) => setState(() => _query = v),
+                    onSubmitted: (_) {
+                      if (_selected.isNotEmpty) _doSend();
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildFolderTab(BuildContext context, ThemeData theme, bool isDark, String? folderId, String label) {
-    final isActive = _selectedFolderId == folderId;
+  Widget _buildFolderTabs(bool isDark) {
     final accentColor = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF40a7e3);
+    return SizedBox(
+      height: 32,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        children: [
+          _buildFolderTab(isDark, accentColor, null, 'All Chats'),
+          for (final folder in widget.folders)
+            _buildFolderTab(isDark, accentColor, folder.id, folder.name),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFolderTab(bool isDark, Color accentColor, String? folderId, String label) {
+    final isActive = _selectedFolderId == folderId;
     return Padding(
       padding: const EdgeInsets.only(right: 6),
       child: Material(
@@ -11441,6 +11460,92 @@ class _ShareBoxState extends State<_ShareBox> {
     );
   }
 
+  Widget _buildCommentField(bool isDark) {
+    final searchBg = isDark ? const Color(0xFF242f3d) : const Color(0xFFf1f1f1);
+    return AnimatedSize(
+      duration: _activateDuration,
+      curve: Curves.easeOutCubic,
+      child: _selected.isNotEmpty
+          ? Padding(
+              padding: _commentPadding,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minHeight: _commentHeightMin,
+                  maxHeight: _commentHeightMax,
+                ),
+                child: TextField(
+                  controller: _commentController,
+                  maxLines: null,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: isDark ? const Color(0xFFe0e3ea) : const Color(0xFF000000),
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Add a comment...',
+                    hintStyle: TextStyle(
+                      fontSize: 13,
+                      color: isDark ? const Color(0xFF7b8a98) : const Color(0xFF999999),
+                    ),
+                    isDense: true,
+                    filled: true,
+                    fillColor: searchBg,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
+                  ),
+                ),
+              ),
+            )
+          : const SizedBox.shrink(),
+    );
+  }
+
+  Widget _buildButtonRow(ThemeData theme, bool isDark) {
+    final accentColor = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF40a7e3);
+    final hintColor = isDark ? const Color(0xFF7b8a98) : theme.hintColor;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+      child: Row(
+        children: [
+          if (widget.copyLink != null)
+            TextButton(
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: widget.copyLink!));
+                showTelegramToast(context, 'Link copied to clipboard');
+              },
+              child: Text('Copy Link', style: TextStyle(color: accentColor)),
+            ),
+          const Spacer(),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Cancel', style: TextStyle(color: hintColor)),
+          ),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onSecondaryTapUp: _selected.isEmpty ? null : (details) {
+              _showSendMenu(context, isDark, details.globalPosition);
+            },
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: accentColor,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: _selected.isEmpty ? null : _doSend,
+              child: Text(
+                _selected.length <= 1
+                    ? 'Send'
+                    : 'Send (${_selected.length})',
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _toggleSelection(String chatId) {
     setState(() {
       if (_selected.contains(chatId)) {
@@ -11461,10 +11566,11 @@ class _ShareBoxState extends State<_ShareBox> {
     ));
   }
 
-  Widget _buildMenuButton(BuildContext context, ThemeData theme, bool isDark) {
+  Widget _buildMenuButton(BuildContext context, bool isDark) {
     final accentColor = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF40a7e3);
+    final iconColor = isDark ? const Color(0xFFaaaaaa) : const Color(0xFF555555);
     return PopupMenuButton<String>(
-      icon: const Icon(Icons.more_vert, size: 20),
+      icon: Icon(Icons.more_vert, size: 20, color: iconColor),
       padding: EdgeInsets.zero,
       constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
       position: PopupMenuPosition.over,
@@ -11514,7 +11620,7 @@ class _ShareBoxState extends State<_ShareBox> {
           value: 'schedule',
           child: Row(
             children: [
-              Icon(Icons.schedule, size: 20, color: theme.iconTheme.color),
+              Icon(Icons.schedule, size: 20, color: iconColor),
               const SizedBox(width: 12),
               const Text('Schedule'),
             ],
@@ -11527,7 +11633,7 @@ class _ShareBoxState extends State<_ShareBox> {
               Icon(
                 _silent ? Icons.check : Icons.notifications_off_outlined,
                 size: 20,
-                color: _silent ? accentColor : theme.iconTheme.color,
+                color: _silent ? accentColor : iconColor,
               ),
               const SizedBox(width: 12),
               const Text('Send without sound'),
@@ -11538,8 +11644,9 @@ class _ShareBoxState extends State<_ShareBox> {
     );
   }
 
-  void _showSendMenu(BuildContext context, ThemeData theme, bool isDark, Offset position) {
+  void _showSendMenu(BuildContext context, bool isDark, Offset position) {
     final accentColor = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF40a7e3);
+    final iconColor = isDark ? const Color(0xFFaaaaaa) : const Color(0xFF555555);
     final screenSize = MediaQuery.of(context).size;
     final menuItems = <PopupMenuEntry<String>>[];
 
@@ -11578,7 +11685,7 @@ class _ShareBoxState extends State<_ShareBox> {
         value: 'schedule',
         child: Row(
           children: [
-            Icon(Icons.schedule, size: 20, color: theme.iconTheme.color),
+            Icon(Icons.schedule, size: 20, color: iconColor),
             const SizedBox(width: 12),
             const Text('Schedule'),
           ],
@@ -11591,7 +11698,7 @@ class _ShareBoxState extends State<_ShareBox> {
             Icon(
               _silent ? Icons.check : Icons.notifications_off_outlined,
               size: 20,
-              color: _silent ? accentColor : theme.iconTheme.color,
+              color: _silent ? accentColor : iconColor,
             ),
             const SizedBox(width: 12),
             const Text('Send without sound'),
@@ -11646,14 +11753,61 @@ class _ShareBoxState extends State<_ShareBox> {
   }
 }
 
+class _SelectedChip extends StatelessWidget {
+  final String label;
+  final Color bgColor;
+  final Color fgColor;
+  final VoidCallback onRemove;
+
+  const _SelectedChip({
+    required this.label,
+    required this.bgColor,
+    required this.fgColor,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 28,
+      padding: const EdgeInsets.only(left: 8, right: 4),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 100),
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, color: fgColor),
+            ),
+          ),
+          const SizedBox(width: 2),
+          GestureDetector(
+            onTap: onRemove,
+            child: Icon(Icons.close, size: 16, color: fgColor.withValues(alpha: 0.7)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ShareBoxItem extends StatelessWidget {
   final ChatInfo chat;
   final bool isSelected;
+  final bool isDark;
   final VoidCallback onTap;
 
   const _ShareBoxItem({
     required this.chat,
     required this.isSelected,
+    required this.isDark,
     required this.onTap,
   });
 
@@ -11667,8 +11821,6 @@ class _ShareBoxItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final radius = isSelected ? _imageSmallRadius : _imageRadius;
     final accentColor = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF40a7e3);
 
@@ -11694,7 +11846,7 @@ class _ShareBoxItem extends StatelessWidget {
                 duration: const Duration(milliseconds: 150),
                 width: radius * 2,
                 height: radius * 2,
-                child: _buildAvatar(radius, isDark),
+                child: _buildAvatar(radius),
               ),
             ),
           ),
@@ -11708,7 +11860,9 @@ class _ShareBoxItem extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 11,
-                color: isSelected ? (isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd)) : null,
+                color: isSelected
+                    ? (isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd))
+                    : (isDark ? const Color(0xFFe0e3ea) : null),
               ),
             ),
           ),
@@ -11717,7 +11871,7 @@ class _ShareBoxItem extends StatelessWidget {
     );
   }
 
-  Widget _buildAvatar(double radius, bool isDark) {
+  Widget _buildAvatar(double radius) {
     if (_isSavedMessages) {
       return CircleAvatar(
         radius: radius,
