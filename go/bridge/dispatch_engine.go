@@ -532,6 +532,17 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(&pb.EngineSendMessageResponse{LocalId: localID})
 
+	case "SendContact":
+		var req pb.EngineSendContactRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		msgID, err := e.SendContact(req.AccountId, req.ToChatId, req.Phone, req.FirstName, req.LastName, req.UserId)
+		if err != nil {
+			return nil, err
+		}
+		return proto.Marshal(&pb.EngineSendContactResponse{LocalId: msgID})
+
 	case "EditMessage":
 		var req pb.EngineEditMessageRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

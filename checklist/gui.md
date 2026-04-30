@@ -872,8 +872,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/hamburger_drawer.dart, chat_list_panel.dart (partial contact references) — new: dart/lib/ui/contacts_screen.dart -->
 
-- [ ] Share Contact box: grid 4 columns 108px rows, multi-select with name-color animation 150ms, search (local+remote), hidden send button when no selection, comment field — spec §33.8
-
 ---
 
 ## §34 — Calls History

@@ -20,6 +20,7 @@ import 'admin_tools.dart' show showEditAdminBox, showEditPeerInfoBox, showEditRe
 import 'create_group_wizard.dart' show showEditPeerTypeBox;
 import 'edit_forum_topic_box.dart';
 import 'forum_topic_icon.dart';
+import 'contacts_screen.dart' show showShareContactBox;
 import 'popup_menu.dart';
 
 enum InfoWrapMode { side, narrow, layer }
@@ -2842,23 +2843,15 @@ class _DmActionsSection extends StatelessWidget {
     final engine = context.read<EngineService>();
     engine.getUserProfile(chat.accountId, chat.chatId).then((profile) {
       if (profile == null || !context.mounted) return;
-      final text = [
-        if (profile.phone.isNotEmpty) '+${profile.phone}',
-        if (profile.username.isNotEmpty) '@${profile.username}',
-      ].join('\n');
-      if (text.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No contact info to share')),
-        );
-        return;
-      }
-      Clipboard.setData(ClipboardData(text: text));
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Contact info copied to clipboard'),
-          duration: Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-        ),
+      final nameParts = chat.title.split(' ');
+      final firstName = nameParts.isNotEmpty ? nameParts.first : '';
+      final lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
+      showShareContactBox(
+        context,
+        contactPhone: profile.phone,
+        contactFirstName: firstName,
+        contactLastName: lastName,
+        contactUserId: chat.chatId,
       );
     });
   }

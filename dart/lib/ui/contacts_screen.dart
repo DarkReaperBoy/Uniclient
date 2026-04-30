@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -2140,3 +2141,434 @@ class _SettingsButtonRowState extends State<_SettingsButtonRow> {
   }
 }
 
+Future<void> showShareContactBox(
+  BuildContext context, {
+  required String contactPhone,
+  required String contactFirstName,
+  required String contactLastName,
+  required String contactUserId,
+}) {
+  final appState = context.read<AppState>();
+  final chatState = context.read<ChatState>();
+  final engine = context.read<EngineService>();
+
+  return Navigator.of(context, rootNavigator: true).push(
+    PageRouteBuilder(
+      opaque: false,
+      barrierDismissible: true,
+      barrierColor: Colors.black54,
+      pageBuilder: (ctx, _, __) => _ShareContactBox(
+        appState: appState,
+        chatState: chatState,
+        engine: engine,
+        contactPhone: contactPhone,
+        contactFirstName: contactFirstName,
+        contactLastName: contactLastName,
+        contactUserId: contactUserId,
+      ),
+    ),
+  );
+}
+
+class _ShareContactBox extends StatefulWidget {
+  final AppState appState;
+  final ChatState chatState;
+  final EngineService engine;
+  final String contactPhone;
+  final String contactFirstName;
+  final String contactLastName;
+  final String contactUserId;
+
+  const _ShareContactBox({
+    required this.appState,
+    required this.chatState,
+    required this.engine,
+    required this.contactPhone,
+    required this.contactFirstName,
+    required this.contactLastName,
+    required this.contactUserId,
+  });
+
+  @override
+  State<_ShareContactBox> createState() => _ShareContactBoxState();
+}
+
+class _ShareContactBoxState extends State<_ShareContactBox> {
+  static const _rowHeight = 108.0;
+  static const _columnSkip = 6.0;
+  static const _activateDuration = Duration(milliseconds: 150);
+  static const _commentHeightMin = 36.0;
+  static const _commentHeightMax = 72.0;
+  static const _commentPadding = EdgeInsets.all(5);
+
+  static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
+  static const _userpicPalette = [
+    Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77), Color(0xFF65aadd),
+    Color(0xFFa695e7), Color(0xFFee7aae), Color(0xFF6ec9cb), Color(0xFFe8a64e),
+  ];
+
+  String _query = '';
+  final Set<String> _selected = {};
+  final _commentController = TextEditingController();
+  bool _sending = false;
+
+  List<ChatInfo> get _chats {
+    final activeAccountId = widget.appState.activeAccountId;
+    if (activeAccountId == null) return [];
+    return widget.chatState.chatsForAccount(activeAccountId);
+  }
+
+  List<ChatInfo> get _sortedChats {
+    final chats = List<ChatInfo>.from(_chats);
+    final selfIdx = chats.indexWhere(
+      (c) => c.title == 'Saved Messages' && c.type == ChatType.dm,
+    );
+    if (selfIdx > 0) {
+      final self = chats.removeAt(selfIdx);
+      chats.insert(0, self);
+    }
+    return chats;
+  }
+
+  List<ChatInfo> get _filteredChats {
+    final sorted = _sortedChats;
+    if (_query.isEmpty) return sorted;
+    final q = _query.toLowerCase();
+    return sorted.where((c) => c.title.toLowerCase().contains(q)).toList();
+  }
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
+  }
+
+  void _toggleSelection(String chatId) {
+    setState(() {
+      if (_selected.contains(chatId)) {
+        _selected.remove(chatId);
+      } else {
+        _selected.add(chatId);
+      }
+    });
+  }
+
+  Future<void> _doSend() async {
+    if (_selected.isEmpty || _sending) return;
+    setState(() => _sending = true);
+    final accountId = widget.appState.activeAccountId;
+    if (accountId == null) return;
+    try {
+      for (final chatId in _selected) {
+        await widget.engine.sendContact(
+          accountId,
+          chatId,
+          widget.contactPhone,
+          widget.contactFirstName,
+          widget.contactLastName,
+          userId: widget.contactUserId,
+        );
+      }
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _selected.length == 1
+                  ? 'Contact shared'
+                  : 'Contact shared to ${_selected.length} chats',
+            ),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to share contact: $e')),
+        );
+        setState(() => _sending = false);
+      }
+    }
+  }
+
+  int _columnsForWidth(double screenWidth) {
+    return (screenWidth / 90).floor().clamp(3, 10);
+  }
+
+  static Color avatarColor(String id) {
+    final numId = int.tryParse(id) ?? id.hashCode.abs();
+    return _userpicPalette[_colorRemap[numId.abs() % 7]];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final boxBg = isDark ? const Color(0xFF17212b) : Colors.white;
+    final filtered = _filteredChats;
+    final size = MediaQuery.of(context).size;
+    final colCount = _columnsForWidth(size.width);
+    final contactName = '${widget.contactFirstName} ${widget.contactLastName}'.trim();
+
+    return Material(
+      color: boxBg,
+      child: SafeArea(
+        child: Column(
+          children: [
+            SizedBox(
+              height: 54,
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                  Expanded(
+                    child: Text(
+                      'Share Contact',
+                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              height: 1,
+              color: isDark ? const Color(0xFF0e1621) : const Color(0x18000000),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      'Sharing: $contactName',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: isDark ? const Color(0xFF8899aa) : const Color(0xFF999999),
+                      ),
+                    ),
+                  ),
+                  TextField(
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      hintText: 'Search',
+                      prefixIcon: const Icon(Icons.search, size: 20),
+                      isDense: true,
+                      filled: true,
+                      fillColor: isDark ? const Color(0xFF242f3d) : const Color(0xFFf1f1f1),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                    ),
+                    onChanged: (v) => setState(() => _query = v),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: GridView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: colCount,
+                  mainAxisExtent: _rowHeight,
+                  crossAxisSpacing: _columnSkip,
+                ),
+                itemCount: filtered.length,
+                itemBuilder: (context, index) {
+                  final chat = filtered[index];
+                  final isSelected = _selected.contains(chat.chatId);
+                  return _ShareContactGridItem(
+                    chat: chat,
+                    isSelected: isSelected,
+                    onTap: () => _toggleSelection(chat.chatId),
+                  );
+                },
+              ),
+            ),
+            AnimatedSize(
+              duration: _activateDuration,
+              curve: Curves.easeOutCubic,
+              child: _selected.isNotEmpty
+                  ? Padding(
+                      padding: _commentPadding,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          minHeight: _commentHeightMin,
+                          maxHeight: _commentHeightMax,
+                        ),
+                        child: TextField(
+                          controller: _commentController,
+                          maxLines: null,
+                          decoration: InputDecoration(
+                            hintText: 'Add a comment...',
+                            isDense: true,
+                            filled: true,
+                            fillColor: isDark ? const Color(0xFF242f3d) : const Color(0xFFf1f1f1),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(18),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
+                          ),
+                        ),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+            Container(
+              height: 1,
+              color: isDark ? const Color(0xFF0e1621) : const Color(0x18000000),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              child: Row(
+                children: [
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('Cancel', style: TextStyle(color: theme.hintColor)),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: _selected.isEmpty || _sending ? null : _doSend,
+                    child: _sending
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : Text(
+                            _selected.length <= 1
+                                ? 'Send'
+                                : 'Send (${_selected.length})',
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ShareContactGridItem extends StatelessWidget {
+  final ChatInfo chat;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _ShareContactGridItem({
+    required this.chat,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  static const _imageRadius = 28.0;
+  static const _imageSmallRadius = 24.0;
+  static const _photoTop = 6.0;
+  static const _nameTop = 6.0;
+
+  bool get _isSavedMessages =>
+      chat.title == 'Saved Messages' && chat.type == ChatType.dm;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final radius = isSelected ? _imageSmallRadius : _imageRadius;
+    final accentColor = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF40a7e3);
+
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(height: _photoTop),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: (isSelected ? _imageSmallRadius : _imageRadius) * 2 + (isSelected ? 4 : 0),
+            height: (isSelected ? _imageSmallRadius : _imageRadius) * 2 + (isSelected ? 4 : 0),
+            decoration: isSelected
+                ? BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: accentColor, width: 2),
+                  )
+                : null,
+            child: Center(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: radius * 2,
+                height: radius * 2,
+                child: _buildAvatar(radius, isDark),
+              ),
+            ),
+          ),
+          SizedBox(height: _nameTop),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 150),
+              style: TextStyle(
+                fontSize: 11,
+                color: isSelected
+                    ? (isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd))
+                    : (isDark ? const Color(0xFFdddddd) : const Color(0xFF333333)),
+              ),
+              child: Text(
+                _isSavedMessages ? 'Saved Messages' : chat.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAvatar(double radius, bool isDark) {
+    if (_isSavedMessages) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor: isDark ? const Color(0xFF5288c1) : const Color(0xFF40a7e3),
+        child: Icon(Icons.bookmark, color: Colors.white, size: radius),
+      );
+    }
+    if (chat.avatarPath.isNotEmpty) {
+      return ClipOval(
+        child: Image.file(
+          File(chat.avatarPath),
+          width: radius * 2,
+          height: radius * 2,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _fallbackAvatar(radius),
+        ),
+      );
+    }
+    return _fallbackAvatar(radius);
+  }
+
+  Widget _fallbackAvatar(double radius) {
+    final color = _ShareContactBoxState.avatarColor(chat.chatId);
+    final initials = chat.title.isNotEmpty ? chat.title[0].toUpperCase() : '?';
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: color,
+      child: Text(
+        initials,
+        style: TextStyle(color: Colors.white, fontSize: radius * 0.65),
+      ),
+    );
+  }
+}

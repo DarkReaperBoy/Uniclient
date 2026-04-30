@@ -19,11 +19,12 @@ import (
 
 // PendingAction represents the type of outbound operation.
 const (
-	ActionSend    = "send"
-	ActionEdit    = "edit"
-	ActionDelete  = "delete"
-	ActionReact   = "react"
-	ActionForward = "forward"
+	ActionSend        = "send"
+	ActionEdit        = "edit"
+	ActionDelete      = "delete"
+	ActionReact       = "react"
+	ActionForward     = "forward"
+	ActionSendContact = "send_contact"
 )
 
 // sendPayload is the serialized payload for a "send" action.
@@ -33,6 +34,13 @@ type sendPayload struct {
 	Silent       bool   `json:"silent,omitempty"`
 	ScheduleDate int64  `json:"schedule_date,omitempty"`
 	TopicRootID  string `json:"topic_root_id,omitempty"`
+}
+
+type sendContactPayload struct {
+	Phone     string `json:"phone"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	UserID    string `json:"user_id,omitempty"`
 }
 
 // editPayload is the serialized payload for an "edit" action.
@@ -180,6 +188,31 @@ func (e *Engine) SendMessage(accountID, chatID, text, replyToID string, silent b
 	}()
 
 	return localID, nil
+}
+
+func (e *Engine) SendContact(accountID, toChatID, phone, firstName, lastName, userID string) (string, error) {
+	log.Printf("[engine] SendContact(%s, %s): phone=%q name=%q %q", accountID, toChatID, phone, firstName, lastName)
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return "", fmt.Errorf("account %q not found", accountID)
+	}
+
+	type sendContacter interface {
+		SendContact(chatID, phone, firstName, lastName, userID string) (*cores.Message, error)
+	}
+	sc, ok := acc.Core.(sendContacter)
+	if !ok {
+		return "", fmt.Errorf("core %q does not support SendContact", acc.Platform)
+	}
+
+	result, err := sc.SendContact(toChatID, phone, firstName, lastName, userID)
+	if err != nil {
+		return "", fmt.Errorf("send contact: %w", err)
+	}
+	if result != nil {
+		return result.ID, nil
+	}
+	return "", nil
 }
 
 // UploadFile sends a file from the local filesystem to a chat.

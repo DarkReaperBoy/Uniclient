@@ -406,6 +406,19 @@ message EngineForwardMessageRequest {
   int64  schedule_date = 8;
 }
 
+message EngineSendContactRequest {
+  string account_id  = 1;
+  string to_chat_id  = 2;
+  string phone       = 3;
+  string first_name  = 4;
+  string last_name   = 5;
+  string user_id     = 6;
+}
+
+message EngineSendContactResponse {
+  string local_id = 1;
+}
+
 message EngineReactToMessageRequest {
   string account_id = 1;
   string chat_id    = 2;

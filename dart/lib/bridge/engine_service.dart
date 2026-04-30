@@ -1831,6 +1831,17 @@ class EngineService {
     await _callAsync('__engine', 'ForwardMessage', req.writeToBuffer());
   }
 
+  Future<void> sendContact(String accountId, String toChatId, String phone, String firstName, String lastName, {String userId = ''}) async {
+    final req = epb.EngineSendContactRequest()
+      ..accountId = accountId
+      ..toChatId = toChatId
+      ..phone = phone
+      ..firstName = firstName
+      ..lastName = lastName
+      ..userId = userId;
+    await _callAsync('__engine', 'SendContact', req.writeToBuffer());
+  }
+
   Future<void> sendScheduledNow(String accountId, String chatId, List<String> msgIds) async {
     final req = epb.EngineSendScheduledNowRequest()
       ..accountId = accountId

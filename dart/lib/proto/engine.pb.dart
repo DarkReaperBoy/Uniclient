@@ -3987,6 +3987,176 @@ class EngineSendMessageResponse extends $pb.GeneratedMessage {
   void clearLocalId() => clearField(1);
 }
 
+class EngineSendContactRequest extends $pb.GeneratedMessage {
+  factory EngineSendContactRequest({
+    $core.String? accountId,
+    $core.String? toChatId,
+    $core.String? phone,
+    $core.String? firstName,
+    $core.String? lastName,
+    $core.String? userId,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (toChatId != null) {
+      $result.toChatId = toChatId;
+    }
+    if (phone != null) {
+      $result.phone = phone;
+    }
+    if (firstName != null) {
+      $result.firstName = firstName;
+    }
+    if (lastName != null) {
+      $result.lastName = lastName;
+    }
+    if (userId != null) {
+      $result.userId = userId;
+    }
+    return $result;
+  }
+  EngineSendContactRequest._() : super();
+  factory EngineSendContactRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineSendContactRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineSendContactRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'toChatId')
+    ..aOS(3, _omitFieldNames ? '' : 'phone')
+    ..aOS(4, _omitFieldNames ? '' : 'firstName')
+    ..aOS(5, _omitFieldNames ? '' : 'lastName')
+    ..aOS(6, _omitFieldNames ? '' : 'userId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  EngineSendContactRequest clone() => EngineSendContactRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  EngineSendContactRequest copyWith(void Function(EngineSendContactRequest) updates) => super.copyWith((message) => updates(message as EngineSendContactRequest)) as EngineSendContactRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineSendContactRequest create() => EngineSendContactRequest._();
+  EngineSendContactRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineSendContactRequest> createRepeated() => $pb.PbList<EngineSendContactRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineSendContactRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineSendContactRequest>(create);
+  static EngineSendContactRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get toChatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set toChatId($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasToChatId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearToChatId() => clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get phone => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set phone($core.String v) { $_setString(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasPhone() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearPhone() => clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get firstName => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set firstName($core.String v) { $_setString(3, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasFirstName() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearFirstName() => clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get lastName => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set lastName($core.String v) { $_setString(4, v); }
+  @$pb.TagNumber(5)
+  $core.bool hasLastName() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearLastName() => clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get userId => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set userId($core.String v) { $_setString(5, v); }
+  @$pb.TagNumber(6)
+  $core.bool hasUserId() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearUserId() => clearField(6);
+}
+
+class EngineSendContactResponse extends $pb.GeneratedMessage {
+  factory EngineSendContactResponse({
+    $core.String? localId,
+  }) {
+    final $result = create();
+    if (localId != null) {
+      $result.localId = localId;
+    }
+    return $result;
+  }
+  EngineSendContactResponse._() : super();
+  factory EngineSendContactResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineSendContactResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineSendContactResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'localId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  EngineSendContactResponse clone() => EngineSendContactResponse()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  EngineSendContactResponse copyWith(void Function(EngineSendContactResponse) updates) => super.copyWith((message) => updates(message as EngineSendContactResponse)) as EngineSendContactResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineSendContactResponse create() => EngineSendContactResponse._();
+  EngineSendContactResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineSendContactResponse> createRepeated() => $pb.PbList<EngineSendContactResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineSendContactResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineSendContactResponse>(create);
+  static EngineSendContactResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get localId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set localId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasLocalId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearLocalId() => clearField(1);
+}
+
 class EngineEditMessageRequest extends $pb.GeneratedMessage {
   factory EngineEditMessageRequest({
     $core.String? accountId,

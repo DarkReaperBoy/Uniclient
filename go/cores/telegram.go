@@ -1650,6 +1650,47 @@ func (t *TelegramCore) SendImageBase64(chatID string, b64 string, caption string
 	return &Message{ChatID: chatID, Text: caption, IsOutgoing: true, Platform: tgPlatform}, nil
 }
 
+func (t *TelegramCore) SendContact(chatID string, phone string, firstName string, lastName string, userID string) (*Message, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.sender == nil {
+		return nil, ErrAuth
+	}
+
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return nil, err
+	}
+	inputPeer, err := t.toInputPeer(peer)
+	if err != nil {
+		return nil, err
+	}
+
+	media := &tg.InputMediaContact{
+		PhoneNumber: phone,
+		FirstName:   firstName,
+		LastName:    lastName,
+	}
+	if userID != "" {
+		media.Vcard = "BEGIN:VCARD\nVERSION:3.0\nFN:" + firstName + " " + lastName + "\nTEL:" + phone + "\nEND:VCARD"
+	}
+
+	result, err := t.api.MessagesSendMedia(t.ctx, &tg.MessagesSendMediaRequest{
+		Peer:     inputPeer,
+		Media:    media,
+		Message:  "",
+		RandomID: time.Now().UnixNano(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("send contact: %w", err)
+	}
+
+	msg := t.extractMessageFromUpdates(result, chatID)
+	if msg != nil {
+		return msg, nil
+	}
+	return &Message{ChatID: chatID, IsOutgoing: true, Platform: tgPlatform}, nil
+}
 
 // --- Calls: V2Reference protocol (standard WebRTC SDP + encrypted signaling) ---
 // By advertising versions 11.0.0/10.0.0, the remote uses InstanceV2ReferenceImpl
