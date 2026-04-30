@@ -20,6 +20,7 @@ import 'popup_menu.dart';
 import 'confirm_box.dart';
 import 'contacts_screen.dart' show showContactsBox;
 import 'edit_forum_topic_box.dart';
+import 'folders_settings_screen.dart' show showEditFolderBox;
 import 'shell.dart';
 import 'story_editor.dart';
 
@@ -655,6 +656,7 @@ class _ChatListPanelState extends State<ChatListPanel>
                     ? _EmptyState(
                         searching: _searching,
                         query: _searchController.text,
+                        activeFolderId: chatState.activeFolderId,
                       )
                     : Listener(
                         onPointerDown: _onReorderPointerDown,
@@ -3521,16 +3523,59 @@ class _ArchivedChatsRowState extends State<_ArchivedChatsRow> {
 class _EmptyState extends StatelessWidget {
   final bool searching;
   final String query;
+  final String? activeFolderId;
 
   /// Max chars to show in the "no results for ..." message before truncating.
   static const _kQueryPreviewLimit = 18;
 
-  const _EmptyState({required this.searching, this.query = ''});
+  const _EmptyState({required this.searching, this.query = '', this.activeFolderId});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final subColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
+
+    if (!searching && activeFolderId != null) {
+      // Spec §35.2: Empty folder — centered FlatLabel, "Edit" inline link.
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(
+                  text: 'No chats currently belong\nto this folder. ',
+                  style: TextStyle(fontSize: 13, color: subColor),
+                ),
+                WidgetSpan(
+                  alignment: PlaceholderAlignment.baseline,
+                  baseline: TextBaseline.alphabetic,
+                  child: GestureDetector(
+                    onTap: () {
+                      final chatState = context.read<ChatState>();
+                      final folder = chatState.folders.where(
+                        (f) => f.id == activeFolderId,
+                      ).firstOrNull;
+                      if (folder != null) {
+                        showEditFolderBox(context, folder);
+                      }
+                    },
+                    child: Text(
+                      'Edit',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
 
     if (!searching) {
       // Spec §35.1: Empty chat list — Lottie 120px, label, subtitle, bottom button.

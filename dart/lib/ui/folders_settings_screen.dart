@@ -53,6 +53,40 @@ const _kFilterIcons = <String, IconData>{
   'Setup': Icons.settings_outlined,
 };
 
+void showEditFolderBox(BuildContext context, FolderInfo folder) {
+  final theme = Theme.of(context);
+  final isDark = theme.brightness == Brightness.dark;
+  final accentColor = theme.colorScheme.primary;
+  showDialog<FolderInfo>(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => _EditFilterBox(
+      isDark: isDark,
+      accentColor: accentColor,
+      existingFolder: folder,
+    ),
+  ).then((result) {
+    if (result != null && context.mounted) {
+      final appState = context.read<AppState>();
+      final account = appState.activeAccount;
+      if (account == null) return;
+      final chatState = context.read<ChatState>();
+      chatState.editFolder(
+        account.id, folder.id, result.name, result.chatIds,
+        contacts: result.contacts,
+        nonContacts: result.nonContacts,
+        groups: result.groups,
+        channels: result.channels,
+        bots: result.bots,
+        excludeMuted: result.excludeMuted,
+        excludeRead: result.excludeRead,
+        excludeArchived: result.excludeArchived,
+        excludeChatIds: result.excludeChatIds,
+      );
+    }
+  });
+}
+
 class FoldersSettingsScreen extends StatefulWidget {
   const FoldersSettingsScreen({super.key});
 
