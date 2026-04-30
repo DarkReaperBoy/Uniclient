@@ -264,8 +264,8 @@ class NativeManager extends NotificationManager {
   }
 
   String _buildBody(NotificationData data) {
-    if (data.isGroup && data.senderName.isNotEmpty) {
-      return '${data.senderName}: ${data.text}';
+    if (data.subtitle.isNotEmpty) {
+      return '${data.subtitle}: ${data.text}';
     }
     return data.text;
   }

@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
+import '../notifications/notification_types.dart';
 import '../ui/message_bubble.dart';
 
 /// Chat list + active chat + messages state.
@@ -47,8 +48,7 @@ class ChatState extends ChangeNotifier {
   bool _showFolderTags = false;
   bool _useVerticalFilters = true;
 
-  /// Callback for showing in-app notifications (set by UI layer).
-  void Function(String accountId, String chatId, String senderName, String text, String chatTitle)? onNotification;
+  void Function(NotificationData data)? onNotification;
 
   /// Active channel/topic ID within a topic-type group.
   /// Null means "show all" (the default channel).
@@ -1792,14 +1792,45 @@ class ChatState extends ChangeNotifier {
     } else if (onNotification != null && !event.message.isSent) {
       final chat = _chats.where((c) =>
           c.accountId == event.accountId && c.chatId == event.chatId).firstOrNull;
+      final msg = event.message;
 
-      onNotification!(
-        event.accountId,
-        event.chatId,
-        event.message.senderName,
-        event.message.contentText,
-        chat?.title ?? '',
-      );
+      String stickerEmoji = '';
+      if (msg.mediaType == 6 && msg.contentText.isNotEmpty) {
+        stickerEmoji = msg.contentText;
+      }
+
+      onNotification!(NotificationData(
+        accountId: event.accountId,
+        chatId: event.chatId,
+        messageId: msg.msgId,
+        senderName: msg.senderName,
+        chatTitle: chat?.title ?? '',
+        text: msg.contentText,
+        avatarPath: chat?.avatarPath ?? '',
+        isMuted: chat?.isMuted ?? false,
+        isOutgoing: msg.isOutgoing,
+        isChannel: chat?.type == ChatType.channel,
+        isGroup: chat?.type == ChatType.group || chat?.type == ChatType.topic,
+        isSilent: false,
+        timestamp: msg.timestamp,
+        messageType: msg.mediaType,
+        isForumTopic: msg.topicId.isNotEmpty,
+        topicTitle: msg.topicName,
+        forwardFrom: msg.forwardFrom,
+        forwardCount: msg.forwardFrom.isNotEmpty ? 1 : 0,
+        stickerEmoji: stickerEmoji,
+        hasSpoiler: msg.mediaSpoiler,
+        caption: (msg.mediaType >= 1 && msg.mediaType <= 2 && msg.contentText.isNotEmpty)
+            ? msg.contentText
+            : '',
+        pollQuestion: msg.pollQuestion,
+        gameTitle: msg.gameTitle,
+        invoiceTitle: msg.invoiceTitle,
+        contactName: msg.contactFirstName.isNotEmpty
+            ? '${msg.contactFirstName} ${msg.contactLastName}'.trim()
+            : '',
+        isLiveLocation: msg.geoLive,
+      ));
     }
   }
 

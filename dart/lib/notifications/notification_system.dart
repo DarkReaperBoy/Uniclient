@@ -136,68 +136,28 @@ class NotificationSystem {
         _dispatch(items.first);
       } else {
         final first = items.first;
-        _dispatch(NotificationData(
-          accountId: first.accountId,
-          chatId: first.chatId,
-          messageId: first.messageId,
-          senderName: first.senderName,
-          chatTitle: first.chatTitle,
-          text: '${items.length} new messages',
-          avatarPath: first.avatarPath,
-          isMuted: first.isMuted,
+        final allMedia = items.every((n) => n.messageType >= 1 && n.messageType <= 2);
+        _dispatch(first.copyWith(
+          text: allMedia ? 'Album' : '${items.length} new messages',
           isOutgoing: false,
-          isChannel: first.isChannel,
-          isGroup: first.isGroup,
-          isSilent: first.isSilent,
-          timestamp: first.timestamp,
         ));
       }
     }
   }
 
   void _dispatch(NotificationData data) {
-    final display = _applyPrivacy(data);
+    final content = composeNotificationContent(data, _settings);
+    final display = data.copyWith(
+      chatTitle: content.title,
+      subtitle: content.subtitle,
+      text: content.body,
+      avatarPath: (!_settings.previewName && !_settings.previewText)
+          ? ''
+          : data.avatarPath,
+    );
     _manager.showNotification(display, _settings);
     Debug.log('NOTIF',
-        'dispatched to ${_manager.type}: ${display.chatTitle.isNotEmpty ? display.chatTitle : display.senderName}');
-  }
-
-  NotificationData _applyPrivacy(NotificationData data) {
-    if (!_settings.previewName && !_settings.previewText) {
-      return NotificationData(
-        accountId: data.accountId,
-        chatId: data.chatId,
-        messageId: data.messageId,
-        senderName: '',
-        chatTitle: 'New message',
-        text: '',
-        avatarPath: '',
-        isMuted: data.isMuted,
-        isOutgoing: data.isOutgoing,
-        isChannel: data.isChannel,
-        isGroup: data.isGroup,
-        isSilent: data.isSilent,
-        timestamp: data.timestamp,
-      );
-    }
-    if (!_settings.previewText) {
-      return NotificationData(
-        accountId: data.accountId,
-        chatId: data.chatId,
-        messageId: data.messageId,
-        senderName: data.senderName,
-        chatTitle: data.chatTitle,
-        text: '',
-        avatarPath: data.avatarPath,
-        isMuted: data.isMuted,
-        isOutgoing: data.isOutgoing,
-        isChannel: data.isChannel,
-        isGroup: data.isGroup,
-        isSilent: data.isSilent,
-        timestamp: data.timestamp,
-      );
-    }
-    return data;
+        'dispatched to ${_manager.type}: ${content.title}');
   }
 
   void clearForChat(String accountId, String chatId) {

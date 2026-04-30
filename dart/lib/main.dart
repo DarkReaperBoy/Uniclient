@@ -295,13 +295,17 @@ class _UniClientAppState extends State<UniClientApp>
         if (action == 'open') _onNotifTap(accountId, chatId);
       };
     }
-    chatState.onNotification = (accountId, chatId, senderName, text, chatTitle) {
-      _notifSystem.onNewMessage(NotificationData(
-        accountId: accountId,
-        chatId: chatId,
-        senderName: senderName,
-        chatTitle: chatTitle,
-        text: text,
+    chatState.onNotification = (data) {
+      final accounts = appState.accounts;
+      final isMulti = accounts.length > 1;
+      String acctUsername = '';
+      if (isMulti) {
+        final acct = accounts.where((a) => a.id == data.accountId).firstOrNull;
+        acctUsername = acct?.username ?? acct?.displayName ?? '';
+      }
+      _notifSystem.onNewMessage(data.copyWith(
+        multiAccount: isMulti,
+        accountUsername: acctUsername,
       ));
     };
 

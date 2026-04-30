@@ -508,12 +508,8 @@ class _NotificationPopupWidget extends StatelessWidget {
                           top: _textTop + _itemTopOffset + 13,
                           right: 8,
                           bottom: 4,
-                          child: Text(
-                            _buildBodyText(data),
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: bodyColor,
-                            ),
+                          child: Text.rich(
+                            _buildBodySpan(data, titleColor, bodyColor),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -557,13 +553,23 @@ class _NotificationPopupWidget extends StatelessWidget {
     );
   }
 
-  String _buildBodyText(NotificationData data) {
-    if (data.chatTitle.isNotEmpty &&
-        data.senderName.isNotEmpty &&
-        (data.isGroup || data.isChannel)) {
-      return '${data.senderName}: ${data.text}';
+  InlineSpan _buildBodySpan(NotificationData data, Color titleColor, Color bodyColor) {
+    if (data.subtitle.isNotEmpty) {
+      return TextSpan(children: [
+        TextSpan(
+          text: '${data.subtitle}: ',
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: titleColor),
+        ),
+        TextSpan(
+          text: data.text,
+          style: TextStyle(fontSize: 13, color: bodyColor),
+        ),
+      ]);
     }
-    return data.text;
+    return TextSpan(
+      text: data.text,
+      style: TextStyle(fontSize: 13, color: bodyColor),
+    );
   }
 }
 
