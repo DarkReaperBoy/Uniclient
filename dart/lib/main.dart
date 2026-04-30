@@ -608,7 +608,6 @@ class _UniClientAppState extends State<UniClientApp>
           }
 
         case 'dismissPopup':
-          // Tap at (0,0) to dismiss any popup/dialog/menu
           _dispatchTap(1, 1);
 
         case 'sendFiles':

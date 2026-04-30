@@ -22,6 +22,11 @@ const double _kInfoPaddingH = 24.0;
 const double _kInfoPaddingTop = 16.0;
 const double _kScrollBarWidth = 8.0;
 const Duration _kAnimDuration = Duration(milliseconds: 200);
+const double _kBarHeight = 2.0;
+const double _kBarPadding = 8.0;
+const double _kBarGap = 4.0;
+const double _kInactiveBarOpacity = 0.5;
+const double _kShadowMaxAlpha = 80 / 255;
 
 void showPeerShortInfoBox(
   BuildContext context, {
@@ -81,6 +86,8 @@ class _PeerShortInfoBox extends StatefulWidget {
 class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
   UserProfile? _profile;
   bool _loadingProfile = false;
+  int _photoCount = 1;
+  int _currentPhotoIndex = 0;
 
   @override
   void initState() {
@@ -102,6 +109,14 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
     } catch (_) {
       if (mounted) setState(() => _loadingProfile = false);
     }
+  }
+
+  void _navigatePhoto(int delta) {
+    if (_photoCount <= 1) return;
+    setState(() {
+      _currentPhotoIndex = (_currentPhotoIndex + delta) % _photoCount;
+      if (_currentPhotoIndex < 0) _currentPhotoIndex += _photoCount;
+    });
   }
 
   bool get _isDm => widget.peerType == ChatType.dm;
@@ -192,12 +207,15 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
           : 'group';
     }
 
+    final topBarAreaHeight = _kBarPadding * 2 + _kBarHeight;
+
     return SizedBox(
       width: _kCoverSize,
       height: _kCoverSize,
       child: Stack(
         fit: StackFit.expand,
         children: [
+          // Photo / no-photo background
           if (hasAvatar)
             Image.file(
               File(widget.avatarPath),
@@ -218,6 +236,25 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
                 ),
               ),
             ),
+          // Top shadow gradient for progress bars readability
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            height: topBarAreaHeight + 10,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: _kShadowMaxAlpha),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
           // Bottom shadow gradient for text readability
           Positioned(
             left: 0,
@@ -231,12 +268,29 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
                   end: Alignment.bottomCenter,
                   colors: [
                     Colors.transparent,
-                    Colors.black.withValues(alpha: 0.31),
+                    Colors.black.withValues(alpha: _kShadowMaxAlpha),
                   ],
                 ),
               ),
             ),
           ),
+          // Multi-photo progress bars
+          if (_photoCount > 1)
+            Positioned(
+              left: _kBarPadding,
+              right: _kBarPadding,
+              top: _kBarPadding,
+              height: _kBarHeight,
+              child: CustomPaint(
+                painter: _PhotoProgressBarsPainter(
+                  count: _photoCount,
+                  activeIndex: _currentPhotoIndex,
+                  barColor: Colors.white,
+                  gap: _kBarGap,
+                  inactiveOpacity: _kInactiveBarOpacity,
+                ),
+              ),
+            ),
           // Name
           Positioned(
             left: _kNameX,
@@ -269,6 +323,35 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
               ),
             ),
           ),
+          // Photo navigation click zones (left 1/3 = prev, right 2/3 = next)
+          if (_photoCount > 1) ...[
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: _kCoverSize / 3,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  onTap: () => _navigatePhoto(-1),
+                  behavior: HitTestBehavior.opaque,
+                ),
+              ),
+            ),
+            Positioned(
+              left: _kCoverSize / 3,
+              top: 0,
+              bottom: 0,
+              right: 0,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  onTap: () => _navigatePhoto(1),
+                  behavior: HitTestBehavior.opaque,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -482,4 +565,46 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
     }
     return parts[0][0].toUpperCase();
   }
+}
+
+class _PhotoProgressBarsPainter extends CustomPainter {
+  final int count;
+  final int activeIndex;
+  final Color barColor;
+  final double gap;
+  final double inactiveOpacity;
+
+  _PhotoProgressBarsPainter({
+    required this.count,
+    required this.activeIndex,
+    required this.barColor,
+    required this.gap,
+    required this.inactiveOpacity,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (count <= 1) return;
+    final totalGap = gap * (count - 1);
+    final barWidth = (size.width - totalGap) / count;
+    if (barWidth <= 0) return;
+    final radius = Radius.circular(size.height / 2);
+    for (int i = 0; i < count; i++) {
+      final x = i * (barWidth + gap);
+      final isActive = i == activeIndex;
+      final paint = Paint()
+        ..color = barColor.withValues(alpha: isActive ? 1.0 : inactiveOpacity)
+        ..style = PaintingStyle.fill;
+      canvas.drawRRect(
+        RRect.fromLTRBR(x, 0, x + barWidth, size.height, radius),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_PhotoProgressBarsPainter old) =>
+      old.count != count ||
+      old.activeIndex != activeIndex ||
+      old.barColor != barColor;
 }
