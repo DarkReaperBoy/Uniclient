@@ -31,6 +31,7 @@ import 'ui/choose_datetime_box.dart';
 import 'ui/peer_short_info.dart';
 import 'ui/keyboard_shortcuts.dart';
 import 'ui/media_viewer.dart';
+import 'ui/photo_crop_editor.dart';
 import 'ui/shell.dart';
 import 'theme/wallpaper.dart';
 import 'ui/titlebar.dart';
@@ -617,6 +618,19 @@ class _UniClientAppState extends State<UniClientApp>
               .toList() ?? [];
           if (paths.isNotEmpty) {
             ChatView.showSendFilesBoxRequest?.call(paths);
+          }
+
+        case 'openCropEditor':
+          final path = cmd['path'] as String? ?? '/tmp/test_crop.png';
+          final shapeStr = cmd['shape'] as String? ?? 'ellipse';
+          final shape = switch (shapeStr) {
+            'roundedRect' => PhotoCropShape.roundedRect,
+            'rect' => PhotoCropShape.rect,
+            _ => PhotoCropShape.ellipse,
+          };
+          final navCtx = _navigatorKey.currentContext;
+          if (navCtx != null) {
+            PhotoCropEditor.open(navCtx, imageFile: File(path), shape: shape);
           }
 
         case 'showCallPanel':

@@ -908,7 +908,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §39 — Photo & Avatar Cropping Dialog
 
 <!-- dart files: dart/lib/ui/photo_crop_editor.dart -->
-- [ ] Rotation/flip: 90° rotate button (wraps at 360), horizontal flip toggle with active-color icon, no free-angle rotation — spec §39.7
 - [ ] Sticker/emoji avatar builder: separate full-screen layer, sticker selector + gradient color picker + live circular preview, 1500ms suggested-sticker rotation cycle — spec §39.9
 - [ ] Button bar (48px height, 422px width): Cancel left (mediaviewCaptionFg on shadowFg), Flip+Rotate+Paint-Mode center icons, "Set Photo"/"Suggest"/"Done" right (mediaviewTextLinkFg); paint mode top bar (Undo/Redo) + bottom bar; aspect ratio menu (Original/Square/3:2/16:9/9:16/Free) — spec §39.11
 - [ ] Keyboard shortcuts: Enter=Done, Escape=Cancel/back, Ctrl+Z=Undo, Ctrl+Y/Ctrl+Shift+Z=Redo — spec §39.12

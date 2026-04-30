@@ -306,8 +306,11 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
               child: _ControlBar(
                 doneLabel: widget.doneLabel,
                 saving: _saving,
+                flipped: _flipped,
                 onCancel: _cancel,
                 onDone: _done,
+                onFlip: toggleFlip,
+                onRotate: rotate,
               ),
             ),
           ],
@@ -817,14 +820,20 @@ class _CropPainter extends CustomPainter {
 class _ControlBar extends StatelessWidget {
   final String doneLabel;
   final bool saving;
+  final bool flipped;
   final VoidCallback onCancel;
   final VoidCallback onDone;
+  final VoidCallback onFlip;
+  final VoidCallback onRotate;
 
   const _ControlBar({
     required this.doneLabel,
     required this.saving,
+    required this.flipped,
     required this.onCancel,
     required this.onDone,
+    required this.onFlip,
+    required this.onRotate,
   });
 
   @override
@@ -846,6 +855,20 @@ class _ControlBar extends StatelessWidget {
                 ),
               ),
               child: const Text('Cancel'),
+            ),
+            const Spacer(),
+            _BarIconButton(
+              icon: Icons.flip,
+              active: flipped,
+              onPressed: onFlip,
+              tooltip: 'Flip',
+            ),
+            const SizedBox(width: 6),
+            _BarIconButton(
+              icon: Icons.rotate_right,
+              active: false,
+              onPressed: onRotate,
+              tooltip: 'Rotate',
             ),
             const Spacer(),
             if (saving)
@@ -870,6 +893,37 @@ class _ControlBar extends StatelessWidget {
                 child: Text(doneLabel),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BarIconButton extends StatelessWidget {
+  final IconData icon;
+  final bool active;
+  final VoidCallback onPressed;
+  final String tooltip;
+
+  const _BarIconButton({
+    required this.icon,
+    required this.active,
+    required this.onPressed,
+    required this.tooltip,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 48,
+      height: 48,
+      child: IconButton(
+        onPressed: onPressed,
+        tooltip: tooltip,
+        icon: Icon(
+          icon,
+          color: active ? _kDoneLinkFg : _kCancelFg,
+          size: 24,
         ),
       ),
     );
