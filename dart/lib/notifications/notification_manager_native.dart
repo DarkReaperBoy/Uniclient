@@ -206,7 +206,8 @@ class NativeManager extends NotificationManager {
       DBusString('mail-mark-read'),
       DBusString('Mark as Read'),
     ];
-    if (_capabilities.contains('inline-reply')) {
+    final hideReply = shouldHideReplyButton(data, settings);
+    if (_capabilities.contains('inline-reply') && !hideReply) {
       actions.addAll([
         DBusString('inline-reply'),
         DBusString('Reply'),

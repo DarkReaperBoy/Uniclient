@@ -51,6 +51,9 @@ class NotificationData {
   final int perChatVolume;
   final String groupedId;
   final bool isPollVote;
+  final bool isSenderMuted;
+  final bool slowmodeActive;
+  final bool requiresStars;
 
   const NotificationData({
     required this.accountId,
@@ -92,6 +95,9 @@ class NotificationData {
     this.perChatVolume = 100,
     this.groupedId = '',
     this.isPollVote = false,
+    this.isSenderMuted = false,
+    this.slowmodeActive = false,
+    this.requiresStars = false,
   });
 
   NotificationData copyWith({
@@ -134,6 +140,9 @@ class NotificationData {
     int? perChatVolume,
     String? groupedId,
     bool? isPollVote,
+    bool? isSenderMuted,
+    bool? slowmodeActive,
+    bool? requiresStars,
   }) {
     return NotificationData(
       accountId: accountId ?? this.accountId,
@@ -175,6 +184,9 @@ class NotificationData {
       perChatVolume: perChatVolume ?? this.perChatVolume,
       groupedId: groupedId ?? this.groupedId,
       isPollVote: isPollVote ?? this.isPollVote,
+      isSenderMuted: isSenderMuted ?? this.isSenderMuted,
+      slowmodeActive: slowmodeActive ?? this.slowmodeActive,
+      requiresStars: requiresStars ?? this.requiresStars,
     );
   }
 }
@@ -350,6 +362,7 @@ class NotificationSettings {
   final bool useNativeNotifications;
   final bool forceCustomNotifications;
   final bool disableNotificationsDelay;
+  final bool hideReplyButton;
   final NotificationCorner corner;
   final int maxNotificationCount;
   final int displayIndex;
@@ -370,6 +383,7 @@ class NotificationSettings {
     this.useNativeNotifications = true,
     this.forceCustomNotifications = false,
     this.disableNotificationsDelay = false,
+    this.hideReplyButton = false,
     this.corner = NotificationCorner.bottomRight,
     this.maxNotificationCount = 3,
     this.displayIndex = 0,
@@ -391,6 +405,7 @@ class NotificationSettings {
     bool? useNativeNotifications,
     bool? forceCustomNotifications,
     bool? disableNotificationsDelay,
+    bool? hideReplyButton,
     NotificationCorner? corner,
     int? maxNotificationCount,
     int? displayIndex,
@@ -414,9 +429,27 @@ class NotificationSettings {
           forceCustomNotifications ?? this.forceCustomNotifications,
       disableNotificationsDelay:
           disableNotificationsDelay ?? this.disableNotificationsDelay,
+      hideReplyButton: hideReplyButton ?? this.hideReplyButton,
       corner: corner ?? this.corner,
       maxNotificationCount: maxNotificationCount ?? this.maxNotificationCount,
       displayIndex: displayIndex ?? this.displayIndex,
     );
   }
+}
+
+bool shouldHideReplyButton(
+  NotificationData data,
+  NotificationSettings settings, {
+  bool isPasscodeLocked = false,
+}) {
+  if (settings.hideReplyButton) return true;
+  if (isPasscodeLocked) return true;
+  if (!settings.previewText) return true;
+  if (data.isReaction || data.isPollVote) return true;
+  if (data.messageId.isEmpty) return true;
+  if (data.isScheduled && data.isOutgoing) return true;
+  if (data.isChannel) return true;
+  if (data.slowmodeActive) return true;
+  if (data.requiresStars) return true;
+  return false;
 }

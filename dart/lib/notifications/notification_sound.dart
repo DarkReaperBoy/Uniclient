@@ -35,8 +35,6 @@ class NotificationSoundPlayer {
     required NotificationData data,
   }) async {
     if (!settings.allowSound) return;
-    if (data.isMuted) return;
-    if (data.isSilent) return;
     if (data.soundNone) return;
 
     final player = _player;

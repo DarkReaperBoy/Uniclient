@@ -76,12 +76,16 @@ class NotificationPopupOverlay extends StatefulWidget {
   final void Function(String accountId, String chatId) onTap;
   final void Function(String accountId, String chatId, String text)?
       onReplySend;
+  final NotificationSettings settings;
+  final bool isPasscodeLocked;
 
   const NotificationPopupOverlay({
     super.key,
     required this.manager,
     required this.onTap,
     this.onReplySend,
+    this.settings = const NotificationSettings(),
+    this.isPasscodeLocked = false,
   });
 
   @override
@@ -344,6 +348,12 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
         yPos = popup.currentY;
       }
 
+      final hideReply = shouldHideReplyButton(
+        popup.item.data,
+        widget.settings,
+        isPasscodeLocked: widget.isPasscodeLocked,
+      );
+
       children.add(
         _NotificationPopupWidget(
           key: ValueKey(popup.id),
@@ -351,6 +361,7 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
           x: xPos,
           y: yPos,
           width: width,
+          hideReply: hideReply,
           bgColor: bgColor,
           borderColor: borderColor,
           titleColor: titleColor,
@@ -411,6 +422,7 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
 class _NotificationPopupWidget extends StatelessWidget {
   final _PopupState popup;
   final double x, y, width;
+  final bool hideReply;
   final Color bgColor, borderColor, titleColor, bodyColor, closeColor,
       accentColor;
   final VoidCallback onHoverEnter, onHoverExit, onTap, onRightClick, onClose,
@@ -422,6 +434,7 @@ class _NotificationPopupWidget extends StatelessWidget {
     required this.x,
     required this.y,
     required this.width,
+    required this.hideReply,
     required this.bgColor,
     required this.borderColor,
     required this.titleColor,
@@ -522,7 +535,7 @@ class _NotificationPopupWidget extends StatelessWidget {
                             onTap: onClose,
                           ),
                         ),
-                        if (popup.hovered && !popup.replyOpen)
+                        if (popup.hovered && !popup.replyOpen && !hideReply)
                           Positioned(
                             right: 9,
                             bottom: 9,

@@ -1733,6 +1733,8 @@ class _UniClientAppState extends State<UniClientApp>
                 child: NotificationPopupOverlay(
                   manager: _defaultNotifManager!,
                   onTap: _onNotifTap,
+                  settings: _notifSystem.settings,
+                  isPasscodeLocked: context.watch<AppState>().passcodeLocked,
                   onReplySend: (accountId, chatId, text) {
                     // TODO: wire to engine sendMessage
                   },

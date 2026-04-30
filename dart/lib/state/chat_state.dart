@@ -1811,9 +1811,10 @@ class ChatState extends ChangeNotifier {
         isOutgoing: msg.isOutgoing,
         isChannel: chat?.type == ChatType.channel,
         isGroup: chat?.type == ChatType.group || chat?.type == ChatType.topic,
-        isSilent: false,
+        isSilent: msg.isSilent,
         timestamp: msg.timestamp,
         messageType: msg.mediaType,
+        isScheduled: msg.scheduleDate > 0,
         isForumTopic: msg.topicId.isNotEmpty,
         topicTitle: msg.topicName,
         forwardFrom: msg.forwardFrom,
@@ -1831,6 +1832,9 @@ class ChatState extends ChangeNotifier {
             : '',
         isLiveLocation: msg.geoLive,
         groupedId: msg.groupedId,
+        slowmodeActive: (chat?.slowmodeNextSendDate ?? 0) > 0 &&
+            chat!.slowmodeNextSendDate > DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        requiresStars: (chat?.starsToSend ?? 0) > 0,
       ));
     }
   }

@@ -1,4 +1,8 @@
 import 'dart:async';
+import 'dart:io';
+
+import 'package:dbus/dbus.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../utils/debug.dart';
 import 'notification_manager.dart';
@@ -31,10 +35,50 @@ class _NotificationKey {
   int get hashCode => Object.hash(messageId, type);
 }
 
+class _DndChecker {
+  bool _inhibited = false;
+  DBusClient? _dbus;
+  Timer? _pollTimer;
+
+  bool get isActive => _inhibited;
+
+  void init() {
+    if (kIsWeb || !Platform.isLinux) return;
+    _poll();
+    _pollTimer = Timer.periodic(const Duration(seconds: 30), (_) => _poll());
+  }
+
+  Future<void> _poll() async {
+    try {
+      _dbus ??= DBusClient.session();
+      final proxy = DBusRemoteObject(
+        _dbus!,
+        name: 'org.freedesktop.Notifications',
+        path: DBusObjectPath('/org/freedesktop/Notifications'),
+      );
+      final val = await proxy.getProperty(
+        'org.freedesktop.Notifications',
+        'Inhibited',
+        signature: DBusSignature('b'),
+      );
+      _inhibited = val.asBoolean();
+    } catch (_) {
+      _inhibited = false;
+    }
+  }
+
+  void dispose() {
+    _pollTimer?.cancel();
+    _dbus?.close();
+    _dbus = null;
+  }
+}
+
 class NotificationSystem {
   NotificationManager _manager = DummyManager();
   NotificationSettings _settings = const NotificationSettings();
   final NotificationSoundPlayer _soundPlayer = NotificationSoundPlayer();
+  final _DndChecker _dndChecker = _DndChecker();
 
   // §37.6.1 timing constants
   static const _kMinimalDelay = Duration(milliseconds: 100);
@@ -71,6 +115,7 @@ class NotificationSystem {
   void init(NotificationSettings settings) {
     _settings = settings;
     _soundPlayer.init();
+    _dndChecker.init();
     _selectManager();
     _syncNativeSoundPath();
     Debug.log('NOTIF', 'system init, manager=${_manager.type}');
@@ -123,24 +168,41 @@ class NotificationSystem {
 
   void onNewMessage(NotificationData data) {
     if (!_settings.desktopNotify) return;
-    if (data.isOutgoing) return;
+    if (data.isOutgoing && !data.isScheduled) return;
 
     if (!_shouldNotifyForType(data)) return;
-    if (data.isMuted && !_settings.includeMutedChats) return;
-    if (data.isSilent) return;
 
-    if (!_passesDedup(data)) return;
+    // §37.7: Muted chat handling
+    var effectiveData = data;
+    if (data.isMuted) {
+      if (data.isScheduled && data.isOutgoing) {
+        // Own scheduled messages in muted chats: show but force silent
+        effectiveData = data.copyWith(isSilent: true);
+      } else if (!data.isSenderMuted) {
+        // Sender NOT muted in muted group (e.g. mention): show with sound
+      } else {
+        // Thread muted + sender muted/absent: skip entirely
+        return;
+      }
+    }
 
-    if (_isGroupable(data)) {
-      _groupedBuffer.add(data);
+    // §37.7: Force silent for reactions/poll votes
+    if (effectiveData.isReaction || effectiveData.isPollVote) {
+      effectiveData = effectiveData.copyWith(isSilent: true);
+    }
+
+    if (!_passesDedup(effectiveData)) return;
+
+    if (_isGroupable(effectiveData)) {
+      _groupedBuffer.add(effectiveData);
       _groupedTimer?.cancel();
       _groupedTimer =
           Timer(_kWaitingForAllGroupedDelay, _flushGroupedBuffer);
       return;
     }
 
-    final delay = _countTiming(data);
-    _scheduleDispatch(data, delay);
+    final delay = _countTiming(effectiveData);
+    _scheduleDispatch(effectiveData, delay);
   }
 
   bool _shouldNotifyForType(NotificationData data) {
@@ -286,7 +348,18 @@ class NotificationSystem {
           ? ''
           : data.avatarPath,
     );
-    _manager.showNotification(display, _settings);
+
+    final dnd = _dndChecker.isActive;
+
+    // §37.8: For custom (DefaultManager) popups, skip toast when DND active
+    if (_manager is DefaultManager && dnd) {
+      Debug.log('NOTIF', 'DND active, skipping custom toast');
+    } else {
+      _manager.showNotification(display, _settings);
+    }
+
+    // §37.7+37.8: Sound suppressed by silent flag, soundNone, or DND
+    final forceSilent = data.isSilent || data.soundNone || dnd;
 
     final threadKey = '${data.accountId}:${data.chatId}';
     final now = DateTime.now();
@@ -294,13 +367,15 @@ class NotificationSystem {
     final alertAllowed =
         lastAlert == null || now.difference(lastAlert) >= _kMinimalAlertDelay;
 
-    if (!_manager.handlesSound && alertAllowed) {
+    if (!_manager.handlesSound && alertAllowed && !forceSilent) {
       _soundPlayer.play(settings: _settings, data: data);
       _lastAlertPerThread[threadKey] = now;
     }
 
     Debug.log('NOTIF',
-        'dispatched to ${_manager.type}: ${content.title}');
+        'dispatched to ${_manager.type}: ${content.title}'
+        '${forceSilent ? " (silent)" : ""}'
+        '${dnd ? " (DND)" : ""}');
   }
 
   void clearForChat(String accountId, String chatId) {
@@ -331,6 +406,7 @@ class NotificationSystem {
     _whenMaps.clear();
     _lastAlertPerThread.clear();
     _soundPlayer.dispose();
+    _dndChecker.dispose();
     _manager.dispose();
   }
 }
