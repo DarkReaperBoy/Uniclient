@@ -151,6 +151,53 @@ String _displayEmoji(String emoji) {
   return emoji;
 }
 
+class _EmptySearchPanel extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final Color color;
+
+  const _EmptySearchPanel({required this.icon, required this.text, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final iconCenter = constraints.maxHeight / 3;
+        return Column(
+          children: [
+            SizedBox(height: (iconCenter - 24).clamp(0, double.infinity)),
+            Icon(icon, size: 48, color: color),
+            const SizedBox(height: 12),
+            Text(text, style: TextStyle(fontSize: 13, color: color)),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _EmptyGifPanel extends StatelessWidget {
+  final String text;
+  final Color color;
+
+  const _EmptyGifPanel({required this.text, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final regionHeight = constraints.maxHeight * 2 / 3 + 13;
+        return SizedBox(
+          height: regionHeight,
+          child: Center(
+            child: Text(text, style: TextStyle(fontSize: 13, color: color)),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class EmojiTabbedPanel extends StatefulWidget {
   final bool visible;
   final VoidCallback onHide;
@@ -1282,6 +1329,7 @@ class _StickerTabState extends State<_StickerTab> {
   List<StickerPackSummary> _searchResults = [];
   bool _loaded = false;
   bool _searching = false;
+  bool _searchLoading = false;
   String _searchQuery = '';
   int _activePackIndex = 0;
   final ScrollController _gridScrollController = ScrollController();
@@ -1353,12 +1401,16 @@ class _StickerTabState extends State<_StickerTab> {
     if (query.isEmpty) {
       setState(() {
         _searching = false;
+        _searchLoading = false;
         _searchQuery = '';
         _searchResults = [];
       });
       return;
     }
-    setState(() => _searching = true);
+    setState(() {
+      _searching = true;
+      _searchLoading = true;
+    });
     _searchDebounce = Timer(_kSearchDebounce, () => _performSearch(query));
   }
 
@@ -1373,6 +1425,7 @@ class _StickerTabState extends State<_StickerTab> {
       setState(() {
         _searchQuery = query;
         _searchResults = results;
+        _searchLoading = false;
       });
     }
   }
@@ -1554,11 +1607,23 @@ class _StickerTabState extends State<_StickerTab> {
   }
 
   Widget _buildSearchResults(bool isDark) {
+    final labelColor = isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999);
+    if (_searchLoading) {
+      return Center(
+        child: Text('Loading...', style: TextStyle(fontSize: 13, color: labelColor)),
+      );
+    }
     final packs = _searchQuery.isEmpty ? _featuredPacks : _searchResults;
     if (packs.isEmpty) {
-      final msg = _searchQuery.isEmpty ? 'Popular sticker packs' : 'No results for "$_searchQuery"';
-      return Center(
-        child: Text(msg, style: TextStyle(fontSize: 14, color: isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999))),
+      if (_searchQuery.isEmpty) {
+        return Center(
+          child: Text('Popular sticker packs', style: TextStyle(fontSize: 13, color: labelColor)),
+        );
+      }
+      return _EmptySearchPanel(
+        icon: Icons.sticky_note_2_outlined,
+        text: 'No stickers found',
+        color: labelColor,
       );
     }
     return ListView.builder(
@@ -1585,11 +1650,11 @@ class _StickerTabState extends State<_StickerTab> {
           ),
         );
       }
-      return Center(
-        child: Text(
-          'No stickers installed',
-          style: TextStyle(fontSize: 14, color: isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999)),
-        ),
+      final labelColor = isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999);
+      return _EmptySearchPanel(
+        icon: Icons.sticky_note_2_outlined,
+        text: 'No stickers installed',
+        color: labelColor,
       );
     }
     return LayoutBuilder(
@@ -2284,9 +2349,7 @@ class _GifTabState extends State<_GifTab> {
     }
     if (_gifs.isEmpty) {
       final color = isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999);
-      return Center(
-        child: Text('No saved GIFs', style: TextStyle(fontSize: 13, color: color)),
-      );
+      return _EmptyGifPanel(text: 'You have no saved GIFs yet.', color: color);
     }
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -2336,10 +2399,11 @@ class _GifTabState extends State<_GifTab> {
   Widget _buildSearchResults(bool isDark) {
     if (_searchResults.isEmpty) {
       final color = isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999);
-      return Center(
-        child: _searchQuery.isNotEmpty
-            ? Text('No results', style: TextStyle(fontSize: 13, color: color))
-            : const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
+      if (_searchQuery.isNotEmpty) {
+        return _EmptyGifPanel(text: 'No results.', color: color);
+      }
+      return const Center(
+        child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
       );
     }
     return LayoutBuilder(
