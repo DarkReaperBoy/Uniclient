@@ -1830,6 +1830,7 @@ class ChatState extends ChangeNotifier {
             ? '${msg.contactFirstName} ${msg.contactLastName}'.trim()
             : '',
         isLiveLocation: msg.geoLive,
+        groupedId: msg.groupedId,
       ));
     }
   }

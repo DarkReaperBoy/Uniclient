@@ -49,6 +49,8 @@ class NotificationData {
   final String soundDocumentPath;
   final bool soundNone;
   final int perChatVolume;
+  final String groupedId;
+  final bool isPollVote;
 
   const NotificationData({
     required this.accountId,
@@ -88,6 +90,8 @@ class NotificationData {
     this.soundDocumentPath = '',
     this.soundNone = false,
     this.perChatVolume = 100,
+    this.groupedId = '',
+    this.isPollVote = false,
   });
 
   NotificationData copyWith({
@@ -128,6 +132,8 @@ class NotificationData {
     String? soundDocumentPath,
     bool? soundNone,
     int? perChatVolume,
+    String? groupedId,
+    bool? isPollVote,
   }) {
     return NotificationData(
       accountId: accountId ?? this.accountId,
@@ -167,6 +173,8 @@ class NotificationData {
       soundDocumentPath: soundDocumentPath ?? this.soundDocumentPath,
       soundNone: soundNone ?? this.soundNone,
       perChatVolume: perChatVolume ?? this.perChatVolume,
+      groupedId: groupedId ?? this.groupedId,
+      isPollVote: isPollVote ?? this.isPollVote,
     );
   }
 }
@@ -341,6 +349,7 @@ class NotificationSettings {
   final bool countUnreadMessages;
   final bool useNativeNotifications;
   final bool forceCustomNotifications;
+  final bool disableNotificationsDelay;
   final NotificationCorner corner;
   final int maxNotificationCount;
   final int displayIndex;
@@ -360,6 +369,7 @@ class NotificationSettings {
     this.countUnreadMessages = true,
     this.useNativeNotifications = true,
     this.forceCustomNotifications = false,
+    this.disableNotificationsDelay = false,
     this.corner = NotificationCorner.bottomRight,
     this.maxNotificationCount = 3,
     this.displayIndex = 0,
@@ -380,6 +390,7 @@ class NotificationSettings {
     bool? countUnreadMessages,
     bool? useNativeNotifications,
     bool? forceCustomNotifications,
+    bool? disableNotificationsDelay,
     NotificationCorner? corner,
     int? maxNotificationCount,
     int? displayIndex,
@@ -401,6 +412,8 @@ class NotificationSettings {
           useNativeNotifications ?? this.useNativeNotifications,
       forceCustomNotifications:
           forceCustomNotifications ?? this.forceCustomNotifications,
+      disableNotificationsDelay:
+          disableNotificationsDelay ?? this.disableNotificationsDelay,
       corner: corner ?? this.corner,
       maxNotificationCount: maxNotificationCount ?? this.maxNotificationCount,
       displayIndex: displayIndex ?? this.displayIndex,

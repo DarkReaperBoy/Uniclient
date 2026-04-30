@@ -897,7 +897,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/notifications/ (notification_system.dart, notification_manager.dart, notification_manager_default.dart, notification_manager_native.dart, notification_types.dart) -->
 
-- [ ] Scheduling and grouping: 100ms/500ms/1000ms timing delays, cloud delay logic, 1000ms album grouping, per-thread deduplication by messageId+type, reaction dedup once/hour/item — spec §37.6
 - [ ] Muted chat handling + DND: skip if thread AND sender both muted, scheduled-in-muted force-silent, unmuted sender in muted group shows; defer to OS DND — spec §37.7–37.8
 - [ ] Reply conditions: hide reply when text-hidden/non-message/can't-send/broadcast/slowmode — spec §37.9
 - [ ] Flash/bounce dock, badge/unread counter (IncludeMuted/CountMessages), privacy levels (ShowPreview/ShowName/HideAll), passcode/screen-lock force-hide, spoiler login-code masking, app-logo 62×62px hidden-userpic placeholder, native userpic 64px PNG cache (60s TTL) — spec §37.10–37.13
