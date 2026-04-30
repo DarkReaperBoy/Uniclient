@@ -260,15 +260,19 @@ class _UniClientAppState extends State<UniClientApp>
       await _tray.init();
       _tray.onQuit = () => exit(0);
 
-      // Track unread count changes and update tray tooltip.
+      // Track unread count changes and update tray tooltip (§37.11).
       if (_tray.isAvailable) {
         _chatStateRef = chatState;
         _unreadListener = () {
-          _tray.updateUnread(chatState.totalUnread);
+          final settings = _notifSystem.settings;
+          final badge = chatState.badgeUnreadCount(
+            includeMuted: settings.includeMutedChats,
+            countMessages: settings.countUnreadMessages,
+          );
+          _tray.updateUnread(badge);
         };
         chatState.addListener(_unreadListener!);
-        // Set initial tooltip.
-        _tray.updateUnread(chatState.totalUnread);
+        _tray.updateUnread(chatState.badgeUnreadCount());
       }
     }
 
@@ -277,14 +281,27 @@ class _UniClientAppState extends State<UniClientApp>
       _webNotifier.init();
       _chatStateRef = chatState;
       _unreadListener = () {
-        _webNotifier.updateBadge(chatState.totalUnread);
+        final settings = _notifSystem.settings;
+        final badge = chatState.badgeUnreadCount(
+          includeMuted: settings.includeMutedChats,
+          countMessages: settings.countUnreadMessages,
+        );
+        _webNotifier.updateBadge(badge);
       };
       chatState.addListener(_unreadListener!);
-      _webNotifier.updateBadge(chatState.totalUnread);
+      _webNotifier.updateBadge(chatState.badgeUnreadCount());
     }
 
     _chatStateRef ??= chatState;
     _notifSystem.init(const NotificationSettings());
+    _notifSystem.onFlashBounce = () => _tray.flashWindow();
+
+    // §37.12: Sync passcode lock state into notification system.
+    appState.addListener(() {
+      _notifSystem.passcodeLocked = appState.passcodeLocked;
+    });
+    _notifSystem.passcodeLocked = appState.passcodeLocked;
+
     final dm = _notifSystem.defaultManager;
     if (dm != null) {
       setState(() => _defaultNotifManager = dm);

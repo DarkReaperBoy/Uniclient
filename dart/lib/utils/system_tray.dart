@@ -71,6 +71,17 @@ class SystemTray {
     quitAppRequest = quitApp;
   }
 
+  /// Flash the taskbar icon / bounce the dock icon (§37.10).
+  Future<void> flashWindow() async {
+    try {
+      await _channel.invokeMethod<void>('flashWindow');
+    } on MissingPluginException {
+      // Native side doesn't implement it yet. Silent no-op.
+    } catch (e) {
+      Debug.log('TRAY', 'flashWindow failed: $e');
+    }
+  }
+
   /// Update the tray tooltip / label with the current unread count.
   Future<void> updateUnread(int count) async {
     if (!_available || count == _lastUnread) return;

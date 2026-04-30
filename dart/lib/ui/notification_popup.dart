@@ -497,6 +497,9 @@ class _NotificationPopupWidget extends StatelessWidget {
                                 : data.senderName,
                             avatarPath: data.avatarPath,
                             accentColor: accentColor,
+                            forceHiddenPlaceholder: data.avatarPath.isEmpty &&
+                                (data.chatTitle == 'UniClient' ||
+                                 data.chatTitle.isEmpty),
                           ),
                         ),
                         Positioned(
@@ -590,15 +593,20 @@ class _Avatar extends StatelessWidget {
   final String name;
   final String avatarPath;
   final Color accentColor;
+  final bool forceHiddenPlaceholder;
 
   const _Avatar({
     required this.name,
     required this.avatarPath,
     required this.accentColor,
+    this.forceHiddenPlaceholder = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (forceHiddenPlaceholder) {
+      return const _HiddenUserpicPlaceholder();
+    }
     return Container(
       width: _photoSize,
       height: _photoSize,
@@ -625,6 +633,31 @@ class _Avatar extends StatelessWidget {
       return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
     }
     return parts[0][0].toUpperCase();
+  }
+}
+
+class _HiddenUserpicPlaceholder extends StatelessWidget {
+  const _HiddenUserpicPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: _photoSize,
+      height: _photoSize,
+      decoration: BoxDecoration(
+        color: const Color(0xFF40A7E3),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      alignment: Alignment.center,
+      child: const Text(
+        'U',
+        style: TextStyle(
+          fontSize: 28,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+        ),
+      ),
+    );
   }
 }
 

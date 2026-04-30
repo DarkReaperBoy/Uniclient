@@ -54,6 +54,7 @@ class NotificationData {
   final bool isSenderMuted;
   final bool slowmodeActive;
   final bool requiresStars;
+  final bool spoilerLoginCode;
 
   const NotificationData({
     required this.accountId,
@@ -98,6 +99,7 @@ class NotificationData {
     this.isSenderMuted = false,
     this.slowmodeActive = false,
     this.requiresStars = false,
+    this.spoilerLoginCode = false,
   });
 
   NotificationData copyWith({
@@ -143,6 +145,7 @@ class NotificationData {
     bool? isSenderMuted,
     bool? slowmodeActive,
     bool? requiresStars,
+    bool? spoilerLoginCode,
   }) {
     return NotificationData(
       accountId: accountId ?? this.accountId,
@@ -187,12 +190,14 @@ class NotificationData {
       isSenderMuted: isSenderMuted ?? this.isSenderMuted,
       slowmodeActive: slowmodeActive ?? this.slowmodeActive,
       requiresStars: requiresStars ?? this.requiresStars,
+      spoilerLoginCode: spoilerLoginCode ?? this.spoilerLoginCode,
     );
   }
 }
 
 const _appName = 'UniClient';
 const _spoilerBlock = '▚';
+final _loginCodePattern = RegExp(r'\b\d{5,7}\b');
 
 class NotificationContent {
   final String title;
@@ -267,7 +272,11 @@ String _composeBody(NotificationData data, NotificationSettings settings) {
     return '➡️ $fwdText';
   }
 
-  return _messageTextForType(data);
+  var text = _messageTextForType(data);
+  if (data.spoilerLoginCode) {
+    text = _maskLoginCodes(text);
+  }
+  return text;
 }
 
 String _messageTextForType(NotificationData data) {
@@ -311,6 +320,12 @@ String _messageTextForType(NotificationData data) {
 String _applySpoiler(String text, bool hasSpoiler) {
   if (!hasSpoiler || text.isEmpty) return text;
   return _spoilerBlock * text.length.clamp(1, 40);
+}
+
+String _maskLoginCodes(String text) {
+  return text.replaceAllMapped(_loginCodePattern, (m) {
+    return _spoilerBlock * m.group(0)!.length;
+  });
 }
 
 String _composeReactionText(NotificationData data) {

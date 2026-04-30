@@ -471,6 +471,21 @@ class ChatState extends ChangeNotifier {
   /// Total unread count across all visible chats.
   int get totalUnread => _chats.fold(0, (sum, c) => sum + c.unreadCount);
 
+  /// Badge-ready unread count respecting notification settings.
+  /// [includeMuted]: whether muted chats contribute to the count.
+  /// [countMessages]: true = count individual messages, false = count chats with unreads.
+  int badgeUnreadCount({bool includeMuted = true, bool countMessages = true}) {
+    final eligible = _chats.where((c) {
+      if (c.unreadCount <= 0) return false;
+      if (!includeMuted && c.isMuted) return false;
+      return true;
+    });
+    if (countMessages) {
+      return eligible.fold(0, (sum, c) => sum + c.unreadCount);
+    }
+    return eligible.length;
+  }
+
   /// Unread count summed across a single account's chats.
   /// Used by the folder sidebar's "All" tab badge.
   int unreadCountForAccount(String accountId) {

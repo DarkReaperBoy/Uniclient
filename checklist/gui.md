@@ -897,8 +897,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/notifications/ (notification_system.dart, notification_manager.dart, notification_manager_default.dart, notification_manager_native.dart, notification_types.dart) -->
 
-- [ ] Flash/bounce dock, badge/unread counter (IncludeMuted/CountMessages), privacy levels (ShowPreview/ShowName/HideAll), passcode/screen-lock force-hide, spoiler login-code masking, app-logo 62×62px hidden-userpic placeholder, native userpic 64px PNG cache (60s TTL) — spec §37.10–37.13
-
 ---
 
 ## §38 — User Profile Popup (PeerShortInfoBox)

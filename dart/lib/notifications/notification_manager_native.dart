@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dbus/dbus.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image/image.dart' as img;
+import 'package:path/path.dart' as p;
 
 import '../utils/debug.dart';
 import 'notification_manager.dart';
@@ -19,6 +21,102 @@ bool nativeNotificationsSupported() {
   return Platform.isLinux || Platform.isMacOS || Platform.isWindows;
 }
 
+class _CachedUserpic {
+  final String filePath;
+  DateTime lastUsed;
+
+  _CachedUserpic({required this.filePath, required this.lastUsed});
+}
+
+class CachedUserpics {
+  static const _kDeleteAfterMs = 60000;
+  static const _kPhotoSize = 64;
+
+  final Map<String, _CachedUserpic> _cache = {};
+  Timer? _cleanupTimer;
+  String? _cacheDir;
+
+  Future<String?> get(String avatarPath) async {
+    if (avatarPath.isEmpty) return null;
+
+    final existing = _cache[avatarPath];
+    if (existing != null && File(existing.filePath).existsSync()) {
+      existing.lastUsed = DateTime.now();
+      return existing.filePath;
+    }
+
+    try {
+      _cacheDir ??= p.join(Directory.systemTemp.path, 'uniclient_userpics');
+      await Directory(_cacheDir!).create(recursive: true);
+
+      final srcFile = File(avatarPath);
+      if (!await srcFile.exists()) return null;
+
+      final bytes = await srcFile.readAsBytes();
+      final image = img.decodeImage(bytes);
+      if (image == null) return null;
+
+      final resized = img.copyResize(image, width: _kPhotoSize, height: _kPhotoSize);
+      final pngBytes = Uint8List.fromList(img.encodePng(resized));
+
+      final hash = avatarPath.hashCode.toRadixString(16);
+      final outPath = p.join(_cacheDir!, 'userpic_$hash.png');
+      await File(outPath).writeAsBytes(pngBytes);
+
+      _cache[avatarPath] = _CachedUserpic(
+        filePath: outPath,
+        lastUsed: DateTime.now(),
+      );
+
+      _ensureCleanupTimer();
+      return outPath;
+    } catch (e) {
+      Debug.log('NOTIF', 'Userpic cache write failed: $e');
+      return null;
+    }
+  }
+
+  void _ensureCleanupTimer() {
+    _cleanupTimer ??= Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _cleanup(),
+    );
+  }
+
+  void _cleanup() {
+    final now = DateTime.now();
+    final expired = <String>[];
+
+    for (final entry in _cache.entries) {
+      if (now.difference(entry.value.lastUsed).inMilliseconds > _kDeleteAfterMs) {
+        expired.add(entry.key);
+        try {
+          File(entry.value.filePath).deleteSync();
+        } catch (_) {}
+      }
+    }
+
+    for (final key in expired) {
+      _cache.remove(key);
+    }
+
+    if (_cache.isEmpty) {
+      _cleanupTimer?.cancel();
+      _cleanupTimer = null;
+    }
+  }
+
+  void dispose() {
+    _cleanupTimer?.cancel();
+    for (final entry in _cache.values) {
+      try {
+        File(entry.filePath).deleteSync();
+      } catch (_) {}
+    }
+    _cache.clear();
+  }
+}
+
 class NativeManager extends NotificationManager {
   @override
   ManagerType get type => ManagerType.native;
@@ -28,6 +126,7 @@ class NativeManager extends NotificationManager {
       _capabilities.contains('sound-file') && !_inhibited;
 
   String defaultSoundPath = '';
+  final CachedUserpics _userpicCache = CachedUserpics();
 
   NotificationActionCallback? onAction;
   NotificationReplyCallback? onReply;
@@ -219,8 +318,11 @@ class NativeManager extends NotificationManager {
       DBusString('urgency'): DBusVariant(DBusByte(1)),
     };
 
-    if (data.avatarPath.isNotEmpty) {
-      final imageHint = await _buildImageHint(data.avatarPath);
+    final forceHideDetails = !settings.previewName && !settings.previewText;
+    if (!forceHideDetails && data.avatarPath.isNotEmpty) {
+      final cachedPath = await _userpicCache.get(data.avatarPath);
+      final imgPath = cachedPath ?? data.avatarPath;
+      final imageHint = await _buildImageHint(imgPath);
       if (imageHint != null) {
         hints[DBusString(_imageDataKey)] = DBusVariant(imageHint);
       }
@@ -382,6 +484,7 @@ class NativeManager extends NotificationManager {
     _closedSub?.cancel();
     _replySub?.cancel();
     clearAll();
+    _userpicCache.dispose();
     _dbus?.close();
     _dbus = null;
     _notifProxy = null;

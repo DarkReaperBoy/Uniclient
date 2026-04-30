@@ -80,6 +80,12 @@ class NotificationSystem {
   final NotificationSoundPlayer _soundPlayer = NotificationSoundPlayer();
   final _DndChecker _dndChecker = _DndChecker();
 
+  bool _passcodeLocked = false;
+  bool get passcodeLocked => _passcodeLocked;
+  set passcodeLocked(bool value) => _passcodeLocked = value;
+
+  void Function()? onFlashBounce;
+
   // §37.6.1 timing constants
   static const _kMinimalDelay = Duration(milliseconds: 100);
   static const _kMinimalForwardDelay = Duration(milliseconds: 500);
@@ -339,14 +345,22 @@ class NotificationSystem {
   }
 
   void _dispatch(NotificationData data) {
-    final content = composeNotificationContent(data, _settings);
+    // §37.12: Apply privacy levels — passcode-locked forces HideAll
+    var effectiveSettings = _settings;
+    if (_passcodeLocked) {
+      effectiveSettings = _settings.copyWith(
+        previewName: false,
+        previewText: false,
+      );
+    }
+
+    final content = composeNotificationContent(data, effectiveSettings);
+    final forceHideDetails = !effectiveSettings.previewName && !effectiveSettings.previewText;
     final display = data.copyWith(
       chatTitle: content.title,
       subtitle: content.subtitle,
       text: content.body,
-      avatarPath: (!_settings.previewName && !_settings.previewText)
-          ? ''
-          : data.avatarPath,
+      avatarPath: forceHideDetails ? '' : data.avatarPath,
     );
 
     final dnd = _dndChecker.isActive;
@@ -355,7 +369,7 @@ class NotificationSystem {
     if (_manager is DefaultManager && dnd) {
       Debug.log('NOTIF', 'DND active, skipping custom toast');
     } else {
-      _manager.showNotification(display, _settings);
+      _manager.showNotification(display, effectiveSettings);
     }
 
     // §37.7+37.8: Sound suppressed by silent flag, soundNone, or DND
@@ -372,10 +386,16 @@ class NotificationSystem {
       _lastAlertPerThread[threadKey] = now;
     }
 
+    // §37.10: Flash taskbar / bounce dock
+    if (_settings.flashBounce && !dnd && alertAllowed && !forceSilent) {
+      onFlashBounce?.call();
+    }
+
     Debug.log('NOTIF',
         'dispatched to ${_manager.type}: ${content.title}'
         '${forceSilent ? " (silent)" : ""}'
-        '${dnd ? " (DND)" : ""}');
+        '${dnd ? " (DND)" : ""}'
+        '${_passcodeLocked ? " (locked)" : ""}');
   }
 
   void clearForChat(String accountId, String chatId) {
