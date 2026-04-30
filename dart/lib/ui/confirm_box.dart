@@ -564,3 +564,161 @@ class _DeleteContentState extends State<_DeleteContent> {
     );
   }
 }
+
+// ─── showSingleChoiceBox — §36.5 SingleChoiceBox ────────────────────────────
+
+Future<int?> showSingleChoiceBox(
+  BuildContext context, {
+  required String title,
+  required List<String> options,
+  int initialSelection = 0,
+  ValueChanged<int>? onChanged,
+}) {
+  return showTelegramBox<int>(
+    context: context,
+    builder: (ctx) => _SingleChoiceContent(
+      title: title,
+      options: options,
+      initialSelection: initialSelection,
+      onChanged: onChanged,
+    ),
+  );
+}
+
+class _SingleChoiceContent extends StatefulWidget {
+  final String title;
+  final List<String> options;
+  final int initialSelection;
+  final ValueChanged<int>? onChanged;
+
+  const _SingleChoiceContent({
+    required this.title,
+    required this.options,
+    required this.initialSelection,
+    this.onChanged,
+  });
+
+  @override
+  State<_SingleChoiceContent> createState() => _SingleChoiceContentState();
+}
+
+class _SingleChoiceContentState extends State<_SingleChoiceContent> {
+  late int _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = widget.initialSelection;
+  }
+
+  void _select(int index) {
+    setState(() => _selected = index);
+    widget.onChanged?.call(index);
+    Navigator.of(context).pop(index);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textFg =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentFg =
+        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final hoverBg =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    return TelegramBox(
+      title: widget.title,
+      onConfirm: () => Navigator.of(context).pop(_selected),
+      content: Padding(
+        padding: const EdgeInsets.only(top: 4, bottom: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(widget.options.length, (i) {
+            return _RadioRow(
+              label: widget.options[i],
+              selected: _selected == i,
+              textColor: textFg,
+              accentColor: accentFg,
+              hoverColor: hoverBg,
+              onTap: () => _select(i),
+            );
+          }),
+        ),
+      ),
+      buttons: [
+        TelegramBoxButton(
+          text: 'OK',
+          onPressed: () => Navigator.of(context).pop(_selected),
+        ),
+      ],
+    );
+  }
+}
+
+class _RadioRow extends StatefulWidget {
+  final String label;
+  final bool selected;
+  final Color textColor;
+  final Color accentColor;
+  final Color hoverColor;
+  final VoidCallback onTap;
+
+  const _RadioRow({
+    required this.label,
+    required this.selected,
+    required this.textColor,
+    required this.accentColor,
+    required this.hoverColor,
+    required this.onTap,
+  });
+
+  @override
+  State<_RadioRow> createState() => _RadioRowState();
+}
+
+class _RadioRowState extends State<_RadioRow> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: Container(
+          color: _hovering ? widget.hoverColor : null,
+          padding: const EdgeInsets.fromLTRB(24, 6, 24, 6),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: Radio<bool>(
+                  value: true,
+                  groupValue: widget.selected,
+                  onChanged: (_) => widget.onTap(),
+                  activeColor: widget.accentColor,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  widget.label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: widget.textColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
