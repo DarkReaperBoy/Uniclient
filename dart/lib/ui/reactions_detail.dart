@@ -1,0 +1,498 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../bridge/engine_service.dart';
+import '../models/engine_models.dart';
+import '../theme/telegram_palette.dart';
+
+class ReactionsDetailPanel extends StatefulWidget {
+  final CachedMessage message;
+  final String? initialEmoji;
+
+  const ReactionsDetailPanel({
+    super.key,
+    required this.message,
+    this.initialEmoji,
+  });
+
+  static void show(BuildContext context, CachedMessage message, {String? initialEmoji}) {
+    final engine = context.read<EngineService>();
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Reactions',
+      barrierColor: Colors.black26,
+      transitionDuration: const Duration(milliseconds: 200),
+      transitionBuilder: (ctx, anim, secondaryAnim, child) {
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, -0.05),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutQuint)),
+          child: FadeTransition(opacity: anim, child: child),
+        );
+      },
+      pageBuilder: (ctx, anim, secondaryAnim) {
+        return Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 392,
+              maxHeight: MediaQuery.of(ctx).size.height * 0.8,
+            ),
+            child: Provider.value(
+              value: engine,
+              child: ReactionsDetailPanel(
+                message: message,
+                initialEmoji: initialEmoji,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  State<ReactionsDetailPanel> createState() => _ReactionsDetailPanelState();
+}
+
+class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
+  List<ReactorInfo> _allReactors = [];
+  bool _loading = true;
+  String? _selectedTab;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedTab = widget.initialEmoji;
+    _loadReactors();
+  }
+
+  Future<void> _loadReactors() async {
+    final engine = context.read<EngineService>();
+    final msgId = int.tryParse(widget.message.msgId) ?? 0;
+    if (msgId == 0) {
+      setState(() => _loading = false);
+      return;
+    }
+    try {
+      final reactors = await engine.getMessageReactorsList(
+        widget.message.accountId,
+        widget.message.chatId,
+        msgId,
+        limit: 100,
+      );
+      if (mounted) {
+        setState(() {
+          _allReactors = reactors;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Map<String, List<ReactorInfo>> get _groupedByEmoji {
+    final map = <String, List<ReactorInfo>>{};
+    for (final r in _allReactors) {
+      map.putIfAbsent(r.emoji, () => []).add(r);
+    }
+    return map;
+  }
+
+  List<ReactorInfo> get _filteredReactors {
+    if (_selectedTab == null) return _allReactors;
+    return _allReactors.where((r) => r.emoji == _selectedTab).toList();
+  }
+
+  String _buildTitle() {
+    final reactions = widget.message.reactions;
+    final totalCount = reactions.fold<int>(0, (s, r) => s + r.count);
+    if (totalCount > 0) return 'Reactions · $totalCount';
+    return 'Reactions';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = PaletteProvider.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final grouped = _groupedByEmoji;
+    final reactions = widget.message.reactions;
+
+    return Material(
+      elevation: 8,
+      color: palette.windowBg,
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _TopBar(
+            title: _buildTitle(),
+            palette: palette,
+            onClose: () => Navigator.of(context).pop(),
+          ),
+          if (reactions.isNotEmpty)
+            _ReactionTabBar(
+              reactions: reactions,
+              grouped: grouped,
+              selectedTab: _selectedTab,
+              palette: palette,
+              onTabSelected: (emoji) {
+                setState(() => _selectedTab = emoji);
+              },
+            ),
+          Divider(height: 1, color: palette.windowFg.withValues(alpha: 0.08)),
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.all(32),
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            )
+          else if (_filteredReactors.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(32),
+              child: Text(
+                'No reactions yet',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: palette.windowSubTextFg,
+                ),
+              ),
+            )
+          else
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                itemCount: _filteredReactors.length,
+                itemBuilder: (ctx, i) => _ReactorRow(
+                  reactor: _filteredReactors[i],
+                  showEmoji: _selectedTab == null,
+                  palette: palette,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TopBar extends StatelessWidget {
+  final String title;
+  final TelegramPalette palette;
+  final VoidCallback onClose;
+
+  const _TopBar({
+    required this.title,
+    required this.palette,
+    required this.onClose,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 54,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: palette.windowFg,
+                ),
+              ),
+            ),
+            SizedBox(
+              width: 36,
+              height: 36,
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                iconSize: 20,
+                icon: Icon(Icons.close, color: palette.windowFg),
+                onPressed: onClose,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ReactionTabBar extends StatelessWidget {
+  final List<MessageReaction> reactions;
+  final Map<String, List<ReactorInfo>> grouped;
+  final String? selectedTab;
+  final TelegramPalette palette;
+  final ValueChanged<String?> onTabSelected;
+
+  const _ReactionTabBar({
+    required this.reactions,
+    required this.grouped,
+    required this.selectedTab,
+    required this.palette,
+    required this.onTabSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final totalCount = reactions.fold<int>(0, (s, r) => s + r.count);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          _TabPill(
+            emoji: null,
+            label: 'All $totalCount',
+            isSelected: selectedTab == null,
+            palette: palette,
+            onTap: () => onTabSelected(null),
+          ),
+          for (final r in reactions)
+            _TabPill(
+              emoji: r.emoji,
+              label: '${r.count}',
+              isSelected: selectedTab == r.emoji,
+              palette: palette,
+              onTap: () => onTabSelected(r.emoji),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TabPill extends StatefulWidget {
+  final String? emoji;
+  final String label;
+  final bool isSelected;
+  final TelegramPalette palette;
+  final VoidCallback onTap;
+
+  const _TabPill({
+    required this.emoji,
+    required this.label,
+    required this.isSelected,
+    required this.palette,
+    required this.onTap,
+  });
+
+  @override
+  State<_TabPill> createState() => _TabPillState();
+}
+
+class _TabPillState extends State<_TabPill> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 150),
+      vsync: this,
+      value: widget.isSelected ? 1.0 : 0.0,
+    );
+    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
+  }
+
+  @override
+  void didUpdateWidget(covariant _TabPill oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isSelected != oldWidget.isSelected) {
+      if (widget.isSelected) {
+        _controller.forward();
+      } else {
+        _controller.reverse();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (ctx, _) {
+        final t = _animation.value;
+        final bg = Color.lerp(
+          widget.palette.windowBg,
+          widget.palette.activeButtonBg,
+          t,
+        )!;
+        final fg = Color.lerp(
+          widget.palette.windowFg,
+          Colors.white,
+          t,
+        )!;
+
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(16),
+            border: t < 0.5
+                ? Border.all(color: widget.palette.windowFg.withValues(alpha: 0.12))
+                : null,
+          ),
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(16),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: widget.onTap,
+            child: SizedBox(
+              height: 32,
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: widget.emoji != null ? 3 : 12,
+                  right: 12,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (widget.emoji != null) ...[
+                      SizedBox(
+                        width: 26,
+                        height: 32,
+                        child: Center(
+                          child: Text(
+                            widget.emoji!,
+                            style: const TextStyle(fontSize: 18),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 3),
+                    ],
+                    Text(
+                      widget.label,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: fg,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ReactorRow extends StatelessWidget {
+  final ReactorInfo reactor;
+  final bool showEmoji;
+  final TelegramPalette palette;
+
+  const _ReactorRow({
+    required this.reactor,
+    required this.showEmoji,
+    required this.palette,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () {},
+      child: SizedBox(
+        height: 58,
+        child: Padding(
+          padding: const EdgeInsets.only(left: 18, top: 6),
+          child: Row(
+            children: [
+              _ReactorAvatar(name: reactor.peerName, size: 46),
+              const SizedBox(width: 15),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      reactor.peerName.isNotEmpty ? reactor.peerName : 'User',
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: palette.windowFg,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (showEmoji && reactor.emoji.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(right: 27),
+                  child: Text(
+                    reactor.emoji,
+                    style: const TextStyle(fontSize: 18),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReactorAvatar extends StatelessWidget {
+  final String name;
+  final double size;
+
+  const _ReactorAvatar({required this.name, required this.size});
+
+  static const _avatarColors = [
+    Color(0xFFE17076),
+    Color(0xFF7BC862),
+    Color(0xFFE5CA77),
+    Color(0xFF65AADD),
+    Color(0xFFA695E7),
+    Color(0xFFEE7AAE),
+    Color(0xFF6EC9CB),
+    Color(0xFFFAA774),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final initial = name.isNotEmpty ? name.characters.first.toUpperCase() : '?';
+    final colorIdx = name.hashCode.abs() % _avatarColors.length;
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: _avatarColors[colorIdx],
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        initial,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: size * 0.42,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+}

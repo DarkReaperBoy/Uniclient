@@ -25,6 +25,7 @@ import '../theme/theme.dart';
 import '../theme/wallpaper.dart';
 import '../data/emoji_data.dart';
 import 'chat_list_row.dart' show ForwardDragData, MyNotesUserpic, SavedMessagesUserpic;
+import 'reactions_detail.dart';
 import 'sticker_pack_viewer.dart';
 import 'message_bubble.dart';
 import 'popup_menu.dart';
@@ -852,6 +853,8 @@ class _ChatViewState extends State<ChatView>
           TelegramMenuItem(value: 'user_messages', icon: const Icon(Icons.person_search), label: "${msg.senderName.split(' ').first}'s Messages"),
         const TelegramMenuItem(value: 'repeat_message', icon: Icon(Icons.repeat), label: 'Repeat Message'),
         const TelegramMenuItem(value: 'message_details', icon: Icon(Icons.info_outline), label: 'Message Details'),
+        if (msg.reactions.isNotEmpty)
+          const TelegramMenuItem(value: 'who_reacted', icon: Icon(Icons.favorite_outline), label: 'Who Reacted'),
         if (hasForwardOrigin)
           const TelegramMenuItem(value: 'go_to_message', icon: Icon(Icons.shortcut), label: 'Go to Message'),
         if (msg.hasThread)
@@ -991,6 +994,8 @@ class _ChatViewState extends State<ChatView>
           _repeatMessage(chatState, msg);
         case 'message_details':
           _showMessageDetails(msg, position);
+        case 'who_reacted':
+          ReactionsDetailPanel.show(context, msg);
         case 'read_until':
           _readUntilHere(chatState, msg);
         default:

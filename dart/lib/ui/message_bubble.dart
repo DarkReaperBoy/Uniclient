@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 
 import 'gesture_utils.dart';
+import 'reactions_detail.dart';
 import 'telegram_toast.dart';
 import 'telegram_tooltip.dart';
 import 'package:lottie/lottie.dart';
@@ -246,11 +247,15 @@ class _MessageBubbleState extends State<MessageBubble> {
 
     if (items.isEmpty) return;
 
-    showMenu<String>(
+    final result = await showMenu<String>(
       context: context,
       position: position,
       items: items,
     );
+
+    if (result == '__show_all' && mounted) {
+      ReactionsDetailPanel.show(context, widget.message, initialEmoji: reaction.emoji);
+    }
   }
 
   static const _maxWidth = 430.0;
