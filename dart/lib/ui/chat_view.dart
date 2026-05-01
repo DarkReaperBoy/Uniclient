@@ -107,6 +107,8 @@ class ChatView extends StatefulWidget {
   static void Function(String text, {int? selStart, int? selEnd})? setComposeRequest;
   static void Function(FormatType type)? toggleFormatRequest;
   static String Function()? getComposeEntitiesRequest;
+  static VoidCallback? selectAllComposeRequest;
+  static VoidCallback? showLinkDialogRequest;
 
   /// Global hook used by Ctrl+Up / Ctrl+Down (spec §24.6 lines 2982-2983) to
   /// cycle the reply target. direction=+1 → older message (Ctrl+Up), -1 →
@@ -336,6 +338,8 @@ class _ChatViewState extends State<ChatView>
     ChatView.setComposeRequest = _setComposeText;
     ChatView.toggleFormatRequest = _toggleComposeFormat;
     ChatView.getComposeEntitiesRequest = _getComposeEntities;
+    ChatView.selectAllComposeRequest = _selectAllCompose;
+    ChatView.showLinkDialogRequest = _showLinkDialogFromHarness;
     ChatView.scrollPageRequest = _scrollPage;
     ChatView.showSendFilesBoxRequest = (paths) {
       _uploadFiles(context.read<ChatState>(), paths);
@@ -383,6 +387,12 @@ class _ChatViewState extends State<ChatView>
     }
     if (ChatView.getComposeEntitiesRequest == _getComposeEntities) {
       ChatView.getComposeEntitiesRequest = null;
+    }
+    if (ChatView.selectAllComposeRequest == _selectAllCompose) {
+      ChatView.selectAllComposeRequest = null;
+    }
+    if (ChatView.showLinkDialogRequest == _showLinkDialogFromHarness) {
+      ChatView.showLinkDialogRequest = null;
     }
     if (ChatView.scrollPageRequest == _scrollPage) {
       ChatView.scrollPageRequest = null;
@@ -2625,6 +2635,27 @@ class _ChatViewState extends State<ChatView>
 
   String _getComposeEntities() {
     return _composeController.entitiesJson;
+  }
+
+  void _selectAllCompose() {
+    final text = _composeController.text;
+    if (text.isEmpty) return;
+    _composeController.selection = TextSelection(baseOffset: 0, extentOffset: text.length);
+  }
+
+  void _showLinkDialogFromHarness() {
+    final ctrl = _composeController;
+    final sel = ctrl.selection;
+    if (!sel.isValid || sel.isCollapsed) return;
+    final startText = ctrl.text.substring(sel.start, sel.end);
+    final existingUrl = ctrl.getLinkUrl() ?? '';
+    _showEditLinkBox(context, startText, existingUrl, (linkText, linkUrl) {
+      if (linkText != startText) {
+        ctrl.setLinkWithText(linkText, linkUrl);
+      } else {
+        ctrl.setLink(linkUrl);
+      }
+    });
   }
 
   void _sendMessage({bool silent = false, int scheduleDate = 0}) {
@@ -8314,6 +8345,26 @@ class RichTextEditingController extends TextEditingController {
     notifyListeners();
   }
 
+  void setLinkWithText(String newText, String url) {
+    final sel = selection;
+    if (!sel.isValid || sel.isCollapsed) return;
+    final start = sel.start;
+    final end = sel.end;
+    final oldText = text;
+    final before = oldText.substring(0, start);
+    final after = oldText.substring(end);
+    text = '$before$newText$after';
+    final newEnd = start + newText.length;
+    selection = TextSelection(baseOffset: start, extentOffset: newEnd);
+    entities.removeWhere((e) =>
+      e.type == FormatType.link && e.offset <= start && e.offset + e.length >= end);
+    if (url.isNotEmpty) {
+      entities.add(ComposeEntity(
+        offset: start, length: newText.length, type: FormatType.link, url: url));
+    }
+    notifyListeners();
+  }
+
   String? getLinkUrl() {
     final sel = selection;
     if (!sel.isValid || sel.isCollapsed) return null;
@@ -9512,40 +9563,14 @@ class _ComposeAreaState extends State<_ComposeArea>
   void _showLinkDialog(RichTextEditingController ctrl) {
     final sel = ctrl.selection;
     if (!sel.isValid || sel.isCollapsed) return;
+    final startText = ctrl.text.substring(sel.start, sel.end);
     final existingUrl = ctrl.getLinkUrl() ?? '';
-    final urlController = TextEditingController(text: existingUrl);
-    showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Insert Link'),
-        content: TextField(
-          controller: urlController,
-          autofocus: true,
-          decoration: const InputDecoration(
-            hintText: 'https://',
-            labelText: 'URL',
-          ),
-          onSubmitted: (v) => Navigator.of(ctx).pop(v),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(null),
-            child: const Text('Cancel'),
-          ),
-          if (existingUrl.isNotEmpty)
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(''),
-              child: const Text('Remove'),
-            ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(urlController.text),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    ).then((url) {
-      if (url == null) return;
-      ctrl.setLink(url);
+    _showEditLinkBox(context, startText, existingUrl, (linkText, linkUrl) {
+      if (linkText != startText) {
+        ctrl.setLinkWithText(linkText, linkUrl);
+      } else {
+        ctrl.setLink(linkUrl);
+      }
     });
   }
 
@@ -14595,6 +14620,270 @@ class _ReportOptionPicker extends StatelessWidget {
         ),
       ),
       scrollableContent: true,
+    );
+  }
+}
+
+// ─── EditLinkBox — spec §41.6 ─────────────────────────────────────────────────
+
+void _showEditLinkBox(
+  BuildContext context,
+  String startText,
+  String startUrl,
+  void Function(String text, String url) callback,
+) {
+  showTelegramBox(
+    context: context,
+    builder: (ctx) => _EditLinkBoxContent(
+      startText: startText,
+      startUrl: startUrl,
+      callback: callback,
+    ),
+  );
+}
+
+class _EditLinkBoxContent extends StatefulWidget {
+  final String startText;
+  final String startUrl;
+  final void Function(String text, String url) callback;
+
+  const _EditLinkBoxContent({
+    required this.startText,
+    required this.startUrl,
+    required this.callback,
+  });
+
+  @override
+  State<_EditLinkBoxContent> createState() => _EditLinkBoxContentState();
+}
+
+class _EditLinkBoxContentState extends State<_EditLinkBoxContent> {
+  late final TextEditingController _textCtrl;
+  late final TextEditingController _urlCtrl;
+  late final FocusNode _textFocus;
+  late final FocusNode _urlFocus;
+  bool _textError = false;
+  bool _urlError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _textCtrl = TextEditingController(text: widget.startText);
+    _urlCtrl = TextEditingController(text: _initialUrl());
+    _textFocus = FocusNode();
+    _urlFocus = FocusNode();
+    _textCtrl.addListener(() {
+      if (_textError && _textCtrl.text.isNotEmpty) {
+        setState(() => _textError = false);
+      }
+    });
+    _urlCtrl.addListener(() {
+      if (_urlError && _urlCtrl.text.isNotEmpty) {
+        setState(() => _urlError = false);
+      }
+    });
+  }
+
+  String _initialUrl() {
+    if (widget.startUrl.isNotEmpty) return widget.startUrl;
+    return '';
+  }
+
+  @override
+  void dispose() {
+    _textCtrl.dispose();
+    _urlCtrl.dispose();
+    _textFocus.dispose();
+    _urlFocus.dispose();
+    super.dispose();
+  }
+
+  bool _validateUrl(String url) {
+    if (url.isEmpty) return false;
+    return url.contains('.') || url.contains(':');
+  }
+
+  void _submit() {
+    final linkText = _textCtrl.text.trim();
+    final linkUrl = _urlCtrl.text.trim();
+    bool hasError = false;
+    if (linkText.isEmpty) {
+      setState(() => _textError = true);
+      _textFocus.requestFocus();
+      hasError = true;
+    }
+    if (!_validateUrl(linkUrl)) {
+      setState(() => _urlError = true);
+      if (!hasError) _urlFocus.requestFocus();
+      hasError = true;
+    }
+    if (hasError) return;
+    widget.callback(linkText, linkUrl);
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final windowBg = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final windowFg = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subTextFg = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final activeFg = isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
+    final errorFg = isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F);
+    final borderColor = isDark ? const Color(0xFF2B3A49) : const Color(0xFFDADADA);
+    final isEditing = widget.startUrl.isNotEmpty;
+
+    return Material(
+      color: windowBg,
+      borderRadius: BorderRadius.circular(kBoxRadius),
+      clipBehavior: Clip.antiAlias,
+      elevation: 4,
+      child: SizedBox(
+        width: kBoxWidth,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Title bar — 48px
+            SizedBox(
+              height: kBoxTitleHeight,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 24),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    isEditing ? 'Edit Link' : 'Create Link',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: windowFg,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // Text field — margin(22, 0, 22, 10)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 0, 22, 10),
+              child: SizedBox(
+                height: 55,
+                child: TextField(
+                  controller: _textCtrl,
+                  focusNode: _textFocus,
+                  autofocus: true,
+                  style: TextStyle(fontSize: 14, color: windowFg),
+                  onSubmitted: (_) => _urlFocus.requestFocus(),
+                  decoration: InputDecoration(
+                    labelText: 'Text',
+                    labelStyle: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: _textError ? errorFg : subTextFg,
+                    ),
+                    floatingLabelStyle: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _textError ? errorFg : activeFg,
+                    ),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.only(top: 28, bottom: 4),
+                    enabledBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(
+                        color: _textError ? errorFg : borderColor,
+                        width: 1,
+                      ),
+                    ),
+                    focusedBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(
+                        color: _textError ? errorFg : activeFg,
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // URL field — margin(22, 0, 22, 10)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 0, 22, 10),
+              child: SizedBox(
+                height: 55,
+                child: TextField(
+                  controller: _urlCtrl,
+                  focusNode: _urlFocus,
+                  style: TextStyle(fontSize: 14, color: windowFg),
+                  onSubmitted: (_) {
+                    if (_textCtrl.text.isEmpty) {
+                      _textFocus.requestFocus();
+                    } else {
+                      _submit();
+                    }
+                  },
+                  decoration: InputDecoration(
+                    labelText: 'URL',
+                    labelStyle: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: _urlError ? errorFg : subTextFg,
+                    ),
+                    floatingLabelStyle: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _urlError ? errorFg : activeFg,
+                    ),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.only(top: 28, bottom: 4),
+                    enabledBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(
+                        color: _urlError ? errorFg : borderColor,
+                        width: 1,
+                      ),
+                    ),
+                    focusedBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(
+                        color: _urlError ? errorFg : activeFg,
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // Buttons row
+            Padding(
+              padding: const EdgeInsets.fromLTRB(6, 0, 6, 6),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: TextButton.styleFrom(
+                      foregroundColor: activeFg,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                    ),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: 4),
+                  TextButton(
+                    onPressed: _submit,
+                    style: TextButton.styleFrom(
+                      foregroundColor: activeFg,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                    ),
+                    child: Text(isEditing ? 'Save' : 'Create'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

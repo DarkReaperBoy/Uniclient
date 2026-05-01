@@ -927,7 +927,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §41 — Message Formatting Toolbar
 # Touches: dart/lib/ui/chat_view.dart (compose field), new formatting_menu.dart
 
-- [ ] EditLinkBox dialog — 320×(auto) modal; "Text" and "URL" input fields (276px wide); submit validation (empty/invalid shows error border); Enter/Tab navigation between fields; "Save"/"Create" + "Cancel" buttons — spec §41.6
 - [ ] CodeLanguageBox dialog — "Code Language" dialog; 32-char language field (ASCII+digits++−); auto-select all on open; "Save" + "Cancel"; error border on invalid input — spec §41.7
 - [ ] Formatting visual rendering in compose field — bold/italic/underline/strikethrough font styles; monospace+monoFg for code; blockquote left-rule + chevron expand/collapse (6,4)px from top-right; pre-block 20px header + copy icon; spoiler FieldSpoilerOverlay shimmer; link linkFg color — spec §41.13
 - [ ] FieldSpoilerOverlay widget — transparent-for-mouse overlay; particle shimmer over spoiler ranges; cursor-inside → 0.5 opacity (200ms); cursor-leaves → full opacity; background textBg/blockquoteBg — spec §44.5 (companion to §41 spoiler tag)
