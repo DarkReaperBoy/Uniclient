@@ -11,6 +11,9 @@ import 'popup_menu.dart';
 import 'choose_datetime_box.dart';
 import 'photo_crop_editor.dart';
 
+const int _kCaptionMaxLength = 4096;
+const int _kCaptionWarnThreshold = 3900;
+
 const double _previewWidth = 308;
 const double _previewHeightMax = 1280;
 const double _rowSkip = 10;
@@ -44,6 +47,8 @@ class SendFilesResult {
   final bool groupFiles;
   final bool remember;
   final bool sendLargePhotos;
+  final bool captionAbove;
+  final Map<int, String> perFileCaptions;
 
   const SendFilesResult({
     required this.paths,
@@ -55,6 +60,8 @@ class SendFilesResult {
     this.groupFiles = true,
     this.remember = false,
     this.sendLargePhotos = true,
+    this.captionAbove = false,
+    this.perFileCaptions = const {},
   });
 }
 
@@ -131,16 +138,23 @@ class _SendFilesBoxDialog extends StatefulWidget {
 class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
   late List<_PreparedFile> _files;
   final TextEditingController _captionController = TextEditingController();
+  late final FocusNode _captionFocus;
   late bool _sendAsDocuments;
   late bool _groupFiles;
   bool _wayRemember = false;
   bool _sendLargePhotos = true;
+  bool _captionAbove = false;
+  bool _showEmojiPanel = false;
+  int _charCount = 0;
+  final Map<int, String> _perFileCaptions = {};
   late final bool _initialSendAsDocuments;
   late final bool _initialGroupFiles;
 
   @override
   void initState() {
     super.initState();
+    _captionFocus = FocusNode(onKeyEvent: _onCaptionKey);
+    _captionController.addListener(_onCaptionChanged);
     _sendAsDocuments = widget.overrideSendAsDocuments ?? false;
     _groupFiles = true;
     _initialSendAsDocuments = _sendAsDocuments;
@@ -164,8 +178,146 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
 
   @override
   void dispose() {
+    _captionController.removeListener(_onCaptionChanged);
     _captionController.dispose();
+    _captionFocus.dispose();
     super.dispose();
+  }
+
+  void _onCaptionChanged() {
+    final len = _captionController.text.length;
+    if (len != _charCount) {
+      setState(() => _charCount = len);
+    }
+  }
+
+  KeyEventResult _onCaptionKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final isEnter = event.logicalKey == LogicalKeyboardKey.enter;
+    final ctrl = HardwareKeyboard.instance.isControlPressed;
+    final shift = HardwareKeyboard.instance.isShiftPressed;
+
+    if (isEnter && !ctrl && !shift) {
+      _send();
+      return KeyEventResult.handled;
+    }
+    if (isEnter && ctrl) {
+      _send();
+      return KeyEventResult.handled;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      Navigator.of(context).pop(null);
+      return KeyEventResult.handled;
+    }
+
+    // Ctrl+V → paste interception (images → add to file list)
+    if (ctrl && !shift && event.logicalKey == LogicalKeyboardKey.keyV) {
+      _handleCaptionPaste();
+      return KeyEventResult.handled;
+    }
+
+    // Ctrl+O → add files
+    if (ctrl && !shift && event.logicalKey == LogicalKeyboardKey.keyO) {
+      _addMoreFiles();
+      return KeyEventResult.handled;
+    }
+
+    return KeyEventResult.ignored;
+  }
+
+  bool get _canMoveCaption =>
+      !_sendAsDocuments &&
+      _captionController.text.isNotEmpty &&
+      _files.any((f) => f.type == _FileType.photo || f.type == _FileType.video);
+
+  Future<void> _handleCaptionPaste() async {
+    try {
+      final result = await Process.run('wl-paste', ['--list-types']);
+      final types = result.stdout.toString();
+      if (types.contains('image/png') || types.contains('image/jpeg')) {
+        final tmpDir = Directory.systemTemp;
+        final ext = types.contains('image/png') ? 'png' : 'jpg';
+        final tmpFile = File('${tmpDir.path}/uniclient_paste_${DateTime.now().millisecondsSinceEpoch}.$ext');
+        final pasteResult = await Process.run('wl-paste', ['--type', 'image/$ext'],
+            stdoutEncoding: null);
+        if (pasteResult.exitCode == 0 && pasteResult.stdout is List<int>) {
+          await tmpFile.writeAsBytes(pasteResult.stdout as List<int>);
+          if (await tmpFile.exists() && await tmpFile.length() > 0) {
+            setState(() {
+              if (_files.length < _maxAlbumCount) {
+                final name = tmpFile.uri.pathSegments.last;
+                _files.add(_PreparedFile(
+                  path: tmpFile.path,
+                  name: name,
+                  size: tmpFile.lengthSync(),
+                  type: _detectType(name),
+                ));
+              }
+            });
+            _loadImageDimensions();
+            return;
+          }
+        }
+      }
+    } catch (_) {}
+    // Fallback: just let normal paste happen
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    if (data?.text != null && data!.text!.isNotEmpty) {
+      final sel = _captionController.selection;
+      final text = _captionController.text;
+      final newText = text.replaceRange(
+        sel.start,
+        sel.end,
+        data.text!,
+      );
+      if (newText.length <= _kCaptionMaxLength) {
+        _captionController.value = TextEditingValue(
+          text: newText,
+          selection: TextSelection.collapsed(offset: sel.start + data.text!.length),
+        );
+      }
+    }
+  }
+
+  Future<void> _showEditCaptionDialog(int fileIndex) async {
+    final current = _perFileCaptions[fileIndex] ?? '';
+    final controller = TextEditingController(text: current);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit caption'),
+        content: TextField(
+          controller: controller,
+          maxLines: 3,
+          maxLength: _kCaptionMaxLength,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'Caption...',
+            counterText: '',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, controller.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (result == null) return;
+    setState(() {
+      if (result.isEmpty) {
+        _perFileCaptions.remove(fileIndex);
+      } else {
+        _perFileCaptions[fileIndex] = result;
+      }
+    });
   }
 
   Future<void> _loadImageDimensions() async {
@@ -318,6 +470,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
   }
 
   void _send({bool silent = false, DateTime? scheduledDate}) {
+    if (_captionController.text.length > _kCaptionMaxLength) return;
     Navigator.of(context).pop(SendFilesResult(
       paths: _resultPaths,
       caption: _captionController.text,
@@ -328,6 +481,8 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
       groupFiles: _groupFiles,
       remember: _wayRemember,
       sendLargePhotos: _sendLargePhotos,
+      captionAbove: _captionAbove,
+      perFileCaptions: Map.from(_perFileCaptions),
     ));
   }
 
@@ -456,6 +611,11 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
                           final idx = _files.indexOf(file);
                           if (idx >= 0) _removeFile(idx);
                         },
+                        perFileCaptions: _perFileCaptions,
+                        onEditCaption: _sendAsDocuments ? (file) {
+                          final idx = _files.indexOf(file);
+                          if (idx >= 0) _showEditCaptionDialog(idx);
+                        } : null,
                       ),
                     const SizedBox(height: 8),
                   ],
@@ -464,26 +624,62 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
             ),
             Divider(height: 1, color: dividerColor),
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: _captionMaxHeight),
-                child: TextField(
-                  controller: _captionController,
-                  maxLines: null,
-                  maxLength: 4096,
-                  style: TextStyle(fontSize: 14, color: textFg),
-                  decoration: InputDecoration(
-                    hintText: 'Add a caption...',
-                    hintStyle: TextStyle(fontSize: 14, color: subFg),
-                    border: InputBorder.none,
-                    counterText: '',
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 4),
+              padding: const EdgeInsets.fromLTRB(20, 8, 8, 0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: _captionMaxHeight),
+                      child: TextField(
+                        controller: _captionController,
+                        focusNode: _captionFocus,
+                        maxLines: null,
+                        maxLength: _kCaptionMaxLength,
+                        style: TextStyle(fontSize: 14, color: textFg),
+                        decoration: InputDecoration(
+                          hintText: 'Add a caption...',
+                          hintStyle: TextStyle(fontSize: 14, color: subFg),
+                          border: InputBorder.none,
+                          counterText: '',
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                  _EmojiToggleButton(
+                    active: _showEmojiPanel,
+                    accentColor: accentFg,
+                    subColor: subFg,
+                    onPressed: () => setState(() => _showEmojiPanel = !_showEmojiPanel),
+                  ),
+                ],
               ),
             ),
-            if (_hasMediaFiles || _hasGroupOption)
+            if (_charCount > _kCaptionWarnThreshold)
+              _CharactersLimitLabel(
+                current: _charCount,
+                max: _kCaptionMaxLength,
+                accentColor: accentFg,
+              ),
+            if (_showEmojiPanel)
+              _EmojiQuickPanel(
+                isDark: isDark,
+                onPick: (emoji) {
+                  final sel = _captionController.selection;
+                  final text = _captionController.text;
+                  final newText = text.replaceRange(sel.start, sel.end, emoji);
+                  if (newText.length <= _kCaptionMaxLength) {
+                    _captionController.value = TextEditingValue(
+                      text: newText,
+                      selection: TextSelection.collapsed(offset: sel.start + emoji.length),
+                    );
+                  }
+                  _captionFocus.requestFocus();
+                },
+              ),
+            if (_hasMediaFiles || _hasGroupOption || _canMoveCaption)
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 4, 20, 0),
                 child: Column(
@@ -505,6 +701,14 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
                         accentColor: accentFg,
                         textColor: textFg,
                         onChanged: (v) => setState(() => _sendAsDocuments = v),
+                      ),
+                    if (_canMoveCaption)
+                      _CheckboxRow(
+                        label: 'Caption above',
+                        value: _captionAbove,
+                        accentColor: accentFg,
+                        textColor: textFg,
+                        onChanged: (v) => setState(() => _captionAbove = v),
                       ),
                     if (_hasChangedWay)
                       _CheckboxRow(
@@ -1219,6 +1423,8 @@ class _FileListPreview extends StatelessWidget {
   final Color textFg;
   final Color subFg;
   final void Function(_PreparedFile) onRemove;
+  final Map<int, String> perFileCaptions;
+  final void Function(_PreparedFile)? onEditCaption;
 
   const _FileListPreview({
     required this.files,
@@ -1227,6 +1433,8 @@ class _FileListPreview extends StatelessWidget {
     required this.textFg,
     required this.subFg,
     required this.onRemove,
+    this.perFileCaptions = const {},
+    this.onEditCaption,
   });
 
   @override
@@ -1243,6 +1451,10 @@ class _FileListPreview extends StatelessWidget {
             subFg: subFg,
             canRemove: allFiles.length > 1,
             onRemove: () => onRemove(files[i]),
+            caption: perFileCaptions[allFiles.indexOf(files[i])],
+            onEditCaption: onEditCaption != null
+                ? () => onEditCaption!(files[i])
+                : null,
           ),
         ],
       ],
@@ -1257,6 +1469,8 @@ class _FileCard extends StatelessWidget {
   final Color subFg;
   final bool canRemove;
   final VoidCallback onRemove;
+  final String? caption;
+  final VoidCallback? onEditCaption;
 
   const _FileCard({
     required this.file,
@@ -1265,6 +1479,8 @@ class _FileCard extends StatelessWidget {
     required this.subFg,
     required this.canRemove,
     required this.onRemove,
+    this.caption,
+    this.onEditCaption,
   });
 
   String _formatSize(int bytes) {
@@ -1304,77 +1520,101 @@ class _FileCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasCaption = caption != null && caption!.isNotEmpty;
     return SizedBox(
-      height: _fileThumbSize + 12,
-      child: Row(
+      height: hasCaption ? _fileThumbSize + 28 : _fileThumbSize + 12,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: _fileThumbSize,
-            height: _fileThumbSize,
-            decoration: BoxDecoration(
-              color: _iconBgColor(),
-              shape: BoxShape.circle,
-            ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Icon(_iconData(), color: Colors.white, size: 22),
-                if (_extBadge(file.name).isNotEmpty)
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: _iconBgColor(),
-                        borderRadius: BorderRadius.circular(3),
-                        border: Border.all(
-                          color: isDark ? const Color(0xFF17212B) : Colors.white,
-                          width: 1,
+          Row(
+            children: [
+              Container(
+                width: _fileThumbSize,
+                height: _fileThumbSize,
+                decoration: BoxDecoration(
+                  color: _iconBgColor(),
+                  shape: BoxShape.circle,
+                ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Icon(_iconData(), color: Colors.white, size: 22),
+                    if (_extBadge(file.name).isNotEmpty)
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: _iconBgColor(),
+                            borderRadius: BorderRadius.circular(3),
+                            border: Border.all(
+                              color: isDark ? const Color(0xFF17212B) : Colors.white,
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            _extBadge(file.name),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 7,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
                       ),
-                      child: Text(
-                        _extBadge(file.name),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 7,
-                          fontWeight: FontWeight.w700,
-                        ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: _fileThumbSkip),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      file.name,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: textFg,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(width: _fileThumbSkip),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  file.name,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: textFg,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                    const SizedBox(height: 2),
+                    Text(
+                      _formatSize(file.size),
+                      style: TextStyle(fontSize: 12, color: subFg),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  _formatSize(file.size),
-                  style: TextStyle(fontSize: 12, color: subFg),
+              ),
+              if (onEditCaption != null)
+                GestureDetector(
+                  onTap: onEditCaption,
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(Icons.edit, size: 16, color: subFg),
+                  ),
                 ),
-              ],
-            ),
+              if (canRemove)
+                _ThumbButton(
+                  icon: Icons.close,
+                  onPressed: onRemove,
+                  size: 22,
+                ),
+            ],
           ),
-          if (canRemove)
-            _ThumbButton(
-              icon: Icons.close,
-              onPressed: onRemove,
-              size: 22,
+          if (hasCaption)
+            Padding(
+              padding: EdgeInsets.only(left: _fileThumbSize + _fileThumbSkip, top: 4),
+              child: Text(
+                caption!,
+                style: TextStyle(fontSize: 12, color: subFg),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
         ],
       ),
@@ -1574,6 +1814,128 @@ class _SendMenuButton extends StatelessWidget {
             color: accentColor,
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _EmojiToggleButton extends StatelessWidget {
+  final bool active;
+  final Color accentColor;
+  final Color subColor;
+  final VoidCallback onPressed;
+
+  const _EmojiToggleButton({
+    required this.active,
+    required this.accentColor,
+    required this.subColor,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 36,
+      height: 36,
+      child: IconButton(
+        icon: Icon(
+          active ? Icons.keyboard : Icons.emoji_emotions_outlined,
+          color: active ? accentColor : subColor,
+          size: 22,
+        ),
+        onPressed: onPressed,
+        splashRadius: 18,
+        padding: EdgeInsets.zero,
+      ),
+    );
+  }
+}
+
+class _CharactersLimitLabel extends StatelessWidget {
+  final int current;
+  final int max;
+  final Color accentColor;
+
+  const _CharactersLimitLabel({
+    required this.current,
+    required this.max,
+    required this.accentColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final remaining = max - current;
+    final isOver = remaining < 0;
+    final color = isOver
+        ? const Color(0xFFDD4B39)
+        : remaining < 100
+            ? const Color(0xFFE5A100)
+            : accentColor;
+    return Padding(
+      padding: const EdgeInsets.only(right: 48, top: 2),
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: Text(
+          '$remaining',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: color,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EmojiQuickPanel extends StatelessWidget {
+  final bool isDark;
+  final void Function(String emoji) onPick;
+
+  const _EmojiQuickPanel({
+    required this.isDark,
+    required this.onPick,
+  });
+
+  static const _recentEmojis = [
+    '\u{1F600}', '\u{1F602}', '\u{1F60D}', '\u{1F622}', '\u{1F44D}',
+    '\u{1F44F}', '\u{1F525}', '\u{2764}', '\u{1F389}', '\u{1F60E}',
+    '\u{1F914}', '\u{1F631}', '\u{1F4AF}', '\u{1F60A}', '\u{1F642}',
+    '\u{1F609}', '\u{1F618}', '\u{1F60B}', '\u{1F61C}', '\u{1F60F}',
+    '\u{1F44C}', '\u{270C}', '\u{1F4AA}', '\u{1F64F}', '\u{1F680}',
+    '\u{1F31F}', '\u{1F381}', '\u{1F3B6}', '\u{1F48E}', '\u{1F319}',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = isDark ? const Color(0xFF1E2C38) : const Color(0xFFF5F5F5);
+    return Container(
+      height: 120,
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: GridView.builder(
+        padding: const EdgeInsets.all(8),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 8,
+          mainAxisSpacing: 4,
+          crossAxisSpacing: 4,
+        ),
+        itemCount: _recentEmojis.length,
+        itemBuilder: (ctx, i) {
+          return GestureDetector(
+            onTap: () => onPick(_recentEmojis[i]),
+            behavior: HitTestBehavior.opaque,
+            child: Center(
+              child: Text(
+                _recentEmojis[i],
+                style: const TextStyle(fontSize: 22),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
