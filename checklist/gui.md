@@ -915,7 +915,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/send_files_box.dart, dart/lib/ui/chat_view.dart (_ComposeArea attach, drag-drop, clipboard paste) -->
 
-- [ ] Album layout algorithm: max 10 items, 308px bounding width, 50px sub-cell min, 2px spacing, wide/>1.2/narrow/<0.8/square thresholds, outer-corners-only 6px radius — spec §40.8
 - [ ] Add files: "Add" button bottom-left, async prep for >10 files, Ctrl+O shortcut — spec §40.9
 - [ ] Send button: "Send" / star cost for paid channels; right-click/long-press send menu (silent/schedule/when-online/spoiler-toggle/caption-position/quality); "Send as sticker" WEBP conversion option; Ctrl+Shift+Enter flag — spec §40.10
 - [ ] File type detection: photo (valid image, not animated), video (PreparedFileInformation::Video), music (Song metadata), sticker (.tgs/IsMimeSticker), MimeDataState classification — spec §40.11

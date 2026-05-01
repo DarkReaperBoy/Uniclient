@@ -1187,152 +1187,235 @@ class _LayoutRect {
   const _LayoutRect(this.index, this.rect, this.corners);
 }
 
-class _AlbumRowSpec {
-  final double height;
-  final List<_AlbumCellSpec> items;
-  const _AlbumRowSpec(this.height, this.items);
-}
-
-class _AlbumCellSpec {
-  final int index;
-  final double width;
-  const _AlbumCellSpec(this.index, this.width);
-}
-
 List<_LayoutRect> _computeAlbumRects(List<double> ratios) {
-  const w = _previewWidth;
-  const s = _albumSpacing;
+  const maxW = _previewWidth;
+  const sp = _albumSpacing;
   const rc = _thumbCornerRadius;
+  const minCW = _albumMinCellWidth;
   final n = ratios.length;
   if (n == 0) return [];
 
-  final cr = ratios.map((v) => v.clamp(0.6667, 2.75)).toList();
+  BorderRadius c(bool tl, bool tr, bool bl, bool br) => BorderRadius.only(
+    topLeft: tl ? const Radius.circular(rc) : Radius.zero,
+    topRight: tr ? const Radius.circular(rc) : Radius.zero,
+    bottomLeft: bl ? const Radius.circular(rc) : Radius.zero,
+    bottomRight: br ? const Radius.circular(rc) : Radius.zero,
+  );
 
-  List<_LayoutRect> buildRects(List<_AlbumRowSpec> rows) {
-    final result = <_LayoutRect>[];
-    double y = 0;
-    for (int ri = 0; ri < rows.length; ri++) {
-      double x = 0;
-      final row = rows[ri];
-      for (int ci = 0; ci < row.items.length; ci++) {
-        final cell = row.items[ci];
-        final isTop = ri == 0;
-        final isBot = ri == rows.length - 1;
-        final isLeft = ci == 0;
-        final isRight = ci == row.items.length - 1;
-        result.add(_LayoutRect(
-          cell.index,
-          Rect.fromLTWH(x, y, cell.width, row.height),
-          BorderRadius.only(
-            topLeft: isTop && isLeft ? const Radius.circular(rc) : Radius.zero,
-            topRight:
-                isTop && isRight ? const Radius.circular(rc) : Radius.zero,
-            bottomLeft:
-                isBot && isLeft ? const Radius.circular(rc) : Radius.zero,
-            bottomRight:
-                isBot && isRight ? const Radius.circular(rc) : Radius.zero,
-          ),
-        ));
-        x += cell.width + s;
-      }
-      y += row.height + s;
-    }
-    return result;
+  String classify(double r) => r > 1.2 ? 'w' : (r < 0.8 ? 'n' : 'q');
+
+  if (n >= 5 || ratios.any((r) => r > 2.0)) {
+    return _complexLayout(ratios, maxW, sp, rc, minCW);
   }
 
+  const maxH = maxW;
+  final cr = ratios.map((v) => v.clamp(0.6667, 2.75)).toList();
+
   if (n == 1) {
-    final h = (w / cr[0]).clamp(100.0, w);
-    return [
-      _LayoutRect(0, Rect.fromLTWH(0, 0, w, h), BorderRadius.circular(rc))
-    ];
+    final h = (maxW / cr[0]).clamp(100.0, maxH);
+    return [_LayoutRect(0, Rect.fromLTWH(0, 0, maxW, h), BorderRadius.circular(rc))];
   }
 
   if (n == 2) {
-    final allWide = cr[0] > 1.2 && cr[1] > 1.2;
+    final p = classify(cr[0]) + classify(cr[1]);
     final avg = (cr[0] + cr[1]) / 2;
-    if (allWide && avg > 1.4 && (cr[1] - cr[0]).abs() < 0.2) {
-      final totalH = w;
-      final h0 = (totalH - s) / (1 + cr[1] / cr[0]);
-      final h1 = totalH - s - h0;
-      return buildRects([
-        _AlbumRowSpec(h0, [_AlbumCellSpec(0, w)]),
-        _AlbumRowSpec(h1, [_AlbumCellSpec(1, w)]),
-      ]);
+
+    if (p == 'ww' && avg > 1.4 && (cr[1] - cr[0]).abs() < 0.2) {
+      final h0 = (maxH - sp) / (1 + cr[1] / cr[0]);
+      final h1 = maxH - sp - h0;
+      return [
+        _LayoutRect(0, Rect.fromLTWH(0, 0, maxW, h0), c(true, true, false, false)),
+        _LayoutRect(1, Rect.fromLTWH(0, h0 + sp, maxW, h1), c(false, false, true, true)),
+      ];
     }
-    final h = ((w - s) / (cr[0] + cr[1])).clamp(100.0, w);
-    final w0 = h * cr[0];
-    final w1 = w - s - w0;
-    return buildRects([
-      _AlbumRowSpec(h, [_AlbumCellSpec(0, w0), _AlbumCellSpec(1, w1)]),
-    ]);
+
+    if (p == 'ww' || p == 'qq') {
+      final cellW = (maxW - sp) / 2;
+      final h = (cellW / math.min(cr[0], cr[1])).clamp(100.0, maxH);
+      return [
+        _LayoutRect(0, Rect.fromLTWH(0, 0, cellW, h), c(true, false, true, false)),
+        _LayoutRect(1, Rect.fromLTWH(cellW + sp, 0, cellW, h), c(false, true, false, true)),
+      ];
+    }
+
+    final avail = maxW - sp;
+    final natural = avail * cr[1] / (cr[0] + cr[1]);
+    final secondW = math.min(math.max(0.4 * avail, natural), avail - 1.5 * minCW);
+    final firstW = avail - secondW;
+    final h = (avail / (cr[0] + cr[1])).clamp(100.0, maxH);
+    return [
+      _LayoutRect(0, Rect.fromLTWH(0, 0, firstW, h), c(true, false, true, false)),
+      _LayoutRect(1, Rect.fromLTWH(firstW + sp, 0, secondW, h), c(false, true, false, true)),
+    ];
   }
 
   if (n == 3) {
-    final totalH = w;
-    final topH = (totalH - s) * 0.66;
-    final botH = totalH - s - topH;
-    final bw0 = (botH * cr[1]).clamp(_albumMinCellWidth, w - s - _albumMinCellWidth);
-    final bw1 = w - s - bw0;
-    return buildRects([
-      _AlbumRowSpec(topH, [_AlbumCellSpec(0, w)]),
-      _AlbumRowSpec(botH, [_AlbumCellSpec(1, bw0), _AlbumCellSpec(2, bw1)]),
-    ]);
+    if (classify(cr[0]) == 'n') {
+      final leftW = (maxH * cr[0]).clamp(minCW, math.min<double>((maxW - sp) * 0.5, maxW - sp - minCW));
+      final rightW = maxW - sp - leftW;
+      final invS = 1 / cr[1] + 1 / cr[2];
+      final rightAvail = maxH - sp;
+      final h1 = rightAvail * (1 / cr[1]) / invS;
+      final h2 = rightAvail - h1;
+      return [
+        _LayoutRect(0, Rect.fromLTWH(0, 0, leftW, maxH.toDouble()), c(true, false, true, false)),
+        _LayoutRect(1, Rect.fromLTWH(leftW + sp, 0, rightW, h1), c(false, true, false, false)),
+        _LayoutRect(2, Rect.fromLTWH(leftW + sp, h1 + sp, rightW, h2), c(false, false, false, true)),
+      ];
+    }
+
+    final topH = math.min<double>(maxW / cr[0], (maxH - sp) * 0.66);
+    final botH = maxH - sp - topH;
+    final bw0 = (botH * cr[1]).clamp(minCW, maxW - sp - minCW);
+    final bw1 = maxW - sp - bw0;
+    return [
+      _LayoutRect(0, Rect.fromLTWH(0, 0, maxW, topH), c(true, true, false, false)),
+      _LayoutRect(1, Rect.fromLTWH(0, topH + sp, bw0, botH), c(false, false, true, false)),
+      _LayoutRect(2, Rect.fromLTWH(bw0 + sp, topH + sp, bw1, botH), c(false, false, false, true)),
+    ];
   }
 
   if (n == 4) {
-    final totalH = w;
-    final topH = (totalH - s) * 0.66;
-    final botH = totalH - s - topH;
-    final tw0 =
-        (topH * cr[0]).clamp(_albumMinCellWidth, w - s - _albumMinCellWidth);
-    final tw1 = w - s - tw0;
-    final bw0 =
-        (botH * cr[2]).clamp(_albumMinCellWidth, w - s - _albumMinCellWidth);
-    final bw1 = w - s - bw0;
-    return buildRects([
-      _AlbumRowSpec(topH, [_AlbumCellSpec(0, tw0), _AlbumCellSpec(1, tw1)]),
-      _AlbumRowSpec(botH, [_AlbumCellSpec(2, bw0), _AlbumCellSpec(3, bw1)]),
-    ]);
+    if (classify(cr[0]) == 'w') {
+      final topH = math.min<double>(maxW / cr[0], (maxH - sp) * 0.66);
+      final botH = maxH - sp - topH;
+      final avail3 = maxW - 2 * sp;
+      final bw0 = math.max(minCW, math.min(0.4 * avail3, botH * cr[1]));
+      final bw2 = math.max(minCW, math.max(0.33 * avail3, botH * cr[3]));
+      var bw1 = avail3 - bw0 - bw2;
+      if (bw1 < minCW) bw1 = minCW;
+      return [
+        _LayoutRect(0, Rect.fromLTWH(0, 0, maxW, topH), c(true, true, false, false)),
+        _LayoutRect(1, Rect.fromLTWH(0, topH + sp, bw0, botH), c(false, false, true, false)),
+        _LayoutRect(2, Rect.fromLTWH(bw0 + sp, topH + sp, bw1, botH), c(false, false, false, false)),
+        _LayoutRect(3, Rect.fromLTWH(bw0 + sp + bw1 + sp, topH + sp, bw2, botH), c(false, false, false, true)),
+      ];
+    }
+
+    final leftW = (maxH * cr[0]).clamp(minCW, math.min<double>((maxW - sp) * 0.5, maxW - sp - minCW));
+    final rightW = maxW - sp - leftW;
+    final invS = 1 / cr[1] + 1 / cr[2] + 1 / cr[3];
+    final rightAvail = maxH - 2 * sp;
+    final h1 = rightAvail * (1 / cr[1]) / invS;
+    final h2 = rightAvail * (1 / cr[2]) / invS;
+    final h3 = rightAvail - h1 - h2;
+    return [
+      _LayoutRect(0, Rect.fromLTWH(0, 0, leftW, maxH.toDouble()), c(true, false, true, false)),
+      _LayoutRect(1, Rect.fromLTWH(leftW + sp, 0, rightW, h1), c(false, true, false, false)),
+      _LayoutRect(2, Rect.fromLTWH(leftW + sp, h1 + sp, rightW, h2), c(false, false, false, false)),
+      _LayoutRect(3, Rect.fromLTWH(leftW + sp, h1 + sp + h2 + sp, rightW, h3), c(false, false, false, true)),
+    ];
   }
 
-  // 5-10 items: multi-row layout
-  final rows = <_AlbumRowSpec>[];
-  int idx = 0;
-  while (idx < n) {
-    final remaining = n - idx;
-    int rowCount;
-    if (remaining >= 5) {
-      rowCount = 3;
-    } else if (remaining == 4) {
-      rowCount = 2;
-    } else {
-      rowCount = remaining > 3 ? 3 : remaining;
-    }
-    final rowRatios = cr.sublist(idx, idx + rowCount);
-    final totalRatio = rowRatios.fold(0.0, (double sum, double r) => sum + r);
-    final nRows = (n / 2.5).ceil();
-    final totalSpacing = (nRows - 1) * s;
-    final h = ((w * 4 / 3 - totalSpacing) / nRows)
-        .clamp(60.0, w * 0.5);
-    final cells = <_AlbumCellSpec>[];
-    double x = 0;
-    for (int j = 0; j < rowCount; j++) {
-      double cellW;
-      if (j == rowCount - 1) {
-        cellW = w - x;
-      } else {
-        final ideal = (w - (rowCount - 1) * s) * rowRatios[j] / totalRatio;
-        final maxCellW =
-            w - x - (rowCount - 1 - j) * (_albumMinCellWidth + s);
-        cellW = ideal.clamp(_albumMinCellWidth, maxCellW);
+  return [];
+}
+
+List<_LayoutRect> _complexLayout(
+  List<double> ratios,
+  double maxW,
+  double sp,
+  double rc,
+  double minCW,
+) {
+  final n = ratios.length;
+  final maxH = maxW * 4 / 3;
+  final avg = ratios.fold(0.0, (double s, double r) => s + r) / n;
+  final cr = avg > 1.1
+      ? ratios.map((r) => r.clamp(1.0, 2.75)).toList()
+      : ratios.map((r) => r.clamp(0.6667, 1.0)).toList();
+
+  final allowFourOnLine2 = avg < 0.85;
+  double bestScore = double.infinity;
+  List<int>? bestSplit;
+
+  for (int k = 2; k <= math.min(4, n); k++) {
+    _tryLineSplits(n, k, 0, [], 3, allowFourOnLine2, (split) {
+      double totalH = (split.length - 1) * sp;
+      bool anyShort = false;
+      int start = 0;
+      for (final count in split) {
+        final sum = cr.sublist(start, start + count).fold(0.0, (double s, double r) => s + r);
+        final h = (maxW - (count - 1) * sp) / sum;
+        totalH += h;
+        if (h < minCW) anyShort = true;
+        start += count;
       }
-      cells.add(_AlbumCellSpec(idx + j, cellW));
-      x += cellW + s;
-    }
-    rows.add(_AlbumRowSpec(h, cells));
-    idx += rowCount;
+
+      bool descending = false;
+      for (int i = 1; i < split.length; i++) {
+        if (split[i - 1] > split[i]) { descending = true; break; }
+      }
+
+      var score = (totalH - maxH).abs();
+      if (anyShort) score *= 1.5;
+      if (descending) score *= 1.5;
+
+      if (score < bestScore) {
+        bestScore = score;
+        bestSplit = List<int>.from(split);
+      }
+    });
   }
-  return buildRects(rows);
+
+  bestSplit ??= [n];
+
+  final rects = <_LayoutRect>[];
+  double y = 0;
+  int idx = 0;
+  final numRows = bestSplit!.length;
+  for (int ri = 0; ri < numRows; ri++) {
+    final count = bestSplit![ri];
+    final lineRatios = cr.sublist(idx, idx + count);
+    final sum = lineRatios.fold(0.0, (double s, double r) => s + r);
+    final lineH = (maxW - (count - 1) * sp) / sum;
+
+    double x = 0;
+    for (int ci = 0; ci < count; ci++) {
+      double cellW;
+      if (ci == count - 1) {
+        cellW = maxW - x;
+      } else {
+        final ideal = lineH * lineRatios[ci];
+        final maxCellW = maxW - x - (count - 1 - ci) * (minCW + sp);
+        cellW = ideal.clamp(minCW, maxCellW);
+      }
+      rects.add(_LayoutRect(
+        idx + ci,
+        Rect.fromLTWH(x, y, cellW, lineH),
+        BorderRadius.only(
+          topLeft: ri == 0 && ci == 0 ? Radius.circular(rc) : Radius.zero,
+          topRight: ri == 0 && ci == count - 1 ? Radius.circular(rc) : Radius.zero,
+          bottomLeft: ri == numRows - 1 && ci == 0 ? Radius.circular(rc) : Radius.zero,
+          bottomRight: ri == numRows - 1 && ci == count - 1 ? Radius.circular(rc) : Radius.zero,
+        ),
+      ));
+      x += cellW + sp;
+    }
+    y += lineH + sp;
+    idx += count;
+  }
+  return rects;
+}
+
+void _tryLineSplits(
+  int remaining,
+  int linesLeft,
+  int lineIdx,
+  List<int> current,
+  int maxPerLine,
+  bool allowFourOnLine2,
+  void Function(List<int>) callback,
+) {
+  if (linesLeft == 0) {
+    if (remaining == 0) callback(current);
+    return;
+  }
+  final maxItems = (lineIdx == 1 && allowFourOnLine2) ? 4 : maxPerLine;
+  for (int c = 1; c <= math.min(maxItems, remaining - (linesLeft - 1)); c++) {
+    current.add(c);
+    _tryLineSplits(remaining - c, linesLeft - 1, lineIdx + 1, current, maxPerLine, allowFourOnLine2, callback);
+    current.removeLast();
+  }
 }
 
 class _ThumbCapsule extends StatelessWidget {
