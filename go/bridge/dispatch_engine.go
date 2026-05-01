@@ -526,7 +526,11 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
-		localID, err := e.SendMessage(req.AccountId, req.ChatId, req.Text, req.ReplyToId, req.Silent, req.ScheduleDate, req.TopicRootId)
+		var entities []cores.TextEntity
+		if req.EntitiesJson != "" {
+			json.Unmarshal([]byte(req.EntitiesJson), &entities)
+		}
+		localID, err := e.SendMessage(req.AccountId, req.ChatId, req.Text, req.ReplyToId, entities, req.Silent, req.ScheduleDate, req.TopicRootId)
 		if err != nil {
 			return nil, err
 		}

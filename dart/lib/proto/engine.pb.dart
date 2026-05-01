@@ -3812,6 +3812,7 @@ class EngineSendMessageRequest extends $pb.GeneratedMessage {
     $core.bool? silent,
     $fixnum.Int64? scheduleDate,
     $core.String? topicRootId,
+    $core.String? entitiesJson,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -3835,6 +3836,9 @@ class EngineSendMessageRequest extends $pb.GeneratedMessage {
     if (topicRootId != null) {
       $result.topicRootId = topicRootId;
     }
+    if (entitiesJson != null) {
+      $result.entitiesJson = entitiesJson;
+    }
     return $result;
   }
   EngineSendMessageRequest._() : super();
@@ -3849,6 +3853,7 @@ class EngineSendMessageRequest extends $pb.GeneratedMessage {
     ..aOB(5, _omitFieldNames ? '' : 'silent')
     ..aInt64(6, _omitFieldNames ? '' : 'scheduleDate')
     ..aOS(7, _omitFieldNames ? '' : 'topicRootId')
+    ..aOS(8, _omitFieldNames ? '' : 'entitiesJson')
     ..hasRequiredFields = false
   ;
 
@@ -3935,6 +3940,15 @@ class EngineSendMessageRequest extends $pb.GeneratedMessage {
   $core.bool hasTopicRootId() => $_has(6);
   @$pb.TagNumber(7)
   void clearTopicRootId() => clearField(7);
+
+  @$pb.TagNumber(8)
+  $core.String get entitiesJson => $_getSZ(7);
+  @$pb.TagNumber(8)
+  set entitiesJson($core.String v) { $_setString(7, v); }
+  @$pb.TagNumber(8)
+  $core.bool hasEntitiesJson() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearEntitiesJson() => clearField(8);
 }
 
 class EngineSendMessageResponse extends $pb.GeneratedMessage {

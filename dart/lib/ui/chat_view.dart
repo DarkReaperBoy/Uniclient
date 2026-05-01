@@ -2678,9 +2678,10 @@ class _ChatViewState extends State<ChatView>
       _executeForward(context, context.read<ChatState>());
       return;
     }
-    final text = _composeController.text.trim();
+    final md = _composeController.getTextWithAppliedMarkdown();
+    final text = md.text;
     if (text.isEmpty) return;
-    final entities = _composeController.entitiesJson;
+    final entities = md.entitiesJson;
     final chatState = context.read<ChatState>();
     if (_editingMsgId != null) {
       chatState.editMessage(_editingMsgId!, text, entities: entities);
@@ -8449,6 +8450,102 @@ class RichTextEditingController extends TextEditingController {
   String get entitiesJson {
     if (entities.isEmpty) return '';
     return jsonEncode(entities.map((e) => e.toJson()).toList());
+  }
+
+  ({String text, String entitiesJson}) getTextWithAppliedMarkdown() {
+    final src = text.trim();
+    if (src.isEmpty) return (text: src, entitiesJson: entitiesJson);
+
+    final mdDelimiters = <({String delim, FormatType type, bool isBlock})>[
+      (delim: '```', type: FormatType.code, isBlock: true),
+      (delim: '**', type: FormatType.bold, isBlock: false),
+      (delim: '__', type: FormatType.italic, isBlock: false),
+      (delim: '~~', type: FormatType.strike, isBlock: false),
+      (delim: '||', type: FormatType.spoiler, isBlock: false),
+      (delim: '`', type: FormatType.code, isBlock: false),
+    ];
+
+    final strips = <({int start, int delimLen, int contentStart, int contentEnd, FormatType type})>[];
+    final used = List<bool>.filled(src.length, false);
+
+    for (final md in mdDelimiters) {
+      final d = md.delim;
+      final dLen = d.length;
+      var searchFrom = 0;
+      while (searchFrom < src.length) {
+        final openIdx = src.indexOf(d, searchFrom);
+        if (openIdx < 0 || openIdx + dLen >= src.length) break;
+        if (used[openIdx]) { searchFrom = openIdx + 1; continue; }
+
+        final contentStart = openIdx + dLen;
+        int closeIdx;
+        if (md.isBlock) {
+          closeIdx = src.indexOf(d, contentStart);
+        } else if (d == '`') {
+          final nl = src.indexOf('\n', contentStart);
+          final tick = src.indexOf('`', contentStart);
+          if (tick < 0) break;
+          if (nl >= 0 && nl < tick) { searchFrom = nl + 1; continue; }
+          closeIdx = tick;
+        } else {
+          closeIdx = src.indexOf(d, contentStart);
+        }
+        if (closeIdx < 0 || closeIdx == contentStart) {
+          searchFrom = contentStart;
+          continue;
+        }
+
+        for (var i = openIdx; i < openIdx + dLen; i++) used[i] = true;
+        for (var i = closeIdx; i < closeIdx + dLen; i++) used[i] = true;
+        strips.add((start: openIdx, delimLen: dLen, contentStart: contentStart, contentEnd: closeIdx, type: md.type));
+        searchFrom = closeIdx + dLen;
+      }
+    }
+
+    if (strips.isEmpty) return (text: src, entitiesJson: entitiesJson);
+
+    strips.sort((a, b) => a.start.compareTo(b.start));
+
+    final offsetMap = List<int>.filled(src.length + 1, 0);
+    var totalStripped = 0;
+    for (var i = 0; i < src.length; i++) {
+      if (used[i]) totalStripped++;
+      offsetMap[i + 1] = totalStripped;
+    }
+
+    final buf = StringBuffer();
+    for (var i = 0; i < src.length; i++) {
+      if (!used[i]) buf.writeCharCode(src.codeUnitAt(i));
+    }
+    final cleanText = buf.toString();
+
+    final mdEntities = <ComposeEntity>[];
+    for (final s in strips) {
+      final newOffset = s.contentStart - offsetMap[s.contentStart];
+      final newLength = (s.contentEnd - offsetMap[s.contentEnd]) - newOffset;
+      if (newLength > 0) {
+        mdEntities.add(ComposeEntity(offset: newOffset, length: newLength, type: s.type));
+      }
+    }
+
+    final adjustedExisting = <ComposeEntity>[];
+    for (final e in entities) {
+      final oStart = e.offset;
+      final oEnd = e.offset + e.length;
+      if (oStart >= src.length || oEnd > src.length) continue;
+      final newStart = oStart - offsetMap[oStart];
+      final newEnd = oEnd - offsetMap[oEnd];
+      final newLen = newEnd - newStart;
+      if (newLen > 0) {
+        adjustedExisting.add(ComposeEntity(
+          offset: newStart, length: newLen, type: e.type,
+          url: e.url, language: e.language));
+      }
+    }
+
+    final allEntities = [...adjustedExisting, ...mdEntities];
+    final json = allEntities.isEmpty ? '' : jsonEncode(allEntities.map((e) => e.toJson()).toList());
+    return (text: cleanText, entitiesJson: json);
   }
 
   @override

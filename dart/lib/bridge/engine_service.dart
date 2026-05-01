@@ -1547,6 +1547,9 @@ class EngineService {
     if (topicRootId.isNotEmpty) {
       req.topicRootId = topicRootId;
     }
+    if (entities.isNotEmpty) {
+      req.entitiesJson = entities;
+    }
     final respBytes = await _callAsync('__engine', 'SendMessage', req.writeToBuffer());
     final resp = epb.EngineSendMessageResponse.fromBuffer(respBytes);
     return resp.localId;

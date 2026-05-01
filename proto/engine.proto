@@ -366,6 +366,7 @@ message EngineSendMessageRequest {
   bool   silent     = 5;
   int64  schedule_date = 6;
   string topic_root_id = 7;
+  string entities_json = 8;
 }
 
 message EngineSendMessageResponse {

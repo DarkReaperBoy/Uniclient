@@ -1050,67 +1050,82 @@ func (t *TelegramCore) SendMessage(chatID string, msg OutgoingMessage) (*Message
 		}
 	}
 
-	if scheduleDate > 0 {
-		req := &tg.MessagesSendMessageRequest{
-			Peer:         inputPeer,
-			Message:      msg.Text,
-			RandomID:     time.Now().UnixNano(),
-			ScheduleDate: scheduleDate,
-		}
-		if _, ok := msg.Extra["silent"]; ok {
-			req.SetSilent(true)
-		}
-		var topicRootID int
-		if trid, ok := msg.Extra["topic_root_id"]; ok {
-			switch v := trid.(type) {
-			case string:
-				topicRootID, _ = strconv.Atoi(v)
-			case float64:
-				topicRootID = int(v)
-			case int:
-				topicRootID = v
+	var tgEntities []tg.MessageEntityClass
+	for _, e := range msg.Entities {
+		var ent tg.MessageEntityClass
+		switch e.Type {
+		case "bold":
+			ent = &tg.MessageEntityBold{Offset: e.Offset, Length: e.Length}
+		case "italic":
+			ent = &tg.MessageEntityItalic{Offset: e.Offset, Length: e.Length}
+		case "underline":
+			ent = &tg.MessageEntityUnderline{Offset: e.Offset, Length: e.Length}
+		case "strike":
+			ent = &tg.MessageEntityStrike{Offset: e.Offset, Length: e.Length}
+		case "code":
+			if e.Language != "" {
+				ent = &tg.MessageEntityPre{Offset: e.Offset, Length: e.Length, Language: e.Language}
+			} else {
+				ent = &tg.MessageEntityCode{Offset: e.Offset, Length: e.Length}
 			}
+		case "pre":
+			ent = &tg.MessageEntityPre{Offset: e.Offset, Length: e.Length, Language: e.Language}
+		case "spoiler":
+			ent = &tg.MessageEntitySpoiler{Offset: e.Offset, Length: e.Length}
+		case "text_url":
+			ent = &tg.MessageEntityTextURL{Offset: e.Offset, Length: e.Length, URL: e.URL}
+		case "blockquote":
+			ent = &tg.MessageEntityBlockquote{Offset: e.Offset, Length: e.Length}
+		default:
+			continue
 		}
-		if msg.ReplyToID != "" {
-			replyID, err := tgMsgID(msg.ReplyToID)
-			if err != nil {
-				return nil, err
-			}
-			reply := &tg.InputReplyToMessage{ReplyToMsgID: replyID}
-			if topicRootID > 0 {
-				reply.TopMsgID = topicRootID
-			}
-			req.SetReplyTo(reply)
-		} else if topicRootID > 0 {
-			req.SetReplyTo(&tg.InputReplyToMessage{TopMsgID: topicRootID})
-		}
-		req.SetScheduleDate(scheduleDate)
-		result, err := t.api.MessagesSendMessage(t.ctx, req)
-		if err != nil {
-			return nil, fmt.Errorf("send scheduled message: %w", err)
-		}
-		return t.extractMessageFromUpdates(result, chatID), nil
+		tgEntities = append(tgEntities, ent)
 	}
 
-	target := t.sender.To(inputPeer)
+	var topicRootID int
+	if trid, ok := msg.Extra["topic_root_id"]; ok {
+		switch v := trid.(type) {
+		case string:
+			topicRootID, _ = strconv.Atoi(v)
+		case float64:
+			topicRootID = int(v)
+		case int:
+			topicRootID = v
+		}
+	}
+
+	req := &tg.MessagesSendMessageRequest{
+		Peer:     inputPeer,
+		Message:  msg.Text,
+		RandomID: time.Now().UnixNano(),
+	}
+	if len(tgEntities) > 0 {
+		req.SetEntities(tgEntities)
+	}
 	if _, ok := msg.Extra["silent"]; ok {
-		target.Silent()
+		req.SetSilent(true)
 	}
-	var result tg.UpdatesClass
-
+	if scheduleDate > 0 {
+		req.SetScheduleDate(scheduleDate)
+	}
 	if msg.ReplyToID != "" {
 		replyID, err := tgMsgID(msg.ReplyToID)
 		if err != nil {
 			return nil, err
 		}
-		result, err = target.Reply(replyID).Text(t.ctx, msg.Text)
-	} else {
-		result, err = target.Text(t.ctx, msg.Text)
+		reply := &tg.InputReplyToMessage{ReplyToMsgID: replyID}
+		if topicRootID > 0 {
+			reply.TopMsgID = topicRootID
+		}
+		req.SetReplyTo(reply)
+	} else if topicRootID > 0 {
+		req.SetReplyTo(&tg.InputReplyToMessage{TopMsgID: topicRootID})
 	}
+
+	result, err := t.api.MessagesSendMessage(t.ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("send message: %w", err)
 	}
-
 	return t.extractMessageFromUpdates(result, chatID), nil
 }
 

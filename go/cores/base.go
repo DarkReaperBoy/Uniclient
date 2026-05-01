@@ -267,6 +267,7 @@ type Message struct {
 type OutgoingMessage struct {
 	Text        string                 `json:"text"`
 	ReplyToID   string                 `json:"reply_to_id,omitempty"`
+	Entities    []TextEntity           `json:"entities,omitempty"`
 	Attachments []FileRef              `json:"attachments,omitempty"`
 	Extra       map[string]interface{} `json:"extra,omitempty"` // platform-specific metadata
 }

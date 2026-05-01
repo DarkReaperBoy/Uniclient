@@ -2950,6 +2950,7 @@ type EngineSendMessageRequest struct {
 	Silent        bool                   `protobuf:"varint,5,opt,name=silent,proto3" json:"silent,omitempty"`
 	ScheduleDate  int64                  `protobuf:"varint,6,opt,name=schedule_date,json=scheduleDate,proto3" json:"schedule_date,omitempty"`
 	TopicRootId   string                 `protobuf:"bytes,7,opt,name=topic_root_id,json=topicRootId,proto3" json:"topic_root_id,omitempty"`
+	EntitiesJson  string                 `protobuf:"bytes,8,opt,name=entities_json,json=entitiesJson,proto3" json:"entities_json,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3029,6 +3030,13 @@ func (x *EngineSendMessageRequest) GetScheduleDate() int64 {
 func (x *EngineSendMessageRequest) GetTopicRootId() string {
 	if x != nil {
 		return x.TopicRootId
+	}
+	return ""
+}
+
+func (x *EngineSendMessageRequest) GetEntitiesJson() string {
+	if x != nil {
+		return x.EntitiesJson
 	}
 	return ""
 }
@@ -11589,7 +11597,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\tbefore_ms\x18\x03 \x01(\x03R\bbeforeMs\x12\x14\n" +
 	"\x05limit\x18\x04 \x01(\x05R\x05limit\"W\n" +
 	"\x19EngineGetMessagesResponse\x12:\n" +
-	"\bmessages\x18\x01 \x03(\v2\x1e.uniclient.EngineCachedMessageR\bmessages\"\xe7\x01\n" +
+	"\bmessages\x18\x01 \x03(\v2\x1e.uniclient.EngineCachedMessageR\bmessages\"\x8c\x02\n" +
 	"\x18EngineSendMessageRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
@@ -11598,7 +11606,8 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\vreply_to_id\x18\x04 \x01(\tR\treplyToId\x12\x16\n" +
 	"\x06silent\x18\x05 \x01(\bR\x06silent\x12#\n" +
 	"\rschedule_date\x18\x06 \x01(\x03R\fscheduleDate\x12\"\n" +
-	"\rtopic_root_id\x18\a \x01(\tR\vtopicRootId\"6\n" +
+	"\rtopic_root_id\x18\a \x01(\tR\vtopicRootId\x12#\n" +
+	"\rentities_json\x18\b \x01(\tR\fentitiesJson\"6\n" +
 	"\x19EngineSendMessageResponse\x12\x19\n" +
 	"\blocal_id\x18\x01 \x01(\tR\alocalId\"\x84\x01\n" +
 	"\x18EngineEditMessageRequest\x12\x1d\n" +
