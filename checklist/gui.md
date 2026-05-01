@@ -915,7 +915,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/send_files_box.dart, dart/lib/ui/chat_view.dart (_ComposeArea attach, drag-drop, clipboard paste) -->
 
-- [ ] Send-as mode checkboxes: "Group files" (2+ compatible files, hidden in slowmode), "Send as documents" (label by count), "Remember" (appears when toggles changed) — spec §40.3
 - [ ] Compression/HD toggle: hamburger menu "high/standard quality", HD badge (rounded pill "HD", 2px h-padding, stroke 1px, radius height/3, roundedBg fill), standard 1280px / HD 2560px limit — spec §40.4
 - [ ] Spoiler toggle: per-file right-click context menu, bulk toggle in top-right menu, forced when paid price set, SpoilerAnimation (animated blur/sparkle) — spec §40.5
 - [ ] Caption field: MultiLine InputField, 4096-char limit with CharactersLimitLabel, full formatting support, emoji button (TabbedPanel EmojiOnly mode), emoji/mention/hashtag autocomplete, respect global send-submit-way, caption position toggle above/below, per-file captions for documents, paste interception routes to PrepareMediaList — spec §40.6

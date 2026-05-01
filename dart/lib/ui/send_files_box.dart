@@ -40,6 +40,9 @@ class SendFilesResult {
   final bool silent;
   final DateTime? scheduledDate;
   final List<bool> spoilers;
+  final bool sendAsDocuments;
+  final bool groupFiles;
+  final bool remember;
 
   const SendFilesResult({
     required this.paths,
@@ -47,6 +50,9 @@ class SendFilesResult {
     this.silent = false,
     this.scheduledDate,
     this.spoilers = const [],
+    this.sendAsDocuments = false,
+    this.groupFiles = true,
+    this.remember = false,
   });
 }
 
@@ -83,6 +89,8 @@ Future<SendFilesResult?> showSendFilesBox(
   ChatType chatType = ChatType.dm,
   bool isSelfChat = false,
   int starsPerMessage = 0,
+  bool isSlowMode = false,
+  bool? overrideSendAsDocuments,
 }) {
   return showDialog<SendFilesResult>(
     context: context,
@@ -91,6 +99,8 @@ Future<SendFilesResult?> showSendFilesBox(
       chatType: chatType,
       isSelfChat: isSelfChat,
       starsPerMessage: starsPerMessage,
+      isSlowMode: isSlowMode,
+      overrideSendAsDocuments: overrideSendAsDocuments,
     ),
   );
 }
@@ -100,12 +110,16 @@ class _SendFilesBoxDialog extends StatefulWidget {
   final ChatType chatType;
   final bool isSelfChat;
   final int starsPerMessage;
+  final bool isSlowMode;
+  final bool? overrideSendAsDocuments;
 
   const _SendFilesBoxDialog({
     required this.filePaths,
     this.chatType = ChatType.dm,
     this.isSelfChat = false,
     this.starsPerMessage = 0,
+    this.isSlowMode = false,
+    this.overrideSendAsDocuments,
   });
 
   @override
@@ -115,12 +129,19 @@ class _SendFilesBoxDialog extends StatefulWidget {
 class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
   late List<_PreparedFile> _files;
   final TextEditingController _captionController = TextEditingController();
-  bool _compressImages = true;
-  bool _groupAsAlbum = true;
+  late bool _sendAsDocuments;
+  late bool _groupFiles;
+  bool _wayRemember = false;
+  late final bool _initialSendAsDocuments;
+  late final bool _initialGroupFiles;
 
   @override
   void initState() {
     super.initState();
+    _sendAsDocuments = widget.overrideSendAsDocuments ?? false;
+    _groupFiles = true;
+    _initialSendAsDocuments = _sendAsDocuments;
+    _initialGroupFiles = _groupFiles;
     _files = widget.filePaths.map((p) {
       final file = File(p);
       final name = file.uri.pathSegments.last;
@@ -227,7 +248,11 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
   }
 
   bool get _canSpoiler =>
-      _compressImages && _files.any((f) => f.type == _FileType.photo || f.type == _FileType.video);
+      !_sendAsDocuments && _files.any((f) => f.type == _FileType.photo || f.type == _FileType.video);
+
+  bool get _hasChangedWay =>
+      _sendAsDocuments != _initialSendAsDocuments ||
+      _groupFiles != _initialGroupFiles;
 
   bool get _allSpoilered =>
       _files.where((f) => f.type == _FileType.photo || f.type == _FileType.video)
@@ -274,6 +299,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
       silent: silent,
       scheduledDate: scheduledDate,
       spoilers: _files.map((f) => f.spoiler).toList(),
+      sendAsDocuments: _sendAsDocuments,
+      groupFiles: _groupFiles,
+      remember: _wayRemember,
     ));
   }
 
@@ -328,7 +356,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
         (f) => f.type == _FileType.photo || f.type == _FileType.video).toList();
     final docFiles = _files.where((f) => f.type == _FileType.file).toList();
 
-    final showMediaPreview = _compressImages && mediaFiles.isNotEmpty;
+    final showMediaPreview = !_sendAsDocuments && mediaFiles.isNotEmpty;
 
     return Dialog(
       backgroundColor: boxBg,
@@ -390,9 +418,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
                       ),
                     if (showMediaPreview && mediaFiles.isNotEmpty && docFiles.isNotEmpty)
                       SizedBox(height: _rowSkip),
-                    if (docFiles.isNotEmpty || !_compressImages)
+                    if (docFiles.isNotEmpty || _sendAsDocuments)
                       _FileListPreview(
-                        files: _compressImages ? docFiles : _files,
+                        files: _sendAsDocuments ? _files : docFiles,
                         allFiles: _files,
                         isDark: isDark,
                         textFg: textFg,
@@ -428,25 +456,36 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
                 ),
               ),
             ),
-            if (_hasMediaFiles)
+            if (_hasMediaFiles || _hasGroupOption)
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 4, 20, 0),
                 child: Column(
                   children: [
-                    _CheckboxRow(
-                      label: 'Compress images',
-                      value: _compressImages,
-                      accentColor: accentFg,
-                      textColor: textFg,
-                      onChanged: (v) => setState(() => _compressImages = v),
-                    ),
-                    if (_hasGroupOption)
+                    if (_hasGroupOption && !widget.isSlowMode)
                       _CheckboxRow(
-                        label: 'Group as album',
-                        value: _groupAsAlbum,
+                        label: 'Group files',
+                        value: _groupFiles,
                         accentColor: accentFg,
                         textColor: textFg,
-                        onChanged: (v) => setState(() => _groupAsAlbum = v),
+                        onChanged: (v) => setState(() => _groupFiles = v),
+                      ),
+                    if (_hasMediaFiles)
+                      _CheckboxRow(
+                        label: mediaFiles.length == 1
+                            ? 'Send as document'
+                            : 'Send as documents',
+                        value: _sendAsDocuments,
+                        accentColor: accentFg,
+                        textColor: textFg,
+                        onChanged: (v) => setState(() => _sendAsDocuments = v),
+                      ),
+                    if (_hasChangedWay)
+                      _CheckboxRow(
+                        label: 'Remember',
+                        value: _wayRemember,
+                        accentColor: accentFg,
+                        textColor: textFg,
+                        onChanged: (v) => setState(() => _wayRemember = v),
                       ),
                   ],
                 ),
