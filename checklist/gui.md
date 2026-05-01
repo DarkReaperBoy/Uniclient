@@ -942,7 +942,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §44 — Spoiler Animation
 # Touches: dart/lib/ui/message_bubble.dart (text rendering), new spoiler_animation.dart
 
-- [ ] Text spoiler rendering — draw text at (1−spoilerOpacity) opacity; collect spoiler rects (max 512); tile particle frame via FillSpoilerRect; separate normal/selected rect lists; SpoilerMessCache 24 variants; cross-fade text↔particles on reveal — spec §44.1
 - [ ] Media spoiler rendering — blurred background (smallest thumbnail); particle overlay with corner masks; darken layer alpha=32; cross-fade real image at opacity=revealed on click — spec §44.2
 - [ ] Particle sprite sheet — 60 frames × 33ms (30 FPS, 1980ms loop); 10×6 grid on 128dp canvas; text: 9000 particles 4–8dp/ms; image: 3000 particles 10–20dp/ms; 5 sprite variants; linear motion with seamless wrap; grayscale PNG disk cache (xxHash32, 5MB max); colorize on demand — spec §44.3
 - [ ] Reveal on click — SpoilerClickHandler 200ms linear fade; reveal all spoilers in block at once; re-hide instant on navigate; track revealed set; media: same 200ms fade, reset on navigate — spec §44.4
@@ -1021,7 +1020,6 @@ Status key: `[ ]` not started · `[x]` done
 - [ ] Infinite scroll — preload when within 3 viewport heights of edge; 50 messages/page (30 first load); 9-screen window (4+1+4) shift around position — spec §49.1
 - [ ] Jump-to-date — CalendarBox on sticky date header click; min date Aug 2013 or first message; month thumbnails for media-filtered search; API closest-message resolution + navigate — spec §49.2
 - [ ] Jump-to-message animation — sine in-out for short scroll (≤1 viewport); instant+ease-out cubic for long scroll; 400ms highlight fade-in + optional hold + 2000ms fade-out; queue multiple highlights sequentially — spec §49.3
-- [ ] Unread marker bar — "N unread messages" divider on first unread; destroy on scroll-to-bottom or send — spec §49.4
 - [ ] Scroll-to-bottom button (complete implementation) — 52×62px (shadow+ripple+arrow); show when >480px up or unread below; badge 22px circle/pill semibold 13px; Ctrl-jump forces position; 150ms slide-up animation [NOTE: _ScrollToBottomFab exists but is incomplete — missing spec dimensions, badge style, slide animation, Ctrl-behavior] — spec §49.5, §49.15
 - [ ] New message scroll — auto-scroll on own sends; incoming only when at bottom; increment badge otherwise — spec §49.6
 - [ ] Scroll position preservation — save scrollTopItem+scrollTopOffset per History on switch; restore on return; bracket refreshRows with save/restore — spec §49.7

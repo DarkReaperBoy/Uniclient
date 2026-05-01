@@ -1158,6 +1158,9 @@ class ChatState extends ChangeNotifier {
         replyToId: replyToId, entities: entities, silent: silent,
         scheduleDate: scheduleDate, topicRootId: topicRootId);
 
+    // Spec §49.4: destroy unread bar when user sends outgoing message.
+    clearOpenedUnread();
+
     if (scheduleDate > 0) {
       _loadScheduledCount(chat.accountId, chat.chatId);
       if (!_isScheduledView) {
@@ -1173,6 +1176,7 @@ class ChatState extends ChangeNotifier {
   Future<String?> uploadFile(String filePath, {String caption = ''}) async {
     final chat = _activeChat;
     if (chat == null) return null;
+    clearOpenedUnread();
     final msgId = await _engine.uploadFile(chat.accountId, chat.chatId, filePath, caption: caption);
     _refreshMessages();
     return msgId;
