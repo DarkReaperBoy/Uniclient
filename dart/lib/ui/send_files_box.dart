@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -89,6 +90,8 @@ class SendFilesResult {
 }
 
 enum _FileType { photo, video, music, file }
+
+enum _DragZoneMode { documentOnly, photoOnly, both }
 
 enum MimeDataState { photoFiles, mediaFiles, image, files }
 
@@ -207,7 +210,8 @@ class _SendFilesBoxDialog extends StatefulWidget {
   State<_SendFilesBoxDialog> createState() => _SendFilesBoxDialogState();
 }
 
-class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
+class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
+    with SingleTickerProviderStateMixin {
   late List<_PreparedFile> _files;
   final TextEditingController _captionController = TextEditingController();
   late final FocusNode _captionFocus;
@@ -225,10 +229,17 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
   int _preparingTotal = 0;
   int _preparingDone = 0;
   VoidCallback? _whenReadySend;
+  bool _isDragOver = false;
+  int _dragHoveredZone = 0; // 0=none, 1=document(top), 2=photo(bottom)
+  late final AnimationController _dragOverlayAnimCtrl;
 
   @override
   void initState() {
     super.initState();
+    _dragOverlayAnimCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
     _captionFocus = FocusNode(onKeyEvent: _onCaptionKey);
     _captionController.addListener(_onCaptionChanged);
     _sendAsDocuments = widget.overrideSendAsDocuments ?? false;
@@ -254,6 +265,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
 
   @override
   void dispose() {
+    _dragOverlayAnimCtrl.dispose();
     _captionController.removeListener(_onCaptionChanged);
     _captionController.dispose();
     _captionFocus.dispose();
@@ -534,6 +546,34 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
     } catch (_) {}
   }
 
+  void _addDroppedFiles(List<String> paths) {
+    if (paths.isEmpty) return;
+    final newFiles = paths.where((p) {
+      final f = File(p);
+      return f.existsSync() && !FileSystemEntity.isDirectorySync(p);
+    }).map((p) {
+      final file = File(p);
+      final name = file.uri.pathSegments.last;
+      final size = file.lengthSync();
+      return _PreparedFile(
+        path: p,
+        name: name,
+        size: size,
+        type: _detectType(name),
+      );
+    }).toList();
+    if (newFiles.isEmpty) return;
+    setState(() => _files.addAll(newFiles));
+    _loadImageDimensions();
+  }
+
+  _DragZoneMode _computeDragZoneMode() {
+    if (!_sendAsDocuments && _files.any((f) => f.isMediaType)) {
+      return _DragZoneMode.both;
+    }
+    return _DragZoneMode.documentOnly;
+  }
+
   bool get _hasPaidPrice => widget.starsPerMessage > 0;
 
   bool get _canSpoiler =>
@@ -716,14 +756,62 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
 
     final showMediaPreview = !_sendAsDocuments && mediaFiles.isNotEmpty;
 
-    return Dialog(
+    return DropTarget(
+      onDragEntered: (_) {
+        setState(() => _isDragOver = true);
+        _dragOverlayAnimCtrl.forward();
+      },
+      onDragExited: (_) {
+        setState(() {
+          _isDragOver = false;
+          _dragHoveredZone = 0;
+        });
+        _dragOverlayAnimCtrl.reverse();
+      },
+      onDragUpdated: (details) {
+        final box = context.findRenderObject() as RenderBox?;
+        if (box == null) return;
+        final mode = _computeDragZoneMode();
+        if (mode == _DragZoneMode.both) {
+          final localY = details.localPosition.dy;
+          final h = box.size.height;
+          final newZone = localY < h / 2 ? 1 : 2;
+          if (newZone != _dragHoveredZone) {
+            setState(() => _dragHoveredZone = newZone);
+          }
+        } else {
+          if (_dragHoveredZone != 1) {
+            setState(() => _dragHoveredZone = 1);
+          }
+        }
+      },
+      onDragDone: (details) {
+        final wasPhotoZone = _dragHoveredZone == 2;
+        setState(() {
+          _isDragOver = false;
+          _dragHoveredZone = 0;
+        });
+        _dragOverlayAnimCtrl.reverse();
+        final paths = details.files.map((f) => f.path).toList();
+        if (paths.isNotEmpty) {
+          if (wasPhotoZone && _computeDragZoneMode() == _DragZoneMode.both) {
+            if (_sendAsDocuments) setState(() => _sendAsDocuments = false);
+          } else if (!wasPhotoZone) {
+            if (!_sendAsDocuments) setState(() => _sendAsDocuments = true);
+          }
+          _addDroppedFiles(paths);
+        }
+      },
+      child: Dialog(
       backgroundColor: boxBg,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
       elevation: 4,
       insetPadding: const EdgeInsets.all(24),
       child: SizedBox(
         width: _previewWidth + 48,
-        child: Column(
+        child: Stack(
+          children: [
+        Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
@@ -968,7 +1056,26 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
             ),
           ],
         ),
+        Positioned.fill(
+          child: AnimatedBuilder(
+            animation: _dragOverlayAnimCtrl,
+            builder: (context, child) {
+              if (_dragOverlayAnimCtrl.isDismissed) return const SizedBox.shrink();
+              return Opacity(
+                opacity: _dragOverlayAnimCtrl.value,
+                child: child,
+              );
+            },
+            child: _SendFilesDragOverlay(
+              mode: _computeDragZoneMode(),
+              hoveredZone: _dragHoveredZone,
+            ),
+          ),
+        ),
+          ],
+        ),
       ),
+    ),
     );
   }
 }
@@ -2363,6 +2470,134 @@ class _EmojiQuickPanel extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _SendFilesDragOverlay extends StatelessWidget {
+  final _DragZoneMode mode;
+  final int hoveredZone;
+
+  const _SendFilesDragOverlay({
+    required this.mode,
+    required this.hoveredZone,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final boxBg = isDark ? const Color(0xFF17212B) : Colors.white;
+    final shadowColor = isDark ? const Color(0x40000000) : const Color(0x26000000);
+    final restColor = isDark ? const Color(0xFF7c99b2) : const Color(0xFF999999);
+    final activeColor = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd);
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(3),
+      child: Container(
+        color: const Color(0x80000000),
+        padding: const EdgeInsets.fromLTRB(0, 10, 0, 10),
+        child: mode == _DragZoneMode.both
+            ? Column(
+                children: [
+                  Expanded(
+                    child: _SendFilesDragCard(
+                      title: 'Drop files here',
+                      subtitle: 'to send them without compression',
+                      isHovered: hoveredZone == 1,
+                      boxBg: boxBg,
+                      shadowColor: shadowColor,
+                      restColor: restColor,
+                      activeColor: activeColor,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: _SendFilesDragCard(
+                      title: 'Drop photos here',
+                      subtitle: 'to send them in a quick way',
+                      isHovered: hoveredZone == 2,
+                      boxBg: boxBg,
+                      shadowColor: shadowColor,
+                      restColor: restColor,
+                      activeColor: activeColor,
+                    ),
+                  ),
+                ],
+              )
+            : _SendFilesDragCard(
+                title: 'Drop files here',
+                subtitle: 'to send them as documents',
+                isHovered: hoveredZone == 1,
+                boxBg: boxBg,
+                shadowColor: shadowColor,
+                restColor: restColor,
+                activeColor: activeColor,
+              ),
+      ),
+    );
+  }
+}
+
+class _SendFilesDragCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final bool isHovered;
+  final Color boxBg;
+  final Color shadowColor;
+  final Color restColor;
+  final Color activeColor;
+
+  const _SendFilesDragCard({
+    required this.title,
+    required this.subtitle,
+    required this.isHovered,
+    required this.boxBg,
+    required this.shadowColor,
+    required this.restColor,
+    required this.activeColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = isHovered ? activeColor : restColor;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      decoration: BoxDecoration(
+        color: boxBg,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: shadowColor,
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 27,
+                fontWeight: FontWeight.w600,
+                color: textColor,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: TextStyle(
+                fontSize: 19,
+                fontWeight: FontWeight.w600,
+                color: textColor,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
