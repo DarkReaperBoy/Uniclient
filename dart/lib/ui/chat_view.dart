@@ -109,6 +109,7 @@ class ChatView extends StatefulWidget {
   static String Function()? getComposeEntitiesRequest;
   static VoidCallback? selectAllComposeRequest;
   static VoidCallback? showLinkDialogRequest;
+  static VoidCallback? showCodeLanguageDialogRequest;
 
   /// Global hook used by Ctrl+Up / Ctrl+Down (spec §24.6 lines 2982-2983) to
   /// cycle the reply target. direction=+1 → older message (Ctrl+Up), -1 →
@@ -340,6 +341,7 @@ class _ChatViewState extends State<ChatView>
     ChatView.getComposeEntitiesRequest = _getComposeEntities;
     ChatView.selectAllComposeRequest = _selectAllCompose;
     ChatView.showLinkDialogRequest = _showLinkDialogFromHarness;
+    ChatView.showCodeLanguageDialogRequest = _showCodeLanguageDialogFromHarness;
     ChatView.scrollPageRequest = _scrollPage;
     ChatView.showSendFilesBoxRequest = (paths) {
       _uploadFiles(context.read<ChatState>(), paths);
@@ -393,6 +395,9 @@ class _ChatViewState extends State<ChatView>
     }
     if (ChatView.showLinkDialogRequest == _showLinkDialogFromHarness) {
       ChatView.showLinkDialogRequest = null;
+    }
+    if (ChatView.showCodeLanguageDialogRequest == _showCodeLanguageDialogFromHarness) {
+      ChatView.showCodeLanguageDialogRequest = null;
     }
     if (ChatView.scrollPageRequest == _scrollPage) {
       ChatView.scrollPageRequest = null;
@@ -2655,6 +2660,16 @@ class _ChatViewState extends State<ChatView>
       } else {
         ctrl.setLink(linkUrl);
       }
+    });
+  }
+
+  void _showCodeLanguageDialogFromHarness() {
+    final ctrl = _composeController;
+    final sel = ctrl.selection;
+    if (!sel.isValid || sel.isCollapsed) return;
+    final existingLang = ctrl.getCodeLanguage() ?? '';
+    _showCodeLanguageBox(context, existingLang, (language) {
+      ctrl.setCodeLanguage(language);
     });
   }
 
@@ -8208,8 +8223,9 @@ class ComposeEntity {
   int length;
   final FormatType type;
   final String? url;
+  final String? language;
 
-  ComposeEntity({required this.offset, required this.length, required this.type, this.url});
+  ComposeEntity({required this.offset, required this.length, required this.type, this.url, this.language});
 
   Map<String, dynamic> toJson() {
     final typeStr = switch (type) {
@@ -8224,6 +8240,7 @@ class ComposeEntity {
     };
     final m = {'type': typeStr, 'offset': offset, 'length': length};
     if (url != null && url!.isNotEmpty) m['url'] = url!;
+    if (language != null && language!.isNotEmpty) m['language'] = language!;
     return m;
   }
 }
@@ -8377,6 +8394,35 @@ class RichTextEditingController extends TextEditingController {
       }
     }
     return null;
+  }
+
+  String? getCodeLanguage() {
+    final sel = selection;
+    if (!sel.isValid || sel.isCollapsed) return null;
+    final start = sel.start;
+    final end = sel.end;
+    for (final e in entities) {
+      if (e.type == FormatType.code && e.offset <= start &&
+          e.offset + e.length >= end) {
+        return e.language ?? '';
+      }
+    }
+    return null;
+  }
+
+  void setCodeLanguage(String language) {
+    final sel = selection;
+    if (!sel.isValid || sel.isCollapsed) return;
+    final start = sel.start;
+    final end = sel.end;
+    final length = end - start;
+    final trimmed = language.trim();
+    entities.removeWhere((e) =>
+      e.type == FormatType.code && e.offset == start && e.length == length);
+    entities.add(ComposeEntity(
+      offset: start, length: length, type: FormatType.code,
+      language: trimmed.isNotEmpty ? trimmed : null));
+    notifyListeners();
   }
 
   void insertDateTimestamp(DateTime date) {
@@ -8535,6 +8581,7 @@ class _ComposeContextMenu extends StatefulWidget {
   final bool isSelfChat;
   final VoidCallback onShowLinkDialog;
   final VoidCallback onShowDatePicker;
+  final VoidCallback onShowCodeLanguageDialog;
 
   const _ComposeContextMenu({
     required this.anchor,
@@ -8543,6 +8590,7 @@ class _ComposeContextMenu extends StatefulWidget {
     this.isSelfChat = false,
     required this.onShowLinkDialog,
     required this.onShowDatePicker,
+    required this.onShowCodeLanguageDialog,
   });
 
   @override
@@ -8767,6 +8815,16 @@ class _ComposeContextMenuState extends State<_ComposeContextMenu> {
       if (!widget.isSelfChat) {
         fmt('Quote', 'Ctrl+Shift+.', FormatType.blockquote);
         fmt('Monospace', 'Ctrl+Shift+M', FormatType.code);
+        if (widget.richCtrl.hasFormat(FormatType.code)) {
+          final codeLang = widget.richCtrl.getCodeLanguage() ?? '';
+          sub.add(item(
+            label: codeLang.isEmpty ? 'Code Language' : 'Code Language: $codeLang',
+            onTap: () {
+              _dismiss();
+              widget.onShowCodeLanguageDialog();
+            },
+          ));
+        }
       }
       fmt('Spoiler', 'Ctrl+Shift+P', FormatType.spoiler);
 
@@ -9574,6 +9632,15 @@ class _ComposeAreaState extends State<_ComposeArea>
     });
   }
 
+  void _showCodeLanguageDialog(RichTextEditingController ctrl) {
+    final sel = ctrl.selection;
+    if (!sel.isValid || sel.isCollapsed) return;
+    final existingLang = ctrl.getCodeLanguage() ?? '';
+    _showCodeLanguageBox(context, existingLang, (language) {
+      ctrl.setCodeLanguage(language);
+    });
+  }
+
   void _showDatePicker(RichTextEditingController ctrl) {
     final now = DateTime.now();
     showDatePicker(
@@ -9779,6 +9846,10 @@ class _ComposeAreaState extends State<_ComposeArea>
                   onShowDatePicker: () {
                     editableTextState.hideToolbar();
                     _showDatePicker(richCtrlEarly);
+                  },
+                  onShowCodeLanguageDialog: () {
+                    editableTextState.hideToolbar();
+                    _showCodeLanguageDialog(richCtrlEarly);
                   },
                 )
             : null,
@@ -14877,6 +14948,192 @@ class _EditLinkBoxContentState extends State<_EditLinkBoxContent> {
                       textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                     ),
                     child: Text(isEditing ? 'Save' : 'Create'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── EditCodeLanguageBox — spec §41.7 ─────────────────────────────────────────
+
+void _showCodeLanguageBox(
+  BuildContext context,
+  String currentLanguage,
+  void Function(String language) callback,
+) {
+  showTelegramBox(
+    context: context,
+    builder: (ctx) => _CodeLanguageBoxContent(
+      currentLanguage: currentLanguage,
+      callback: callback,
+    ),
+  );
+}
+
+class _CodeLanguageBoxContent extends StatefulWidget {
+  final String currentLanguage;
+  final void Function(String language) callback;
+
+  const _CodeLanguageBoxContent({
+    required this.currentLanguage,
+    required this.callback,
+  });
+
+  @override
+  State<_CodeLanguageBoxContent> createState() => _CodeLanguageBoxContentState();
+}
+
+class _CodeLanguageBoxContentState extends State<_CodeLanguageBoxContent> {
+  late final TextEditingController _langCtrl;
+  late final FocusNode _langFocus;
+  bool _hasError = false;
+
+  static const _kMaxLength = 32;
+  static final _validChars = RegExp(r'^[a-zA-Z0-9+\-]*$');
+
+  @override
+  void initState() {
+    super.initState();
+    _langCtrl = TextEditingController(text: widget.currentLanguage);
+    _langFocus = FocusNode();
+    _langCtrl.addListener(() {
+      if (_hasError) setState(() => _hasError = false);
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _langFocus.requestFocus();
+      _langCtrl.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: _langCtrl.text.length,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _langCtrl.dispose();
+    _langFocus.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final lang = _langCtrl.text.trim();
+    if (lang.isNotEmpty && !_validChars.hasMatch(lang)) {
+      setState(() => _hasError = true);
+      return;
+    }
+    widget.callback(lang);
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final windowBg = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final windowFg = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subTextFg = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final activeFg = isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
+    final errorFg = isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F);
+    final borderColor = isDark ? const Color(0xFF2B3A49) : const Color(0xFFDADADA);
+
+    return Material(
+      color: windowBg,
+      borderRadius: BorderRadius.circular(kBoxRadius),
+      clipBehavior: Clip.antiAlias,
+      elevation: 4,
+      child: SizedBox(
+        width: kBoxWidth,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              height: kBoxTitleHeight,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 24),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Code Language',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: windowFg,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+              child: Text(
+                'Language for syntax highlighting.',
+                style: TextStyle(fontSize: 13, color: subTextFg),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 10),
+              child: SizedBox(
+                height: 36,
+                child: TextField(
+                  controller: _langCtrl,
+                  focusNode: _langFocus,
+                  maxLength: _kMaxLength,
+                  style: TextStyle(fontSize: 14, color: windowFg),
+                  onSubmitted: (_) => _submit(),
+                  decoration: InputDecoration(
+                    hintText: 'Auto-Detect',
+                    hintStyle: TextStyle(fontSize: 14, color: subTextFg),
+                    counterText: '',
+                    isDense: true,
+                    contentPadding: const EdgeInsets.only(bottom: 4),
+                    enabledBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(
+                        color: _hasError ? errorFg : borderColor,
+                        width: 1,
+                      ),
+                    ),
+                    focusedBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(
+                        color: _hasError ? errorFg : activeFg,
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(6, 0, 6, 6),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: TextButton.styleFrom(
+                      foregroundColor: activeFg,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                    ),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: 4),
+                  TextButton(
+                    onPressed: _submit,
+                    style: TextButton.styleFrom(
+                      foregroundColor: activeFg,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                    ),
+                    child: const Text('Save'),
                   ),
                 ],
               ),

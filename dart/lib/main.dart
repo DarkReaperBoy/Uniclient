@@ -1236,6 +1236,10 @@ class _UniClientAppState extends State<UniClientApp>
       ChatView.showLinkDialogRequest?.call();
       return;
     }
+    if (lc == 'ctrl+shift+l' || lc == 'control+shift+l') {
+      ChatView.showCodeLanguageDialogRequest?.call();
+      return;
+    }
     // Telegram Desktop spec §24.6 lines 2982-2983: Ctrl+Up / Ctrl+Down
     // cycle the reply target in the active chat. Ctrl+Up goes to the older
     // message, Ctrl+Down to the newer one (and cancels when at newest).
