@@ -11,6 +11,7 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 
 import 'gesture_utils.dart';
 import 'reactions_detail.dart';
+import 'popup_menu.dart';
 import 'telegram_toast.dart';
 import 'telegram_tooltip.dart';
 import 'package:lottie/lottie.dart';
@@ -157,6 +158,13 @@ class _MessageBubbleState extends State<MessageBubble> {
   }
 
   void _showWhoReactedMenu(Offset globalPosition, MessageReaction reaction) async {
+    final chatState = context.read<ChatState>();
+    final chat = chatState.activeChat;
+    if (chat != null && chat.title == 'Saved Messages' && chat.type == ChatType.dm) {
+      _showTagMenu(globalPosition, reaction);
+      return;
+    }
+
     final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
     final position = RelativeRect.fromLTRB(
       globalPosition.dx,
@@ -256,6 +264,117 @@ class _MessageBubbleState extends State<MessageBubble> {
     if (result == '__show_all' && mounted) {
       ReactionsDetailPanel.show(context, widget.message, initialEmoji: reaction.emoji);
     }
+  }
+
+  void _showTagMenu(Offset globalPosition, MessageReaction reaction) {
+    final chatState = context.read<ChatState>();
+    final tags = chatState.savedReactionTags;
+    final matchingTag = tags.cast<SavedReactionTagInfo?>().firstWhere(
+      (t) => t!.emoji == reaction.emoji,
+      orElse: () => null,
+    );
+    final hasTitle = matchingTag?.title.isNotEmpty ?? false;
+
+    showTelegramMenu<String>(
+      context: context,
+      position: globalPosition,
+      items: [
+        TelegramMenuItem(
+          value: 'filter',
+          label: 'Filter by tag',
+          icon: const Icon(Icons.filter_alt_outlined, size: 20),
+        ),
+        TelegramMenuItem(
+          value: 'edit',
+          label: hasTitle ? 'Edit tag name' : 'Add tag name',
+          icon: const Icon(Icons.edit_outlined, size: 20),
+        ),
+        TelegramMenuItem(
+          value: 'remove',
+          label: 'Remove tag',
+          icon: const Icon(Icons.close, size: 20),
+          isAttention: true,
+        ),
+      ],
+    ).then((action) {
+      if (!mounted) return;
+      if (action == 'filter') {
+        final tag = matchingTag ?? SavedReactionTagInfo(emoji: reaction.emoji);
+        chatState.toggleReactionTag(tag);
+      } else if (action == 'edit') {
+        final tag = matchingTag ?? SavedReactionTagInfo(emoji: reaction.emoji);
+        _showEditTagNameDialog(tag);
+      } else if (action == 'remove') {
+        final engine = context.read<EngineService>();
+        final appState = context.read<AppState>();
+        engine.reactToMessage(
+          appState.activeAccountId,
+          widget.message.chatId,
+          widget.message.msgId,
+          reaction.emoji,
+        );
+      }
+    });
+  }
+
+  void _showEditTagNameDialog(SavedReactionTagInfo tag) {
+    final controller = TextEditingController(text: tag.title);
+    final hasTitle = tag.title.isNotEmpty;
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: Text(hasTitle ? 'Edit tag name' : 'Add tag name'),
+          content: Row(
+            children: [
+              if (!tag.isCustomEmoji)
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Text(tag.emoji, style: const TextStyle(fontSize: 28)),
+                ),
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    hintText: 'Tag name',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLength: 12,
+                  onSubmitted: (text) {
+                    final chatState = context.read<ChatState>();
+                    chatState.renameSavedReactionTag(
+                      emoji: tag.emoji,
+                      customId: tag.customId,
+                      title: text.trim(),
+                    );
+                    Navigator.of(ctx).pop();
+                  },
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                final chatState = context.read<ChatState>();
+                chatState.renameSavedReactionTag(
+                  emoji: tag.emoji,
+                  customId: tag.customId,
+                  title: controller.text.trim(),
+                );
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   static const _maxWidth = 430.0;
