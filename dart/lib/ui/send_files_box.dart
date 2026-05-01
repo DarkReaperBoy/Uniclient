@@ -43,6 +43,7 @@ class SendFilesResult {
   final bool sendAsDocuments;
   final bool groupFiles;
   final bool remember;
+  final bool sendLargePhotos;
 
   const SendFilesResult({
     required this.paths,
@@ -53,6 +54,7 @@ class SendFilesResult {
     this.sendAsDocuments = false,
     this.groupFiles = true,
     this.remember = false,
+    this.sendLargePhotos = true,
   });
 }
 
@@ -132,6 +134,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
   late bool _sendAsDocuments;
   late bool _groupFiles;
   bool _wayRemember = false;
+  bool _sendLargePhotos = true;
   late final bool _initialSendAsDocuments;
   late final bool _initialGroupFiles;
 
@@ -213,6 +216,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
   bool get _hasMediaFiles =>
       _files.any((f) => f.type == _FileType.photo || f.type == _FileType.video);
 
+  bool get _hasHighQualityOption =>
+      !_sendAsDocuments && _files.any((f) => f.type == _FileType.photo);
+
   bool get _hasGroupOption => _files.length >= 2 && _hasMediaFiles;
 
   List<String> get _resultPaths => _files.map((f) => f.path).toList();
@@ -281,13 +287,23 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
       context: context,
       position: position,
       items: [
-        TelegramMenuItem(
-          value: 'spoiler',
-          icon: Icon(_allSpoilered ? Icons.check : Icons.blur_on),
-          label: _anySpoilered ? 'Remove spoiler' : 'Hide with spoiler',
-        ),
+        if (_hasHighQualityOption)
+          TelegramMenuItem(
+            value: 'quality',
+            icon: Icon(_sendLargePhotos ? Icons.hd_outlined : Icons.sd_outlined),
+            label: _sendLargePhotos
+                ? 'Send in standard quality'
+                : 'Send in high quality',
+          ),
+        if (_canSpoiler)
+          TelegramMenuItem(
+            value: 'spoiler',
+            icon: Icon(_allSpoilered ? Icons.check : Icons.blur_on),
+            label: _anySpoilered ? 'Remove spoiler' : 'Hide with spoiler',
+          ),
       ],
     ).then((value) {
+      if (value == 'quality') setState(() => _sendLargePhotos = !_sendLargePhotos);
       if (value == 'spoiler') _toggleAllSpoilers();
     });
   }
@@ -302,6 +318,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
       sendAsDocuments: _sendAsDocuments,
       groupFiles: _groupFiles,
       remember: _wayRemember,
+      sendLargePhotos: _sendLargePhotos,
     ));
   }
 
@@ -384,7 +401,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
                   ),
                   _TopMenuButton(
                     isDark: isDark,
-                    onPressed: !_canSpoiler ? null : () {
+                    onPressed: !(_canSpoiler || _hasHighQualityOption) ? null : () {
                       final btnBox = context.findRenderObject() as RenderBox;
                       final pos = btnBox.localToGlobal(Offset(btnBox.size.width - 48, 48));
                       _showTopMenu(pos);
@@ -415,6 +432,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
                         },
                         onReorder: _reorderMediaFiles,
                         canSpoiler: _canSpoiler,
+                        sendLargePhotos: _sendLargePhotos,
                       ),
                     if (showMediaPreview && mediaFiles.isNotEmpty && docFiles.isNotEmpty)
                       SizedBox(height: _rowSkip),
@@ -559,6 +577,7 @@ class _MediaPreview extends StatelessWidget {
   final void Function(_PreparedFile) onToggleSpoiler;
   final void Function(int, int) onReorder;
   final bool canSpoiler;
+  final bool sendLargePhotos;
 
   const _MediaPreview({
     required this.files,
@@ -567,6 +586,7 @@ class _MediaPreview extends StatelessWidget {
     required this.onToggleSpoiler,
     required this.onReorder,
     required this.canSpoiler,
+    required this.sendLargePhotos,
   });
 
   @override
@@ -578,6 +598,7 @@ class _MediaPreview extends StatelessWidget {
         onRemove: () => onRemove(files.first),
         onToggleSpoiler: () => onToggleSpoiler(files.first),
         canSpoiler: canSpoiler,
+        sendLargePhotos: sendLargePhotos,
       );
     }
     return _AlbumPreview(
@@ -587,6 +608,7 @@ class _MediaPreview extends StatelessWidget {
       onToggleSpoiler: onToggleSpoiler,
       onReorder: onReorder,
       canSpoiler: canSpoiler,
+      sendLargePhotos: sendLargePhotos,
     );
   }
 }
@@ -597,6 +619,7 @@ class _SingleMediaPreview extends StatelessWidget {
   final VoidCallback onRemove;
   final VoidCallback onToggleSpoiler;
   final bool canSpoiler;
+  final bool sendLargePhotos;
 
   const _SingleMediaPreview({
     required this.file,
@@ -604,10 +627,12 @@ class _SingleMediaPreview extends StatelessWidget {
     required this.onRemove,
     required this.onToggleSpoiler,
     required this.canSpoiler,
+    required this.sendLargePhotos,
   });
 
   @override
   Widget build(BuildContext context) {
+    final showHdBadge = sendLargePhotos && file.type == _FileType.photo;
     return GestureDetector(
       onSecondaryTapUp: canSpoiler ? (details) {
         _showThumbContextMenu(context, details.globalPosition);
@@ -654,6 +679,12 @@ class _SingleMediaPreview extends StatelessWidget {
                     child: Icon(Icons.play_circle_fill, color: Colors.white70, size: 48),
                   ),
                 ),
+              if (showHdBadge)
+                const Positioned(
+                  bottom: 3,
+                  right: 3,
+                  child: _HdBadge(),
+                ),
             ],
           ),
         ),
@@ -685,6 +716,7 @@ class _AlbumPreview extends StatefulWidget {
   final void Function(_PreparedFile) onToggleSpoiler;
   final void Function(int fromIndex, int toIndex) onReorder;
   final bool canSpoiler;
+  final bool sendLargePhotos;
 
   const _AlbumPreview({
     required this.files,
@@ -693,6 +725,7 @@ class _AlbumPreview extends StatefulWidget {
     required this.onToggleSpoiler,
     required this.onReorder,
     required this.canSpoiler,
+    required this.sendLargePhotos,
   });
 
   @override
@@ -867,6 +900,12 @@ class _AlbumPreviewState extends State<_AlbumPreview>
                 const Center(
                   child:
                       Icon(Icons.play_circle_fill, color: Colors.white70, size: 32),
+                ),
+              if (widget.sendLargePhotos && file.type == _FileType.photo)
+                const Positioned(
+                  bottom: 3,
+                  right: 3,
+                  child: _HdBadge(),
                 ),
               _ThumbCapsule(
                 thumbWidth: thumbW,
@@ -1330,6 +1369,33 @@ class _FileCard extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+class _HdBadge extends StatelessWidget {
+  const _HdBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    const text = 'HD';
+    const fontSize = 11.0;
+    const hPadding = 2.0;
+    const strokeWidth = 1.0;
+    const style = TextStyle(
+      fontSize: fontSize,
+      fontWeight: FontWeight.w600,
+      color: Color(0xFFFFFFFF),
+      height: 1.2,
+    );
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: hPadding + strokeWidth),
+      decoration: BoxDecoration(
+        color: const Color(0x80000000),
+        borderRadius: BorderRadius.circular((fontSize * 1.2 + strokeWidth * 2) / 3),
+      ),
+      child: const Text(text, style: style),
     );
   }
 }
