@@ -15983,6 +15983,7 @@ class _WhoReadPopupState extends State<_WhoReadPopup> {
   int _readCount = 0;
   int _reactedCount = 0;
   bool _appeared = false;
+  ReadPrivacyState _privacyState = ReadPrivacyState.none;
 
   @override
   void initState() {
@@ -16026,9 +16027,10 @@ class _WhoReadPopupState extends State<_WhoReadPopup> {
       } catch (_) {}
     }
 
-    final readParticipants = await readFuture;
+    final readResult = await readFuture;
     if (!mounted) return;
 
+    final readParticipants = readResult.participants;
     final merged = <_MergedReadEntry>[];
     final seenUserIds = <String>{};
 
@@ -16063,6 +16065,7 @@ class _WhoReadPopupState extends State<_WhoReadPopup> {
       _merged = merged;
       _reactedCount = reactors.length;
       _readCount = readParticipants.length;
+      _privacyState = readResult.privacyState;
     });
   }
 
@@ -16089,11 +16092,97 @@ class _WhoReadPopupState extends State<_WhoReadPopup> {
     return 'Nobody has seen yet';
   }
 
+  void _onShowTap() {
+    Navigator.of(context).pop();
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        final palette = widget.palette;
+        return AlertDialog(
+          backgroundColor: palette.windowBg,
+          title: Text(
+            'Read Time',
+            style: TextStyle(color: palette.windowFg, fontWeight: FontWeight.w600),
+          ),
+          content: Text(
+            'To see when others read your messages, disable hiding your own read time in Privacy settings.',
+            style: TextStyle(color: palette.windowSubTextFg),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildPrivacyNotice(TelegramPalette palette) {
+    if (_privacyState == ReadPrivacyState.none) return const SizedBox.shrink();
+
+    final String label;
+    final bool showButton;
+    switch (_privacyState) {
+      case ReadPrivacyState.myHidden:
+        label = 'Read time hidden';
+        showButton = true;
+      case ReadPrivacyState.hisHidden:
+        label = 'Read time hidden';
+        showButton = false;
+      case ReadPrivacyState.tooOld:
+        label = 'Message too old';
+        showButton = false;
+      case ReadPrivacyState.none:
+        return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(34, 3, 17, 4),
+      child: Row(
+        children: [
+          Icon(Icons.done_all, size: 14, color: palette.windowSubTextFg),
+          const SizedBox(width: 3),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: palette.windowSubTextFg,
+            ),
+          ),
+          if (showButton) ...[
+            const SizedBox(width: 6),
+            GestureDetector(
+              onTap: _onShowTap,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  color: palette.windowBgActive,
+                ),
+                child: Text(
+                  'Show',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: palette.windowActiveTextFg,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final palette = widget.palette;
     final isLoading = _merged == null;
     final isEmpty = _merged != null && _merged!.isEmpty;
+    final hasPrivacy = _privacyState != ReadPrivacyState.none;
 
     final titleIcon = _reactedCount > 0 && _readCount > 0
         ? Icons.favorite
@@ -16141,7 +16230,7 @@ class _WhoReadPopupState extends State<_WhoReadPopup> {
                   children: List.generate(3, (_) => _WhoReadPreloaderRow(palette: palette)),
                 ),
               )
-            else if (isEmpty)
+            else if (isEmpty && !hasPrivacy)
               Padding(
                 padding: const EdgeInsets.all(24),
                 child: Text(
@@ -16149,7 +16238,7 @@ class _WhoReadPopupState extends State<_WhoReadPopup> {
                   style: TextStyle(fontSize: 13, color: palette.windowSubTextFg),
                 ),
               )
-            else
+            else if (!isEmpty)
               Flexible(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxHeight: 400),
@@ -16167,6 +16256,8 @@ class _WhoReadPopupState extends State<_WhoReadPopup> {
                   ),
                 ),
               ),
+            if (hasPrivacy && !isLoading)
+              _buildPrivacyNotice(palette),
           ],
         ),
       ),

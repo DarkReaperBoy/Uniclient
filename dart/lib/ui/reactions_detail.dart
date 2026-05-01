@@ -135,7 +135,7 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
         );
         if (mounted) {
           setState(() {
-            _readParticipants = result;
+            _readParticipants = result.participants;
             _loading = false;
           });
         }

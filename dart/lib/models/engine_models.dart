@@ -969,7 +969,18 @@ class MessageReaction {
   };
 }
 
-// ── Read participant with timestamp ──
+enum ReadPrivacyState { none, myHidden, hisHidden, tooOld }
+
+class ReadParticipantsResult {
+  final List<ReadParticipantInfo> participants;
+  final ReadPrivacyState privacyState;
+
+  const ReadParticipantsResult({
+    this.participants = const [],
+    this.privacyState = ReadPrivacyState.none,
+  });
+}
+
 class ReadParticipantInfo {
   final String userId;
   final int date;

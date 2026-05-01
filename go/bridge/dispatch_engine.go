@@ -3291,6 +3291,12 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		participants, err := e.GetMessageReadParticipantsDetailed(params.AccountID, params.ChatID, params.MsgID)
 		if err != nil {
+			if errMsg := err.Error(); strings.HasPrefix(errMsg, "privacy:") {
+				return json.Marshal(map[string]interface{}{
+					"participants":  []map[string]interface{}{},
+					"privacy_state": strings.TrimPrefix(errMsg, "privacy:"),
+				})
+			}
 			return nil, err
 		}
 		if participants == nil {

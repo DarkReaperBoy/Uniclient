@@ -32,6 +32,7 @@ import (
 	"github.com/gotd/td/telegram/downloader"
 	"github.com/gotd/td/telegram/message"
 	"github.com/gotd/td/telegram/uploader"
+	"github.com/gotd/td/tgerr"
 	"github.com/gotd/td/tg"
 	"github.com/pion/ice/v4"
 	"github.com/pion/interceptor"
@@ -13029,6 +13030,7 @@ func (t *TelegramCore) GetMessageReadParticipants(chatID string, msgID string) (
 }
 
 // GetMessageReadParticipantsDetailedJSON returns users with read timestamps as generic maps.
+// On privacy errors, returns nil participants with a non-nil error containing the privacy state string.
 func (t *TelegramCore) GetMessageReadParticipantsDetailedJSON(chatID string, msgID string) ([]map[string]interface{}, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil { return nil, err }
@@ -13038,7 +13040,19 @@ func (t *TelegramCore) GetMessageReadParticipantsDetailedJSON(chatID string, msg
 	result, err := t.api.MessagesGetMessageReadParticipants(t.ctx, &tg.MessagesGetMessageReadParticipantsRequest{
 		Peer: inputPeer, MsgID: id,
 	})
-	if err != nil { return nil, err }
+	if err != nil {
+		if rpcErr, ok := tgerr.As(err); ok {
+			switch rpcErr.Type {
+			case "YOUR_PRIVACY_RESTRICTED":
+				return nil, fmt.Errorf("privacy:my_hidden")
+			case "USER_PRIVACY_RESTRICTED":
+				return nil, fmt.Errorf("privacy:his_hidden")
+			case "MESSAGE_TOO_OLD":
+				return nil, fmt.Errorf("privacy:too_old")
+			}
+		}
+		return nil, err
+	}
 	var participants []map[string]interface{}
 	for _, rp := range result {
 		t.peerMu.RLock()

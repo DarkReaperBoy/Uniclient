@@ -2021,7 +2021,7 @@ class EngineService {
     }
   }
 
-  Future<List<ReadParticipantInfo>> getMessageReadParticipantsDetailed(String accountId, String chatId, String msgId) async {
+  Future<ReadParticipantsResult> getMessageReadParticipantsDetailed(String accountId, String chatId, String msgId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'chat_id': chatId,
@@ -2029,10 +2029,17 @@ class EngineService {
     }));
     try {
       final respBytes = await _callAsync('__engine', 'GetMessageReadParticipantsDetailed', Uint8List.fromList(payload));
-      if (respBytes.isEmpty) return [];
+      if (respBytes.isEmpty) return const ReadParticipantsResult();
       final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      final privacyStr = data['privacy_state'] as String? ?? '';
+      final privacyState = switch (privacyStr) {
+        'my_hidden' => ReadPrivacyState.myHidden,
+        'his_hidden' => ReadPrivacyState.hisHidden,
+        'too_old' => ReadPrivacyState.tooOld,
+        _ => ReadPrivacyState.none,
+      };
       final list = (data['participants'] as List<dynamic>?) ?? [];
-      return list.map((e) {
+      final participants = list.map((e) {
         final m = e as Map<String, dynamic>;
         return ReadParticipantInfo(
           userId: ((m['user_id'] as num?)?.toInt() ?? 0).toString(),
@@ -2040,9 +2047,10 @@ class EngineService {
           name: m['name'] as String? ?? '',
         );
       }).toList();
+      return ReadParticipantsResult(participants: participants, privacyState: privacyState);
     } catch (e) {
       Debug.error('ENGINE', 'getMessageReadParticipantsDetailed failed', e);
-      return [];
+      return const ReadParticipantsResult();
     }
   }
 
