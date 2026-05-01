@@ -1180,6 +1180,15 @@ class _UniClientAppState extends State<UniClientApp>
       showContactsBox(context);
       return;
     }
+    if (lc == 'ctrl+z' || lc == 'control+z') {
+      if (PhotoCropEditor.handleKey('ctrl+z')) return;
+    }
+    if (lc == 'ctrl+y' || lc == 'control+y') {
+      if (PhotoCropEditor.handleKey('ctrl+y')) return;
+    }
+    if (lc == 'ctrl+shift+z' || lc == 'control+shift+z') {
+      if (PhotoCropEditor.handleKey('ctrl+shift+z')) return;
+    }
     if (lc == 'ctrl+s' || lc == 'control+s') {
       MediaViewer.save();
       return;
@@ -1242,6 +1251,7 @@ class _UniClientAppState extends State<UniClientApp>
     }
     switch (key) {
       case 'enter':
+        if (PhotoCropEditor.handleKey('enter')) return;
         final tsE = Duration(milliseconds: DateTime.now().millisecondsSinceEpoch);
         final handledEnter = HardwareKeyboard.instance.handleKeyEvent(KeyDownEvent(
           physicalKey: PhysicalKeyboardKey.enter,
@@ -1306,6 +1316,9 @@ class _UniClientAppState extends State<UniClientApp>
             logicalKey: LogicalKeyboardKey.escape,
             timeStamp: Duration(milliseconds: DateTime.now().millisecondsSinceEpoch),
           ));
+          return;
+        }
+        if (PhotoCropEditor.handleKey('escape')) {
           return;
         }
         if (ChatListPanel.requestCancelSearch()) {

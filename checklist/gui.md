@@ -908,7 +908,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §39 — Photo & Avatar Cropping Dialog
 
 <!-- dart files: dart/lib/ui/photo_crop_editor.dart -->
-- [ ] Keyboard shortcuts: Enter=Done, Escape=Cancel/back, Ctrl+Z=Undo, Ctrl+Y/Ctrl+Shift+Z=Redo — spec §39.12
 - [ ] Animations: standard layer open/close slide-up, control bar toggle (slide down+up 200ms), grid overlay 200ms fade, about text FadeWrap 200ms — spec §39.14
 
 ---

@@ -87,6 +87,11 @@ class PhotoCropEditor extends StatefulWidget {
   final String doneLabel;
   final Future<void> Function(File croppedFile)? onDone;
 
+  static bool Function(String keyCombo)? _activeKeyHandler;
+
+  static bool handleKey(String keyCombo) =>
+      _activeKeyHandler?.call(keyCombo) ?? false;
+
   const PhotoCropEditor({
     super.key,
     required this.imageFile,
@@ -145,6 +150,7 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
   bool _flipped = false;
   _EditorMode _editorMode = _EditorMode.transform;
   _CropAspect _selectedAspect = _CropAspect.free;
+  final _focusNode = FocusNode();
 
   bool get _isProfilePhoto => widget.shape != PhotoCropShape.rect;
 
@@ -164,7 +170,42 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
   @override
   void initState() {
     super.initState();
+    PhotoCropEditor._activeKeyHandler = _handleKeyCombo;
     _loadImage();
+  }
+
+  @override
+  void dispose() {
+    if (PhotoCropEditor._activeKeyHandler == _handleKeyCombo) {
+      PhotoCropEditor._activeKeyHandler = null;
+    }
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  bool _handleKeyCombo(String keyCombo) {
+    switch (keyCombo) {
+      case 'escape':
+        _cancel();
+        return true;
+      case 'enter':
+        _done();
+        return true;
+      case 'ctrl+z':
+        if (_editorMode == _EditorMode.paint) {
+          _paintUndo();
+          return true;
+        }
+        return false;
+      case 'ctrl+y' || 'ctrl+shift+z':
+        if (_editorMode == _EditorMode.paint) {
+          _paintRedo();
+          return true;
+        }
+        return false;
+      default:
+        return false;
+    }
   }
 
   Future<void> _loadImage() async {
@@ -260,9 +301,18 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
   void _cancel() {
     if (_editorMode == _EditorMode.paint) {
       setState(() => _editorMode = _EditorMode.transform);
+      _focusNode.requestFocus();
       return;
     }
     Navigator.of(context).pop();
+  }
+
+  void _paintUndo() {
+    // Will be connected when paint strokes are implemented.
+  }
+
+  void _paintRedo() {
+    // Will be connected when paint strokes are implemented.
   }
 
   void _togglePaintMode() {
@@ -271,6 +321,7 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
           ? _EditorMode.paint
           : _EditorMode.transform;
     });
+    _focusNode.requestFocus();
   }
 
   void _setAspect(_CropAspect aspect) {
@@ -296,18 +347,30 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
     final dimColor = isDark ? _kDimColorDark : _kDimColorLight;
 
     return Focus(
+      focusNode: _focusNode,
       autofocus: true,
       onKeyEvent: (_, event) {
         if (event is! KeyDownEvent) return KeyEventResult.ignored;
-        if (event.logicalKey == LogicalKeyboardKey.escape) {
-          _cancel();
-          return KeyEventResult.handled;
+        final ctrl = HardwareKeyboard.instance.isControlPressed;
+        final shift = HardwareKeyboard.instance.isShiftPressed;
+        final key = event.logicalKey;
+        String combo;
+        if (key == LogicalKeyboardKey.escape) {
+          combo = 'escape';
+        } else if (key == LogicalKeyboardKey.enter) {
+          combo = 'enter';
+        } else if (ctrl && shift && key == LogicalKeyboardKey.keyZ) {
+          combo = 'ctrl+shift+z';
+        } else if (ctrl && key == LogicalKeyboardKey.keyZ) {
+          combo = 'ctrl+z';
+        } else if (ctrl && key == LogicalKeyboardKey.keyY) {
+          combo = 'ctrl+y';
+        } else {
+          return KeyEventResult.ignored;
         }
-        if (event.logicalKey == LogicalKeyboardKey.enter) {
-          _done();
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
+        return _handleKeyCombo(combo)
+            ? KeyEventResult.handled
+            : KeyEventResult.ignored;
       },
       child: Material(
         color: Colors.transparent,
