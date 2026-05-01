@@ -8487,8 +8487,8 @@ class RichTextEditingController extends TextEditingController {
     final monoFg = isDark ? const Color(0xFF6AB7F0) : const Color(0xFF3A464F);
     final codeBg = isDark ? const Color(0xFF1E2A36) : const Color(0xFFF0F0F0);
     final linkFg = isDark ? const Color(0xFF71BAF7) : const Color(0xFF168ACD);
-    final spoilerBg = isDark ? const Color(0xFF2A3847) : const Color(0xFFE0E0E0);
-    final spoilerFg = isDark ? const Color(0xFF2A3847) : const Color(0xFFE0E0E0);
+    final spoilerBg = Colors.transparent;
+    final spoilerFg = style?.color;
 
     for (final entity in sorted) {
       final eStart = entity.offset.clamp(0, t.length);
@@ -8553,9 +8553,10 @@ class _ComposeFormattingOverlay extends StatefulWidget {
 }
 
 class _ComposeFormattingOverlayState extends State<_ComposeFormattingOverlay>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _spoilerAnim;
   bool _hasSpoiler = false;
+  final Map<int, AnimationController> _spoilerFadeAnims = {};
 
   @override
   void initState() {
@@ -8574,11 +8575,15 @@ class _ComposeFormattingOverlayState extends State<_ComposeFormattingOverlay>
     widget.controller.removeListener(_onChanged);
     widget.scrollController.removeListener(_onChanged);
     _spoilerAnim.dispose();
+    for (final c in _spoilerFadeAnims.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
   void _onChanged() {
     _updateSpoilerAnim();
+    _updateSpoilerCursorFade();
     setState(() {});
   }
 
@@ -8592,6 +8597,42 @@ class _ComposeFormattingOverlayState extends State<_ComposeFormattingOverlay>
       _spoilerAnim.stop();
     }
     _hasSpoiler = has;
+  }
+
+  void _updateSpoilerCursorFade() {
+    final cursor = widget.controller.selection.baseOffset;
+    final entities = widget.controller.entities;
+
+    final activeSpoilerIndices = <int>{};
+    for (var i = 0; i < entities.length; i++) {
+      final e = entities[i];
+      if (e.type != FormatType.spoiler) continue;
+      activeSpoilerIndices.add(i);
+
+      final cursorInside = cursor >= e.offset && cursor <= e.offset + e.length;
+      var anim = _spoilerFadeAnims[i];
+      if (anim == null) {
+        anim = AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 200),
+          value: cursorInside ? 1.0 : 0.0,
+        );
+        anim.addListener(() => setState(() {}));
+        _spoilerFadeAnims[i] = anim;
+      }
+      if (cursorInside) {
+        anim.forward();
+      } else {
+        anim.reverse();
+      }
+    }
+
+    _spoilerFadeAnims.keys.toList().forEach((k) {
+      if (!activeSpoilerIndices.contains(k)) {
+        _spoilerFadeAnims[k]!.dispose();
+        _spoilerFadeAnims.remove(k);
+      }
+    });
   }
 
   @override
@@ -8610,6 +8651,11 @@ class _ComposeFormattingOverlayState extends State<_ComposeFormattingOverlay>
       withComposing: false,
     );
 
+    final spoilerShown = <int, double>{};
+    for (final entry in _spoilerFadeAnims.entries) {
+      spoilerShown[entry.key] = 1.0 - entry.value.value;
+    }
+
     return LayoutBuilder(builder: (context, constraints) {
       return AnimatedBuilder(
         animation: _spoilerAnim,
@@ -8626,6 +8672,7 @@ class _ComposeFormattingOverlayState extends State<_ComposeFormattingOverlay>
                   ? widget.scrollController.offset
                   : 0,
               spoilerPhase: _spoilerAnim.value,
+              spoilerShown: spoilerShown,
             ),
           ),
         ),
@@ -8642,6 +8689,7 @@ class _FormattingPainter extends CustomPainter {
   final double maxWidth;
   final double scrollOffset;
   final double spoilerPhase;
+  final Map<int, double> spoilerShown;
 
   _FormattingPainter({
     required this.entities,
@@ -8651,6 +8699,7 @@ class _FormattingPainter extends CustomPainter {
     required this.maxWidth,
     required this.scrollOffset,
     required this.spoilerPhase,
+    this.spoilerShown = const {},
   });
 
   @override
@@ -8670,13 +8719,14 @@ class _FormattingPainter extends CustomPainter {
     canvas.save();
     canvas.translate(contentPadding.left, contentPadding.top - scrollOffset);
 
-    for (final entity in entities) {
+    for (var i = 0; i < entities.length; i++) {
+      final entity = entities[i];
       if (entity.type == FormatType.blockquote ||
           entity.type == FormatType.code) {
         _paintBlockDecoration(canvas, tp, entity, plainText, textAreaWidth);
       }
       if (entity.type == FormatType.spoiler) {
-        _paintSpoilerShimmer(canvas, tp, entity, plainText);
+        _paintSpoilerShimmer(canvas, tp, entity, plainText, i);
       }
     }
 
@@ -8807,7 +8857,7 @@ class _FormattingPainter extends CustomPainter {
   }
 
   void _paintSpoilerShimmer(Canvas canvas, TextPainter tp,
-      ComposeEntity entity, String plainText) {
+      ComposeEntity entity, String plainText, int entityIndex) {
     final start = entity.offset.clamp(0, plainText.length);
     final end = (entity.offset + entity.length).clamp(0, plainText.length);
     if (end <= start) return;
@@ -8816,6 +8866,26 @@ class _FormattingPainter extends CustomPainter {
       TextSelection(baseOffset: start, extentOffset: end),
     );
     if (boxes.isEmpty) return;
+
+    final shown = spoilerShown[entityIndex] ?? 1.0;
+    final bgOpacity = shown;
+    final fgOpacity = 1.0 * shown + 0.5 * (1.0 - shown);
+
+    final insideBlockquote = entities.any((e) =>
+        e.type == FormatType.blockquote &&
+        e.offset <= start &&
+        e.offset + e.length >= end);
+
+    final Color bgColor;
+    if (insideBlockquote) {
+      bgColor = isDark
+          ? const Color(0xFF182533)
+          : const Color(0xFFF0F4F7);
+    } else {
+      bgColor = isDark
+          ? const Color(0xFF17212b)
+          : const Color(0xFFFFFFFF);
+    }
 
     final rng = math.Random(42);
     final particleColor = isDark
@@ -8828,6 +8898,13 @@ class _FormattingPainter extends CustomPainter {
       final h = rect.height;
       if (w <= 0 || h <= 0) continue;
 
+      if (bgOpacity > 0) {
+        canvas.drawRect(
+          rect,
+          Paint()..color = bgColor.withValues(alpha: bgOpacity),
+        );
+      }
+
       final count = (w * h / 25).clamp(5, 150).toInt();
       for (var i = 0; i < count; i++) {
         final baseX = rng.nextDouble();
@@ -8836,7 +8913,7 @@ class _FormattingPainter extends CustomPainter {
         final px = rect.left + ((baseX + phase * 0.3) % 1.0) * w;
         final py = rect.top + ((baseY + phase * 0.15) % 1.0) * h;
         final sz = 1.0 + rng.nextDouble() * 1.2;
-        final alpha = 0.3 + 0.7 * ((math.sin(phase * math.pi * 2) + 1) / 2);
+        final alpha = (0.3 + 0.7 * ((math.sin(phase * math.pi * 2) + 1) / 2)) * fgOpacity;
         canvas.drawCircle(
           Offset(px, py),
           sz,
@@ -8851,7 +8928,16 @@ class _FormattingPainter extends CustomPainter {
       old.spoilerPhase != spoilerPhase ||
       old.scrollOffset != scrollOffset ||
       old.isDark != isDark ||
-      !identical(old.entities, entities);
+      !identical(old.entities, entities) ||
+      !_mapsEqual(old.spoilerShown, spoilerShown);
+
+  static bool _mapsEqual(Map<int, double> a, Map<int, double> b) {
+    if (a.length != b.length) return false;
+    for (final k in a.keys) {
+      if (a[k] != b[k]) return false;
+    }
+    return true;
+  }
 }
 
 const _kEmoticons = <String, String>{
