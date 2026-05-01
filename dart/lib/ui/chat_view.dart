@@ -8475,6 +8475,316 @@ final _kEmoticonsSorted = () {
   return list;
 }();
 
+// ── Compose field context menu with Formatting submenu (spec §41.1–41.5) ──
+
+class _ComposeContextMenu extends StatefulWidget {
+  final Offset anchor;
+  final EditableTextState editableTextState;
+  final RichTextEditingController richCtrl;
+  final bool isSelfChat;
+  final VoidCallback onShowLinkDialog;
+  final VoidCallback onShowDatePicker;
+
+  const _ComposeContextMenu({
+    required this.anchor,
+    required this.editableTextState,
+    required this.richCtrl,
+    this.isSelfChat = false,
+    required this.onShowLinkDialog,
+    required this.onShowDatePicker,
+  });
+
+  @override
+  State<_ComposeContextMenu> createState() => _ComposeContextMenuState();
+}
+
+class _ComposeContextMenuState extends State<_ComposeContextMenu> {
+  bool _formattingHovered = false;
+  bool _submenuHovered = false;
+  bool _submenuOpen = false;
+  Timer? _submenuHideTimer;
+
+  @override
+  void dispose() {
+    _submenuHideTimer?.cancel();
+    super.dispose();
+  }
+
+  void _dismiss() {
+    widget.editableTextState.hideToolbar();
+  }
+
+  void _runAndDismiss(VoidCallback? action) {
+    _dismiss();
+    action?.call();
+  }
+
+  void _updateSubmenuVisibility() {
+    _submenuHideTimer?.cancel();
+    if (_formattingHovered || _submenuHovered) {
+      if (!_submenuOpen) setState(() => _submenuOpen = true);
+    } else {
+      _submenuHideTimer = Timer(const Duration(milliseconds: 120), () {
+        if (mounted && _submenuOpen) setState(() => _submenuOpen = false);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final menuBg = isDark ? const Color(0xFF17212b) : Colors.white;
+    final hoverBg = isDark ? const Color(0xFF2b5278) : const Color(0xFFf1f1f1);
+    final textColor = isDark ? Colors.white : const Color(0xFF222222);
+    final disabledColor =
+        isDark ? const Color(0xFF5d6d7a) : const Color(0xFF999999);
+    final shortcutColor =
+        isDark ? const Color(0xFF5d6d7a) : const Color(0xFF999999);
+    final separatorColor =
+        isDark ? const Color(0xFF232e3a) : const Color(0xFFe7e7e7);
+
+    final sel = widget.richCtrl.selection;
+    final hasSelection = sel.isValid && !sel.isCollapsed;
+
+    final standardItems = widget.editableTextState.contextMenuButtonItems;
+
+    Widget item({
+      required String label,
+      String? shortcut,
+      VoidCallback? onTap,
+      bool enabled = true,
+      bool hasSubmenu = false,
+      ValueChanged<bool>? onHoverChanged,
+    }) {
+      final active = enabled && (onTap != null || hasSubmenu);
+      return InkWell(
+        onTap: active ? onTap : null,
+        hoverColor: active ? hoverBg : Colors.transparent,
+        onHover: onHoverChanged != null
+            ? (hovering) => onHoverChanged(hovering)
+            : null,
+        child: Container(
+          height: 30,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: DefaultTextStyle.merge(
+            style: TextStyle(
+                fontSize: 13,
+                color: active ? textColor : disabledColor,
+                decoration: TextDecoration.none,
+                fontWeight: FontWeight.normal),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(label),
+                const SizedBox(width: 20),
+                const Spacer(),
+                if (shortcut != null)
+                  Text(shortcut,
+                      style: TextStyle(fontSize: 12, color: shortcutColor)),
+                if (hasSubmenu)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: Icon(Icons.chevron_right,
+                        size: 14,
+                        color: active ? textColor : disabledColor),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    Widget separator() => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 8),
+          child: Divider(height: 1, thickness: 1, color: separatorColor),
+        );
+
+    Widget menuCard(List<Widget> children) => Material(
+          elevation: 4,
+          shadowColor:
+              isDark ? const Color(0xFF0E1621) : const Color(0x40000000),
+          borderRadius: BorderRadius.circular(6),
+          color: menuBg,
+          clipBehavior: Clip.antiAlias,
+          child: IntrinsicWidth(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 160),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: children,
+              ),
+            ),
+          ),
+        );
+
+    // ── Main menu items ──
+    final main = <Widget>[const SizedBox(height: 4)];
+
+    main.add(item(
+      label: 'Undo',
+      shortcut: 'Ctrl+Z',
+      onTap: () {
+        _dismiss();
+        Actions.maybeInvoke(
+            widget.editableTextState.context, const UndoTextIntent(SelectionChangedCause.toolbar));
+      },
+    ));
+    main.add(item(
+      label: 'Redo',
+      shortcut: 'Ctrl+Y',
+      onTap: () {
+        _dismiss();
+        Actions.maybeInvoke(
+            widget.editableTextState.context, const RedoTextIntent(SelectionChangedCause.toolbar));
+      },
+    ));
+    main.add(separator());
+
+    for (final si in standardItems) {
+      if (si.type == ContextMenuButtonType.selectAll) continue;
+      final (String l, String? s) = switch (si.type) {
+        ContextMenuButtonType.cut => ('Cut', 'Ctrl+X'),
+        ContextMenuButtonType.copy => ('Copy', 'Ctrl+C'),
+        ContextMenuButtonType.paste => ('Paste', 'Ctrl+V'),
+        ContextMenuButtonType.delete => ('Delete', null),
+        _ => (si.label ?? 'Action', null),
+      };
+      main.add(item(
+        label: l,
+        shortcut: s,
+        onTap: si.onPressed != null ? () => _runAndDismiss(si.onPressed) : null,
+        enabled: si.onPressed != null,
+      ));
+    }
+
+    main.add(separator());
+
+    main.add(item(
+      label: 'Formatting',
+      hasSubmenu: true,
+      enabled: hasSelection,
+      onTap: hasSelection
+          ? () => setState(() => _submenuOpen = !_submenuOpen)
+          : null,
+      onHoverChanged: hasSelection
+          ? (h) {
+              _formattingHovered = h;
+              _updateSubmenuVisibility();
+            }
+          : null,
+    ));
+
+    main.add(separator());
+
+    final selectAll = standardItems
+        .where((i) => i.type == ContextMenuButtonType.selectAll)
+        .firstOrNull;
+    if (selectAll != null) {
+      main.add(item(
+        label: 'Select All',
+        shortcut: 'Ctrl+A',
+        onTap: selectAll.onPressed != null
+            ? () => _runAndDismiss(selectAll.onPressed)
+            : null,
+        enabled: selectAll.onPressed != null,
+      ));
+    }
+    main.add(const SizedBox(height: 4));
+
+    // ── Formatting submenu ──
+    Widget? submenu;
+    if (_submenuOpen && hasSelection) {
+      final sub = <Widget>[const SizedBox(height: 4)];
+      void fmt(String label, String shortcut, FormatType type) {
+        sub.add(item(
+          label: label,
+          shortcut: shortcut,
+          onTap: () {
+            widget.richCtrl.toggleFormat(type);
+            _dismiss();
+          },
+        ));
+      }
+
+      fmt('Bold', 'Ctrl+B', FormatType.bold);
+      fmt('Italic', 'Ctrl+I', FormatType.italic);
+      fmt('Underline', 'Ctrl+U', FormatType.underline);
+      fmt('Strikethrough', 'Ctrl+Shift+X', FormatType.strike);
+      if (!widget.isSelfChat) {
+        fmt('Quote', 'Ctrl+Shift+.', FormatType.blockquote);
+        fmt('Monospace', 'Ctrl+Shift+M', FormatType.code);
+      }
+      fmt('Spoiler', 'Ctrl+Shift+P', FormatType.spoiler);
+
+      if (!widget.isSelfChat) {
+        sub.add(separator());
+        final link = widget.richCtrl.getLinkUrl();
+        sub.add(item(
+          label: (link != null && link.isNotEmpty) ? 'Edit Link' : 'Create Link',
+          shortcut: 'Ctrl+K',
+          onTap: () {
+            _dismiss();
+            widget.onShowLinkDialog();
+          },
+        ));
+        sub.add(item(
+          label: 'Date',
+          shortcut: 'Ctrl+Shift+D',
+          onTap: () {
+            _dismiss();
+            widget.onShowDatePicker();
+          },
+        ));
+      }
+
+      sub.add(separator());
+      sub.add(item(
+        label: 'Clear Formatting',
+        shortcut: 'Ctrl+Shift+N',
+        onTap: () {
+          widget.richCtrl.clearFormatting();
+          _dismiss();
+        },
+      ));
+      sub.add(const SizedBox(height: 4));
+
+      submenu = MouseRegion(
+        onEnter: (_) {
+          _submenuHovered = true;
+          _updateSubmenuVisibility();
+        },
+        onExit: (_) {
+          _submenuHovered = false;
+          _updateSubmenuVisibility();
+        },
+        child: menuCard(sub),
+      );
+    }
+
+    return TextFieldTapRegion(
+      child: CustomSingleChildLayout(
+        delegate: DesktopTextSelectionToolbarLayoutDelegate(
+          anchor: widget.anchor,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            menuCard(main),
+            if (submenu != null) ...[
+              const SizedBox(width: 2),
+              submenu,
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Compose area at bottom. Spec §7 + §24.6.
 enum SendButtonType { send, schedule, save, record, round, cancel, slowmode, editPrice }
 
@@ -9417,6 +9727,9 @@ class _ComposeAreaState extends State<_ComposeArea>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final needsFade = _showTopFade || _showBottomFade;
+    final richCtrlEarly = widget.controller is RichTextEditingController
+        ? widget.controller as RichTextEditingController
+        : null;
 
     Widget field = ConstrainedBox(
       constraints: const BoxConstraints(minHeight: 36, maxHeight: 224),
@@ -9428,6 +9741,22 @@ class _ComposeAreaState extends State<_ComposeArea>
         maxLines: null,
         textInputAction: TextInputAction.newline,
         style: theme.textTheme.bodyMedium,
+        contextMenuBuilder: richCtrlEarly != null
+            ? (ctx, editableTextState) => _ComposeContextMenu(
+                  anchor: editableTextState.contextMenuAnchors.primaryAnchor,
+                  editableTextState: editableTextState,
+                  richCtrl: richCtrlEarly,
+                  isSelfChat: widget.isSelfChat,
+                  onShowLinkDialog: () {
+                    editableTextState.hideToolbar();
+                    _showLinkDialog(richCtrlEarly);
+                  },
+                  onShowDatePicker: () {
+                    editableTextState.hideToolbar();
+                    _showDatePicker(richCtrlEarly);
+                  },
+                )
+            : null,
         decoration: InputDecoration(
           hintText: widget.isEditing
               ? 'Edit message'
