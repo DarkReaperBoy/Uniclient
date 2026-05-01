@@ -2546,6 +2546,22 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(&pb.EngineSaveDefaultSendAsResponse{Ok: true})
 
+	case "GetMessageReactorsList":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			MsgID     int    `json:"msg_id"`
+			Limit     int    `json:"limit"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		reactors, err := e.GetMessageReactorsList(params.AccountID, params.ChatID, params.MsgID, params.Limit)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(reactors)
+
 	case "GetScheduledCount":
 		var params struct {
 			AccountID string `json:"account_id"`

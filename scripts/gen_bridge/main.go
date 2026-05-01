@@ -770,7 +770,7 @@ func ProtoToFileRefs(fs []*pb.FileRef) []cores.FileRef {
 	// Reaction
 	b.WriteString(`func ReactionToProto(r *cores.Reaction) *pb.Reaction {
 	if r == nil { return nil }
-	return &pb.Reaction{Emoji: r.Emoji, Count: int32(r.Count), ByMe: r.ByMe}
+	return &pb.Reaction{Emoji: r.Emoji, Count: int32(r.Count), ByMe: r.ByMe, PeerId: r.PeerID, PeerName: r.PeerName}
 }
 
 func ReactionsToProto(rs []cores.Reaction) []*pb.Reaction {

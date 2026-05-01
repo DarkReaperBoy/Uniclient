@@ -14519,11 +14519,28 @@ func (t *TelegramCore) GetMessageReactionsList(chatID string, msgID int, limit i
 		Peer: inputPeer, ID: msgID, Limit: limit,
 	})
 	if err != nil { return nil, err }
+	users := make(map[int64]*tg.User)
+	for _, u := range result.Users {
+		if user, ok := u.(*tg.User); ok {
+			users[user.ID] = user
+		}
+	}
 	var reactions []Reaction
 	for _, r := range result.Reactions {
 		emoji := ""
 		if re, ok := r.Reaction.(*tg.ReactionEmoji); ok { emoji = re.Emoticon }
-		reactions = append(reactions, Reaction{Emoji: emoji, Count: 1})
+		rx := Reaction{Emoji: emoji, Count: 1}
+		if peer, ok := r.PeerID.(*tg.PeerUser); ok {
+			rx.PeerID = strconv.FormatInt(peer.UserID, 10)
+			if u, found := users[peer.UserID]; found {
+				name := u.FirstName
+				if u.LastName != "" {
+					name += " " + u.LastName
+				}
+				rx.PeerName = name
+			}
+		}
+		reactions = append(reactions, rx)
 	}
 	return reactions, nil
 }

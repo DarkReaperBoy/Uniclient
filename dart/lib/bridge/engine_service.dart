@@ -1958,6 +1958,28 @@ class EngineService {
     await _callAsync('__engine', 'ReactToMessage', req.writeToBuffer());
   }
 
+  Future<List<ReactorInfo>> getMessageReactorsList(String accountId, String chatId, int msgId, {int limit = 50}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'msg_id': msgId,
+      'limit': limit,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetMessageReactorsList', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return [];
+      final data = json.decode(utf8.decode(respBytes)) as List<dynamic>;
+      return data.map((e) => ReactorInfo(
+        emoji: (e['emoji'] as String?) ?? '',
+        peerId: (e['peer_id'] as String?) ?? '',
+        peerName: (e['peer_name'] as String?) ?? '',
+      )).toList();
+    } catch (e) {
+      Debug.error('ENGINE', 'getMessageReactorsList failed', e);
+      return [];
+    }
+  }
+
   Future<int> getScheduledCount(String accountId, String chatId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

@@ -1185,6 +1185,8 @@ class Reaction extends $pb.GeneratedMessage {
     $core.String? emoji,
     $core.int? count,
     $core.bool? byMe,
+    $core.String? peerId,
+    $core.String? peerName,
   }) {
     final $result = create();
     if (emoji != null) {
@@ -1196,6 +1198,12 @@ class Reaction extends $pb.GeneratedMessage {
     if (byMe != null) {
       $result.byMe = byMe;
     }
+    if (peerId != null) {
+      $result.peerId = peerId;
+    }
+    if (peerName != null) {
+      $result.peerName = peerName;
+    }
     return $result;
   }
   Reaction._() : super();
@@ -1206,6 +1214,8 @@ class Reaction extends $pb.GeneratedMessage {
     ..aOS(1, _omitFieldNames ? '' : 'emoji')
     ..a<$core.int>(2, _omitFieldNames ? '' : 'count', $pb.PbFieldType.O3)
     ..aOB(3, _omitFieldNames ? '' : 'byMe')
+    ..aOS(4, _omitFieldNames ? '' : 'peerId')
+    ..aOS(5, _omitFieldNames ? '' : 'peerName')
     ..hasRequiredFields = false
   ;
 
@@ -1256,6 +1266,24 @@ class Reaction extends $pb.GeneratedMessage {
   $core.bool hasByMe() => $_has(2);
   @$pb.TagNumber(3)
   void clearByMe() => clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get peerId => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set peerId($core.String v) { $_setString(3, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasPeerId() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearPeerId() => clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get peerName => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set peerName($core.String v) { $_setString(4, v); }
+  @$pb.TagNumber(5)
+  $core.bool hasPeerName() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearPeerName() => clearField(5);
 }
 
 class ReadState extends $pb.GeneratedMessage {

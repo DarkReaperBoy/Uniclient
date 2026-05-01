@@ -148,9 +148,11 @@ message FileUploadRequest {
 }
 
 message Reaction {
-  string emoji = 1;
-  int32  count = 2;
-  bool   by_me = 3;
+  string emoji    = 1;
+  int32  count    = 2;
+  bool   by_me    = 3;
+  string peer_id  = 4;
+  string peer_name = 5;
 }
 
 message ReadState {

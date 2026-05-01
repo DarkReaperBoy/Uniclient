@@ -969,6 +969,19 @@ class MessageReaction {
   };
 }
 
+// ── Reactor info (who reacted with what emoji) ──
+class ReactorInfo {
+  final String emoji;
+  final String peerId;
+  final String peerName;
+
+  const ReactorInfo({
+    required this.emoji,
+    required this.peerId,
+    required this.peerName,
+  });
+}
+
 // ── Poll option ──
 class PollOption {
   final String text;

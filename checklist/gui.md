@@ -932,7 +932,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §42 — Reactions Detail Popup
 # Touches: dart/lib/ui/message_bubble.dart (has basic pill _ReactionList — NOT the popup), new reactions_detail.dart
 
-- [ ] ShowWhoReactedMenu (Mode A) — right-click reaction button: PopupMenu with optional "Set as Quick Reaction"; up to N user entries (WhoReactedEntryAction); "Show all reactions" footer; optional "Emoji Pack" action; styled with whoReadMenu; context menu sizing: entry 40px, avatar 30px, nameLeft 57px — spec §42.2, §42.12
 - [ ] Reactions full info panel (Mode B) — layer/side panel; top-bar title adapts ("Seen by N" / "Reactions"); tab bar (pill 32px, 16px radius, 32+6+textW+12 width, 18px emoji icon, 150ms transition); scrollable peer list; slide-down animation; preferred width 392px — spec §42.3–42.4, §42.11–42.12
 - [ ] Reaction tab bar — "Read" + "All" + per-reaction tabs; counts via FormatCountDecimal; flow-wrap layout (no horizontal scroll); 8px gap; selection ripple 200ms; instant tab switch — spec §42.4
 - [ ] Reaction user list rows (Mode B) — 58px row; 46px avatar at (18,6); name at (79,11) semibold 13px; status at (79,31) windowSubTextFg; right custom emoji 18x18px at R27 margin; pagination 20/100 items — spec §42.5–42.6

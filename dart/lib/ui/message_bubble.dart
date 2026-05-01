@@ -116,6 +116,7 @@ class _MessageBubbleState extends State<MessageBubble> {
   }
 
   final GlobalKey _stripKey = GlobalKey();
+  final Map<String, GlobalKey> _reactionKeys = {};
 
   void _onExpandReactions() {
     final renderBox =
@@ -142,6 +143,116 @@ class _MessageBubbleState extends State<MessageBubble> {
     overlay.insert(entry);
   }
 
+  MessageReaction? _findHitReaction(Offset globalPos) {
+    for (final r in widget.message.reactions) {
+      final key = _reactionKeys[r.emoji];
+      if (key == null) continue;
+      final box = key.currentContext?.findRenderObject() as RenderBox?;
+      if (box == null || !box.hasSize) continue;
+      final local = box.globalToLocal(globalPos);
+      if (box.paintBounds.contains(local)) return r;
+    }
+    return null;
+  }
+
+  void _showWhoReactedMenu(Offset globalPosition, MessageReaction reaction) async {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final position = RelativeRect.fromLTRB(
+      globalPosition.dx,
+      globalPosition.dy,
+      overlay.size.width - globalPosition.dx,
+      overlay.size.height - globalPosition.dy,
+    );
+
+    final engine = context.read<EngineService>();
+    final message = widget.message;
+    final msgIdInt = int.tryParse(message.msgId) ?? 0;
+    if (msgIdInt == 0) return;
+
+    final reactors = await engine.getMessageReactorsList(
+      message.accountId, message.chatId, msgIdInt,
+      limit: 20,
+    );
+    if (!mounted) return;
+
+    final filtered = reactors.where((r) => r.emoji == reaction.emoji).toList();
+
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subColor = isDark ? const Color(0xFF7F8B99) : const Color(0xFF999999);
+
+    final items = <PopupMenuEntry<String>>[];
+
+    if (filtered.isEmpty && reaction.count > 0) {
+      items.add(PopupMenuItem<String>(
+        enabled: false,
+        height: 40,
+        child: Row(
+          children: [
+            Text(reaction.emoji, style: const TextStyle(fontSize: 18)),
+            const SizedBox(width: 10),
+            Text(
+              '${reaction.count} reacted',
+              style: TextStyle(fontSize: 13, color: subColor),
+            ),
+          ],
+        ),
+      ));
+    } else {
+      for (final reactor in filtered) {
+        items.add(PopupMenuItem<String>(
+          value: reactor.peerId,
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 13),
+          child: Row(
+            children: [
+              _ReactorAvatar(name: reactor.peerName, size: 30),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  reactor.peerName.isNotEmpty ? reactor.peerName : 'User',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ));
+      }
+    }
+
+    if (reaction.count > filtered.length && filtered.isNotEmpty) {
+      items.add(const PopupMenuDivider(height: 1));
+      items.add(PopupMenuItem<String>(
+        value: '__show_all',
+        height: 36,
+        child: Center(
+          child: Text(
+            'Show all reactions',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+        ),
+      ));
+    }
+
+    if (items.isEmpty) return;
+
+    showMenu<String>(
+      context: context,
+      position: position,
+      items: items,
+    );
+  }
+
   static const _maxWidth = 430.0;
   static const _radiusLarge = 16.0;
   static const _radiusSmall = 6.0;
@@ -161,6 +272,12 @@ class _MessageBubbleState extends State<MessageBubble> {
     final onSenderTap = widget.onSenderTap;
     final onSenderContextMenu = widget.onSenderContextMenu;
     final onReplyTap = widget.onReplyTap;
+
+    final currentEmojis = message.reactions.map((r) => r.emoji).toSet();
+    _reactionKeys.removeWhere((emoji, _) => !currentEmojis.contains(emoji));
+    for (final r in message.reactions) {
+      _reactionKeys.putIfAbsent(r.emoji, () => GlobalKey());
+    }
 
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -266,14 +383,24 @@ class _MessageBubbleState extends State<MessageBubble> {
             onLongPressStart: onContextMenu != null
                 ? (details) {
                     if (!_SenderNameTapTarget.recentlyConsumed) {
-                      onContextMenu!(details.globalPosition, '');
+                      final hitReaction = _findHitReaction(details.globalPosition);
+                      if (hitReaction != null) {
+                        _showWhoReactedMenu(details.globalPosition, hitReaction);
+                      } else {
+                        onContextMenu!(details.globalPosition, '');
+                      }
                     }
                   }
                 : null,
             onSecondaryTapUp: onContextMenu != null
                 ? (details) {
                     if (!_SenderNameTapTarget.recentlyConsumed) {
-                      onContextMenu!(details.globalPosition, '');
+                      final hitReaction = _findHitReaction(details.globalPosition);
+                      if (hitReaction != null) {
+                        _showWhoReactedMenu(details.globalPosition, hitReaction);
+                      } else {
+                        onContextMenu!(details.globalPosition, '');
+                      }
                     }
                   }
                 : null,
@@ -498,6 +625,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                         reactions: message.reactions,
                         isOutgoing: isOutgoing,
                         theme: theme,
+                        reactionKeys: _reactionKeys,
                       ),
                     ],
                     // Bottom info: views + forwards + edited + time + status.
@@ -1495,19 +1623,19 @@ class _ReactionList extends StatelessWidget {
   final List<MessageReaction> reactions;
   final bool isOutgoing;
   final ThemeData theme;
+  final Map<String, GlobalKey> reactionKeys;
 
   const _ReactionList({
     required this.reactions,
     required this.isOutgoing,
     required this.theme,
+    required this.reactionKeys,
   });
 
   @override
   Widget build(BuildContext context) {
     final primary = theme.colorScheme.primary;
     final isDark = theme.brightness == Brightness.dark;
-    // Baseline pill color picks up a subtle tint from the primary so it reads
-    // as a badge inside both received (dark) and sent (navy) bubbles.
     final inactiveBg = primary.withValues(alpha: isDark ? 0.18 : 0.12);
     final activeBg = primary.withValues(alpha: isDark ? 0.38 : 0.28);
     final inactiveLabel = theme.textTheme.bodyMedium?.color ?? Colors.white;
@@ -1518,6 +1646,7 @@ class _ReactionList extends StatelessWidget {
       children: [
         for (final r in reactions)
           Container(
+            key: reactionKeys[r.emoji],
             height: 20,
             padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 0),
             decoration: BoxDecoration(
@@ -1554,6 +1683,35 @@ class _ReactionList extends StatelessWidget {
       return '${v.endsWith('.0') ? v.substring(0, v.length - 2) : v}K';
     }
     return '${(n / 1000).round()}K';
+  }
+}
+
+class _ReactorAvatar extends StatelessWidget {
+  final String name;
+  final double size;
+
+  const _ReactorAvatar({required this.name, required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final initial = name.isNotEmpty ? name.characters.first.toUpperCase() : '?';
+    final hue = name.hashCode % 360;
+    final bgColor = HSLColor.fromAHSL(1.0, hue.toDouble().abs(), 0.5, isDark ? 0.35 : 0.65).toColor();
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(shape: BoxShape.circle, color: bgColor),
+      alignment: Alignment.center,
+      child: Text(
+        initial,
+        style: TextStyle(
+          fontSize: size * 0.45,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
+        ),
+      ),
+    );
   }
 }
 

@@ -1119,6 +1119,8 @@ type Reaction struct {
 	Emoji         string                 `protobuf:"bytes,1,opt,name=emoji,proto3" json:"emoji,omitempty"`
 	Count         int32                  `protobuf:"varint,2,opt,name=count,proto3" json:"count,omitempty"`
 	ByMe          bool                   `protobuf:"varint,3,opt,name=by_me,json=byMe,proto3" json:"by_me,omitempty"`
+	PeerId        string                 `protobuf:"bytes,4,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	PeerName      string                 `protobuf:"bytes,5,opt,name=peer_name,json=peerName,proto3" json:"peer_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1172,6 +1174,20 @@ func (x *Reaction) GetByMe() bool {
 		return x.ByMe
 	}
 	return false
+}
+
+func (x *Reaction) GetPeerId() string {
+	if x != nil {
+		return x.PeerId
+	}
+	return ""
+}
+
+func (x *Reaction) GetPeerName() string {
+	if x != nil {
+		return x.PeerName
+	}
+	return ""
 }
 
 type ReadState struct {
@@ -2086,11 +2102,13 @@ const file_proto_models_proto_rawDesc = "" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1b\n" +
 	"\tmime_type\x18\x02 \x01(\tR\bmimeType\x12\x12\n" +
 	"\x04size\x18\x03 \x01(\x03R\x04size\x12\x1b\n" +
-	"\tfile_path\x18\x04 \x01(\tR\bfilePath\"K\n" +
+	"\tfile_path\x18\x04 \x01(\tR\bfilePath\"\x81\x01\n" +
 	"\bReaction\x12\x14\n" +
 	"\x05emoji\x18\x01 \x01(\tR\x05emoji\x12\x14\n" +
 	"\x05count\x18\x02 \x01(\x05R\x05count\x12\x13\n" +
-	"\x05by_me\x18\x03 \x01(\bR\x04byMe\"\xbc\x01\n" +
+	"\x05by_me\x18\x03 \x01(\bR\x04byMe\x12\x17\n" +
+	"\apeer_id\x18\x04 \x01(\tR\x06peerId\x12\x1b\n" +
+	"\tpeer_name\x18\x05 \x01(\tR\bpeerName\"\xbc\x01\n" +
 	"\tReadState\x12 \n" +
 	"\fmy_last_read\x18\x01 \x01(\tR\n" +
 	"myLastRead\x12L\n" +

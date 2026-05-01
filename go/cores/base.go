@@ -296,9 +296,11 @@ type FileUpload struct {
 
 // Reaction represents an emoji reaction on a message with its count.
 type Reaction struct {
-	Emoji string `json:"emoji"`
-	Count int    `json:"count"`
-	ByMe  bool   `json:"by_me"`
+	Emoji    string `json:"emoji"`
+	Count    int    `json:"count"`
+	ByMe     bool   `json:"by_me"`
+	PeerID   string `json:"peer_id,omitempty"`
+	PeerName string `json:"peer_name,omitempty"`
 }
 
 // GifInfo holds data for a single saved GIF animation.
