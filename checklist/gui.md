@@ -927,8 +927,7 @@ Status key: `[ ]` not started · `[x]` done
 ## §41 — Message Formatting Toolbar
 # Touches: dart/lib/ui/chat_view.dart (compose field), new formatting_menu.dart
 
-- [ ] Formatting visual rendering in compose field — bold/italic/underline/strikethrough font styles; monospace+monoFg for code; blockquote left-rule + chevron expand/collapse (6,4)px from top-right; pre-block 20px header + copy icon; spoiler FieldSpoilerOverlay shimmer; link linkFg color — spec §41.13
-- [ ] FieldSpoilerOverlay widget — transparent-for-mouse overlay; particle shimmer over spoiler ranges; cursor-inside → 0.5 opacity (200ms); cursor-leaves → full opacity; background textBg/blockquoteBg — spec §44.5 (companion to §41 spoiler tag)
+- [ ] FieldSpoilerOverlay cursor-aware opacity — cursor-inside → 0.5 opacity (200ms); cursor-leaves → full opacity; background textBg/blockquoteBg — spec §44.5
 - [ ] Markdown send-time parsing — apply **bold**, __italic__, ~~strike~~, `code`, ```block```, ||spoiler|| at send time via getTextWithAppliedMarkdown; no live auto-convert — spec §41.9
 - [ ] Nested formatting + tag storage — pipe-separated tag strings; toggle semantics (remove if full selection has tag, add otherwise); monospace replaces font; block tags contain inline tags — spec §41.10
 - [ ] Formatting menu animation — PanelAnimation expand from origin corner (clip+opacity) on show; same for submenu; instant text style change on apply — spec §41.11

@@ -8484,6 +8484,12 @@ class RichTextEditingController extends TextEditingController {
     var cursor = 0;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    final monoFg = isDark ? const Color(0xFF6AB7F0) : const Color(0xFF3A464F);
+    final codeBg = isDark ? const Color(0xFF1E2A36) : const Color(0xFFF0F0F0);
+    final linkFg = isDark ? const Color(0xFF71BAF7) : const Color(0xFF168ACD);
+    final spoilerBg = isDark ? const Color(0xFF2A3847) : const Color(0xFFE0E0E0);
+    final spoilerFg = isDark ? const Color(0xFF2A3847) : const Color(0xFFE0E0E0);
+
     for (final entity in sorted) {
       final eStart = entity.offset.clamp(0, t.length);
       final eEnd = (entity.offset + entity.length).clamp(0, t.length);
@@ -8501,17 +8507,18 @@ class RichTextEditingController extends TextEditingController {
         FormatType.strike => const TextStyle(decoration: TextDecoration.lineThrough),
         FormatType.code => TextStyle(
           fontFamily: 'monospace',
-          backgroundColor: isDark ? const Color(0xFF1E2A36) : const Color(0xFFF0F0F0),
+          color: monoFg,
+          backgroundColor: codeBg,
         ),
         FormatType.spoiler => TextStyle(
-          backgroundColor: isDark ? const Color(0xFF3A3A3A) : const Color(0xFFD0D0D0),
+          color: spoilerFg,
+          backgroundColor: spoilerBg,
         ),
         FormatType.blockquote => TextStyle(
-          color: isDark ? const Color(0xFF65bdf3) : const Color(0xFF168acd),
-          fontStyle: FontStyle.italic,
+          backgroundColor: isDark ? const Color(0xFF182533) : const Color(0xFFF0F4F7),
         ),
         FormatType.link => TextStyle(
-          color: isDark ? const Color(0xFF65bdf3) : const Color(0xFF168acd),
+          color: linkFg,
           decoration: TextDecoration.underline,
         ),
       };
@@ -8525,6 +8532,326 @@ class RichTextEditingController extends TextEditingController {
 
     return TextSpan(style: style, children: spans);
   }
+}
+
+class _ComposeFormattingOverlay extends StatefulWidget {
+  final RichTextEditingController controller;
+  final ScrollController scrollController;
+  final TextStyle textStyle;
+  final EdgeInsets contentPadding;
+
+  const _ComposeFormattingOverlay({
+    required this.controller,
+    required this.scrollController,
+    required this.textStyle,
+    required this.contentPadding,
+  });
+
+  @override
+  State<_ComposeFormattingOverlay> createState() =>
+      _ComposeFormattingOverlayState();
+}
+
+class _ComposeFormattingOverlayState extends State<_ComposeFormattingOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _spoilerAnim;
+  bool _hasSpoiler = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_onChanged);
+    widget.scrollController.addListener(_onChanged);
+    _spoilerAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    );
+    _updateSpoilerAnim();
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onChanged);
+    widget.scrollController.removeListener(_onChanged);
+    _spoilerAnim.dispose();
+    super.dispose();
+  }
+
+  void _onChanged() {
+    _updateSpoilerAnim();
+    setState(() {});
+  }
+
+  void _updateSpoilerAnim() {
+    final has = widget.controller.entities.any(
+      (e) => e.type == FormatType.spoiler,
+    );
+    if (has && !_hasSpoiler) {
+      _spoilerAnim.repeat();
+    } else if (!has && _hasSpoiler) {
+      _spoilerAnim.stop();
+    }
+    _hasSpoiler = has;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final entities = widget.controller.entities;
+    final hasOverlayEntities = entities.any((e) =>
+        e.type == FormatType.blockquote ||
+        e.type == FormatType.code ||
+        e.type == FormatType.spoiler);
+    if (!hasOverlayEntities) return const SizedBox.shrink();
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textSpan = widget.controller.buildTextSpan(
+      context: context,
+      style: widget.textStyle,
+      withComposing: false,
+    );
+
+    return LayoutBuilder(builder: (context, constraints) {
+      return AnimatedBuilder(
+        animation: _spoilerAnim,
+        builder: (context, _) => ClipRect(
+          child: CustomPaint(
+            size: Size(constraints.maxWidth, constraints.maxHeight),
+            painter: _FormattingPainter(
+              entities: entities,
+              textSpan: textSpan,
+              contentPadding: widget.contentPadding,
+              isDark: isDark,
+              maxWidth: constraints.maxWidth,
+              scrollOffset: widget.scrollController.hasClients
+                  ? widget.scrollController.offset
+                  : 0,
+              spoilerPhase: _spoilerAnim.value,
+            ),
+          ),
+        ),
+      );
+    });
+  }
+}
+
+class _FormattingPainter extends CustomPainter {
+  final List<ComposeEntity> entities;
+  final TextSpan textSpan;
+  final EdgeInsets contentPadding;
+  final bool isDark;
+  final double maxWidth;
+  final double scrollOffset;
+  final double spoilerPhase;
+
+  _FormattingPainter({
+    required this.entities,
+    required this.textSpan,
+    required this.contentPadding,
+    required this.isDark,
+    required this.maxWidth,
+    required this.scrollOffset,
+    required this.spoilerPhase,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final plainText = textSpan.toPlainText();
+    if (plainText.isEmpty) return;
+
+    final tp = TextPainter(
+      text: textSpan,
+      textDirection: TextDirection.ltr,
+      maxLines: null,
+    );
+    final textAreaWidth = maxWidth - contentPadding.horizontal;
+    if (textAreaWidth <= 0) return;
+    tp.layout(maxWidth: textAreaWidth);
+
+    canvas.save();
+    canvas.translate(contentPadding.left, contentPadding.top - scrollOffset);
+
+    for (final entity in entities) {
+      if (entity.type == FormatType.blockquote ||
+          entity.type == FormatType.code) {
+        _paintBlockDecoration(canvas, tp, entity, plainText, textAreaWidth);
+      }
+      if (entity.type == FormatType.spoiler) {
+        _paintSpoilerShimmer(canvas, tp, entity, plainText);
+      }
+    }
+
+    canvas.restore();
+    tp.dispose();
+  }
+
+  void _paintBlockDecoration(Canvas canvas, TextPainter tp,
+      ComposeEntity entity, String plainText, double textAreaWidth) {
+    final start = entity.offset.clamp(0, plainText.length);
+    final end = (entity.offset + entity.length).clamp(0, plainText.length);
+    if (end <= start) return;
+
+    final boxes = tp.getBoxesForSelection(
+      TextSelection(baseOffset: start, extentOffset: end),
+      boxHeightStyle: ui.BoxHeightStyle.max,
+      boxWidthStyle: ui.BoxWidthStyle.max,
+    );
+    if (boxes.isEmpty) return;
+
+    double top = double.infinity, bottom = double.negativeInfinity;
+    for (final box in boxes) {
+      if (box.top < top) top = box.top;
+      if (box.bottom > bottom) bottom = box.bottom;
+    }
+
+    const vSkip = 4.0;
+    const outlineWidth = 3.0;
+    const radius = 5.0;
+    const outlineShift = 2.0;
+
+    final isCode = entity.type == FormatType.code;
+    final hasHeader = isCode && entity.language != null && entity.language!.isNotEmpty;
+    final headerHeight = hasHeader ? 20.0 : 0.0;
+
+    final blockRect = Rect.fromLTRB(
+      0,
+      top - vSkip - headerHeight,
+      textAreaWidth,
+      bottom + vSkip,
+    );
+
+    final accent = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    canvas.drawRRect(
+      RRect.fromRectAndCorners(
+        Rect.fromLTRB(
+          blockRect.left,
+          blockRect.top + outlineShift,
+          blockRect.left + outlineWidth,
+          blockRect.bottom - outlineShift,
+        ),
+        topLeft: const Radius.circular(radius),
+        bottomLeft: const Radius.circular(radius),
+      ),
+      Paint()..color = accent,
+    );
+
+    final iconColor = (isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000))
+        .withValues(alpha: 0.4);
+    final iconPaint = Paint()
+      ..color = iconColor
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+
+    if (isCode) {
+      if (hasHeader) {
+        final headerRect = Rect.fromLTRB(
+          blockRect.left + outlineWidth,
+          blockRect.top,
+          blockRect.right,
+          blockRect.top + headerHeight,
+        );
+        canvas.drawLine(
+          Offset(headerRect.left, headerRect.bottom),
+          Offset(headerRect.right, headerRect.bottom),
+          Paint()..color = accent.withValues(alpha: 0.3),
+        );
+        final langPainter = TextPainter(
+          text: TextSpan(
+            text: entity.language!,
+            style: TextStyle(
+              fontSize: 11,
+              fontFamily: 'monospace',
+              color: isDark ? const Color(0xFFAAC8E2) : const Color(0xFF3A464F),
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        langPainter.paint(canvas, Offset(blockRect.left + 10, blockRect.top + 3));
+        langPainter.dispose();
+      }
+      _drawCopyIcon(canvas, blockRect.right - 18, blockRect.top + (hasHeader ? 2 : 4), iconPaint);
+    } else {
+      _drawQuoteIcon(canvas, blockRect.right - 18, blockRect.top + 4, iconPaint);
+      _drawCollapseChevron(canvas, blockRect.right - 18, blockRect.top + 18, iconPaint);
+    }
+  }
+
+  void _drawQuoteIcon(Canvas canvas, double x, double y, Paint paint) {
+    final p = Path()
+      ..moveTo(x + 3, y + 2)
+      ..quadraticBezierTo(x, y + 2, x, y + 5)
+      ..quadraticBezierTo(x, y + 8, x + 2, y + 10)
+      ..moveTo(x + 9, y + 2)
+      ..quadraticBezierTo(x + 6, y + 2, x + 6, y + 5)
+      ..quadraticBezierTo(x + 6, y + 8, x + 8, y + 10);
+    canvas.drawPath(p, paint);
+  }
+
+  void _drawCopyIcon(Canvas canvas, double x, double y, Paint paint) {
+    const r = 1.5;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(x + 3, y, 9, 10), const Radius.circular(r)),
+      paint,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(x, y + 3, 9, 10), const Radius.circular(r)),
+      paint,
+    );
+  }
+
+  void _drawCollapseChevron(Canvas canvas, double x, double y, Paint paint) {
+    final p = Path()
+      ..moveTo(x + 2, y)
+      ..lineTo(x + 6, y + 4)
+      ..lineTo(x + 10, y);
+    canvas.drawPath(p, paint);
+  }
+
+  void _paintSpoilerShimmer(Canvas canvas, TextPainter tp,
+      ComposeEntity entity, String plainText) {
+    final start = entity.offset.clamp(0, plainText.length);
+    final end = (entity.offset + entity.length).clamp(0, plainText.length);
+    if (end <= start) return;
+
+    final boxes = tp.getBoxesForSelection(
+      TextSelection(baseOffset: start, extentOffset: end),
+    );
+    if (boxes.isEmpty) return;
+
+    final rng = math.Random(42);
+    final particleColor = isDark
+        ? const Color(0xFFAABBCC)
+        : const Color(0xFF667788);
+
+    for (final box in boxes) {
+      final rect = Rect.fromLTRB(box.left, box.top, box.right, box.bottom);
+      final w = rect.width;
+      final h = rect.height;
+      if (w <= 0 || h <= 0) continue;
+
+      final count = (w * h / 25).clamp(5, 150).toInt();
+      for (var i = 0; i < count; i++) {
+        final baseX = rng.nextDouble();
+        final baseY = rng.nextDouble();
+        final phase = (spoilerPhase + rng.nextDouble()) % 1.0;
+        final px = rect.left + ((baseX + phase * 0.3) % 1.0) * w;
+        final py = rect.top + ((baseY + phase * 0.15) % 1.0) * h;
+        final sz = 1.0 + rng.nextDouble() * 1.2;
+        final alpha = 0.3 + 0.7 * ((math.sin(phase * math.pi * 2) + 1) / 2);
+        canvas.drawCircle(
+          Offset(px, py),
+          sz,
+          Paint()..color = particleColor.withValues(alpha: alpha),
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _FormattingPainter old) =>
+      old.spoilerPhase != spoilerPhase ||
+      old.scrollOffset != scrollOffset ||
+      old.isDark != isDark ||
+      !identical(old.entities, entities);
 }
 
 const _kEmoticons = <String, String>{
@@ -10011,6 +10338,20 @@ class _ComposeAreaState extends State<_ComposeArea>
             child: Stack(
               children: [
                 field,
+                if (richCtrl != null && richCtrl.entities.any((e) =>
+                    e.type == FormatType.blockquote ||
+                    e.type == FormatType.code ||
+                    e.type == FormatType.spoiler))
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: _ComposeFormattingOverlay(
+                        controller: richCtrl,
+                        scrollController: _scrollController,
+                        textStyle: theme.textTheme.bodyMedium ?? const TextStyle(),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+                      ),
+                    ),
+                  ),
                 if (_charRemaining <= 100)
                   Positioned(
                     right: 4,
