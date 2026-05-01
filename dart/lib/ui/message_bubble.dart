@@ -14,6 +14,7 @@ import 'info_panel.dart';
 import 'reactions_detail.dart';
 import 'popup_menu.dart';
 import 'shell.dart';
+import 'spoiler_animation.dart';
 import 'telegram_toast.dart';
 import 'telegram_tooltip.dart';
 import 'package:lottie/lottie.dart';
@@ -2036,145 +2037,7 @@ class _MediaIndicator extends StatelessWidget {
       message.mediaType == 7;   // gif
 }
 
-// ── Media Spoiler Particle System (spec §6.2) ──
-// 3000 particles per 128px canvas, 5 shapes, 60 frames at 33ms,
-// 1.5–2px size, 10–20px speed, 300ms fade in/out, α=32/255 darkening.
-
-class _SpoilerParticle {
-  double x, y, vx, vy, size;
-  int birthFrame, deathFrame, shape;
-  _SpoilerParticle(this.x, this.y, this.vx, this.vy, this.size,
-      this.birthFrame, this.deathFrame, this.shape);
-}
-
-class _SpoilerParticleData {
-  final List<_SpoilerParticle> particles;
-  final double tileSize;
-  final int fadeDurationFrames;
-  static const int frameCount = 60;
-
-  _SpoilerParticleData(this.particles, this.tileSize, {this.fadeDurationFrames = 9});
-
-  static _SpoilerParticleData generate(
-    int count, double tileSize, {
-    double speedMin = 10, double speedMax = 20,
-    int fadeDurationFrames = 9,
-  }) {
-    final rng = math.Random(42);
-    final speedRange = speedMax - speedMin;
-    final particles = List.generate(count, (_) {
-      final birthFrame = rng.nextInt(frameCount);
-      final lifetime = fadeDurationFrames * 2;
-      return _SpoilerParticle(
-        rng.nextDouble() * tileSize,
-        rng.nextDouble() * tileSize,
-        (rng.nextDouble() * speedRange + speedMin) * (rng.nextBool() ? 1 : -1),
-        (rng.nextDouble() * speedRange + speedMin) * (rng.nextBool() ? 1 : -1),
-        1.5 + rng.nextDouble() * 0.5,
-        birthFrame,
-        (birthFrame + lifetime) % frameCount,
-        rng.nextInt(5),
-      );
-    });
-    return _SpoilerParticleData(particles, tileSize, fadeDurationFrames: fadeDurationFrames);
-  }
-
-  double particleAlpha(int frame, _SpoilerParticle p) {
-    int age = (frame - p.birthFrame) % frameCount;
-    if (age < 0) age += frameCount;
-    final lifetime = fadeDurationFrames * 2;
-    if (age >= lifetime) return 0;
-    if (age < fadeDurationFrames) return age / fadeDurationFrames;
-    return 1.0 - (age - fadeDurationFrames) / fadeDurationFrames;
-  }
-
-  Offset particlePos(int frame, _SpoilerParticle p) {
-    int age = (frame - p.birthFrame) % frameCount;
-    if (age < 0) age += frameCount;
-    double x = (p.x + p.vx * age * 0.15) % tileSize;
-    double y = (p.y + p.vy * age * 0.15) % tileSize;
-    if (x < 0) x += tileSize;
-    if (y < 0) y += tileSize;
-    return Offset(x, y);
-  }
-}
-
-class _SpoilerPainter extends CustomPainter {
-  final _SpoilerParticleData data;
-  final int frame;
-  final double revealProgress;
-
-  _SpoilerPainter({
-    required this.data,
-    required this.frame,
-    this.revealProgress = 0.0,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (revealProgress >= 1.0) return;
-    final opacity = 1.0 - revealProgress;
-
-    canvas.save();
-    canvas.clipRect(Offset.zero & size);
-
-    // α=32/255 darkening layer
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()..color = Color.fromRGBO(0, 0, 0, (32 / 255) * opacity),
-    );
-
-    final paint = Paint()..style = PaintingStyle.fill;
-    final tile = data.tileSize;
-    final tilesX = (size.width / tile).ceil() + 1;
-    final tilesY = (size.height / tile).ceil() + 1;
-
-    for (int ty = 0; ty < tilesY; ty++) {
-      for (int tx = 0; tx < tilesX; tx++) {
-        final ox = tx * tile;
-        final oy = ty * tile;
-        for (final p in data.particles) {
-          final a = data.particleAlpha(frame, p);
-          if (a <= 0) continue;
-          final pos = data.particlePos(frame, p);
-          final px = ox + pos.dx;
-          final py = oy + pos.dy;
-          if (px < -2 || px > size.width + 2 || py < -2 || py > size.height + 2) continue;
-          paint.color = Color.fromRGBO(255, 255, 255, a * opacity * 0.85);
-          switch (p.shape) {
-            case 0:
-              canvas.drawCircle(Offset(px, py), p.size, paint);
-            case 1:
-              canvas.drawRect(Rect.fromCenter(center: Offset(px, py), width: p.size * 1.8, height: p.size * 1.8), paint);
-            case 2:
-              canvas.drawRRect(
-                RRect.fromRectAndRadius(
-                  Rect.fromCenter(center: Offset(px, py), width: p.size * 2, height: p.size),
-                  Radius.circular(p.size * 0.5),
-                ),
-                paint,
-              );
-            case 3:
-              canvas.drawCircle(Offset(px, py), p.size * 0.8, paint);
-            default:
-              canvas.drawRRect(
-                RRect.fromRectAndRadius(
-                  Rect.fromCenter(center: Offset(px, py), width: p.size, height: p.size * 2),
-                  Radius.circular(p.size * 0.5),
-                ),
-                paint,
-              );
-          }
-        }
-      }
-    }
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(_SpoilerPainter old) =>
-      old.frame != frame || old.revealProgress != revealProgress;
-}
+// ── Spoiler overlays using pre-rendered sprite sheet (spec §44.3) ──
 
 class _MediaSpoilerOverlay extends StatefulWidget {
   final double width;
@@ -2194,65 +2057,46 @@ class _MediaSpoilerOverlay extends StatefulWidget {
 }
 
 class _MediaSpoilerOverlayState extends State<_MediaSpoilerOverlay>
-    with SingleTickerProviderStateMixin {
-  static final _SpoilerParticleData _sharedParticles =
-      _SpoilerParticleData.generate(3000, 128.0);
-
-  late final AnimationController _animController;
-  int _currentFrame = 0;
-
+    with SpoilerAnimationMixin {
   @override
   void initState() {
     super.initState();
-    _animController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1980),
-    )..repeat();
-    _animController.addListener(_onTick);
-  }
-
-  void _onTick() {
-    final f = (_animController.value * 60).floor() % 60;
-    if (f != _currentFrame) {
-      setState(() => _currentFrame = f);
-    }
+    initSpoiler(SpoilerType.image);
   }
 
   @override
   void didUpdateWidget(_MediaSpoilerOverlay old) {
     super.didUpdateWidget(old);
-    if (widget.revealProgress >= 1.0 && _animController.isAnimating) {
-      _animController.stop();
-    }
+    if (widget.revealProgress >= 1.0) disposeSpoiler();
   }
 
   @override
   void dispose() {
-    _animController.dispose();
+    disposeSpoiler();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final rp = widget.revealProgress;
-    if (rp >= 1.0) return const SizedBox.shrink();
+    if (rp >= 1.0 || spoilerSheet == null) {
+      return rp >= 1.0 ? const SizedBox.shrink() : SizedBox(width: widget.width, height: widget.height);
+    }
     return GestureDetector(
       onTap: rp > 0 ? null : widget.onReveal,
       behavior: HitTestBehavior.opaque,
       child: CustomPaint(
-        painter: _SpoilerPainter(
-          data: _sharedParticles,
-          frame: _currentFrame,
+        painter: SpoilerTilePainter(
+          sheet: spoilerSheet!,
+          frame: spoilerFrame,
           revealProgress: rp,
+          isMedia: true,
         ),
         size: Size(widget.width, widget.height),
       ),
     );
   }
 }
-
-// ── Text Spoiler Widget (spec §6.2 text-spoiler descriptor) ──
-// 9000 particles, 4–8 speed, 1.5–2px size, 200ms fade.
 
 class _TextSpoilerWidget extends StatefulWidget {
   final String text;
@@ -2274,37 +2118,18 @@ class _TextSpoilerWidget extends StatefulWidget {
 }
 
 class _TextSpoilerWidgetState extends State<_TextSpoilerWidget>
-    with TickerProviderStateMixin {
-  static final _SpoilerParticleData _textParticles =
-      _SpoilerParticleData.generate(
-    9000, 128.0,
-    speedMin: 4, speedMax: 8,
-    fadeDurationFrames: 6, // 200ms / 33ms ≈ 6
-  );
-
-  late final AnimationController _animController;
+    with TickerProviderStateMixin, SpoilerAnimationMixin {
   late final AnimationController _revealController;
-  int _currentFrame = 0;
 
   @override
   void initState() {
     super.initState();
-    _animController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 33 * _SpoilerParticleData.frameCount),
-    )..addListener(() {
-        final newFrame = (_animController.value * _SpoilerParticleData.frameCount).floor()
-            % _SpoilerParticleData.frameCount;
-        if (newFrame != _currentFrame) {
-          setState(() => _currentFrame = newFrame);
-        }
-      });
     _revealController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 200),
     );
     if (!widget.revealed) {
-      _animController.repeat();
+      initSpoiler(SpoilerType.text);
     } else {
       _revealController.value = 1.0;
     }
@@ -2315,15 +2140,15 @@ class _TextSpoilerWidgetState extends State<_TextSpoilerWidget>
     super.didUpdateWidget(old);
     if (widget.revealed && !old.revealed) {
       _revealController.forward().then((_) {
-        if (mounted) _animController.stop();
+        if (mounted) disposeSpoiler();
       });
     }
   }
 
   @override
   void dispose() {
-    _animController.dispose();
     _revealController.dispose();
+    disposeSpoiler();
     super.dispose();
   }
 
@@ -2343,12 +2168,21 @@ class _TextSpoilerWidgetState extends State<_TextSpoilerWidget>
           if (revealVal >= 1.0) {
             return Text(widget.text, style: widget.style);
           }
+          if (spoilerSheet == null) {
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: ColoredBox(
+                color: bgColor,
+                child: Opacity(opacity: 0, child: Text(widget.text, style: widget.style)),
+              ),
+            );
+          }
           return ClipRRect(
             borderRadius: BorderRadius.circular(3),
             child: CustomPaint(
-              foregroundPainter: _TextSpoilerPainter(
-                data: _textParticles,
-                frame: _currentFrame,
+              foregroundPainter: _TextSpoilerSheetPainter(
+                sheet: spoilerSheet!,
+                frame: spoilerFrame,
                 revealProgress: revealVal,
                 bgColor: bgColor,
               ),
@@ -2364,14 +2198,14 @@ class _TextSpoilerWidgetState extends State<_TextSpoilerWidget>
   }
 }
 
-class _TextSpoilerPainter extends CustomPainter {
-  final _SpoilerParticleData data;
+class _TextSpoilerSheetPainter extends CustomPainter {
+  final SpoilerSpriteSheet sheet;
   final int frame;
   final double revealProgress;
   final Color bgColor;
 
-  _TextSpoilerPainter({
-    required this.data,
+  _TextSpoilerSheetPainter({
+    required this.sheet,
     required this.frame,
     required this.revealProgress,
     required this.bgColor,
@@ -2390,55 +2224,30 @@ class _TextSpoilerPainter extends CustomPainter {
       Paint()..color = bgColor.withValues(alpha: opacity),
     );
 
-    final paint = Paint()..style = PaintingStyle.fill;
-    final tile = data.tileSize;
+    final src = sheet.frameRect(frame.clamp(0, 59));
+    final tile = sheet.tileSize;
     final tilesX = (size.width / tile).ceil() + 1;
     final tilesY = (size.height / tile).ceil() + 1;
+    final paint = Paint()
+      ..color = Color.fromRGBO(255, 255, 255, opacity * 0.7)
+      ..blendMode = BlendMode.plus;
 
     for (int ty = 0; ty < tilesY; ty++) {
       for (int tx = 0; tx < tilesX; tx++) {
-        final ox = tx * tile;
-        final oy = ty * tile;
-        for (final p in data.particles) {
-          final a = data.particleAlpha(frame, p);
-          if (a <= 0) continue;
-          final pos = data.particlePos(frame, p);
-          final px = ox + pos.dx;
-          final py = oy + pos.dy;
-          if (px < -2 || px > size.width + 2 || py < -2 || py > size.height + 2) continue;
-          paint.color = Color.fromRGBO(255, 255, 255, a * opacity * 0.7);
-          switch (p.shape) {
-            case 0:
-              canvas.drawCircle(Offset(px, py), p.size, paint);
-            case 1:
-              canvas.drawRect(Rect.fromCenter(center: Offset(px, py), width: p.size * 1.8, height: p.size * 1.8), paint);
-            case 2:
-              canvas.drawRRect(
-                RRect.fromRectAndRadius(
-                  Rect.fromCenter(center: Offset(px, py), width: p.size * 2, height: p.size),
-                  Radius.circular(p.size * 0.5),
-                ),
-                paint,
-              );
-            case 3:
-              canvas.drawCircle(Offset(px, py), p.size * 0.8, paint);
-            default:
-              canvas.drawRRect(
-                RRect.fromRectAndRadius(
-                  Rect.fromCenter(center: Offset(px, py), width: p.size, height: p.size * 2),
-                  Radius.circular(p.size * 0.5),
-                ),
-                paint,
-              );
-          }
-        }
+        canvas.drawImageRect(
+          sheet.image,
+          src,
+          Rect.fromLTWH(tx * tile, ty * tile, tile, tile),
+          paint,
+        );
       }
     }
+
     canvas.restore();
   }
 
   @override
-  bool shouldRepaint(_TextSpoilerPainter old) =>
+  bool shouldRepaint(_TextSpoilerSheetPainter old) =>
       old.frame != frame || old.revealProgress != revealProgress;
 }
 
