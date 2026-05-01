@@ -855,6 +855,8 @@ class _ChatViewState extends State<ChatView>
         const TelegramMenuItem(value: 'message_details', icon: Icon(Icons.info_outline), label: 'Message Details'),
         if (msg.reactions.isNotEmpty)
           const TelegramMenuItem(value: 'who_reacted', icon: Icon(Icons.favorite_outline), label: 'Who Reacted'),
+        if (chat != null && chat.type == ChatType.dm && msg.isOutgoing && !isSavedMessages)
+          const TelegramMenuItem(value: 'read_at', icon: Icon(Icons.done_all), label: 'Read at...'),
         if (hasForwardOrigin)
           const TelegramMenuItem(value: 'go_to_message', icon: Icon(Icons.shortcut), label: 'Go to Message'),
         if (msg.hasThread)
@@ -995,7 +997,9 @@ class _ChatViewState extends State<ChatView>
         case 'message_details':
           _showMessageDetails(msg, position);
         case 'who_reacted':
-          ReactionsDetailPanel.show(context, msg);
+          ReactionsDetailPanel.show(context, msg, chatType: chat?.type ?? ChatType.unspec);
+        case 'read_at':
+          _showReadAt(msg);
         case 'read_until':
           _readUntilHere(chatState, msg);
         default:
@@ -1536,6 +1540,54 @@ class _ChatViewState extends State<ChatView>
   }
 
   // AyuGram §9.6: Message Details — submenu with metadata (views, shares, ID, dates, media info).
+  void _showReadAt(CachedMessage msg) async {
+    final engine = context.read<EngineService>();
+    final date = await engine.getOutboxReadDate(msg.accountId, msg.chatId, msg.msgId);
+    if (!mounted) return;
+    if (date > 0) {
+      final dt = DateTime.fromMillisecondsSinceEpoch(date * 1000);
+      final hh = dt.hour.toString().padLeft(2, '0');
+      final mm = dt.minute.toString().padLeft(2, '0');
+      final palette = PaletteProvider.of(context);
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: palette.windowBg,
+          title: Text('Read at $hh:$mm', style: TextStyle(color: palette.windowFg)),
+          content: Text(
+            _formatFullDate(dt),
+            style: TextStyle(color: palette.windowSubTextFg, fontSize: 14),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      final palette = PaletteProvider.of(context);
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: palette.windowBg,
+          title: Text('Not yet read', style: TextStyle(color: palette.windowFg)),
+          content: Text(
+            'The recipient has not read this message yet, or read time is hidden.',
+            style: TextStyle(color: palette.windowSubTextFg, fontSize: 14),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
   void _showMessageDetails(CachedMessage msg, Offset position) {
     final origDate = DateTime.fromMillisecondsSinceEpoch(msg.timestamp);
     final editDate = msg.editedAt > 0 ? DateTime.fromMillisecondsSinceEpoch(msg.editedAt) : null;

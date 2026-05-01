@@ -47,6 +47,8 @@ class InfoPanel extends StatefulWidget {
   final VoidCallback onClose;
   final InfoWrapMode wrapMode;
 
+  static void Function(MemberInfo member)? pushUserProfileRequest;
+
   const InfoPanel({
     super.key,
     required this.onClose,
@@ -131,6 +133,9 @@ class _InfoPanelState extends State<InfoPanel> {
 
   @override
   void dispose() {
+    if (InfoPanel.pushUserProfileRequest == _pushUserProfile) {
+      InfoPanel.pushUserProfileRequest = null;
+    }
     _chatUpdatedSub?.cancel();
     for (final c in _scrollControllers.values) {
       c.dispose();
@@ -138,9 +143,14 @@ class _InfoPanelState extends State<InfoPanel> {
     super.dispose();
   }
 
+  void _pushUserProfile(MemberInfo member) {
+    _pushPage(_InfoNavPage(type: _InfoPageType.userProfile, member: member));
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    InfoPanel.pushUserProfileRequest = _pushUserProfile;
     final chatState = context.read<ChatState>();
     final chat = chatState.activeChat;
     if (chat != null && chat.chatId != _loadedChatId) {

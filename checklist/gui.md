@@ -932,8 +932,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §42 — Reactions Detail Popup
 # Touches: dart/lib/ui/message_bubble.dart (has basic pill _ReactionList — NOT the popup), new reactions_detail.dart
 
-- [ ] Reaction popup interaction — click user → user profile; "Show all" → Mode B; channels: reaction tabs only (no Read tab); DMs: WhenReadContextAction "Read at HH:mm"; keyboard navigation — spec §42.13–42.15
-
 ---
 
 ## §43 — Read Receipts Detail

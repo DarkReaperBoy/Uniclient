@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../theme/telegram_palette.dart';
+import 'info_panel.dart';
+import 'shell.dart';
 
 String _formatCountDecimal(int n) {
   if (n < 1000) return '$n';
@@ -19,14 +21,16 @@ String _formatCountDecimal(int n) {
 class ReactionsDetailPanel extends StatefulWidget {
   final CachedMessage message;
   final String? initialEmoji;
+  final ChatType chatType;
 
   const ReactionsDetailPanel({
     super.key,
     required this.message,
     this.initialEmoji,
+    this.chatType = ChatType.unspec,
   });
 
-  static void show(BuildContext context, CachedMessage message, {String? initialEmoji}) {
+  static void show(BuildContext context, CachedMessage message, {String? initialEmoji, ChatType chatType = ChatType.unspec}) {
     final engine = context.read<EngineService>();
     showGeneralDialog(
       context: context,
@@ -55,6 +59,7 @@ class ReactionsDetailPanel extends StatefulWidget {
               child: ReactionsDetailPanel(
                 message: message,
                 initialEmoji: initialEmoji,
+                chatType: chatType,
               ),
             ),
           ),
@@ -187,6 +192,23 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
     _loadReactors();
   }
 
+  void _onReactorTap(ReactorInfo reactor) {
+    if (reactor.peerId.isEmpty) return;
+    Navigator.of(context).pop();
+    final member = MemberInfo(
+      userId: reactor.peerId,
+      displayName: reactor.peerName,
+    );
+    if (InfoPanel.pushUserProfileRequest != null) {
+      InfoPanel.pushUserProfileRequest!(member);
+    } else {
+      UniClientShell.toggleInfoRequest?.call();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        InfoPanel.pushUserProfileRequest?.call(member);
+      });
+    }
+  }
+
   String _buildTitle() {
     final reactions = widget.message.reactions;
     final totalCount = reactions.fold<int>(0, (s, r) => s + r.count);
@@ -256,6 +278,7 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
                     reactor: _filteredReactors[i],
                     showEmoji: _selectedTab == null,
                     palette: palette,
+                    onTap: () => _onReactorTap(_filteredReactors[i]),
                   );
                 },
               ),
@@ -517,17 +540,19 @@ class _ReactorRow extends StatelessWidget {
   final ReactorInfo reactor;
   final bool showEmoji;
   final TelegramPalette palette;
+  final VoidCallback? onTap;
 
   const _ReactorRow({
     required this.reactor,
     required this.showEmoji,
     required this.palette,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () {},
+      onTap: onTap,
       child: SizedBox(
         height: 58,
         child: Stack(

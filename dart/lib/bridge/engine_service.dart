@@ -1985,6 +1985,23 @@ class EngineService {
     }
   }
 
+  Future<int> getOutboxReadDate(String accountId, String chatId, String msgId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'msg_id': msgId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetOutboxReadDate', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return 0;
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return (data['date'] as num?)?.toInt() ?? 0;
+    } catch (e) {
+      Debug.error('ENGINE', 'getOutboxReadDate failed', e);
+      return 0;
+    }
+  }
+
   Future<int> getScheduledCount(String accountId, String chatId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

@@ -749,6 +749,21 @@ func (e *Engine) GetMessageReactorsList(accountID, chatID string, msgID, limit i
 	return rg.GetMessageReactionsList(chatID, msgID, limit, offset, reactionFilter)
 }
 
+func (e *Engine) GetOutboxReadDate(accountID, chatID, msgID string) (int, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return 0, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type readDateGetter interface {
+		GetOutboxReadDate(chatID, msgID string) (int, error)
+	}
+	rg, ok := acc.Core.(readDateGetter)
+	if !ok {
+		return 0, fmt.Errorf("GetOutboxReadDate not supported for this platform")
+	}
+	return rg.GetOutboxReadDate(chatID, msgID)
+}
+
 func (e *Engine) GetInviteLink(accountID, chatID string) (string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

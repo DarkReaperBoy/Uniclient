@@ -10,8 +10,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 
 import 'gesture_utils.dart';
+import 'info_panel.dart';
 import 'reactions_detail.dart';
 import 'popup_menu.dart';
+import 'shell.dart';
 import 'telegram_toast.dart';
 import 'telegram_tooltip.dart';
 import 'package:lottie/lottie.dart';
@@ -185,6 +187,10 @@ class _MessageBubbleState extends State<MessageBubble> {
     if (!mounted) return;
 
     final filtered = reactorsResult.reactors.where((r) => r.emoji == reaction.emoji).toList();
+    final reactorsByPeerId = <String, ReactorInfo>{};
+    for (final r in filtered) {
+      reactorsByPeerId[r.peerId] = r;
+    }
 
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -261,8 +267,29 @@ class _MessageBubbleState extends State<MessageBubble> {
       items: items,
     );
 
-    if (result == '__show_all' && mounted) {
+    if (!mounted || result == null) return;
+    if (result == '__show_all') {
       ReactionsDetailPanel.show(context, widget.message, initialEmoji: reaction.emoji);
+    } else {
+      final reactor = reactorsByPeerId[result];
+      if (reactor != null && reactor.peerId.isNotEmpty) {
+        _navigateToUserProfile(reactor.peerId, reactor.peerName);
+      }
+    }
+  }
+
+  void _navigateToUserProfile(String peerId, String peerName) {
+    final member = MemberInfo(
+      userId: peerId,
+      displayName: peerName,
+    );
+    if (InfoPanel.pushUserProfileRequest != null) {
+      InfoPanel.pushUserProfileRequest!(member);
+    } else {
+      UniClientShell.toggleInfoRequest?.call();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        InfoPanel.pushUserProfileRequest?.call(member);
+      });
     }
   }
 

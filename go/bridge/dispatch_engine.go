@@ -3243,6 +3243,23 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(entries)
 
+	case "GetOutboxReadDate":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			MsgID     string `json:"msg_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		date, err := e.GetOutboxReadDate(params.AccountID, params.ChatID, params.MsgID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]interface{}{
+			"date": date,
+		})
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}
