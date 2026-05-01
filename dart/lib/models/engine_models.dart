@@ -987,11 +987,13 @@ class ReactorInfo {
   final String emoji;
   final String peerId;
   final String peerName;
+  final int date;
 
   const ReactorInfo({
     required this.emoji,
     required this.peerId,
     required this.peerName,
+    this.date = 0,
   });
 }
 

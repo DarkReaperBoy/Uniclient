@@ -15919,6 +15919,7 @@ class _MergedReadEntry {
   final int date;
   final WhoReadType type;
   final String? emoji;
+  final bool dateReacted;
 
   const _MergedReadEntry({
     required this.userId,
@@ -15926,6 +15927,7 @@ class _MergedReadEntry {
     required this.date,
     required this.type,
     this.emoji,
+    this.dateReacted = false,
   });
 }
 
@@ -16034,12 +16036,15 @@ class _WhoReadPopupState extends State<_WhoReadPopup> {
       seenUserIds.add(r.peerId);
       final readMatch = readParticipants.where((p) => p.userId == r.peerId);
       final readDate = readMatch.isNotEmpty ? readMatch.first.date : 0;
+      final reactDate = r.date;
+      final useReactDate = readDate <= 0 && reactDate > 0;
       merged.add(_MergedReadEntry(
         userId: r.peerId,
         name: r.peerName,
-        date: readDate > 0 ? readDate : 0,
+        date: useReactDate ? reactDate : readDate,
         type: WhoReadType.reacted,
         emoji: r.emoji,
+        dateReacted: useReactDate,
       ));
     }
 
@@ -16155,6 +16160,7 @@ class _WhoReadPopupState extends State<_WhoReadPopup> {
                     itemBuilder: (ctx, i) => _WhoReadRow(
                       entry: _merged![i],
                       palette: palette,
+                      mediaType: widget.mediaType,
                       showAvatar: _appeared,
                       onTap: () => widget.onUserTap(_merged![i].userId),
                     ),
@@ -16208,12 +16214,14 @@ class _WhoReadPreloaderRow extends StatelessWidget {
 class _WhoReadRow extends StatefulWidget {
   final _MergedReadEntry entry;
   final TelegramPalette palette;
+  final int mediaType;
   final bool showAvatar;
   final VoidCallback? onTap;
 
   const _WhoReadRow({
     required this.entry,
     required this.palette,
+    this.mediaType = 0,
     this.showAvatar = true,
     this.onTap,
   });
@@ -16287,7 +16295,13 @@ class _WhoReadRowState extends State<_WhoReadRow> {
                   child: Row(
                     children: [
                       Icon(
-                        isReacted ? Icons.favorite : Icons.done_all,
+                        e.dateReacted
+                            ? Icons.favorite
+                            : (widget.mediaType == 3 || widget.mediaType == 4)
+                                ? Icons.headphones
+                                : (widget.mediaType == 2 || widget.mediaType == 5)
+                                    ? Icons.play_arrow
+                                    : Icons.done_all,
                         size: 14,
                         color: _hovered
                             ? palette.windowSubTextFgOver

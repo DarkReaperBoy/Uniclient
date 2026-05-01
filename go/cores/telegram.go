@@ -14561,7 +14561,7 @@ func (t *TelegramCore) GetMessageReactionsList(chatID string, msgID int, limit i
 	for _, r := range result.Reactions {
 		emoji := ""
 		if re, ok := r.Reaction.(*tg.ReactionEmoji); ok { emoji = re.Emoticon }
-		rx := Reaction{Emoji: emoji, Count: 1}
+		rx := Reaction{Emoji: emoji, Count: 1, Date: r.Date}
 		if peer, ok := r.PeerID.(*tg.PeerUser); ok {
 			rx.PeerID = strconv.FormatInt(peer.UserID, 10)
 			if u, found := users[peer.UserID]; found {

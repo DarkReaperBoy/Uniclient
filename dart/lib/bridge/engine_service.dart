@@ -1977,6 +1977,7 @@ class EngineService {
         emoji: (e['emoji'] as String?) ?? '',
         peerId: (e['peer_id'] as String?) ?? '',
         peerName: (e['peer_name'] as String?) ?? '',
+        date: (e['date'] as num?)?.toInt() ?? 0,
       )).toList();
       return ReactorsListResult(reactors: reactors, nextOffset: nextOffset);
     } catch (e) {
