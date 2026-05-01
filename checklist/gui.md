@@ -932,7 +932,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §42 — Reactions Detail Popup
 # Touches: dart/lib/ui/message_bubble.dart (has basic pill _ReactionList — NOT the popup), new reactions_detail.dart
 
-- [ ] Reaction tab bar — "Read" + "All" + per-reaction tabs; counts via FormatCountDecimal; flow-wrap layout (no horizontal scroll); 8px gap; selection ripple 200ms; instant tab switch — spec §42.4
 - [ ] Reaction user list rows (Mode B) — 58px row; 46px avatar at (18,6); name at (79,11) semibold 13px; status at (79,31) windowSubTextFg; right custom emoji 18x18px at R27 margin; pagination 20/100 items — spec §42.5–42.6
 - [ ] Tag reactions (Saved Messages) — ShowTagMenu with filter/edit/remove/sticker-pack actions; no user list — spec §42.1, §42.10
 - [ ] Reaction popup interaction — click user → user profile; "Show all" → Mode B; channels: reaction tabs only (no Read tab); DMs: WhenReadContextAction "Read at HH:mm"; keyboard navigation — spec §42.13–42.15

@@ -5,6 +5,17 @@ import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../theme/telegram_palette.dart';
 
+String _formatCountDecimal(int n) {
+  if (n < 1000) return '$n';
+  final s = n.toString();
+  final buf = StringBuffer();
+  for (int i = 0; i < s.length; i++) {
+    if (i > 0 && (s.length - i) % 3 == 0) buf.write(',');
+    buf.write(s[i]);
+  }
+  return buf.toString();
+}
+
 class ReactionsDetailPanel extends StatefulWidget {
   final CachedMessage message;
   final String? initialEmoji;
@@ -103,6 +114,7 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
 
   List<ReactorInfo> get _filteredReactors {
     if (_selectedTab == null) return _allReactors;
+    if (_selectedTab == _ReactionTabBar.kReadTab) return [];
     return _allReactors.where((r) => r.emoji == _selectedTab).toList();
   }
 
@@ -229,13 +241,17 @@ class _ReactionTabBar extends StatelessWidget {
   final List<MessageReaction> reactions;
   final Map<String, List<ReactorInfo>> grouped;
   final String? selectedTab;
+  final int readCount;
   final TelegramPalette palette;
   final ValueChanged<String?> onTabSelected;
+
+  static const kReadTab = '__read__';
 
   const _ReactionTabBar({
     required this.reactions,
     required this.grouped,
     required this.selectedTab,
+    this.readCount = 0,
     required this.palette,
     required this.onTabSelected,
   });
@@ -250,9 +266,17 @@ class _ReactionTabBar extends StatelessWidget {
         spacing: 8,
         runSpacing: 8,
         children: [
+          if (readCount > 0)
+            _TabPill(
+              iconData: Icons.done_all,
+              label: _formatCountDecimal(readCount),
+              isSelected: selectedTab == kReadTab,
+              palette: palette,
+              onTap: () => onTabSelected(kReadTab),
+            ),
           _TabPill(
-            emoji: null,
-            label: 'All $totalCount',
+            iconData: Icons.favorite,
+            label: _formatCountDecimal(totalCount),
             isSelected: selectedTab == null,
             palette: palette,
             onTap: () => onTabSelected(null),
@@ -260,7 +284,7 @@ class _ReactionTabBar extends StatelessWidget {
           for (final r in reactions)
             _TabPill(
               emoji: r.emoji,
-              label: '${r.count}',
+              label: _formatCountDecimal(r.count),
               isSelected: selectedTab == r.emoji,
               palette: palette,
               onTap: () => onTabSelected(r.emoji),
@@ -273,13 +297,15 @@ class _ReactionTabBar extends StatelessWidget {
 
 class _TabPill extends StatefulWidget {
   final String? emoji;
+  final IconData? iconData;
   final String label;
   final bool isSelected;
   final TelegramPalette palette;
   final VoidCallback onTap;
 
   const _TabPill({
-    required this.emoji,
+    this.emoji,
+    this.iconData,
     required this.label,
     required this.isSelected,
     required this.palette,
@@ -323,6 +349,8 @@ class _TabPillState extends State<_TabPill> with SingleTickerProviderStateMixin 
     super.dispose();
   }
 
+  bool get _hasLeadingVisual => widget.emoji != null || widget.iconData != null;
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -336,7 +364,7 @@ class _TabPillState extends State<_TabPill> with SingleTickerProviderStateMixin 
         )!;
         final fg = Color.lerp(
           widget.palette.windowFg,
-          Colors.white,
+          widget.palette.activeButtonFg,
           t,
         )!;
 
@@ -355,42 +383,52 @@ class _TabPillState extends State<_TabPill> with SingleTickerProviderStateMixin 
             child: InkWell(
               borderRadius: BorderRadius.circular(16),
               onTap: widget.onTap,
-            child: SizedBox(
-              height: 32,
-              child: Padding(
-                padding: EdgeInsets.only(
-                  left: widget.emoji != null ? 3 : 12,
-                  right: 12,
-                ),
+              child: SizedBox(
+                height: 32,
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (widget.emoji != null) ...[
+                    if (_hasLeadingVisual) ...[
                       SizedBox(
-                        width: 26,
+                        width: 32,
                         height: 32,
-                        child: Center(
-                          child: Text(
-                            widget.emoji!,
-                            style: const TextStyle(fontSize: 18),
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 3),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: widget.emoji != null
+                                ? Text(widget.emoji!, style: const TextStyle(fontSize: 18))
+                                : Icon(widget.iconData!, color: fg, size: 18),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 3),
-                    ],
-                    Text(
-                      widget.label,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: fg,
+                      Padding(
+                        padding: const EdgeInsets.only(left: 6, right: 12),
+                        child: Text(
+                          widget.label,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: fg,
+                          ),
+                        ),
                       ),
-                    ),
+                    ] else
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          widget.label,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: fg,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
             ),
-          ),
           ),
         );
       },
