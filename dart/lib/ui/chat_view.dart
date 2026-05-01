@@ -8958,6 +8958,12 @@ class _ComposeAreaState extends State<_ComposeArea>
       }
     }
 
+    // Ctrl+V → image paste or text paste (spec §40.1)
+    if (ctrl && !shift && event.logicalKey == LogicalKeyboardKey.keyV) {
+      _handlePaste();
+      return KeyEventResult.handled;
+    }
+
     // Ctrl+Shift+V → plain paste (spec §24.6)
     if (ctrl && shift && event.logicalKey == LogicalKeyboardKey.keyV) {
       _pastePlainText();
@@ -9043,6 +9049,45 @@ class _ComposeAreaState extends State<_ComposeArea>
       text: newText,
       selection: TextSelection.collapsed(offset: sel.start + data.text!.length),
     );
+  }
+
+  Future<void> _handlePaste() async {
+    if (!kIsWeb) {
+      final imagePasted = await _pasteClipboardImage();
+      if (imagePasted) return;
+    }
+    _pastePlainText();
+  }
+
+  Future<bool> _pasteClipboardImage() async {
+    if (kIsWeb) return false;
+    final tmp = '/tmp/uniclient_clipboard_${DateTime.now().millisecondsSinceEpoch}.png';
+    try {
+      final wlResult = await Process.run('wl-paste', ['--type', 'image/png'],
+          stdoutEncoding: null);
+      if (wlResult.exitCode == 0) {
+        final bytes = wlResult.stdout as List<int>;
+        if (bytes.length > 8) {
+          await File(tmp).writeAsBytes(bytes);
+          widget.onFilesSelected?.call([tmp]);
+          return true;
+        }
+      }
+    } catch (_) {}
+    try {
+      final xResult = await Process.run('xclip',
+          ['-selection', 'clipboard', '-t', 'image/png', '-o'],
+          stdoutEncoding: null);
+      if (xResult.exitCode == 0) {
+        final bytes = xResult.stdout as List<int>;
+        if (bytes.length > 8) {
+          await File(tmp).writeAsBytes(bytes);
+          widget.onFilesSelected?.call([tmp]);
+          return true;
+        }
+      }
+    } catch (_) {}
+    return false;
   }
 
   bool _isInBlockquote(RichTextEditingController ctrl) {

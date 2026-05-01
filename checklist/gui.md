@@ -913,9 +913,8 @@ Status key: `[ ]` not started · `[x]` done
 
 ## §40 — Send Files Dialog
 
-<!-- dart files: none yet — create dart/lib/ui/send_files_dialog.dart -->
+<!-- dart files: dart/lib/ui/send_files_box.dart, dart/lib/ui/chat_view.dart (_ComposeArea attach, drag-drop, clipboard paste) -->
 
-- [ ] Trigger: paperclip picker / drag-and-drop files onto chat / paste from clipboard; receives PreparedList + prefilled caption + send type + limits — spec §40.1
 - [ ] Album preview: LayoutMediaGroup algorithm, drag-to-reorder (shrink 5px/150ms, spring-back 200ms), Manhattan-distance closest-thumb target, delete (X) + edit/replace buttons per thumbnail (48×26px horizontal capsule at (5,5), gap 8px; 30×50px vertical fallback; 30×25px small group), double-click opens photo editor — spec §40.2
 - [ ] Send-as mode checkboxes: "Group files" (2+ compatible files, hidden in slowmode), "Send as documents" (label by count), "Remember" (appears when toggles changed) — spec §40.3
 - [ ] Compression/HD toggle: hamburger menu "high/standard quality", HD badge (rounded pill "HD", 2px h-padding, stroke 1px, radius height/3, roundedBg fill), standard 1280px / HD 2560px limit — spec §40.4
