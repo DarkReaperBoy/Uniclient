@@ -20,8 +20,20 @@ const double _rowSkip = 10;
 const double _captionMaxHeight = 158;
 const int _maxAlbumCount = 10;
 const double _thumbCornerRadius = 6;
-const double _fileThumbSize = 44;
-const double _fileThumbSkip = 11;
+const double _fileIconSize = 44;
+const double _fileIconSkip = 11;
+const double _fileIconNameTop = 6;
+const double _fileIconStatusTop = 27;
+const double _fileThumbSize = 64;
+const double _fileThumbSkip = 10;
+const double _fileThumbNameTop = 7;
+const double _fileThumbStatusTop = 37;
+const double _fileThumbRadius = 4;
+const double _fileCaptionTopOffset = 6;
+const double _fileButtonSkipTop = 2;
+const double _fileButtonSkipRight = 5;
+const double _fileButtonGap = -1;
+const int _kMaxDisplayNameLength = 64;
 const double _albumSpacing = 2;
 const double _albumMinCellWidth = 50;
 const double _shrinkSize = 5;
@@ -75,6 +87,7 @@ class _PreparedFile {
   bool spoiler;
   double? imageWidth;
   double? imageHeight;
+  bool hasThumb;
 
   _PreparedFile({
     required this.path,
@@ -82,6 +95,7 @@ class _PreparedFile {
     required this.size,
     required this.type,
     this.spoiler = false,
+    this.hasThumb = false,
   });
 
   double get aspectRatio {
@@ -89,6 +103,19 @@ class _PreparedFile {
       return imageWidth! / imageHeight!;
     }
     return 1.0;
+  }
+
+  bool get isThumbedLayout =>
+      imageWidth != null && (type == _FileType.photo || type == _FileType.video);
+
+  String get displayName {
+    if (name.length <= _kMaxDisplayNameLength) return name;
+    final ext = name.contains('.') ? '.${name.split('.').last}' : '';
+    final base = name.substring(0, name.length - ext.length);
+    final keep = _kMaxDisplayNameLength - ext.length - 1;
+    if (keep <= 0) return name.substring(0, _kMaxDisplayNameLength);
+    final half = keep ~/ 2;
+    return '${base.substring(0, half)}…${base.substring(base.length - (keep - half))}$ext';
   }
 }
 
@@ -331,10 +358,13 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
           final frame = await codec.getNextFrame();
           file.imageWidth = frame.image.width.toDouble();
           file.imageHeight = frame.image.height.toDouble();
+          file.hasThumb = true;
           frame.image.dispose();
           codec.dispose();
           changed = true;
-        } catch (_) {}
+        } catch (_) {
+          file.hasThumb = false;
+        }
       }
     }
     if (changed && mounted) setState(() {});
@@ -615,6 +645,21 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
                         onEditCaption: _sendAsDocuments ? (file) {
                           final idx = _files.indexOf(file);
                           if (idx >= 0) _showEditCaptionDialog(idx);
+                        } : null,
+                        onReorder: _files.length > 1 ? (from, to) {
+                          final displayFiles = _sendAsDocuments ? _files : docFiles;
+                          if (from < 0 || from >= displayFiles.length ||
+                              to < 0 || to >= displayFiles.length) return;
+                          final fA = displayFiles[from];
+                          final fB = displayFiles[to];
+                          final idxA = _files.indexOf(fA);
+                          final idxB = _files.indexOf(fB);
+                          if (idxA >= 0 && idxB >= 0) {
+                            setState(() {
+                              _files[idxA] = fB;
+                              _files[idxB] = fA;
+                            });
+                          }
                         } : null,
                       ),
                     const SizedBox(height: 8),
@@ -1416,7 +1461,7 @@ class _ThumbButton extends StatelessWidget {
   }
 }
 
-class _FileListPreview extends StatelessWidget {
+class _FileListPreview extends StatefulWidget {
   final List<_PreparedFile> files;
   final List<_PreparedFile> allFiles;
   final bool isDark;
@@ -1425,6 +1470,7 @@ class _FileListPreview extends StatelessWidget {
   final void Function(_PreparedFile) onRemove;
   final Map<int, String> perFileCaptions;
   final void Function(_PreparedFile)? onEditCaption;
+  final void Function(int fromIndex, int toIndex)? onReorder;
 
   const _FileListPreview({
     required this.files,
@@ -1435,26 +1481,133 @@ class _FileListPreview extends StatelessWidget {
     required this.onRemove,
     this.perFileCaptions = const {},
     this.onEditCaption,
+    this.onReorder,
   });
+
+  @override
+  State<_FileListPreview> createState() => _FileListPreviewState();
+}
+
+class _FileListPreviewState extends State<_FileListPreview> {
+  int? _dragFromIndex;
+  int? _dragOverIndex;
+
+  void _onDragAccepted(int fromIndex, int toIndex) {
+    if (widget.onReorder != null && fromIndex != toIndex) {
+      widget.onReorder!(fromIndex, toIndex);
+    }
+    setState(() {
+      _dragFromIndex = null;
+      _dragOverIndex = null;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        for (int i = 0; i < files.length; i++) ...[
+        for (int i = 0; i < widget.files.length; i++) ...[
           if (i > 0) SizedBox(height: _rowSkip),
-          _FileCard(
-            file: files[i],
-            isDark: isDark,
-            textFg: textFg,
-            subFg: subFg,
-            canRemove: allFiles.length > 1,
-            onRemove: () => onRemove(files[i]),
-            caption: perFileCaptions[allFiles.indexOf(files[i])],
-            onEditCaption: onEditCaption != null
-                ? () => onEditCaption!(files[i])
-                : null,
+          DragTarget<int>(
+            onWillAcceptWithDetails: (details) {
+              setState(() => _dragOverIndex = i);
+              return details.data != i;
+            },
+            onLeave: (_) => setState(() => _dragOverIndex = null),
+            onAcceptWithDetails: (details) => _onDragAccepted(details.data, i),
+            builder: (ctx, candidateData, rejectedData) {
+              final isOver = _dragOverIndex == i && candidateData.isNotEmpty;
+              final file = widget.files[i];
+              final caption = widget.perFileCaptions[
+                  widget.allFiles.indexOf(file)];
+              final cardOnly = _FileCard(
+                file: file,
+                isDark: widget.isDark,
+                textFg: widget.textFg,
+                subFg: widget.subFg,
+                canRemove: false,
+                onRemove: () {},
+                caption: caption,
+              );
+              final hasEdit = widget.onEditCaption != null;
+              final hasRemove = widget.allFiles.length > 1;
+              final thumbed = file.isThumbedLayout;
+              final thumbSize = thumbed ? _fileThumbSize : _fileIconSize;
+              final hasCaption = caption != null && caption.isNotEmpty;
+              final cardHeight = hasCaption
+                  ? thumbSize + _fileCaptionTopOffset + 18
+                  : thumbSize;
+
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4),
+                  color: isOver
+                      ? (widget.isDark
+                          ? const Color(0x20FFFFFF)
+                          : const Color(0x15000000))
+                      : null,
+                ),
+                child: SizedBox(
+                  height: cardHeight,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      LongPressDraggable<int>(
+                        data: i,
+                        axis: Axis.vertical,
+                        feedback: Material(
+                          elevation: 4,
+                          borderRadius: BorderRadius.circular(4),
+                          child: SizedBox(
+                            width: _previewWidth,
+                            child: Opacity(opacity: 0.85, child: cardOnly),
+                          ),
+                        ),
+                        childWhenDragging: Opacity(
+                          opacity: 0.3, child: cardOnly),
+                        child: cardOnly,
+                      ),
+                      if (hasEdit || hasRemove)
+                        Positioned(
+                          top: _fileButtonSkipTop,
+                          right: _fileButtonSkipRight,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (hasEdit)
+                                _FileActionButton(
+                                  icon: Icons.edit_outlined,
+                                  isDark: widget.isDark,
+                                  onPressed: () =>
+                                      widget.onEditCaption!(file),
+                                ),
+                              if (hasEdit && hasRemove)
+                                Transform.translate(
+                                  offset: const Offset(_fileButtonGap, 0),
+                                  child: _FileActionButton(
+                                    icon: Icons.close,
+                                    isDark: widget.isDark,
+                                    onPressed: () =>
+                                        widget.onRemove(file),
+                                  ),
+                                )
+                              else if (hasRemove)
+                                _FileActionButton(
+                                  icon: Icons.close,
+                                  isDark: widget.isDark,
+                                  onPressed: () =>
+                                      widget.onRemove(file),
+                                ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
         ],
       ],
@@ -1470,7 +1623,6 @@ class _FileCard extends StatelessWidget {
   final bool canRemove;
   final VoidCallback onRemove;
   final String? caption;
-  final VoidCallback? onEditCaption;
 
   const _FileCard({
     required this.file,
@@ -1480,20 +1632,15 @@ class _FileCard extends StatelessWidget {
     required this.canRemove,
     required this.onRemove,
     this.caption,
-    this.onEditCaption,
   });
 
-  String _formatSize(int bytes) {
+  static String formatSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
-  }
-
-  String _extBadge(String name) {
-    final parts = name.split('.');
-    if (parts.length < 2) return '';
-    return parts.last.toUpperCase();
   }
 
   Color _iconBgColor() {
@@ -1520,95 +1667,94 @@ class _FileCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final thumbed = file.isThumbedLayout;
+    final thumbSize = thumbed ? _fileThumbSize : _fileIconSize;
+    final thumbGap = thumbed ? _fileThumbSkip : _fileIconSkip;
+    final nameTop = thumbed ? _fileThumbNameTop : _fileIconNameTop;
+    final statusTop = thumbed ? _fileThumbStatusTop : _fileIconStatusTop;
     final hasCaption = caption != null && caption!.isNotEmpty;
+    final totalHeight = hasCaption
+        ? thumbSize + _fileCaptionTopOffset + 18
+        : thumbSize;
+
     return SizedBox(
-      height: hasCaption ? _fileThumbSize + 28 : _fileThumbSize + 12,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      height: totalHeight,
+      child: Stack(
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: _fileThumbSize,
-                height: _fileThumbSize,
-                decoration: BoxDecoration(
-                  color: _iconBgColor(),
-                  shape: BoxShape.circle,
+              if (thumbed)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(_fileThumbRadius),
+                  child: SizedBox(
+                    width: _fileThumbSize,
+                    height: _fileThumbSize,
+                    child: Image.file(
+                      File(file.path),
+                      width: _fileThumbSize,
+                      height: _fileThumbSize,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        color: Colors.grey[800],
+                        child: const Icon(Icons.broken_image,
+                            color: Colors.white54, size: 24),
+                      ),
+                    ),
+                  ),
+                )
+              else
+                Container(
+                  width: _fileIconSize,
+                  height: _fileIconSize,
+                  decoration: BoxDecoration(
+                    color: _iconBgColor(),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(_iconData(), color: Colors.white, size: 22),
                 ),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Icon(_iconData(), color: Colors.white, size: 22),
-                    if (_extBadge(file.name).isNotEmpty)
+              SizedBox(width: thumbGap),
+              Expanded(
+                child: SizedBox(
+                  height: thumbSize,
+                  child: Stack(
+                    children: [
                       Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: _iconBgColor(),
-                            borderRadius: BorderRadius.circular(3),
-                            border: Border.all(
-                              color: isDark ? const Color(0xFF17212B) : Colors.white,
-                              width: 1,
-                            ),
+                        left: 0,
+                        right: 52,
+                        top: nameTop,
+                        child: Text(
+                          file.displayName,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: textFg,
                           ),
-                          child: Text(
-                            _extBadge(file.name),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 7,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: _fileThumbSkip),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      file.name,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: textFg,
+                      Positioned(
+                        left: 0,
+                        top: statusTop,
+                        child: Text(
+                          thumbed
+                              ? '${file.imageWidth!.toInt()} × ${file.imageHeight!.toInt()}'
+                              : formatSize(file.size),
+                          style: TextStyle(fontSize: 12, color: subFg),
+                        ),
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _formatSize(file.size),
-                      style: TextStyle(fontSize: 12, color: subFg),
-                    ),
-                  ],
-                ),
-              ),
-              if (onEditCaption != null)
-                GestureDetector(
-                  onTap: onEditCaption,
-                  child: Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: Icon(Icons.edit, size: 16, color: subFg),
+                    ],
                   ),
                 ),
-              if (canRemove)
-                _ThumbButton(
-                  icon: Icons.close,
-                  onPressed: onRemove,
-                  size: 22,
-                ),
+              ),
             ],
           ),
           if (hasCaption)
-            Padding(
-              padding: EdgeInsets.only(left: _fileThumbSize + _fileThumbSkip, top: 4),
+            Positioned(
+              left: thumbSize + thumbGap,
+              top: thumbSize + _fileCaptionTopOffset,
+              right: 0,
               child: Text(
                 caption!,
                 style: TextStyle(fontSize: 12, color: subFg),
@@ -1617,6 +1763,32 @@ class _FileCard extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _FileActionButton extends StatelessWidget {
+  final IconData icon;
+  final bool isDark;
+  final VoidCallback onPressed;
+
+  const _FileActionButton({
+    required this.icon,
+    required this.isDark,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onPressed,
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: 28,
+        height: 28,
+        child: Icon(icon, size: 16,
+            color: isDark ? const Color(0xFF8B9BAA) : const Color(0xFF999999)),
       ),
     );
   }
