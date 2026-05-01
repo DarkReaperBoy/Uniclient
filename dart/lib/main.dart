@@ -386,7 +386,8 @@ class _UniClientAppState extends State<UniClientApp>
         case 'sendMessage':
           final text = cmd['text'] as String? ?? '';
           if (text.isNotEmpty) {
-            chatState.sendMessage(text);
+            final entities = cmd['entities'] as String? ?? '';
+            chatState.sendMessage(text, entities: entities);
           }
         case 'setCompose':
           final text = cmd['text'] as String? ?? '';
@@ -428,6 +429,7 @@ class _UniClientAppState extends State<UniClientApp>
             'stickerSetShortName': m.stickerSetShortName,
             'stickerSetId': m.stickerSetId,
             'mediaRemoteRef': m.mediaRemoteRef,
+            'contentRich': m.contentRich,
           }).toList();
           File('/tmp/uniclient_debug_out.json').writeAsStringSync(
             const JsonEncoder.withIndent('  ').convert(out),

@@ -10953,7 +10953,7 @@ func (t *TelegramCore) extractMessageFromUpdates(updates tg.UpdatesClass, chatID
 			}
 		}
 	case *tg.UpdateShortSentMessage:
-		return &Message{
+		m := &Message{
 			ID:         strconv.Itoa(u.ID),
 			ChatID:     chatID,
 			SenderID:   strconv.FormatInt(t.selfID, 10),
@@ -10963,6 +10963,10 @@ func (t *TelegramCore) extractMessageFromUpdates(updates tg.UpdatesClass, chatID
 			IsOutgoing: true,
 			Platform:   tgPlatform,
 		}
+		if ents, ok := u.GetEntities(); ok && len(ents) > 0 {
+			m.Entities = convertTgEntities(ents)
+		}
+		return m
 	}
 	// Fallback — at minimum provide timestamp and status
 	return &Message{ChatID: chatID, Platform: tgPlatform, Status: MessageStatusSent, IsOutgoing: true, Timestamp: time.Now()}

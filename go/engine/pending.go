@@ -517,6 +517,12 @@ func (e *Engine) executePending(acc *Account, chatID, localID, action string, pa
 			e.db.Exec(
 				`UPDATE messages SET content_raw = ? WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
 				rawBytes, acc.ID, chatID, result.ID)
+			if len(result.Entities) > 0 {
+				richBytes, _ := json.Marshal(result.Entities)
+				e.db.Exec(
+					`UPDATE messages SET content_rich = ? WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
+					richBytes, acc.ID, chatID, result.ID)
+			}
 			if len(result.Extra) > 0 {
 				e.emitEvent(EventMsgEdited, acc.ID, MsgEditedEvent{
 					AccountID:  acc.ID,

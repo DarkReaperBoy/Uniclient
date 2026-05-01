@@ -942,7 +942,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §44 — Spoiler Animation
 # Touches: dart/lib/ui/message_bubble.dart (text rendering), new spoiler_animation.dart
 
-- [ ] Media spoiler rendering — blurred background (smallest thumbnail); particle overlay with corner masks; darken layer alpha=32; cross-fade real image at opacity=revealed on click — spec §44.2
 - [ ] Particle sprite sheet — 60 frames × 33ms (30 FPS, 1980ms loop); 10×6 grid on 128dp canvas; text: 9000 particles 4–8dp/ms; image: 3000 particles 10–20dp/ms; 5 sprite variants; linear motion with seamless wrap; grayscale PNG disk cache (xxHash32, 5MB max); colorize on demand — spec §44.3
 - [ ] Reveal on click — SpoilerClickHandler 200ms linear fade; reveal all spoilers in block at once; re-hide instant on navigate; track revealed set; media: same 200ms fade, reset on navigate — spec §44.4
 - [ ] Spoiler in notifications — replace spoiler chars with U+259A; login code auto-spoiler via regex — spec §44.6

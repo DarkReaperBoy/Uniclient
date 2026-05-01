@@ -2179,13 +2179,13 @@ class _SpoilerPainter extends CustomPainter {
 class _MediaSpoilerOverlay extends StatefulWidget {
   final double width;
   final double height;
-  final bool revealed;
+  final double revealProgress;
   final VoidCallback onReveal;
 
   const _MediaSpoilerOverlay({
     required this.width,
     required this.height,
-    required this.revealed,
+    required this.revealProgress,
     required this.onReveal,
   });
 
@@ -2194,12 +2194,11 @@ class _MediaSpoilerOverlay extends StatefulWidget {
 }
 
 class _MediaSpoilerOverlayState extends State<_MediaSpoilerOverlay>
-    with TickerProviderStateMixin {
+    with SingleTickerProviderStateMixin {
   static final _SpoilerParticleData _sharedParticles =
       _SpoilerParticleData.generate(3000, 128.0);
 
   late final AnimationController _animController;
-  late final AnimationController _revealController;
   int _currentFrame = 0;
 
   @override
@@ -2210,15 +2209,6 @@ class _MediaSpoilerOverlayState extends State<_MediaSpoilerOverlay>
       duration: const Duration(milliseconds: 1980),
     )..repeat();
     _animController.addListener(_onTick);
-
-    _revealController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 200),
-    );
-    if (widget.revealed) {
-      _revealController.value = 1.0;
-      _animController.stop();
-    }
   }
 
   void _onTick() {
@@ -2231,38 +2221,31 @@ class _MediaSpoilerOverlayState extends State<_MediaSpoilerOverlay>
   @override
   void didUpdateWidget(_MediaSpoilerOverlay old) {
     super.didUpdateWidget(old);
-    if (widget.revealed && !old.revealed) {
-      _revealController.forward().then((_) {
-        if (mounted) _animController.stop();
-      });
+    if (widget.revealProgress >= 1.0 && _animController.isAnimating) {
+      _animController.stop();
     }
   }
 
   @override
   void dispose() {
     _animController.dispose();
-    _revealController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final rp = widget.revealProgress;
+    if (rp >= 1.0) return const SizedBox.shrink();
     return GestureDetector(
-      onTap: widget.revealed ? null : widget.onReveal,
+      onTap: rp > 0 ? null : widget.onReveal,
       behavior: HitTestBehavior.opaque,
-      child: AnimatedBuilder(
-        animation: _revealController,
-        builder: (_, __) {
-          if (_revealController.value >= 1.0) return const SizedBox.shrink();
-          return CustomPaint(
-            painter: _SpoilerPainter(
-              data: _sharedParticles,
-              frame: _currentFrame,
-              revealProgress: Curves.easeInOut.transform(_revealController.value),
-            ),
-            size: Size(widget.width, widget.height),
-          );
-        },
+      child: CustomPaint(
+        painter: _SpoilerPainter(
+          data: _sharedParticles,
+          frame: _currentFrame,
+          revealProgress: rp,
+        ),
+        size: Size(widget.width, widget.height),
       ),
     );
   }
@@ -2369,11 +2352,9 @@ class _TextSpoilerWidgetState extends State<_TextSpoilerWidget>
                 revealProgress: revealVal,
                 bgColor: bgColor,
               ),
-              child: Text(
-                widget.text,
-                style: widget.style.copyWith(
-                  color: Colors.transparent,
-                ),
+              child: Opacity(
+                opacity: revealVal,
+                child: Text(widget.text, style: widget.style),
               ),
             ),
           );
@@ -2520,6 +2501,7 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
   Uint8List? _thumbBytes;
   String _lastThumbB64 = '';
   bool _spoilerRevealed = false;
+  late AnimationController _spoilerRevealCtrl;
 
   // §35.25: Upload progress spinner.
   late AnimationController _uploadSpinController;
@@ -2551,6 +2533,10 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
       duration: const Duration(milliseconds: 1200),
       vsync: this,
     );
+    _spoilerRevealCtrl = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    )..addListener(() { if (mounted) setState(() {}); });
     _decodeThumb();
     if (widget.message.mediaLocalPath.isNotEmpty) {
       _fullImageLoaded = true;
@@ -2690,6 +2676,7 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
     _disposeVideoNote();
     _fadeController.dispose();
     _uploadSpinController.dispose();
+    _spoilerRevealCtrl.dispose();
     super.dispose();
   }
 
@@ -2750,6 +2737,8 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
     final hasFullImage = message.mediaLocalPath.isNotEmpty;
     final hasThumb = _thumbBytes != null;
     final hasSpoiler = message.mediaSpoiler && !_spoilerRevealed;
+    final revealProgress = _spoilerRevealCtrl.value;
+    final isRevealing = hasSpoiler && revealProgress > 0;
 
     // §6/§20: tap opens media viewer for photo/video/gif (not sticker/videonote).
     // Don't open viewer when spoiler is active — tap reveals spoiler instead.
@@ -2810,12 +2799,15 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
                 _placeholder(displayWidth, displayHeight),
 
               // --- Tier 1: Full image/video (crossfades in over thumbnail) ---
-              if (hasFullImage && !hasSpoiler && message.mediaType == 7)
+              if (hasFullImage && (!hasSpoiler || isRevealing) && message.mediaType == 7)
                 Positioned.fill(
-                  child: _GifPlayer(
-                    filePath: message.mediaLocalPath,
-                    width: displayWidth,
-                    height: displayHeight,
+                  child: Opacity(
+                    opacity: isRevealing ? revealProgress : 1.0,
+                    child: _GifPlayer(
+                      filePath: message.mediaLocalPath,
+                      width: displayWidth,
+                      height: displayHeight,
+                    ),
                   ),
                 )
               // §6.8: Video notes auto-play muted inline.
@@ -2845,11 +2837,11 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
                     height: displayHeight,
                   ),
                 )
-              else if (hasFullImage && !hasSpoiler)
+              else if (hasFullImage && (!hasSpoiler || isRevealing))
                 AnimatedBuilder(
                   animation: _fadeAnimation,
                   builder: (_, child) => Opacity(
-                    opacity: _fadeAnimation.value,
+                    opacity: isRevealing ? revealProgress : _fadeAnimation.value,
                     child: child,
                   ),
                   child: Image.file(
@@ -3172,16 +3164,17 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
                     ),
                   ),
                 ),
-              // §6.2: Media spoiler particle overlay
-              if (message.mediaSpoiler)
+              // §44.2: Media spoiler particle overlay with cross-fade reveal
+              if (message.mediaSpoiler && !_spoilerRevealed)
                 Positioned.fill(
                   child: _MediaSpoilerOverlay(
                     width: displayWidth,
                     height: displayHeight,
-                    revealed: _spoilerRevealed,
+                    revealProgress: revealProgress,
                     onReveal: () {
-                      setState(() => _spoilerRevealed = true);
-                      _fadeController.forward(from: 0.0);
+                      _spoilerRevealCtrl.forward(from: 0.0).then((_) {
+                        if (mounted) setState(() => _spoilerRevealed = true);
+                      });
                     },
                   ),
                 ),
