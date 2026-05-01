@@ -734,19 +734,19 @@ func (e *Engine) GetScheduledMessages(accountID, chatID string) ([]CachedMessage
 	return result, nil
 }
 
-func (e *Engine) GetMessageReactorsList(accountID, chatID string, msgID, limit int) ([]cores.Reaction, error) {
+func (e *Engine) GetMessageReactorsList(accountID, chatID string, msgID, limit int, offset, reactionFilter string) ([]cores.Reaction, string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
-		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+		return nil, "", fmt.Errorf("account %q not found or not connected", accountID)
 	}
 	type reactorsGetter interface {
-		GetMessageReactionsList(chatID string, msgID int, limit int) ([]cores.Reaction, error)
+		GetMessageReactionsList(chatID string, msgID int, limit int, offset string, reactionFilter string) ([]cores.Reaction, string, error)
 	}
 	rg, ok := acc.Core.(reactorsGetter)
 	if !ok {
-		return nil, nil
+		return nil, "", nil
 	}
-	return rg.GetMessageReactionsList(chatID, msgID, limit)
+	return rg.GetMessageReactionsList(chatID, msgID, limit, offset, reactionFilter)
 }
 
 func (e *Engine) GetInviteLink(accountID, chatID string) (string, error) {

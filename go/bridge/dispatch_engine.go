@@ -2548,19 +2548,24 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	case "GetMessageReactorsList":
 		var params struct {
-			AccountID string `json:"account_id"`
-			ChatID    string `json:"chat_id"`
-			MsgID     int    `json:"msg_id"`
-			Limit     int    `json:"limit"`
+			AccountID      string `json:"account_id"`
+			ChatID         string `json:"chat_id"`
+			MsgID          int    `json:"msg_id"`
+			Limit          int    `json:"limit"`
+			Offset         string `json:"offset"`
+			ReactionFilter string `json:"reaction_filter"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		reactors, err := e.GetMessageReactorsList(params.AccountID, params.ChatID, params.MsgID, params.Limit)
+		reactors, nextOffset, err := e.GetMessageReactorsList(params.AccountID, params.ChatID, params.MsgID, params.Limit, params.Offset, params.ReactionFilter)
 		if err != nil {
 			return nil, err
 		}
-		return json.Marshal(reactors)
+		return json.Marshal(map[string]interface{}{
+			"reactors":    reactors,
+			"next_offset": nextOffset,
+		})
 
 	case "GetScheduledCount":
 		var params struct {

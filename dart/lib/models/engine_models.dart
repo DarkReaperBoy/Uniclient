@@ -982,6 +982,16 @@ class ReactorInfo {
   });
 }
 
+class ReactorsListResult {
+  final List<ReactorInfo> reactors;
+  final String nextOffset;
+
+  const ReactorsListResult({
+    required this.reactors,
+    required this.nextOffset,
+  });
+}
+
 // ── Poll option ──
 class PollOption {
   final String text;

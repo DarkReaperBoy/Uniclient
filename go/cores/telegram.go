@@ -14510,15 +14510,22 @@ func (t *TelegramCore) SetChatTheme(chatID string, emoticon string) error {
 // --- Missing comprehensive methods ---
 
 // GetMessageReactionsList returns the list of reactions on a specific message.
-func (t *TelegramCore) GetMessageReactionsList(chatID string, msgID int, limit int) ([]Reaction, error) {
+func (t *TelegramCore) GetMessageReactionsList(chatID string, msgID int, limit int, offset string, reactionFilter string) ([]Reaction, string, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
-	if err != nil { return nil, err }
+	if err != nil { return nil, "", err }
 	defer unlock()
 	if limit <= 0 { limit = 50 }
-	result, err := t.api.MessagesGetMessageReactionsList(t.ctx, &tg.MessagesGetMessageReactionsListRequest{
+	req := &tg.MessagesGetMessageReactionsListRequest{
 		Peer: inputPeer, ID: msgID, Limit: limit,
-	})
-	if err != nil { return nil, err }
+	}
+	if offset != "" {
+		req.SetOffset(offset)
+	}
+	if reactionFilter != "" {
+		req.SetReaction(&tg.ReactionEmoji{Emoticon: reactionFilter})
+	}
+	result, err := t.api.MessagesGetMessageReactionsList(t.ctx, req)
+	if err != nil { return nil, "", err }
 	users := make(map[int64]*tg.User)
 	for _, u := range result.Users {
 		if user, ok := u.(*tg.User); ok {
@@ -14542,7 +14549,8 @@ func (t *TelegramCore) GetMessageReactionsList(chatID string, msgID int, limit i
 		}
 		reactions = append(reactions, rx)
 	}
-	return reactions, nil
+	nextOffset, _ := result.GetNextOffset()
+	return reactions, nextOffset, nil
 }
 
 // GetUnreadMentions returns unread messages that mention the user.

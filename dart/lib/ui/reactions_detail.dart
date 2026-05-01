@@ -67,16 +67,38 @@ class ReactionsDetailPanel extends StatefulWidget {
   State<ReactionsDetailPanel> createState() => _ReactionsDetailPanelState();
 }
 
+const _kPerPageFirst = 20;
+const _kPerPageMore = 100;
+
 class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
   List<ReactorInfo> _allReactors = [];
   bool _loading = true;
+  bool _loadingMore = false;
   String? _selectedTab;
+  String _nextOffset = '';
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
     _selectedTab = widget.initialEmoji;
     _loadReactors();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_nextOffset.isEmpty || _loadingMore) return;
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    final current = _scrollController.position.pixels;
+    if (current >= maxScroll - 100) {
+      _loadMore();
+    }
   }
 
   Future<void> _loadReactors() async {
@@ -87,20 +109,56 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
       return;
     }
     try {
-      final reactors = await engine.getMessageReactorsList(
+      final reactionFilter = _selectedTab != null && _selectedTab != _ReactionTabBar.kReadTab
+          ? _selectedTab! : '';
+      final result = await engine.getMessageReactorsList(
         widget.message.accountId,
         widget.message.chatId,
         msgId,
-        limit: 100,
+        limit: _kPerPageFirst,
+        reactionFilter: reactionFilter,
       );
       if (mounted) {
         setState(() {
-          _allReactors = reactors;
+          _allReactors = result.reactors;
+          _nextOffset = result.nextOffset;
           _loading = false;
         });
       }
     } catch (_) {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_nextOffset.isEmpty || _loadingMore) return;
+    setState(() => _loadingMore = true);
+    final engine = context.read<EngineService>();
+    final msgId = int.tryParse(widget.message.msgId) ?? 0;
+    if (msgId == 0) {
+      setState(() => _loadingMore = false);
+      return;
+    }
+    try {
+      final reactionFilter = _selectedTab != null && _selectedTab != _ReactionTabBar.kReadTab
+          ? _selectedTab! : '';
+      final result = await engine.getMessageReactorsList(
+        widget.message.accountId,
+        widget.message.chatId,
+        msgId,
+        limit: _kPerPageMore,
+        offset: _nextOffset,
+        reactionFilter: reactionFilter,
+      );
+      if (mounted) {
+        setState(() {
+          _allReactors.addAll(result.reactors);
+          _nextOffset = result.nextOffset;
+          _loadingMore = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingMore = false);
     }
   }
 
@@ -118,6 +176,17 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
     return _allReactors.where((r) => r.emoji == _selectedTab).toList();
   }
 
+  void _onTabSelected(String? tab) {
+    if (tab == _selectedTab) return;
+    setState(() {
+      _selectedTab = tab;
+      _allReactors = [];
+      _nextOffset = '';
+      _loading = true;
+    });
+    _loadReactors();
+  }
+
   String _buildTitle() {
     final reactions = widget.message.reactions;
     final totalCount = reactions.fold<int>(0, (s, r) => s + r.count);
@@ -128,7 +197,6 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
   @override
   Widget build(BuildContext context) {
     final palette = PaletteProvider.of(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final grouped = _groupedByEmoji;
     final reactions = widget.message.reactions;
 
@@ -151,9 +219,7 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
               grouped: grouped,
               selectedTab: _selectedTab,
               palette: palette,
-              onTabSelected: (emoji) {
-                setState(() => _selectedTab = emoji);
-              },
+              onTabSelected: _onTabSelected,
             ),
           Divider(height: 1, color: palette.windowFg.withValues(alpha: 0.08)),
           if (_loading)
@@ -175,14 +241,23 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
           else
             Flexible(
               child: ListView.builder(
+                controller: _scrollController,
                 shrinkWrap: true,
-                padding: const EdgeInsets.symmetric(vertical: 2),
-                itemCount: _filteredReactors.length,
-                itemBuilder: (ctx, i) => _ReactorRow(
-                  reactor: _filteredReactors[i],
-                  showEmoji: _selectedTab == null,
-                  palette: palette,
-                ),
+                padding: EdgeInsets.zero,
+                itemCount: _filteredReactors.length + (_loadingMore ? 1 : 0),
+                itemBuilder: (ctx, i) {
+                  if (i >= _filteredReactors.length) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                    );
+                  }
+                  return _ReactorRow(
+                    reactor: _filteredReactors[i],
+                    showEmoji: _selectedTab == null,
+                    palette: palette,
+                  );
+                },
               ),
             ),
         ],
@@ -436,6 +511,8 @@ class _TabPillState extends State<_TabPill> with SingleTickerProviderStateMixin 
   }
 }
 
+// §42.5.1: 58px row, 46px avatar at (18,6), name at (79,11), status at (79,31),
+// right emoji 18x18 at R27 margin
 class _ReactorRow extends StatelessWidget {
   final ReactorInfo reactor;
   final bool showEmoji;
@@ -453,40 +530,44 @@ class _ReactorRow extends StatelessWidget {
       onTap: () {},
       child: SizedBox(
         height: 58,
-        child: Padding(
-          padding: const EdgeInsets.only(left: 18, top: 6),
-          child: Row(
-            children: [
-              _ReactorAvatar(name: reactor.peerName, size: 46),
-              const SizedBox(width: 15),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      reactor.peerName.isNotEmpty ? reactor.peerName : 'User',
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: palette.windowFg,
-                      ),
-                    ),
-                  ],
+        child: Stack(
+          children: [
+            Positioned(
+              left: 18,
+              top: 6,
+              child: _ReactorAvatar(name: reactor.peerName, size: 46),
+            ),
+            Positioned(
+              left: 79,
+              top: 11,
+              right: showEmoji && reactor.emoji.isNotEmpty ? 54 : 18,
+              child: Text(
+                reactor.peerName.isNotEmpty ? reactor.peerName : 'User',
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: palette.windowFg,
                 ),
               ),
-              if (showEmoji && reactor.emoji.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(right: 27),
-                  child: Text(
-                    reactor.emoji,
-                    style: const TextStyle(fontSize: 18),
+            ),
+            if (showEmoji && reactor.emoji.isNotEmpty)
+              Positioned(
+                right: 27,
+                top: 20,
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: Center(
+                    child: Text(
+                      reactor.emoji,
+                      style: const TextStyle(fontSize: 16),
+                    ),
                   ),
                 ),
-            ],
-          ),
+              ),
+          ],
         ),
       ),
     );

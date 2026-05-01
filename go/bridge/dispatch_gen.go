@@ -20023,7 +20023,7 @@ func dispatchTelegram(c *cores.TelegramCore, method string, payload []byte) ([]b
 	case "GetMessageReactionsList":
 		var req pbcores.TelegramGetMessageReactionsListRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetMessageReactionsList(req.ChatId, int(req.MsgId), int(req.Limit))
+		r1, _, err := c.GetMessageReactionsList(req.ChatId, int(req.MsgId), int(req.Limit), "", "")
 		if err != nil { return nil, err }
 		resp := &pbcores.TelegramGetMessageReactionsListResponse{
 			Result_1: ReactionsToProto(r1),

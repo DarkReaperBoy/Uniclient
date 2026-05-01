@@ -1958,25 +1958,30 @@ class EngineService {
     await _callAsync('__engine', 'ReactToMessage', req.writeToBuffer());
   }
 
-  Future<List<ReactorInfo>> getMessageReactorsList(String accountId, String chatId, int msgId, {int limit = 50}) async {
+  Future<ReactorsListResult> getMessageReactorsList(String accountId, String chatId, int msgId, {int limit = 50, String offset = '', String reactionFilter = ''}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'chat_id': chatId,
       'msg_id': msgId,
       'limit': limit,
+      if (offset.isNotEmpty) 'offset': offset,
+      if (reactionFilter.isNotEmpty) 'reaction_filter': reactionFilter,
     }));
     try {
       final respBytes = await _callAsync('__engine', 'GetMessageReactorsList', Uint8List.fromList(payload));
-      if (respBytes.isEmpty) return [];
-      final data = json.decode(utf8.decode(respBytes)) as List<dynamic>;
-      return data.map((e) => ReactorInfo(
+      if (respBytes.isEmpty) return const ReactorsListResult(reactors: [], nextOffset: '');
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      final reactorsList = (data['reactors'] as List<dynamic>?) ?? [];
+      final nextOffset = (data['next_offset'] as String?) ?? '';
+      final reactors = reactorsList.map((e) => ReactorInfo(
         emoji: (e['emoji'] as String?) ?? '',
         peerId: (e['peer_id'] as String?) ?? '',
         peerName: (e['peer_name'] as String?) ?? '',
       )).toList();
+      return ReactorsListResult(reactors: reactors, nextOffset: nextOffset);
     } catch (e) {
       Debug.error('ENGINE', 'getMessageReactorsList failed', e);
-      return [];
+      return const ReactorsListResult(reactors: [], nextOffset: '');
     }
   }
 

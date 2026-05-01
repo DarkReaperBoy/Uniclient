@@ -170,13 +170,13 @@ class _MessageBubbleState extends State<MessageBubble> {
     final msgIdInt = int.tryParse(message.msgId) ?? 0;
     if (msgIdInt == 0) return;
 
-    final reactors = await engine.getMessageReactorsList(
+    final reactorsResult = await engine.getMessageReactorsList(
       message.accountId, message.chatId, msgIdInt,
       limit: 20,
     );
     if (!mounted) return;
 
-    final filtered = reactors.where((r) => r.emoji == reaction.emoji).toList();
+    final filtered = reactorsResult.reactors.where((r) => r.emoji == reaction.emoji).toList();
 
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
