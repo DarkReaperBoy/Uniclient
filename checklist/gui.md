@@ -915,7 +915,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/send_files_box.dart, dart/lib/ui/chat_view.dart (_ComposeArea attach, drag-drop, clipboard paste) -->
 
-- [ ] GIF + Audio handling: GIF as Type::None with animated preview, audio SingleFilePreview with "Artist — Title", cover art circular thumb or colored circle with play icon, no waveform in preview — spec §40.15–40.16
 - [ ] Keyboard: Enter=send (respecting mode), Ctrl+Shift+Enter=send-with-flag, Ctrl+O=add file, Escape=close (preserve caption) — spec §40.17
 - [ ] Animation: standard BoxContent layer open/close, album reorder (shrink 150ms/move 200ms/spring 200ms), height transitions, emoji panel slide toggle, FadeShadow at scroll area edges — spec §40.18
 # GUI Feature Checklist: §41–§57

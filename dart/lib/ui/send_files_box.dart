@@ -129,6 +129,8 @@ class _PreparedFile {
   double? imageWidth;
   double? imageHeight;
   bool hasThumb;
+  String? audioTitle;
+  String? audioPerformer;
 
   _PreparedFile({
     required this.path,
@@ -139,12 +141,16 @@ class _PreparedFile {
     this.hasThumb = false,
   });
 
+  bool get isGif => name.split('.').last.toLowerCase() == 'gif';
+
   bool get isSticker {
     final ext = name.split('.').last.toLowerCase();
     return ext == 'tgs' || _kStickerMimes.contains(ext);
   }
 
   bool get isMediaType => type == _FileType.photo || type == _FileType.video;
+
+  bool get hasGifPreview => isGif && imageWidth != null && imageHeight != null;
 
   double get aspectRatio {
     if (imageWidth != null && imageHeight != null && imageHeight! > 0) {
@@ -155,6 +161,22 @@ class _PreparedFile {
 
   bool get isThumbedLayout =>
       imageWidth != null && isMediaType;
+
+  String get formattedSongName {
+    if (type != _FileType.music) return displayName;
+    final title = audioTitle;
+    final performer = audioPerformer;
+    if (title != null && title.isNotEmpty) {
+      if (performer != null && performer.isNotEmpty) {
+        return '$performer – $title';
+      }
+      return title;
+    }
+    if (performer != null && performer.isNotEmpty) {
+      return performer;
+    }
+    return displayName;
+  }
 
   String get displayName {
     if (name.length <= _kMaxDisplayNameLength) return name;
@@ -411,6 +433,14 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   }
 
   Future<void> _prepareOneFile(_PreparedFile file) async {
+    if (file.type == _FileType.music) {
+      await _parseAudioTags(file);
+      return;
+    }
+    if (file.isGif) {
+      await _prepareGifFile(file);
+      return;
+    }
     if (!file.isMediaType || file.imageWidth != null) return;
     try {
       final data = await File(file.path).readAsBytes();
@@ -442,9 +472,155 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     }
   }
 
+  Future<void> _prepareGifFile(_PreparedFile file) async {
+    if (file.imageWidth != null) return;
+    try {
+      final data = await File(file.path).readAsBytes();
+      final codec = await ui.instantiateImageCodec(data);
+      final frame = await codec.getNextFrame();
+      final w = frame.image.width.toDouble();
+      final h = frame.image.height.toDouble();
+      frame.image.dispose();
+      codec.dispose();
+      if (w > 0 && h > 0 && math.max(w, h) <= 20 * math.min(w, h)) {
+        file.imageWidth = w;
+        file.imageHeight = h;
+        file.hasThumb = true;
+      }
+    } catch (_) {}
+  }
+
+  static Future<void> _parseAudioTags(_PreparedFile file) async {
+    try {
+      final f = File(file.path);
+      final length = await f.length();
+      if (length < 128) return;
+
+      final raf = await f.open(mode: FileMode.read);
+      try {
+        // Try ID3v2 (at start of file)
+        final header = await _readBytes(raf, 0, 10);
+        if (header.length >= 10 &&
+            header[0] == 0x49 && header[1] == 0x44 && header[2] == 0x33) {
+          final size = ((header[6] & 0x7F) << 21) |
+              ((header[7] & 0x7F) << 14) |
+              ((header[8] & 0x7F) << 7) |
+              (header[9] & 0x7F);
+          final version = header[3];
+          if (size > 0 && size < length) {
+            final tagData = await _readBytes(raf, 10, math.min(size, 4096));
+            _parseId3v2Frames(tagData, version, file);
+            if (file.audioTitle != null || file.audioPerformer != null) return;
+          }
+        }
+
+        // Fallback: ID3v1 (last 128 bytes)
+        final tailPos = length - 128;
+        final tail = await _readBytes(raf, tailPos, 128);
+        if (tail.length >= 128 &&
+            tail[0] == 0x54 && tail[1] == 0x41 && tail[2] == 0x47) {
+          final title = _trimId3v1String(tail.sublist(3, 33));
+          final artist = _trimId3v1String(tail.sublist(33, 63));
+          if (title.isNotEmpty) file.audioTitle = title;
+          if (artist.isNotEmpty) file.audioPerformer = artist;
+        }
+      } finally {
+        await raf.close();
+      }
+    } catch (_) {}
+  }
+
+  static Future<List<int>> _readBytes(
+      RandomAccessFile raf, int offset, int count) async {
+    await raf.setPosition(offset);
+    return await raf.read(count);
+  }
+
+  static void _parseId3v2Frames(
+      List<int> data, int version, _PreparedFile file) {
+    int pos = 0;
+    while (pos + 10 <= data.length) {
+      final frameId = String.fromCharCodes(data.sublist(pos, pos + 4));
+      if (frameId[0] == '\x00') break;
+
+      int frameSize;
+      if (version == 4) {
+        frameSize = ((data[pos + 4] & 0x7F) << 21) |
+            ((data[pos + 5] & 0x7F) << 14) |
+            ((data[pos + 6] & 0x7F) << 7) |
+            (data[pos + 7] & 0x7F);
+      } else {
+        frameSize = (data[pos + 4] << 24) |
+            (data[pos + 5] << 16) |
+            (data[pos + 6] << 8) |
+            data[pos + 7];
+      }
+
+      if (frameSize <= 0 || pos + 10 + frameSize > data.length) break;
+
+      final frameData = data.sublist(pos + 10, pos + 10 + frameSize);
+      if (frameId == 'TIT2' && file.audioTitle == null) {
+        file.audioTitle = _decodeId3v2Text(frameData);
+      } else if (frameId == 'TPE1' && file.audioPerformer == null) {
+        file.audioPerformer = _decodeId3v2Text(frameData);
+      }
+
+      if (file.audioTitle != null && file.audioPerformer != null) break;
+      pos += 10 + frameSize;
+    }
+  }
+
+  static String _decodeId3v2Text(List<int> data) {
+    if (data.isEmpty) return '';
+    final encoding = data[0];
+    final textBytes = data.sublist(1);
+    if (encoding == 0) {
+      return String.fromCharCodes(
+          textBytes.takeWhile((b) => b != 0));
+    } else if (encoding == 1 || encoding == 2) {
+      // UTF-16 (LE/BE with possible BOM)
+      final str = StringBuffer();
+      int start = 0;
+      if (textBytes.length >= 2 &&
+          ((textBytes[0] == 0xFF && textBytes[1] == 0xFE) ||
+              (textBytes[0] == 0xFE && textBytes[1] == 0xFF))) {
+        start = 2;
+      }
+      final bom = start == 2 && textBytes[0] == 0xFF;
+      for (int i = start; i + 1 < textBytes.length; i += 2) {
+        final lo = bom ? textBytes[i] : textBytes[i + 1];
+        final hi = bom ? textBytes[i + 1] : textBytes[i];
+        final ch = (hi << 8) | lo;
+        if (ch == 0) break;
+        str.writeCharCode(ch);
+      }
+      return str.toString();
+    } else if (encoding == 3) {
+      // UTF-8
+      try {
+        final end = textBytes.indexOf(0);
+        final bytes = end >= 0 ? textBytes.sublist(0, end) : textBytes;
+        return String.fromCharCodes(bytes);
+      } catch (_) {
+        return String.fromCharCodes(textBytes.takeWhile((b) => b != 0));
+      }
+    }
+    return String.fromCharCodes(textBytes.takeWhile((b) => b != 0));
+  }
+
+  static String _trimId3v1String(List<int> bytes) {
+    int end = bytes.length;
+    while (end > 0 && (bytes[end - 1] == 0 || bytes[end - 1] == 0x20)) {
+      end--;
+    }
+    return String.fromCharCodes(bytes.sublist(0, end));
+  }
+
   Future<void> _loadImageDimensions() async {
     final toPrep = _files.where(
-      (f) => f.isMediaType && f.imageWidth == null,
+      (f) => (f.isMediaType && f.imageWidth == null) ||
+             (f.isGif && f.imageWidth == null) ||
+             (f.type == _FileType.music),
     ).toList();
     if (toPrep.isEmpty) return;
 
@@ -454,7 +630,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     bool changed = false;
     for (final file in immediate) {
       await _prepareOneFile(file);
-      if (file.hasThumb) changed = true;
+      if (file.hasThumb || file.audioTitle != null) changed = true;
     }
     if (changed && mounted) setState(() {});
 
@@ -751,8 +927,13 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     final dividerColor = isDark ? const Color(0xFF243441) : const Color(0xFFE0E0E0);
 
     final mediaFiles = _files.where((f) => f.isMediaType).toList();
-    final docFiles = _files.where(
-        (f) => f.type == _FileType.file || f.type == _FileType.music).toList();
+    final gifFiles = !_sendAsDocuments
+        ? _files.where((f) => f.isGif && f.hasGifPreview).toList()
+        : <_PreparedFile>[];
+    final docFiles = _files.where((f) {
+      if (!_sendAsDocuments && f.isGif && f.hasGifPreview) return false;
+      return f.type == _FileType.file || f.type == _FileType.music;
+    }).toList();
 
     final showMediaPreview = !_sendAsDocuments && mediaFiles.isNotEmpty;
 
@@ -863,7 +1044,21 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                         canSpoiler: _canSpoiler,
                         sendLargePhotos: _sendLargePhotos,
                       ),
-                    if (showMediaPreview && mediaFiles.isNotEmpty && docFiles.isNotEmpty)
+                    if (showMediaPreview && mediaFiles.isNotEmpty &&
+                        (gifFiles.isNotEmpty || docFiles.isNotEmpty))
+                      SizedBox(height: _rowSkip),
+                    for (int gi = 0; gi < gifFiles.length; gi++) ...[
+                      if (gi > 0) SizedBox(height: _rowSkip),
+                      _GifPreview(
+                        file: gifFiles[gi],
+                        canRemove: _files.length > 1,
+                        onRemove: () {
+                          final idx = _files.indexOf(gifFiles[gi]);
+                          if (idx >= 0) _removeFile(idx);
+                        },
+                      ),
+                    ],
+                    if (gifFiles.isNotEmpty && docFiles.isNotEmpty)
                       SizedBox(height: _rowSkip),
                     if (docFiles.isNotEmpty || _sendAsDocuments)
                       _FileListPreview(
@@ -1239,6 +1434,75 @@ class _SingleMediaPreview extends StatelessWidget {
     ).then((value) {
       if (value == 'spoiler') onToggleSpoiler();
     });
+  }
+}
+
+class _GifPreview extends StatelessWidget {
+  final _PreparedFile file;
+  final bool canRemove;
+  final VoidCallback onRemove;
+
+  const _GifPreview({
+    required this.file,
+    required this.canRemove,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(_thumbCornerRadius),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(
+          maxWidth: _previewWidth,
+          maxHeight: _previewWidth,
+        ),
+        child: Stack(
+          children: [
+            Image.file(
+              File(file.path),
+              width: _previewWidth,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                width: _previewWidth,
+                height: 200,
+                color: Colors.grey[800],
+                child: const Icon(Icons.broken_image,
+                    color: Colors.white54, size: 48),
+              ),
+            ),
+            Positioned(
+              bottom: 6,
+              left: 6,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  'GIF',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+            if (canRemove)
+              Positioned(
+                top: 5,
+                right: 5,
+                child: _ThumbButton(
+                  icon: Icons.close,
+                  onPressed: onRemove,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -2021,7 +2285,7 @@ class _FileCard extends StatelessWidget {
       case _FileType.video:
         return Icons.videocam;
       case _FileType.music:
-        return Icons.music_note;
+        return Icons.play_arrow;
       case _FileType.file:
         return Icons.insert_drive_file;
     }
@@ -2086,7 +2350,9 @@ class _FileCard extends StatelessWidget {
                         right: 52,
                         top: nameTop,
                         child: Text(
-                          file.displayName,
+                          file.type == _FileType.music
+                              ? file.formattedSongName
+                              : file.displayName,
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
