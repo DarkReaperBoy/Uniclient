@@ -28,6 +28,9 @@ const Color _kCaptionFg = Color(0xFFFFFFFF);
 const Color _kCancelFg = Color(0xFFFFFFFF);
 const Color _kCancelBg = Color(0x33FFFFFF);
 const Color _kDoneLinkFg = Color(0xFF71BAF7);
+const Color _kIconFgIdle = Color(0xDDFFFFFF);
+const Color _kIconFgActive = Color(0xFF6AB2F2);
+const Color _kIconFgInactive = Color(0x4DFFFFFF);
 
 const Duration _kTransitionDuration = Duration(milliseconds: 200);
 
@@ -50,6 +53,32 @@ enum _Edge {
 }
 
 enum PhotoCropShape { ellipse, roundedRect, rect }
+
+enum _EditorMode { transform, paint }
+
+enum _IconState { idle, active, inactive }
+
+enum _CropAspect {
+  original, square, ratio3x2, ratio16x9, ratio9x16, free;
+
+  String get label => switch (this) {
+    original => 'Original',
+    square => 'Square',
+    ratio3x2 => '3:2',
+    ratio16x9 => '16:9',
+    ratio9x16 => '9:16',
+    free => 'Free',
+  };
+
+  double? ratioValue(double imageRatio) => switch (this) {
+    original => imageRatio,
+    square => 1.0,
+    ratio3x2 => 3.0 / 2.0,
+    ratio16x9 => 16.0 / 9.0,
+    ratio9x16 => 9.0 / 16.0,
+    free => null,
+  };
+}
 
 class PhotoCropEditor extends StatefulWidget {
   final File imageFile;
@@ -114,8 +143,23 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
   bool _saving = false;
   int _rotationDegrees = 0;
   bool _flipped = false;
+  _EditorMode _editorMode = _EditorMode.transform;
+  _CropAspect _selectedAspect = _CropAspect.free;
 
   bool get _isProfilePhoto => widget.shape != PhotoCropShape.rect;
+
+  double get _originalImageRatio {
+    if (_image == null) return 1.0;
+    final w = _image!.width.toDouble();
+    final h = _image!.height.toDouble();
+    final isSwapped = _rotationDegrees == 90 || _rotationDegrees == 270;
+    return isSwapped ? h / w : w / h;
+  }
+
+  double? get _enforceRatio {
+    if (_isProfilePhoto) return 1.0;
+    return _selectedAspect.ratioValue(_originalImageRatio);
+  }
 
   @override
   void initState() {
@@ -214,7 +258,23 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
   }
 
   void _cancel() {
+    if (_editorMode == _EditorMode.paint) {
+      setState(() => _editorMode = _EditorMode.transform);
+      return;
+    }
     Navigator.of(context).pop();
+  }
+
+  void _togglePaintMode() {
+    setState(() {
+      _editorMode = _editorMode == _EditorMode.transform
+          ? _EditorMode.paint
+          : _EditorMode.transform;
+    });
+  }
+
+  void _setAspect(_CropAspect aspect) {
+    setState(() => _selectedAspect = aspect);
   }
 
   Future<void> _done() async {
@@ -260,7 +320,10 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
               padding: _kContentMargins,
               child: Column(
                 children: [
-                  if (widget.aboutText != null) ...[
+                  if (_editorMode == _EditorMode.paint)
+                    const _PaintTopBar(),
+                  if (widget.aboutText != null &&
+                      _editorMode == _EditorMode.transform) ...[
                     Padding(
                       padding: const EdgeInsets.only(bottom: 16),
                       child: Text(
@@ -293,6 +356,7 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
                                 shape: widget.shape,
                                 rotationDegrees: _rotationDegrees,
                                 flipped: _flipped,
+                                enforceRatio: _enforceRatio,
                               ),
                   ),
                 ],
@@ -308,10 +372,15 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
                 doneLabel: widget.doneLabel,
                 saving: _saving,
                 flipped: _flipped,
+                isProfilePhoto: _isProfilePhoto,
+                editorMode: _editorMode,
+                selectedAspect: _selectedAspect,
                 onCancel: _cancel,
                 onDone: _done,
                 onFlip: toggleFlip,
                 onRotate: rotate,
+                onTogglePaintMode: _togglePaintMode,
+                onAspectChanged: _setAspect,
               ),
             ),
           ],
@@ -348,12 +417,14 @@ class _ImageCropArea extends StatefulWidget {
   final PhotoCropShape shape;
   final int rotationDegrees;
   final bool flipped;
+  final double? enforceRatio;
 
   const _ImageCropArea({
     required this.image,
     required this.shape,
     required this.rotationDegrees,
     required this.flipped,
+    this.enforceRatio,
   });
 
   @override
@@ -373,7 +444,7 @@ class _ImageCropAreaState extends State<_ImageCropArea>
 
   late AnimationController _gridController;
 
-  bool get _keepAspectRatio => widget.shape != PhotoCropShape.rect;
+  bool get _hasLockedRatio => widget.enforceRatio != null;
 
   @override
   void initState() {
@@ -398,16 +469,46 @@ class _ImageCropAreaState extends State<_ImageCropArea>
         old.image != widget.image) {
       _needsInitCrop = true;
     }
+    if (old.enforceRatio != widget.enforceRatio && !_needsInitCrop) {
+      _applyNewRatio();
+    }
+  }
+
+  void _applyNewRatio() {
+    if (widget.enforceRatio == null) return;
+    final ratio = widget.enforceRatio!;
+    final center = _cropRect.center;
+    final currentArea = _cropRect.width * _cropRect.height;
+    var newW = math.sqrt(currentArea * ratio);
+    var newH = newW / ratio;
+    if (newW > _displaySize.width) { newW = _displaySize.width; newH = newW / ratio; }
+    if (newH > _displaySize.height) { newH = _displaySize.height; newW = newH * ratio; }
+    if (newW < _kCropMinSize) newW = _kCropMinSize;
+    if (newH < _kCropMinSize) newH = _kCropMinSize;
+    setState(() {
+      _cropRect = Rect.fromCenter(center: center, width: newW, height: newH);
+      _cropRect = _clampCrop(_cropRect, _displaySize);
+    });
   }
 
   void _initCrop(Size displaySize) {
     _displaySize = displaySize;
-    if (_keepAspectRatio) {
-      final side = math.min(displaySize.width, displaySize.height);
+    if (_hasLockedRatio) {
+      final ratio = widget.enforceRatio!;
+      double w, h;
+      if (ratio >= 1) {
+        w = math.min(displaySize.width, displaySize.height * ratio);
+        h = w / ratio;
+      } else {
+        h = math.min(displaySize.height, displaySize.width / ratio);
+        w = h * ratio;
+      }
+      if (w > displaySize.width) { w = displaySize.width; h = w / ratio; }
+      if (h > displaySize.height) { h = displaySize.height; w = h * ratio; }
       _cropRect = Rect.fromCenter(
         center: Offset(displaySize.width / 2, displaySize.height / 2),
-        width: side,
-        height: side,
+        width: w,
+        height: h,
       );
     } else {
       _cropRect = Offset.zero & displaySize;
@@ -419,13 +520,16 @@ class _ImageCropAreaState extends State<_ImageCropArea>
     if (_displaySize.width <= 0 || _displaySize.height <= 0) return;
     final sx = newSize.width / _displaySize.width;
     final sy = newSize.height / _displaySize.height;
-    if (_keepAspectRatio) {
+    if (_hasLockedRatio) {
+      final ratio = widget.enforceRatio!;
       final s = math.min(sx, sy);
-      final side = _cropRect.width * s;
+      var w = _cropRect.width * s;
+      var h = w / ratio;
+      if (h > newSize.height) { h = newSize.height; w = h * ratio; }
       _cropRect = Rect.fromCenter(
         center: Offset(_cropRect.center.dx * sx, _cropRect.center.dy * sy),
-        width: side,
-        height: side,
+        width: w,
+        height: h,
       );
     } else {
       _cropRect = Rect.fromLTRB(
@@ -460,7 +564,7 @@ class _ImageCropAreaState extends State<_ImageCropArea>
     if ((pos - c.bottomLeft).distance < hs) return _Edge.bottomLeft;
     if ((pos - c.bottomRight).distance < hs) return _Edge.bottomRight;
 
-    if (!_keepAspectRatio) {
+    if (!_hasLockedRatio) {
       if (pos.dy >= c.top - hs && pos.dy <= c.top + hs &&
           pos.dx > c.left + hs && pos.dx < c.right - hs) return _Edge.top;
       if (pos.dy >= c.bottom - hs && pos.dy <= c.bottom + hs &&
@@ -551,35 +655,39 @@ class _ImageCropAreaState extends State<_ImageCropArea>
     var r = _cropAtDragStart.right;
     var b = _cropAtDragStart.bottom;
 
-    if (_keepAspectRatio) {
-      final origSide = _cropAtDragStart.width;
-      double ds;
+    if (_hasLockedRatio) {
+      final ratio = widget.enforceRatio!;
+      final origW = _cropAtDragStart.width;
+      final origH = _cropAtDragStart.height;
+
+      double dxSign, dySign;
       switch (_activeEdge) {
-        case _Edge.topLeft:
-          ds = (-delta.dx - delta.dy) / 2;
-          l = r - (origSide + ds);
-          t = b - (origSide + ds);
-        case _Edge.topRight:
-          ds = (delta.dx - delta.dy) / 2;
-          r = l + (origSide + ds);
-          t = b - (origSide + ds);
-        case _Edge.bottomLeft:
-          ds = (-delta.dx + delta.dy) / 2;
-          l = r - (origSide + ds);
-          b = t + (origSide + ds);
-        case _Edge.bottomRight:
-          ds = (delta.dx + delta.dy) / 2;
-          r = l + (origSide + ds);
-          b = t + (origSide + ds);
-        default:
-          return;
+        case _Edge.topLeft:     dxSign = -1; dySign = -1;
+        case _Edge.topRight:    dxSign =  1; dySign = -1;
+        case _Edge.bottomLeft:  dxSign = -1; dySign =  1;
+        case _Edge.bottomRight: dxSign =  1; dySign =  1;
+        default: return;
       }
-      final side = r - l;
-      if (side < _kCropMinSize) return;
-      if (l < 0) { l = 0; r = side; }
-      if (t < 0) { t = 0; b = side; }
-      if (r > bw) { r = bw; l = bw - side; }
-      if (b > bh) { b = bh; t = bh - side; }
+
+      final scaleFactor =
+          (dxSign * delta.dx / origW + dySign * delta.dy / origH) / 2;
+      final newW = origW * (1 + scaleFactor);
+      final newH = newW / ratio;
+
+      if (newW < _kCropMinSize || newH < _kCropMinSize) return;
+
+      switch (_activeEdge) {
+        case _Edge.topLeft:     l = r - newW; t = b - newH;
+        case _Edge.topRight:    r = l + newW; t = b - newH;
+        case _Edge.bottomLeft:  l = r - newW; b = t + newH;
+        case _Edge.bottomRight: r = l + newW; b = t + newH;
+        default: break;
+      }
+
+      if (l < 0) { l = 0; r = newW; }
+      if (t < 0) { t = 0; b = newH; }
+      if (r > bw) { r = bw; l = bw - newW; }
+      if (b > bh) { b = bh; t = bh - newH; }
       if (l < 0 || t < 0) return;
     } else {
       switch (_activeEdge) {
@@ -822,109 +930,289 @@ class _ControlBar extends StatelessWidget {
   final String doneLabel;
   final bool saving;
   final bool flipped;
+  final bool isProfilePhoto;
+  final _EditorMode editorMode;
+  final _CropAspect selectedAspect;
   final VoidCallback onCancel;
   final VoidCallback onDone;
   final VoidCallback onFlip;
   final VoidCallback onRotate;
+  final VoidCallback onTogglePaintMode;
+  final ValueChanged<_CropAspect> onAspectChanged;
 
   const _ControlBar({
     required this.doneLabel,
     required this.saving,
     required this.flipped,
+    required this.isProfilePhoto,
+    required this.editorMode,
+    required this.selectedAspect,
     required this.onCancel,
     required this.onDone,
     required this.onFlip,
     required this.onRotate,
+    required this.onTogglePaintMode,
+    required this.onAspectChanged,
   });
+
+  Widget _buildSavingIndicator() => const SizedBox(
+    width: 48,
+    height: 48,
+    child: Center(
+      child: SizedBox(
+        width: 20,
+        height: 20,
+        child: CircularProgressIndicator(strokeWidth: 2, color: _kDoneLinkFg),
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: SizedBox(
-        width: _kControlBarWidth,
-        height: _kControlBarHeight,
-        child: Row(
-          children: [
-            TextButton(
-              onPressed: onCancel,
-              style: TextButton.styleFrom(
-                foregroundColor: _kCancelFg,
-                backgroundColor: _kCancelBg,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              child: const Text('Cancel'),
-            ),
-            const Spacer(),
-            _BarIconButton(
-              icon: Icons.flip,
-              active: flipped,
-              onPressed: onFlip,
-              tooltip: 'Flip',
-            ),
-            const SizedBox(width: 6),
-            _BarIconButton(
-              icon: Icons.rotate_right,
-              active: false,
-              onPressed: onRotate,
-              tooltip: 'Rotate',
-            ),
-            const Spacer(),
-            if (saving)
-              const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: _kDoneLinkFg,
-                ),
-              )
-            else
-              TextButton(
+    final confirmLabel =
+        editorMode == _EditorMode.paint ? 'Done' : doneLabel;
+
+    final List<Widget> children;
+    if (editorMode == _EditorMode.paint) {
+      children = [
+        _EdgeButton(label: 'Cancel', color: _kCancelFg, onPressed: onCancel),
+        _BarIconButton(
+          icon: Icons.brush,
+          state: _IconState.active,
+          onPressed: onTogglePaintMode,
+          tooltip: 'Paint',
+        ),
+        saving
+            ? _buildSavingIndicator()
+            : _EdgeButton(
+                label: confirmLabel,
+                color: _kDoneLinkFg,
                 onPressed: onDone,
-                style: TextButton.styleFrom(
-                  foregroundColor: _kDoneLinkFg,
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                child: Text(doneLabel),
               ),
-          ],
+      ];
+    } else {
+      children = [
+        _EdgeButton(label: 'Cancel', color: _kCancelFg, onPressed: onCancel),
+        _BarIconButton(
+          icon: Icons.flip,
+          state: flipped ? _IconState.active : _IconState.idle,
+          onPressed: onFlip,
+          tooltip: 'Flip',
+        ),
+        _BarIconButton(
+          icon: Icons.rotate_right,
+          state: _IconState.idle,
+          onPressed: onRotate,
+          tooltip: 'Rotate',
+        ),
+        _BarIconButton(
+          icon: Icons.brush_outlined,
+          state: _IconState.idle,
+          onPressed: onTogglePaintMode,
+          tooltip: 'Paint',
+        ),
+        if (!isProfilePhoto)
+          _AspectRatioButton(
+            selected: selectedAspect,
+            onChanged: onAspectChanged,
+          ),
+        saving
+            ? _buildSavingIndicator()
+            : _EdgeButton(
+                label: confirmLabel,
+                color: _kDoneLinkFg,
+                onPressed: onDone,
+              ),
+      ];
+    }
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: _kControlBarWidth),
+          child: SizedBox(
+            height: _kControlBarHeight,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: children,
+              ),
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-class _BarIconButton extends StatelessWidget {
+class _EdgeButton extends StatelessWidget {
+  final String label;
+  final Color color;
+  final VoidCallback onPressed;
+
+  const _EdgeButton({
+    required this.label,
+    required this.color,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        foregroundColor: color,
+        backgroundColor: _kCancelBg,
+        padding: const EdgeInsets.all(4),
+        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+      ),
+      child: Text(label),
+    );
+  }
+}
+
+class _BarIconButton extends StatefulWidget {
   final IconData icon;
-  final bool active;
+  final _IconState state;
   final VoidCallback onPressed;
   final String tooltip;
 
   const _BarIconButton({
     required this.icon,
-    required this.active,
+    required this.state,
     required this.onPressed,
     required this.tooltip,
   });
 
   @override
+  State<_BarIconButton> createState() => _BarIconButtonState();
+}
+
+class _BarIconButtonState extends State<_BarIconButton> {
+  bool _hovering = false;
+
+  Color get _iconColor {
+    if (widget.state == _IconState.inactive) return _kIconFgInactive;
+    if (widget.state == _IconState.active) return _kIconFgActive;
+    return _hovering ? _kCancelFg : _kIconFgIdle;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 48,
-      height: 48,
-      child: IconButton(
-        onPressed: onPressed,
-        tooltip: tooltip,
-        icon: Icon(
-          icon,
-          color: active ? _kDoneLinkFg : _kCancelFg,
-          size: 24,
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: SizedBox(
+        width: 48,
+        height: 48,
+        child: IconButton(
+          onPressed:
+              widget.state == _IconState.inactive ? null : widget.onPressed,
+          tooltip: widget.tooltip,
+          icon: Icon(widget.icon, color: _iconColor, size: 24),
+        ),
+      ),
+    );
+  }
+}
+
+class _AspectRatioButton extends StatefulWidget {
+  final _CropAspect selected;
+  final ValueChanged<_CropAspect> onChanged;
+
+  const _AspectRatioButton({
+    required this.selected,
+    required this.onChanged,
+  });
+
+  @override
+  State<_AspectRatioButton> createState() => _AspectRatioButtonState();
+}
+
+class _AspectRatioButtonState extends State<_AspectRatioButton> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: SizedBox(
+        width: 48,
+        height: 48,
+        child: PopupMenuButton<_CropAspect>(
+          onSelected: widget.onChanged,
+          offset: const Offset(0, -300),
+          color: const Color(0xFF2B2B2B),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          itemBuilder: (_) => _CropAspect.values
+              .map((a) => PopupMenuItem<_CropAspect>(
+                    value: a,
+                    height: 40,
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 24,
+                          child: a == widget.selected
+                              ? const Icon(Icons.check,
+                                  size: 18, color: _kDoneLinkFg)
+                              : null,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(a.label,
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 14)),
+                      ],
+                    ),
+                  ))
+              .toList(),
+          child: Center(
+            child: Icon(
+              Icons.crop,
+              color: _hovering ? _kCancelFg : _kIconFgIdle,
+              size: 24,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PaintTopBar extends StatelessWidget {
+  const _PaintTopBar();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: _kControlBarWidth),
+        child: SizedBox(
+          height: _kControlBarHeight,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _BarIconButton(
+                icon: Icons.undo,
+                state: _IconState.inactive,
+                onPressed: () {},
+                tooltip: 'Undo',
+              ),
+              const SizedBox(width: 6),
+              _BarIconButton(
+                icon: Icons.redo,
+                state: _IconState.inactive,
+                onPressed: () {},
+                tooltip: 'Redo',
+              ),
+            ],
+          ),
         ),
       ),
     );
