@@ -6,8 +6,10 @@ import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 
 import '../models/engine_models.dart' show ChatType;
+import '../state/app_state.dart';
 import 'popup_menu.dart';
 import 'choose_datetime_box.dart';
 import 'photo_crop_editor.dart';
@@ -234,9 +236,12 @@ class _SendFilesBoxDialog extends StatefulWidget {
 
 class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     with SingleTickerProviderStateMixin {
+  static String _preservedCaption = '';
+
   late List<_PreparedFile> _files;
   final TextEditingController _captionController = TextEditingController();
   late final FocusNode _captionFocus;
+  late final FocusNode _dialogFocus;
   late bool _sendAsDocuments;
   late bool _groupFiles;
   bool _wayRemember = false;
@@ -263,7 +268,15 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       duration: const Duration(milliseconds: 200),
     );
     _captionFocus = FocusNode(onKeyEvent: _onCaptionKey);
+    _dialogFocus = FocusNode(onKeyEvent: _onDialogKey);
     _captionController.addListener(_onCaptionChanged);
+    if (_preservedCaption.isNotEmpty) {
+      _captionController.text = _preservedCaption;
+      _captionController.selection = TextSelection.collapsed(
+        offset: _preservedCaption.length,
+      );
+      _preservedCaption = '';
+    }
     _sendAsDocuments = widget.overrideSendAsDocuments ?? false;
     _groupFiles = true;
     _initialSendAsDocuments = _sendAsDocuments;
@@ -291,6 +304,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     _captionController.removeListener(_onCaptionChanged);
     _captionController.dispose();
     _captionFocus.dispose();
+    _dialogFocus.dispose();
     super.dispose();
   }
 
@@ -299,6 +313,21 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     if (len != _charCount) {
       setState(() => _charCount = len);
     }
+  }
+
+  bool _shouldSendOnEnter(bool ctrl, bool shift) {
+    if (ctrl && shift) return true;
+    final mode = context.read<AppState>().sendBy;
+    if (mode == 'enter') return !shift;
+    return ctrl;
+  }
+
+  void _closePreservingCaption() {
+    final text = _captionController.text;
+    if (text.isNotEmpty) {
+      _preservedCaption = text;
+    }
+    Navigator.of(context).pop(null);
   }
 
   KeyEventResult _onCaptionKey(FocusNode node, KeyEvent event) {
@@ -311,32 +340,52 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       _send(ctrlShiftEnter: true);
       return KeyEventResult.handled;
     }
-    if (isEnter && !shift) {
-      _send();
-      return KeyEventResult.handled;
-    }
-    if (isEnter && ctrl) {
+    if (isEnter && _shouldSendOnEnter(ctrl, shift)) {
       _send();
       return KeyEventResult.handled;
     }
 
     if (event.logicalKey == LogicalKeyboardKey.escape) {
-      Navigator.of(context).pop(null);
+      _closePreservingCaption();
       return KeyEventResult.handled;
     }
 
-    // Ctrl+V → paste interception (images → add to file list)
     if (ctrl && !shift && event.logicalKey == LogicalKeyboardKey.keyV) {
       _handleCaptionPaste();
       return KeyEventResult.handled;
     }
 
-    // Ctrl+O → add files
     if (ctrl && !shift && event.logicalKey == LogicalKeyboardKey.keyO) {
       _addMoreFiles();
       return KeyEventResult.handled;
     }
 
+    return KeyEventResult.ignored;
+  }
+
+  KeyEventResult _onDialogKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final ctrl = HardwareKeyboard.instance.isControlPressed;
+    final shift = HardwareKeyboard.instance.isShiftPressed;
+
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      _closePreservingCaption();
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.enter) {
+      if (ctrl && shift) {
+        _send(ctrlShiftEnter: true);
+        return KeyEventResult.handled;
+      }
+      if (_shouldSendOnEnter(ctrl, shift)) {
+        _send();
+        return KeyEventResult.handled;
+      }
+    }
+    if (ctrl && !shift && event.logicalKey == LogicalKeyboardKey.keyO) {
+      _addMoreFiles();
+      return KeyEventResult.handled;
+    }
     return KeyEventResult.ignored;
   }
 
@@ -835,6 +884,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       _whenReadySend = () => _send(silent: silent, scheduledDate: scheduledDate, ctrlShiftEnter: ctrlShiftEnter, asSticker: asSticker);
       return;
     }
+    _preservedCaption = '';
     Navigator.of(context).pop(SendFilesResult(
       paths: _resultPaths,
       caption: _captionController.text,
@@ -988,7 +1038,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
       elevation: 4,
       insetPadding: const EdgeInsets.all(24),
-      child: SizedBox(
+      child: Focus(
+        focusNode: _dialogFocus,
+        child: SizedBox(
         width: _previewWidth + 48,
         child: Stack(
           children: [
@@ -1231,7 +1283,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                   ),
                   const Spacer(),
                   TextButton(
-                    onPressed: () => Navigator.of(context).pop(null),
+                    onPressed: _closePreservingCaption,
                     style: TextButton.styleFrom(
                       foregroundColor: accentFg,
                       textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
@@ -1269,6 +1321,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
         ),
           ],
         ),
+      ),
       ),
     ),
     );
