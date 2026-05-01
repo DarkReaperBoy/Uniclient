@@ -937,7 +937,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §43 — Read Receipts Detail
 # Touches: dart/lib/ui/message_bubble.dart, dart/lib/ui/chat_view.dart, new read_receipts_panel.dart
 
-- [ ] Read receipt partial-reads merge — merge reaction+read lists; combined "N reacted / M seen" summary; per-user Viewed vs Reacted type tag — spec §43.7
 - [ ] FormatReadDate — "Today, HH:mm" / "Yesterday, HH:mm" / "Mon DD, HH:mm" / "Mon DD YYYY, HH:mm"; dateReacted flag for icon selection — spec §43.8
 - [ ] Privacy states (MyHidden/HisHidden/TooOld) — "Read time hidden" + "Show" pill; HisHidden label; TooOld label; "Show" click → disable-hide-read-time or Premium dialog — spec §43.12
 - [ ] AyuGram ghost mode integration — sendReadMessages/sendReadStories toggles suppress receipts; markReadAfterAction mark-read on reply/react; blocked peer filtering; showViewsPanelInContextMenu visibility control; showMessageSeconds HH:mm:ss format — spec §43.13

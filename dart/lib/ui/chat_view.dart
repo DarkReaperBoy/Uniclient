@@ -1627,6 +1627,7 @@ class _ChatViewState extends State<ChatView>
           msgId: msg.msgId,
           palette: palette,
           mediaType: msg.mediaType,
+          reactions: msg.reactions,
           appearAnimation: animation,
           onUserTap: (userId) {
             Navigator.of(ctx).pop();
@@ -15908,7 +15909,25 @@ class _CodeLanguageBoxContentState extends State<_CodeLanguageBoxContent> {
   }
 }
 
-// ── Who-Read Popup (§43.4) ──
+// ── Who-Read Popup (§43.4, §43.7) ──
+
+enum WhoReadType { viewed, reacted }
+
+class _MergedReadEntry {
+  final String userId;
+  final String name;
+  final int date;
+  final WhoReadType type;
+  final String? emoji;
+
+  const _MergedReadEntry({
+    required this.userId,
+    required this.name,
+    required this.date,
+    required this.type,
+    this.emoji,
+  });
+}
 
 String _formatReadDate(int unixSeconds) {
   if (unixSeconds <= 0) return '';
@@ -15939,6 +15958,7 @@ class _WhoReadPopup extends StatefulWidget {
   final int mediaType;
   final Animation<double> appearAnimation;
   final void Function(String userId) onUserTap;
+  final List<MessageReaction> reactions;
 
   const _WhoReadPopup({
     required this.engine,
@@ -15949,6 +15969,7 @@ class _WhoReadPopup extends StatefulWidget {
     required this.mediaType,
     required this.appearAnimation,
     required this.onUserTap,
+    this.reactions = const [],
   });
 
   @override
@@ -15956,13 +15977,15 @@ class _WhoReadPopup extends StatefulWidget {
 }
 
 class _WhoReadPopupState extends State<_WhoReadPopup> {
-  List<ReadParticipantInfo>? _participants;
+  List<_MergedReadEntry>? _merged;
+  int _readCount = 0;
+  int _reactedCount = 0;
   bool _appeared = false;
 
   @override
   void initState() {
     super.initState();
-    _loadParticipants();
+    _loadAndMerge();
     if (widget.appearAnimation.isCompleted) {
       _appeared = true;
     } else {
@@ -15982,36 +16005,98 @@ class _WhoReadPopupState extends State<_WhoReadPopup> {
     super.dispose();
   }
 
-  Future<void> _loadParticipants() async {
-    final result = await widget.engine.getMessageReadParticipantsDetailed(
+  Future<void> _loadAndMerge() async {
+    final readFuture = widget.engine.getMessageReadParticipantsDetailed(
       widget.accountId, widget.chatId, widget.msgId,
     );
-    if (mounted) setState(() => _participants = result);
+
+    final hasReactions = widget.reactions.isNotEmpty;
+    final msgIdInt = int.tryParse(widget.msgId) ?? 0;
+
+    List<ReactorInfo> reactors = [];
+    if (hasReactions && msgIdInt > 0) {
+      try {
+        final result = await widget.engine.getMessageReactorsList(
+          widget.accountId, widget.chatId, msgIdInt,
+          limit: 50,
+        );
+        reactors = result.reactors;
+      } catch (_) {}
+    }
+
+    final readParticipants = await readFuture;
+    if (!mounted) return;
+
+    final merged = <_MergedReadEntry>[];
+    final seenUserIds = <String>{};
+
+    for (final r in reactors) {
+      seenUserIds.add(r.peerId);
+      final readMatch = readParticipants.where((p) => p.userId == r.peerId);
+      final readDate = readMatch.isNotEmpty ? readMatch.first.date : 0;
+      merged.add(_MergedReadEntry(
+        userId: r.peerId,
+        name: r.peerName,
+        date: readDate > 0 ? readDate : 0,
+        type: WhoReadType.reacted,
+        emoji: r.emoji,
+      ));
+    }
+
+    for (final p in readParticipants) {
+      if (!seenUserIds.contains(p.userId)) {
+        merged.add(_MergedReadEntry(
+          userId: p.userId,
+          name: p.name,
+          date: p.date,
+          type: WhoReadType.viewed,
+        ));
+      }
+    }
+
+    setState(() {
+      _merged = merged;
+      _reactedCount = reactors.length;
+      _readCount = readParticipants.length;
+    });
   }
 
   String _titleText() {
-    if (_participants == null) return 'Loading...';
-    final count = _participants!.length;
+    if (_merged == null) return 'Loading...';
+    final total = _merged!.length;
+    if (total == 0) return _emptyText();
+    if (_reactedCount > 0 && _readCount > 0) {
+      return '$_reactedCount reacted / $_readCount seen';
+    }
     if (widget.mediaType == 3 || widget.mediaType == 4) {
-      return count == 0 ? 'Nobody listened' : 'Listened by $count';
+      return 'Listened by $total';
     }
     if (widget.mediaType == 2 || widget.mediaType == 5) {
-      return count == 0 ? 'Nobody watched' : 'Watched by $count';
+      return 'Watched by $total';
     }
-    return count == 0 ? 'Nobody has seen yet' : 'Seen by $count';
+    return 'Seen by $total';
   }
 
   String _emptyText() {
     if (widget.mediaType == 3 || widget.mediaType == 4) return 'Nobody listened';
     if (widget.mediaType == 2 || widget.mediaType == 5) return 'Nobody watched';
+    if (_reactedCount == 0 && widget.reactions.isNotEmpty) return 'No reactions yet';
     return 'Nobody has seen yet';
   }
 
   @override
   Widget build(BuildContext context) {
     final palette = widget.palette;
-    final isLoading = _participants == null;
-    final isEmpty = _participants != null && _participants!.isEmpty;
+    final isLoading = _merged == null;
+    final isEmpty = _merged != null && _merged!.isEmpty;
+
+    final titleIcon = _reactedCount > 0 && _readCount > 0
+        ? Icons.favorite
+        : widget.mediaType == 3 || widget.mediaType == 4
+            ? Icons.headphones
+            : widget.mediaType == 2 || widget.mediaType == 5
+                ? Icons.play_arrow
+                : Icons.done_all;
 
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 320, maxHeight: 460),
@@ -16027,15 +16112,7 @@ class _WhoReadPopupState extends State<_WhoReadPopup> {
               padding: const EdgeInsets.fromLTRB(15, 9, 17, 7),
               child: Row(
                 children: [
-                  Icon(
-                    widget.mediaType == 3 || widget.mediaType == 4
-                        ? Icons.headphones
-                        : widget.mediaType == 2 || widget.mediaType == 5
-                            ? Icons.play_arrow
-                            : Icons.done_all,
-                    size: 20,
-                    color: palette.windowFg,
-                  ),
+                  Icon(titleIcon, size: 20, color: palette.windowFg),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -16074,12 +16151,12 @@ class _WhoReadPopupState extends State<_WhoReadPopup> {
                   child: ListView.builder(
                     shrinkWrap: true,
                     padding: const EdgeInsets.only(top: 6, bottom: 4),
-                    itemCount: _participants!.length,
+                    itemCount: _merged!.length,
                     itemBuilder: (ctx, i) => _WhoReadRow(
-                      participant: _participants![i],
+                      entry: _merged![i],
                       palette: palette,
                       showAvatar: _appeared,
-                      onTap: () => widget.onUserTap(_participants![i].userId),
+                      onTap: () => widget.onUserTap(_merged![i].userId),
                     ),
                   ),
                 ),
@@ -16129,13 +16206,13 @@ class _WhoReadPreloaderRow extends StatelessWidget {
 }
 
 class _WhoReadRow extends StatefulWidget {
-  final ReadParticipantInfo participant;
+  final _MergedReadEntry entry;
   final TelegramPalette palette;
   final bool showAvatar;
   final VoidCallback? onTap;
 
   const _WhoReadRow({
-    required this.participant,
+    required this.entry,
     required this.palette,
     this.showAvatar = true,
     this.onTap,
@@ -16150,11 +16227,12 @@ class _WhoReadRowState extends State<_WhoReadRow> {
 
   @override
   Widget build(BuildContext context) {
-    final p = widget.participant;
+    final e = widget.entry;
     final palette = widget.palette;
-    final hasDate = p.date > 0;
-    final dateStr = _formatReadDate(p.date);
-    final name = p.name.isNotEmpty ? p.name : 'User ${p.userId}';
+    final hasDate = e.date > 0;
+    final dateStr = _formatReadDate(e.date);
+    final name = e.name.isNotEmpty ? e.name : 'User ${e.userId}';
+    final isReacted = e.type == WhoReadType.reacted;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -16176,24 +16254,32 @@ class _WhoReadRowState extends State<_WhoReadRow> {
                   child: _WhoReadAvatar(name: name, size: 30),
                 ),
               ),
-              // Name text
               Positioned(
                 left: 57,
-                top: hasDate ? 3.0 : (40 - 14) / 2,
+                top: hasDate || isReacted ? 3.0 : (40 - 14) / 2,
                 right: 17,
-                child: Text(
-                  name,
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: palette.windowFg,
-                  ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        name,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: palette.windowFg,
+                        ),
+                      ),
+                    ),
+                    if (isReacted && e.emoji != null) ...[
+                      const SizedBox(width: 4),
+                      Text(e.emoji!, style: const TextStyle(fontSize: 16)),
+                    ],
+                  ],
                 ),
               ),
-              // Date line with icon
-              if (hasDate)
+              if (hasDate || isReacted)
                 Positioned(
                   left: 57,
                   top: 20,
@@ -16201,7 +16287,7 @@ class _WhoReadRowState extends State<_WhoReadRow> {
                   child: Row(
                     children: [
                       Icon(
-                        Icons.done_all,
+                        isReacted ? Icons.favorite : Icons.done_all,
                         size: 14,
                         color: _hovered
                             ? palette.windowSubTextFgOver
@@ -16210,7 +16296,9 @@ class _WhoReadRowState extends State<_WhoReadRow> {
                       const SizedBox(width: 3),
                       Expanded(
                         child: Text(
-                          dateStr,
+                          hasDate
+                              ? dateStr
+                              : (isReacted ? 'Reacted' : 'Viewed'),
                           overflow: TextOverflow.ellipsis,
                           maxLines: 1,
                           style: TextStyle(

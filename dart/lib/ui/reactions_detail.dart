@@ -77,6 +77,8 @@ const _kPerPageMore = 100;
 
 class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
   List<ReactorInfo> _allReactors = [];
+  List<ReadParticipantInfo> _readParticipants = [];
+  int _readCount = 0;
   bool _loading = true;
   bool _loadingMore = false;
   String? _selectedTab;
@@ -88,7 +90,20 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
     super.initState();
     _selectedTab = widget.initialEmoji;
     _loadReactors();
+    _fetchReadCount();
     _scrollController.addListener(_onScroll);
+  }
+
+  Future<void> _fetchReadCount() async {
+    if (widget.message.isOutgoing && widget.chatType != ChatType.dm) {
+      try {
+        final engine = context.read<EngineService>();
+        final ids = await engine.getMessageReadParticipants(
+          widget.message.accountId, widget.message.chatId, widget.message.msgId,
+        );
+        if (mounted) setState(() => _readCount = ids.length);
+      } catch (_) {}
+    }
   }
 
   @override
@@ -113,8 +128,24 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
       setState(() => _loading = false);
       return;
     }
+    if (_selectedTab == _ReactionTabBar.kReadTab) {
+      try {
+        final result = await engine.getMessageReadParticipantsDetailed(
+          widget.message.accountId, widget.message.chatId, widget.message.msgId,
+        );
+        if (mounted) {
+          setState(() {
+            _readParticipants = result;
+            _loading = false;
+          });
+        }
+      } catch (_) {
+        if (mounted) setState(() => _loading = false);
+      }
+      return;
+    }
     try {
-      final reactionFilter = _selectedTab != null && _selectedTab != _ReactionTabBar.kReadTab
+      final reactionFilter = _selectedTab != null
           ? _selectedTab! : '';
       final result = await engine.getMessageReactorsList(
         widget.message.accountId,
@@ -181,11 +212,14 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
     return _allReactors.where((r) => r.emoji == _selectedTab).toList();
   }
 
+  bool get _isReadTab => _selectedTab == _ReactionTabBar.kReadTab;
+
   void _onTabSelected(String? tab) {
     if (tab == _selectedTab) return;
     setState(() {
       _selectedTab = tab;
       _allReactors = [];
+      _readParticipants = [];
       _nextOffset = '';
       _loading = true;
     });
@@ -235,11 +269,12 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
             palette: palette,
             onClose: () => Navigator.of(context).pop(),
           ),
-          if (reactions.isNotEmpty)
+          if (reactions.isNotEmpty || _readCount > 0)
             _ReactionTabBar(
               reactions: reactions,
               grouped: grouped,
               selectedTab: _selectedTab,
+              readCount: _readCount,
               palette: palette,
               onTabSelected: _onTabSelected,
             ),
@@ -249,6 +284,43 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
               padding: EdgeInsets.all(32),
               child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
             )
+          else if (_isReadTab)
+            _readParticipants.isEmpty
+              ? Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Text(
+                    'Nobody has seen yet',
+                    style: TextStyle(fontSize: 13, color: palette.windowSubTextFg),
+                  ),
+                )
+              : Flexible(
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    shrinkWrap: true,
+                    padding: EdgeInsets.zero,
+                    itemCount: _readParticipants.length,
+                    itemBuilder: (ctx, i) {
+                      final p = _readParticipants[i];
+                      return _ReadParticipantRow(
+                        participant: p,
+                        palette: palette,
+                        onTap: () {
+                          if (p.userId.isEmpty) return;
+                          Navigator.of(context).pop();
+                          final member = MemberInfo(userId: p.userId, displayName: p.name);
+                          if (InfoPanel.pushUserProfileRequest != null) {
+                            InfoPanel.pushUserProfileRequest!(member);
+                          } else {
+                            UniClientShell.toggleInfoRequest?.call();
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              InfoPanel.pushUserProfileRequest?.call(member);
+                            });
+                          }
+                        },
+                      );
+                    },
+                  ),
+                )
           else if (_filteredReactors.isEmpty)
             Padding(
               padding: const EdgeInsets.all(32),
@@ -597,6 +669,96 @@ class _ReactorRow extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ReadParticipantRow extends StatelessWidget {
+  final ReadParticipantInfo participant;
+  final TelegramPalette palette;
+  final VoidCallback? onTap;
+
+  const _ReadParticipantRow({
+    required this.participant,
+    required this.palette,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final name = participant.name.isNotEmpty ? participant.name : 'User ${participant.userId}';
+    final hasDate = participant.date > 0;
+    final dateStr = _formatReadDateLocal(participant.date);
+
+    return InkWell(
+      onTap: onTap,
+      child: SizedBox(
+        height: 58,
+        child: Stack(
+          children: [
+            Positioned(
+              left: 18, top: 6,
+              child: _ReactorAvatar(name: name, size: 46),
+            ),
+            Positioned(
+              left: 79,
+              top: hasDate ? 11.0 : 20.0,
+              right: 18,
+              child: Text(
+                name,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: palette.windowFg,
+                ),
+              ),
+            ),
+            if (hasDate)
+              Positioned(
+                left: 79,
+                top: 31,
+                right: 18,
+                child: Row(
+                  children: [
+                    Icon(Icons.done_all, size: 14, color: palette.windowSubTextFg),
+                    const SizedBox(width: 3),
+                    Expanded(
+                      child: Text(
+                        dateStr,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: palette.windowSubTextFg,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _formatReadDateLocal(int unixSeconds) {
+  if (unixSeconds <= 0) return '';
+  final dt = DateTime.fromMillisecondsSinceEpoch(unixSeconds * 1000);
+  final now = DateTime.now();
+  final hm = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  if (dt.year == now.year && dt.month == now.month && dt.day == now.day) {
+    return 'Today, $hm';
+  }
+  final yesterday = now.subtract(const Duration(days: 1));
+  if (dt.year == yesterday.year && dt.month == yesterday.month && dt.day == yesterday.day) {
+    return 'Yesterday, $hm';
+  }
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  final mon = months[dt.month - 1];
+  if (dt.year == now.year) return '$mon ${dt.day}, $hm';
+  return '$mon ${dt.day}, ${dt.year}, $hm';
 }
 
 class _ReactorAvatar extends StatelessWidget {
