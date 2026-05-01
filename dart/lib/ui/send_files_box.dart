@@ -61,6 +61,8 @@ class SendFilesResult {
   final bool sendLargePhotos;
   final bool captionAbove;
   final Map<int, String> perFileCaptions;
+  final bool ctrlShiftEnter;
+  final bool sendAsSticker;
 
   const SendFilesResult({
     required this.paths,
@@ -74,6 +76,8 @@ class SendFilesResult {
     this.sendLargePhotos = true,
     this.captionAbove = false,
     this.perFileCaptions = const {},
+    this.ctrlShiftEnter = false,
+    this.sendAsSticker = false,
   });
 }
 
@@ -228,7 +232,11 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
     final ctrl = HardwareKeyboard.instance.isControlPressed;
     final shift = HardwareKeyboard.instance.isShiftPressed;
 
-    if (isEnter && !ctrl && !shift) {
+    if (isEnter && ctrl && shift) {
+      _send(ctrlShiftEnter: true);
+      return KeyEventResult.handled;
+    }
+    if (isEnter && !shift) {
       _send();
       return KeyEventResult.handled;
     }
@@ -506,6 +514,11 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
     });
   }
 
+  bool get _canSendAsSticker =>
+      _files.length == 1 &&
+      _files.first.type == _FileType.photo &&
+      !_sendAsDocuments;
+
   void _showTopMenu(Offset position) {
     showTelegramMenu<String>(
       context: context,
@@ -525,17 +538,31 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
             icon: Icon(_allSpoilered ? Icons.check : Icons.blur_on),
             label: _anySpoilered ? 'Remove spoiler' : 'Hide with spoiler',
           ),
+        if (_canSendAsSticker) ...[
+          if (_hasHighQualityOption || _canSpoiler)
+            const TelegramMenuItem.separator(),
+          const TelegramMenuItem(
+            value: 'sticker',
+            icon: Icon(Icons.sticky_note_2_outlined),
+            label: 'Send as sticker',
+          ),
+        ],
       ],
     ).then((value) {
       if (value == 'quality') setState(() => _sendLargePhotos = !_sendLargePhotos);
       if (value == 'spoiler') _toggleAllSpoilers();
+      if (value == 'sticker') _sendAsSticker();
     });
   }
 
-  void _send({bool silent = false, DateTime? scheduledDate}) {
+  Future<void> _sendAsSticker() async {
+    _send(asSticker: true);
+  }
+
+  void _send({bool silent = false, DateTime? scheduledDate, bool ctrlShiftEnter = false, bool asSticker = false}) {
     if (_captionController.text.length > _kCaptionMaxLength) return;
     if (_preparing) {
-      _whenReadySend = () => _send(silent: silent, scheduledDate: scheduledDate);
+      _whenReadySend = () => _send(silent: silent, scheduledDate: scheduledDate, ctrlShiftEnter: ctrlShiftEnter, asSticker: asSticker);
       return;
     }
     Navigator.of(context).pop(SendFilesResult(
@@ -550,10 +577,13 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
       sendLargePhotos: _sendLargePhotos,
       captionAbove: _captionAbove,
       perFileCaptions: Map.from(_perFileCaptions),
+      ctrlShiftEnter: ctrlShiftEnter,
+      sendAsSticker: asSticker,
     ));
   }
 
   void _showSendMenu(BuildContext ctx, Offset position) {
+    final hasDetailItems = _hasHighQualityOption || _canSpoiler || _canMoveCaption;
     showTelegramMenu<String>(
       context: ctx,
       position: Offset(position.dx, position.dy - 120),
@@ -563,6 +593,26 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
         TelegramMenuItem(value: 'schedule', icon: const Icon(Icons.schedule_outlined), label: widget.isSelfChat ? 'Set Reminder' : 'Schedule Message'),
         if (widget.chatType == ChatType.dm && !widget.isSelfChat)
           const TelegramMenuItem(value: 'when_online', icon: Icon(Icons.person_outline), label: 'Send When Online'),
+        if (hasDetailItems)
+          const TelegramMenuItem.separator(),
+        if (_hasHighQualityOption)
+          TelegramMenuItem(
+            value: 'quality',
+            icon: Icon(_sendLargePhotos ? Icons.check : Icons.hd_outlined),
+            label: 'Send in high quality',
+          ),
+        if (_canSpoiler)
+          TelegramMenuItem(
+            value: 'spoiler',
+            icon: Icon(_allSpoilered ? Icons.check : Icons.blur_on),
+            label: 'Spoiler effect',
+          ),
+        if (_canMoveCaption)
+          TelegramMenuItem(
+            value: 'caption_pos',
+            icon: Icon(_captionAbove ? Icons.arrow_downward : Icons.arrow_upward),
+            label: _captionAbove ? 'Move caption down' : 'Move caption up',
+          ),
       ],
     ).then((value) {
       if (value == null) return;
@@ -573,6 +623,12 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
           _pickScheduleDate();
         case 'when_online':
           _send();
+        case 'quality':
+          setState(() => _sendLargePhotos = !_sendLargePhotos);
+        case 'spoiler':
+          _toggleAllSpoilers();
+        case 'caption_pos':
+          setState(() => _captionAbove = !_captionAbove);
       }
     });
   }
@@ -632,7 +688,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
                   ),
                   _TopMenuButton(
                     isDark: isDark,
-                    onPressed: !(_canSpoiler || _hasHighQualityOption) ? null : () {
+                    onPressed: !(_canSpoiler || _hasHighQualityOption || _canSendAsSticker) ? null : () {
                       final btnBox = context.findRenderObject() as RenderBox;
                       final pos = btnBox.localToGlobal(Offset(btnBox.size.width - 48, 48));
                       _showTopMenu(pos);

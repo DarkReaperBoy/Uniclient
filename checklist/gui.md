@@ -915,7 +915,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/send_files_box.dart, dart/lib/ui/chat_view.dart (_ComposeArea attach, drag-drop, clipboard paste) -->
 
-- [ ] Send button: "Send" / star cost for paid channels; right-click/long-press send menu (silent/schedule/when-online/spoiler-toggle/caption-position/quality); "Send as sticker" WEBP conversion option; Ctrl+Shift+Enter flag — spec §40.10
 - [ ] File type detection: photo (valid image, not animated), video (PreparedFileInformation::Video), music (Song metadata), sticker (.tgs/IsMimeSticker), MimeDataState classification — spec §40.11
 - [ ] Drag-and-drop overlay: Photo zone / Document zone, mutual exclusion, opacity fade animation, caption field acceptDrops(false) during drag — spec §40.13
 - [ ] GIF + Audio handling: GIF as Type::None with animated preview, audio SingleFilePreview with "Artist — Title", cover art circular thumb or colored circle with play icon, no waveform in preview — spec §40.15–40.16
