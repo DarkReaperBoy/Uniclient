@@ -969,6 +969,19 @@ class MessageReaction {
   };
 }
 
+// ── Read participant with timestamp ──
+class ReadParticipantInfo {
+  final String userId;
+  final int date;
+  final String name;
+
+  const ReadParticipantInfo({
+    required this.userId,
+    this.date = 0,
+    this.name = '',
+  });
+}
+
 // ── Reactor info (who reacted with what emoji) ──
 class ReactorInfo {
   final String emoji;

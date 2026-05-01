@@ -779,6 +779,20 @@ func (e *Engine) GetMessageReadParticipants(accountID, chatID, msgID string) ([]
 	return rp.GetMessageReadParticipants(chatID, msgID)
 }
 
+func (e *Engine) GetMessageReadParticipantsDetailed(accountID, chatID, msgID string) ([]map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type detailedGetter interface {
+		GetMessageReadParticipantsDetailedJSON(chatID, msgID string) ([]map[string]interface{}, error)
+	}
+	if dg, ok := acc.Core.(detailedGetter); ok {
+		return dg.GetMessageReadParticipantsDetailedJSON(chatID, msgID)
+	}
+	return nil, fmt.Errorf("GetMessageReadParticipantsDetailed not supported for this platform")
+}
+
 func (e *Engine) GetInviteLink(accountID, chatID string) (string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

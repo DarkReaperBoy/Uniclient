@@ -26,6 +26,8 @@ import '../theme/wallpaper.dart';
 import '../data/emoji_data.dart';
 import 'chat_list_row.dart' show ForwardDragData, MyNotesUserpic, SavedMessagesUserpic;
 import 'reactions_detail.dart';
+import 'info_panel.dart';
+import 'shell.dart';
 import 'sticker_pack_viewer.dart';
 import 'message_bubble.dart';
 import 'popup_menu.dart';
@@ -1600,10 +1602,12 @@ class _ChatViewState extends State<ChatView>
 
   void _showWhoRead(CachedMessage msg) async {
     final engine = context.read<EngineService>();
-    final userIds = await engine.getMessageReadParticipants(msg.accountId, msg.chatId, msg.msgId);
+    final participants = await engine.getMessageReadParticipantsDetailed(
+      msg.accountId, msg.chatId, msg.msgId,
+    );
     if (!mounted) return;
     final palette = PaletteProvider.of(context);
-    final count = userIds.length;
+    final count = participants.length;
     String title;
     if (msg.mediaType == 3 || msg.mediaType == 4) {
       title = count == 0 ? 'Nobody listened' : 'Listened by $count';
@@ -1612,32 +1616,42 @@ class _ChatViewState extends State<ChatView>
     } else {
       title = count == 0 ? 'Nobody has seen yet' : 'Seen by $count';
     }
-    showDialog(
+    if (!mounted) return;
+    showGeneralDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: palette.windowBg,
-        title: Row(
-          children: [
-            Icon(Icons.done_all, color: palette.windowActiveTextFg, size: 20),
-            const SizedBox(width: 8),
-            Text(title, style: TextStyle(color: palette.windowFg, fontSize: 16)),
-          ],
-        ),
-        content: count == 0
-            ? Text(
-                'No one has read this message yet.',
-                style: TextStyle(color: palette.windowSubTextFg, fontSize: 14),
-              )
-            : Text(
-                '$count ${count == 1 ? "person" : "people"} read this message.',
-                style: TextStyle(color: palette.windowSubTextFg, fontSize: 14),
-              ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('OK'),
+      barrierDismissible: true,
+      barrierLabel: 'WhoRead',
+      barrierColor: Colors.black26,
+      transitionDuration: const Duration(milliseconds: 150),
+      transitionBuilder: (ctx, anim, _, child) {
+        return FadeTransition(
+          opacity: anim,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.95, end: 1.0)
+                .animate(CurvedAnimation(parent: anim, curve: Curves.easeOutQuint)),
+            child: child,
           ),
-        ],
+        );
+      },
+      pageBuilder: (ctx, _, __) => Center(
+        child: _WhoReadPopup(
+          title: title,
+          participants: participants,
+          palette: palette,
+          mediaType: msg.mediaType,
+          onUserTap: (userId) {
+            Navigator.of(ctx).pop();
+            final member = MemberInfo(userId: userId, displayName: '');
+            if (InfoPanel.pushUserProfileRequest != null) {
+              InfoPanel.pushUserProfileRequest!(member);
+            } else {
+              UniClientShell.toggleInfoRequest?.call();
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                InfoPanel.pushUserProfileRequest?.call(member);
+              });
+            }
+          },
+        ),
       ),
     );
   }
@@ -15899,6 +15913,261 @@ class _CodeLanguageBoxContentState extends State<_CodeLanguageBoxContent> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Who-Read Popup (§43.4) ──
+
+String _formatReadDate(int unixSeconds) {
+  if (unixSeconds <= 0) return '';
+  final dt = DateTime.fromMillisecondsSinceEpoch(unixSeconds * 1000);
+  final now = DateTime.now();
+  final hm = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  if (dt.year == now.year && dt.month == now.month && dt.day == now.day) {
+    return 'Today, $hm';
+  }
+  final yesterday = now.subtract(const Duration(days: 1));
+  if (dt.year == yesterday.year && dt.month == yesterday.month && dt.day == yesterday.day) {
+    return 'Yesterday, $hm';
+  }
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  final mon = months[dt.month - 1];
+  if (dt.year == now.year) {
+    return '$mon ${dt.day}, $hm';
+  }
+  return '$mon ${dt.day}, ${dt.year}, $hm';
+}
+
+class _WhoReadPopup extends StatelessWidget {
+  final String title;
+  final List<ReadParticipantInfo> participants;
+  final TelegramPalette palette;
+  final int mediaType;
+  final void Function(String userId) onUserTap;
+
+  const _WhoReadPopup({
+    required this.title,
+    required this.participants,
+    required this.palette,
+    required this.mediaType,
+    required this.onUserTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 320, maxHeight: 460),
+      child: Material(
+        elevation: 8,
+        color: palette.windowBg,
+        borderRadius: BorderRadius.circular(8),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Title bar
+            Padding(
+              padding: const EdgeInsets.fromLTRB(15, 9, 17, 7),
+              child: Row(
+                children: [
+                  Icon(
+                    mediaType == 3 || mediaType == 4
+                        ? Icons.headphones
+                        : mediaType == 2 || mediaType == 5
+                            ? Icons.play_arrow
+                            : Icons.done_all,
+                    size: 20,
+                    color: palette.windowFg,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: palette.windowFg,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: palette.windowFg.withValues(alpha: 0.08)),
+            if (participants.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  _emptyText(),
+                  style: TextStyle(fontSize: 13, color: palette.windowSubTextFg),
+                ),
+              )
+            else
+              Flexible(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 400),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.only(top: 6, bottom: 4),
+                    itemCount: participants.length,
+                    itemBuilder: (ctx, i) => _WhoReadRow(
+                      participant: participants[i],
+                      palette: palette,
+                      onTap: () => onUserTap(participants[i].userId),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _emptyText() {
+    if (mediaType == 3 || mediaType == 4) return 'Nobody listened';
+    if (mediaType == 2 || mediaType == 5) return 'Nobody watched';
+    return 'Nobody has seen yet';
+  }
+}
+
+class _WhoReadRow extends StatefulWidget {
+  final ReadParticipantInfo participant;
+  final TelegramPalette palette;
+  final VoidCallback? onTap;
+
+  const _WhoReadRow({
+    required this.participant,
+    required this.palette,
+    this.onTap,
+  });
+
+  @override
+  State<_WhoReadRow> createState() => _WhoReadRowState();
+}
+
+class _WhoReadRowState extends State<_WhoReadRow> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = widget.participant;
+    final palette = widget.palette;
+    final hasDate = p.date > 0;
+    final dateStr = _formatReadDate(p.date);
+    final name = p.name.isNotEmpty ? p.name : 'User ${p.userId}';
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: Container(
+          height: 40,
+          color: _hovered ? palette.windowBgOver : Colors.transparent,
+          child: Stack(
+            children: [
+              // Avatar: 30px at (13, 5)
+              Positioned(
+                left: 13,
+                top: 5,
+                child: _WhoReadAvatar(name: name, size: 30),
+              ),
+              // Name text
+              Positioned(
+                left: 57,
+                top: hasDate ? 3.0 : (40 - 14) / 2,
+                right: 17,
+                child: Text(
+                  name,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: palette.windowFg,
+                  ),
+                ),
+              ),
+              // Date line with icon
+              if (hasDate)
+                Positioned(
+                  left: 57,
+                  top: 20,
+                  right: 17,
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.done_all,
+                        size: 14,
+                        color: _hovered
+                            ? palette.windowSubTextFgOver
+                            : palette.windowSubTextFg,
+                      ),
+                      const SizedBox(width: 3),
+                      Expanded(
+                        child: Text(
+                          dateStr,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: _hovered
+                                ? palette.windowSubTextFgOver
+                                : palette.windowSubTextFg,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WhoReadAvatar extends StatelessWidget {
+  final String name;
+  final double size;
+
+  const _WhoReadAvatar({required this.name, required this.size});
+
+  static const _colors = [
+    Color(0xFFE17076),
+    Color(0xFF7BC862),
+    Color(0xFFE5CA77),
+    Color(0xFF65AADD),
+    Color(0xFFA695E7),
+    Color(0xFFEE7AAE),
+    Color(0xFF6EC9CB),
+    Color(0xFFFAA774),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final initial = name.isNotEmpty ? name.characters.first.toUpperCase() : '?';
+    final colorIdx = name.hashCode.abs() % _colors.length;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: _colors[colorIdx],
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        initial,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: size * 0.45,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );

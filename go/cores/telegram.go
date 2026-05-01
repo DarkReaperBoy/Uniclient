@@ -13028,6 +13028,31 @@ func (t *TelegramCore) GetMessageReadParticipants(chatID string, msgID string) (
 	return userIDs, nil
 }
 
+// GetMessageReadParticipantsDetailedJSON returns users with read timestamps as generic maps.
+func (t *TelegramCore) GetMessageReadParticipantsDetailedJSON(chatID string, msgID string) ([]map[string]interface{}, error) {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil { return nil, err }
+	defer unlock()
+	id, err := tgMsgID(msgID)
+	if err != nil { return nil, err }
+	result, err := t.api.MessagesGetMessageReadParticipants(t.ctx, &tg.MessagesGetMessageReadParticipantsRequest{
+		Peer: inputPeer, MsgID: id,
+	})
+	if err != nil { return nil, err }
+	var participants []map[string]interface{}
+	for _, rp := range result {
+		t.peerMu.RLock()
+		name := t.userNames[rp.UserID]
+		t.peerMu.RUnlock()
+		participants = append(participants, map[string]interface{}{
+			"user_id": rp.UserID,
+			"date":    rp.Date,
+			"name":    name,
+		})
+	}
+	return participants, nil
+}
+
 // ReadMentions marks all mentions in a chat as read.
 func (t *TelegramCore) ReadMentions(chatID string) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
