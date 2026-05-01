@@ -176,6 +176,10 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
   final Map<int, String> _perFileCaptions = {};
   late final bool _initialSendAsDocuments;
   late final bool _initialGroupFiles;
+  bool _preparing = false;
+  int _preparingTotal = 0;
+  int _preparingDone = 0;
+  VoidCallback? _whenReadySend;
 
   @override
   void initState() {
@@ -272,15 +276,13 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
           await tmpFile.writeAsBytes(pasteResult.stdout as List<int>);
           if (await tmpFile.exists() && await tmpFile.length() > 0) {
             setState(() {
-              if (_files.length < _maxAlbumCount) {
-                final name = tmpFile.uri.pathSegments.last;
-                _files.add(_PreparedFile(
-                  path: tmpFile.path,
-                  name: name,
-                  size: tmpFile.lengthSync(),
-                  type: _detectType(name),
-                ));
-              }
+              final name = tmpFile.uri.pathSegments.last;
+              _files.add(_PreparedFile(
+                path: tmpFile.path,
+                name: name,
+                size: tmpFile.lengthSync(),
+                type: _detectType(name),
+              ));
             });
             _loadImageDimensions();
             return;
@@ -347,27 +349,61 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
     });
   }
 
+  Future<void> _prepareOneFile(_PreparedFile file) async {
+    if ((file.type != _FileType.photo && file.type != _FileType.video) ||
+        file.imageWidth != null) return;
+    try {
+      final data = await File(file.path).readAsBytes();
+      final codec = await ui.instantiateImageCodec(data);
+      final frame = await codec.getNextFrame();
+      file.imageWidth = frame.image.width.toDouble();
+      file.imageHeight = frame.image.height.toDouble();
+      file.hasThumb = true;
+      frame.image.dispose();
+      codec.dispose();
+    } catch (_) {
+      file.hasThumb = false;
+    }
+  }
+
   Future<void> _loadImageDimensions() async {
+    final toPrep = _files.where(
+      (f) => (f.type == _FileType.photo || f.type == _FileType.video) &&
+          f.imageWidth == null,
+    ).toList();
+    if (toPrep.isEmpty) return;
+
+    final immediate = toPrep.take(_maxAlbumCount).toList();
+    final queued = toPrep.skip(_maxAlbumCount).toList();
+
     bool changed = false;
-    for (final file in _files) {
-      if ((file.type == _FileType.photo || file.type == _FileType.video) &&
-          file.imageWidth == null) {
-        try {
-          final data = await File(file.path).readAsBytes();
-          final codec = await ui.instantiateImageCodec(data);
-          final frame = await codec.getNextFrame();
-          file.imageWidth = frame.image.width.toDouble();
-          file.imageHeight = frame.image.height.toDouble();
-          file.hasThumb = true;
-          frame.image.dispose();
-          codec.dispose();
-          changed = true;
-        } catch (_) {
-          file.hasThumb = false;
+    for (final file in immediate) {
+      await _prepareOneFile(file);
+      if (file.hasThumb) changed = true;
+    }
+    if (changed && mounted) setState(() {});
+
+    if (queued.isNotEmpty && mounted) {
+      setState(() {
+        _preparing = true;
+        _preparingTotal = queued.length;
+        _preparingDone = 0;
+      });
+      for (final file in queued) {
+        if (!mounted) return;
+        await _prepareOneFile(file);
+        if (!mounted) return;
+        setState(() => _preparingDone++);
+      }
+      if (mounted) {
+        setState(() => _preparing = false);
+        final cb = _whenReadySend;
+        if (cb != null) {
+          _whenReadySend = null;
+          cb();
         }
       }
     }
-    if (changed && mounted) setState(() {});
   }
 
   void _reorderMediaFiles(int fromIdx, int toIdx) {
@@ -430,11 +466,8 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
           type: _detectType(name),
         );
       }).toList();
-      setState(() {
-        for (final f in newFiles) {
-          if (_files.length < _maxAlbumCount) _files.add(f);
-        }
-      });
+      setState(() => _files.addAll(newFiles));
+      _loadImageDimensions();
     } catch (_) {}
   }
 
@@ -501,6 +534,10 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
 
   void _send({bool silent = false, DateTime? scheduledDate}) {
     if (_captionController.text.length > _kCaptionMaxLength) return;
+    if (_preparing) {
+      _whenReadySend = () => _send(silent: silent, scheduledDate: scheduledDate);
+      return;
+    }
     Navigator.of(context).pop(SendFilesResult(
       paths: _resultPaths,
       caption: _captionController.text,
@@ -763,6 +800,27 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
                         textColor: textFg,
                         onChanged: (v) => setState(() => _wayRemember = v),
                       ),
+                  ],
+                ),
+              ),
+            if (_preparing)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: accentFg,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Preparing files… $_preparingDone/$_preparingTotal',
+                      style: TextStyle(fontSize: 12, color: subFg),
+                    ),
                   ],
                 ),
               ),
@@ -1377,7 +1435,7 @@ List<_LayoutRect> _complexLayout(
       } else {
         final ideal = lineH * lineRatios[ci];
         final maxCellW = maxW - x - (count - 1 - ci) * (minCW + sp);
-        cellW = ideal.clamp(minCW, maxCellW);
+        cellW = ideal.clamp(minCW, math.max(minCW, maxCellW));
       }
       rects.add(_LayoutRect(
         idx + ci,
