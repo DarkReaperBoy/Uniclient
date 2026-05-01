@@ -915,7 +915,6 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/send_files_box.dart, dart/lib/ui/chat_view.dart (_ComposeArea attach, drag-drop, clipboard paste) -->
 
-- [ ] Spoiler toggle: per-file right-click context menu, bulk toggle in top-right menu, forced when paid price set, SpoilerAnimation (animated blur/sparkle) — spec §40.5
 - [ ] Caption field: MultiLine InputField, 4096-char limit with CharactersLimitLabel, full formatting support, emoji button (TabbedPanel EmojiOnly mode), emoji/mention/hashtag autocomplete, respect global send-submit-way, caption position toggle above/below, per-file captions for documents, paste interception routes to PrepareMediaList — spec §40.6
 - [ ] Individual file cards: thumbed (64×64px, 4px radius, nameTop 7px, statusTop 37px) or icon (44×44px ellipse) layout, semiboldFont name with middle-ellipsis max 64 chars, FormatSizeText size, single-line elided caption, edit+delete buttons (IconButton, top-right offset (2,5), -1px overlap), drag-reorder — spec §40.7
 - [ ] Album layout algorithm: max 10 items, 308px bounding width, 50px sub-cell min, 2px spacing, wide/>1.2/narrow/<0.8/square thresholds, outer-corners-only 6px radius — spec §40.8

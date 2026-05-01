@@ -154,6 +154,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
         name: name,
         size: size,
         type: _detectType(name),
+        spoiler: widget.starsPerMessage > 0 &&
+            (_detectType(name) == _FileType.photo ||
+             _detectType(name) == _FileType.video),
       );
     }).toList();
     _loadImageDimensions();
@@ -253,8 +256,12 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
     } catch (_) {}
   }
 
+  bool get _hasPaidPrice => widget.starsPerMessage > 0;
+
   bool get _canSpoiler =>
-      !_sendAsDocuments && _files.any((f) => f.type == _FileType.photo || f.type == _FileType.video);
+      !_hasPaidPrice &&
+      !_sendAsDocuments &&
+      _files.any((f) => f.type == _FileType.photo || f.type == _FileType.video);
 
   bool get _hasChangedWay =>
       _sendAsDocuments != _initialSendAsDocuments ||
@@ -268,10 +275,12 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
       _files.any((f) => f.spoiler);
 
   void _toggleSpoiler(int index) {
+    if (_hasPaidPrice) return;
     setState(() => _files[index].spoiler = !_files[index].spoiler);
   }
 
   void _toggleAllSpoilers() {
+    if (_hasPaidPrice) return;
     final target = !_allSpoilered;
     setState(() {
       for (final f in _files) {
@@ -1400,18 +1409,75 @@ class _HdBadge extends StatelessWidget {
   }
 }
 
-class _SpoilerOverlay extends StatelessWidget {
+class _SpoilerOverlay extends StatefulWidget {
   const _SpoilerOverlay();
 
   @override
+  State<_SpoilerOverlay> createState() => _SpoilerOverlayState();
+}
+
+class _SpoilerOverlayState extends State<_SpoilerOverlay>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      duration: const Duration(milliseconds: 2000),
+      vsync: this,
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      color: const Color(0x80000000),
-      child: const Center(
-        child: Icon(Icons.blur_on, color: Colors.white70, size: 36),
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (context, child) {
+        return CustomPaint(
+          painter: _SpoilerParticlePainter(_ctrl.value),
+          child: child,
+        );
+      },
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        child: Container(color: const Color(0x20000000)),
       ),
     );
   }
+}
+
+class _SpoilerParticlePainter extends CustomPainter {
+  final double phase;
+  _SpoilerParticlePainter(this.phase);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = const Color(0x40FFFFFF);
+    final rng = math.Random(42);
+    const count = 80;
+    for (int i = 0; i < count; i++) {
+      final baseX = rng.nextDouble();
+      final baseY = rng.nextDouble();
+      final speed = 0.3 + rng.nextDouble() * 0.7;
+      final r = 1.0 + rng.nextDouble() * 1.5;
+      final offset = (phase * speed) % 1.0;
+      final x = ((baseX + offset) % 1.0) * size.width;
+      final y = ((baseY + offset * 0.5) % 1.0) * size.height;
+      final alpha = (0.3 + 0.7 * math.sin((phase + i * 0.05) * math.pi * 2)).clamp(0.0, 1.0);
+      paint.color = Color.fromRGBO(255, 255, 255, alpha * 0.35);
+      canvas.drawCircle(Offset(x, y), r, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SpoilerParticlePainter old) => old.phase != phase;
 }
 
 class _CheckboxRow extends StatelessWidget {
