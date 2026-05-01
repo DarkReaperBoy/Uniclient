@@ -49,6 +49,13 @@ const double _capsuleVertH = 50;
 const double _capsuleSmallW = 30;
 const double _capsuleSmallH = 25;
 
+const Set<String> _kPhotoExts = {'jpg', 'jpeg', 'png', 'bmp', 'webp', 'heic', 'heif'};
+const Set<String> _kVideoExts = {'mp4', 'mov', 'avi', 'mkv', 'webm', 'flv', '3gp'};
+const Set<String> _kMusicExts = {
+  'mp3', 'm4a', 'flac', 'ogg', 'wav', 'aac', 'wma', 'opus', 'aiff', 'ape',
+};
+const Set<String> _kStickerMimes = {'tgs'};
+
 class SendFilesResult {
   final List<String> paths;
   final String caption;
@@ -81,7 +88,34 @@ class SendFilesResult {
   });
 }
 
-enum _FileType { photo, video, file }
+enum _FileType { photo, video, music, file }
+
+enum MimeDataState { photoFiles, mediaFiles, image, files }
+
+MimeDataState classifyMimeData(List<String> paths) {
+  if (paths.isEmpty) return MimeDataState.files;
+  bool allPhoto = true;
+  bool allMedia = true;
+  for (final p in paths) {
+    final name = p.split('/').last;
+    final ext = name.split('.').last.toLowerCase();
+    if (ext == 'gif') {
+      allPhoto = false;
+      allMedia = false;
+      break;
+    }
+    final isPhoto = _kPhotoExts.contains(ext);
+    final isVideo = _kVideoExts.contains(ext);
+    if (!isPhoto) allPhoto = false;
+    if (!isPhoto && !isVideo) {
+      allMedia = false;
+      break;
+    }
+  }
+  if (allPhoto) return MimeDataState.photoFiles;
+  if (allMedia) return MimeDataState.mediaFiles;
+  return MimeDataState.files;
+}
 
 class _PreparedFile {
   final String path;
@@ -102,6 +136,13 @@ class _PreparedFile {
     this.hasThumb = false,
   });
 
+  bool get isSticker {
+    final ext = name.split('.').last.toLowerCase();
+    return ext == 'tgs' || _kStickerMimes.contains(ext);
+  }
+
+  bool get isMediaType => type == _FileType.photo || type == _FileType.video;
+
   double get aspectRatio {
     if (imageWidth != null && imageHeight != null && imageHeight! > 0) {
       return imageWidth! / imageHeight!;
@@ -110,7 +151,7 @@ class _PreparedFile {
   }
 
   bool get isThumbedLayout =>
-      imageWidth != null && (type == _FileType.photo || type == _FileType.video);
+      imageWidth != null && isMediaType;
 
   String get displayName {
     if (name.length <= _kMaxDisplayNameLength) return name;
@@ -268,7 +309,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
   bool get _canMoveCaption =>
       !_sendAsDocuments &&
       _captionController.text.isNotEmpty &&
-      _files.any((f) => f.type == _FileType.photo || f.type == _FileType.video);
+      _files.any((f) => f.isMediaType);
 
   Future<void> _handleCaptionPaste() async {
     try {
@@ -358,26 +399,40 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
   }
 
   Future<void> _prepareOneFile(_PreparedFile file) async {
-    if ((file.type != _FileType.photo && file.type != _FileType.video) ||
-        file.imageWidth != null) return;
+    if (!file.isMediaType || file.imageWidth != null) return;
     try {
       final data = await File(file.path).readAsBytes();
       final codec = await ui.instantiateImageCodec(data);
+      if (file.type == _FileType.photo && codec.frameCount > 1) {
+        codec.dispose();
+        file.type = _FileType.file;
+        file.hasThumb = false;
+        return;
+      }
       final frame = await codec.getNextFrame();
-      file.imageWidth = frame.image.width.toDouble();
-      file.imageHeight = frame.image.height.toDouble();
-      file.hasThumb = true;
+      final w = frame.image.width.toDouble();
+      final h = frame.image.height.toDouble();
       frame.image.dispose();
       codec.dispose();
+      if (w <= 0 || h <= 0 || math.max(w, h) > 20 * math.min(w, h)) {
+        file.type = _FileType.file;
+        file.hasThumb = false;
+        return;
+      }
+      file.imageWidth = w;
+      file.imageHeight = h;
+      file.hasThumb = true;
     } catch (_) {
+      if (file.type == _FileType.photo) {
+        file.type = _FileType.file;
+      }
       file.hasThumb = false;
     }
   }
 
   Future<void> _loadImageDimensions() async {
     final toPrep = _files.where(
-      (f) => (f.type == _FileType.photo || f.type == _FileType.video) &&
-          f.imageWidth == null,
+      (f) => f.isMediaType && f.imageWidth == null,
     ).toList();
     if (toPrep.isEmpty) return;
 
@@ -415,9 +470,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
   }
 
   void _reorderMediaFiles(int fromIdx, int toIdx) {
-    final media = _files
-        .where((f) => f.type == _FileType.photo || f.type == _FileType.video)
-        .toList();
+    final media = _files.where((f) => f.isMediaType).toList();
     if (fromIdx < 0 || fromIdx >= media.length ||
         toIdx < 0 || toIdx >= media.length ||
         fromIdx == toIdx) return;
@@ -435,18 +488,20 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
 
   static _FileType _detectType(String name) {
     final ext = name.split('.').last.toLowerCase();
-    const photoExts = {'jpg', 'jpeg', 'png', 'bmp', 'webp', 'heic', 'heif'};
-    const videoExts = {'mp4', 'mov', 'avi', 'mkv', 'webm', 'flv', '3gp'};
-    if (photoExts.contains(ext)) return _FileType.photo;
-    if (videoExts.contains(ext)) return _FileType.video;
+    if (ext == 'gif') return _FileType.file;
+    if (_kPhotoExts.contains(ext)) return _FileType.photo;
+    if (_kVideoExts.contains(ext)) return _FileType.video;
+    if (_kMusicExts.contains(ext)) return _FileType.music;
     return _FileType.file;
   }
 
-  bool get _hasMediaFiles =>
-      _files.any((f) => f.type == _FileType.photo || f.type == _FileType.video);
+  bool get _hasMediaFiles => _files.any((f) => f.isMediaType);
 
   bool get _hasHighQualityOption =>
       !_sendAsDocuments && _files.any((f) => f.type == _FileType.photo);
+
+  bool get _hasCompressedStickers =>
+      _files.any((f) => f.isSticker);
 
   bool get _hasGroupOption => _files.length >= 2 && _hasMediaFiles;
 
@@ -484,15 +539,14 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
   bool get _canSpoiler =>
       !_hasPaidPrice &&
       !_sendAsDocuments &&
-      _files.any((f) => f.type == _FileType.photo || f.type == _FileType.video);
+      _files.any((f) => f.isMediaType);
 
   bool get _hasChangedWay =>
       _sendAsDocuments != _initialSendAsDocuments ||
       _groupFiles != _initialGroupFiles;
 
   bool get _allSpoilered =>
-      _files.where((f) => f.type == _FileType.photo || f.type == _FileType.video)
-          .every((f) => f.spoiler);
+      _files.where((f) => f.isMediaType).every((f) => f.spoiler);
 
   bool get _anySpoilered =>
       _files.any((f) => f.spoiler);
@@ -507,7 +561,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
     final target = !_allSpoilered;
     setState(() {
       for (final f in _files) {
-        if (f.type == _FileType.photo || f.type == _FileType.video) {
+        if (f.isMediaType) {
           f.spoiler = target;
         }
       }
@@ -656,9 +710,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
     final accentFg = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
     final dividerColor = isDark ? const Color(0xFF243441) : const Color(0xFFE0E0E0);
 
-    final mediaFiles = _files.where(
-        (f) => f.type == _FileType.photo || f.type == _FileType.video).toList();
-    final docFiles = _files.where((f) => f.type == _FileType.file).toList();
+    final mediaFiles = _files.where((f) => f.isMediaType).toList();
+    final docFiles = _files.where(
+        (f) => f.type == _FileType.file || f.type == _FileType.music).toList();
 
     final showMediaPreview = !_sendAsDocuments && mediaFiles.isNotEmpty;
 
@@ -1846,6 +1900,8 @@ class _FileCard extends StatelessWidget {
         return const Color(0xFF4CAF50);
       case _FileType.video:
         return const Color(0xFF2196F3);
+      case _FileType.music:
+        return const Color(0xFFEF5350);
       case _FileType.file:
         return isDark ? const Color(0xFF3F6C93) : const Color(0xFF5BA0D0);
     }
@@ -1857,6 +1913,8 @@ class _FileCard extends StatelessWidget {
         return Icons.image;
       case _FileType.video:
         return Icons.videocam;
+      case _FileType.music:
+        return Icons.music_note;
       case _FileType.file:
         return Icons.insert_drive_file;
     }
