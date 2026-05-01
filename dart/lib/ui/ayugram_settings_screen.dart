@@ -43,6 +43,54 @@ class _AyuGramSettingsScreenState extends State<AyuGramSettingsScreen> {
       body: ListView(
         padding: EdgeInsets.zero,
         children: [
+          // ── Ghost Mode section ──
+          _SectionLabel(label: 'Ghost Mode', color: sectionLabelColor),
+          _ToggleRow(
+            label: 'Ghost Mode',
+            subtitle: 'Suppress read receipts for messages',
+            value: appState.ghostModeEnabled,
+            onChanged: (v) => appState.setGhostModeEnabled(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _ToggleRow(
+            label: 'Send read stories',
+            subtitle: 'Send story view confirmations to others',
+            value: appState.sendReadStories,
+            onChanged: (v) => appState.setSendReadStories(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _ToggleRow(
+            label: 'Mark read after action',
+            subtitle: 'Mark messages read when you reply or react',
+            value: appState.markReadAfterAction,
+            onChanged: (v) => appState.setMarkReadAfterAction(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _ToggleRow(
+            label: 'Show message seconds',
+            subtitle: 'Display seconds in read timestamps (HH:mm:ss)',
+            value: appState.showMessageSeconds,
+            onChanged: (v) => appState.setShowMessageSeconds(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _DropdownRow(
+            label: 'Read receipts in context menu',
+            value: appState.showViewsPanelInContextMenu,
+            items: const {
+              0: 'Always visible',
+              1: 'Hidden',
+              2: 'Visible with Ctrl/Shift',
+            },
+            onChanged: (v) => appState.setShowViewsPanelInContextMenu(v),
+            isDark: isDark,
+          ),
+          Container(height: 1, color: dividerColor),
+          const SizedBox(height: 7),
+
           // ── Messages section ──
           _SectionLabel(label: 'Messages', color: sectionLabelColor),
           _SliderRow(
@@ -453,6 +501,55 @@ class _AvatarPreview extends StatelessWidget {
             ),
             const SizedBox(width: 12),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DropdownRow extends StatelessWidget {
+  final String label;
+  final int value;
+  final Map<int, String> items;
+  final ValueChanged<int> onChanged;
+  final bool isDark;
+
+  const _DropdownRow({
+    required this.label,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(label,
+                style: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? Colors.white : Colors.black87)),
+          ),
+          const SizedBox(width: 12),
+          DropdownButton<int>(
+            value: value,
+            underline: const SizedBox.shrink(),
+            dropdownColor: isDark ? const Color(0xFF1B2836) : Colors.white,
+            style: TextStyle(
+              fontSize: 13,
+              color: isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC),
+            ),
+            items: items.entries
+                .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
+                .toList(),
+            onChanged: (v) {
+              if (v != null) onChanged(v);
+            },
+          ),
         ],
       ),
     );

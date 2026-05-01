@@ -855,11 +855,11 @@ class _ChatViewState extends State<ChatView>
           TelegramMenuItem(value: 'user_messages', icon: const Icon(Icons.person_search), label: "${msg.senderName.split(' ').first}'s Messages"),
         const TelegramMenuItem(value: 'repeat_message', icon: Icon(Icons.repeat), label: 'Repeat Message'),
         const TelegramMenuItem(value: 'message_details', icon: Icon(Icons.info_outline), label: 'Message Details'),
-        if (msg.reactions.isNotEmpty)
+        if (msg.reactions.isNotEmpty && _shouldShowViewsPanel())
           const TelegramMenuItem(value: 'who_reacted', icon: Icon(Icons.favorite_outline), label: 'Who Reacted'),
-        if (chat != null && chat.type == ChatType.dm && msg.isOutgoing && !isSavedMessages)
+        if (chat != null && chat.type == ChatType.dm && msg.isOutgoing && !isSavedMessages && _shouldShowViewsPanel())
           const TelegramMenuItem(value: 'read_at', icon: Icon(Icons.done_all), label: 'Read at...'),
-        if (chat != null && (chat.type == ChatType.group || chat.type == ChatType.topic) && msg.isOutgoing && !msg.isService && !isSavedMessages && chat.memberCount > 0 && chat.memberCount <= 50 && !chat.isBot && (DateTime.now().millisecondsSinceEpoch - msg.timestamp).abs() < 7 * 24 * 3600 * 1000)
+        if (chat != null && (chat.type == ChatType.group || chat.type == ChatType.topic) && msg.isOutgoing && !msg.isService && !isSavedMessages && chat.memberCount > 0 && chat.memberCount <= 50 && !chat.isBot && (DateTime.now().millisecondsSinceEpoch - msg.timestamp).abs() < 7 * 24 * 3600 * 1000 && _shouldShowViewsPanel())
           TelegramMenuItem(value: 'who_read', icon: const Icon(Icons.done_all), label: _readReceiptLabel(msg)),
         if (hasForwardOrigin)
           const TelegramMenuItem(value: 'go_to_message', icon: Icon(Icons.shortcut), label: 'Go to Message'),
@@ -1554,12 +1554,15 @@ class _ChatViewState extends State<ChatView>
       final dt = DateTime.fromMillisecondsSinceEpoch(date * 1000);
       final hh = dt.hour.toString().padLeft(2, '0');
       final mm = dt.minute.toString().padLeft(2, '0');
+      final ss = dt.second.toString().padLeft(2, '0');
+      final showSec = context.read<AppState>().showMessageSeconds;
+      final timeStr = showSec ? '$hh:$mm:$ss' : '$hh:$mm';
       final palette = PaletteProvider.of(context);
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: palette.windowBg,
-          title: Text('Read at $hh:$mm', style: TextStyle(color: palette.windowFg)),
+          title: Text('Read at $timeStr', style: TextStyle(color: palette.windowFg)),
           content: Text(
             _formatFullDate(dt),
             style: TextStyle(color: palette.windowSubTextFg, fontSize: 14),
@@ -1592,6 +1595,19 @@ class _ChatViewState extends State<ChatView>
         ),
       );
     }
+  }
+
+  bool _shouldShowViewsPanel() {
+    final mode = context.read<AppState>().showViewsPanelInContextMenu;
+    if (mode == 1) return false; // hidden
+    if (mode == 2) {
+      final keys = HardwareKeyboard.instance.logicalKeysPressed;
+      return keys.contains(LogicalKeyboardKey.controlLeft) ||
+          keys.contains(LogicalKeyboardKey.controlRight) ||
+          keys.contains(LogicalKeyboardKey.shiftLeft) ||
+          keys.contains(LogicalKeyboardKey.shiftRight);
+    }
+    return true; // visible (0)
   }
 
   String _readReceiptLabel(CachedMessage msg) {
@@ -15931,24 +15947,26 @@ class _MergedReadEntry {
   });
 }
 
-String _formatReadDate(int unixSeconds) {
+String _formatReadDate(int unixSeconds, {bool showSeconds = false}) {
   if (unixSeconds <= 0) return '';
   final dt = DateTime.fromMillisecondsSinceEpoch(unixSeconds * 1000);
   final now = DateTime.now();
-  final hm = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  final time = showSeconds
+      ? '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}:${dt.second.toString().padLeft(2, '0')}'
+      : '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   if (dt.year == now.year && dt.month == now.month && dt.day == now.day) {
-    return 'Today, $hm';
+    return 'Today, $time';
   }
   final yesterday = now.subtract(const Duration(days: 1));
   if (dt.year == yesterday.year && dt.month == yesterday.month && dt.day == yesterday.day) {
-    return 'Yesterday, $hm';
+    return 'Yesterday, $time';
   }
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   final mon = months[dt.month - 1];
   if (dt.year == now.year) {
-    return '$mon ${dt.day}, $hm';
+    return '$mon ${dt.day}, $time';
   }
-  return '$mon ${dt.day}, ${dt.year}, $hm';
+  return '$mon ${dt.day}, ${dt.year}, $time';
 }
 
 class _WhoReadPopup extends StatefulWidget {
@@ -16013,6 +16031,8 @@ class _WhoReadPopupState extends State<_WhoReadPopup> {
       widget.accountId, widget.chatId, widget.msgId,
     );
 
+    final blockedFuture = widget.engine.getBlockedUsers(widget.accountId);
+
     final hasReactions = widget.reactions.isNotEmpty;
     final msgIdInt = int.tryParse(widget.msgId) ?? 0;
 
@@ -16028,13 +16048,20 @@ class _WhoReadPopupState extends State<_WhoReadPopup> {
     }
 
     final readResult = await readFuture;
+    final blockedUsers = await blockedFuture;
     if (!mounted) return;
+
+    final blockedIds = blockedUsers
+        .map((u) => u['id'] as String? ?? '')
+        .where((id) => id.isNotEmpty)
+        .toSet();
 
     final readParticipants = readResult.participants;
     final merged = <_MergedReadEntry>[];
     final seenUserIds = <String>{};
 
     for (final r in reactors) {
+      if (blockedIds.contains(r.peerId)) continue;
       seenUserIds.add(r.peerId);
       final readMatch = readParticipants.where((p) => p.userId == r.peerId);
       final readDate = readMatch.isNotEmpty ? readMatch.first.date : 0;
@@ -16051,6 +16078,7 @@ class _WhoReadPopupState extends State<_WhoReadPopup> {
     }
 
     for (final p in readParticipants) {
+      if (blockedIds.contains(p.userId)) continue;
       if (!seenUserIds.contains(p.userId)) {
         merged.add(_MergedReadEntry(
           userId: p.userId,
@@ -16061,10 +16089,13 @@ class _WhoReadPopupState extends State<_WhoReadPopup> {
       }
     }
 
+    final filteredReactorCount = reactors.where((r) => !blockedIds.contains(r.peerId)).length;
+    final filteredReadCount = readParticipants.where((p) => !blockedIds.contains(p.userId)).length;
+
     setState(() {
       _merged = merged;
-      _reactedCount = reactors.length;
-      _readCount = readParticipants.length;
+      _reactedCount = filteredReactorCount;
+      _readCount = filteredReadCount;
       _privacyState = readResult.privacyState;
     });
   }
@@ -16329,7 +16360,8 @@ class _WhoReadRowState extends State<_WhoReadRow> {
     final e = widget.entry;
     final palette = widget.palette;
     final hasDate = e.date > 0;
-    final dateStr = _formatReadDate(e.date);
+    final showSec = context.read<AppState>().showMessageSeconds;
+    final dateStr = _formatReadDate(e.date, showSeconds: showSec);
     final name = e.name.isNotEmpty ? e.name : 'User ${e.userId}';
     final isReacted = e.type == WhoReadType.reacted;
 

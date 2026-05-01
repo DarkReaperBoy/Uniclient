@@ -345,6 +345,16 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                           context, position, isDark, appState);
                       },
                     ),
+                    // §43.13: Ghost Mode quick toggle.
+                    _MenuRow(
+                      icon: Icons.visibility_off,
+                      label: 'Ghost Mode',
+                      trailing: _InlineToggle(
+                        value: appState.ghostModeEnabled,
+                        onChanged: (v) => appState.setGhostModeEnabled(v),
+                      ),
+                      onTap: () => appState.setGhostModeEnabled(!appState.ghostModeEnabled),
+                    ),
                     // §3.3: Archive row — shown when user has archived chats.
                     if (context.watch<ChatState>().hasArchivedChats)
                       _MenuRow(

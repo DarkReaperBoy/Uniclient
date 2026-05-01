@@ -95,6 +95,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _semiTransparentDeleted = false;
   bool _showDrawerThemeToggle = true;
 
+  // §43.13: AyuGram ghost mode & read receipt settings.
+  bool _ghostModeEnabled = false;
+  bool _sendReadStories = true;
+  bool _markReadAfterAction = true;
+  int _showViewsPanelInContextMenu = 0; // 0=visible, 1=hidden, 2=visibleWithModifier
+  bool _showMessageSeconds = false;
+
   // Spec §17.7.1: PowerSaving bitfield (matches tdesktop bit positions).
   static const kPowerSavingStickersPanel = 1 << 0;
   static const kPowerSavingStickersChat  = 1 << 1;
@@ -204,6 +211,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get semiTransparentDeleted => _semiTransparentDeleted;
   bool get showDrawerThemeToggle => _showDrawerThemeToggle;
 
+  // §43.13 AyuGram ghost mode getters
+  bool get ghostModeEnabled => _ghostModeEnabled;
+  bool get sendReadStories => _sendReadStories;
+  bool get markReadAfterAction => _markReadAfterAction;
+  int get showViewsPanelInContextMenu => _showViewsPanelInContextMenu;
+  bool get showMessageSeconds => _showMessageSeconds;
+
   // §25.15 AyuGram setters
   void setBubbleRadius(int v) {
     v = v.clamp(0, 16);
@@ -259,6 +273,43 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setShowDrawerThemeToggle(bool v) {
     if (_showDrawerThemeToggle == v) return;
     _showDrawerThemeToggle = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  // §43.13 AyuGram ghost mode setters
+  void setGhostModeEnabled(bool v) {
+    if (_ghostModeEnabled == v) return;
+    _ghostModeEnabled = v;
+    notifyListeners();
+    _saveWindowPrefs();
+    _engine.updateConfig(sendReadReceipts: !v);
+  }
+
+  void setSendReadStories(bool v) {
+    if (_sendReadStories == v) return;
+    _sendReadStories = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setMarkReadAfterAction(bool v) {
+    if (_markReadAfterAction == v) return;
+    _markReadAfterAction = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setShowViewsPanelInContextMenu(int v) {
+    if (_showViewsPanelInContextMenu == v) return;
+    _showViewsPanelInContextMenu = v.clamp(0, 2);
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setShowMessageSeconds(bool v) {
+    if (_showMessageSeconds == v) return;
+    _showMessageSeconds = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -1187,6 +1238,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _simpleQuotes = data['simpleQuotes'] as bool? ?? false;
       _semiTransparentDeleted = data['semiTransparentDeleted'] as bool? ?? false;
       _showDrawerThemeToggle = data['showDrawerThemeToggle'] as bool? ?? true;
+      // §43.13 AyuGram ghost mode prefs
+      _ghostModeEnabled = data['ghostModeEnabled'] as bool? ?? false;
+      _sendReadStories = data['sendReadStories'] as bool? ?? true;
+      _markReadAfterAction = data['markReadAfterAction'] as bool? ?? true;
+      _showViewsPanelInContextMenu = data['showViewsPanelInContextMenu'] as int? ?? 0;
+      _showMessageSeconds = data['showMessageSeconds'] as bool? ?? false;
       _loadWallpaper(data);
       _loadCustomThemeFromCache();
     } catch (_) {}
@@ -1240,6 +1297,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'simpleQuotes': _simpleQuotes,
         'semiTransparentDeleted': _semiTransparentDeleted,
         'showDrawerThemeToggle': _showDrawerThemeToggle,
+        'ghostModeEnabled': _ghostModeEnabled,
+        'sendReadStories': _sendReadStories,
+        'markReadAfterAction': _markReadAfterAction,
+        'showViewsPanelInContextMenu': _showViewsPanelInContextMenu,
+        'showMessageSeconds': _showMessageSeconds,
         'wallpaperType': _wallpaper.type.index,
         'wallpaperColors': _wallpaper.backgroundColors
             .map((c) => (c.value & 0xFFFFFF).toRadixString(16).padLeft(6, '0'))

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
+import '../state/app_state.dart';
 import '../theme/telegram_palette.dart';
 import 'info_panel.dart';
 import 'shell.dart';
@@ -84,14 +85,31 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
   String? _selectedTab;
   String _nextOffset = '';
   final ScrollController _scrollController = ScrollController();
+  Set<String> _blockedIds = {};
 
   @override
   void initState() {
     super.initState();
     _selectedTab = widget.initialEmoji;
+    _loadBlockedUsers();
     _loadReactors();
     _fetchReadCount();
     _scrollController.addListener(_onScroll);
+  }
+
+  Future<void> _loadBlockedUsers() async {
+    try {
+      final engine = context.read<EngineService>();
+      final users = await engine.getBlockedUsers(widget.message.accountId);
+      if (mounted) {
+        setState(() {
+          _blockedIds = users
+              .map((u) => u['id'] as String? ?? '')
+              .where((id) => id.isNotEmpty)
+              .toSet();
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _fetchReadCount() async {
@@ -207,9 +225,21 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
   }
 
   List<ReactorInfo> get _filteredReactors {
-    if (_selectedTab == null) return _allReactors;
-    if (_selectedTab == _ReactionTabBar.kReadTab) return [];
-    return _allReactors.where((r) => r.emoji == _selectedTab).toList();
+    List<ReactorInfo> base;
+    if (_selectedTab == null) {
+      base = _allReactors;
+    } else if (_selectedTab == _ReactionTabBar.kReadTab) {
+      return [];
+    } else {
+      base = _allReactors.where((r) => r.emoji == _selectedTab).toList();
+    }
+    if (_blockedIds.isEmpty) return base;
+    return base.where((r) => !_blockedIds.contains(r.peerId)).toList();
+  }
+
+  List<ReadParticipantInfo> get _filteredReadParticipants {
+    if (_blockedIds.isEmpty) return _readParticipants;
+    return _readParticipants.where((p) => !_blockedIds.contains(p.userId)).toList();
   }
 
   bool get _isReadTab => _selectedTab == _ReactionTabBar.kReadTab;
@@ -285,7 +315,7 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
               child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
             )
           else if (_isReadTab)
-            _readParticipants.isEmpty
+            _filteredReadParticipants.isEmpty
               ? Padding(
                   padding: const EdgeInsets.all(32),
                   child: Text(
@@ -298,9 +328,9 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
                     controller: _scrollController,
                     shrinkWrap: true,
                     padding: EdgeInsets.zero,
-                    itemCount: _readParticipants.length,
+                    itemCount: _filteredReadParticipants.length,
                     itemBuilder: (ctx, i) {
-                      final p = _readParticipants[i];
+                      final p = _filteredReadParticipants[i];
                       return _ReadParticipantRow(
                         participant: p,
                         palette: palette,
@@ -686,7 +716,8 @@ class _ReadParticipantRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final name = participant.name.isNotEmpty ? participant.name : 'User ${participant.userId}';
     final hasDate = participant.date > 0;
-    final dateStr = _formatReadDateLocal(participant.date);
+    final showSec = context.read<AppState>().showMessageSeconds;
+    final dateStr = _formatReadDateLocal(participant.date, showSeconds: showSec);
 
     return InkWell(
       onTap: onTap,
@@ -743,22 +774,24 @@ class _ReadParticipantRow extends StatelessWidget {
   }
 }
 
-String _formatReadDateLocal(int unixSeconds) {
+String _formatReadDateLocal(int unixSeconds, {bool showSeconds = false}) {
   if (unixSeconds <= 0) return '';
   final dt = DateTime.fromMillisecondsSinceEpoch(unixSeconds * 1000);
   final now = DateTime.now();
-  final hm = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  final time = showSeconds
+      ? '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}:${dt.second.toString().padLeft(2, '0')}'
+      : '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   if (dt.year == now.year && dt.month == now.month && dt.day == now.day) {
-    return 'Today, $hm';
+    return 'Today, $time';
   }
   final yesterday = now.subtract(const Duration(days: 1));
   if (dt.year == yesterday.year && dt.month == yesterday.month && dt.day == yesterday.day) {
-    return 'Yesterday, $hm';
+    return 'Yesterday, $time';
   }
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   final mon = months[dt.month - 1];
-  if (dt.year == now.year) return '$mon ${dt.day}, $hm';
-  return '$mon ${dt.day}, ${dt.year}, $hm';
+  if (dt.year == now.year) return '$mon ${dt.day}, $time';
+  return '$mon ${dt.day}, ${dt.year}, $time';
 }
 
 class _ReactorAvatar extends StatelessWidget {
