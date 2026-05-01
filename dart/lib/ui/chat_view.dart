@@ -1600,23 +1600,9 @@ class _ChatViewState extends State<ChatView>
     return 'Seen by...';
   }
 
-  void _showWhoRead(CachedMessage msg) async {
+  void _showWhoRead(CachedMessage msg) {
     final engine = context.read<EngineService>();
-    final participants = await engine.getMessageReadParticipantsDetailed(
-      msg.accountId, msg.chatId, msg.msgId,
-    );
-    if (!mounted) return;
     final palette = PaletteProvider.of(context);
-    final count = participants.length;
-    String title;
-    if (msg.mediaType == 3 || msg.mediaType == 4) {
-      title = count == 0 ? 'Nobody listened' : 'Listened by $count';
-    } else if (msg.mediaType == 2 || msg.mediaType == 5) {
-      title = count == 0 ? 'Nobody watched' : 'Watched by $count';
-    } else {
-      title = count == 0 ? 'Nobody has seen yet' : 'Seen by $count';
-    }
-    if (!mounted) return;
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
@@ -1633,12 +1619,15 @@ class _ChatViewState extends State<ChatView>
           ),
         );
       },
-      pageBuilder: (ctx, _, __) => Center(
+      pageBuilder: (ctx, animation, __) => Center(
         child: _WhoReadPopup(
-          title: title,
-          participants: participants,
+          engine: engine,
+          accountId: msg.accountId,
+          chatId: msg.chatId,
+          msgId: msg.msgId,
           palette: palette,
           mediaType: msg.mediaType,
+          appearAnimation: animation,
           onUserTap: (userId) {
             Navigator.of(ctx).pop();
             final member = MemberInfo(userId: userId, displayName: '');
@@ -15941,23 +15930,89 @@ String _formatReadDate(int unixSeconds) {
   return '$mon ${dt.day}, ${dt.year}, $hm';
 }
 
-class _WhoReadPopup extends StatelessWidget {
-  final String title;
-  final List<ReadParticipantInfo> participants;
+class _WhoReadPopup extends StatefulWidget {
+  final EngineService engine;
+  final String accountId;
+  final String chatId;
+  final String msgId;
   final TelegramPalette palette;
   final int mediaType;
+  final Animation<double> appearAnimation;
   final void Function(String userId) onUserTap;
 
   const _WhoReadPopup({
-    required this.title,
-    required this.participants,
+    required this.engine,
+    required this.accountId,
+    required this.chatId,
+    required this.msgId,
     required this.palette,
     required this.mediaType,
+    required this.appearAnimation,
     required this.onUserTap,
   });
 
   @override
+  State<_WhoReadPopup> createState() => _WhoReadPopupState();
+}
+
+class _WhoReadPopupState extends State<_WhoReadPopup> {
+  List<ReadParticipantInfo>? _participants;
+  bool _appeared = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadParticipants();
+    if (widget.appearAnimation.isCompleted) {
+      _appeared = true;
+    } else {
+      widget.appearAnimation.addStatusListener(_onAnimStatus);
+    }
+  }
+
+  void _onAnimStatus(AnimationStatus status) {
+    if (status == AnimationStatus.completed && mounted) {
+      setState(() => _appeared = true);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.appearAnimation.removeStatusListener(_onAnimStatus);
+    super.dispose();
+  }
+
+  Future<void> _loadParticipants() async {
+    final result = await widget.engine.getMessageReadParticipantsDetailed(
+      widget.accountId, widget.chatId, widget.msgId,
+    );
+    if (mounted) setState(() => _participants = result);
+  }
+
+  String _titleText() {
+    if (_participants == null) return 'Loading...';
+    final count = _participants!.length;
+    if (widget.mediaType == 3 || widget.mediaType == 4) {
+      return count == 0 ? 'Nobody listened' : 'Listened by $count';
+    }
+    if (widget.mediaType == 2 || widget.mediaType == 5) {
+      return count == 0 ? 'Nobody watched' : 'Watched by $count';
+    }
+    return count == 0 ? 'Nobody has seen yet' : 'Seen by $count';
+  }
+
+  String _emptyText() {
+    if (widget.mediaType == 3 || widget.mediaType == 4) return 'Nobody listened';
+    if (widget.mediaType == 2 || widget.mediaType == 5) return 'Nobody watched';
+    return 'Nobody has seen yet';
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final palette = widget.palette;
+    final isLoading = _participants == null;
+    final isEmpty = _participants != null && _participants!.isEmpty;
+
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 320, maxHeight: 460),
       child: Material(
@@ -15968,15 +16023,14 @@ class _WhoReadPopup extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Title bar
             Padding(
               padding: const EdgeInsets.fromLTRB(15, 9, 17, 7),
               child: Row(
                 children: [
                   Icon(
-                    mediaType == 3 || mediaType == 4
+                    widget.mediaType == 3 || widget.mediaType == 4
                         ? Icons.headphones
-                        : mediaType == 2 || mediaType == 5
+                        : widget.mediaType == 2 || widget.mediaType == 5
                             ? Icons.play_arrow
                             : Icons.done_all,
                     size: 20,
@@ -15985,7 +16039,7 @@ class _WhoReadPopup extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      title,
+                      _titleText(),
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -15997,7 +16051,15 @@ class _WhoReadPopup extends StatelessWidget {
               ),
             ),
             Divider(height: 1, color: palette.windowFg.withValues(alpha: 0.08)),
-            if (participants.isEmpty)
+            if (isLoading)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: List.generate(3, (_) => _WhoReadPreloaderRow(palette: palette)),
+                ),
+              )
+            else if (isEmpty)
               Padding(
                 padding: const EdgeInsets.all(24),
                 child: Text(
@@ -16012,11 +16074,12 @@ class _WhoReadPopup extends StatelessWidget {
                   child: ListView.builder(
                     shrinkWrap: true,
                     padding: const EdgeInsets.only(top: 6, bottom: 4),
-                    itemCount: participants.length,
+                    itemCount: _participants!.length,
                     itemBuilder: (ctx, i) => _WhoReadRow(
-                      participant: participants[i],
+                      participant: _participants![i],
                       palette: palette,
-                      onTap: () => onUserTap(participants[i].userId),
+                      showAvatar: _appeared,
+                      onTap: () => widget.onUserTap(_participants![i].userId),
                     ),
                   ),
                 ),
@@ -16026,22 +16089,55 @@ class _WhoReadPopup extends StatelessWidget {
       ),
     );
   }
+}
 
-  String _emptyText() {
-    if (mediaType == 3 || mediaType == 4) return 'Nobody listened';
-    if (mediaType == 2 || mediaType == 5) return 'Nobody watched';
-    return 'Nobody has seen yet';
+class _WhoReadPreloaderRow extends StatelessWidget {
+  final TelegramPalette palette;
+  const _WhoReadPreloaderRow({required this.palette});
+
+  @override
+  Widget build(BuildContext context) {
+    final placeholderColor = palette.windowFg.withValues(alpha: 0.08);
+    return SizedBox(
+      height: 40,
+      child: Stack(
+        children: [
+          Positioned(
+            left: 13, top: 5,
+            child: Container(
+              width: 30, height: 30,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: placeholderColor,
+              ),
+            ),
+          ),
+          Positioned(
+            left: 57, top: 12,
+            child: Container(
+              width: 120, height: 14,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(4),
+                color: placeholderColor,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
 class _WhoReadRow extends StatefulWidget {
   final ReadParticipantInfo participant;
   final TelegramPalette palette;
+  final bool showAvatar;
   final VoidCallback? onTap;
 
   const _WhoReadRow({
     required this.participant,
     required this.palette,
+    this.showAvatar = true,
     this.onTap,
   });
 
@@ -16071,11 +16167,14 @@ class _WhoReadRowState extends State<_WhoReadRow> {
           color: _hovered ? palette.windowBgOver : Colors.transparent,
           child: Stack(
             children: [
-              // Avatar: 30px at (13, 5)
               Positioned(
                 left: 13,
                 top: 5,
-                child: _WhoReadAvatar(name: name, size: 30),
+                child: AnimatedOpacity(
+                  opacity: widget.showAvatar ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 120),
+                  child: _WhoReadAvatar(name: name, size: 30),
+                ),
               ),
               // Name text
               Positioned(
