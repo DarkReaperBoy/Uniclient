@@ -200,9 +200,30 @@ Future<SendFilesResult?> showSendFilesBox(
   bool isSlowMode = false,
   bool? overrideSendAsDocuments,
 }) {
-  return showDialog<SendFilesResult>(
+  return showGeneralDialog<SendFilesResult>(
     context: context,
-    builder: (ctx) => _SendFilesBoxDialog(
+    barrierDismissible: true,
+    barrierLabel: 'SendFilesBox',
+    barrierColor: Colors.black54,
+    transitionDuration: const Duration(milliseconds: 200),
+    transitionBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+      return FadeTransition(
+        opacity: curved,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, 0.08),
+            end: Offset.zero,
+          ).animate(curved),
+          child: child,
+        ),
+      );
+    },
+    pageBuilder: (ctx, animation, secondaryAnimation) => _SendFilesBoxDialog(
       filePaths: filePaths,
       chatType: chatType,
       isSelfChat: isSelfChat,
@@ -235,7 +256,7 @@ class _SendFilesBoxDialog extends StatefulWidget {
 }
 
 class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   static String _preservedCaption = '';
 
   late List<_PreparedFile> _files;
@@ -259,6 +280,10 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   bool _isDragOver = false;
   int _dragHoveredZone = 0; // 0=none, 1=document(top), 2=photo(bottom)
   late final AnimationController _dragOverlayAnimCtrl;
+  late final AnimationController _emojiPanelAnimCtrl;
+  final ScrollController _scrollController = ScrollController();
+  bool _showTopShadow = false;
+  bool _showBottomShadow = false;
 
   @override
   void initState() {
@@ -267,6 +292,11 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       vsync: this,
       duration: const Duration(milliseconds: 200),
     );
+    _emojiPanelAnimCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 150),
+    );
+    _scrollController.addListener(_updateScrollShadows);
     _captionFocus = FocusNode(onKeyEvent: _onCaptionKey);
     _dialogFocus = FocusNode(onKeyEvent: _onDialogKey);
     _captionController.addListener(_onCaptionChanged);
@@ -301,6 +331,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   @override
   void dispose() {
     _dragOverlayAnimCtrl.dispose();
+    _emojiPanelAnimCtrl.dispose();
+    _scrollController.removeListener(_updateScrollShadows);
+    _scrollController.dispose();
     _captionController.removeListener(_onCaptionChanged);
     _captionController.dispose();
     _captionFocus.dispose();
@@ -312,6 +345,28 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     final len = _captionController.text.length;
     if (len != _charCount) {
       setState(() => _charCount = len);
+    }
+  }
+
+  void _updateScrollShadows() {
+    if (!_scrollController.hasClients) return;
+    final pos = _scrollController.position;
+    final top = pos.pixels > 0;
+    final bottom = pos.pixels < pos.maxScrollExtent;
+    if (top != _showTopShadow || bottom != _showBottomShadow) {
+      setState(() {
+        _showTopShadow = top;
+        _showBottomShadow = bottom;
+      });
+    }
+  }
+
+  void _toggleEmojiPanel() {
+    setState(() => _showEmojiPanel = !_showEmojiPanel);
+    if (_showEmojiPanel) {
+      _emojiPanelAnimCtrl.forward();
+    } else {
+      _emojiPanelAnimCtrl.reverse();
     }
   }
 
@@ -1073,12 +1128,22 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
               ),
             ),
             Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              child: NotificationListener<ScrollNotification>(
+                onNotification: (notification) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _updateScrollShadows();
+                  });
+                  return false;
+                },
+                child: Stack(
                   children: [
+                    SingleChildScrollView(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                     const SizedBox(height: 8),
                     if (showMediaPreview && mediaFiles.isNotEmpty)
                       _MediaPreview(
@@ -1148,6 +1213,47 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                   ],
                 ),
               ),
+                    if (_showTopShadow)
+                      Positioned(
+                        top: 0, left: 0, right: 0,
+                        height: 6,
+                        child: IgnorePointer(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  isDark ? const Color(0x2017212B) : const Color(0x18000000),
+                                  const Color(0x00000000),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (_showBottomShadow)
+                      Positioned(
+                        bottom: 0, left: 0, right: 0,
+                        height: 6,
+                        child: IgnorePointer(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                colors: [
+                                  isDark ? const Color(0x2017212B) : const Color(0x18000000),
+                                  const Color(0x00000000),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
             Divider(height: 1, color: dividerColor),
             Padding(
@@ -1179,7 +1285,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                     active: _showEmojiPanel,
                     accentColor: accentFg,
                     subColor: subFg,
-                    onPressed: () => setState(() => _showEmojiPanel = !_showEmojiPanel),
+                    onPressed: _toggleEmojiPanel,
                   ),
                 ],
               ),
@@ -1190,8 +1296,13 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                 max: _kCaptionMaxLength,
                 accentColor: accentFg,
               ),
-            if (_showEmojiPanel)
-              _EmojiQuickPanel(
+            SizeTransition(
+              sizeFactor: CurvedAnimation(
+                parent: _emojiPanelAnimCtrl,
+                curve: Curves.easeOutCubic,
+              ),
+              axisAlignment: 1.0,
+              child: _EmojiQuickPanel(
                 isDark: isDark,
                 onPick: (emoji) {
                   final sel = _captionController.selection;
@@ -1206,6 +1317,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                   _captionFocus.requestFocus();
                 },
               ),
+            ),
             if (_hasMediaFiles || _hasGroupOption || _canMoveCaption)
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 4, 20, 0),
@@ -1693,7 +1805,9 @@ class _AlbumPreviewState extends State<_AlbumPreview>
   @override
   Widget build(BuildContext context) {
     if (_layout.isEmpty) return const SizedBox.shrink();
-    return SizedBox(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: _dragDurationMs),
+      curve: Curves.easeOutCubic,
       width: _previewWidth,
       height: _totalHeight,
       child: Stack(

@@ -915,7 +915,7 @@ Status key: `[ ]` not started · `[x]` done
 
 <!-- dart files: dart/lib/ui/send_files_box.dart, dart/lib/ui/chat_view.dart (_ComposeArea attach, drag-drop, clipboard paste) -->
 
-- [ ] Animation: standard BoxContent layer open/close, album reorder (shrink 150ms/move 200ms/spring 200ms), height transitions, emoji panel slide toggle, FadeShadow at scroll area edges — spec §40.18
+
 # GUI Feature Checklist: §41–§57
 # Consolidated from gui.md — one item per widget/feature, referencing spec sections.
 # Micro-items (individual px values, color tokens, timing constants) are merged into
