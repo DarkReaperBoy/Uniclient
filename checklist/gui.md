@@ -937,7 +937,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §43 — Read Receipts Detail
 # Touches: dart/lib/ui/message_bubble.dart, dart/lib/ui/chat_view.dart, new read_receipts_panel.dart
 
-- [ ] Read receipt context menu trigger — right-click on outgoing message: "Seen by N"/"Listened by N"/"Watched by N" when eligible (group ≤50, private, within expiry, not bot/service/channel) — spec §43.1–43.2
 - [ ] Read receipt user list rows — 40px row; 30px avatar at (13,5); name left 57px; date line at 20px top with icon (read_ticks_s/read_react_s/mini_repost/mini_stats_share); 12px date font windowSubTextFg; custom emoji reaction at right edge; preloader skeleton at 0.2 alpha — spec §43.4
 - [ ] Read receipt loading + empty states — "Loading..." while unknown; userpic delay until _appeared; "Nobody has seen yet" / "No reactions yet" empty text; menu item disabled when empty and not MyHidden — spec §43.5–43.6
 - [ ] Read receipt partial-reads merge — merge reaction+read lists; combined "N reacted / M seen" summary; per-user Viewed vs Reacted type tag — spec §43.7

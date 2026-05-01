@@ -764,6 +764,21 @@ func (e *Engine) GetOutboxReadDate(accountID, chatID, msgID string) (int, error)
 	return rg.GetOutboxReadDate(chatID, msgID)
 }
 
+func (e *Engine) GetMessageReadParticipants(accountID, chatID, msgID string) ([]int64, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type readParticipantsGetter interface {
+		GetMessageReadParticipants(chatID, msgID string) ([]int64, error)
+	}
+	rp, ok := acc.Core.(readParticipantsGetter)
+	if !ok {
+		return nil, fmt.Errorf("GetMessageReadParticipants not supported for this platform")
+	}
+	return rp.GetMessageReadParticipants(chatID, msgID)
+}
+
 func (e *Engine) GetInviteLink(accountID, chatID string) (string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

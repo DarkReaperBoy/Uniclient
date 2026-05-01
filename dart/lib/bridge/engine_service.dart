@@ -2002,6 +2002,24 @@ class EngineService {
     }
   }
 
+  Future<List<int>> getMessageReadParticipants(String accountId, String chatId, String msgId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'msg_id': msgId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetMessageReadParticipants', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return [];
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      final userIds = (data['user_ids'] as List<dynamic>?) ?? [];
+      return userIds.map((e) => (e as num).toInt()).toList();
+    } catch (e) {
+      Debug.error('ENGINE', 'getMessageReadParticipants failed', e);
+      return [];
+    }
+  }
+
   Future<int> getScheduledCount(String accountId, String chatId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

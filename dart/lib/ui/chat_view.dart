@@ -857,6 +857,8 @@ class _ChatViewState extends State<ChatView>
           const TelegramMenuItem(value: 'who_reacted', icon: Icon(Icons.favorite_outline), label: 'Who Reacted'),
         if (chat != null && chat.type == ChatType.dm && msg.isOutgoing && !isSavedMessages)
           const TelegramMenuItem(value: 'read_at', icon: Icon(Icons.done_all), label: 'Read at...'),
+        if (chat != null && (chat.type == ChatType.group || chat.type == ChatType.topic) && msg.isOutgoing && !msg.isService && !isSavedMessages && chat.memberCount > 0 && chat.memberCount <= 50 && !chat.isBot && (DateTime.now().millisecondsSinceEpoch - msg.timestamp).abs() < 7 * 24 * 3600 * 1000)
+          TelegramMenuItem(value: 'who_read', icon: const Icon(Icons.done_all), label: _readReceiptLabel(msg)),
         if (hasForwardOrigin)
           const TelegramMenuItem(value: 'go_to_message', icon: Icon(Icons.shortcut), label: 'Go to Message'),
         if (msg.hasThread)
@@ -1000,6 +1002,8 @@ class _ChatViewState extends State<ChatView>
           ReactionsDetailPanel.show(context, msg, chatType: chat?.type ?? ChatType.unspec);
         case 'read_at':
           _showReadAt(msg);
+        case 'who_read':
+          _showWhoRead(msg);
         case 'read_until':
           _readUntilHere(chatState, msg);
         default:
@@ -1586,6 +1590,56 @@ class _ChatViewState extends State<ChatView>
         ),
       );
     }
+  }
+
+  String _readReceiptLabel(CachedMessage msg) {
+    if (msg.mediaType == 3 || msg.mediaType == 4) return 'Listened by...';
+    if (msg.mediaType == 2 || msg.mediaType == 5) return 'Watched by...';
+    return 'Seen by...';
+  }
+
+  void _showWhoRead(CachedMessage msg) async {
+    final engine = context.read<EngineService>();
+    final userIds = await engine.getMessageReadParticipants(msg.accountId, msg.chatId, msg.msgId);
+    if (!mounted) return;
+    final palette = PaletteProvider.of(context);
+    final count = userIds.length;
+    String title;
+    if (msg.mediaType == 3 || msg.mediaType == 4) {
+      title = count == 0 ? 'Nobody listened' : 'Listened by $count';
+    } else if (msg.mediaType == 2 || msg.mediaType == 5) {
+      title = count == 0 ? 'Nobody watched' : 'Watched by $count';
+    } else {
+      title = count == 0 ? 'Nobody has seen yet' : 'Seen by $count';
+    }
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: palette.windowBg,
+        title: Row(
+          children: [
+            Icon(Icons.done_all, color: palette.windowActiveTextFg, size: 20),
+            const SizedBox(width: 8),
+            Text(title, style: TextStyle(color: palette.windowFg, fontSize: 16)),
+          ],
+        ),
+        content: count == 0
+            ? Text(
+                'No one has read this message yet.',
+                style: TextStyle(color: palette.windowSubTextFg, fontSize: 14),
+              )
+            : Text(
+                '$count ${count == 1 ? "person" : "people"} read this message.',
+                style: TextStyle(color: palette.windowSubTextFg, fontSize: 14),
+              ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showMessageDetails(CachedMessage msg, Offset position) {

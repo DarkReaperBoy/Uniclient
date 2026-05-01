@@ -3260,6 +3260,26 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			"date": date,
 		})
 
+	case "GetMessageReadParticipants":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			MsgID     string `json:"msg_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		userIDs, err := e.GetMessageReadParticipants(params.AccountID, params.ChatID, params.MsgID)
+		if err != nil {
+			return nil, err
+		}
+		if userIDs == nil {
+			userIDs = []int64{}
+		}
+		return json.Marshal(map[string]interface{}{
+			"user_ids": userIDs,
+		})
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}
