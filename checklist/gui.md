@@ -927,8 +927,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §41 — Message Formatting Toolbar
 # Touches: dart/lib/ui/chat_view.dart (compose field), new formatting_menu.dart
 
-- [ ] Formatting menu animation — PanelAnimation expand from origin corner (clip+opacity) on show; same for submenu; instant text style change on apply — spec §41.11
-
 ---
 
 ## §42 — Reactions Detail Popup

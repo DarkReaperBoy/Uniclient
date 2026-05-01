@@ -9167,15 +9167,34 @@ class _ComposeContextMenu extends StatefulWidget {
   State<_ComposeContextMenu> createState() => _ComposeContextMenuState();
 }
 
-class _ComposeContextMenuState extends State<_ComposeContextMenu> {
+class _ComposeContextMenuState extends State<_ComposeContextMenu>
+    with SingleTickerProviderStateMixin {
   bool _formattingHovered = false;
   bool _submenuHovered = false;
   bool _submenuOpen = false;
+  bool _submenuVisible = false;
   Timer? _submenuHideTimer;
+  late final AnimationController _submenuAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _submenuAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+      reverseDuration: const Duration(milliseconds: 150),
+    );
+    _submenuAnim.addStatusListener((status) {
+      if (status == AnimationStatus.dismissed && _submenuVisible) {
+        setState(() => _submenuVisible = false);
+      }
+    });
+  }
 
   @override
   void dispose() {
     _submenuHideTimer?.cancel();
+    _submenuAnim.dispose();
     super.dispose();
   }
 
@@ -9191,12 +9210,26 @@ class _ComposeContextMenuState extends State<_ComposeContextMenu> {
   void _updateSubmenuVisibility() {
     _submenuHideTimer?.cancel();
     if (_formattingHovered || _submenuHovered) {
-      if (!_submenuOpen) setState(() => _submenuOpen = true);
+      if (!_submenuOpen) {
+        setState(() {
+          _submenuOpen = true;
+          _submenuVisible = true;
+        });
+        _submenuAnim.forward();
+      }
     } else {
       _submenuHideTimer = Timer(const Duration(milliseconds: 120), () {
-        if (mounted && _submenuOpen) setState(() => _submenuOpen = false);
+        if (mounted && _submenuOpen) {
+          setState(() => _submenuOpen = false);
+          _submenuAnim.reverse();
+        }
       });
     }
+  }
+
+  static double _panelCurve(double t, double portion) {
+    if (t >= portion) return 1.0;
+    return t / portion;
   }
 
   @override
@@ -9336,7 +9369,17 @@ class _ComposeContextMenuState extends State<_ComposeContextMenu> {
       hasSubmenu: true,
       enabled: hasSelection,
       onTap: hasSelection
-          ? () => setState(() => _submenuOpen = !_submenuOpen)
+          ? () {
+              setState(() {
+                _submenuOpen = !_submenuOpen;
+                if (_submenuOpen) {
+                  _submenuVisible = true;
+                  _submenuAnim.forward();
+                } else {
+                  _submenuAnim.reverse();
+                }
+              });
+            }
           : null,
       onHoverChanged: hasSelection
           ? (h) {
@@ -9365,7 +9408,7 @@ class _ComposeContextMenuState extends State<_ComposeContextMenu> {
 
     // ── Formatting submenu ──
     Widget? submenu;
-    if (_submenuOpen && hasSelection) {
+    if (_submenuVisible && hasSelection) {
       final sub = <Widget>[const SizedBox(height: 4)];
       void fmt(String label, String shortcut, FormatType type) {
         sub.add(item(
@@ -9430,16 +9473,38 @@ class _ComposeContextMenuState extends State<_ComposeContextMenu> {
       ));
       sub.add(const SizedBox(height: 4));
 
-      submenu = MouseRegion(
-        onEnter: (_) {
-          _submenuHovered = true;
-          _updateSubmenuVisibility();
+      submenu = AnimatedBuilder(
+        animation: _submenuAnim,
+        builder: (context, child) {
+          final raw = _submenuAnim.value;
+          final t = 0.5 * (1.0 - math.cos(math.pi * raw));
+          final widthFactor = (0.5 + 0.5 * _panelCurve(t, 0.6)).clamp(0.0, 1.0);
+          final heightFactor = (0.3 + 0.7 * _panelCurve(t, 0.9)).clamp(0.0, 1.0);
+          final opacity = (0.2 + 0.8 * _panelCurve(t, 0.3)).clamp(0.0, 1.0);
+          return Opacity(
+            opacity: opacity,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Align(
+                alignment: Alignment.topLeft,
+                widthFactor: widthFactor,
+                heightFactor: heightFactor,
+                child: child,
+              ),
+            ),
+          );
         },
-        onExit: (_) {
-          _submenuHovered = false;
-          _updateSubmenuVisibility();
-        },
-        child: menuCard(sub),
+        child: MouseRegion(
+          onEnter: (_) {
+            _submenuHovered = true;
+            _updateSubmenuVisibility();
+          },
+          onExit: (_) {
+            _submenuHovered = false;
+            _updateSubmenuVisibility();
+          },
+          child: menuCard(sub),
+        ),
       );
     }
 
