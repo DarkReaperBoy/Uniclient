@@ -383,22 +383,38 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
               padding: _kContentMargins,
               child: Column(
                 children: [
-                  if (_editorMode == _EditorMode.paint)
-                    const _PaintTopBar(),
-                  if (widget.aboutText != null &&
-                      _editorMode == _EditorMode.transform) ...[
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: Text(
-                        widget.aboutText!,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: _kCaptionFg,
+                  ClipRect(
+                    child: AnimatedSlide(
+                      duration: _kTransitionDuration,
+                      curve: Curves.easeOutCubic,
+                      offset: _editorMode == _EditorMode.paint
+                          ? Offset.zero
+                          : const Offset(0, -1),
+                      child: AnimatedAlign(
+                        duration: _kTransitionDuration,
+                        curve: Curves.easeOutCubic,
+                        alignment: Alignment.topCenter,
+                        heightFactor:
+                            _editorMode == _EditorMode.paint ? 1.0 : 0.0,
+                        child: const _PaintTopBar(),
+                      ),
+                    ),
+                  ),
+                  if (widget.aboutText != null)
+                    _FadeWrap(
+                      visible: _editorMode == _EditorMode.transform,
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: Text(
+                          widget.aboutText!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: _kCaptionFg,
+                          ),
                         ),
                       ),
                     ),
-                  ],
 
                   Expanded(
                     child: _loading
@@ -431,19 +447,37 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
               right: 0,
               bottom: 0,
               height: _kContentMarginBottom,
-              child: _ControlBar(
-                doneLabel: widget.doneLabel,
-                saving: _saving,
-                flipped: _flipped,
-                isProfilePhoto: _isProfilePhoto,
-                editorMode: _editorMode,
-                selectedAspect: _selectedAspect,
-                onCancel: _cancel,
-                onDone: _done,
-                onFlip: toggleFlip,
-                onRotate: rotate,
-                onTogglePaintMode: _togglePaintMode,
-                onAspectChanged: _setAspect,
+              child: ClipRect(
+                child: AnimatedSwitcher(
+                  duration: _kTransitionDuration,
+                  transitionBuilder: (child, animation) {
+                    return SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0, 1),
+                        end: Offset.zero,
+                      ).animate(CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeOutCubic,
+                      )),
+                      child: child,
+                    );
+                  },
+                  child: _ControlBar(
+                    key: ValueKey(_editorMode),
+                    doneLabel: widget.doneLabel,
+                    saving: _saving,
+                    flipped: _flipped,
+                    isProfilePhoto: _isProfilePhoto,
+                    editorMode: _editorMode,
+                    selectedAspect: _selectedAspect,
+                    onCancel: _cancel,
+                    onDone: _done,
+                    onFlip: toggleFlip,
+                    onRotate: rotate,
+                    onTogglePaintMode: _togglePaintMode,
+                    onAspectChanged: _setAspect,
+                  ),
+                ),
               ),
             ),
           ],
@@ -1004,6 +1038,7 @@ class _ControlBar extends StatelessWidget {
   final ValueChanged<_CropAspect> onAspectChanged;
 
   const _ControlBar({
+    super.key,
     required this.doneLabel,
     required this.saving,
     required this.flipped,
@@ -1247,8 +1282,32 @@ class _AspectRatioButtonState extends State<_AspectRatioButton> {
   }
 }
 
+class _FadeWrap extends StatelessWidget {
+  final bool visible;
+  final Widget child;
+
+  const _FadeWrap({super.key, required this.visible, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: AnimatedOpacity(
+        duration: _kTransitionDuration,
+        opacity: visible ? 1.0 : 0.0,
+        child: AnimatedAlign(
+          duration: _kTransitionDuration,
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
+          heightFactor: visible ? 1.0 : 0.0,
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
 class _PaintTopBar extends StatelessWidget {
-  const _PaintTopBar();
+  const _PaintTopBar({super.key});
 
   @override
   Widget build(BuildContext context) {

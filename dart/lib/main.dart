@@ -628,9 +628,11 @@ class _UniClientAppState extends State<UniClientApp>
             'rect' => PhotoCropShape.rect,
             _ => PhotoCropShape.ellipse,
           };
+          final aboutText = cmd['aboutText'] as String?;
           final navCtx = _navigatorKey.currentContext;
           if (navCtx != null) {
-            PhotoCropEditor.open(navCtx, imageFile: File(path), shape: shape);
+            PhotoCropEditor.open(navCtx, imageFile: File(path), shape: shape,
+                aboutText: aboutText);
           }
 
         case 'openEmojiBuilder':
