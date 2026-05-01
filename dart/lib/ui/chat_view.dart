@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -8317,23 +8318,52 @@ class RichTextEditingController extends TextEditingController {
     _prevText = newText;
   }
 
+  bool _hasFullTag(int start, int end, FormatType type) {
+    final matching = entities.where((e) => e.type == type).toList();
+    for (var pos = start; pos < end;) {
+      final cover = matching.where((e) =>
+        e.offset <= pos && e.offset + e.length > pos);
+      if (cover.isEmpty) return false;
+      var furthest = pos;
+      for (final e in cover) {
+        final eEnd = e.offset + e.length;
+        if (eEnd > furthest) furthest = eEnd;
+      }
+      pos = furthest;
+    }
+    return true;
+  }
+
   void toggleFormat(FormatType type) {
     final sel = selection;
     if (!sel.isValid || sel.isCollapsed) return;
 
     final start = sel.start;
     final end = sel.end;
-    final length = end - start;
 
-    final existing = entities.where((e) =>
-      e.type == type && e.offset == start && e.length == length).toList();
+    if (_hasFullTag(start, end, type)) {
+      for (var i = entities.length - 1; i >= 0; i--) {
+        final e = entities[i];
+        if (e.type != type) continue;
+        final eEnd = e.offset + e.length;
+        if (eEnd <= start || e.offset >= end) continue;
 
-    if (existing.isNotEmpty) {
-      for (final e in existing) {
-        entities.remove(e);
+        if (e.offset >= start && eEnd <= end) {
+          entities.removeAt(i);
+        } else if (e.offset < start && eEnd > end) {
+          entities.add(ComposeEntity(
+            offset: end, length: eEnd - end, type: type,
+            url: e.url, language: e.language));
+          e.length = start - e.offset;
+        } else if (e.offset < start) {
+          e.length = start - e.offset;
+        } else {
+          e.offset = end;
+          e.length = eEnd - end;
+        }
       }
     } else {
-      entities.add(ComposeEntity(offset: start, length: length, type: type));
+      entities.add(ComposeEntity(offset: start, length: end - start, type: type));
     }
     notifyListeners();
   }
@@ -8441,10 +8471,7 @@ class RichTextEditingController extends TextEditingController {
   bool hasFormat(FormatType type) {
     final sel = selection;
     if (!sel.isValid || sel.isCollapsed) return false;
-    final start = sel.start;
-    final end = sel.end;
-    return entities.any((e) =>
-      e.type == type && e.offset <= start && e.offset + e.length >= end);
+    return _hasFullTag(sel.start, sel.end, type);
   }
 
   String get entitiesJson {
@@ -8574,57 +8601,90 @@ class RichTextEditingController extends TextEditingController {
     }
 
     final t = text;
-    final sorted = List<ComposeEntity>.from(entities)
-      ..sort((a, b) => a.offset.compareTo(b.offset));
-
-    final spans = <InlineSpan>[];
-    var cursor = 0;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final monoFg = isDark ? const Color(0xFF6AB7F0) : const Color(0xFF3A464F);
     final codeBg = isDark ? const Color(0xFF1E2A36) : const Color(0xFFF0F0F0);
     final linkFg = isDark ? const Color(0xFF71BAF7) : const Color(0xFF168ACD);
-    final spoilerBg = Colors.transparent;
     final spoilerFg = style?.color;
 
-    for (final entity in sorted) {
-      final eStart = entity.offset.clamp(0, t.length);
-      final eEnd = (entity.offset + entity.length).clamp(0, t.length);
-      if (eEnd <= eStart) continue;
-
-      if (cursor < eStart) {
-        spans.add(TextSpan(text: t.substring(cursor, eStart)));
+    final breakpoints = SplayTreeSet<int>();
+    breakpoints.add(0);
+    breakpoints.add(t.length);
+    for (final e in entities) {
+      final eStart = e.offset.clamp(0, t.length);
+      final eEnd = (e.offset + e.length).clamp(0, t.length);
+      if (eEnd > eStart) {
+        breakpoints.add(eStart);
+        breakpoints.add(eEnd);
       }
-
-      final entityText = t.substring(eStart, eEnd);
-      final entityStyle = switch (entity.type) {
-        FormatType.bold => const TextStyle(fontWeight: FontWeight.bold),
-        FormatType.italic => const TextStyle(fontStyle: FontStyle.italic),
-        FormatType.underline => const TextStyle(decoration: TextDecoration.underline),
-        FormatType.strike => const TextStyle(decoration: TextDecoration.lineThrough),
-        FormatType.code => TextStyle(
-          fontFamily: 'monospace',
-          color: monoFg,
-          backgroundColor: codeBg,
-        ),
-        FormatType.spoiler => TextStyle(
-          color: spoilerFg,
-          backgroundColor: spoilerBg,
-        ),
-        FormatType.blockquote => TextStyle(
-          backgroundColor: isDark ? const Color(0xFF182533) : const Color(0xFFF0F4F7),
-        ),
-        FormatType.link => TextStyle(
-          color: linkFg,
-          decoration: TextDecoration.underline,
-        ),
-      };
-      spans.add(TextSpan(text: entityText, style: entityStyle));
-      cursor = eEnd;
     }
 
-    if (cursor < t.length) {
-      spans.add(TextSpan(text: t.substring(cursor)));
+    final points = breakpoints.toList();
+    final spans = <InlineSpan>[];
+
+    for (var i = 0; i < points.length - 1; i++) {
+      final segStart = points[i];
+      final segEnd = points[i + 1];
+      if (segEnd <= segStart) continue;
+
+      final active = <FormatType>{};
+      String? linkUrl;
+      for (final e in entities) {
+        final eStart = e.offset.clamp(0, t.length);
+        final eEnd = (e.offset + e.length).clamp(0, t.length);
+        if (eStart <= segStart && eEnd >= segEnd) {
+          active.add(e.type);
+          if (e.type == FormatType.link) linkUrl = e.url;
+        }
+      }
+
+      if (active.isEmpty) {
+        spans.add(TextSpan(text: t.substring(segStart, segEnd)));
+      } else {
+        final hasCode = active.contains(FormatType.code);
+        var merged = const TextStyle();
+
+        if (hasCode) {
+          merged = merged.copyWith(
+            fontFamily: 'monospace', color: monoFg, backgroundColor: codeBg);
+        } else {
+          if (active.contains(FormatType.bold)) {
+            merged = merged.copyWith(fontWeight: FontWeight.bold);
+          }
+          if (active.contains(FormatType.italic)) {
+            merged = merged.copyWith(fontStyle: FontStyle.italic);
+          }
+        }
+
+        final decorations = <TextDecoration>[];
+        if (active.contains(FormatType.underline)) {
+          decorations.add(TextDecoration.underline);
+        }
+        if (active.contains(FormatType.strike)) {
+          decorations.add(TextDecoration.lineThrough);
+        }
+        if (active.contains(FormatType.link)) {
+          decorations.add(TextDecoration.underline);
+          if (!hasCode) merged = merged.copyWith(color: linkFg);
+        }
+        if (decorations.isNotEmpty) {
+          merged = merged.copyWith(
+            decoration: TextDecoration.combine(decorations));
+        }
+
+        if (active.contains(FormatType.spoiler)) {
+          merged = merged.copyWith(color: spoilerFg);
+        }
+        if (active.contains(FormatType.blockquote)) {
+          merged = merged.copyWith(
+            backgroundColor: isDark
+              ? const Color(0xFF182533)
+              : const Color(0xFFF0F4F7));
+        }
+
+        spans.add(TextSpan(text: t.substring(segStart, segEnd), style: merged));
+      }
     }
 
     return TextSpan(style: style, children: spans);
