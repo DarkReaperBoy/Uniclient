@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +9,7 @@ import 'package:flutter/services.dart';
 import '../models/engine_models.dart' show ChatType;
 import 'popup_menu.dart';
 import 'choose_datetime_box.dart';
+import 'photo_crop_editor.dart';
 
 const double _previewWidth = 308;
 const double _previewHeightMax = 1280;
@@ -17,6 +19,20 @@ const int _maxAlbumCount = 10;
 const double _thumbCornerRadius = 6;
 const double _fileThumbSize = 44;
 const double _fileThumbSkip = 11;
+const double _albumSpacing = 2;
+const double _albumMinCellWidth = 50;
+const double _shrinkSize = 5;
+const int _shrinkDurationMs = 150;
+const int _dragDurationMs = 200;
+const double _capsuleW = 48;
+const double _capsuleH = 26;
+const double _capsuleSkipRight = 5;
+const double _capsuleSkipTop = 5;
+const double _capsuleGap = 8;
+const double _capsuleVertW = 30;
+const double _capsuleVertH = 50;
+const double _capsuleSmallW = 30;
+const double _capsuleSmallH = 25;
 
 class SendFilesResult {
   final List<String> paths;
@@ -42,6 +58,8 @@ class _PreparedFile {
   final int size;
   _FileType type;
   bool spoiler;
+  double? imageWidth;
+  double? imageHeight;
 
   _PreparedFile({
     required this.path,
@@ -50,6 +68,13 @@ class _PreparedFile {
     required this.type,
     this.spoiler = false,
   });
+
+  double get aspectRatio {
+    if (imageWidth != null && imageHeight != null && imageHeight! > 0) {
+      return imageWidth! / imageHeight!;
+    }
+    return 1.0;
+  }
 }
 
 Future<SendFilesResult?> showSendFilesBox(
@@ -107,12 +132,52 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
         type: _detectType(name),
       );
     }).toList();
+    _loadImageDimensions();
   }
 
   @override
   void dispose() {
     _captionController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadImageDimensions() async {
+    bool changed = false;
+    for (final file in _files) {
+      if ((file.type == _FileType.photo || file.type == _FileType.video) &&
+          file.imageWidth == null) {
+        try {
+          final data = await File(file.path).readAsBytes();
+          final codec = await ui.instantiateImageCodec(data);
+          final frame = await codec.getNextFrame();
+          file.imageWidth = frame.image.width.toDouble();
+          file.imageHeight = frame.image.height.toDouble();
+          frame.image.dispose();
+          codec.dispose();
+          changed = true;
+        } catch (_) {}
+      }
+    }
+    if (changed && mounted) setState(() {});
+  }
+
+  void _reorderMediaFiles(int fromIdx, int toIdx) {
+    final media = _files
+        .where((f) => f.type == _FileType.photo || f.type == _FileType.video)
+        .toList();
+    if (fromIdx < 0 || fromIdx >= media.length ||
+        toIdx < 0 || toIdx >= media.length ||
+        fromIdx == toIdx) return;
+    final fA = media[fromIdx];
+    final fB = media[toIdx];
+    final idxA = _files.indexOf(fA);
+    final idxB = _files.indexOf(fB);
+    if (idxA >= 0 && idxB >= 0) {
+      setState(() {
+        _files[idxA] = fB;
+        _files[idxB] = fA;
+      });
+    }
   }
 
   static _FileType _detectType(String name) {
@@ -320,6 +385,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
                           final idx = _files.indexOf(file);
                           if (idx >= 0) _toggleSpoiler(idx);
                         },
+                        onReorder: _reorderMediaFiles,
                         canSpoiler: _canSpoiler,
                       ),
                     if (showMediaPreview && mediaFiles.isNotEmpty && docFiles.isNotEmpty)
@@ -452,6 +518,7 @@ class _MediaPreview extends StatelessWidget {
   final List<_PreparedFile> allFiles;
   final void Function(_PreparedFile) onRemove;
   final void Function(_PreparedFile) onToggleSpoiler;
+  final void Function(int, int) onReorder;
   final bool canSpoiler;
 
   const _MediaPreview({
@@ -459,6 +526,7 @@ class _MediaPreview extends StatelessWidget {
     required this.allFiles,
     required this.onRemove,
     required this.onToggleSpoiler,
+    required this.onReorder,
     required this.canSpoiler,
   });
 
@@ -478,6 +546,7 @@ class _MediaPreview extends StatelessWidget {
       allFiles: allFiles,
       onRemove: onRemove,
       onToggleSpoiler: onToggleSpoiler,
+      onReorder: onReorder,
       canSpoiler: canSpoiler,
     );
   }
@@ -570,11 +639,12 @@ class _SingleMediaPreview extends StatelessWidget {
   }
 }
 
-class _AlbumPreview extends StatelessWidget {
+class _AlbumPreview extends StatefulWidget {
   final List<_PreparedFile> files;
   final List<_PreparedFile> allFiles;
   final void Function(_PreparedFile) onRemove;
   final void Function(_PreparedFile) onToggleSpoiler;
+  final void Function(int fromIndex, int toIndex) onReorder;
   final bool canSpoiler;
 
   const _AlbumPreview({
@@ -582,199 +652,97 @@ class _AlbumPreview extends StatelessWidget {
     required this.allFiles,
     required this.onRemove,
     required this.onToggleSpoiler,
+    required this.onReorder,
     required this.canSpoiler,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final count = files.length;
-    if (count <= 0) return const SizedBox.shrink();
+  State<_AlbumPreview> createState() => _AlbumPreviewState();
+}
 
-    final rows = _layoutAlbum(count);
+class _AlbumPreviewState extends State<_AlbumPreview>
+    with SingleTickerProviderStateMixin {
+  List<_LayoutRect> _layout = [];
+  double _totalHeight = 0;
+  int? _dragIndex;
+  Offset _dragOffset = Offset.zero;
+  late AnimationController _shrinkAnim;
 
-    return SizedBox(
-      width: _previewWidth,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (int rowIdx = 0; rowIdx < rows.length; rowIdx++) ...[
-            if (rowIdx > 0) const SizedBox(height: 2),
-            SizedBox(
-              height: rows[rowIdx].height,
-              child: Row(
-                children: [
-                  for (int colIdx = 0; colIdx < rows[rowIdx].items.length; colIdx++) ...[
-                    if (colIdx > 0) const SizedBox(width: 2),
-                    Expanded(
-                      flex: rows[rowIdx].items[colIdx].flex,
-                      child: _AlbumThumb(
-                        file: files[rows[rowIdx].items[colIdx].fileIndex],
-                        height: rows[rowIdx].height,
-                        canRemove: allFiles.length > 1,
-                        onRemove: () => onRemove(files[rows[rowIdx].items[colIdx].fileIndex]),
-                        onToggleSpoiler: () => onToggleSpoiler(files[rows[rowIdx].items[colIdx].fileIndex]),
-                        canSpoiler: canSpoiler,
-                        cornerRadius: _cornerForPosition(
-                          rowIdx, colIdx,
-                          rows.length, rows[rowIdx].items.length,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
+  @override
+  void initState() {
+    super.initState();
+    _shrinkAnim = AnimationController(
+      duration: const Duration(milliseconds: _shrinkDurationMs),
+      vsync: this,
+    )..addListener(() => setState(() {}));
+    _recompute();
   }
 
-  BorderRadius _cornerForPosition(int row, int col, int totalRows, int totalCols) {
-    final isTop = row == 0;
-    final isBottom = row == totalRows - 1;
-    final isLeft = col == 0;
-    final isRight = col == totalCols - 1;
-
-    return BorderRadius.only(
-      topLeft: isTop && isLeft ? const Radius.circular(_thumbCornerRadius) : Radius.zero,
-      topRight: isTop && isRight ? const Radius.circular(_thumbCornerRadius) : Radius.zero,
-      bottomLeft: isBottom && isLeft ? const Radius.circular(_thumbCornerRadius) : Radius.zero,
-      bottomRight: isBottom && isRight ? const Radius.circular(_thumbCornerRadius) : Radius.zero,
-    );
+  @override
+  void didUpdateWidget(covariant _AlbumPreview old) {
+    super.didUpdateWidget(old);
+    _recompute();
   }
-}
 
-class _AlbumRow {
-  final double height;
-  final List<_AlbumItem> items;
-  _AlbumRow(this.height, this.items);
-}
+  @override
+  void dispose() {
+    _shrinkAnim.dispose();
+    super.dispose();
+  }
 
-class _AlbumItem {
-  final int fileIndex;
-  final int flex;
-  _AlbumItem(this.fileIndex, {this.flex = 1});
-}
+  void _recompute() {
+    final ratios = widget.files.map((f) => f.aspectRatio).toList();
+    _layout = _computeAlbumRects(ratios);
+    _totalHeight =
+        _layout.isEmpty ? 0 : _layout.map((l) => l.rect.bottom).reduce(math.max);
+  }
 
-List<_AlbumRow> _layoutAlbum(int count) {
-  const maxH = _previewWidth;
-  const spacing = 2.0;
+  void _onPanStart(int index, DragStartDetails details) {
+    setState(() {
+      _dragIndex = index;
+      _dragOffset = Offset.zero;
+    });
+    _shrinkAnim.forward();
+  }
 
-  switch (count) {
-    case 1:
-      return [_AlbumRow(maxH, [_AlbumItem(0)])];
-    case 2:
-      final h = (maxH - spacing) / 2;
-      return [
-        _AlbumRow(h, [_AlbumItem(0)]),
-        _AlbumRow(h, [_AlbumItem(1)]),
-      ];
-    case 3:
-      final topH = (maxH - spacing) * 0.66;
-      final botH = maxH - spacing - topH;
-      return [
-        _AlbumRow(topH, [_AlbumItem(0)]),
-        _AlbumRow(botH, [_AlbumItem(1), _AlbumItem(2)]),
-      ];
-    case 4:
-      final topH = (maxH - spacing) * 0.66;
-      final botH = maxH - spacing - topH;
-      return [
-        _AlbumRow(topH, [_AlbumItem(0), _AlbumItem(1)]),
-        _AlbumRow(botH, [_AlbumItem(2), _AlbumItem(3)]),
-      ];
-    default:
-      final rows = <_AlbumRow>[];
-      int idx = 0;
-      final totalSpacing = (((count - 1) / 2).ceil()) * spacing;
-      final rowH = math.max(60.0, (maxH - totalSpacing) / ((count / 2).ceil()));
-      while (idx < count) {
-        final remaining = count - idx;
-        if (remaining >= 3 && remaining != 4) {
-          rows.add(_AlbumRow(rowH, [_AlbumItem(idx), _AlbumItem(idx + 1), _AlbumItem(idx + 2)]));
-          idx += 3;
-        } else if (remaining >= 2) {
-          rows.add(_AlbumRow(rowH, [_AlbumItem(idx), _AlbumItem(idx + 1)]));
-          idx += 2;
-        } else {
-          rows.add(_AlbumRow(rowH, [_AlbumItem(idx)]));
-          idx += 1;
-        }
+  void _onPanUpdate(DragUpdateDetails details) {
+    if (_dragIndex == null) return;
+    setState(() => _dragOffset += details.delta);
+    final dragCenter = _layout[_dragIndex!].rect.center + _dragOffset;
+    int? closest;
+    double minDist = double.infinity;
+    for (int i = 0; i < _layout.length; i++) {
+      if (i == _dragIndex) continue;
+      final c = _layout[i].rect.center;
+      final d = (c.dx - dragCenter.dx).abs() + (c.dy - dragCenter.dy).abs();
+      if (d < minDist) {
+        minDist = d;
+        closest = i;
       }
-      return rows;
-  }
-}
-
-class _AlbumThumb extends StatelessWidget {
-  final _PreparedFile file;
-  final double height;
-  final bool canRemove;
-  final VoidCallback onRemove;
-  final VoidCallback onToggleSpoiler;
-  final bool canSpoiler;
-  final BorderRadius cornerRadius;
-
-  const _AlbumThumb({
-    required this.file,
-    required this.height,
-    required this.canRemove,
-    required this.onRemove,
-    required this.onToggleSpoiler,
-    required this.canSpoiler,
-    required this.cornerRadius,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onSecondaryTapUp: canSpoiler ? (details) {
-        _showThumbContextMenu(context, details.globalPosition);
-      } : null,
-      onLongPress: canSpoiler ? () {
-        final box = context.findRenderObject() as RenderBox;
-        final center = box.localToGlobal(box.size.center(Offset.zero));
-        _showThumbContextMenu(context, center);
-      } : null,
-      child: ClipRRect(
-        borderRadius: cornerRadius,
-        child: SizedBox(
-          height: height,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              Image.file(
-                File(file.path),
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  color: Colors.grey[800],
-                  child: const Icon(Icons.broken_image, color: Colors.white54, size: 32),
-                ),
-              ),
-              if (file.spoiler)
-                const _SpoilerOverlay(),
-              if (canRemove)
-                Positioned(
-                  top: 5,
-                  right: 5,
-                  child: _ThumbButton(
-                    icon: Icons.close,
-                    onPressed: onRemove,
-                    size: 22,
-                  ),
-                ),
-              if (file.type == _FileType.video)
-                const Center(
-                  child: Icon(Icons.play_circle_fill, color: Colors.white70, size: 32),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
+    }
+    if (closest != null) {
+      final targetRect = _layout[closest].rect;
+      if (targetRect.contains(dragCenter) ||
+          minDist < targetRect.shortestSide * 0.8) {
+        widget.onReorder(_dragIndex!, closest);
+        setState(() {
+          _dragIndex = closest;
+          _dragOffset = Offset.zero;
+        });
+        _recompute();
+      }
+    }
   }
 
-  void _showThumbContextMenu(BuildContext context, Offset position) {
+  void _onPanEnd(DragEndDetails details) {
+    _shrinkAnim.reverse();
+    setState(() {
+      _dragIndex = null;
+      _dragOffset = Offset.zero;
+    });
+  }
+
+  void _showThumbMenu(BuildContext context, Offset position, _PreparedFile file) {
     showTelegramMenu<String>(
       context: context,
       position: position,
@@ -786,8 +754,346 @@ class _AlbumThumb extends StatelessWidget {
         ),
       ],
     ).then((value) {
-      if (value == 'spoiler') onToggleSpoiler();
+      if (value == 'spoiler') widget.onToggleSpoiler(file);
     });
+  }
+
+  void _openEditor(_PreparedFile file) {
+    if (file.type != _FileType.photo) return;
+    PhotoCropEditor.open(
+      context,
+      imageFile: File(file.path),
+      shape: PhotoCropShape.rect,
+      doneLabel: 'Done',
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_layout.isEmpty) return const SizedBox.shrink();
+    return SizedBox(
+      width: _previewWidth,
+      height: _totalHeight,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          for (int i = 0; i < _layout.length; i++)
+            if (i != _dragIndex) _buildThumb(i, false),
+          if (_dragIndex != null) _buildThumb(_dragIndex!, true),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildThumb(int index, bool isDragged) {
+    final item = _layout[index];
+    final file = widget.files[item.index];
+    final shrink = isDragged ? _shrinkAnim.value * _shrinkSize : 0.0;
+    final dx = isDragged ? _dragOffset.dx : 0.0;
+    final dy = isDragged ? _dragOffset.dy : 0.0;
+    final thumbW = item.rect.width - shrink * 2;
+    final thumbH = item.rect.height - shrink * 2;
+
+    return AnimatedPositioned(
+      duration: Duration(milliseconds: isDragged ? 0 : _dragDurationMs),
+      curve: Curves.easeOutCubic,
+      left: item.rect.left + dx + shrink,
+      top: item.rect.top + dy + shrink,
+      width: thumbW,
+      height: thumbH,
+      child: GestureDetector(
+        onPanStart: (d) => _onPanStart(index, d),
+        onPanUpdate: _onPanUpdate,
+        onPanEnd: _onPanEnd,
+        onSecondaryTapUp: widget.canSpoiler
+            ? (details) => _showThumbMenu(context, details.globalPosition, file)
+            : null,
+        onDoubleTap: () => _openEditor(file),
+        child: ClipRRect(
+          borderRadius: item.corners,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.file(
+                File(file.path),
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  color: Colors.grey[800],
+                  child: const Icon(Icons.broken_image,
+                      color: Colors.white54, size: 32),
+                ),
+              ),
+              if (file.spoiler) const _SpoilerOverlay(),
+              if (file.type == _FileType.video)
+                const Center(
+                  child:
+                      Icon(Icons.play_circle_fill, color: Colors.white70, size: 32),
+                ),
+              _ThumbCapsule(
+                thumbWidth: thumbW,
+                thumbHeight: thumbH,
+                canRemove: widget.allFiles.length > 1,
+                onEdit: () => _openEditor(file),
+                onRemove: () => widget.onRemove(file),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LayoutRect {
+  final int index;
+  final Rect rect;
+  final BorderRadius corners;
+  const _LayoutRect(this.index, this.rect, this.corners);
+}
+
+class _AlbumRowSpec {
+  final double height;
+  final List<_AlbumCellSpec> items;
+  const _AlbumRowSpec(this.height, this.items);
+}
+
+class _AlbumCellSpec {
+  final int index;
+  final double width;
+  const _AlbumCellSpec(this.index, this.width);
+}
+
+List<_LayoutRect> _computeAlbumRects(List<double> ratios) {
+  const w = _previewWidth;
+  const s = _albumSpacing;
+  const rc = _thumbCornerRadius;
+  final n = ratios.length;
+  if (n == 0) return [];
+
+  final cr = ratios.map((v) => v.clamp(0.6667, 2.75)).toList();
+
+  List<_LayoutRect> buildRects(List<_AlbumRowSpec> rows) {
+    final result = <_LayoutRect>[];
+    double y = 0;
+    for (int ri = 0; ri < rows.length; ri++) {
+      double x = 0;
+      final row = rows[ri];
+      for (int ci = 0; ci < row.items.length; ci++) {
+        final cell = row.items[ci];
+        final isTop = ri == 0;
+        final isBot = ri == rows.length - 1;
+        final isLeft = ci == 0;
+        final isRight = ci == row.items.length - 1;
+        result.add(_LayoutRect(
+          cell.index,
+          Rect.fromLTWH(x, y, cell.width, row.height),
+          BorderRadius.only(
+            topLeft: isTop && isLeft ? const Radius.circular(rc) : Radius.zero,
+            topRight:
+                isTop && isRight ? const Radius.circular(rc) : Radius.zero,
+            bottomLeft:
+                isBot && isLeft ? const Radius.circular(rc) : Radius.zero,
+            bottomRight:
+                isBot && isRight ? const Radius.circular(rc) : Radius.zero,
+          ),
+        ));
+        x += cell.width + s;
+      }
+      y += row.height + s;
+    }
+    return result;
+  }
+
+  if (n == 1) {
+    final h = (w / cr[0]).clamp(100.0, w);
+    return [
+      _LayoutRect(0, Rect.fromLTWH(0, 0, w, h), BorderRadius.circular(rc))
+    ];
+  }
+
+  if (n == 2) {
+    final allWide = cr[0] > 1.2 && cr[1] > 1.2;
+    final avg = (cr[0] + cr[1]) / 2;
+    if (allWide && avg > 1.4 && (cr[1] - cr[0]).abs() < 0.2) {
+      final totalH = w;
+      final h0 = (totalH - s) / (1 + cr[1] / cr[0]);
+      final h1 = totalH - s - h0;
+      return buildRects([
+        _AlbumRowSpec(h0, [_AlbumCellSpec(0, w)]),
+        _AlbumRowSpec(h1, [_AlbumCellSpec(1, w)]),
+      ]);
+    }
+    final h = ((w - s) / (cr[0] + cr[1])).clamp(100.0, w);
+    final w0 = h * cr[0];
+    final w1 = w - s - w0;
+    return buildRects([
+      _AlbumRowSpec(h, [_AlbumCellSpec(0, w0), _AlbumCellSpec(1, w1)]),
+    ]);
+  }
+
+  if (n == 3) {
+    final totalH = w;
+    final topH = (totalH - s) * 0.66;
+    final botH = totalH - s - topH;
+    final bw0 = (botH * cr[1]).clamp(_albumMinCellWidth, w - s - _albumMinCellWidth);
+    final bw1 = w - s - bw0;
+    return buildRects([
+      _AlbumRowSpec(topH, [_AlbumCellSpec(0, w)]),
+      _AlbumRowSpec(botH, [_AlbumCellSpec(1, bw0), _AlbumCellSpec(2, bw1)]),
+    ]);
+  }
+
+  if (n == 4) {
+    final totalH = w;
+    final topH = (totalH - s) * 0.66;
+    final botH = totalH - s - topH;
+    final tw0 =
+        (topH * cr[0]).clamp(_albumMinCellWidth, w - s - _albumMinCellWidth);
+    final tw1 = w - s - tw0;
+    final bw0 =
+        (botH * cr[2]).clamp(_albumMinCellWidth, w - s - _albumMinCellWidth);
+    final bw1 = w - s - bw0;
+    return buildRects([
+      _AlbumRowSpec(topH, [_AlbumCellSpec(0, tw0), _AlbumCellSpec(1, tw1)]),
+      _AlbumRowSpec(botH, [_AlbumCellSpec(2, bw0), _AlbumCellSpec(3, bw1)]),
+    ]);
+  }
+
+  // 5-10 items: multi-row layout
+  final rows = <_AlbumRowSpec>[];
+  int idx = 0;
+  while (idx < n) {
+    final remaining = n - idx;
+    int rowCount;
+    if (remaining >= 5) {
+      rowCount = 3;
+    } else if (remaining == 4) {
+      rowCount = 2;
+    } else {
+      rowCount = remaining > 3 ? 3 : remaining;
+    }
+    final rowRatios = cr.sublist(idx, idx + rowCount);
+    final totalRatio = rowRatios.fold(0.0, (double sum, double r) => sum + r);
+    final nRows = (n / 2.5).ceil();
+    final totalSpacing = (nRows - 1) * s;
+    final h = ((w * 4 / 3 - totalSpacing) / nRows)
+        .clamp(60.0, w * 0.5);
+    final cells = <_AlbumCellSpec>[];
+    double x = 0;
+    for (int j = 0; j < rowCount; j++) {
+      double cellW;
+      if (j == rowCount - 1) {
+        cellW = w - x;
+      } else {
+        final ideal = (w - (rowCount - 1) * s) * rowRatios[j] / totalRatio;
+        final maxCellW =
+            w - x - (rowCount - 1 - j) * (_albumMinCellWidth + s);
+        cellW = ideal.clamp(_albumMinCellWidth, maxCellW);
+      }
+      cells.add(_AlbumCellSpec(idx + j, cellW));
+      x += cellW + s;
+    }
+    rows.add(_AlbumRowSpec(h, cells));
+    idx += rowCount;
+  }
+  return buildRects(rows);
+}
+
+class _ThumbCapsule extends StatelessWidget {
+  final double thumbWidth;
+  final double thumbHeight;
+  final bool canRemove;
+  final VoidCallback onEdit;
+  final VoidCallback onRemove;
+
+  const _ThumbCapsule({
+    required this.thumbWidth,
+    required this.thumbHeight,
+    required this.canRemove,
+    required this.onEdit,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    double cW, cH;
+    bool isVertical = false;
+    bool isSmall = false;
+
+    if (thumbWidth >= _capsuleW + _capsuleSkipRight * 2 + 10) {
+      cW = _capsuleW;
+      cH = _capsuleH;
+    } else if (thumbHeight >= _capsuleVertH + _capsuleSkipTop * 2 + 10) {
+      cW = _capsuleVertW;
+      cH = _capsuleVertH;
+      isVertical = true;
+    } else {
+      cW = _capsuleSmallW;
+      cH = _capsuleSmallH;
+      isSmall = true;
+    }
+
+    Widget capsuleContent;
+    if (isSmall) {
+      capsuleContent = Center(
+        child: _CapsuleIcon(
+          icon: canRemove ? Icons.close : Icons.edit,
+          onTap: canRemove ? onRemove : onEdit,
+        ),
+      );
+    } else if (isVertical) {
+      capsuleContent = Column(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _CapsuleIcon(icon: Icons.edit, onTap: onEdit),
+          if (canRemove) _CapsuleIcon(icon: Icons.close, onTap: onRemove),
+        ],
+      );
+    } else {
+      capsuleContent = Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _CapsuleIcon(icon: Icons.edit, onTap: onEdit),
+          if (canRemove) ...[
+            const SizedBox(width: _capsuleGap),
+            _CapsuleIcon(icon: Icons.close, onTap: onRemove),
+          ],
+        ],
+      );
+    }
+
+    return Positioned(
+      top: _capsuleSkipTop,
+      right: _capsuleSkipRight,
+      child: Container(
+        width: cW,
+        height: cH,
+        decoration: BoxDecoration(
+          color: Colors.black54,
+          borderRadius: BorderRadius.circular(cH / 2),
+        ),
+        child: capsuleContent,
+      ),
+    );
+  }
+}
+
+class _CapsuleIcon extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _CapsuleIcon({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.all(2),
+        child: Icon(icon, color: Colors.white, size: 14),
+      ),
+    );
   }
 }
 
