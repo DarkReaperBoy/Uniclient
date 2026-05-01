@@ -937,8 +937,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §43 — Read Receipts Detail
 # Touches: dart/lib/ui/message_bubble.dart, dart/lib/ui/chat_view.dart, new read_receipts_panel.dart
 
-- [ ] Summary sizing tokens — item padding (44,9,17,7); avatar 22px, shift 8px, stroke 4px max 3 circles; submenu max 400px; when-read line padding (34,3,17,4); icon at (8,0) 3px gap; animation timing: userpic reveal after parentMenu.st().duration — spec §43.10
-
 ---
 
 ## §44 — Spoiler Animation

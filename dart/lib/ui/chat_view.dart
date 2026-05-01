@@ -16169,40 +16169,90 @@ class _WhoReadPopupState extends State<_WhoReadPopup> {
         return const SizedBox.shrink();
     }
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(34, 3, 17, 4),
-      child: Row(
+    // §43.10.3: whenReadPadding (34,3,17,4), icon at (8,0), 3px skip
+    return SizedBox(
+      height: 19, // 3top + 12font + 4bottom
+      child: Stack(
         children: [
-          Icon(Icons.done_all, size: 14, color: palette.windowSubTextFg),
-          const SizedBox(width: 3),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: palette.windowSubTextFg,
+          Positioned(
+            left: 8,
+            top: (19 - 14) / 2,
+            child: Icon(Icons.done_all, size: 14, color: palette.windowSubTextFg),
+          ),
+          Positioned(
+            left: 34,
+            top: 3,
+            right: showButton ? 70 : 17,
+            bottom: 4,
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: 12,
+                color: palette.windowSubTextFg,
+              ),
             ),
           ),
-          if (showButton) ...[
-            const SizedBox(width: 6),
-            GestureDetector(
-              onTap: _onShowTap,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
-                  color: palette.windowBgActive,
-                ),
-                child: Text(
-                  'Show',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: palette.windowActiveTextFg,
+          if (showButton)
+            Positioned(
+              right: 17,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: GestureDetector(
+                  onTap: _onShowTap,
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(6, 0, 6, 2),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      color: palette.windowBgActive,
+                    ),
+                    child: Text(
+                      'Show',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: palette.windowActiveTextFg,
+                      ),
+                    ),
                   ),
                 ),
               ),
             ),
-          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUserpicStrip(TelegramPalette palette) {
+    final entries = _merged!.take(3).toList();
+    final count = entries.length;
+    final totalWidth = 22.0 + (count - 1) * 8.0;
+    return SizedBox(
+      width: totalWidth,
+      height: 22,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          for (var i = count - 1; i >= 0; i--)
+            Positioned(
+              left: i * 8.0,
+              top: 0,
+              child: Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: palette.windowBg,
+                ),
+                alignment: Alignment.center,
+                child: _WhoReadAvatar(
+                  name: entries[i].name.isNotEmpty ? entries[i].name : 'User',
+                  size: 18,
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -16233,25 +16283,49 @@ class _WhoReadPopupState extends State<_WhoReadPopup> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(15, 9, 17, 7),
-              child: Row(
-                children: [
-                  Icon(titleIcon, size: 20, color: palette.windowFg),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      _titleText(),
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: palette.windowFg,
+            // §43.10.1: itemPadding (44,9,17,7), icon at (15,7), userpic strip right
+            Builder(builder: (_) {
+              final stripCount = (_merged != null && _merged!.isNotEmpty)
+                  ? _merged!.length.clamp(0, 3) : 0;
+              final stripW = stripCount > 0 ? 22.0 + (stripCount - 1) * 8.0 : 0.0;
+              final hasStrip = stripW > 0;
+              return SizedBox(
+                height: 30, // 9 + 14fontHeight + 7
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Positioned(
+                      left: 15, top: 7,
+                      child: Icon(titleIcon, size: 18, color: palette.windowFg),
+                    ),
+                    Positioned(
+                      left: 44, top: 9,
+                      right: hasStrip ? (17 + stripW + 4) : 17,
+                      child: Text(
+                        _titleText(),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: palette.windowFg,
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
+                    if (hasStrip)
+                      Positioned(
+                        right: 17,
+                        top: (30 - 22) / 2,
+                        child: AnimatedOpacity(
+                          opacity: _appeared ? 1.0 : 0.0,
+                          duration: const Duration(milliseconds: 120),
+                          child: _buildUserpicStrip(palette),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            }),
             Divider(height: 1, color: palette.windowFg.withValues(alpha: 0.08)),
             if (isLoading)
               Padding(
