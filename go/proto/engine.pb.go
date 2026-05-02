@@ -11460,6 +11460,142 @@ func (x *EngineGetCustomEmojiFilesResponse) GetFiles() []*EngineCustomEmojiFile 
 	return nil
 }
 
+type EngineGetCustomEmojiSetInfoRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	DocumentId    int64                  `protobuf:"varint,2,opt,name=document_id,json=documentId,proto3" json:"document_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetCustomEmojiSetInfoRequest) Reset() {
+	*x = EngineGetCustomEmojiSetInfoRequest{}
+	mi := &file_proto_engine_proto_msgTypes[179]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetCustomEmojiSetInfoRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetCustomEmojiSetInfoRequest) ProtoMessage() {}
+
+func (x *EngineGetCustomEmojiSetInfoRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[179]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetCustomEmojiSetInfoRequest.ProtoReflect.Descriptor instead.
+func (*EngineGetCustomEmojiSetInfoRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{179}
+}
+
+func (x *EngineGetCustomEmojiSetInfoRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineGetCustomEmojiSetInfoRequest) GetDocumentId() int64 {
+	if x != nil {
+		return x.DocumentId
+	}
+	return 0
+}
+
+type EngineGetCustomEmojiSetInfoResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SetId         int64                  `protobuf:"varint,1,opt,name=set_id,json=setId,proto3" json:"set_id,omitempty"`
+	AccessHash    int64                  `protobuf:"varint,2,opt,name=access_hash,json=accessHash,proto3" json:"access_hash,omitempty"`
+	Title         string                 `protobuf:"bytes,3,opt,name=title,proto3" json:"title,omitempty"`
+	ShortName     string                 `protobuf:"bytes,4,opt,name=short_name,json=shortName,proto3" json:"short_name,omitempty"`
+	Count         int32                  `protobuf:"varint,5,opt,name=count,proto3" json:"count,omitempty"`
+	Found         bool                   `protobuf:"varint,6,opt,name=found,proto3" json:"found,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetCustomEmojiSetInfoResponse) Reset() {
+	*x = EngineGetCustomEmojiSetInfoResponse{}
+	mi := &file_proto_engine_proto_msgTypes[180]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetCustomEmojiSetInfoResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetCustomEmojiSetInfoResponse) ProtoMessage() {}
+
+func (x *EngineGetCustomEmojiSetInfoResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[180]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetCustomEmojiSetInfoResponse.ProtoReflect.Descriptor instead.
+func (*EngineGetCustomEmojiSetInfoResponse) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{180}
+}
+
+func (x *EngineGetCustomEmojiSetInfoResponse) GetSetId() int64 {
+	if x != nil {
+		return x.SetId
+	}
+	return 0
+}
+
+func (x *EngineGetCustomEmojiSetInfoResponse) GetAccessHash() int64 {
+	if x != nil {
+		return x.AccessHash
+	}
+	return 0
+}
+
+func (x *EngineGetCustomEmojiSetInfoResponse) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *EngineGetCustomEmojiSetInfoResponse) GetShortName() string {
+	if x != nil {
+		return x.ShortName
+	}
+	return ""
+}
+
+func (x *EngineGetCustomEmojiSetInfoResponse) GetCount() int32 {
+	if x != nil {
+		return x.Count
+	}
+	return 0
+}
+
+func (x *EngineGetCustomEmojiSetInfoResponse) GetFound() bool {
+	if x != nil {
+		return x.Found
+	}
+	return false
+}
+
 var File_proto_engine_proto protoreflect.FileDescriptor
 
 const file_proto_engine_proto_rawDesc = "" +
@@ -12455,7 +12591,21 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\tmime_type\x18\x02 \x01(\tR\bmimeType\x12\x1b\n" +
 	"\tfile_data\x18\x03 \x01(\fR\bfileData\"[\n" +
 	"!EngineGetCustomEmojiFilesResponse\x126\n" +
-	"\x05files\x18\x01 \x03(\v2 .uniclient.EngineCustomEmojiFileR\x05filesB\x11Z\x0funiclient/protob\x06proto3"
+	"\x05files\x18\x01 \x03(\v2 .uniclient.EngineCustomEmojiFileR\x05files\"d\n" +
+	"\"EngineGetCustomEmojiSetInfoRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x1f\n" +
+	"\vdocument_id\x18\x02 \x01(\x03R\n" +
+	"documentId\"\xbe\x01\n" +
+	"#EngineGetCustomEmojiSetInfoResponse\x12\x15\n" +
+	"\x06set_id\x18\x01 \x01(\x03R\x05setId\x12\x1f\n" +
+	"\vaccess_hash\x18\x02 \x01(\x03R\n" +
+	"accessHash\x12\x14\n" +
+	"\x05title\x18\x03 \x01(\tR\x05title\x12\x1d\n" +
+	"\n" +
+	"short_name\x18\x04 \x01(\tR\tshortName\x12\x14\n" +
+	"\x05count\x18\x05 \x01(\x05R\x05count\x12\x14\n" +
+	"\x05found\x18\x06 \x01(\bR\x05foundB\x11Z\x0funiclient/protob\x06proto3"
 
 var (
 	file_proto_engine_proto_rawDescOnce sync.Once
@@ -12469,7 +12619,7 @@ func file_proto_engine_proto_rawDescGZIP() []byte {
 	return file_proto_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 179)
+var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 181)
 var file_proto_engine_proto_goTypes = []any{
 	(*EngineEvent)(nil),                            // 0: uniclient.EngineEvent
 	(*AccountInfo)(nil),                            // 1: uniclient.AccountInfo
@@ -12650,6 +12800,8 @@ var file_proto_engine_proto_goTypes = []any{
 	(*EngineGetCustomEmojiFilesRequest)(nil),       // 176: uniclient.EngineGetCustomEmojiFilesRequest
 	(*EngineCustomEmojiFile)(nil),                  // 177: uniclient.EngineCustomEmojiFile
 	(*EngineGetCustomEmojiFilesResponse)(nil),      // 178: uniclient.EngineGetCustomEmojiFilesResponse
+	(*EngineGetCustomEmojiSetInfoRequest)(nil),     // 179: uniclient.EngineGetCustomEmojiSetInfoRequest
+	(*EngineGetCustomEmojiSetInfoResponse)(nil),    // 180: uniclient.EngineGetCustomEmojiSetInfoResponse
 }
 var file_proto_engine_proto_depIdxs = []int32{
 	1,   // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
@@ -12708,7 +12860,7 @@ func file_proto_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   179,
+			NumMessages:   181,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

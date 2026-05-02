@@ -151,7 +151,7 @@ class _MessageBubbleState extends State<MessageBubble> {
 
   MessageReaction? _findHitReaction(Offset globalPos) {
     for (final r in widget.message.reactions) {
-      final key = _reactionKeys[r.emoji];
+      final key = _reactionKeys[r.isCustomEmoji ? 'custom_${r.documentId}' : r.emoji];
       if (key == null) continue;
       final box = key.currentContext?.findRenderObject() as RenderBox?;
       if (box == null || !box.hasSize) continue;
@@ -426,10 +426,11 @@ class _MessageBubbleState extends State<MessageBubble> {
     final onSenderContextMenu = widget.onSenderContextMenu;
     final onReplyTap = widget.onReplyTap;
 
-    final currentEmojis = message.reactions.map((r) => r.emoji).toSet();
-    _reactionKeys.removeWhere((emoji, _) => !currentEmojis.contains(emoji));
+    final currentReactionKeys = message.reactions.map((r) => r.isCustomEmoji ? 'custom_${r.documentId}' : r.emoji).toSet();
+    _reactionKeys.removeWhere((key, _) => !currentReactionKeys.contains(key));
     for (final r in message.reactions) {
-      _reactionKeys.putIfAbsent(r.emoji, () => GlobalKey());
+      final key = r.isCustomEmoji ? 'custom_${r.documentId}' : r.emoji;
+      _reactionKeys.putIfAbsent(key, () => GlobalKey());
     }
 
     final theme = Theme.of(context);
@@ -791,6 +792,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                         isOutgoing: isOutgoing,
                         theme: theme,
                         reactionKeys: _reactionKeys,
+                        accountId: message.accountId,
                       ),
                     ],
                     // Bottom info: views + forwards + edited + time + status.
@@ -1789,12 +1791,14 @@ class _ReactionList extends StatelessWidget {
   final bool isOutgoing;
   final ThemeData theme;
   final Map<String, GlobalKey> reactionKeys;
+  final String accountId;
 
   const _ReactionList({
     required this.reactions,
     required this.isOutgoing,
     required this.theme,
     required this.reactionKeys,
+    required this.accountId,
   });
 
   @override
@@ -1810,34 +1814,54 @@ class _ReactionList extends StatelessWidget {
       runSpacing: 3,
       children: [
         for (final r in reactions)
-          Container(
-            key: reactionKeys[r.emoji],
-            height: 20,
-            padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 0),
-            decoration: BoxDecoration(
-              color: r.byMe ? activeBg : inactiveBg,
-              borderRadius: BorderRadius.circular(10),
-              border: r.byMe
-                  ? Border.all(color: primary, width: 1)
-                  : null,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(r.emoji, style: const TextStyle(fontSize: 15)),
-                const SizedBox(width: 6),
-                Text(
-                  _formatCount(r.count),
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: r.byMe ? primary : inactiveLabel,
+          GestureDetector(
+            onTap: r.isCustomEmoji
+                ? () => _showCustomEmojiPreview(context, r)
+                : null,
+            child: Container(
+              key: reactionKeys[r.isCustomEmoji ? 'custom_${r.documentId}' : r.emoji],
+              height: 22,
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+              decoration: BoxDecoration(
+                color: r.byMe ? activeBg : inactiveBg,
+                borderRadius: BorderRadius.circular(11),
+                border: r.byMe
+                    ? Border.all(color: primary, width: 1)
+                    : null,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (r.isCustomEmoji)
+                    _CustomEmojiInline(
+                      documentId: r.documentId,
+                      accountId: accountId,
+                      altText: r.emoji.isNotEmpty ? r.emoji : '⭐',
+                    )
+                  else
+                    Text(r.emoji, style: const TextStyle(fontSize: 15)),
+                  const SizedBox(width: 4),
+                  Text(
+                    _formatCount(r.count),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: r.byMe ? primary : inactiveLabel,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
       ],
+    );
+  }
+
+  void _showCustomEmojiPreview(BuildContext context, MessageReaction r) {
+    _ReactionPreviewOverlay.show(
+      context: context,
+      documentId: r.documentId,
+      accountId: accountId,
     );
   }
 
@@ -1880,8 +1904,337 @@ class _ReactorAvatar extends StatelessWidget {
   }
 }
 
-/// Forum topic button — small pill with bubble icon + topic name.
-/// Spec §5 / §22.2: speech-bubble-with-tail icon, 6 predefined color palettes.
+class _ReactionPreviewOverlay extends StatefulWidget {
+  final int documentId;
+  final String accountId;
+
+  const _ReactionPreviewOverlay({
+    required this.documentId,
+    required this.accountId,
+  });
+
+  static void show({
+    required BuildContext context,
+    required int documentId,
+    required String accountId,
+  }) {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: false,
+        barrierDismissible: true,
+        pageBuilder: (ctx, _, __) => _ReactionPreviewOverlay(
+          documentId: documentId,
+          accountId: accountId,
+        ),
+        transitionsBuilder: (ctx, anim, _, child) {
+          return FadeTransition(opacity: anim, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 120),
+        reverseTransitionDuration: const Duration(milliseconds: 120),
+      ),
+    );
+  }
+
+  @override
+  State<_ReactionPreviewOverlay> createState() => _ReactionPreviewOverlayState();
+}
+
+class _ReactionPreviewOverlayState extends State<_ReactionPreviewOverlay>
+    with TickerProviderStateMixin {
+  CustomEmojiSetInfo? _setInfo;
+  bool _loadingSet = true;
+  Uint8List? _decompressedLottie;
+  AnimationController? _lottieController;
+
+  @override
+  void initState() {
+    super.initState();
+    CustomEmojiCache.instance.addListener(_onCacheUpdate);
+    _requestFile();
+    _loadSetInfo();
+  }
+
+  @override
+  void dispose() {
+    CustomEmojiCache.instance.removeListener(_onCacheUpdate);
+    _lottieController?.dispose();
+    super.dispose();
+  }
+
+  void _onCacheUpdate() {
+    if (!mounted) return;
+    final file = CustomEmojiCache.instance.getFile(widget.documentId);
+    if (file != null && file.isTgs && _decompressedLottie == null) {
+      try {
+        _decompressedLottie = Uint8List.fromList(gzip.decode(file.fileData));
+      } catch (_) {}
+    }
+    setState(() {});
+  }
+
+  void _requestFile() {
+    final cache = CustomEmojiCache.instance;
+    if (cache.getFile(widget.documentId) == null &&
+        !cache.isFilePending(widget.documentId) &&
+        widget.accountId.isNotEmpty) {
+      final engine = context.read<EngineService>();
+      cache.requestFile(widget.documentId, widget.accountId, engine);
+    }
+    if (cache.getThumb(widget.documentId) == null &&
+        !cache.isPending(widget.documentId) &&
+        !cache.hasFailed(widget.documentId) &&
+        widget.accountId.isNotEmpty) {
+      final engine = context.read<EngineService>();
+      cache.request(widget.documentId, widget.accountId, engine);
+    }
+  }
+
+  Future<void> _loadSetInfo() async {
+    final engine = context.read<EngineService>();
+    final info = await engine.getCustomEmojiSetInfo(widget.accountId, widget.documentId);
+    if (mounted) {
+      setState(() {
+        _setInfo = info;
+        _loadingSet = false;
+      });
+    }
+  }
+
+  void _onLottieLoaded(LottieComposition comp) {
+    _lottieController?.dispose();
+    _lottieController = AnimationController(vsync: this, duration: comp.duration);
+    _lottieController!.repeat();
+  }
+
+  void _openStickerSet() {
+    if (_setInfo == null) return;
+    Navigator.of(context).pop();
+    final engine = context.read<EngineService>();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _StickerSetByIdViewer(
+        setId: _setInfo!.setId,
+        accessHash: _setInfo!.accessHash,
+        engine: engine,
+        accountId: widget.accountId,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cache = CustomEmojiCache.instance;
+    final file = cache.getFile(widget.documentId);
+    final thumb = cache.getThumb(widget.documentId);
+
+    const previewSize = 160.0;
+
+    Widget emojiPreview;
+    if (file != null && file.isTgs && _decompressedLottie != null) {
+      emojiPreview = SizedBox(
+        width: previewSize,
+        height: previewSize,
+        child: Lottie.memory(
+          _decompressedLottie!,
+          width: previewSize,
+          height: previewSize,
+          fit: BoxFit.contain,
+          controller: _lottieController,
+          onLoaded: _onLottieLoaded,
+        ),
+      );
+    } else if (file != null && file.isWebp) {
+      emojiPreview = Image.memory(
+        file.fileData,
+        width: previewSize,
+        height: previewSize,
+        fit: BoxFit.contain,
+      );
+    } else if (thumb != null) {
+      emojiPreview = Image.memory(
+        thumb,
+        width: previewSize,
+        height: previewSize,
+        fit: BoxFit.contain,
+      );
+    } else {
+      emojiPreview = const SizedBox(
+        width: previewSize,
+        height: previewSize,
+        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      );
+    }
+
+    final bgY = (size.height * 0.75);
+
+    return GestureDetector(
+      onTap: () => Navigator.of(context).pop(),
+      child: Material(
+        color: Colors.black54,
+        child: Stack(
+          children: [
+            Center(child: emojiPreview),
+            if (!_loadingSet && _setInfo != null && _setInfo!.title.isNotEmpty)
+              Positioned(
+                left: 0,
+                right: 0,
+                top: bgY - 30,
+                child: Center(
+                  child: GestureDetector(
+                    onTap: _openStickerSet,
+                    child: Container(
+                      constraints: BoxConstraints(maxWidth: size.width * 0.7),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF17212B) : Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.2),
+                            blurRadius: 10,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      child: Text(
+                        'Custom emoji from ${_setInfo!.title}.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isDark ? Colors.white70 : Colors.black87,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StickerSetByIdViewer extends StatefulWidget {
+  final int setId;
+  final int accessHash;
+  final EngineService engine;
+  final String accountId;
+
+  const _StickerSetByIdViewer({
+    required this.setId,
+    required this.accessHash,
+    required this.engine,
+    required this.accountId,
+  });
+
+  @override
+  State<_StickerSetByIdViewer> createState() => _StickerSetByIdViewerState();
+}
+
+class _StickerSetByIdViewerState extends State<_StickerSetByIdViewer> {
+  StickerSetInfo? _setInfo;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch() async {
+    try {
+      final info = await widget.engine.getStickerSetInfo(
+        widget.accountId,
+        setId: widget.setId,
+        accessHash: widget.accessHash,
+      );
+      if (mounted) setState(() { _setInfo = info; _loading = false; });
+    } catch (_) {
+      if (mounted) setState(() { _loading = false; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.3,
+      maxChildSize: 0.9,
+      builder: (ctx, scrollController) => Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF17212B) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _setInfo == null
+                ? const Center(child: Text('Sticker set not found'))
+                : Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _setInfo!.title,
+                                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                            Text(
+                              '${_setInfo!.count} emoji',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: isDark ? Colors.white54 : Colors.black45,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      Expanded(
+                        child: GridView.builder(
+                          controller: scrollController,
+                          padding: const EdgeInsets.all(8),
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 5,
+                            mainAxisSpacing: 4,
+                            crossAxisSpacing: 4,
+                          ),
+                          itemCount: _setInfo!.stickers.length,
+                          itemBuilder: (ctx, i) {
+                            final s = _setInfo!.stickers[i];
+                            final thumbBytes = s.thumbB64.isNotEmpty
+                                ? base64Decode(s.thumbB64)
+                                : null;
+                            return thumbBytes != null
+                                ? Image.memory(
+                                    Uint8List.fromList(thumbBytes),
+                                    fit: BoxFit.contain,
+                                    gaplessPlayback: true,
+                                  )
+                                : Center(
+                                    child: Text(
+                                      s.emoji,
+                                      style: const TextStyle(fontSize: 28),
+                                    ),
+                                  );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+      ),
+    );
+  }
+}
+
 class _TopicButton extends StatelessWidget {
   final String topicName;
   final int topicColorId;

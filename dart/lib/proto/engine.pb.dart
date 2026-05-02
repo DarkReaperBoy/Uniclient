@@ -12943,5 +12943,119 @@ class EngineGetCustomEmojiFilesResponse extends $pb.GeneratedMessage {
   $core.List<EngineCustomEmojiFile> get files => $_getList(0);
 }
 
+class EngineGetCustomEmojiSetInfoRequest extends $pb.GeneratedMessage {
+  factory EngineGetCustomEmojiSetInfoRequest({
+    $core.String? accountId,
+    $fixnum.Int64? documentId,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    if (documentId != null) $result.documentId = documentId;
+    return $result;
+  }
+  EngineGetCustomEmojiSetInfoRequest._() : super();
+  factory EngineGetCustomEmojiSetInfoRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetCustomEmojiSetInfoRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aInt64(2, _omitFieldNames ? '' : 'documentId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGetCustomEmojiSetInfoRequest clone() => EngineGetCustomEmojiSetInfoRequest()..mergeFromMessage(this);
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineGetCustomEmojiSetInfoRequest create() => EngineGetCustomEmojiSetInfoRequest._();
+  EngineGetCustomEmojiSetInfoRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineGetCustomEmojiSetInfoRequest> createRepeated() => $pb.PbList<EngineGetCustomEmojiSetInfoRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetCustomEmojiSetInfoRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetCustomEmojiSetInfoRequest>(create);
+  static EngineGetCustomEmojiSetInfoRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get documentId => $_getI64(1);
+  @$pb.TagNumber(2)
+  set documentId($fixnum.Int64 v) { $_setInt64(1, v); }
+}
+
+class EngineGetCustomEmojiSetInfoResponse extends $pb.GeneratedMessage {
+  factory EngineGetCustomEmojiSetInfoResponse({
+    $fixnum.Int64? setId,
+    $fixnum.Int64? accessHash,
+    $core.String? title,
+    $core.String? shortName,
+    $core.int? count,
+    $core.bool? found,
+  }) {
+    final $result = create();
+    if (setId != null) $result.setId = setId;
+    if (accessHash != null) $result.accessHash = accessHash;
+    if (title != null) $result.title = title;
+    if (shortName != null) $result.shortName = shortName;
+    if (count != null) $result.count = count;
+    if (found != null) $result.found = found;
+    return $result;
+  }
+  EngineGetCustomEmojiSetInfoResponse._() : super();
+  factory EngineGetCustomEmojiSetInfoResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetCustomEmojiSetInfoResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aInt64(1, _omitFieldNames ? '' : 'setId')
+    ..aInt64(2, _omitFieldNames ? '' : 'accessHash')
+    ..aOS(3, _omitFieldNames ? '' : 'title')
+    ..aOS(4, _omitFieldNames ? '' : 'shortName')
+    ..a<$core.int>(5, _omitFieldNames ? '' : 'count', $pb.PbFieldType.O3)
+    ..aOB(6, _omitFieldNames ? '' : 'found')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGetCustomEmojiSetInfoResponse clone() => EngineGetCustomEmojiSetInfoResponse()..mergeFromMessage(this);
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineGetCustomEmojiSetInfoResponse create() => EngineGetCustomEmojiSetInfoResponse._();
+  EngineGetCustomEmojiSetInfoResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineGetCustomEmojiSetInfoResponse> createRepeated() => $pb.PbList<EngineGetCustomEmojiSetInfoResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetCustomEmojiSetInfoResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetCustomEmojiSetInfoResponse>(create);
+  static EngineGetCustomEmojiSetInfoResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $fixnum.Int64 get setId => $_getI64(0);
+  @$pb.TagNumber(1)
+  set setId($fixnum.Int64 v) { $_setInt64(0, v); }
+
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get accessHash => $_getI64(1);
+  @$pb.TagNumber(2)
+  set accessHash($fixnum.Int64 v) { $_setInt64(1, v); }
+
+  @$pb.TagNumber(3)
+  $core.String get title => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set title($core.String v) { $_setString(2, v); }
+
+  @$pb.TagNumber(4)
+  $core.String get shortName => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set shortName($core.String v) { $_setString(3, v); }
+
+  @$pb.TagNumber(5)
+  $core.int get count => $_getIZ(4);
+  @$pb.TagNumber(5)
+  set count($core.int v) { $_setSignedInt32(4, v); }
+
+  @$pb.TagNumber(6)
+  $core.bool get found => $_getBF(5);
+  @$pb.TagNumber(6)
+  set found($core.bool v) { $_setBool(5, v); }
+}
+
 const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
 const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

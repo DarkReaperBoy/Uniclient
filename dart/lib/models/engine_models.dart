@@ -951,23 +951,29 @@ class MessageReaction {
   final String emoji;
   final int count;
   final bool byMe;
+  final int documentId;
 
   const MessageReaction({
     required this.emoji,
     this.count = 1,
     this.byMe = false,
+    this.documentId = 0,
   });
+
+  bool get isCustomEmoji => documentId != 0;
 
   factory MessageReaction.fromJson(Map<String, dynamic> j) => MessageReaction(
     emoji: j['emoji'] as String? ?? '',
     count: j['count'] as int? ?? 1,
     byMe: j['by_me'] as bool? ?? false,
+    documentId: (j['document_id'] as num?)?.toInt() ?? 0,
   );
 
   Map<String, dynamic> toJson() => {
     'emoji': emoji,
     'count': count,
     'by_me': byMe,
+    if (documentId != 0) 'document_id': documentId,
   };
 }
 
@@ -2079,6 +2085,22 @@ class CustomEmojiFileData {
   bool get isTgs => mimeType == 'application/x-tgsticker';
   bool get isWebm => mimeType == 'video/webm';
   bool get isWebp => mimeType == 'image/webp';
+}
+
+class CustomEmojiSetInfo {
+  final int setId;
+  final int accessHash;
+  final String title;
+  final String shortName;
+  final int count;
+
+  const CustomEmojiSetInfo({
+    this.setId = 0,
+    this.accessHash = 0,
+    this.title = '',
+    this.shortName = '',
+    this.count = 0,
+  });
 }
 
 class CustomEmojiSetSummary {

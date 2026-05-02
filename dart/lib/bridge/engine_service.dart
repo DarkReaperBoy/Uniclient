@@ -959,6 +959,28 @@ class EngineService {
     }
   }
 
+  Future<CustomEmojiSetInfo?> getCustomEmojiSetInfo(String accountId, int documentId) async {
+    final req = epb.EngineGetCustomEmojiSetInfoRequest()
+      ..accountId = accountId
+      ..documentId = Int64(documentId);
+    try {
+      final respBytes = await _callAsync('__engine', 'GetCustomEmojiSetInfo', req.writeToBuffer());
+      if (respBytes.isEmpty) return null;
+      final resp = epb.EngineGetCustomEmojiSetInfoResponse.fromBuffer(respBytes);
+      if (!resp.found) return null;
+      return CustomEmojiSetInfo(
+        setId: resp.setId.toInt(),
+        accessHash: resp.accessHash.toInt(),
+        title: resp.title,
+        shortName: resp.shortName,
+        count: resp.count,
+      );
+    } catch (e) {
+      Debug.error('ENGINE', 'getCustomEmojiSetInfo failed', e);
+      return null;
+    }
+  }
+
   // ── Installed custom emoji sets ──
 
   Future<List<CustomEmojiSetSummary>> getInstalledEmojiSets(String accountId) async {

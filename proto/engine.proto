@@ -1358,3 +1358,21 @@ message EngineCustomEmojiFile {
 message EngineGetCustomEmojiFilesResponse {
   repeated EngineCustomEmojiFile files = 1;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Custom Emoji Set Lookup (spec §45.6 — View Pack)
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineGetCustomEmojiSetInfoRequest {
+  string account_id  = 1;
+  int64  document_id = 2;
+}
+
+message EngineGetCustomEmojiSetInfoResponse {
+  int64  set_id      = 1;
+  int64  access_hash = 2;
+  string title       = 3;
+  string short_name  = 4;
+  int32  count       = 5;
+  bool   found       = 6;
+}

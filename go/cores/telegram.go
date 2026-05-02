@@ -10309,11 +10309,20 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 		if len(results) > 0 {
 			m.Reactions = make([]Reaction, 0, len(results))
 			for _, r := range results {
-				if re, ok := r.Reaction.(*tg.ReactionEmoji); ok && re.Emoticon != "" {
+				switch re := r.Reaction.(type) {
+				case *tg.ReactionEmoji:
+					if re.Emoticon != "" {
+						m.Reactions = append(m.Reactions, Reaction{
+							Emoji: re.Emoticon,
+							Count: r.Count,
+							ByMe:  r.ChosenOrder > 0,
+						})
+					}
+				case *tg.ReactionCustomEmoji:
 					m.Reactions = append(m.Reactions, Reaction{
-						Emoji: re.Emoticon,
-						Count: r.Count,
-						ByMe:  r.ChosenOrder > 0,
+						DocumentID: re.DocumentID,
+						Count:      r.Count,
+						ByMe:       r.ChosenOrder > 0,
 					})
 				}
 			}
@@ -12481,6 +12490,55 @@ func (t *TelegramCore) GetCustomEmojiFiles(documentIDs []int64) ([]CustomEmojiFi
 		})
 	}
 	return result, nil
+}
+
+func (t *TelegramCore) GetCustomEmojiSetInfo(documentID int64) (setID int64, accessHash int64, title string, shortName string, count int32, found bool, err error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return 0, 0, "", "", 0, false, ErrAuth
+	}
+	docs, err := t.api.MessagesGetCustomEmojiDocuments(t.ctx, []int64{documentID})
+	if err != nil {
+		return 0, 0, "", "", 0, false, fmt.Errorf("get custom emoji doc: %w", err)
+	}
+	for _, doc := range docs {
+		d, ok := doc.(*tg.Document)
+		if !ok {
+			continue
+		}
+		for _, attr := range d.Attributes {
+			sticker, ok := attr.(*tg.DocumentAttributeSticker)
+			if !ok {
+				continue
+			}
+			switch ss := sticker.Stickerset.(type) {
+			case *tg.InputStickerSetID:
+				result, getErr := t.api.MessagesGetStickerSet(t.ctx, &tg.MessagesGetStickerSetRequest{
+					Stickerset: ss,
+				})
+				if getErr != nil {
+					return ss.ID, ss.AccessHash, "", "", 0, true, nil
+				}
+				if stickerSet, ok := result.(*tg.MessagesStickerSet); ok {
+					return stickerSet.Set.ID, ss.AccessHash, stickerSet.Set.Title, stickerSet.Set.ShortName, int32(stickerSet.Set.Count), true, nil
+				}
+				return ss.ID, ss.AccessHash, "", "", 0, true, nil
+			case *tg.InputStickerSetShortName:
+				result, getErr := t.api.MessagesGetStickerSet(t.ctx, &tg.MessagesGetStickerSetRequest{
+					Stickerset: ss,
+				})
+				if getErr != nil {
+					return 0, 0, "", ss.ShortName, 0, true, nil
+				}
+				if stickerSet, ok := result.(*tg.MessagesStickerSet); ok {
+					return stickerSet.Set.ID, int64(stickerSet.Set.Hash), stickerSet.Set.Title, stickerSet.Set.ShortName, int32(stickerSet.Set.Count), true, nil
+				}
+				return 0, 0, "", ss.ShortName, 0, true, nil
+			}
+		}
+	}
+	return 0, 0, "", "", 0, false, nil
 }
 
 func (t *TelegramCore) downloadSmallFile(loc tg.InputFileLocationClass, maxBytes int) ([]byte, error) {
@@ -14665,9 +14723,15 @@ func (t *TelegramCore) GetMessageReactionsList(chatID string, msgID int, limit i
 	}
 	var reactions []Reaction
 	for _, r := range result.Reactions {
-		emoji := ""
-		if re, ok := r.Reaction.(*tg.ReactionEmoji); ok { emoji = re.Emoticon }
-		rx := Reaction{Emoji: emoji, Count: 1, Date: r.Date}
+		var rx Reaction
+		switch re := r.Reaction.(type) {
+		case *tg.ReactionEmoji:
+			rx = Reaction{Emoji: re.Emoticon, Count: 1, Date: r.Date}
+		case *tg.ReactionCustomEmoji:
+			rx = Reaction{DocumentID: re.DocumentID, Count: 1, Date: r.Date}
+		default:
+			rx = Reaction{Count: 1, Date: r.Date}
+		}
 		if peer, ok := r.PeerID.(*tg.PeerUser); ok {
 			rx.PeerID = strconv.FormatInt(peer.UserID, 10)
 			if u, found := users[peer.UserID]; found {

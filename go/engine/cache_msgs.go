@@ -979,6 +979,25 @@ func (e *Engine) GetCustomEmojiFiles(accountID string, documentIDs []int64) ([]c
 	return fetcher.GetCustomEmojiFiles(documentIDs)
 }
 
+type CustomEmojiSetInfoFetcher interface {
+	GetCustomEmojiSetInfo(documentID int64) (setID int64, accessHash int64, title string, shortName string, count int32, found bool, err error)
+}
+
+func (e *Engine) GetCustomEmojiSetInfo(accountID string, documentID int64) (int64, int64, string, string, int32, bool, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return 0, 0, "", "", 0, false, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return 0, 0, "", "", 0, false, fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(CustomEmojiSetInfoFetcher)
+	if !ok {
+		return 0, 0, "", "", 0, false, fmt.Errorf("platform does not support custom emoji set info")
+	}
+	return fetcher.GetCustomEmojiSetInfo(documentID)
+}
+
 type InstalledStickerPacksFetcher interface {
 	GetInstalledStickerPacks() ([]cores.StickerPackSummary, error)
 }

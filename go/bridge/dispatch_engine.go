@@ -1775,6 +1775,24 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(resp)
 
+	case "GetCustomEmojiSetInfo":
+		var req pb.EngineGetCustomEmojiSetInfoRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		setID, accessHash, title, shortName, count, found, err := e.GetCustomEmojiSetInfo(req.AccountId, req.DocumentId)
+		if err != nil {
+			return nil, err
+		}
+		return proto.Marshal(&pb.EngineGetCustomEmojiSetInfoResponse{
+			SetId:      setID,
+			AccessHash: accessHash,
+			Title:      title,
+			ShortName:  shortName,
+			Count:      count,
+			Found:      found,
+		})
+
 	case "TranscribeAudio":
 		var req pb.EngineTranscribeAudioRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
