@@ -622,7 +622,8 @@ class _UniClientAppState extends State<UniClientApp>
 
         case 'testDragOverlay':
           final card = (cmd['card'] as num?)?.toInt() ?? 0;
-          ChatView.testDragOverlay?.call(card);
+          final layout = (cmd['layout'] as num?)?.toInt() ?? 1;
+          ChatView.testDragOverlay?.call(card, layout: layout);
 
         case 'dismissPopup':
           _dispatchTap(1, 1);

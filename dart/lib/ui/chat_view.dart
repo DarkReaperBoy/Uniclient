@@ -130,7 +130,7 @@ class ChatView extends StatefulWidget {
 
   static VoidCallback? testVideoTipToast;
   static VoidCallback? testVideoPublishedToast;
-  static void Function(int card)? testDragOverlay;
+  static void Function(int card, {int layout})? testDragOverlay;
 
   static void Function(bool isUp)? scrollPageRequest;
   static void requestScrollPage(bool isUp) =>
@@ -286,6 +286,7 @@ class _ChatViewState extends State<ChatView>
   bool _webPreviewForceSmall = false;
   bool _isDragOver = false;
   int _dragHoveredCard = 0; // 0=none, 1=document, 2=photo
+  _DragZoneLayout _dragLayout = _DragZoneLayout.photoFiles;
   late final AnimationController _dragOverlayAnimCtrl;
   bool _webPreviewInvert = false;
   bool _webPreviewCancelled = false;
@@ -423,12 +424,16 @@ class _ChatViewState extends State<ChatView>
     };
     ChatView.testVideoTipToast = _showVideoProcessingTip;
     ChatView.testVideoPublishedToast = () => showVideoPublishedToast('test', null);
-    ChatView.testDragOverlay = (card) {
+    ChatView.testDragOverlay = (card, {int layout = 1}) {
       if (card < 0) {
         setState(() { _isDragOver = false; _dragHoveredCard = 0; });
         _dragOverlayAnimCtrl.reverse();
       } else {
-        setState(() { _isDragOver = true; _dragHoveredCard = card; });
+        setState(() {
+          _isDragOver = true;
+          _dragHoveredCard = card;
+          _dragLayout = _DragZoneLayout.values[layout.clamp(0, 3)];
+        });
         _dragOverlayAnimCtrl.forward();
       }
     };
@@ -3607,7 +3612,10 @@ class _ChatViewState extends State<ChatView>
     }
     return DropTarget(
       onDragEntered: (_) {
-        setState(() => _isDragOver = true);
+        setState(() {
+          _isDragOver = true;
+          _dragLayout = _DragZoneLayout.photoFiles;
+        });
         _dragOverlayAnimCtrl.forward();
       },
       onDragExited: (_) {
@@ -3622,7 +3630,14 @@ class _ChatViewState extends State<ChatView>
         if (box == null) return;
         final localY = details.localPosition.dy;
         final h = box.size.height;
-        final newCard = localY < h / 2 ? 1 : 2;
+        final int newCard;
+        if (_dragLayout == _DragZoneLayout.files) {
+          newCard = 1; // single document zone
+        } else if (_dragLayout == _DragZoneLayout.image) {
+          newCard = 2; // single photo zone
+        } else {
+          newCard = localY < h / 2 ? 1 : 2;
+        }
         if (newCard != _dragHoveredCard) {
           setState(() => _dragHoveredCard = newCard);
         }
@@ -4362,6 +4377,7 @@ class _ChatViewState extends State<ChatView>
           },
           child: _DragOverlay(
             hoveredCard: _dragHoveredCard,
+            layout: _dragLayout,
           ),
         ),
       ),
@@ -14802,43 +14818,81 @@ String _formatTime12h(DateTime dt) {
   return '${h - 12}:$m PM';
 }
 
-/// §48 drag-and-drop file overlay. Two-zone layout with text-only cards.
+/// §48.2 four drag states determining overlay layout.
+enum _DragZoneLayout { files, photoFiles, mediaFiles, image }
+
+/// §48.4 classify dragged files by extension.
+_DragZoneLayout _classifyDragFiles(List<String> paths) {
+  if (paths.isEmpty) return _DragZoneLayout.files;
+  const imageExts = {'.jpg', '.jpeg', '.png', '.bmp', '.webp', '.tiff', '.tif'};
+  const videoExts = {'.mp4', '.mov', '.avi', '.mkv', '.webm', '.m4v', '.3gp'};
+  const gifExt = '.gif';
+  bool allSmallImages = true;
+  bool allMedia = true;
+  for (final p in paths) {
+    final ext = p.contains('.') ? '.${p.split('.').last.toLowerCase()}' : '';
+    if (ext == gifExt) {
+      allSmallImages = false; // GIFs are media, not photos
+    } else if (!imageExts.contains(ext)) {
+      allSmallImages = false;
+      if (!videoExts.contains(ext)) {
+        allMedia = false;
+      }
+    }
+  }
+  if (allSmallImages) return _DragZoneLayout.photoFiles;
+  if (allMedia) return _DragZoneLayout.mediaFiles;
+  return _DragZoneLayout.files;
+}
+
+/// §48 drag-and-drop file overlay. Four layout states with text-only cards.
 /// Text color animates windowSubTextFg → windowActiveTextFg on hover (200ms).
 /// No icons (§48.7). dragMargin (0,10,0,10), boxRadius 8, boxRoundShadow 8px.
 class _DragOverlay extends StatelessWidget {
   final int hoveredCard;
-  const _DragOverlay({required this.hoveredCard});
+  final _DragZoneLayout layout;
+  const _DragOverlay({required this.hoveredCard, required this.layout});
 
   @override
   Widget build(BuildContext context) {
     final palette = PaletteProvider.of(context);
 
+    Widget card(String title, String subtitle, int cardId) => Expanded(
+      child: _DragCard(
+        title: title,
+        subtitle: subtitle,
+        isHovered: hoveredCard == cardId,
+        boxBg: palette.boxBg,
+        restColor: palette.windowSubTextFg,
+        activeColor: palette.windowActiveTextFg,
+      ),
+    );
+
+    final List<Widget> children;
+    switch (layout) {
+      case _DragZoneLayout.files:
+        children = [
+          card('Drop files here', 'to send them as documents', 1),
+        ];
+      case _DragZoneLayout.photoFiles:
+        children = [
+          card('Drop images here', 'to send them without compression', 1),
+          card('Drop photos here', 'to send them in a quick way', 2),
+        ];
+      case _DragZoneLayout.mediaFiles:
+        children = [
+          card('Drop files here', 'to send them as documents', 1),
+          card('Drop photos and videos', 'to send them as media files', 2),
+        ];
+      case _DragZoneLayout.image:
+        children = [
+          card('Drop images here', 'to send them in a quick way', 2),
+        ];
+    }
+
     return Container(
       color: const Color(0x80000000),
-      child: Column(
-        children: [
-          Expanded(
-            child: _DragCard(
-              title: 'Drop files here',
-              subtitle: 'to send them as documents',
-              isHovered: hoveredCard == 1,
-              boxBg: palette.boxBg,
-              restColor: palette.windowSubTextFg,
-              activeColor: palette.windowActiveTextFg,
-            ),
-          ),
-          Expanded(
-            child: _DragCard(
-              title: 'Drop photos here',
-              subtitle: 'to send them in a quick way',
-              isHovered: hoveredCard == 2,
-              boxBg: palette.boxBg,
-              restColor: palette.windowSubTextFg,
-              activeColor: palette.windowActiveTextFg,
-            ),
-          ),
-        ],
-      ),
+      child: Column(children: children),
     );
   }
 }
