@@ -1077,6 +1077,8 @@ func (t *TelegramCore) SendMessage(chatID string, msg OutgoingMessage) (*Message
 			ent = &tg.MessageEntityTextURL{Offset: e.Offset, Length: e.Length, URL: e.URL}
 		case "blockquote":
 			ent = &tg.MessageEntityBlockquote{Offset: e.Offset, Length: e.Length}
+		case "custom_emoji":
+			ent = &tg.MessageEntityCustomEmoji{Offset: e.Offset, Length: e.Length, DocumentID: e.DocumentID}
 		default:
 			continue
 		}

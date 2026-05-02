@@ -915,7 +915,6 @@ class _EmojiTabState extends State<_EmojiTab> {
         child: _CustomPackHeader(
           title: pack.title,
           installed: pack.installed,
-          premium: pack.premium,
           isDark: isDark,
         ),
       ),
@@ -1014,13 +1013,11 @@ class _EmojiTabState extends State<_EmojiTab> {
 class _CustomPackHeader extends StatelessWidget {
   final String title;
   final bool installed;
-  final bool premium;
   final bool isDark;
 
   const _CustomPackHeader({
     required this.title,
     required this.installed,
-    required this.premium,
     required this.isDark,
   });
 
@@ -1052,14 +1049,12 @@ class _CustomPackHeader extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                 decoration: BoxDecoration(
-                  color: premium
-                      ? const Color(0xFF7B68EE)
-                      : accentColor,
+                  color: accentColor,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text(
-                  premium ? 'Unlock' : 'Add',
-                  style: const TextStyle(
+                child: const Text(
+                  'Add',
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                     color: Colors.white,
