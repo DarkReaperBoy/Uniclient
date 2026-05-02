@@ -17,6 +17,7 @@ class ChatState extends ChangeNotifier {
   List<ChatInfo> _chats = [];
   ChatInfo? _activeChat;
   int _openedUnreadCount = 0; // unread count at time chat was opened
+  void Function(CachedMessage msg)? onNewActiveMessage;
   List<CachedMessage> _messages = [];
   List<CachedMessage> _pinnedMessages = [];
   bool _loadingMessages = false;
@@ -1142,6 +1143,12 @@ class ChatState extends ChangeNotifier {
     }
   }
 
+  /// §49.6: Increment unread badge when incoming message arrives while not at bottom.
+  void incrementOpenedUnread() {
+    _openedUnreadCount++;
+    notifyListeners();
+  }
+
   /// Close the active chat.
   void closeChat() {
     _stopPolling();
@@ -1844,6 +1851,7 @@ class ChatState extends ChangeNotifier {
         (event.message.localId.isNotEmpty && m.localId == event.message.localId));
       if (!exists) {
         _messages.insert(0, event.message);
+        onNewActiveMessage?.call(event.message);
         notifyListeners();
       }
     } else if (onNotification != null && !event.message.isSent) {

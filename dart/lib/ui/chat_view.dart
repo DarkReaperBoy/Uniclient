@@ -455,6 +455,10 @@ class _ChatViewState extends State<ChatView>
   @override
   void dispose() {
     _searchController.removeListener(_onSearchQueryChanged);
+    final cs = context.read<ChatState>();
+    if (cs.onNewActiveMessage == _handleNewActiveMessage) {
+      cs.onNewActiveMessage = null;
+    }
     if (ChatView.editLastOutgoingRequest == _editLastOutgoing) {
       ChatView.editLastOutgoingRequest = null;
     }
@@ -547,8 +551,9 @@ class _ChatViewState extends State<ChatView>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Mark as read when opening a new chat.
+    // §49.6: Register new-message callback for auto-scroll behavior.
     final chatState = context.read<ChatState>();
+    chatState.onNewActiveMessage = _handleNewActiveMessage;
     final chatId = chatState.activeChat?.chatId;
     if (chatId != null && chatId != _lastChatId) {
       // Save web preview draft for old chat before switching.
@@ -700,6 +705,34 @@ class _ChatViewState extends State<ChatView>
     // Spec §49.4: destroy unread bar when user scrolls to bottom.
     if (_scrollController.offset < 10) {
       context.read<ChatState>().clearOpenedUnread();
+    }
+  }
+
+  /// §49.6: Handle new message in active chat — auto-scroll or increment badge.
+  void _handleNewActiveMessage(CachedMessage msg) {
+    if (!mounted) return;
+    final chatState = context.read<ChatState>();
+    if (msg.isOutgoing) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scrollController.hasClients) return;
+        _scrollController.jumpTo(0);
+      });
+      return;
+    }
+    if (chatState.isJumped) {
+      chatState.incrementOpenedUnread();
+      _updateFabVisibility();
+      return;
+    }
+    final atBottom = _scrollController.hasClients && _scrollController.offset < 20;
+    if (atBottom) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scrollController.hasClients) return;
+        _scrollController.jumpTo(0);
+      });
+    } else {
+      chatState.incrementOpenedUnread();
+      _updateFabVisibility();
     }
   }
 
