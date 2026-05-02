@@ -2127,6 +2127,10 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 				data = protowire.AppendTag(data, 7, protowire.VarintType)
 				data = protowire.AppendVarint(data, 1)
 			}
+			if result.PendingTill > 0 {
+				data = protowire.AppendTag(data, 8, protowire.VarintType)
+				data = protowire.AppendVarint(data, uint64(result.PendingTill))
+			}
 		}
 		return data, nil
 

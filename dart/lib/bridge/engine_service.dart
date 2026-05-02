@@ -818,6 +818,10 @@ class EngineService {
       final respBytes = await _callAsync('__engine', 'GetWebPagePreview', req.writeToBuffer());
       if (respBytes.isEmpty) return null;
       final resp = epb.EngineGetWebPagePreviewResponse.fromBuffer(respBytes);
+      final pending = resp.pendingTill.toInt();
+      if (pending > 0) {
+        return WebPagePreview(url: resp.url.isNotEmpty ? resp.url : url, pendingTill: pending);
+      }
       if (resp.title.isEmpty && resp.description.isEmpty && resp.siteName.isEmpty) return null;
       return WebPagePreview(
         url: resp.url,

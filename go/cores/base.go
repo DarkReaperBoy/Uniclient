@@ -422,6 +422,7 @@ type WebPagePreviewResult struct {
 	ThumbB64      string `json:"thumb_b64"`
 	Type          string `json:"type"`
 	HasLargeMedia bool   `json:"has_large_media"`
+	PendingTill   int64  `json:"pending_till"`
 }
 
 type StarGiftItem struct {

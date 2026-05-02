@@ -9624,6 +9624,7 @@ class EngineGetWebPagePreviewResponse extends $pb.GeneratedMessage {
     ..aOS(5, _omitFieldNames ? '' : 'thumbB64')
     ..aOS(6, _omitFieldNames ? '' : 'type')
     ..aOB(7, _omitFieldNames ? '' : 'hasLargeMedia')
+    ..aInt64(8, _omitFieldNames ? '' : 'pendingTill')
     ..hasRequiredFields = false
   ;
 
@@ -9704,6 +9705,15 @@ class EngineGetWebPagePreviewResponse extends $pb.GeneratedMessage {
   $core.bool hasHasLargeMedia() => $_has(6);
   @$pb.TagNumber(7)
   void clearHasLargeMedia() => clearField(7);
+
+  @$pb.TagNumber(8)
+  $fixnum.Int64 get pendingTill => $_getI64(7);
+  @$pb.TagNumber(8)
+  set pendingTill($fixnum.Int64 v) { $_setInt64(7, v); }
+  @$pb.TagNumber(8)
+  $core.bool hasPendingTill() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearPendingTill() => clearField(8);
 }
 
 class EngineBotCallbackRequest extends $pb.GeneratedMessage {

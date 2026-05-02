@@ -13362,6 +13362,12 @@ func (t *TelegramCore) GetWebPagePreviewFull(url string) (*WebPagePreviewResult,
 				}
 				return r, nil
 			}
+			if pending, ok := mw.Webpage.(*tg.WebPagePending); ok {
+				return &WebPagePreviewResult{
+					URL:         pending.URL,
+					PendingTill: int64(pending.Date),
+				}, nil
+			}
 		}
 	}
 	return nil, nil

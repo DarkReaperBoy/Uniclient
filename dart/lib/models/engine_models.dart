@@ -1989,6 +1989,7 @@ class WebPagePreview {
   final String thumbB64;
   final String type;
   final bool hasLargeMedia;
+  final int pendingTill;
 
   const WebPagePreview({
     this.url = '',
@@ -1998,7 +1999,10 @@ class WebPagePreview {
     this.thumbB64 = '',
     this.type = '',
     this.hasLargeMedia = false,
+    this.pendingTill = 0,
   });
+
+  bool get isPending => pendingTill > 0;
 
   bool get defaultSmallMedia {
     if (type == 'profile') return true;

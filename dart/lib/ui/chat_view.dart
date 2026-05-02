@@ -240,8 +240,10 @@ class _ChatViewState extends State<ChatView>
   late final AnimationController _dragOverlayAnimCtrl;
   bool _webPreviewInvert = false;
   bool _webPreviewCancelled = false;
+  bool _webPreviewLoading = false;
   String _lastPreviewUrl = '';
   Timer? _previewDebounce;
+  Timer? _pendingRetryTimer;
   final Set<String> _nullResolvedUrls = {};
   final Map<String, WebPagePreview> _previewCache = {};
   AutocompleteQuery? _acQuery;
@@ -437,6 +439,7 @@ class _ChatViewState extends State<ChatView>
     _searchController.dispose();
     _searchFocusNode.dispose();
     _previewDebounce?.cancel();
+    _pendingRetryTimer?.cancel();
     _inlineBotDebounce?.cancel();
     _videoTipTimer?.cancel();
     _videoTooltipTimer?.cancel();
@@ -2322,10 +2325,12 @@ class _ChatViewState extends State<ChatView>
 
   void _onLinksChanged(List<String> links, ChatState chatState) {
     _previewDebounce?.cancel();
+    _pendingRetryTimer?.cancel();
     if (links.isEmpty || _editingMsgId != null) {
-      if (_webPreview != null || _lastPreviewUrl.isNotEmpty) {
+      if (_webPreview != null || _lastPreviewUrl.isNotEmpty || _webPreviewLoading) {
         setState(() {
           _webPreview = null;
+          _webPreviewLoading = false;
           _lastPreviewUrl = '';
           _webPreviewCancelled = false;
           _webPreviewForceLarge = false;
@@ -2344,43 +2349,61 @@ class _ChatViewState extends State<ChatView>
     for (final link in links) {
       if (_nullResolvedUrls.contains(link)) continue;
       if (_previewCache.containsKey(link)) {
-        if (link == _lastPreviewUrl) return;
-        setState(() {
-          _webPreview = _previewCache[link];
-          _lastPreviewUrl = link;
-          _webPreviewForceLarge = false;
-          _webPreviewForceSmall = false;
-          _webPreviewInvert = false;
-        });
-        return;
+        final cached = _previewCache[link]!;
+        if (!cached.isPending) {
+          if (link == _lastPreviewUrl) return;
+          setState(() {
+            _webPreview = cached;
+            _webPreviewLoading = false;
+            _lastPreviewUrl = link;
+            _webPreviewForceLarge = false;
+            _webPreviewForceSmall = false;
+            _webPreviewInvert = false;
+          });
+          return;
+        }
       }
       urlToFetch = link;
       break;
     }
 
     if (urlToFetch == null) {
-      if (_webPreview != null) {
+      if (_webPreview != null || _webPreviewLoading) {
         setState(() {
           _webPreview = null;
+          _webPreviewLoading = false;
           _lastPreviewUrl = '';
         });
       }
       return;
     }
 
-    if (urlToFetch == _lastPreviewUrl) return;
+    if (urlToFetch == _lastPreviewUrl && !_webPreviewLoading) return;
 
     _previewDebounce = Timer(const Duration(milliseconds: 800), () {
       if (!mounted) return;
       final accountId = chatState.activeChat?.accountId ?? '';
       if (accountId.isEmpty) return;
+      setState(() {
+        _webPreviewLoading = true;
+        _lastPreviewUrl = urlToFetch!;
+        _webPreview = WebPagePreview(url: urlToFetch!, title: 'Loading...');
+      });
       final engine = context.read<EngineService>();
       engine.getWebPagePreview(accountId, urlToFetch!).then((preview) {
         if (!mounted) return;
-        if (preview != null) {
+        if (preview != null && preview.isPending) {
+          _previewCache[urlToFetch!] = preview;
+          setState(() {
+            _webPreview = WebPagePreview(url: preview.url.isNotEmpty ? preview.url : urlToFetch!, title: 'Loading...');
+            _webPreviewLoading = true;
+          });
+          _schedulePendingRetry(urlToFetch!, preview.pendingTill, chatState);
+        } else if (preview != null) {
           _previewCache[urlToFetch!] = preview;
           setState(() {
             _webPreview = preview;
+            _webPreviewLoading = false;
             _lastPreviewUrl = urlToFetch!;
             _webPreviewForceLarge = false;
             _webPreviewForceSmall = false;
@@ -2388,6 +2411,41 @@ class _ChatViewState extends State<ChatView>
           });
         } else {
           _nullResolvedUrls.add(urlToFetch!);
+          setState(() {
+            _webPreviewLoading = false;
+          });
+          _onLinksChanged(_detectedLinks, chatState);
+        }
+      });
+    });
+  }
+
+  void _schedulePendingRetry(String url, int pendingTill, ChatState chatState) {
+    _pendingRetryTimer?.cancel();
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final delaySeconds = (pendingTill - now).clamp(1, 30);
+    _pendingRetryTimer = Timer(Duration(seconds: delaySeconds), () {
+      if (!mounted || _webPreviewCancelled) return;
+      if (_lastPreviewUrl != url) return;
+      final accountId = chatState.activeChat?.accountId ?? '';
+      if (accountId.isEmpty) return;
+      final engine = context.read<EngineService>();
+      engine.getWebPagePreview(accountId, url).then((preview) {
+        if (!mounted || _lastPreviewUrl != url) return;
+        if (preview != null && preview.isPending) {
+          _schedulePendingRetry(url, preview.pendingTill, chatState);
+        } else if (preview != null) {
+          _previewCache[url] = preview;
+          setState(() {
+            _webPreview = preview;
+            _webPreviewLoading = false;
+            _webPreviewForceLarge = false;
+            _webPreviewForceSmall = false;
+            _webPreviewInvert = false;
+          });
+        } else {
+          _nullResolvedUrls.add(url);
+          setState(() { _webPreviewLoading = false; });
           _onLinksChanged(_detectedLinks, chatState);
         }
       });
@@ -2397,10 +2455,12 @@ class _ChatViewState extends State<ChatView>
   void _switchPreviewUrl(String url) {
     if (url == _lastPreviewUrl) return;
     _previewDebounce?.cancel();
+    _pendingRetryTimer?.cancel();
 
-    if (_previewCache.containsKey(url)) {
+    if (_previewCache.containsKey(url) && !_previewCache[url]!.isPending) {
       setState(() {
         _webPreview = _previewCache[url];
+        _webPreviewLoading = false;
         _lastPreviewUrl = url;
         _webPreviewCancelled = false;
         _webPreviewForceLarge = false;
@@ -2410,16 +2470,26 @@ class _ChatViewState extends State<ChatView>
       return;
     }
 
+    setState(() {
+      _webPreviewLoading = true;
+      _lastPreviewUrl = url;
+      _webPreview = WebPagePreview(url: url, title: 'Loading...');
+    });
+
     final chatState = context.read<ChatState>();
     final accountId = chatState.activeChat?.accountId ?? '';
     if (accountId.isEmpty) return;
     final engine = context.read<EngineService>();
     engine.getWebPagePreview(accountId, url).then((preview) {
-      if (!mounted) return;
-      if (preview != null) {
+      if (!mounted || _lastPreviewUrl != url) return;
+      if (preview != null && preview.isPending) {
+        _previewCache[url] = preview;
+        _schedulePendingRetry(url, preview.pendingTill, chatState);
+      } else if (preview != null) {
         _previewCache[url] = preview;
         setState(() {
           _webPreview = preview;
+          _webPreviewLoading = false;
           _lastPreviewUrl = url;
           _webPreviewCancelled = false;
           _webPreviewForceLarge = false;
@@ -2428,13 +2498,16 @@ class _ChatViewState extends State<ChatView>
         });
       } else {
         _nullResolvedUrls.add(url);
+        setState(() { _webPreviewLoading = false; _webPreview = null; });
       }
     });
   }
 
   void _cancelWebPreview() {
+    _pendingRetryTimer?.cancel();
     setState(() {
       _webPreview = null;
+      _webPreviewLoading = false;
       _webPreviewCancelled = true;
       _webPreviewForceLarge = false;
       _webPreviewForceSmall = false;
@@ -3005,9 +3078,11 @@ class _ChatViewState extends State<ChatView>
         forceSmallMedia: _webPreviewForceSmall,
         invertMedia: _webPreviewInvert);
     _composeController.clear();
+    _pendingRetryTimer?.cancel();
     setState(() {
       _replyToId = null;
       _webPreview = null;
+      _webPreviewLoading = false;
       _webPreviewForceLarge = false;
       _webPreviewForceSmall = false;
       _webPreviewInvert = false;
@@ -3812,17 +3887,19 @@ class _ChatViewState extends State<ChatView>
             Builder(builder: (_) {
               final viableLinks = _detectedLinks.where((l) => !_nullResolvedUrls.contains(l)).toList();
               final idx = viableLinks.indexOf(_lastPreviewUrl);
+              final loading = _webPreviewLoading;
               return _WebPreviewBar(
                 preview: _webPreview!,
-                isSmallMedia: _webPreviewForceSmall ||
-                    (!_webPreviewForceLarge && _webPreview!.defaultSmallMedia),
-                canToggleSize: _webPreview!.hasLargeMedia,
+                isLoading: loading,
+                isSmallMedia: !loading && (_webPreviewForceSmall ||
+                    (!_webPreviewForceLarge && _webPreview!.defaultSmallMedia)),
+                canToggleSize: !loading && _webPreview!.hasLargeMedia,
                 onToggleSize: _toggleWebPreviewMediaSize,
                 isInverted: _webPreviewInvert,
                 hasText: _composeController.text.isNotEmpty,
                 onToggleInvert: _toggleWebPreviewInvert,
                 onCancel: _cancelWebPreview,
-                linkCount: viableLinks.length,
+                linkCount: loading ? 0 : viableLinks.length,
                 activeLinkIndex: idx >= 0 ? idx : 0,
                 onPrevLink: _switchPreviewPrev,
                 onNextLink: _switchPreviewNext,
@@ -6204,6 +6281,7 @@ class _ForwardBar extends StatelessWidget {
 
 class _WebPreviewBar extends StatelessWidget {
   final WebPagePreview preview;
+  final bool isLoading;
   final bool isSmallMedia;
   final bool canToggleSize;
   final VoidCallback onToggleSize;
@@ -6218,6 +6296,7 @@ class _WebPreviewBar extends StatelessWidget {
 
   const _WebPreviewBar({
     required this.preview,
+    this.isLoading = false,
     required this.isSmallMedia,
     required this.canToggleSize,
     required this.onToggleSize,
@@ -6232,6 +6311,7 @@ class _WebPreviewBar extends StatelessWidget {
   });
 
   String get _descriptionText {
+    if (isLoading) return preview.url;
     if (linkCount > 1) {
       final desc = preview.description.isNotEmpty ? preview.description : preview.url;
       return 'Link ${activeLinkIndex + 1} of $linkCount · $desc';
@@ -6280,9 +6360,9 @@ class _WebPreviewBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = PaletteProvider.of(context);
-    final hasThumb = preview.thumbB64.isNotEmpty;
-    final showInvert = hasText;
-    final hasMultipleLinks = linkCount > 1;
+    final hasThumb = !isLoading && preview.thumbB64.isNotEmpty;
+    final showInvert = !isLoading && hasText;
+    final hasMultipleLinks = !isLoading && linkCount > 1;
     var rightButtonsWidth = 41.0; // close button
     if (canToggleSize) rightButtonsWidth += 49.0;
     if (showInvert) rightButtonsWidth += 41.0;
