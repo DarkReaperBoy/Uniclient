@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
@@ -43,7 +44,7 @@ class _AyuGramSettingsScreenState extends State<AyuGramSettingsScreen> {
       body: ListView(
         padding: EdgeInsets.zero,
         children: [
-          // ── Ghost essentials (§50.7) ──
+          // ── Ghost essentials (§51.2.1) ──
           _SectionLabel(label: 'Ghost essentials', color: sectionLabelColor),
           _GhostMasterToggle(
             label: 'Ghost Mode',
@@ -52,50 +53,61 @@ class _AyuGramSettingsScreenState extends State<AyuGramSettingsScreen> {
             isDark: isDark,
             useMaterial: appState.materialSwitches,
           ),
-          _LockableToggleRow(
-            label: "Don't Read Messages",
-            subtitle: 'Block read receipts from being sent',
-            value: !appState.sendReadMessages,
-            locked: appState.sendReadMessagesLocked,
-            onChanged: (v) => appState.setSendReadMessages(!v),
-            onLock: () => appState.toggleLock('sendReadMessages'),
-            isDark: isDark,
-          ),
-          _LockableToggleRow(
-            label: "Don't Read Stories",
-            subtitle: 'Block story view confirmations',
-            value: !appState.sendReadStories,
-            locked: appState.sendReadStoriesLocked,
-            onChanged: (v) => appState.setSendReadStories(!v),
-            onLock: () => appState.toggleLock('sendReadStories'),
-            isDark: isDark,
-          ),
-          _LockableToggleRow(
-            label: "Don't Send Online",
-            subtitle: 'Never report online status to the server',
-            value: !appState.sendOnlinePackets,
-            locked: appState.sendOnlinePacketsLocked,
-            onChanged: (v) => appState.setSendOnlinePackets(!v),
-            onLock: () => appState.toggleLock('sendOnlinePackets'),
-            isDark: isDark,
-          ),
-          _LockableToggleRow(
-            label: "Don't Send Typing",
-            subtitle: 'Block typing and upload progress indicators',
-            value: !appState.sendUploadProgress,
-            locked: appState.sendUploadProgressLocked,
-            onChanged: (v) => appState.setSendUploadProgress(!v),
-            onLock: () => appState.toggleLock('sendUploadProgress'),
-            isDark: isDark,
-          ),
-          _LockableToggleRow(
-            label: 'Go Offline Automatically',
-            subtitle: 'Immediately go offline after any online appearance',
-            value: appState.sendOfflinePacketAfterOnline,
-            locked: appState.sendOfflinePacketAfterOnlineLocked,
-            onChanged: (v) => appState.setSendOfflinePacketAfterOnline(v),
-            onLock: () => appState.toggleLock('sendOfflinePacketAfterOnline'),
-            isDark: isDark,
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: appState.ghostModeEnabled
+                ? Column(
+                    children: [
+                      _LockableToggleRow(
+                        label: "Don't Read Messages",
+                        subtitle: 'Block read receipts from being sent',
+                        value: !appState.sendReadMessages,
+                        locked: appState.sendReadMessagesLocked,
+                        onChanged: (v) => appState.setSendReadMessages(!v),
+                        onLock: () => appState.toggleLock('sendReadMessages'),
+                        isDark: isDark,
+                      ),
+                      _LockableToggleRow(
+                        label: "Don't Read Stories",
+                        subtitle: 'Block story view confirmations',
+                        value: !appState.sendReadStories,
+                        locked: appState.sendReadStoriesLocked,
+                        onChanged: (v) => appState.setSendReadStories(!v),
+                        onLock: () => appState.toggleLock('sendReadStories'),
+                        isDark: isDark,
+                      ),
+                      _LockableToggleRow(
+                        label: "Don't Send Online",
+                        subtitle: 'Never report online status to the server',
+                        value: !appState.sendOnlinePackets,
+                        locked: appState.sendOnlinePacketsLocked,
+                        onChanged: (v) => appState.setSendOnlinePackets(!v),
+                        onLock: () => appState.toggleLock('sendOnlinePackets'),
+                        isDark: isDark,
+                      ),
+                      _LockableToggleRow(
+                        label: "Don't Send Typing",
+                        subtitle: 'Block typing and upload progress indicators',
+                        value: !appState.sendUploadProgress,
+                        locked: appState.sendUploadProgressLocked,
+                        onChanged: (v) => appState.setSendUploadProgress(!v),
+                        onLock: () => appState.toggleLock('sendUploadProgress'),
+                        isDark: isDark,
+                      ),
+                      _LockableToggleRow(
+                        label: 'Go Offline Automatically',
+                        subtitle: 'Immediately go offline after any online appearance',
+                        value: appState.sendOfflinePacketAfterOnline,
+                        locked: appState.sendOfflinePacketAfterOnlineLocked,
+                        onChanged: (v) => appState.setSendOfflinePacketAfterOnline(v),
+                        onLock: () => appState.toggleLock('sendOfflinePacketAfterOnline'),
+                        isDark: isDark,
+                      ),
+                    ],
+                  )
+                : const SizedBox.shrink(),
           ),
           _ToggleRow(
             label: 'Read on Interact',
@@ -108,7 +120,7 @@ class _AyuGramSettingsScreenState extends State<AyuGramSettingsScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
             child: Text(
-              'Long-press any option to prevent it from changing when toggling Ghost Mode.',
+              'Shift+click or long-press any option to lock it from changing when toggling Ghost Mode.',
               style: TextStyle(fontSize: 12, color: subtitleColor),
             ),
           ),
@@ -642,12 +654,20 @@ class _LockableToggleRow extends StatelessWidget {
     required this.isDark,
   });
 
+  void _handleTap() {
+    if (HardwareKeyboard.instance.isShiftPressed) {
+      onLock();
+    } else if (!locked) {
+      onChanged(!value);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onLongPress: onLock,
       child: InkWell(
-        onTap: locked ? null : () => onChanged(!value),
+        onTap: _handleTap,
         child: Opacity(
           opacity: locked ? 0.4 : 1.0,
           child: Padding(

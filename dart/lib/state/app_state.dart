@@ -548,6 +548,32 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   void toggleLock(String field) {
     final s = _ensureGhostSettings();
+    final locks = [
+      s.sendReadMessagesLocked,
+      s.sendReadStoriesLocked,
+      s.sendOnlinePacketsLocked,
+      s.sendUploadProgressLocked,
+      s.sendOfflinePacketAfterOnlineLocked,
+    ];
+    bool isCurrentlyLocked;
+    switch (field) {
+      case 'sendReadMessages':
+        isCurrentlyLocked = s.sendReadMessagesLocked;
+      case 'sendReadStories':
+        isCurrentlyLocked = s.sendReadStoriesLocked;
+      case 'sendOnlinePackets':
+        isCurrentlyLocked = s.sendOnlinePacketsLocked;
+      case 'sendUploadProgress':
+        isCurrentlyLocked = s.sendUploadProgressLocked;
+      case 'sendOfflinePacketAfterOnline':
+        isCurrentlyLocked = s.sendOfflinePacketAfterOnlineLocked;
+      default:
+        return;
+    }
+    if (!isCurrentlyLocked) {
+      final unlockedCount = locks.where((l) => !l).length;
+      if (unlockedCount <= 1) return;
+    }
     switch (field) {
       case 'sendReadMessages':
         s.sendReadMessagesLocked = !s.sendReadMessagesLocked;
@@ -559,8 +585,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         s.sendUploadProgressLocked = !s.sendUploadProgressLocked;
       case 'sendOfflinePacketAfterOnline':
         s.sendOfflinePacketAfterOnlineLocked = !s.sendOfflinePacketAfterOnlineLocked;
-      default:
-        return;
     }
     notifyListeners();
     _saveWindowPrefs();
