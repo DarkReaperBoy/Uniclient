@@ -345,15 +345,39 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                           context, position, isDark, appState);
                       },
                     ),
-                    // §50.7: Ghost Mode quick toggle (computed from 5 core toggles).
+                    // §51.5: Ghost Mode quick toggle (gated, default shown).
+                    if (appState.showGhostToggleInDrawer)
                     _MenuRow(
-                      icon: Icons.visibility_off,
+                      icon: Icons.auto_awesome,
+                      iconWidget: const _AyuGhostIcon(),
                       label: 'Ghost Mode',
                       trailing: _InlineToggle(
                         value: appState.ghostModeEnabled,
                         onChanged: (v) => appState.setGhostModeEnabled(v),
                       ),
                       onTap: () => appState.setGhostModeEnabled(!appState.ghostModeEnabled),
+                    ),
+                    // §51.5: LRead toggle — quick toggle for sendReadMessages (default hidden).
+                    if (appState.showLReadToggleInDrawer)
+                    _MenuRow(
+                      icon: Icons.mark_email_read,
+                      label: 'Read Receipts',
+                      trailing: _InlineToggle(
+                        value: appState.sendReadMessages,
+                        onChanged: (v) => appState.setSendReadMessages(v),
+                      ),
+                      onTap: () => appState.setSendReadMessages(!appState.sendReadMessages),
+                    ),
+                    // §51.5: SRead toggle — quick toggle for sendReadStories (default shown).
+                    if (appState.showSReadToggleInDrawer)
+                    _MenuRow(
+                      icon: Icons.auto_stories,
+                      label: 'Story Reads',
+                      trailing: _InlineToggle(
+                        value: appState.sendReadStories,
+                        onChanged: (v) => appState.setSendReadStories(v),
+                      ),
+                      onTap: () => appState.setSendReadStories(!appState.sendReadStories),
                     ),
                     // §50.2–50.3: Streamer Mode toggle (gated, default hidden).
                     if (appState.showStreamerToggleInDrawer)
@@ -1182,6 +1206,7 @@ class _MenuRow extends StatefulWidget {
   final String label;
   final VoidCallback onTap;
   final Widget? trailing;
+  final Widget? iconWidget;
   final String? iconPath; // optional file-based icon (for menu bots)
   final GestureTapDownCallback? onSecondaryTapDown;
   final void Function(Offset globalPosition)? onLongPressWithPosition;
@@ -1191,6 +1216,7 @@ class _MenuRow extends StatefulWidget {
     required this.label,
     required this.onTap,
     this.trailing,
+    this.iconWidget,
     this.iconPath,
     this.onSecondaryTapDown,
     this.onLongPressWithPosition,
@@ -1241,8 +1267,9 @@ class _MenuRowState extends State<_MenuRow> {
           child: Row(
             children: [
               // Spec §3.3: 24x24 icon at 21px horizontal.
-              // Menu bots use file-based icons when available.
-              if (widget.iconPath != null && widget.iconPath!.isNotEmpty)
+              if (widget.iconWidget != null)
+                widget.iconWidget!
+              else if (widget.iconPath != null && widget.iconPath!.isNotEmpty)
                 ClipRRect(
                   borderRadius: BorderRadius.circular(4),
                   child: Image.file(
@@ -1573,4 +1600,64 @@ class _FooterSection extends StatelessWidget {
       ),
     );
   }
+}
+
+class _AyuGhostIcon extends StatelessWidget {
+  const _AyuGhostIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bodyColor = isDark
+        ? const Color(0xFF6C7883)
+        : const Color(0xFF999999);
+    final eyeColor = isDark
+        ? const Color(0xFF17212b)
+        : const Color(0xFFFFFFFF);
+    return CustomPaint(
+      size: const Size(24, 24),
+      painter: _GhostIconPainter(bodyColor, eyeColor),
+    );
+  }
+}
+
+class _GhostIconPainter extends CustomPainter {
+  final Color bodyColor;
+  final Color eyeColor;
+  _GhostIconPainter(this.bodyColor, this.eyeColor);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = bodyColor
+      ..style = PaintingStyle.fill;
+
+    final w = size.width;
+    final h = size.height;
+
+    final path = Path();
+    path.moveTo(w * 0.5, h * 0.08);
+    path.cubicTo(w * 0.22, h * 0.08, w * 0.12, h * 0.28, w * 0.12, h * 0.42);
+    path.lineTo(w * 0.12, h * 0.88);
+    path.lineTo(w * 0.24, h * 0.78);
+    path.lineTo(w * 0.38, h * 0.92);
+    path.lineTo(w * 0.5, h * 0.78);
+    path.lineTo(w * 0.62, h * 0.92);
+    path.lineTo(w * 0.76, h * 0.78);
+    path.lineTo(w * 0.88, h * 0.88);
+    path.lineTo(w * 0.88, h * 0.42);
+    path.cubicTo(w * 0.88, h * 0.28, w * 0.78, h * 0.08, w * 0.5, h * 0.08);
+    path.close();
+    canvas.drawPath(path, paint);
+
+    final eyePaint = Paint()
+      ..color = eyeColor
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(w * 0.36, h * 0.38), w * 0.07, eyePaint);
+    canvas.drawCircle(Offset(w * 0.64, h * 0.38), w * 0.07, eyePaint);
+  }
+
+  @override
+  bool shouldRepaint(_GhostIconPainter old) =>
+      old.bodyColor != bodyColor || old.eyeColor != eyeColor;
 }

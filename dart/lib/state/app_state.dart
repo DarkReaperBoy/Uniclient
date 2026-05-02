@@ -174,6 +174,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _showStreamerToggleInDrawer = false;
   bool _showStreamerToggleInTray = false;
 
+  // §51.5: Ghost Mode / LRead / SRead drawer visibility.
+  bool _showGhostToggleInDrawer = true;
+  bool _showLReadToggleInDrawer = false;
+  bool _showSReadToggleInDrawer = true;
+
   // §51.1: Ghost Mode per-account settings. Key "0" is global; other keys are user IDs.
   bool _useGlobalGhostMode = true;
   Map<String, GhostModeAccountSettings> _ghostModeSettings = {'0': GhostModeAccountSettings()};
@@ -303,6 +308,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get streamerModeEnabled => _streamerModeEnabled;
   bool get showStreamerToggleInDrawer => _showStreamerToggleInDrawer;
   bool get showStreamerToggleInTray => _showStreamerToggleInTray;
+  bool get showGhostToggleInDrawer => _showGhostToggleInDrawer;
+  bool get showLReadToggleInDrawer => _showLReadToggleInDrawer;
+  bool get showSReadToggleInDrawer => _showSReadToggleInDrawer;
 
   // §51.1: Resolved ghost settings for the active account.
   GhostModeAccountSettings get _ghostSettings {
@@ -425,6 +433,27 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setShowStreamerToggleInTray(bool v) {
     if (_showStreamerToggleInTray == v) return;
     _showStreamerToggleInTray = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setShowGhostToggleInDrawer(bool v) {
+    if (_showGhostToggleInDrawer == v) return;
+    _showGhostToggleInDrawer = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setShowLReadToggleInDrawer(bool v) {
+    if (_showLReadToggleInDrawer == v) return;
+    _showLReadToggleInDrawer = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setShowSReadToggleInDrawer(bool v) {
+    if (_showSReadToggleInDrawer == v) return;
+    _showSReadToggleInDrawer = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -1625,6 +1654,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       // §50.2 Streamer Mode toggle visibility (persistent); mode itself is NOT persisted
       _showStreamerToggleInDrawer = data['showStreamerToggleInDrawer'] as bool? ?? false;
       _showStreamerToggleInTray = data['showStreamerToggleInTray'] as bool? ?? false;
+      _showGhostToggleInDrawer = data['showGhostToggleInDrawer'] as bool? ?? true;
+      _showLReadToggleInDrawer = data['showLReadToggleInDrawer'] as bool? ?? false;
+      _showSReadToggleInDrawer = data['showSReadToggleInDrawer'] as bool? ?? true;
       // §51.1 Ghost Mode per-account settings (with migration from flat format).
       final ghostMap = data['ghostModeSettings'] as Map<String, dynamic>?;
       if (ghostMap != null) {
@@ -1720,6 +1752,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'showDrawerThemeToggle': _showDrawerThemeToggle,
         'showStreamerToggleInDrawer': _showStreamerToggleInDrawer,
         'showStreamerToggleInTray': _showStreamerToggleInTray,
+        'showGhostToggleInDrawer': _showGhostToggleInDrawer,
+        'showLReadToggleInDrawer': _showLReadToggleInDrawer,
+        'showSReadToggleInDrawer': _showSReadToggleInDrawer,
         'useGlobalGhostMode': _useGlobalGhostMode,
         'ghostModeSettings': _ghostModeSettings.map((k, v) => MapEntry(k, v.toJson())),
         'showViewsPanelInContextMenu': _showViewsPanelInContextMenu,
