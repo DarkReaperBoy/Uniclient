@@ -340,6 +340,12 @@ class _ChatViewState extends State<ChatView>
   bool _dmPremiumRequired = false;
   String _dmRestrictionUserName = '';
 
+  // §49.11: Middle-click autoscroll state.
+  bool _autoScrollActive = false;
+  double _autoScrollStartY = 0;
+  double _autoScrollCurrentY = 0;
+  Timer? _autoScrollTimer;
+
   // §23.8: Video processing toasts state
   bool _showVideoTipToast = false;
   bool _showVideoTooltip = false;
@@ -538,6 +544,7 @@ class _ChatViewState extends State<ChatView>
     _videoTipTimer?.cancel();
     _videoTooltipTimer?.cancel();
     _videoPublishedTimer?.cancel();
+    _autoScrollTimer?.cancel();
     super.dispose();
   }
 
@@ -980,6 +987,52 @@ class _ChatViewState extends State<ChatView>
         ? (pos.pixels + pageHeight).clamp(pos.minScrollExtent, pos.maxScrollExtent)
         : (pos.pixels - pageHeight).clamp(pos.minScrollExtent, pos.maxScrollExtent);
     _smoothScrollTo(target);
+  }
+
+  /// §49.11: Arrow key scroll — single line (~60px).
+  void _scrollLine(bool isUp) {
+    if (!_scrollController.hasClients) return;
+    final pos = _scrollController.position;
+    const lineHeight = 60.0;
+    final target = isUp
+        ? (pos.pixels + lineHeight).clamp(pos.minScrollExtent, pos.maxScrollExtent)
+        : (pos.pixels - lineHeight).clamp(pos.minScrollExtent, pos.maxScrollExtent);
+    _scrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 120),
+      curve: Curves.easeOut,
+    );
+  }
+
+  /// §49.11: Start middle-click autoscroll.
+  void _startAutoScroll(double startY) {
+    if (_autoScrollActive) return;
+    setState(() {
+      _autoScrollActive = true;
+      _autoScrollStartY = startY;
+      _autoScrollCurrentY = startY;
+    });
+    _autoScrollTimer = Timer.periodic(const Duration(milliseconds: 16), (_) {
+      if (!_scrollController.hasClients) return;
+      final delta = _autoScrollCurrentY - _autoScrollStartY;
+      if (delta.abs() < 10) return;
+      final speed = (delta / 8.0).clamp(-30.0, 30.0);
+      final pos = _scrollController.position;
+      // Reversed list: negative speed = scroll toward older (up visually).
+      final target = (pos.pixels - speed).clamp(
+        pos.minScrollExtent,
+        pos.maxScrollExtent,
+      );
+      _scrollController.jumpTo(target);
+    });
+  }
+
+  /// §49.11: Stop middle-click autoscroll.
+  void _stopAutoScroll() {
+    if (!_autoScrollActive) return;
+    _autoScrollTimer?.cancel();
+    _autoScrollTimer = null;
+    setState(() => _autoScrollActive = false);
   }
 
   void _showBusinessBotMenu(BuildContext context, ChatState chatState) {
@@ -3737,6 +3790,10 @@ class _ChatViewState extends State<ChatView>
   /// or selection in priority order (selection > edit > reply). Returns
   /// `handled` if anything was cancelled so the event doesn't bubble further.
   KeyEventResult _handleEscape() {
+    if (_autoScrollActive) {
+      _stopAutoScroll();
+      return KeyEventResult.handled;
+    }
     if (_isSearching) {
       setState(() {
         _isSearching = false;
@@ -4124,7 +4181,29 @@ class _ChatViewState extends State<ChatView>
             ),
           // Message list with scroll-to-bottom FAB.
           Expanded(
-            child: Stack(
+            child: MouseRegion(
+              cursor: _autoScrollActive
+                  ? SystemMouseCursors.allScroll
+                  : MouseCursor.defer,
+              child: Listener(
+                onPointerDown: (e) {
+                  if (_autoScrollActive) {
+                    _stopAutoScroll();
+                    return;
+                  }
+                  if (e.buttons == kMiddleMouseButton) {
+                    _startAutoScroll(e.position.dy);
+                  }
+                },
+                onPointerMove: (e) {
+                  if (_autoScrollActive) {
+                    _autoScrollCurrentY = e.position.dy;
+                  }
+                },
+                onPointerUp: (_) {
+                  if (_autoScrollActive) _stopAutoScroll();
+                },
+                child: Stack(
               children: [
                 // §23.10: 200ms slide+fade when entering/exiting scheduled section.
                 AnimatedBuilder(
@@ -4331,7 +4410,7 @@ class _ChatViewState extends State<ChatView>
                   ),
               ],
             ),
-          ),
+          ),),),
           // Edit bar (takes precedence over reply/forward bar).
           if (_editingMsgId != null)
             _EditBar(
@@ -4526,6 +4605,7 @@ class _ChatViewState extends State<ChatView>
               onEmojiToggle: () => setState(() => _emojiPanelVisible = !_emojiPanelVisible),
               onEscape: () => _handleEscape(),
               onScrollPage: (isUp) => _scrollPage(isUp),
+              onScrollLine: (isUp) => _scrollLine(isUp),
               sendBy: context.read<AppState>().sendBy,
               commentsState: chat.type == ChatType.channel && chatState.linkedChatId.isNotEmpty
                   ? (_commentsShown
@@ -11639,6 +11719,7 @@ class _ComposeArea extends StatefulWidget {
   final bool emojiPanelVisible;
   final VoidCallback? onEscape;
   final ValueChanged<bool>? onScrollPage;
+  final ValueChanged<bool>? onScrollLine;
   final String sendBy;
   final ToggleCommentsState commentsState;
   final VoidCallback? onCommentsToggle;
@@ -11683,6 +11764,7 @@ class _ComposeArea extends StatefulWidget {
     this.emojiPanelVisible = false,
     this.onEscape,
     this.onScrollPage,
+    this.onScrollLine,
     this.sendBy = 'enter',
     this.commentsState = ToggleCommentsState.empty,
     this.onCommentsToggle,
@@ -12135,6 +12217,14 @@ class _ComposeAreaState extends State<_ComposeArea>
     }
     if (event.logicalKey == LogicalKeyboardKey.pageDown) {
       widget.onScrollPage?.call(false);
+      return KeyEventResult.handled;
+    }
+
+    // §49.11: Down arrow → scroll message list (line-size) when field empty.
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown &&
+        widget.controller.text.isEmpty &&
+        !shift && !ctrl && !alt && !meta) {
+      widget.onScrollLine?.call(false);
       return KeyEventResult.handled;
     }
 
