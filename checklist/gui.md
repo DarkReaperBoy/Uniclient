@@ -966,7 +966,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §48 — Drag-and-Drop File Overlay
 # Touches: dart/lib/ui/chat_view.dart, dart/lib/ui/shell.dart, new drag_drop_overlay.dart
 
-- [ ] Animation — fade overlay in/out 200ms (boxDuration) with pixmap cache; highlight color 200ms; instant hide on drop — spec §48.5
 - [ ] Edge cases — no overlay for text-only drags; no overlay for x-td-forward drags; no overlay during voice recording; check CanSendAnyOf before showing; verify canWriteMessage on drop — spec §48.6, §48.8–48.9
 - [ ] Forward via drag — x-td-forward MIME type; open target chat after 1s hover over dialog; navigate back after 1s hover over back button; topic chooser for forum peer — spec §48.11
 

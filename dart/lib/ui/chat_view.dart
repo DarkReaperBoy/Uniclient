@@ -3665,7 +3665,8 @@ class _ChatViewState extends State<ChatView>
           _isDragOver = false;
           _dragHoveredCard = 0;
         });
-        _dragOverlayAnimCtrl.reverse();
+        // §48.5: hideFast — instant hide on drop (no fade).
+        _dragOverlayAnimCtrl.value = 0;
         // §48.3: IgnoreAction — reject drop when cursor is outside all zones.
         if (droppedCard == 0) return;
         final paths = details.files.map((f) => f.path).toList();
@@ -4399,9 +4400,13 @@ class _ChatViewState extends State<ChatView>
               child: child,
             );
           },
-          child: _DragOverlay(
-            hoveredCard: _dragHoveredCard,
-            layout: _dragLayout,
+          // §48.5: RepaintBoundary acts as pixmap cache — the overlay
+          // composites as a single layer during the fade animation.
+          child: RepaintBoundary(
+            child: _DragOverlay(
+              hoveredCard: _dragHoveredCard,
+              layout: _dragLayout,
+            ),
           ),
         ),
       ),
