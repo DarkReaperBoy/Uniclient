@@ -2229,20 +2229,34 @@ class _TextSpoilerSheetPainter extends CustomPainter {
 
     final src = sheet.frameRect(frame.clamp(0, 59));
     final tile = sheet.tileSize;
-    final tilesX = (size.width / tile).ceil() + 1;
-    final tilesY = (size.height / tile).ceil() + 1;
     final paint = Paint()
       ..color = Color.fromRGBO(255, 255, 255, opacity * 0.7)
       ..blendMode = BlendMode.plus;
 
-    for (int ty = 0; ty < tilesY; ty++) {
-      for (int tx = 0; tx < tilesX; tx++) {
-        canvas.drawImageRect(
-          sheet.image,
-          src,
-          Rect.fromLTWH(tx * tile, ty * tile, tile, tile),
-          paint,
-        );
+    final fullTilesX = (size.width / tile).floor();
+    final fullTilesY = (size.height / tile).floor();
+    final edgeW = size.width - fullTilesX * tile;
+    final edgeH = size.height - fullTilesY * tile;
+
+    for (int ty = 0; ty < fullTilesY; ty++) {
+      for (int tx = 0; tx < fullTilesX; tx++) {
+        canvas.drawImageRect(sheet.image, src,
+            Rect.fromLTWH(tx * tile, ty * tile, tile, tile), paint);
+      }
+      if (edgeW > 0) {
+        canvas.drawImageRect(sheet.image, Rect.fromLTWH(src.left, src.top, edgeW, tile),
+            Rect.fromLTWH(fullTilesX * tile, ty * tile, edgeW, tile), paint);
+      }
+    }
+    if (edgeH > 0) {
+      final edgeSrcH = Rect.fromLTWH(src.left, src.top, tile, edgeH);
+      for (int tx = 0; tx < fullTilesX; tx++) {
+        canvas.drawImageRect(sheet.image, edgeSrcH,
+            Rect.fromLTWH(tx * tile, fullTilesY * tile, tile, edgeH), paint);
+      }
+      if (edgeW > 0) {
+        canvas.drawImageRect(sheet.image, Rect.fromLTWH(src.left, src.top, edgeW, edgeH),
+            Rect.fromLTWH(fullTilesX * tile, fullTilesY * tile, edgeW, edgeH), paint);
       }
     }
 

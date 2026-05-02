@@ -4,6 +4,9 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:provider/provider.dart';
+
+import '../state/app_state.dart';
 
 const int _kFrameCount = 60;
 const int _kFramesPerRow = 10;
@@ -12,6 +15,8 @@ const double _kCanvasSize = 128.0;
 const int _kSpriteVariants = 5;
 const double _kParticleSizeMin = 1.5;
 const double _kParticleSizeMax = 2.0;
+const int _kAutoPauseTimeoutMs = 1000;
+const int _kColorCacheCapacity = 24;
 
 class _Particle {
   final double x, y, vx, vy, size;
@@ -48,10 +53,11 @@ class SpoilerAnimationManager {
   final _imageCompleters = <Completer<SpoilerSpriteSheet>>[];
 
   int _activeCount = 0;
-  int _callbackId = 0;
   bool _callbackScheduled = false;
   int _currentFrame = 0;
   final _listeners = <VoidCallback>{};
+
+  bool powerSavingPaused = false;
 
   int get currentFrame => _currentFrame;
 
@@ -72,7 +78,8 @@ class SpoilerAnimationManager {
   }
 
   void _onFrame(Duration timestamp) {
-    if (_activeCount <= 0) return;
+    if (_activeCount <= 0 || _listeners.isEmpty) return;
+    if (powerSavingPaused) return;
     final frame = (timestamp.inMilliseconds ~/ 33) % _kFrameCount;
     if (frame != _currentFrame) {
       _currentFrame = frame;
@@ -250,6 +257,7 @@ class SpoilerTilePainter extends CustomPainter {
   final double revealProgress;
   final Color? tintColor;
   final bool isMedia;
+  final BorderRadius? borderRadius;
 
   SpoilerTilePainter({
     required this.sheet,
@@ -257,27 +265,32 @@ class SpoilerTilePainter extends CustomPainter {
     this.revealProgress = 0.0,
     this.tintColor,
     this.isMedia = false,
+    this.borderRadius,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     if (revealProgress >= 1.0) return;
     final opacity = 1.0 - revealProgress;
+    final rect = Offset.zero & size;
+    final hasCorners = borderRadius != null && borderRadius != BorderRadius.zero;
 
-    canvas.save();
-    canvas.clipRect(Offset.zero & size);
+    if (hasCorners) {
+      canvas.saveLayer(rect, Paint());
+    } else {
+      canvas.save();
+      canvas.clipRect(rect);
+    }
 
     if (isMedia) {
       canvas.drawRect(
-        Offset.zero & size,
+        rect,
         Paint()..color = Color.fromRGBO(0, 0, 0, (32 / 255) * opacity),
       );
     }
 
     final src = sheet.frameRect(frame.clamp(0, _kFrameCount - 1));
     final tile = sheet.tileSize;
-    final tilesX = (size.width / tile).ceil() + 1;
-    final tilesY = (size.height / tile).ceil() + 1;
 
     final paint = Paint();
     if (tintColor != null) {
@@ -290,19 +303,51 @@ class SpoilerTilePainter extends CustomPainter {
       paint.blendMode = BlendMode.plus;
     }
 
-    for (int ty = 0; ty < tilesY; ty++) {
-      for (int tx = 0; tx < tilesX; tx++) {
-        final dst = Rect.fromLTWH(tx * tile, ty * tile, tile, tile);
-        canvas.drawImageRect(sheet.image, src, dst, paint);
+    final fullTilesX = (size.width / tile).floor();
+    final fullTilesY = (size.height / tile).floor();
+    final edgeW = size.width - fullTilesX * tile;
+    final edgeH = size.height - fullTilesY * tile;
+
+    for (int ty = 0; ty < fullTilesY; ty++) {
+      for (int tx = 0; tx < fullTilesX; tx++) {
+        canvas.drawImageRect(sheet.image, src,
+            Rect.fromLTWH(tx * tile, ty * tile, tile, tile), paint);
+      }
+      if (edgeW > 0) {
+        final edgeSrc = Rect.fromLTWH(src.left, src.top, edgeW, tile);
+        canvas.drawImageRect(sheet.image, edgeSrc,
+            Rect.fromLTWH(fullTilesX * tile, ty * tile, edgeW, tile), paint);
+      }
+    }
+    if (edgeH > 0) {
+      final edgeSrcH = Rect.fromLTWH(src.left, src.top, tile, edgeH);
+      for (int tx = 0; tx < fullTilesX; tx++) {
+        canvas.drawImageRect(sheet.image, edgeSrcH,
+            Rect.fromLTWH(tx * tile, fullTilesY * tile, tile, edgeH), paint);
+      }
+      if (edgeW > 0) {
+        final cornerSrc = Rect.fromLTWH(src.left, src.top, edgeW, edgeH);
+        canvas.drawImageRect(sheet.image, cornerSrc,
+            Rect.fromLTWH(fullTilesX * tile, fullTilesY * tile, edgeW, edgeH), paint);
       }
     }
 
-    canvas.restore();
+    if (hasCorners) {
+      final rrect = borderRadius!.toRRect(rect);
+      canvas.drawRRect(rrect, Paint()
+        ..blendMode = BlendMode.dstIn
+        ..color = const Color(0xFFFFFFFF));
+      canvas.restore();
+    } else {
+      canvas.restore();
+    }
   }
 
   @override
   bool shouldRepaint(SpoilerTilePainter old) =>
-      old.frame != frame || old.revealProgress != revealProgress;
+      old.frame != frame ||
+      old.revealProgress != revealProgress ||
+      old.borderRadius != borderRadius;
 }
 
 class SpoilerRevealManager extends ChangeNotifier {
@@ -317,27 +362,59 @@ class SpoilerRevealManager extends ChangeNotifier {
 mixin SpoilerAnimationMixin<T extends StatefulWidget> on State<T> {
   SpoilerSpriteSheet? spoilerSheet;
   bool spoilerRegistered = false;
+  int _lastQueryMs = 0;
+  bool _autoPaused = false;
 
-  int get spoilerFrame => SpoilerAnimationManager.instance.currentFrame;
+  int get spoilerFrame {
+    _lastQueryMs = DateTime.now().millisecondsSinceEpoch;
+    if (_autoPaused && spoilerRegistered) {
+      _autoPaused = false;
+      SpoilerAnimationManager.instance.register();
+      SpoilerAnimationManager.instance.addListener(_onSpoilerFrame);
+    }
+    return SpoilerAnimationManager.instance.currentFrame;
+  }
 
   void initSpoiler(SpoilerType type) {
+    _lastQueryMs = DateTime.now().millisecondsSinceEpoch;
+    _autoPaused = false;
     SpoilerAnimationManager.instance.register();
     spoilerRegistered = true;
     SpoilerAnimationManager.instance.addListener(_onSpoilerFrame);
     SpoilerAnimationManager.instance.getSheet(type).then((s) {
       if (mounted) setState(() => spoilerSheet = s);
     });
+    _syncPowerSaving();
+  }
+
+  void _syncPowerSaving() {
+    try {
+      final appState = context.read<AppState>();
+      SpoilerAnimationManager.instance.powerSavingPaused =
+          appState.powerSaving(AppState.kPowerSavingChatSpoiler);
+    } catch (_) {}
   }
 
   void disposeSpoiler() {
     if (spoilerRegistered) {
       SpoilerAnimationManager.instance.removeListener(_onSpoilerFrame);
-      SpoilerAnimationManager.instance.unregister();
+      if (!_autoPaused) {
+        SpoilerAnimationManager.instance.unregister();
+      }
       spoilerRegistered = false;
+      _autoPaused = false;
     }
   }
 
   void _onSpoilerFrame() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (now - _lastQueryMs > _kAutoPauseTimeoutMs) {
+      _autoPaused = true;
+      SpoilerAnimationManager.instance.removeListener(_onSpoilerFrame);
+      SpoilerAnimationManager.instance.unregister();
+      return;
+    }
+    setState(() {});
   }
 }
