@@ -961,7 +961,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §47 — Restricted Permissions UI
 # Touches: dart/lib/ui/chat_view.dart (compose area replacement), new compose_restriction.dart
 
-- [ ] Mute/Unmute + Discuss buttons — "MUTE"/"UNMUTE" full-width for broadcast channels without post rights; "DISCUSS" alongside when discussion group exists — spec §47
 - [ ] Forum topic closed bar — "This topic is closed." restriction bar; reactively restore compose on admin reopen; ManageTopics admin bypass — spec §47
 - [ ] Channel comments button — IconButton in compose bar (leftmost); four states: Empty/Shown/Hidden/WithNew; 6px new-comments dot (dialogsBgActive) on WithNew — spec §47
 - [ ] Send button type states — Send (arrow/blue circle); Record (mic Lottie historyRecordVoiceFg); Round (video-cam Lottie); Cancel (X); Save (checkmark); Schedule (clock); Slowmode (text countdown); Lottie Record↔Round transition; crossfade other transitions (opacity+scale universalDuration); star icon+count for paid messages; gray when disabled — spec §47

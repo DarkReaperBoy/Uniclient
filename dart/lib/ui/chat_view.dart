@@ -4149,7 +4149,7 @@ class _ChatViewState extends State<ChatView>
               chat: chat,
               chatState: chatState,
             )
-          else if (chat.type == ChatType.channel)
+          else if (chat.type == ChatType.channel && !chat.canPost)
             _ChannelComposeBar(
               chat: chat,
               chatState: chatState,

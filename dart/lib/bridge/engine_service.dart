@@ -3521,6 +3521,9 @@ class EngineService {
     isForum: p.isForum,
     writeRestrictionType: p.writeRestrictionType,
     writeRestrictionText: p.writeRestrictionText,
+    notJoined: p.notJoined,
+    joinRequest: p.joinRequest,
+    canPost: p.canPost,
   );
 
   static CachedMessage _cachedMsgFromProto(epb.EngineCachedMessage p) {

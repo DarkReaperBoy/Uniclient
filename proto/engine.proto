@@ -179,6 +179,9 @@ message EngineChatInfo {
   bool   is_forum                 = 27;
   int32  write_restriction_type   = 28;
   string write_restriction_text   = 29;
+  bool   not_joined               = 30;
+  bool   join_request             = 31;
+  bool   can_post                 = 32;
 }
 
 message EngineGetChatListRequest {

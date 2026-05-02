@@ -1143,6 +1143,9 @@ type EngineChatInfo struct {
 	IsForum              bool                   `protobuf:"varint,27,opt,name=is_forum,json=isForum,proto3" json:"is_forum,omitempty"`
 	WriteRestrictionType int32                  `protobuf:"varint,28,opt,name=write_restriction_type,json=writeRestrictionType,proto3" json:"write_restriction_type,omitempty"`
 	WriteRestrictionText string                 `protobuf:"bytes,29,opt,name=write_restriction_text,json=writeRestrictionText,proto3" json:"write_restriction_text,omitempty"`
+	NotJoined            bool                   `protobuf:"varint,30,opt,name=not_joined,json=notJoined,proto3" json:"not_joined,omitempty"`
+	JoinRequest          bool                   `protobuf:"varint,31,opt,name=join_request,json=joinRequest,proto3" json:"join_request,omitempty"`
+	CanPost              bool                   `protobuf:"varint,32,opt,name=can_post,json=canPost,proto3" json:"can_post,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -1378,6 +1381,27 @@ func (x *EngineChatInfo) GetWriteRestrictionText() string {
 		return x.WriteRestrictionText
 	}
 	return ""
+}
+
+func (x *EngineChatInfo) GetNotJoined() bool {
+	if x != nil {
+		return x.NotJoined
+	}
+	return false
+}
+
+func (x *EngineChatInfo) GetJoinRequest() bool {
+	if x != nil {
+		return x.JoinRequest
+	}
+	return false
+}
+
+func (x *EngineChatInfo) GetCanPost() bool {
+	if x != nil {
+		return x.CanPost
+	}
+	return false
 }
 
 type EngineGetChatListRequest struct {

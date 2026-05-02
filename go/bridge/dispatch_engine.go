@@ -3662,6 +3662,9 @@ func chatInfoToProto(c *engine.ChatInfo) *pb.EngineChatInfo {
 		IsForum:               c.IsForum,
 		WriteRestrictionType:  int32(c.WriteRestrictionType),
 		WriteRestrictionText:  c.WriteRestrictionText,
+		NotJoined:            c.NotJoined,
+		JoinRequest:          c.JoinRequest,
+		CanPost:              c.CanPost,
 	}
 }
 

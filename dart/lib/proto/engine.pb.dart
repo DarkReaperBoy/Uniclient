@@ -1449,6 +1449,9 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     $core.bool? isForum,
     $core.int? writeRestrictionType,
     $core.String? writeRestrictionText,
+    $core.bool? notJoined,
+    $core.bool? joinRequest,
+    $core.bool? canPost,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -1538,6 +1541,15 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     if (writeRestrictionText != null) {
       $result.writeRestrictionText = writeRestrictionText;
     }
+    if (notJoined != null) {
+      $result.notJoined = notJoined;
+    }
+    if (joinRequest != null) {
+      $result.joinRequest = joinRequest;
+    }
+    if (canPost != null) {
+      $result.canPost = canPost;
+    }
     return $result;
   }
   EngineChatInfo._() : super();
@@ -1574,6 +1586,9 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     ..aOB(27, _omitFieldNames ? '' : 'isForum')
     ..a<$core.int>(28, _omitFieldNames ? '' : 'writeRestrictionType', $pb.PbFieldType.O3)
     ..aOS(29, _omitFieldNames ? '' : 'writeRestrictionText')
+    ..aOB(30, _omitFieldNames ? '' : 'notJoined')
+    ..aOB(31, _omitFieldNames ? '' : 'joinRequest')
+    ..aOB(32, _omitFieldNames ? '' : 'canPost')
     ..hasRequiredFields = false
   ;
 
@@ -1858,6 +1873,33 @@ class EngineChatInfo extends $pb.GeneratedMessage {
   $core.bool hasWriteRestrictionText() => $_has(28);
   @$pb.TagNumber(29)
   void clearWriteRestrictionText() => clearField(29);
+
+  @$pb.TagNumber(30)
+  $core.bool get notJoined => $_getBF(29);
+  @$pb.TagNumber(30)
+  set notJoined($core.bool v) { $_setBool(29, v); }
+  @$pb.TagNumber(30)
+  $core.bool hasNotJoined() => $_has(29);
+  @$pb.TagNumber(30)
+  void clearNotJoined() => clearField(30);
+
+  @$pb.TagNumber(31)
+  $core.bool get joinRequest => $_getBF(30);
+  @$pb.TagNumber(31)
+  set joinRequest($core.bool v) { $_setBool(30, v); }
+  @$pb.TagNumber(31)
+  $core.bool hasJoinRequest() => $_has(30);
+  @$pb.TagNumber(31)
+  void clearJoinRequest() => clearField(31);
+
+  @$pb.TagNumber(32)
+  $core.bool get canPost => $_getBF(31);
+  @$pb.TagNumber(32)
+  set canPost($core.bool v) { $_setBool(31, v); }
+  @$pb.TagNumber(32)
+  $core.bool hasCanPost() => $_has(31);
+  @$pb.TagNumber(32)
+  void clearCanPost() => clearField(32);
 }
 
 class EngineGetChatListRequest extends $pb.GeneratedMessage {

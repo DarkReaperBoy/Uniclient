@@ -197,6 +197,7 @@ type Dialog struct {
 	WriteRestrictionText string `json:"write_restriction_text,omitempty"`
 	NotJoined           bool   `json:"not_joined,omitempty"`
 	JoinRequest         bool   `json:"join_request,omitempty"`
+	CanPost             bool   `json:"can_post,omitempty"`
 	Platform            string `json:"platform"`
 }
 

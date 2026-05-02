@@ -11001,7 +11001,7 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 					dialog.EmojiStatusID = extractEmojiStatusID(c.EmojiStatus)
 					dialog.NotJoined = c.Left
 					dialog.JoinRequest = c.JoinRequest
-					_, hasAdmin := c.GetAdminRights()
+					adminRights, hasAdmin := c.GetAdminRights()
 					if !c.Creator && !hasAdmin {
 						var personalRights *tg.ChatBannedRights
 						if br, ok := c.GetBannedRights(); ok && !br.Zero() {
@@ -11015,8 +11015,12 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 					}
 					if c.Broadcast {
 						dialog.Type = ChatTypeChannel
+						if c.Creator || (hasAdmin && adminRights.PostMessages) {
+							dialog.CanPost = true
+						}
 					} else {
 						dialog.Type = ChatTypeGroup
+						dialog.CanPost = true
 					}
 					dialog.IsForum = c.Forum
 					if _, ok := c.Photo.(*tg.ChatPhoto); ok {
