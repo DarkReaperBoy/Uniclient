@@ -4167,20 +4167,15 @@ class _ChatViewState extends State<ChatView>
               restrictionType: 2,
               restrictionText: 'Only Premium users can message ${_dmRestrictionUserName.isNotEmpty ? _dmRestrictionUserName : "this user"}.',
             )
-          // §23.9: Topic-level write restriction — closed topics block compose.
+          // §47: Forum topic closed — block compose unless user has ManageTopics right.
           else if (chat.type == ChatType.topic && (() {
             final t = chatState.forumTopics.cast<ForumTopic?>().firstWhere(
                 (t) => t!.id == chat.chatId, orElse: () => null);
-            return t != null && t.isClosed;
+            return t != null && t.isClosed && !t.canToggleClosed;
           })())
-            Container(
-              height: 49,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: theme.dividerColor.withValues(alpha: 0.12))),
-              ),
-              child: Text('This topic is closed.',
-                style: TextStyle(color: theme.hintColor, fontSize: 13)),
+            _WriteRestrictionBar(
+              restrictionType: 1,
+              restrictionText: 'This topic is closed.',
             )
           else
             _ComposeArea(
