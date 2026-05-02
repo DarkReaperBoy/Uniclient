@@ -1222,13 +1222,16 @@ class ChatState extends ChangeNotifier {
   /// Jump to messages around a specific timestamp (for pinned message navigation).
   /// Loads a window of messages where the target is the newest (index 0 in reversed list).
   /// Suppresses polling refresh for 10 seconds so the user can read the jumped-to area.
-  void jumpToMessage(int timestampMs) {
+  /// If [highlightMsgId] is set, the UI will highlight that message with a fade animation.
+  String? _pendingHighlightMsgId;
+  String? get pendingHighlightMsgId => _pendingHighlightMsgId;
+  void clearPendingHighlight() { _pendingHighlightMsgId = null; }
+
+  void jumpToMessage(int timestampMs, {String? highlightMsgId}) {
     final chat = _activeChat;
     if (chat == null) return;
     SpoilerRevealManager.instance.hideAll();
 
-    // getMessages returns messages with timestamp < beforeMs, newest first.
-    // +1 ensures the target message itself is included as the first item.
     final around = _engine.getMessages(
       chat.accountId, chat.chatId,
       beforeMs: timestampMs + 1,
@@ -1236,8 +1239,8 @@ class ChatState extends ChangeNotifier {
     if (around.isNotEmpty) {
       _messages = around;
       _hasMoreMessages = true;
-      // Suppress polling refresh so it doesn't immediately snap back to latest.
       _jumpedUntil = DateTime.now().add(const Duration(seconds: 10));
+      _pendingHighlightMsgId = highlightMsgId;
       notifyListeners();
     }
   }

@@ -971,7 +971,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §49 — Scroll Behaviors
 # Touches: dart/lib/ui/chat_view.dart (partial: _scrollToBottom + _ScrollToBottomFab exist; rest NOT implemented)
 
-- [ ] Jump-to-message animation — sine in-out for short scroll (≤1 viewport); instant+ease-out cubic for long scroll; 400ms highlight fade-in + optional hold + 2000ms fade-out; queue multiple highlights sequentially — spec §49.3
 - [ ] Scroll-to-bottom button (complete implementation) — 52×62px (shadow+ripple+arrow); show when >480px up or unread below; badge 22px circle/pill semibold 13px; Ctrl-jump forces position; 150ms slide-up animation [NOTE: _ScrollToBottomFab exists but is incomplete — missing spec dimensions, badge style, slide animation, Ctrl-behavior] — spec §49.5, §49.15
 - [ ] New message scroll — auto-scroll on own sends; incoming only when at bottom; increment badge otherwise — spec §49.6
 - [ ] Scroll position preservation — save scrollTopItem+scrollTopOffset per History on switch; restore on return; bracket refreshRows with save/restore — spec §49.7

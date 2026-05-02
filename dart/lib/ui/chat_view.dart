@@ -11,6 +11,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderAbstractViewport;
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart' as lottie;
 import 'package:provider/provider.dart';
@@ -348,6 +349,12 @@ class _ChatViewState extends State<ChatView>
   Timer? _videoPublishedTimer;
   bool _wasScheduledView = false;
 
+  /// §49.3: Jump-to-message highlight animation.
+  late final AnimationController _highlightAnimCtrl;
+  String? _activeHighlightId;
+  final _highlightMsgKey = GlobalKey();
+  final _highlightQueue = <String>[];
+
   @override
   void initState() {
     super.initState();
@@ -383,6 +390,10 @@ class _ChatViewState extends State<ChatView>
       duration: const Duration(milliseconds: 200),
       vsync: this,
       value: 1.0,
+    );
+    _highlightAnimCtrl = AnimationController(
+      duration: const Duration(milliseconds: 2400),
+      vsync: this,
     );
     _scrollController.addListener(_onScroll);
     // Register the app-level ArrowUp hook (spec §24.7: edit last outgoing
@@ -498,6 +509,7 @@ class _ChatViewState extends State<ChatView>
       ChatView.testVideoTipToast = null;
     }
     ChatView.testVideoPublishedToast = null;
+    _highlightAnimCtrl.dispose();
     _dragOverlayAnimCtrl.dispose();
     _scheduledSlideCtrl.dispose();
     _selectionCurvedAnim.dispose();
@@ -609,6 +621,9 @@ class _ChatViewState extends State<ChatView>
             _activeSearchQuery = '';
             _pinnedBarDismissed = false;
             _hiddenMsgIds.clear();
+            _activeHighlightId = null;
+            _highlightQueue.clear();
+            _highlightAnimCtrl.reset();
             _acQuery = null;
             _acFilteredMembers = [];
             _acFilteredCommands = [];
@@ -762,14 +777,107 @@ class _ChatViewState extends State<ChatView>
   void _scrollToBottom() {
     final chatState = context.read<ChatState>();
     if (chatState.isJumped) {
-      // If we jumped to a pinned message, reload latest messages first.
       chatState.returnToLatest();
     }
     _scrollController.animateTo(
-      0, // reverse: true means 0 is the bottom
+      0,
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOutCirc,
     );
+  }
+
+  /// §49.3: Scroll to a message and highlight it with fade-in/fade-out animation.
+  /// If [reloadMessages] is true, reloads messages around the target timestamp first.
+  void _jumpToAndHighlight(String msgId, int timestampMs, {bool reloadMessages = false}) {
+    final chatState = context.read<ChatState>();
+
+    if (reloadMessages) {
+      chatState.jumpToMessage(timestampMs);
+      setState(() => _activeHighlightId = msgId);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scrollController.hasClients) return;
+        _scrollController.jumpTo(0);
+        _startHighlightAnimation();
+      });
+      return;
+    }
+
+    setState(() => _activeHighlightId = msgId);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _scrollToHighlightTarget();
+      _startHighlightAnimation();
+    });
+  }
+
+  void _scrollToHighlightTarget() {
+    final ctx = _highlightMsgKey.currentContext;
+    if (ctx == null) return;
+    if (!_scrollController.hasClients) return;
+
+    final scrollable = Scrollable.maybeOf(ctx);
+    if (scrollable == null) return;
+
+    final renderObj = ctx.findRenderObject();
+    if (renderObj == null) return;
+    final viewport = RenderAbstractViewport.maybeOf(renderObj);
+    if (viewport == null) return;
+    final revealedOffset = viewport.getOffsetToReveal(renderObj, 0.5);
+    final target = revealedOffset.offset.clamp(
+      _scrollController.position.minScrollExtent,
+      _scrollController.position.maxScrollExtent,
+    );
+    final delta = (target - _scrollController.offset).abs();
+    final viewportHeight = _scrollController.position.viewportDimension;
+
+    if (delta < 1.0) return;
+
+    if (delta <= viewportHeight) {
+      _scrollController.animateTo(
+        target,
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeInOutSine,
+      );
+    } else {
+      final jumpTarget = target > _scrollController.offset
+          ? target - viewportHeight
+          : target + viewportHeight;
+      _scrollController.jumpTo(jumpTarget.clamp(
+        _scrollController.position.minScrollExtent,
+        _scrollController.position.maxScrollExtent,
+      ));
+      _scrollController.animateTo(
+        target,
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
+  void _startHighlightAnimation() {
+    _highlightAnimCtrl.reset();
+    _highlightAnimCtrl.forward().then((_) {
+      if (!mounted) return;
+      if (_highlightQueue.isNotEmpty) {
+        final next = _highlightQueue.removeAt(0);
+        setState(() => _activeHighlightId = next);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _scrollToHighlightTarget();
+          _startHighlightAnimation();
+        });
+      } else {
+        setState(() => _activeHighlightId = null);
+      }
+    });
+  }
+
+  static double _highlightOpacity(double animValue) {
+    const fadeInEnd = 400.0 / 2400.0;
+    if (animValue <= fadeInEnd) {
+      return animValue / fadeInEnd;
+    }
+    return 1.0 - (animValue - fadeInEnd) / (1.0 - fadeInEnd);
   }
 
   void _scrollPage(bool isUp) {
@@ -864,12 +972,7 @@ class _ChatViewState extends State<ChatView>
                     return InkWell(
                       onTap: () {
                         Navigator.pop(ctx);
-                        chatState.jumpToMessage(msg.timestamp);
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (_scrollController.hasClients) {
-                            _scrollController.jumpTo(0);
-                          }
-                        });
+                        _jumpToAndHighlight(msg.msgId, msg.timestamp, reloadMessages: true);
                       },
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
@@ -931,12 +1034,7 @@ class _ChatViewState extends State<ChatView>
       showTelegramToast(context, 'Message not loaded');
       return;
     }
-    chatState.jumpToMessage(target.timestamp);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.jumpTo(0);
-      }
-    });
+    _jumpToAndHighlight(target.msgId, target.timestamp, reloadMessages: true);
   }
 
   void _showMessageContextMenu(String msgId, Offset position, [String selectedText = '']) {
@@ -1194,13 +1292,7 @@ class _ChatViewState extends State<ChatView>
   }
 
   void _goToForwardedMessage(CachedMessage msg) {
-    final chatState = context.read<ChatState>();
-    chatState.jumpToMessage(msg.timestamp);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.jumpTo(0);
-      }
-    });
+    _jumpToAndHighlight(msg.msgId, msg.timestamp, reloadMessages: true);
   }
 
   void _viewThread(CachedMessage msg) {
@@ -1679,7 +1771,7 @@ class _ChatViewState extends State<ChatView>
                         subtitle: Text(_formatFullDate(dt), style: theme.textTheme.labelSmall),
                         onTap: () {
                           Navigator.pop(ctx);
-                          chatState.jumpToMessage(m.timestamp);
+                          _jumpToAndHighlight(m.msgId, m.timestamp, reloadMessages: true);
                         },
                       );
                     },
@@ -3519,19 +3611,10 @@ class _ChatViewState extends State<ChatView>
   void _jumpToSearchResult(ChatState chatState, int index) {
     if (index < 0 || index >= _searchResultIds.length) return;
     final targetId = _searchResultIds[index];
-    // Find the message in the currently loaded list.
     final msgIndex = chatState.messages.indexWhere((m) => m.msgId == targetId);
     if (msgIndex < 0) return;
-    // The ListView is reversed (index 0 = newest = bottom). Estimate
-    // pixel position: each message row ~72px average. Jump to approximate
-    // position so the target is visible.
     final target = chatState.messages[msgIndex];
-    chatState.jumpToMessage(target.timestamp);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.jumpTo(0);
-      }
-    });
+    _jumpToAndHighlight(target.msgId, target.timestamp, reloadMessages: true);
   }
 
   Future<void> _cancelEditing() async {
@@ -3733,6 +3816,22 @@ class _ChatViewState extends State<ChatView>
     }
     _wasScheduledView = isScheduled;
 
+    // §49.3: Pick up pending highlight from ChatState (set by external callers).
+    final pendingHL = chatState.pendingHighlightMsgId;
+    if (pendingHL != null) {
+      chatState.clearPendingHighlight();
+      if (_activeHighlightId == null) {
+        _activeHighlightId = pendingHL;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || !_scrollController.hasClients) return;
+          _scrollController.jumpTo(0);
+          _startHighlightAnimation();
+        });
+      } else {
+        _highlightQueue.add(pendingHL);
+      }
+    }
+
     // Spec §5 / §49.17: drive corner button visibility from chat data.
     final wantMentions = chat.unreadMentionCount > 0;
     if (wantMentions != _showMentionsBtn) {
@@ -3889,14 +3988,7 @@ class _ChatViewState extends State<ChatView>
               pinnedIndex: 0,
               onTap: () {
                 final pinned = chatState.pinnedMessages.first;
-                // Load messages with pinned message as the newest (index 0).
-                chatState.jumpToMessage(pinned.timestamp);
-                // Scroll to bottom (offset 0 in reversed list = newest = pinned message).
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (_scrollController.hasClients) {
-                    _scrollController.jumpTo(0);
-                  }
-                });
+                _jumpToAndHighlight(pinned.msgId, pinned.timestamp, reloadMessages: true);
               },
               onClose: () {
                 setState(() => _pinnedBarDismissed = true);
@@ -3982,6 +4074,9 @@ class _ChatViewState extends State<ChatView>
                     isBotChat: chat.isBot && chat.type == ChatType.dm,
                     botName: chat.isBot ? chat.title : '',
                     botDescription: _botDescription,
+                    highlightedMsgId: _activeHighlightId,
+                    highlightAnimation: _activeHighlightId != null ? _highlightAnimCtrl : null,
+                    highlightMsgKey: _activeHighlightId != null ? _highlightMsgKey : null,
                   ),
                 ),
                 // Spec §5 / §49.17: Stacked corner buttons.
@@ -5718,6 +5813,9 @@ class _MessageList extends StatelessWidget {
   final bool isBotChat;
   final String botName;
   final String botDescription;
+  final String? highlightedMsgId;
+  final Animation<double>? highlightAnimation;
+  final GlobalKey? highlightMsgKey;
 
   const _MessageList({
     required this.messages,
@@ -5741,6 +5839,9 @@ class _MessageList extends StatelessWidget {
     this.isBotChat = false,
     this.botName = '',
     this.botDescription = '',
+    this.highlightedMsgId,
+    this.highlightAnimation,
+    this.highlightMsgKey,
   });
 
   @override
@@ -5818,6 +5919,7 @@ class _MessageList extends StatelessWidget {
         final isSelected = selectedIds.contains(msg.msgId);
         final inSelectionMode = selectedIds.isNotEmpty;
         final isSearchHighlight = msg.msgId == searchHighlightId;
+        final isJumpHighlight = msg.msgId == highlightedMsgId;
 
         final showUnreadBar = openedUnreadCount > 0 &&
             openedUnreadCount <= messages.length &&
@@ -5837,6 +5939,7 @@ class _MessageList extends StatelessWidget {
             serviceWidget = _ServiceMessage(text: msg.contentText);
           }
           return Column(
+            key: isJumpHighlight ? highlightMsgKey : null,
             children: [
               if (showDate) _DateSeparator(timestamp: msg.timestamp, isScheduled: isScheduledView),
               if (showUnreadBar) _UnreadBar(count: openedUnreadCount),
@@ -5845,7 +5948,71 @@ class _MessageList extends StatelessWidget {
           );
         }
 
+        Widget bubbleWidget = item.isAlbum
+            ? MessageBubble(
+                message: msg,
+                isFirstInGroup: isFirstInGroup,
+                isLastInGroup: isLastInGroup,
+                isGroupChat: isGroupChat,
+                isSelected: isSelected,
+                inSelectionMode: inSelectionMode,
+                isScheduledView: isScheduledView,
+                allMessages: messages,
+                albumItems: item.albumMessages,
+                senderAvatarB64: senderAvatars?.senderAvatar(msg.senderId),
+                onReply: () => onReply(msg.msgId),
+                onContextMenu: (pos, sel) => onContextMenu(msg.msgId, pos, sel),
+                onSenderTap: onSenderTap,
+                onSenderContextMenu: onSenderContextMenu,
+                onReplyTap: onReplyTap,
+              )
+            : MessageBubble(
+                message: msg,
+                isFirstInGroup: isFirstInGroup,
+                isLastInGroup: isLastInGroup,
+                isGroupChat: isGroupChat,
+                isSelected: isSelected,
+                inSelectionMode: inSelectionMode,
+                isScheduledView: isScheduledView,
+                allMessages: messages,
+                senderAvatarB64: senderAvatars?.senderAvatar(msg.senderId),
+                onReply: () => onReply(msg.msgId),
+                onContextMenu: (pos, sel) => onContextMenu(msg.msgId, pos, sel),
+                onSenderTap: onSenderTap,
+                onSenderContextMenu: onSenderContextMenu,
+                onReplyTap: onReplyTap,
+              );
+
+        Widget rowContent;
+        if (isJumpHighlight && highlightAnimation != null) {
+          rowContent = AnimatedBuilder(
+            animation: highlightAnimation!,
+            builder: (context, child) {
+              final opacity = _ChatViewState._highlightOpacity(highlightAnimation!.value);
+              return Container(
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: opacity * 0.25),
+                child: child,
+              );
+            },
+            child: IgnorePointer(
+              ignoring: inSelectionMode,
+              child: bubbleWidget,
+            ),
+          );
+        } else {
+          rowContent = Container(
+            color: isSearchHighlight
+                ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.12)
+                : null,
+            child: IgnorePointer(
+              ignoring: inSelectionMode,
+              child: bubbleWidget,
+            ),
+          );
+        }
+
         return Column(
+          key: isJumpHighlight ? highlightMsgKey : null,
           children: [
             if (showDate) _DateSeparator(timestamp: msg.timestamp, isScheduled: isScheduledView),
             if (showUnreadBar) _UnreadBar(count: openedUnreadCount),
@@ -5857,48 +6024,7 @@ class _MessageList extends StatelessWidget {
                 duration: const Duration(milliseconds: 160),
                 curve: Curves.easeInOut,
                 padding: EdgeInsets.only(right: inSelectionMode ? 30.0 : 0.0),
-                child: Container(
-                  color: isSearchHighlight
-                      ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.12)
-                      : null,
-                  child: IgnorePointer(
-                    ignoring: inSelectionMode,
-                    child: item.isAlbum
-                        ? MessageBubble(
-                            message: msg,
-                            isFirstInGroup: isFirstInGroup,
-                            isLastInGroup: isLastInGroup,
-                            isGroupChat: isGroupChat,
-                            isSelected: isSelected,
-                            inSelectionMode: inSelectionMode,
-                            isScheduledView: isScheduledView,
-                            allMessages: messages,
-                            albumItems: item.albumMessages,
-                            senderAvatarB64: senderAvatars?.senderAvatar(msg.senderId),
-                            onReply: () => onReply(msg.msgId),
-                            onContextMenu: (pos, sel) => onContextMenu(msg.msgId, pos, sel),
-                            onSenderTap: onSenderTap,
-                            onSenderContextMenu: onSenderContextMenu,
-                            onReplyTap: onReplyTap,
-                          )
-                        : MessageBubble(
-                            message: msg,
-                            isFirstInGroup: isFirstInGroup,
-                            isLastInGroup: isLastInGroup,
-                            isGroupChat: isGroupChat,
-                            isSelected: isSelected,
-                            inSelectionMode: inSelectionMode,
-                            isScheduledView: isScheduledView,
-                            allMessages: messages,
-                            senderAvatarB64: senderAvatars?.senderAvatar(msg.senderId),
-                            onReply: () => onReply(msg.msgId),
-                            onContextMenu: (pos, sel) => onContextMenu(msg.msgId, pos, sel),
-                            onSenderTap: onSenderTap,
-                            onSenderContextMenu: onSenderContextMenu,
-                            onReplyTap: onReplyTap,
-                          ),
-                  ),
-                ),
+                child: rowContent,
               ),
             ),
           ],
