@@ -95,6 +95,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _semiTransparentDeleted = false;
   bool _showDrawerThemeToggle = true;
 
+  // §50.2: Streamer Mode — global, non-persistent (OFF on every cold launch).
+  bool _streamerModeEnabled = false;
+  bool _showStreamerToggleInDrawer = false;
+  bool _showStreamerToggleInTray = false;
+
   // §43.13: AyuGram ghost mode & read receipt settings.
   bool _ghostModeEnabled = false;
   bool _sendReadStories = true;
@@ -211,6 +216,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get semiTransparentDeleted => _semiTransparentDeleted;
   bool get showDrawerThemeToggle => _showDrawerThemeToggle;
 
+  // §50.2 Streamer Mode getters
+  bool get streamerModeEnabled => _streamerModeEnabled;
+  bool get showStreamerToggleInDrawer => _showStreamerToggleInDrawer;
+  bool get showStreamerToggleInTray => _showStreamerToggleInTray;
+
   // §43.13 AyuGram ghost mode getters
   bool get ghostModeEnabled => _ghostModeEnabled;
   bool get sendReadStories => _sendReadStories;
@@ -275,6 +285,40 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _showDrawerThemeToggle = v;
     notifyListeners();
     _saveWindowPrefs();
+  }
+
+  // §50.2 Streamer Mode setters
+  void setStreamerModeEnabled(bool v) {
+    if (_streamerModeEnabled == v) return;
+    _streamerModeEnabled = v;
+    _applyStreamerMode(v);
+    notifyListeners();
+  }
+
+  void setShowStreamerToggleInDrawer(bool v) {
+    if (_showStreamerToggleInDrawer == v) return;
+    _showStreamerToggleInDrawer = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setShowStreamerToggleInTray(bool v) {
+    if (_showStreamerToggleInTray == v) return;
+    _showStreamerToggleInTray = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  Future<void> _applyStreamerMode(bool enabled) async {
+    if (Platform.isWindows) {
+      try {
+        await _windowChannel.invokeMethod('setDisplayAffinity', enabled);
+      } catch (_) {}
+    } else if (Platform.isMacOS) {
+      try {
+        await _windowChannel.invokeMethod('setWindowSharing', !enabled);
+      } catch (_) {}
+    }
   }
 
   // §43.13 AyuGram ghost mode setters
@@ -1238,6 +1282,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _simpleQuotes = data['simpleQuotes'] as bool? ?? false;
       _semiTransparentDeleted = data['semiTransparentDeleted'] as bool? ?? false;
       _showDrawerThemeToggle = data['showDrawerThemeToggle'] as bool? ?? true;
+      // §50.2 Streamer Mode toggle visibility (persistent); mode itself is NOT persisted
+      _showStreamerToggleInDrawer = data['showStreamerToggleInDrawer'] as bool? ?? false;
+      _showStreamerToggleInTray = data['showStreamerToggleInTray'] as bool? ?? false;
       // §43.13 AyuGram ghost mode prefs
       _ghostModeEnabled = data['ghostModeEnabled'] as bool? ?? false;
       _sendReadStories = data['sendReadStories'] as bool? ?? true;
@@ -1297,6 +1344,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'simpleQuotes': _simpleQuotes,
         'semiTransparentDeleted': _semiTransparentDeleted,
         'showDrawerThemeToggle': _showDrawerThemeToggle,
+        'showStreamerToggleInDrawer': _showStreamerToggleInDrawer,
+        'showStreamerToggleInTray': _showStreamerToggleInTray,
         'ghostModeEnabled': _ghostModeEnabled,
         'sendReadStories': _sendReadStories,
         'markReadAfterAction': _markReadAfterAction,

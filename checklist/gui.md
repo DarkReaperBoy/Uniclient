@@ -977,7 +977,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §50 — Streamer Mode & Read Toggles (AyuGram)
 # Touches: dart/lib/ui/hamburger_drawer.dart, dart/lib/ui/settings_screen.dart, new streamer_mode.dart
 
-- [ ] Streamer Mode OS-level toggle — WDA_EXCLUDEFROMCAPTURE (Windows); NSWindowSharingNone (macOS); stub no-op + tooltip on Linux; apply to all windows including newly opened; non-persistent (reset to OFF on cold launch) — spec §50.2
 - [ ] Streamer Mode activation surfaces — drawer toggle row (48px, 24×24 icon, label, switch, gated by showStreamerToggleInDrawer default false); tray menu action (label "Enable/Disable Streamer Mode", gated by showStreamerToggleInTray default false); both settings shown on Ghost Mode page — spec §50.3
 - [ ] Streamer Mode scope + state — global (all windows, all accounts); showStreamerToggle settings global + persistent; reflect state in drawer switch and tray label — spec §50.4–50.5
 - [ ] Read toggles (6 toggles) — sendReadMessages (block messages.readHistory); sendReadStories (block stories.readStories); sendOnlinePackets (block account.updateStatus online); sendUploadProgress (block messages.setTyping); sendOfflinePacketAfterOnline (auto-offline after online); markReadAfterAction (local badge zero on reply/react/forward); locked variants per toggle — spec §50.7

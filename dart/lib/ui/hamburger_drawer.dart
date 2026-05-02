@@ -355,6 +355,22 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                       ),
                       onTap: () => appState.setGhostModeEnabled(!appState.ghostModeEnabled),
                     ),
+                    // §50.2–50.3: Streamer Mode toggle (gated, default hidden).
+                    if (appState.showStreamerToggleInDrawer)
+                    Tooltip(
+                      message: Platform.isLinux
+                          ? 'Streamer Mode has no effect on Linux — your compositor cannot hide windows from capture'
+                          : 'Hide app from screen capture',
+                      child: _MenuRow(
+                        icon: Icons.videocam_off,
+                        label: 'Streamer Mode',
+                        trailing: _InlineToggle(
+                          value: appState.streamerModeEnabled,
+                          onChanged: (v) => appState.setStreamerModeEnabled(v),
+                        ),
+                        onTap: () => appState.setStreamerModeEnabled(!appState.streamerModeEnabled),
+                      ),
+                    ),
                     // §3.3: Archive row — shown when user has archived chats.
                     if (context.watch<ChatState>().hasArchivedChats)
                       _MenuRow(
