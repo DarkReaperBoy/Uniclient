@@ -971,7 +971,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §49 — Scroll Behaviors
 # Touches: dart/lib/ui/chat_view.dart (partial: _scrollToBottom + _ScrollToBottomFab exist; rest NOT implemented)
 
-- [ ] Scroll position preservation — save scrollTopItem+scrollTopOffset per History on switch; restore on return; bracket refreshRows with save/restore — spec §49.7
 - [ ] Smooth scrolling engine — 240ms (slideDuration); sineInOut short, easeOutCubic long; anchor to HistoryItem during content changes — spec §49.8
 - [ ] Scroll-to-mention button — "@" corner button when unread mentions; jump to oldest on click; stacked 4px above scroll-to-bottom — spec §49.9
 - [ ] Scroll-to-reaction button — heart corner button when unread reactions; jump to oldest on click; stacked above mentions — spec §49.10

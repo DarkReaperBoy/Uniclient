@@ -300,6 +300,8 @@ class _ChatViewState extends State<ChatView>
   final Set<String> _nullResolvedUrls = {};
   final Map<String, WebPagePreview> _previewCache = {};
   final Map<String, _WebPreviewDraft> _webPreviewDrafts = {};
+  static final Map<String, double> _savedScrollOffsets = {};
+  String? _pendingScrollRestore;
   AutocompleteQuery? _acQuery;
   List<MemberInfo> _acMembers = [];
   List<MemberInfo> _acFilteredMembers = [];
@@ -454,6 +456,10 @@ class _ChatViewState extends State<ChatView>
 
   @override
   void dispose() {
+    // §49.7: Save scroll offset on dispose (oneColumn mode destroys the widget).
+    if (_lastChatId != null && _scrollController.hasClients) {
+      _savedScrollOffsets[_lastChatId!] = _scrollController.offset;
+    }
     _searchController.removeListener(_onSearchQueryChanged);
     final cs = context.read<ChatState>();
     if (cs.onNewActiveMessage == _handleNewActiveMessage) {
@@ -555,7 +561,15 @@ class _ChatViewState extends State<ChatView>
     final chatState = context.read<ChatState>();
     chatState.onNewActiveMessage = _handleNewActiveMessage;
     final chatId = chatState.activeChat?.chatId;
+    // §49.7: Save scroll position when chat closes (oneColumn back navigation).
+    if (chatId == null && _lastChatId != null && _scrollController.hasClients) {
+      _savedScrollOffsets[_lastChatId!] = _scrollController.offset;
+    }
     if (chatId != null && chatId != _lastChatId) {
+      // §49.7: Save scroll position for old chat before switching.
+      if (_lastChatId != null && _scrollController.hasClients) {
+        _savedScrollOffsets[_lastChatId!] = _scrollController.offset;
+      }
       // Save web preview draft for old chat before switching.
       if (_lastChatId != null) {
         _webPreviewDrafts[_lastChatId!] = _WebPreviewDraft(
@@ -637,6 +651,10 @@ class _ChatViewState extends State<ChatView>
             _acCommandsLoaded = false;
           });
         });
+      }
+      // §49.7: Schedule scroll position restore for the new chat.
+      if (_savedScrollOffsets.containsKey(chatId)) {
+        _pendingScrollRestore = chatId;
       }
       // Delay slightly to ensure messages are loaded.
       Future.microtask(() => chatState.markRead());
@@ -3875,6 +3893,24 @@ class _ChatViewState extends State<ChatView>
         });
       } else {
         _highlightQueue.add(pendingHL);
+      }
+    }
+
+    // §49.7: Restore saved scroll position after messages load.
+    if (_pendingScrollRestore != null &&
+        _pendingScrollRestore == chatState.activeChat?.chatId &&
+        chatState.messages.isNotEmpty) {
+      final restoreChatId = _pendingScrollRestore!;
+      _pendingScrollRestore = null;
+      final savedOffset = _savedScrollOffsets[restoreChatId];
+      if (savedOffset != null && savedOffset > 0) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || !_scrollController.hasClients) return;
+          if (chatState.activeChat?.chatId != restoreChatId) return;
+          final maxExtent = _scrollController.position.maxScrollExtent;
+          _scrollController.jumpTo(savedOffset.clamp(0.0, maxExtent));
+          _updateFabVisibility();
+        });
       }
     }
 
