@@ -7933,18 +7933,44 @@ class _WebPagePreview extends StatelessWidget {
     if (message.wpForceLargeMedia) return false;
     if (message.wpForceSmallMedia) return true;
     final t = message.wpType.toLowerCase();
-    if (t == 'video' || t == 'document' || t == 'photo' || t == 'story') return false;
-    if (t.startsWith('telegram_')) return false;
-    if ({'twitter', 'facebook'}.contains(message.wpSiteName.toLowerCase())) return false;
-    if (t == 'article_with_iv' || t == 'article') {
-      return false;
-    }
     if (t == 'profile') return true;
+    if (t == 'video' || t == 'gif' || t == 'document' || t == 'photo' || t == 'story') return false;
+    if (t.startsWith('telegram_')) return false;
+    if (t == 'article_with_iv') return false;
+    final site = message.wpSiteName.toLowerCase();
+    if (site.contains('twitter') || site == 'x' || site.startsWith('x (') || site.contains('facebook')) return false;
     if (message.wpThumbB64.isNotEmpty &&
         (message.wpSiteName.isNotEmpty || message.wpTitle.isNotEmpty || message.wpDescription.isNotEmpty)) {
       return true;
     }
     return false;
+  }
+
+  String? _actionButtonLabel() {
+    final t = message.wpType.toLowerCase();
+    switch (t) {
+      case 'article_with_iv': return 'INSTANT VIEW';
+      case 'telegram_theme': return 'VIEW THEME';
+      case 'telegram_story': return 'VIEW STORY';
+      case 'telegram_message': return 'VIEW MESSAGE';
+      case 'telegram_megagroup':
+      case 'telegram_chat': return 'VIEW GROUP';
+      case 'telegram_background': return 'VIEW BACKGROUND';
+      case 'telegram_channel': return 'VIEW CHANNEL';
+      case 'telegram_channel_request':
+      case 'telegram_megagroup_request':
+      case 'telegram_chat_request': return 'REQUEST TO JOIN';
+      case 'telegram_channel_boost':
+      case 'telegram_megagroup_boost': return 'BOOST';
+      case 'telegram_giftcode': return 'OPEN GIFT LINK';
+      case 'telegram_user': return 'SEND MESSAGE';
+      case 'telegram_voicechat': return 'JOIN VOICE CHAT';
+      case 'telegram_livestream': return 'JOIN LIVESTREAM';
+      case 'telegram_botapp': return 'OPEN APP';
+      case 'telegram_stickerset': return 'VIEW STICKERS';
+      case 'telegram_newbot': return 'START BOT';
+      default: return null;
+    }
   }
 
   int _descMaxLines() {
@@ -7995,11 +8021,43 @@ class _WebPagePreview extends StatelessWidget {
     return RichText(text: TextSpan(children: spans), maxLines: _descMaxLines(), overflow: TextOverflow.ellipsis);
   }
 
+  Widget? _buildActionButton(Color accentColor) {
+    final label = _actionButtonLabel();
+    if (label == null) return null;
+    final dividerColor = accentColor.withAlpha((255 * 0.3).round());
+    return GestureDetector(
+      onTap: () {
+        final url = message.wpUrl;
+        if (url.isNotEmpty) Process.run('xdg-open', [url]);
+      },
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        children: [
+          Container(height: 1, color: dividerColor),
+          SizedBox(
+            height: 36,
+            child: Center(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: accentColor,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final accentColor = isDark ? _accentBlueNight : _accentBlue;
     final isArticle = _useArticleMode();
-    final isVideo = message.wpType.toLowerCase() == 'video';
+    final isVideo = message.wpType.toLowerCase() == 'video' ||
+        message.wpType.toLowerCase() == 'gif';
 
     Widget? thumbWidget;
     if (message.wpThumbB64.isNotEmpty) {
@@ -8051,31 +8109,41 @@ class _WebPagePreview extends StatelessWidget {
       textWidgets.add(_buildDescription(accentColor));
     }
 
+    final actionButton = _buildActionButton(accentColor);
+
     if (isArticle) {
       return Container(
         padding: const EdgeInsets.only(left: 8),
         decoration: BoxDecoration(
           border: Border(left: BorderSide(color: accentColor, width: 2)),
         ),
-        child: Row(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: textWidgets,
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: textWidgets,
+                  ),
+                ),
+                if (thumbWidget != null) ...[
+                  const SizedBox(width: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: thumbWidget,
+                  ),
+                ],
+              ],
             ),
-            if (thumbWidget != null) ...[
-              const SizedBox(width: 8),
-              thumbWidget,
-            ],
+            if (actionButton != null) actionButton,
           ],
         ),
       );
     }
 
-    // Standard mode: full-width media below text.
     return Container(
       padding: const EdgeInsets.only(left: 8),
       decoration: BoxDecoration(
@@ -8107,21 +8175,7 @@ class _WebPagePreview extends StatelessWidget {
               ),
             ),
           ],
-          if (isVideo) ...[
-            const SizedBox(height: 6),
-            SizedBox(
-              height: 36,
-              child: OutlinedButton(
-                onPressed: () {},
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: accentColor,
-                  side: BorderSide(color: accentColor),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                ),
-                child: const Text('Open', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-              ),
-            ),
-          ],
+          if (actionButton != null) actionButton,
         ],
       ),
     );
