@@ -444,6 +444,9 @@ class _MessageBubbleState extends State<MessageBubble> {
         message.replyPreview.isEmpty &&
         message.forwardFrom.isEmpty;
 
+    final isolatedEmoji = _detectIsolatedEmoji(message);
+    final isIsolatedEmoji = isolatedEmoji.isIsolated;
+
     // Spec §5: media-only bubbles (photo/video/gif/videonote without caption)
     // overlay the bottom info on the media with translucent bg + inverted colors.
     // Albums never use overlay mode — info renders in the bubble below the album.
@@ -462,8 +465,10 @@ class _MessageBubbleState extends State<MessageBubble> {
         (message.mediaType == 1 || message.mediaType == 2 ||
          message.mediaType == 7);
 
+    final noBubble = isStickerOnly || isIsolatedEmoji;
+
     final themeOverride = ChatThemeOverride.of(context);
-    final bubbleColor = isStickerOnly
+    final bubbleColor = noBubble
         ? Colors.transparent
         : isOutgoing && themeOverride?.outgoingBubbleColor != null && !isSelected
             ? themeOverride!.outgoingBubbleColor!
@@ -476,7 +481,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                     : (isSelected ? AppColors.bubbleReceivedSelectedLight : AppColors.bubbleReceivedLight));
 
     // Spec §5: 2px bottom shadow strip. Night theme alpha=00 (disabled).
-    final shadowColor = isStickerOnly
+    final shadowColor = noBubble
         ? Colors.transparent
         : isOutgoing
             ? (isDark
@@ -581,12 +586,12 @@ class _MessageBubbleState extends State<MessageBubble> {
                 clipBehavior: Clip.none,
                 children: [
               Container(
-                padding: isStickerOnly
+                padding: noBubble
                     ? EdgeInsets.zero
                     : const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
                 decoration: BoxDecoration(
                   color: bubbleColor,
-                  borderRadius: isStickerOnly
+                  borderRadius: noBubble
                       ? BorderRadius.zero
                       : BorderRadius.only(
                           topLeft: Radius.circular(isOutgoing ? topOtherSide : topSenderSide),
@@ -594,7 +599,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                           bottomLeft: Radius.circular(isOutgoing ? bottomOtherSide : bottomSenderSide),
                           bottomRight: Radius.circular(isOutgoing ? bottomSenderSide : bottomOtherSide),
                         ),
-                  boxShadow: isStickerOnly
+                  boxShadow: noBubble
                       ? null
                       : [
                           BoxShadow(
@@ -706,7 +711,12 @@ class _MessageBubbleState extends State<MessageBubble> {
                     // Spec §6: For captioned media (photo/video/GIF + text),
                     // media renders first, caption text below it.
                     // For all other messages, text renders before media.
-                    if (!isCaptionedMedia && message.contentText.isNotEmpty && message.mediaType != 9 && message.mediaType != 10 && message.mediaType != 11 && message.mediaType != 12)
+                    if (isIsolatedEmoji)
+                      _LargeIsolatedEmoji(
+                        info: isolatedEmoji,
+                        accountId: message.accountId,
+                      )
+                    else if (!isCaptionedMedia && message.contentText.isNotEmpty && message.mediaType != 9 && message.mediaType != 10 && message.mediaType != 11 && message.mediaType != 12)
                       _RichMessageText(
                         text: message.contentText,
                         entitiesJson: message.contentRich,
@@ -4876,6 +4886,217 @@ class _ForwardsIconPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _ForwardsIconPainter old) => color != old.color;
+}
+
+// ── Isolated emoji detection + large emoji rendering (§45.2) ──
+
+final _nativeEmojiPattern = RegExp(
+  r'(?:\p{Emoji_Presentation}|\p{Emoji}️)[‍️\p{Emoji_Presentation}\p{Emoji_Modifier}\p{Emoji_Modifier_Base}\p{Emoji_Component}]*',
+  unicode: true,
+);
+
+class _IsolatedEmojiInfo {
+  final bool isIsolated;
+  final int count;
+  final List<_IsolatedEmojiItem> items;
+  const _IsolatedEmojiInfo({this.isIsolated = false, this.count = 0, this.items = const []});
+}
+
+class _IsolatedEmojiItem {
+  final bool isCustom;
+  final int documentId;
+  final String altText;
+  const _IsolatedEmojiItem({this.isCustom = false, this.documentId = 0, this.altText = ''});
+}
+
+_IsolatedEmojiInfo _detectIsolatedEmoji(CachedMessage message) {
+  if (message.contentText.isEmpty) return const _IsolatedEmojiInfo();
+  if (message.hasMedia || message.hasWebPage || message.hasGame || message.hasInvoice) {
+    return const _IsolatedEmojiInfo();
+  }
+  if (message.replyPreview.isNotEmpty || message.forwardFrom.isNotEmpty) {
+    return const _IsolatedEmojiInfo();
+  }
+
+  List<_TextEntity> entities = const [];
+  if (message.contentRich.isNotEmpty) {
+    try {
+      final list = jsonDecode(message.contentRich) as List;
+      entities = list.map((e) => _TextEntity.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (_) {
+      return const _IsolatedEmojiInfo();
+    }
+  }
+
+  final customEntities = entities.where((e) => e.type == 'custom_emoji').toList();
+  final hasNonEmojiEntities = entities.any((e) =>
+      e.type != 'custom_emoji' && e.type != 'bold' && e.type != 'italic');
+
+  if (hasNonEmojiEntities) return const _IsolatedEmojiInfo();
+
+  final text = message.contentText;
+
+  if (customEntities.isNotEmpty) {
+    var remaining = text;
+    for (final e in customEntities) {
+      final start = e.offset.clamp(0, text.length);
+      final end = (e.offset + e.length).clamp(0, text.length);
+      if (end > start) {
+        remaining = remaining.replaceRange(start, end, ' ' * (end - start));
+      }
+    }
+    remaining = remaining.replaceAll(RegExp(r'[\s‍️​]'), '');
+    if (remaining.isNotEmpty) return const _IsolatedEmojiInfo();
+
+    final items = customEntities.map((e) {
+      final start = e.offset.clamp(0, text.length);
+      final end = (e.offset + e.length).clamp(0, text.length);
+      return _IsolatedEmojiItem(
+        isCustom: true,
+        documentId: e.documentId,
+        altText: end > start ? text.substring(start, end) : '',
+      );
+    }).toList();
+    return _IsolatedEmojiInfo(isIsolated: true, count: items.length, items: items);
+  }
+
+  if (entities.isNotEmpty) return const _IsolatedEmojiInfo();
+
+  final matches = _nativeEmojiPattern.allMatches(text).toList();
+  if (matches.isEmpty) return const _IsolatedEmojiInfo();
+
+  var stripped = text;
+  for (final m in matches.reversed) {
+    stripped = stripped.replaceRange(m.start, m.end, '');
+  }
+  stripped = stripped.replaceAll(RegExp(r'[\s​]'), '');
+  if (stripped.isNotEmpty) return const _IsolatedEmojiInfo();
+  if (matches.length > 3) return const _IsolatedEmojiInfo();
+
+  final items = matches.map((m) => _IsolatedEmojiItem(
+    isCustom: false,
+    altText: m.group(0) ?? '',
+  )).toList();
+  return _IsolatedEmojiInfo(isIsolated: true, count: items.length, items: items);
+}
+
+double _isolatedEmojiSize(int count) {
+  if (count <= 1) return 112;
+  if (count == 2) return 78;
+  if (count == 3) return 58;
+  if (count <= 5) return 43;
+  if (count <= 7) return 27;
+  return 20;
+}
+
+class _LargeIsolatedEmoji extends StatelessWidget {
+  final _IsolatedEmojiInfo info;
+  final String accountId;
+
+  const _LargeIsolatedEmoji({required this.info, required this.accountId});
+
+  @override
+  Widget build(BuildContext context) {
+    final size = _isolatedEmojiSize(info.count);
+    final children = <Widget>[];
+    for (final item in info.items) {
+      if (item.isCustom) {
+        children.add(_LargeCustomEmojiTile(
+          documentId: item.documentId,
+          accountId: accountId,
+          altText: item.altText,
+          size: size,
+        ));
+      } else {
+        children.add(SizedBox(
+          width: size,
+          height: size,
+          child: FittedBox(
+            child: Text(item.altText, style: const TextStyle(fontSize: 64)),
+          ),
+        ));
+      }
+    }
+
+    return Wrap(
+      spacing: 4,
+      runSpacing: 4,
+      children: children,
+    );
+  }
+}
+
+class _LargeCustomEmojiTile extends StatefulWidget {
+  final int documentId;
+  final String accountId;
+  final String altText;
+  final double size;
+
+  const _LargeCustomEmojiTile({
+    required this.documentId,
+    required this.accountId,
+    required this.altText,
+    required this.size,
+  });
+
+  @override
+  State<_LargeCustomEmojiTile> createState() => _LargeCustomEmojiTileState();
+}
+
+class _LargeCustomEmojiTileState extends State<_LargeCustomEmojiTile> {
+  @override
+  void initState() {
+    super.initState();
+    _CustomEmojiCache.instance.addListener(_onCacheUpdate);
+    _requestIfNeeded();
+  }
+
+  @override
+  void dispose() {
+    _CustomEmojiCache.instance.removeListener(_onCacheUpdate);
+    super.dispose();
+  }
+
+  void _onCacheUpdate() {
+    if (mounted) setState(() {});
+  }
+
+  void _requestIfNeeded() {
+    final cache = _CustomEmojiCache.instance;
+    if (cache.getThumb(widget.documentId) != null) return;
+    if (cache.isPending(widget.documentId) || cache.hasFailed(widget.documentId)) return;
+    if (widget.accountId.isEmpty) return;
+    final engine = context.read<EngineService>();
+    cache.request(widget.documentId, widget.accountId, engine);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final thumb = _CustomEmojiCache.instance.getThumb(widget.documentId);
+    if (thumb != null) {
+      return SizedBox(
+        width: widget.size,
+        height: widget.size,
+        child: Image.memory(
+          thumb,
+          width: widget.size,
+          height: widget.size,
+          fit: BoxFit.contain,
+          gaplessPlayback: true,
+        ),
+      );
+    }
+    return SizedBox(
+      width: widget.size,
+      height: widget.size,
+      child: FittedBox(
+        child: Text(
+          widget.altText.isNotEmpty ? widget.altText : '\u{2B50}',
+          style: const TextStyle(fontSize: 64),
+        ),
+      ),
+    );
+  }
 }
 
 // ── Custom emoji inline cache + widget ──
