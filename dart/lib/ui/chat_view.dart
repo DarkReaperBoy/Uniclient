@@ -10087,8 +10087,6 @@ class _CornerButtonState extends State<_CornerButton> {
     final discBg = isDark ? const Color(0xFF1D2B3A) : const Color(0xFFFFFFFF);
     final discBgOver = isDark ? const Color(0xFF243446) : const Color(0xFFF1F1F1);
     final iconColor = isDark ? const Color(0xFFADB4BA) : const Color(0xFF999999);
-    const shadowColor = Color(0x40000000);
-    // Badge uses the same muted palette as JumpDownButton.
     final badgeBg = isDark ? const Color(0xFF3E546A) : const Color(0xFFBBBBBB);
 
     return MouseRegion(
@@ -10099,11 +10097,10 @@ class _CornerButtonState extends State<_CornerButton> {
         behavior: HitTestBehavior.opaque,
         child: SizedBox(
           width: 52,
-          height: 62 + (widget.count > 0 ? 26 : 0),
+          height: 62,
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              // Badge: 4px above the 62px button area.
               if (widget.count > 0)
                 Positioned(
                   top: 0,
@@ -10112,7 +10109,7 @@ class _CornerButtonState extends State<_CornerButton> {
                   child: Center(
                     child: Container(
                       constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 5),
                       decoration: BoxDecoration(
                         color: badgeBg,
                         borderRadius: BorderRadius.circular(11),
@@ -10132,56 +10129,27 @@ class _CornerButtonState extends State<_CornerButton> {
                     ),
                   ),
                 ),
-              // Button area: 52×62, disc at (5,15).
               Positioned(
-                bottom: 0,
-                left: 0,
-                child: SizedBox(
-                  width: 52,
-                  height: 62,
-                  child: Stack(
-                    children: [
-                      // Shadow disc.
-                      Positioned(
-                        left: 5,
-                        top: 17,
-                        child: Container(
-                          width: 42,
-                          height: 42,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: shadowColor,
-                          ),
-                        ),
-                      ),
-                      // Main disc.
-                      Positioned(
-                        left: 5,
-                        top: 15,
-                        child: Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: _hovered ? discBgOver : discBg,
-                          ),
-                        ),
-                      ),
-                      // Icon centered on disc.
-                      Positioned(
-                        left: 5,
-                        top: 15,
-                        child: SizedBox(
-                          width: 42,
-                          height: 42,
-                          child: Icon(
-                            widget.icon,
-                            size: 20,
-                            color: iconColor,
-                          ),
-                        ),
+                left: 5,
+                top: 15,
+                child: Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _hovered ? discBgOver : discBg,
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x40000000),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
                       ),
                     ],
+                  ),
+                  child: Icon(
+                    widget.icon,
+                    size: 20,
+                    color: iconColor,
                   ),
                 ),
               ),

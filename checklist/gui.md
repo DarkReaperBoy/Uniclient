@@ -971,7 +971,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §49 — Scroll Behaviors
 # Touches: dart/lib/ui/chat_view.dart (partial: _scrollToBottom + _ScrollToBottomFab exist; rest NOT implemented)
 
-- [ ] Corner buttons stack layout — all at 12px from right; 4px vertical gap; 4×62+3×4+10=270px total; smooth slide when middle button hides/shows — spec §49.17
 
 ---
 
