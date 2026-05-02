@@ -977,8 +977,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §50 — Streamer Mode & Read Toggles (AyuGram)
 # Touches: dart/lib/ui/hamburger_drawer.dart, dart/lib/ui/settings_screen.dart, new streamer_mode.dart
 
-- [ ] Read Message context action — chat-list right-click "Read Message" with confirmation dialog; per-peer Never/Always Read exclusions — spec §50.7
-
 ---
 
 ## §51 — Ghost Mode (AyuGram)

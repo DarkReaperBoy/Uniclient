@@ -1300,11 +1300,14 @@ class _ChatListPanelState extends State<ChatListPanel>
 
   void _showChatContextMenu(BuildContext context, ChatInfo chat, Offset globalPosition) {
     final chatState = context.read<ChatState>();
+    final appState = context.read<AppState>();
     final isGroupy = chat.type == ChatType.group ||
         chat.type == ChatType.channel ||
         chat.type == ChatType.topic;
 
     final isDm = chat.type == ChatType.dm;
+    final ghostBlocksReads = !appState.sendReadMessages;
+    final currentExclusion = appState.getReadExclusion(chat.accountId, chat.chatId);
 
     final viewLabel = isDm
         ? 'View Profile'
@@ -1327,6 +1330,16 @@ class _ChatListPanelState extends State<ChatListPanel>
           label: chat.unreadCount > 0 ? 'Mark as Read' : 'Mark as Unread',
         ),
         TelegramMenuItem(value: 'archive', label: chat.isArchived ? 'Unarchive' : 'Archive'),
+        if (ghostBlocksReads && chat.unreadCount > 0)
+          const TelegramMenuItem(value: 'force_read', label: 'Read Message'),
+        TelegramMenuItem(
+          value: 'read_exclusion',
+          label: currentExclusion == 1
+              ? 'Read Exclusion: Never'
+              : currentExclusion == 2
+                  ? 'Read Exclusion: Always'
+                  : 'Read Exclusion',
+        ),
         const TelegramMenuItem.separator(),
         const TelegramMenuItem(value: 'clear_history', label: 'Clear History'),
         if (isDm)
@@ -1376,6 +1389,14 @@ class _ChatListPanelState extends State<ChatListPanel>
           }
         case 'archive':
           chatState.archiveChat(chat.accountId, chat.chatId, !chat.isArchived);
+        case 'force_read':
+          if (context.mounted) {
+            _showReadConfirmation(context, chat);
+          }
+        case 'read_exclusion':
+          if (context.mounted) {
+            _showReadExclusionMenu(context, chat, globalPosition);
+          }
         case 'clear_history':
           if (context.mounted) {
             final chatState2 = context.read<ChatState>();
@@ -1565,6 +1586,115 @@ class _ChatListPanelState extends State<ChatListPanel>
     });
   }
 
+  void _showReadConfirmation(BuildContext context, ChatInfo chat) {
+    showTelegramBox<bool>(
+      context: context,
+      builder: (ctx) => _ReadConfirmContent(peerName: chat.title),
+    ).then((confirmed) {
+      if (confirmed == true && context.mounted) {
+        final chatState = context.read<ChatState>();
+        chatState.markChatRead(chat.accountId, chat.chatId);
+      }
+    });
+  }
+
+  void _showReadExclusionMenu(BuildContext context, ChatInfo chat, Offset globalPosition) {
+    final appState = context.read<AppState>();
+    final current = appState.getReadExclusion(chat.accountId, chat.chatId);
+
+    showTelegramMenu<int>(
+      context: context,
+      position: globalPosition,
+      items: [
+        TelegramMenuItem(
+          value: 0,
+          label: 'Default',
+          icon: current == 0 ? const Icon(Icons.check, size: 18) : null,
+        ),
+        TelegramMenuItem(
+          value: 1,
+          label: 'Never Read',
+          icon: current == 1 ? const Icon(Icons.check, size: 18) : null,
+        ),
+        TelegramMenuItem(
+          value: 2,
+          label: 'Always Read',
+          icon: current == 2 ? const Icon(Icons.check, size: 18) : null,
+        ),
+      ],
+    ).then((value) {
+      if (value != null) {
+        appState.setReadExclusion(chat.accountId, chat.chatId, value);
+      }
+    });
+  }
+
+}
+
+class _ReadConfirmContent extends StatelessWidget {
+  final String peerName;
+  const _ReadConfirmContent({required this.peerName});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Material(
+      color: isDark ? const Color(0xFF1e2c3a) : Colors.white,
+      borderRadius: BorderRadius.circular(kBoxRadius),
+      child: SizedBox(
+        width: kBoxWidth,
+        child: Padding(
+          padding: kBoxPadding,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 6),
+              Text(
+                'Read Message',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Send read receipt to "$peerName"? This will mark the conversation as read on the server.',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: isDark ? const Color(0xFFaab2ba) : const Color(0xFF555555),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(
+                        color: isDark ? const Color(0xFF6c7883) : const Color(0xFF999999),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child: const Text(
+                      'Read',
+                      style: TextStyle(color: Color(0xFF40a7e3)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Search bar at top of sidebar.

@@ -115,6 +115,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   int _showViewsPanelInContextMenu = 0; // 0=visible, 1=hidden, 2=visibleWithModifier
   bool _showMessageSeconds = false;
 
+  // §50.7: Per-peer read exclusions. Key: "accountId:chatId", value: 0=default, 1=neverRead, 2=alwaysRead.
+  Map<String, int> _readExclusions = {};
+
   // Spec §17.7.1: PowerSaving bitfield (matches tdesktop bit positions).
   static const kPowerSavingStickersPanel = 1 << 0;
   static const kPowerSavingStickersChat  = 1 << 1;
@@ -457,6 +460,21 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       'sendOfflinePacketAfterOnline' => _sendOfflinePacketAfterOnlineLocked,
       _ => false,
     };
+  }
+
+  // §50.7: Per-peer read exclusion. 0=default, 1=neverRead, 2=alwaysRead.
+  int getReadExclusion(String accountId, String chatId) =>
+      _readExclusions['$accountId:$chatId'] ?? 0;
+
+  void setReadExclusion(String accountId, String chatId, int value) {
+    final key = '$accountId:$chatId';
+    if (value == 0) {
+      _readExclusions.remove(key);
+    } else {
+      _readExclusions[key] = value.clamp(0, 2);
+    }
+    notifyListeners();
+    _saveWindowPrefs();
   }
 
   void setShowViewsPanelInContextMenu(int v) {
@@ -1417,6 +1435,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _sendOfflinePacketAfterOnlineLocked = data['sendOfflinePacketAfterOnlineLocked'] as bool? ?? false;
       _showViewsPanelInContextMenu = data['showViewsPanelInContextMenu'] as int? ?? 0;
       _showMessageSeconds = data['showMessageSeconds'] as bool? ?? false;
+      final rawExcl = data['readExclusions'] as Map<String, dynamic>?;
+      if (rawExcl != null) {
+        _readExclusions = rawExcl.map((k, v) => MapEntry(k, (v as int?) ?? 0));
+      }
       _loadWallpaper(data);
       _loadCustomThemeFromCache();
     } catch (_) {}
@@ -1485,6 +1507,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'sendOfflinePacketAfterOnlineLocked': _sendOfflinePacketAfterOnlineLocked,
         'showViewsPanelInContextMenu': _showViewsPanelInContextMenu,
         'showMessageSeconds': _showMessageSeconds,
+        'readExclusions': _readExclusions,
         'wallpaperType': _wallpaper.type.index,
         'wallpaperColors': _wallpaper.backgroundColors
             .map((c) => (c.value & 0xFFFFFF).toRadixString(16).padLeft(6, '0'))
