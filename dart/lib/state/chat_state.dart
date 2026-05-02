@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -1821,13 +1822,16 @@ class ChatState extends ChangeNotifier {
         stickerEmoji = msg.contentText;
       }
 
+      final notifText = _applySpoilerEntities(msg.contentText, msg.contentRich);
+      final isLoginCodeSender = msg.senderId == '777000';
+
       onNotification!(NotificationData(
         accountId: event.accountId,
         chatId: event.chatId,
         messageId: msg.msgId,
         senderName: msg.senderName,
         chatTitle: chat?.title ?? '',
-        text: msg.contentText,
+        text: notifText,
         avatarPath: chat?.avatarPath ?? '',
         isMuted: chat?.isMuted ?? false,
         isOutgoing: msg.isOutgoing,
@@ -1857,6 +1861,7 @@ class ChatState extends ChangeNotifier {
         slowmodeActive: (chat?.slowmodeNextSendDate ?? 0) > 0 &&
             chat!.slowmodeNextSendDate > DateTime.now().millisecondsSinceEpoch ~/ 1000,
         requiresStars: (chat?.starsToSend ?? 0) > 0,
+        spoilerLoginCode: isLoginCodeSender,
       ));
     }
   }
@@ -2028,5 +2033,35 @@ class ChatState extends ChangeNotifier {
       sub.cancel();
     }
     super.dispose();
+  }
+
+  static const _spoilerChar = '▚';
+
+  static String _applySpoilerEntities(String text, String contentRich) {
+    if (text.isEmpty || contentRich.isEmpty) return text;
+    try {
+      final list = jsonDecode(contentRich) as List;
+      final spoilers = <(int, int)>[];
+      for (final e in list) {
+        if (e is Map<String, dynamic> && e['type'] == 'spoiler') {
+          final offset = e['offset'] as int? ?? 0;
+          final length = e['length'] as int? ?? 0;
+          if (length > 0) spoilers.add((offset, length));
+        }
+      }
+      if (spoilers.isEmpty) return text;
+      spoilers.sort((a, b) => a.$1.compareTo(b.$1));
+      final buf = StringBuffer();
+      var pos = 0;
+      for (final (offset, length) in spoilers) {
+        if (offset > pos) buf.write(text.substring(pos, offset.clamp(0, text.length)));
+        buf.write(_spoilerChar * length.clamp(1, 40));
+        pos = (offset + length).clamp(0, text.length);
+      }
+      if (pos < text.length) buf.write(text.substring(pos));
+      return buf.toString();
+    } catch (_) {
+      return text;
+    }
   }
 }

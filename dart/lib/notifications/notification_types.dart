@@ -197,7 +197,8 @@ class NotificationData {
 
 const _appName = 'UniClient';
 const _spoilerBlock = '▚';
-final _loginCodePattern = RegExp(r'\b\d{5,7}\b');
+final _loginCodePattern = RegExp(r'(?<![\w\-#])(\d[\d\-]{2,6}\d)(?!\w|\-)');
+
 
 class NotificationContent {
   final String title;
