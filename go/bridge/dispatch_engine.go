@@ -535,6 +535,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		forceLargeMedia := false
 		forceSmallMedia := false
 		invertMedia := false
+		webPageOptional := false
 		unknown := req.ProtoReflect().GetUnknown()
 		for len(unknown) > 0 {
 			num, wtype, n := protowire.ConsumeTag(unknown)
@@ -554,6 +555,8 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 					forceSmallMedia = v != 0
 				} else if num == 12 {
 					invertMedia = v != 0
+				} else if num == 13 {
+					webPageOptional = v != 0
 				}
 				unknown = unknown[vn:]
 			case protowire.BytesType:
@@ -579,7 +582,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 				unknown = unknown[vn:]
 			}
 		}
-		localID, err := e.SendMessage(req.AccountId, req.ChatId, req.Text, req.ReplyToId, entities, req.Silent, req.ScheduleDate, req.TopicRootId, webPageUrl, forceLargeMedia, forceSmallMedia, invertMedia)
+		localID, err := e.SendMessage(req.AccountId, req.ChatId, req.Text, req.ReplyToId, entities, req.Silent, req.ScheduleDate, req.TopicRootId, webPageUrl, forceLargeMedia, forceSmallMedia, invertMedia, webPageOptional)
 		if err != nil {
 			return nil, err
 		}

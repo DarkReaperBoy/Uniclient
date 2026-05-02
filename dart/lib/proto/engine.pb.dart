@@ -3817,6 +3817,7 @@ class EngineSendMessageRequest extends $pb.GeneratedMessage {
     $core.bool? forceLargeMedia,
     $core.bool? forceSmallMedia,
     $core.bool? invertMedia,
+    $core.bool? webPageOptional,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -3855,6 +3856,9 @@ class EngineSendMessageRequest extends $pb.GeneratedMessage {
     if (invertMedia != null) {
       $result.invertMedia = invertMedia;
     }
+    if (webPageOptional != null) {
+      $result.webPageOptional = webPageOptional;
+    }
     return $result;
   }
   EngineSendMessageRequest._() : super();
@@ -3874,6 +3878,7 @@ class EngineSendMessageRequest extends $pb.GeneratedMessage {
     ..aOB(10, _omitFieldNames ? '' : 'forceLargeMedia')
     ..aOB(11, _omitFieldNames ? '' : 'forceSmallMedia')
     ..aOB(12, _omitFieldNames ? '' : 'invertMedia')
+    ..aOB(13, _omitFieldNames ? '' : 'webPageOptional')
     ..hasRequiredFields = false
   ;
 
@@ -4005,6 +4010,15 @@ class EngineSendMessageRequest extends $pb.GeneratedMessage {
   $core.bool hasInvertMedia() => $_has(11);
   @$pb.TagNumber(12)
   void clearInvertMedia() => clearField(12);
+
+  @$pb.TagNumber(13)
+  $core.bool get webPageOptional => $_getBF(12);
+  @$pb.TagNumber(13)
+  set webPageOptional($core.bool v) { $_setBool(12, v); }
+  @$pb.TagNumber(13)
+  $core.bool hasWebPageOptional() => $_has(12);
+  @$pb.TagNumber(13)
+  void clearWebPageOptional() => clearField(13);
 }
 
 class EngineSendMessageResponse extends $pb.GeneratedMessage {

@@ -371,6 +371,7 @@ message EngineSendMessageRequest {
   bool   force_large_media = 10;
   bool   force_small_media = 11;
   bool   invert_media      = 12;
+  bool   web_page_optional = 13;
 }
 
 message EngineSendMessageResponse {
