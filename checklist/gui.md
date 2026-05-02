@@ -949,9 +949,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §45 — Custom Emoji Rendering
 # Touches: dart/lib/ui/message_bubble.dart, dart/lib/ui/chat_view.dart, new custom_emoji.dart
 
-- [ ] Performance batching — RepaintBunch buckets by (when, duration); batch unknown IDs ≤100 per API call; static PaintCache QImage for text-tinted emoji — spec §45.11
-- [ ] Reaction/emoji preview overlay (MediaPreviewWidget) — centered in viewport; 120ms show/hide animation; semi-transparent click-catcher backdrop; "View Pack" rect at 75% vertical; 10px shadow extend; 8px boxRadius; FlatLabel with pack name; dismiss on click-outside/Escape/resize — spec §45.14
-
 ---
 
 ## §46 — Link Preview in Compose

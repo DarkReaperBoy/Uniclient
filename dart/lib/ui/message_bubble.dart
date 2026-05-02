@@ -7,7 +7,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show Clipboard, ClipboardData;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData, KeyDownEvent, LogicalKeyboardKey;
 
 import 'custom_emoji_cache.dart';
 import 'gesture_utils.dart';
@@ -1945,6 +1945,16 @@ class _ReactionPreviewOverlayState extends State<_ReactionPreviewOverlay>
   bool _loadingSet = true;
   Uint8List? _decompressedLottie;
   AnimationController? _lottieController;
+  Size? _initialSize;
+  final FocusNode _focusNode = FocusNode();
+
+  static const _previewSize = 224.0;
+  static const _shadowExtend = 10.0;
+  static const _boxRadius = 8.0;
+  static const _paddingLeft = 12.0;
+  static const _paddingTop = 3.0;
+  static const _paddingRight = 12.0;
+  static const _paddingBottom = 4.0;
 
   @override
   void initState() {
@@ -1960,6 +1970,7 @@ class _ReactionPreviewOverlayState extends State<_ReactionPreviewOverlay>
     CustomEmojiCache.instance.removeListener(_onCacheUpdate);
     CustomEmojiCache.instance.release(widget.documentId, EmojiSizeTag.normal);
     _lottieController?.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -2025,25 +2036,32 @@ class _ReactionPreviewOverlayState extends State<_ReactionPreviewOverlay>
     );
   }
 
+  void _dismiss() {
+    if (mounted) Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
+    _initialSize ??= size;
+    if (_initialSize != null && _initialSize != size) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _dismiss());
+    }
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cache = CustomEmojiCache.instance;
     final file = cache.getFile(widget.documentId);
     final thumb = cache.getThumb(widget.documentId);
 
-    const previewSize = 160.0;
-
     Widget emojiPreview;
     if (file != null && file.isTgs && _decompressedLottie != null) {
       emojiPreview = SizedBox(
-        width: previewSize,
-        height: previewSize,
+        width: _previewSize,
+        height: _previewSize,
         child: Lottie.memory(
           _decompressedLottie!,
-          width: previewSize,
-          height: previewSize,
+          width: _previewSize,
+          height: _previewSize,
           fit: BoxFit.contain,
           controller: _lottieController,
           onLoaded: _onLottieLoaded,
@@ -2052,71 +2070,138 @@ class _ReactionPreviewOverlayState extends State<_ReactionPreviewOverlay>
     } else if (file != null && file.isWebp) {
       emojiPreview = Image.memory(
         file.fileData,
-        width: previewSize,
-        height: previewSize,
+        width: _previewSize,
+        height: _previewSize,
         fit: BoxFit.contain,
       );
     } else if (thumb != null) {
       emojiPreview = Image.memory(
         thumb,
-        width: previewSize,
-        height: previewSize,
+        width: _previewSize,
+        height: _previewSize,
         fit: BoxFit.contain,
       );
     } else {
       emojiPreview = const SizedBox(
-        width: previewSize,
-        height: previewSize,
+        width: _previewSize,
+        height: _previewSize,
         child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
       );
     }
 
-    final bgY = (size.height * 0.75);
+    final hasViewPack = !_loadingSet && _setInfo != null && _setInfo!.title.isNotEmpty;
 
-    return GestureDetector(
-      onTap: () => Navigator.of(context).pop(),
-      child: Material(
-        color: Colors.black54,
-        child: Stack(
-          children: [
-            Center(child: emojiPreview),
-            if (!_loadingSet && _setInfo != null && _setInfo!.title.isNotEmpty)
-              Positioned(
-                left: 0,
-                right: 0,
-                top: bgY - 30,
-                child: Center(
-                  child: GestureDetector(
-                    onTap: _openStickerSet,
-                    child: Container(
-                      constraints: BoxConstraints(maxWidth: size.width * 0.7),
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF17212B) : Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.2),
-                            blurRadius: 10,
-                            spreadRadius: 1,
-                          ),
-                        ],
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                      child: Text(
-                        'Custom emoji from ${_setInfo!.title}.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: isDark ? Colors.white70 : Colors.black87,
-                        ),
-                      ),
+    return KeyboardListener(
+      focusNode: _focusNode,
+      autofocus: true,
+      onKeyEvent: (event) {
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.escape) {
+          _dismiss();
+        }
+      },
+      child: GestureDetector(
+        onTap: _dismiss,
+        child: Material(
+          color: Colors.black54,
+          child: Stack(
+            children: [
+              Center(child: emojiPreview),
+              if (hasViewPack)
+                _ViewPackButton(
+                  title: _setInfo!.title,
+                  isDark: isDark,
+                  viewportSize: size,
+                  onTap: _openStickerSet,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ViewPackButton extends StatelessWidget {
+  final String title;
+  final bool isDark;
+  final Size viewportSize;
+  final VoidCallback onTap;
+
+  const _ViewPackButton({
+    required this.title,
+    required this.isDark,
+    required this.viewportSize,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const shadowExtend = _ReactionPreviewOverlayState._shadowExtend;
+    const boxRadius = _ReactionPreviewOverlayState._boxRadius;
+    const padL = _ReactionPreviewOverlayState._paddingLeft;
+    const padT = _ReactionPreviewOverlayState._paddingTop;
+    const padR = _ReactionPreviewOverlayState._paddingRight;
+    const padB = _ReactionPreviewOverlayState._paddingBottom;
+
+    final labelText = 'Custom emoji from $title.';
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final textPainter = TextPainter(
+          text: TextSpan(
+            text: labelText,
+            style: const TextStyle(fontSize: 13),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout(maxWidth: double.infinity);
+        final maxLabelWidth = textPainter.width / 2;
+        final innerWidth = maxLabelWidth + padL + padR;
+        final bgWidth = innerWidth + shadowExtend * 2;
+        final bgHeight = (textPainter.height * 2) + padT + padB + shadowExtend * 2;
+        final bgY = (viewportSize.height * 0.75) - (bgHeight / 2);
+        textPainter.dispose();
+
+        return Positioned(
+          left: (viewportSize.width - bgWidth) / 2,
+          top: bgY,
+          child: GestureDetector(
+            onTap: onTap,
+            child: Container(
+              width: bgWidth,
+              padding: const EdgeInsets.all(shadowExtend),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF17212B) : Colors.white,
+                  borderRadius: BorderRadius.circular(boxRadius),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      blurRadius: 16,
+                      spreadRadius: 0,
+                      offset: const Offset(0, 2),
                     ),
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 4,
+                      spreadRadius: 0,
+                    ),
+                  ],
+                ),
+                padding: const EdgeInsets.fromLTRB(padL, padT, padR, padB),
+                child: Text(
+                  labelText,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: isDark ? Colors.white70 : Colors.black87,
                   ),
                 ),
               ),
-          ],
-        ),
-      ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
