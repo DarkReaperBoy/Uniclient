@@ -3274,15 +3274,30 @@ class _ChatViewState extends State<ChatView>
     }
   }
 
-  bool _isBotStartVisible(ChatInfo chat) {
+  bool _isBotStartVisible(ChatInfo chat, ChatState chatState) {
     return !chat.isBlocked &&
         chat.isBot &&
         chat.type == ChatType.dm &&
-        chat.lastMsgId.isEmpty;
+        (chat.lastMsgId.isEmpty || chatState.botStartToken.isNotEmpty);
   }
 
   void _sendStartBot(ChatState chatState) {
-    chatState.sendMessage('/start');
+    final token = chatState.botStartToken;
+    if (token.isNotEmpty) {
+      chatState.sendMessage('/start $token');
+      chatState.botStartToken = '';
+    } else {
+      chatState.sendMessage('/start');
+    }
+  }
+
+  String _botStartLabel(ChatState chatState) {
+    final token = chatState.botStartToken;
+    if (token.isNotEmpty) {
+      final prefix = token.length > 20 ? token.substring(0, 20) : token;
+      return 'START ($prefix...)';
+    }
+    return 'START';
   }
 
   Future<void> _uploadFiles(ChatState chatState, List<String> paths) async {
@@ -3673,8 +3688,9 @@ class _ChatViewState extends State<ChatView>
         }
         if (event.logicalKey == LogicalKeyboardKey.enter ||
             event.logicalKey == LogicalKeyboardKey.numpadEnter) {
-          if (_isBotStartVisible(chat)) {
-            _sendStartBot(context.read<ChatState>());
+          final cs = context.read<ChatState>();
+          if (_isBotStartVisible(chat, cs)) {
+            _sendStartBot(cs);
             return KeyEventResult.handled;
           }
         }
@@ -4131,9 +4147,9 @@ class _ChatViewState extends State<ChatView>
               color: const Color(0xFFdf3f40),
               onTap: () => chatState.unblockUser(chat.accountId, chat.chatId),
             )
-          else if (chat.isBot && chat.type == ChatType.dm && chat.lastMsgId.isEmpty)
+          else if (_isBotStartVisible(chat, chatState))
             _FallbackComposeButton(
-              label: 'START',
+              label: _botStartLabel(chatState),
               color: context.palette.windowActiveTextFg,
               onTap: () => _sendStartBot(chatState),
               onSecondaryTap: () => _sendStartBot(chatState),

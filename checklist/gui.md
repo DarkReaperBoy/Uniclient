@@ -961,8 +961,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §47 — Restricted Permissions UI
 # Touches: dart/lib/ui/chat_view.dart (compose area replacement), new compose_restriction.dart
 
-- [ ] Bot start button — "START" full-width button with optional token prefix text — spec §47
-
 ---
 
 ## §48 — Drag-and-Drop File Overlay

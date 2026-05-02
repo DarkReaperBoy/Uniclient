@@ -101,6 +101,9 @@ class ChatState extends ChangeNotifier {
   bool _connectedBotPaused = false;
   final Map<String, List<ConnectedBotInfo>> _connectedBotsCache = {};
 
+  // ── Bot start token (§47: deep link t.me/bot?start=TOKEN) ──
+  String _botStartToken = '';
+
   // ── Export top bar state (§29.9) ──
   bool _exportActive = false;
   String _exportStepLabel = '';
@@ -236,6 +239,15 @@ class ChatState extends ChangeNotifier {
 
   /// Get sender avatar base64 data by sender ID.
   String? senderAvatar(String senderId) => _senderAvatars[senderId];
+
+  // ── Bot start token (§47) ──
+  String get botStartToken => _botStartToken;
+  set botStartToken(String v) {
+    if (_botStartToken != v) {
+      _botStartToken = v;
+      notifyListeners();
+    }
+  }
 
   // ── Export top bar getters (§29.9) ──
   bool get exportActive => _exportActive;
@@ -746,6 +758,7 @@ class ChatState extends ChangeNotifier {
     _scheduledCount = 0;
     _isScheduledView = false;
     _linkedChatId = '';
+    _botStartToken = '';
     _loadScheduledCount(chat.accountId, chat.chatId);
     if (chat.type == ChatType.group || chat.type == ChatType.channel || chat.type == ChatType.topic) {
       _loadMemberAvatars(chat.accountId, chat.chatId);
