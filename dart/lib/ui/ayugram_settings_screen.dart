@@ -174,13 +174,34 @@ class _AyuGramSettingsScreenState extends State<AyuGramSettingsScreen> {
           Container(height: 1, color: dividerColor),
           const SizedBox(height: 7),
 
-          // ── Drawer section ──
-          _SectionLabel(label: 'Drawer Menu', color: sectionLabelColor),
+          // ── Drawer Elements section (§50.3) ──
+          _SectionLabel(label: 'Drawer Elements', color: sectionLabelColor),
           _ToggleRow(
             label: 'Show Night Mode toggle',
             subtitle: 'Display theme toggle in hamburger menu',
             value: appState.showDrawerThemeToggle,
             onChanged: (v) => appState.setShowDrawerThemeToggle(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _ToggleRow(
+            label: 'Streamer Mode',
+            subtitle: 'Show Streamer Mode toggle in drawer',
+            value: appState.showStreamerToggleInDrawer,
+            onChanged: (v) => appState.setShowStreamerToggleInDrawer(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          Container(height: 1, color: dividerColor),
+          const SizedBox(height: 7),
+
+          // ── Tray Elements section (§50.3) ──
+          _SectionLabel(label: 'Tray Elements', color: sectionLabelColor),
+          _ToggleRow(
+            label: 'Streamer Mode',
+            subtitle: 'Show Streamer Mode toggle in system tray menu',
+            value: appState.showStreamerToggleInTray,
+            onChanged: (v) => appState.setShowStreamerToggleInTray(v),
             isDark: isDark,
             useMaterial: appState.materialSwitches,
           ),

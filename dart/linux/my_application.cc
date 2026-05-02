@@ -21,6 +21,7 @@ struct _MyApplication {
   AppIndicator* indicator;
   GtkWidget* tray_menu;
   GtkWidget* show_hide_item;
+  GtkWidget* streamer_item;
 #endif
 };
 
@@ -60,6 +61,15 @@ static void toggle_window_visibility(MyApplication* self) {
 #ifdef HAVE_APPINDICATOR
 static void on_tray_show_hide(GtkMenuItem* /*item*/, gpointer user_data) {
   toggle_window_visibility(MY_APPLICATION(user_data));
+}
+
+static void on_tray_streamer_toggle(GtkMenuItem* /*item*/, gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  if (self->tray_channel) {
+    fl_method_channel_invoke_method(
+        self->tray_channel, "onStreamerToggle", nullptr, nullptr, nullptr,
+        nullptr);
+  }
 }
 
 static void on_tray_quit(GtkMenuItem* /*item*/, gpointer user_data) {
@@ -104,6 +114,12 @@ static void init_tray(MyApplication* self) {
   g_signal_connect(self->show_hide_item, "activate",
                    G_CALLBACK(on_tray_show_hide), self);
 
+  self->streamer_item = gtk_menu_item_new_with_label("Enable Streamer Mode");
+  gtk_menu_shell_append(GTK_MENU_SHELL(self->tray_menu), self->streamer_item);
+  g_signal_connect(self->streamer_item, "activate",
+                   G_CALLBACK(on_tray_streamer_toggle), self);
+  gtk_widget_hide(self->streamer_item);
+
   GtkWidget* separator = gtk_separator_menu_item_new();
   gtk_menu_shell_append(GTK_MENU_SHELL(self->tray_menu), separator);
 
@@ -112,6 +128,7 @@ static void init_tray(MyApplication* self) {
   g_signal_connect(quit_item, "activate", G_CALLBACK(on_tray_quit), self);
 
   gtk_widget_show_all(self->tray_menu);
+  gtk_widget_hide(self->streamer_item);
   app_indicator_set_menu(self->indicator, GTK_MENU(self->tray_menu));
 
   g_free(icon_path);
@@ -189,6 +206,25 @@ static void tray_method_call_handler(FlMethodChannel* channel,
     // view is destroyed.
     fl_method_call_respond_success(method_call, nullptr, nullptr);
     g_idle_add(quit_app_idle, self);
+  } else if (g_strcmp0(method, "setStreamerTrayItem") == 0) {
+#ifdef HAVE_APPINDICATOR
+    FlValue* args = fl_method_call_get_args(method_call);
+    if (self->streamer_item && fl_value_get_type(args) == FL_VALUE_TYPE_MAP) {
+      FlValue* show_val = fl_value_lookup_string(args, "show");
+      FlValue* enabled_val = fl_value_lookup_string(args, "enabled");
+      gboolean show = show_val ? fl_value_get_bool(show_val) : FALSE;
+      gboolean enabled = enabled_val ? fl_value_get_bool(enabled_val) : FALSE;
+      if (show) {
+        gtk_menu_item_set_label(GTK_MENU_ITEM(self->streamer_item),
+                                enabled ? "Disable Streamer Mode"
+                                        : "Enable Streamer Mode");
+        gtk_widget_show(self->streamer_item);
+      } else {
+        gtk_widget_hide(self->streamer_item);
+      }
+    }
+#endif
+    fl_method_call_respond_success(method_call, nullptr, nullptr);
   } else if (g_strcmp0(method, "isAvailable") == 0) {
 #ifdef HAVE_APPINDICATOR
     g_autoptr(FlValue) result = fl_value_new_bool(TRUE);
@@ -659,6 +695,7 @@ static void my_application_init(MyApplication* self) {
   self->indicator = nullptr;
   self->tray_menu = nullptr;
   self->show_hide_item = nullptr;
+  self->streamer_item = nullptr;
 #endif
 }
 

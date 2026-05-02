@@ -99,6 +99,8 @@ class _UniClientAppState extends State<UniClientApp>
   final SystemTray _tray = SystemTray();
   final WebNotifier _webNotifier = WebNotifier();
   VoidCallback? _unreadListener;
+  VoidCallback? _streamerSyncListener;
+  AppState? _appStateRef;
   ChatState? _chatStateRef;
   Timer? _debugCmdTimer;
   final _navigatorKey = GlobalKey<NavigatorState>();
@@ -264,6 +266,21 @@ class _UniClientAppState extends State<UniClientApp>
     if (!kIsWeb) {
       await _tray.init();
       _tray.onQuit = () => exit(0);
+
+      // §50.3: Streamer Mode tray toggle — sync item visibility + state.
+      _appStateRef = appState;
+      _tray.onStreamerToggle = () {
+        appState.setStreamerModeEnabled(!appState.streamerModeEnabled);
+        _tray.updateStreamerItem(
+            appState.showStreamerToggleInTray, appState.streamerModeEnabled);
+      };
+      _streamerSyncListener = () {
+        _tray.updateStreamerItem(
+            appState.showStreamerToggleInTray, appState.streamerModeEnabled);
+      };
+      appState.addListener(_streamerSyncListener!);
+      _tray.updateStreamerItem(
+          appState.showStreamerToggleInTray, appState.streamerModeEnabled);
 
       // Track unread count changes and update tray tooltip (§37.11).
       if (_tray.isAvailable) {
@@ -1739,6 +1756,9 @@ class _UniClientAppState extends State<UniClientApp>
     _debugCmdTimer?.cancel();
     if (_unreadListener != null && _chatStateRef != null) {
       _chatStateRef!.removeListener(_unreadListener!);
+    }
+    if (_streamerSyncListener != null && _appStateRef != null) {
+      _appStateRef!.removeListener(_streamerSyncListener!);
     }
     if (_chatStateRef != null) _chatStateRef!.onNotification = null;
     _themeFadeCtrl?.dispose();

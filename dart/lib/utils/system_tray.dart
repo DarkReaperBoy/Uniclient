@@ -42,6 +42,9 @@ class SystemTray {
   /// (minimized to tray).
   void Function()? onWindowHidden;
 
+  /// Callback invoked when the user clicks the Streamer Mode tray item.
+  void Function()? onStreamerToggle;
+
   /// Initialize the tray.  Call once after the engine is running.
   /// No-op on Flutter Web — native tray is desktop-only (§13.5).
   Future<void> init() async {
@@ -91,6 +94,19 @@ class SystemTray {
       await _channel.invokeMethod<void>('setTooltip', label);
     } catch (e) {
       Debug.log('TRAY', 'setTooltip failed: $e');
+    }
+  }
+
+  /// Show or hide the Streamer Mode tray item, updating its label.
+  Future<void> updateStreamerItem(bool show, bool enabled) async {
+    if (!_available) return;
+    try {
+      await _channel.invokeMethod<void>('setStreamerTrayItem', {
+        'show': show,
+        'enabled': enabled,
+      });
+    } catch (e) {
+      Debug.log('TRAY', 'setStreamerTrayItem failed: $e');
     }
   }
 
@@ -166,6 +182,9 @@ class SystemTray {
       case 'onWindowHidden':
         Debug.log('TRAY', 'window hidden (minimized to tray)');
         onWindowHidden?.call();
+      case 'onStreamerToggle':
+        Debug.log('TRAY', 'streamer toggle requested from tray menu');
+        onStreamerToggle?.call();
       default:
         Debug.log('TRAY', 'unknown native call: ${call.method}');
     }
