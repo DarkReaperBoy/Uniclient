@@ -954,7 +954,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §46 — Link Preview in Compose
 # Touches: dart/lib/ui/chat_view.dart (FieldHeader bar), new link_preview.dart
 
-- [ ] URL detection + debounce — regex domain matching; 0ms for large changes (>2 chars), 500ms small; immediate on whitespace/drop; skip inside code/pre blocks; handle markdown link tags — spec §46.1
 - [ ] FieldHeader preview card — 49px height full-width above compose; left icon (historyLinkIcon) at (7,7); swap icon per bar state (edit/reply/quote/forward); 32×32 thumbnail at (53,8); text start 95px with/53px without thumbnail; title semiboldFont historyReplyNameFg; description messageTextStyle; cancel X button 49×49 anchored top-right; flat historyComposeAreaBg background — spec §46.2
 - [ ] Large vs small media layout — small (article) for profile pages; large for Twitter/Facebook/ArticleWithIV/collage/no-text; forceLargeMedia/forceSmallMedia via DraftOptionsBox — spec §46.3
 - [ ] Preview above/below text — WebPageDraft.invert flag; DraftOptionsBox "Move up"/"Move down" buttons — spec §46.4

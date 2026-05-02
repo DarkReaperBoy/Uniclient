@@ -2359,6 +2359,54 @@ class _ChatViewState extends State<ChatView>
     });
   }
 
+  static final _extractUrlRegex = RegExp(
+    r'(?:https?://|www\.)[^\s<>\[\](){}"' "'" r']+',
+    caseSensitive: false,
+  );
+  static final _extractBareDomainRegex = RegExp(
+    r'(?<![/@\w.])([a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)'
+    r'(?:com|org|net|edu|gov|io|dev|app|me|info|co|uk|de|ru|fr|jp|cn|au|ca|nl|ch|it|es|us|tv|cc|to|ly|gl|gg|xyz|tech|online|site|link)\b'
+    r'(?:/[^\s<>\[\](){}"' "'" r']*)?',
+    caseSensitive: false,
+  );
+  static final _extractMarkdownLinkRegex = RegExp(
+    r'\[(?:[^\]\\]|\\.)*\]\(((?:https?://|www\.)[^\s)]+)\)',
+    caseSensitive: false,
+  );
+  static final _extractCodeBlockRegex = RegExp(r'```[\s\S]*?```|`[^`\n]+`');
+
+  static List<String> _extractLinks(String text) {
+    if (text.isEmpty) return const [];
+    final codeRanges = <({int start, int end})>[];
+    for (final m in _extractCodeBlockRegex.allMatches(text)) {
+      codeRanges.add((start: m.start, end: m.end));
+    }
+    bool insideCode(int offset) {
+      for (final r in codeRanges) {
+        if (offset >= r.start && offset < r.end) return true;
+      }
+      return false;
+    }
+    final urls = <String>[];
+    final seen = <String>{};
+    for (final m in _extractMarkdownLinkRegex.allMatches(text)) {
+      if (insideCode(m.start)) continue;
+      final url = m.group(1)!;
+      if (seen.add(url)) urls.add(url);
+    }
+    for (final m in _extractUrlRegex.allMatches(text)) {
+      if (insideCode(m.start)) continue;
+      final url = m.group(0)!;
+      if (seen.add(url)) urls.add(url);
+    }
+    for (final m in _extractBareDomainRegex.allMatches(text)) {
+      if (insideCode(m.start)) continue;
+      final url = m.group(0)!;
+      if (seen.add(url)) urls.add(url);
+    }
+    return urls;
+  }
+
   void _onAutocompleteQuery(AutocompleteQuery? query) {
     if (query == null) {
       if (_acQuery != null) setState(() { _acQuery = null; _acFilteredEmojis = []; _acStickerSuggestions = []; _acFilteredCommands = []; });
@@ -2765,8 +2813,7 @@ class _ChatViewState extends State<ChatView>
         extentOffset: selEnd ?? text.length,
       ),
     );
-    final urlRegex = RegExp(r'https?://[^\s<]+', caseSensitive: false);
-    final urls = urlRegex.allMatches(text).map((m) => m.group(0)!).toList();
+    final urls = _extractLinks(text);
     if (urls.toString() != _detectedLinks.toString()) {
       setState(() => _detectedLinks = urls);
       final chatState = context.read<ChatState>();
@@ -10100,6 +10147,24 @@ class _ComposeAreaState extends State<_ComposeArea>
     caseSensitive: false,
   );
 
+  static final _bareDomainRegex = RegExp(
+    r'(?<![/@\w.])([a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)'
+    r'(?:com|org|net|edu|gov|io|dev|app|me|info|co|uk|de|ru|fr|jp|cn|au|ca|nl|ch|it|es|us|tv|cc|to|ly|gl|gg|xyz|tech|online|site|link)\b'
+    r'(?:/[^\s<>\[\](){}"'
+    "'"
+    r']*)?',
+    caseSensitive: false,
+  );
+
+  static final _markdownLinkRegex = RegExp(
+    r'\[(?:[^\]\\]|\\.)*\]\(((?:https?://|www\.)[^\s)]+)\)',
+    caseSensitive: false,
+  );
+
+  static final _codeBlockRegex = RegExp(
+    r'```[\s\S]*?```|`[^`\n]+`',
+  );
+
   late final FocusNode _focusNode;
   late final ScrollController _scrollController;
   bool _showTopFade = false;
@@ -10768,8 +10833,47 @@ class _ComposeAreaState extends State<_ComposeArea>
   }
 
   void _parseLinks(String text) {
-    final matches = _urlRegex.allMatches(text);
-    final urls = matches.map((m) => m.group(0)!).toList();
+    if (text.isEmpty) {
+      if (_detectedLinks.isNotEmpty) {
+        _detectedLinks = const [];
+        widget.onLinksDetected?.call(const []);
+      }
+      return;
+    }
+
+    final codeRanges = <({int start, int end})>[];
+    for (final m in _codeBlockRegex.allMatches(text)) {
+      codeRanges.add((start: m.start, end: m.end));
+    }
+
+    bool insideCode(int offset) {
+      for (final r in codeRanges) {
+        if (offset >= r.start && offset < r.end) return true;
+      }
+      return false;
+    }
+
+    final urls = <String>[];
+    final seen = <String>{};
+
+    for (final m in _markdownLinkRegex.allMatches(text)) {
+      if (insideCode(m.start)) continue;
+      final url = m.group(1)!;
+      if (seen.add(url)) urls.add(url);
+    }
+
+    for (final m in _urlRegex.allMatches(text)) {
+      if (insideCode(m.start)) continue;
+      final url = m.group(0)!;
+      if (seen.add(url)) urls.add(url);
+    }
+
+    for (final m in _bareDomainRegex.allMatches(text)) {
+      if (insideCode(m.start)) continue;
+      final url = m.group(0)!;
+      if (seen.add(url)) urls.add(url);
+    }
+
     if (!_listEquals(urls, _detectedLinks)) {
       _detectedLinks = urls;
       widget.onLinksDetected?.call(urls);
