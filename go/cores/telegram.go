@@ -10973,13 +10973,20 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 					if _, ok := c.Photo.(*tg.ChatPhoto); ok {
 						dialog.AvatarURL = "has_photo"
 					}
-					if !c.Creator {
+					if c.Deactivated {
+						dialog.WriteRestrictionType = 1
+						dialog.WriteRestrictionText = "Sorry, this group is not accessible."
+					} else if !c.Creator {
 						rType, rText := computeWriteRestriction(nil, c.DefaultBannedRights)
 						if rType > 0 {
 							dialog.WriteRestrictionType = rType
 							dialog.WriteRestrictionText = rText
 						}
 					}
+				} else if cf, ok := chat.(*tg.ChatForbidden); ok {
+					dialog.Title = cf.Title
+					dialog.WriteRestrictionType = 1
+					dialog.WriteRestrictionText = "Sorry, this group is not accessible."
 				}
 			}
 		case *tg.PeerChannel:
@@ -11013,6 +11020,15 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 					if _, ok := c.Photo.(*tg.ChatPhoto); ok {
 						dialog.AvatarURL = "has_photo"
 					}
+				} else if cf, ok := ch.(*tg.ChannelForbidden); ok {
+					dialog.Title = cf.Title
+					if cf.Broadcast {
+						dialog.Type = ChatTypeChannel
+					} else {
+						dialog.Type = ChatTypeGroup
+					}
+					dialog.WriteRestrictionType = 1
+					dialog.WriteRestrictionText = "Sorry, this group is not accessible."
 				}
 			}
 		}
@@ -13855,6 +13871,9 @@ type DefaultBannedRights struct {
 // defaultRights are the group-wide restrictions (from DefaultBannedRights).
 // Returns (type, text). type=0 means no restriction.
 func computeWriteRestriction(personalRights *tg.ChatBannedRights, defaultRights tg.ChatBannedRights) (int, string) {
+	if personalRights != nil && personalRights.ViewMessages {
+		return 1, "Sorry, this group is not accessible."
+	}
 	if personalRights != nil && !personalRights.Zero() {
 		until := personalRights.UntilDate
 		isTimed := until > 0 && until < 2145916800 // before 2038

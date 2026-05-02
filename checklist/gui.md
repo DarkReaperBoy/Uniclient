@@ -961,7 +961,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §47 — Restricted Permissions UI
 # Touches: dart/lib/ui/chat_view.dart (compose area replacement), new compose_restriction.dart
 
-- [ ] Banned/kicked state — "Sorry, this group is not accessible."; full-width "UNBLOCK"/"RESTART" button; call unblockUser on click — spec §47
 - [ ] Join-to-send buttons — "JOIN CHANNEL"/"JOIN GROUP"/"APPLY TO JOIN GROUP" uppercase buttons; session.api.joinChannel on click — spec §47
 - [ ] Mute/Unmute + Discuss buttons — "MUTE"/"UNMUTE" full-width for broadcast channels without post rights; "DISCUSS" alongside when discussion group exists — spec §47
 - [ ] Forum topic closed bar — "This topic is closed." restriction bar; reactively restore compose on admin reopen; ManageTopics admin bypass — spec §47
