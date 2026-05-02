@@ -1097,6 +1097,50 @@ func (t *TelegramCore) SendMessage(chatID string, msg OutgoingMessage) (*Message
 		}
 	}
 
+	wpUrl, _ := msg.Extra["web_page_url"].(string)
+	_, forceLarge := msg.Extra["force_large_media"]
+	_, forceSmall := msg.Extra["force_small_media"]
+
+	if wpUrl != "" && (forceLarge || forceSmall) {
+		mediaReq := &tg.MessagesSendMediaRequest{
+			Peer:     inputPeer,
+			Message:  msg.Text,
+			RandomID: time.Now().UnixNano(),
+			Media: &tg.InputMediaWebPage{
+				URL:            wpUrl,
+				ForceLargeMedia: forceLarge,
+				ForceSmallMedia: forceSmall,
+			},
+		}
+		if len(tgEntities) > 0 {
+			mediaReq.SetEntities(tgEntities)
+		}
+		if _, ok := msg.Extra["silent"]; ok {
+			mediaReq.SetSilent(true)
+		}
+		if scheduleDate > 0 {
+			mediaReq.SetScheduleDate(scheduleDate)
+		}
+		if msg.ReplyToID != "" {
+			replyID, err := tgMsgID(msg.ReplyToID)
+			if err != nil {
+				return nil, err
+			}
+			reply := &tg.InputReplyToMessage{ReplyToMsgID: replyID}
+			if topicRootID > 0 {
+				reply.TopMsgID = topicRootID
+			}
+			mediaReq.SetReplyTo(reply)
+		} else if topicRootID > 0 {
+			mediaReq.SetReplyTo(&tg.InputReplyToMessage{TopMsgID: topicRootID})
+		}
+		result, err := t.api.MessagesSendMedia(t.ctx, mediaReq)
+		if err != nil {
+			return nil, fmt.Errorf("send message with web page: %w", err)
+		}
+		return t.extractMessageFromUpdates(result, chatID), nil
+	}
+
 	req := &tg.MessagesSendMessageRequest{
 		Peer:     inputPeer,
 		Message:  msg.Text,
@@ -13298,10 +13342,14 @@ func (t *TelegramCore) GetWebPagePreviewFull(url string) (*WebPagePreviewResult,
 		if mw, ok := result.Media.(*tg.MessageMediaWebPage); ok {
 			if wp, ok := mw.Webpage.(*tg.WebPage); ok {
 				r := &WebPagePreviewResult{
-					URL:         wp.URL,
-					SiteName:    wp.SiteName,
-					Title:       wp.Title,
-					Description: wp.Description,
+					URL:           wp.URL,
+					SiteName:      wp.SiteName,
+					Title:         wp.Title,
+					Description:   wp.Description,
+					HasLargeMedia: wp.HasLargeMedia,
+				}
+				if t, ok := wp.GetType(); ok {
+					r.Type = t
 				}
 				if wp.Photo != nil {
 					if photo, ok := wp.Photo.(*tg.Photo); ok {

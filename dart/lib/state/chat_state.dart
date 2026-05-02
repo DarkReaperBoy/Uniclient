@@ -1147,7 +1147,7 @@ class ChatState extends ChangeNotifier {
 
   /// Send a message in the active chat.
   /// Go handles optimistic insert + event emission; we refresh after send.
-  Future<String?> sendMessage(String text, {String replyToId = '', String entities = '', bool silent = false, int scheduleDate = 0}) async {
+  Future<String?> sendMessage(String text, {String replyToId = '', String entities = '', bool silent = false, int scheduleDate = 0, String webPageUrl = '', bool forceLargeMedia = false, bool forceSmallMedia = false}) async {
     final chat = _activeChat;
     if (chat == null || text.trim().isEmpty) return null;
 
@@ -1159,7 +1159,8 @@ class ChatState extends ChangeNotifier {
 
     final localId = await _engine.sendMessage(chat.accountId, sendChatId, text,
         replyToId: replyToId, entities: entities, silent: silent,
-        scheduleDate: scheduleDate, topicRootId: topicRootId);
+        scheduleDate: scheduleDate, topicRootId: topicRootId,
+        webPageUrl: webPageUrl, forceLargeMedia: forceLargeMedia, forceSmallMedia: forceSmallMedia);
 
     // Spec §49.4: destroy unread bar when user sends outgoing message.
     clearOpenedUnread();

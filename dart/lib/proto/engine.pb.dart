@@ -3813,6 +3813,9 @@ class EngineSendMessageRequest extends $pb.GeneratedMessage {
     $fixnum.Int64? scheduleDate,
     $core.String? topicRootId,
     $core.String? entitiesJson,
+    $core.String? webPageUrl,
+    $core.bool? forceLargeMedia,
+    $core.bool? forceSmallMedia,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -3839,6 +3842,15 @@ class EngineSendMessageRequest extends $pb.GeneratedMessage {
     if (entitiesJson != null) {
       $result.entitiesJson = entitiesJson;
     }
+    if (webPageUrl != null) {
+      $result.webPageUrl = webPageUrl;
+    }
+    if (forceLargeMedia != null) {
+      $result.forceLargeMedia = forceLargeMedia;
+    }
+    if (forceSmallMedia != null) {
+      $result.forceSmallMedia = forceSmallMedia;
+    }
     return $result;
   }
   EngineSendMessageRequest._() : super();
@@ -3854,6 +3866,9 @@ class EngineSendMessageRequest extends $pb.GeneratedMessage {
     ..aInt64(6, _omitFieldNames ? '' : 'scheduleDate')
     ..aOS(7, _omitFieldNames ? '' : 'topicRootId')
     ..aOS(8, _omitFieldNames ? '' : 'entitiesJson')
+    ..aOS(9, _omitFieldNames ? '' : 'webPageUrl')
+    ..aOB(10, _omitFieldNames ? '' : 'forceLargeMedia')
+    ..aOB(11, _omitFieldNames ? '' : 'forceSmallMedia')
     ..hasRequiredFields = false
   ;
 
@@ -3949,6 +3964,33 @@ class EngineSendMessageRequest extends $pb.GeneratedMessage {
   $core.bool hasEntitiesJson() => $_has(7);
   @$pb.TagNumber(8)
   void clearEntitiesJson() => clearField(8);
+
+  @$pb.TagNumber(9)
+  $core.String get webPageUrl => $_getSZ(8);
+  @$pb.TagNumber(9)
+  set webPageUrl($core.String v) { $_setString(8, v); }
+  @$pb.TagNumber(9)
+  $core.bool hasWebPageUrl() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearWebPageUrl() => clearField(9);
+
+  @$pb.TagNumber(10)
+  $core.bool get forceLargeMedia => $_getBF(9);
+  @$pb.TagNumber(10)
+  set forceLargeMedia($core.bool v) { $_setBool(9, v); }
+  @$pb.TagNumber(10)
+  $core.bool hasForceLargeMedia() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearForceLargeMedia() => clearField(10);
+
+  @$pb.TagNumber(11)
+  $core.bool get forceSmallMedia => $_getBF(10);
+  @$pb.TagNumber(11)
+  set forceSmallMedia($core.bool v) { $_setBool(10, v); }
+  @$pb.TagNumber(11)
+  $core.bool hasForceSmallMedia() => $_has(10);
+  @$pb.TagNumber(11)
+  void clearForceSmallMedia() => clearField(11);
 }
 
 class EngineSendMessageResponse extends $pb.GeneratedMessage {
@@ -9543,6 +9585,8 @@ class EngineGetWebPagePreviewResponse extends $pb.GeneratedMessage {
     $core.String? title,
     $core.String? description,
     $core.String? thumbB64,
+    $core.String? type,
+    $core.bool? hasLargeMedia,
   }) {
     final $result = create();
     if (url != null) $result.url = url;
@@ -9550,6 +9594,8 @@ class EngineGetWebPagePreviewResponse extends $pb.GeneratedMessage {
     if (title != null) $result.title = title;
     if (description != null) $result.description = description;
     if (thumbB64 != null) $result.thumbB64 = thumbB64;
+    if (type != null) $result.type = type;
+    if (hasLargeMedia != null) $result.hasLargeMedia = hasLargeMedia;
     return $result;
   }
   EngineGetWebPagePreviewResponse._() : super();
@@ -9562,6 +9608,8 @@ class EngineGetWebPagePreviewResponse extends $pb.GeneratedMessage {
     ..aOS(3, _omitFieldNames ? '' : 'title')
     ..aOS(4, _omitFieldNames ? '' : 'description')
     ..aOS(5, _omitFieldNames ? '' : 'thumbB64')
+    ..aOS(6, _omitFieldNames ? '' : 'type')
+    ..aOB(7, _omitFieldNames ? '' : 'hasLargeMedia')
     ..hasRequiredFields = false
   ;
 
@@ -9624,6 +9672,24 @@ class EngineGetWebPagePreviewResponse extends $pb.GeneratedMessage {
   $core.bool hasThumbB64() => $_has(4);
   @$pb.TagNumber(5)
   void clearThumbB64() => clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get type => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set type($core.String v) { $_setString(5, v); }
+  @$pb.TagNumber(6)
+  $core.bool hasType() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearType() => clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.bool get hasLargeMedia => $_getBF(6);
+  @$pb.TagNumber(7)
+  set hasLargeMedia($core.bool v) { $_setBool(6, v); }
+  @$pb.TagNumber(7)
+  $core.bool hasHasLargeMedia() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearHasLargeMedia() => clearField(7);
 }
 
 class EngineBotCallbackRequest extends $pb.GeneratedMessage {

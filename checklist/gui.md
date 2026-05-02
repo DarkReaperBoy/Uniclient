@@ -954,7 +954,7 @@ Status key: `[ ]` not started · `[x]` done
 ## §46 — Link Preview in Compose
 # Touches: dart/lib/ui/chat_view.dart (FieldHeader bar), new link_preview.dart
 
-- [ ] Large vs small media layout — small (article) for profile pages; large for Twitter/Facebook/ArticleWithIV/collage/no-text; forceLargeMedia/forceSmallMedia via DraftOptionsBox — spec §46.3
+- [x] Large vs small media layout — small (article) for profile pages; large for Twitter/Facebook/ArticleWithIV/collage/no-text; forceLargeMedia/forceSmallMedia via DraftOptionsBox — spec §46.3
 - [ ] Preview above/below text — WebPageDraft.invert flag; DraftOptionsBox "Move up"/"Move down" buttons — spec §46.4
 - [ ] Multiple URL handling — pick first cached/untried URL; "Tap on a link to choose a preview" divider; click different links in PreviewWrap to switch — spec §46.5
 - [ ] Preview loading + no-preview states — "Loading..." title + URL description; hide thumbnail during load; pendingTill retry timer; webPageUpdates auto-update; fallback to next URL on null; toast "Sorry, preview not available" in DraftOptionsBox — spec §46.6–46.7

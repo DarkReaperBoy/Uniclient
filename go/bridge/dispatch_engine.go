@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/gotd/td/tg"
+	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 
 	"uniclient/cores"
@@ -530,7 +531,52 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if req.EntitiesJson != "" {
 			json.Unmarshal([]byte(req.EntitiesJson), &entities)
 		}
-		localID, err := e.SendMessage(req.AccountId, req.ChatId, req.Text, req.ReplyToId, entities, req.Silent, req.ScheduleDate, req.TopicRootId)
+		webPageUrl := ""
+		forceLargeMedia := false
+		forceSmallMedia := false
+		unknown := req.ProtoReflect().GetUnknown()
+		for len(unknown) > 0 {
+			num, wtype, n := protowire.ConsumeTag(unknown)
+			if n < 0 {
+				break
+			}
+			unknown = unknown[n:]
+			switch wtype {
+			case protowire.VarintType:
+				v, vn := protowire.ConsumeVarint(unknown)
+				if vn < 0 {
+					break
+				}
+				if num == 10 {
+					forceLargeMedia = v != 0
+				} else if num == 11 {
+					forceSmallMedia = v != 0
+				}
+				unknown = unknown[vn:]
+			case protowire.BytesType:
+				v, vn := protowire.ConsumeBytes(unknown)
+				if vn < 0 {
+					break
+				}
+				if num == 9 {
+					webPageUrl = string(v)
+				}
+				unknown = unknown[vn:]
+			case protowire.Fixed32Type:
+				_, vn := protowire.ConsumeFixed32(unknown)
+				if vn < 0 {
+					break
+				}
+				unknown = unknown[vn:]
+			case protowire.Fixed64Type:
+				_, vn := protowire.ConsumeFixed64(unknown)
+				if vn < 0 {
+					break
+				}
+				unknown = unknown[vn:]
+			}
+		}
+		localID, err := e.SendMessage(req.AccountId, req.ChatId, req.Text, req.ReplyToId, entities, req.Silent, req.ScheduleDate, req.TopicRootId, webPageUrl, forceLargeMedia, forceSmallMedia)
 		if err != nil {
 			return nil, err
 		}
@@ -2065,7 +2111,21 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			resp.Description = result.Description
 			resp.ThumbB64 = result.ThumbB64
 		}
-		return proto.Marshal(resp)
+		data, err := proto.Marshal(resp)
+		if err != nil {
+			return nil, err
+		}
+		if result != nil {
+			if result.Type != "" {
+				data = protowire.AppendTag(data, 6, protowire.BytesType)
+				data = protowire.AppendString(data, result.Type)
+			}
+			if result.HasLargeMedia {
+				data = protowire.AppendTag(data, 7, protowire.VarintType)
+				data = protowire.AppendVarint(data, 1)
+			}
+		}
+		return data, nil
 
 	case "BotCallback":
 		var req pb.EngineBotCallbackRequest

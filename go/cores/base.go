@@ -415,11 +415,13 @@ type ReportResult struct {
 }
 
 type WebPagePreviewResult struct {
-	URL         string `json:"url"`
-	SiteName    string `json:"site_name"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	ThumbB64    string `json:"thumb_b64"`
+	URL           string `json:"url"`
+	SiteName      string `json:"site_name"`
+	Title         string `json:"title"`
+	Description   string `json:"description"`
+	ThumbB64      string `json:"thumb_b64"`
+	Type          string `json:"type"`
+	HasLargeMedia bool   `json:"has_large_media"`
 }
 
 type StarGiftItem struct {

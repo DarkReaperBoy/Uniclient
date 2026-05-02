@@ -46,6 +46,18 @@ message BotCommandEntry {
   string avatar_b64 = 6;
 }
 
+message CallHistoryEntry {
+  string msg_id = 1;
+  string peer_id = 2;
+  string peer_name = 3;
+  string avatar_path = 4;
+  int64 timestamp = 5;
+  int64 duration = 6;
+  bool is_outgoing = 7;
+  bool is_missed = 8;
+  bool is_video = 9;
+}
+
 message CallInfo {
   int64 id = 1;
   int64 access_hash = 2;
@@ -1934,6 +1946,13 @@ message TelegramCheckRecoveryPasswordRequest {
 message TelegramCheckRecoveryPasswordResponse {
 }
 
+message TelegramClearCallHistoryRequest {
+  bool revoke = 1;
+}
+
+message TelegramClearCallHistoryResponse {
+}
+
 message TelegramClearDraftRequest {
   string chat_id = 1;
 }
@@ -2082,6 +2101,14 @@ message TelegramCreateChatInviteLinkRequest {
 
 message TelegramCreateChatInviteLinkResponse {
   bytes result_1 = 1;
+}
+
+message TelegramCreateConferenceCallRequest {
+}
+
+message TelegramCreateConferenceCallResponse {
+  string result_1 = 1;
+  string result_2 = 2;
 }
 
 message TelegramCreateFolderRequest {
@@ -2638,6 +2665,15 @@ message TelegramGetCallConfigResponse {
   int64 result_1 = 1;
 }
 
+message TelegramGetCallHistoryRequest {
+  int64 offset_id = 1;
+  int64 limit = 2;
+}
+
+message TelegramGetCallHistoryResponse {
+  repeated CallHistoryEntry result_1 = 1;
+}
+
 message TelegramGetChannelDifferenceRequest {
   string chat_id = 1;
 }
@@ -2764,6 +2800,27 @@ message TelegramGetCountriesListRequest {
 
 message TelegramGetCountriesListResponse {
   int64 result_1 = 1;
+}
+
+message TelegramGetCustomEmojiFilesRequest {
+  repeated int64 document_ids = 1;
+}
+
+message TelegramGetCustomEmojiFilesResponse {
+  repeated CustomEmojiFile result_1 = 1;
+}
+
+message TelegramGetCustomEmojiSetInfoRequest {
+  int64 document_id = 1;
+}
+
+message TelegramGetCustomEmojiSetInfoResponse {
+  int64 set_id = 1;
+  int64 access_hash = 2;
+  string title = 3;
+  string short_name = 4;
+  int32 count = 5;
+  bool found = 6;
 }
 
 message TelegramGetCustomEmojiThumbsRequest {
@@ -3028,10 +3085,13 @@ message TelegramGetMessageReactionsListRequest {
   string chat_id = 1;
   int64 msg_id = 2;
   int64 limit = 3;
+  string offset = 4;
+  string reaction_filter = 5;
 }
 
 message TelegramGetMessageReactionsListResponse {
   repeated uniclient.Reaction result_1 = 1;
+  string result_2 = 2;
 }
 
 message TelegramGetMessageReadParticipantsRequest {
@@ -3041,6 +3101,15 @@ message TelegramGetMessageReadParticipantsRequest {
 
 message TelegramGetMessageReadParticipantsResponse {
   repeated int64 result_1 = 1;
+}
+
+message TelegramGetMessageReadParticipantsDetailedJSONRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message TelegramGetMessageReadParticipantsDetailedJSONResponse {
+  bytes result_1 = 1;
 }
 
 message TelegramGetMessageViewsRequest {
@@ -5917,6 +5986,18 @@ message TelegramSendCallRatingRequest {
 }
 
 message TelegramSendCallRatingResponse {
+}
+
+message TelegramSendContactRequest {
+  string chat_id = 1;
+  string phone = 2;
+  string first_name = 3;
+  string last_name = 4;
+  string user_id = 5;
+}
+
+message TelegramSendContactResponse {
+  uniclient.Message result_1 = 1;
 }
 
 message TelegramSendImageBase64Request {

@@ -233,6 +233,8 @@ class _ChatViewState extends State<ChatView>
   final GlobalKey _moreVertKey = GlobalKey();
   List<String> _detectedLinks = const [];
   WebPagePreview? _webPreview;
+  bool _webPreviewForceLarge = false;
+  bool _webPreviewForceSmall = false;
   bool _isDragOver = false;
   int _dragHoveredCard = 0; // 0=none, 1=document, 2=photo
   late final AnimationController _dragOverlayAnimCtrl;
@@ -2318,10 +2320,13 @@ class _ChatViewState extends State<ChatView>
   void _onLinksChanged(List<String> links, ChatState chatState) {
     _previewDebounce?.cancel();
     if (links.isEmpty || _editingMsgId != null) {
-      if (_webPreview != null) {
+      if (_webPreview != null || _lastPreviewUrl.isNotEmpty) {
         setState(() {
           _webPreview = null;
           _lastPreviewUrl = '';
+          _webPreviewCancelled = false;
+          _webPreviewForceLarge = false;
+          _webPreviewForceSmall = false;
         });
       }
       return;
@@ -2341,11 +2346,15 @@ class _ChatViewState extends State<ChatView>
           setState(() {
             _webPreview = preview;
             _lastPreviewUrl = url;
+            _webPreviewForceLarge = false;
+            _webPreviewForceSmall = false;
           });
         } else {
           setState(() {
             _webPreview = null;
             _lastPreviewUrl = url;
+            _webPreviewForceLarge = false;
+            _webPreviewForceSmall = false;
           });
         }
       });
@@ -2356,6 +2365,23 @@ class _ChatViewState extends State<ChatView>
     setState(() {
       _webPreview = null;
       _webPreviewCancelled = true;
+      _webPreviewForceLarge = false;
+      _webPreviewForceSmall = false;
+    });
+  }
+
+  void _toggleWebPreviewMediaSize() {
+    if (_webPreview == null) return;
+    setState(() {
+      final isCurrentlySmall = _webPreviewForceSmall ||
+          (!_webPreviewForceLarge && _webPreview!.defaultSmallMedia);
+      if (isCurrentlySmall) {
+        _webPreviewForceLarge = true;
+        _webPreviewForceSmall = false;
+      } else {
+        _webPreviewForceLarge = false;
+        _webPreviewForceSmall = true;
+      }
     });
   }
 
@@ -2878,11 +2904,16 @@ class _ChatViewState extends State<ChatView>
       return;
     }
     chatState.sendMessage(text, replyToId: _replyToId ?? '', entities: entities,
-        silent: silent, scheduleDate: scheduleDate);
+        silent: silent, scheduleDate: scheduleDate,
+        webPageUrl: (_webPreview != null && (_webPreviewForceLarge || _webPreviewForceSmall)) ? _webPreview!.url : '',
+        forceLargeMedia: _webPreviewForceLarge,
+        forceSmallMedia: _webPreviewForceSmall);
     _composeController.clear();
     setState(() {
       _replyToId = null;
       _webPreview = null;
+      _webPreviewForceLarge = false;
+      _webPreviewForceSmall = false;
       _webPreviewCancelled = false;
       _lastPreviewUrl = '';
     });
@@ -3681,6 +3712,10 @@ class _ChatViewState extends State<ChatView>
           else if (_webPreview != null)
             _WebPreviewBar(
               preview: _webPreview!,
+              isSmallMedia: _webPreviewForceSmall ||
+                  (!_webPreviewForceLarge && _webPreview!.defaultSmallMedia),
+              canToggleSize: _webPreview!.hasLargeMedia,
+              onToggleSize: _toggleWebPreviewMediaSize,
               onCancel: _cancelWebPreview,
             ),
           if (_acQuery != null && _acQuery!.type == AutocompleteType.mention && _acFilteredMembers.isNotEmpty)
@@ -6059,10 +6094,16 @@ class _ForwardBar extends StatelessWidget {
 
 class _WebPreviewBar extends StatelessWidget {
   final WebPagePreview preview;
+  final bool isSmallMedia;
+  final bool canToggleSize;
+  final VoidCallback onToggleSize;
   final VoidCallback onCancel;
 
   const _WebPreviewBar({
     required this.preview,
+    required this.isSmallMedia,
+    required this.canToggleSize,
+    required this.onToggleSize,
     required this.onCancel,
   });
 
@@ -6070,8 +6111,120 @@ class _WebPreviewBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = PaletteProvider.of(context);
     final hasThumb = preview.thumbB64.isNotEmpty;
-    final textLeft = hasThumb ? 95.0 : 53.0;
+    final rightButtonsWidth = canToggleSize ? 90.0 : 49.0;
 
+    if (isSmallMedia && hasThumb) {
+      return Container(
+        height: 49,
+        color: palette.historyComposeAreaBg,
+        child: Stack(
+          children: [
+            Positioned(
+              left: 7,
+              top: 7,
+              child: Icon(Icons.link, size: 22, color: palette.historyReplyIconFg),
+            ),
+            Positioned(left: 33, top: 8, bottom: 8, width: 2,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: palette.windowActiveTextFg,
+                  borderRadius: BorderRadius.circular(1),
+                ),
+              ),
+            ),
+            Positioned(
+              left: 43,
+              top: 6,
+              right: rightButtonsWidth + 42,
+              child: Text(
+                preview.title.isNotEmpty
+                    ? preview.title
+                    : (preview.siteName.isNotEmpty ? preview.siteName : preview.url),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  height: 1.0,
+                  color: palette.windowActiveTextFg,
+                ),
+              ),
+            ),
+            Positioned(
+              left: 43,
+              top: 24,
+              right: rightButtonsWidth + 42,
+              child: Text(
+                preview.description.isNotEmpty
+                    ? preview.description
+                    : preview.url,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.0,
+                  color: palette.historyComposeAreaFg,
+                ),
+              ),
+            ),
+            Positioned(
+              right: rightButtonsWidth,
+              top: 8,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: Image.memory(
+                    base64Decode(preview.thumbB64),
+                    fit: BoxFit.cover,
+                    width: 32,
+                    height: 32,
+                    gaplessPlayback: true,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: Colors.grey.withValues(alpha: 0.3),
+                      child: const Icon(Icons.language, size: 16, color: Colors.grey),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            if (canToggleSize)
+              Positioned(
+                right: 41,
+                top: 0,
+                child: SizedBox(
+                  width: 49,
+                  height: 49,
+                  child: IconButton(
+                    onPressed: onToggleSize,
+                    tooltip: 'Enlarge media',
+                    icon: Icon(Icons.open_in_full, size: 16, color: palette.historyReplyIconFg.withValues(alpha: 0.6)),
+                    splashRadius: 18,
+                    padding: EdgeInsets.zero,
+                  ),
+                ),
+              ),
+            Positioned(
+              right: 0,
+              top: 0,
+              child: SizedBox(
+                width: 41,
+                height: 49,
+                child: IconButton(
+                  onPressed: onCancel,
+                  icon: Icon(Icons.close, size: 18, color: palette.historyReplyIconFg.withValues(alpha: 0.5)),
+                  splashRadius: 20,
+                  padding: EdgeInsets.zero,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final textLeft = hasThumb ? 95.0 : 53.0;
     return Container(
       height: 49,
       color: palette.historyComposeAreaBg,
@@ -6082,9 +6235,17 @@ class _WebPreviewBar extends StatelessWidget {
             top: 7,
             child: Icon(Icons.link, size: 22, color: palette.historyReplyIconFg),
           ),
+          Positioned(left: 33, top: 8, bottom: 8, width: 2,
+            child: Container(
+              decoration: BoxDecoration(
+                color: palette.windowActiveTextFg,
+                borderRadius: BorderRadius.circular(1),
+              ),
+            ),
+          ),
           if (hasThumb)
             Positioned(
-              left: 53,
+              left: 43,
               top: 8,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(4),
@@ -6106,9 +6267,9 @@ class _WebPreviewBar extends StatelessWidget {
               ),
             ),
           Positioned(
-            left: textLeft,
+            left: hasThumb ? 83 : 43,
             top: 6,
-            right: 60,
+            right: rightButtonsWidth,
             child: Text(
               preview.title.isNotEmpty
                   ? preview.title
@@ -6124,9 +6285,9 @@ class _WebPreviewBar extends StatelessWidget {
             ),
           ),
           Positioned(
-            left: textLeft,
+            left: hasThumb ? 83 : 43,
             top: 24,
-            right: 60,
+            right: rightButtonsWidth,
             child: Text(
               preview.description.isNotEmpty
                   ? preview.description
@@ -6140,11 +6301,27 @@ class _WebPreviewBar extends StatelessWidget {
               ),
             ),
           ),
+          if (canToggleSize)
+            Positioned(
+              right: 41,
+              top: 0,
+              child: SizedBox(
+                width: 49,
+                height: 49,
+                child: IconButton(
+                  onPressed: onToggleSize,
+                  tooltip: 'Shrink media',
+                  icon: Icon(Icons.close_fullscreen, size: 16, color: palette.historyReplyIconFg.withValues(alpha: 0.6)),
+                  splashRadius: 18,
+                  padding: EdgeInsets.zero,
+                ),
+              ),
+            ),
           Positioned(
             right: 0,
             top: 0,
             child: SizedBox(
-              width: 49,
+              width: 41,
               height: 49,
               child: IconButton(
                 onPressed: onCancel,

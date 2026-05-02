@@ -2942,17 +2942,20 @@ func (x *EngineGetMessagesResponse) GetMessages() []*EngineCachedMessage {
 }
 
 type EngineSendMessageRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
-	Text          string                 `protobuf:"bytes,3,opt,name=text,proto3" json:"text,omitempty"`
-	ReplyToId     string                 `protobuf:"bytes,4,opt,name=reply_to_id,json=replyToId,proto3" json:"reply_to_id,omitempty"`
-	Silent        bool                   `protobuf:"varint,5,opt,name=silent,proto3" json:"silent,omitempty"`
-	ScheduleDate  int64                  `protobuf:"varint,6,opt,name=schedule_date,json=scheduleDate,proto3" json:"schedule_date,omitempty"`
-	TopicRootId   string                 `protobuf:"bytes,7,opt,name=topic_root_id,json=topicRootId,proto3" json:"topic_root_id,omitempty"`
-	EntitiesJson  string                 `protobuf:"bytes,8,opt,name=entities_json,json=entitiesJson,proto3" json:"entities_json,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	AccountId       string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId          string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	Text            string                 `protobuf:"bytes,3,opt,name=text,proto3" json:"text,omitempty"`
+	ReplyToId       string                 `protobuf:"bytes,4,opt,name=reply_to_id,json=replyToId,proto3" json:"reply_to_id,omitempty"`
+	Silent          bool                   `protobuf:"varint,5,opt,name=silent,proto3" json:"silent,omitempty"`
+	ScheduleDate    int64                  `protobuf:"varint,6,opt,name=schedule_date,json=scheduleDate,proto3" json:"schedule_date,omitempty"`
+	TopicRootId     string                 `protobuf:"bytes,7,opt,name=topic_root_id,json=topicRootId,proto3" json:"topic_root_id,omitempty"`
+	EntitiesJson    string                 `protobuf:"bytes,8,opt,name=entities_json,json=entitiesJson,proto3" json:"entities_json,omitempty"`
+	WebPageUrl      string                 `protobuf:"bytes,9,opt,name=web_page_url,json=webPageUrl,proto3" json:"web_page_url,omitempty"`
+	ForceLargeMedia bool                   `protobuf:"varint,10,opt,name=force_large_media,json=forceLargeMedia,proto3" json:"force_large_media,omitempty"`
+	ForceSmallMedia bool                   `protobuf:"varint,11,opt,name=force_small_media,json=forceSmallMedia,proto3" json:"force_small_media,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *EngineSendMessageRequest) Reset() {
@@ -3039,6 +3042,27 @@ func (x *EngineSendMessageRequest) GetEntitiesJson() string {
 		return x.EntitiesJson
 	}
 	return ""
+}
+
+func (x *EngineSendMessageRequest) GetWebPageUrl() string {
+	if x != nil {
+		return x.WebPageUrl
+	}
+	return ""
+}
+
+func (x *EngineSendMessageRequest) GetForceLargeMedia() bool {
+	if x != nil {
+		return x.ForceLargeMedia
+	}
+	return false
+}
+
+func (x *EngineSendMessageRequest) GetForceSmallMedia() bool {
+	if x != nil {
+		return x.ForceSmallMedia
+	}
+	return false
 }
 
 type EngineSendMessageResponse struct {
@@ -7610,6 +7634,8 @@ type EngineGetWebPagePreviewResponse struct {
 	Title         string                 `protobuf:"bytes,3,opt,name=title,proto3" json:"title,omitempty"`
 	Description   string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
 	ThumbB64      string                 `protobuf:"bytes,5,opt,name=thumb_b64,json=thumbB64,proto3" json:"thumb_b64,omitempty"`
+	Type          string                 `protobuf:"bytes,6,opt,name=type,proto3" json:"type,omitempty"`
+	HasLargeMedia bool                   `protobuf:"varint,7,opt,name=has_large_media,json=hasLargeMedia,proto3" json:"has_large_media,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -7677,6 +7703,20 @@ func (x *EngineGetWebPagePreviewResponse) GetThumbB64() string {
 		return x.ThumbB64
 	}
 	return ""
+}
+
+func (x *EngineGetWebPagePreviewResponse) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *EngineGetWebPagePreviewResponse) GetHasLargeMedia() bool {
+	if x != nil {
+		return x.HasLargeMedia
+	}
+	return false
 }
 
 type EngineBotCallbackRequest struct {

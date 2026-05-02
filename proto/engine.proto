@@ -367,6 +367,9 @@ message EngineSendMessageRequest {
   int64  schedule_date = 6;
   string topic_root_id = 7;
   string entities_json = 8;
+  string web_page_url  = 9;
+  bool   force_large_media = 10;
+  bool   force_small_media = 11;
 }
 
 message EngineSendMessageResponse {
@@ -908,11 +911,13 @@ message EngineGetWebPagePreviewRequest {
 }
 
 message EngineGetWebPagePreviewResponse {
-  string url         = 1;
-  string site_name   = 2;
-  string title       = 3;
-  string description = 4;
-  string thumb_b64   = 5;
+  string url            = 1;
+  string site_name      = 2;
+  string title          = 3;
+  string description    = 4;
+  string thumb_b64      = 5;
+  string type           = 6;
+  bool   has_large_media = 7;
 }
 
 // ═══════════════════════════════════════════════════════════════════════

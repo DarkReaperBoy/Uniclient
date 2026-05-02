@@ -1987,6 +1987,8 @@ class WebPagePreview {
   final String title;
   final String description;
   final String thumbB64;
+  final String type;
+  final bool hasLargeMedia;
 
   const WebPagePreview({
     this.url = '',
@@ -1994,7 +1996,17 @@ class WebPagePreview {
     this.title = '',
     this.description = '',
     this.thumbB64 = '',
+    this.type = '',
+    this.hasLargeMedia = false,
   });
+
+  bool get defaultSmallMedia {
+    if (type == 'profile') return true;
+    if (type == 'twitter' || type == 'facebook') return false;
+    if (title.isEmpty && description.isEmpty && siteName.isEmpty) return false;
+    if (thumbB64.isNotEmpty && type != 'video' && type != 'gif' && type != 'document') return true;
+    return false;
+  }
 }
 
 // ── Sticker set info (for sticker pack viewer) ──
