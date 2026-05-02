@@ -961,7 +961,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §47 — Restricted Permissions UI
 # Touches: dart/lib/ui/chat_view.dart (compose area replacement), new compose_restriction.dart
 
-- [ ] Send button type states — Send (arrow/blue circle); Record (mic Lottie historyRecordVoiceFg); Round (video-cam Lottie); Cancel (X); Save (checkmark); Schedule (clock); Slowmode (text countdown); Lottie Record↔Round transition; crossfade other transitions (opacity+scale universalDuration); star icon+count for paid messages; gray when disabled — spec §47
 - [ ] Bot start button — "START" full-width button with optional token prefix text — spec §47
 
 ---

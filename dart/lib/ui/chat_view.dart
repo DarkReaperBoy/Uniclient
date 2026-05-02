@@ -11344,7 +11344,7 @@ class _ComposeAreaState extends State<_ComposeArea>
   SendButtonType _computeSendButtonType() {
     if (widget.isEditing) return SendButtonType.save;
     if (widget.isForwarding) return SendButtonType.send;
-    if (_slowmodeSecondsLeft > 0 || _slowmodeSending) return SendButtonType.slowmode;
+    if (_slowmodeSecondsLeft > 0) return SendButtonType.slowmode;
     if (!_hasText) {
       final appState = context.read<AppState>();
       return appState.recordVideoMessages
@@ -12296,8 +12296,10 @@ class _ComposeAreaState extends State<_ComposeArea>
             final type = _computeSendButtonType();
             final forbidden = (type == SendButtonType.record && widget.voiceRestricted) ||
                 (type == SendButtonType.round && widget.videoRestricted);
+            final disabled = _slowmodeSending && _slowmodeSecondsLeft <= 0 && widget.slowmodeSeconds > 0;
             return _SendButton(
               type: type,
+              disabled: disabled,
               accentColor: theme.colorScheme.primary,
               iconFg: iconFg,
               onSend: _doSend,
@@ -13126,6 +13128,7 @@ class _SendButton extends StatefulWidget {
   final String? forbiddenMessage;
   final String? slowmodeText;
   final int starsToSend;
+  final bool disabled;
 
   const _SendButton({
     required this.type,
@@ -13143,6 +13146,7 @@ class _SendButton extends StatefulWidget {
     this.forbiddenMessage,
     this.slowmodeText,
     this.starsToSend = 0,
+    this.disabled = false,
   });
 
   @override
@@ -13196,6 +13200,7 @@ class _SendButtonState extends State<_SendButton>
       return;
     }
     if (e.buttons != kPrimaryMouseButton) return;
+    if (widget.disabled) return;
     if (widget.forbidden && _isForbiddable(widget.type)) return;
     _holdFired = false;
     _holdTimer?.cancel();
@@ -13265,6 +13270,10 @@ class _SendButtonState extends State<_SendButton>
   };
 
   void _onTap() {
+    if (widget.disabled) {
+      showTelegramToast(context, "Slow mode is enabled. You can't send more than one message at a time.");
+      return;
+    }
     if (widget.forbidden && _isForbiddable(widget.type)) {
       final msg = widget.forbiddenMessage ??
           (widget.type == SendButtonType.round
@@ -13293,7 +13302,7 @@ class _SendButtonState extends State<_SendButton>
 
   bool get _canShowSendMenu {
     const sendLike = {SendButtonType.send, SendButtonType.schedule, SendButtonType.save};
-    return sendLike.contains(widget.type) && !widget.forbidden;
+    return sendLike.contains(widget.type) && !widget.forbidden && !widget.disabled;
   }
 
   void _showSendMenu() {
@@ -13341,12 +13350,43 @@ class _SendButtonState extends State<_SendButton>
       type == SendButtonType.record || type == SendButtonType.round;
 
   Color _colorFor(SendButtonType type) {
+    if (widget.disabled) {
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      return isDark ? const Color(0xFF6f7f8e) : const Color(0xFF999999);
+    }
     final isSendLike = type == SendButtonType.send ||
         type == SendButtonType.save ||
         type == SendButtonType.schedule;
     return isSendLike
         ? widget.accentColor
         : (_hovered ? widget.accentColor : widget.iconFg);
+  }
+
+  Widget _iconWidget(SendButtonType type) {
+    final hasFill = type == SendButtonType.send || type == SendButtonType.schedule;
+    if (hasFill) {
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      Color fillColor;
+      if (widget.disabled) {
+        fillColor = isDark ? const Color(0xFF6f7f8e) : const Color(0xFF999999);
+      } else if (type == SendButtonType.schedule) {
+        fillColor = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF3fc1f7);
+      } else {
+        fillColor = widget.accentColor;
+      }
+      return Container(
+        width: 33,
+        height: 33,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: fillColor,
+        ),
+        child: Center(
+          child: Icon(_iconFor(type), size: 18, color: Colors.white),
+        ),
+      );
+    }
+    return Icon(_iconFor(type), size: 22, color: _colorFor(type));
   }
 
   Widget _buildRollTransition() {
@@ -13356,15 +13396,14 @@ class _SendButtonState extends State<_SendButton>
         final t = _rollController.value;
         final angle = t * math.pi;
         final showNew = t >= 0.5;
-        final icon = showNew ? _iconFor(widget.type) : _iconFor(_prevType!);
-        final color = showNew ? _colorFor(widget.type) : _colorFor(_prevType!);
+        final type = showNew ? widget.type : _prevType!;
         return Center(
           child: Transform(
             alignment: Alignment.center,
             transform: Matrix4.rotationZ(angle),
             child: Opacity(
               opacity: showNew ? ((t - 0.5) * 2.0) : (1.0 - t * 2.0).clamp(0.3, 1.0),
-              child: Icon(icon, size: 22, color: color),
+              child: _iconWidget(type),
             ),
           ),
         );
@@ -13378,13 +13417,7 @@ class _SendButtonState extends State<_SendButton>
       builder: (context, _) {
         final t = _morphController.value;
         if (t >= 1.0 || _prevType == null) {
-          return Center(
-            child: Icon(
-              _iconFor(widget.type),
-              size: 22,
-              color: _colorFor(widget.type),
-            ),
-          );
+          return Center(child: _iconWidget(widget.type));
         }
         final outScale = 1.0 + (_kWideScale - 1.0) * t;
         final inScale = _kWideScale - (_kWideScale - 1.0) * t;
@@ -13396,22 +13429,14 @@ class _SendButtonState extends State<_SendButton>
                 opacity: 1.0 - t,
                 child: Transform.scale(
                   scale: outScale,
-                  child: Icon(
-                    _iconFor(_prevType!),
-                    size: 22,
-                    color: _colorFor(_prevType!),
-                  ),
+                  child: _iconWidget(_prevType!),
                 ),
               ),
               Opacity(
                 opacity: t,
                 child: Transform.scale(
                   scale: inScale,
-                  child: Icon(
-                    _iconFor(widget.type),
-                    size: 22,
-                    color: _colorFor(widget.type),
-                  ),
+                  child: _iconWidget(widget.type),
                 ),
               ),
             ],
@@ -13498,14 +13523,14 @@ class _SendButtonState extends State<_SendButton>
               }
             }
           : null,
-      onPointerUp: isRecordOrRound && !isForbidden
+      onPointerUp: isRecordOrRound && !isForbidden && !widget.disabled
           ? _onRecordPointerUp
           : null,
-      onPointerCancel: isRecordOrRound && !isForbidden
+      onPointerCancel: isRecordOrRound && !isForbidden && !widget.disabled
           ? _onRecordPointerCancel
           : null,
       child: MouseRegion(
-        cursor: (isSlowmode || isForbidden) ? SystemMouseCursors.basic : SystemMouseCursors.click,
+        cursor: (isSlowmode || isForbidden || widget.disabled) ? SystemMouseCursors.basic : SystemMouseCursors.click,
         onEnter: (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() => _hovered = false),
         child: TelegramTooltip(
