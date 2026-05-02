@@ -43,31 +43,74 @@ class _AyuGramSettingsScreenState extends State<AyuGramSettingsScreen> {
       body: ListView(
         padding: EdgeInsets.zero,
         children: [
-          // ── Ghost Mode section ──
-          _SectionLabel(label: 'Ghost Mode', color: sectionLabelColor),
-          _ToggleRow(
+          // ── Ghost essentials (§50.7) ──
+          _SectionLabel(label: 'Ghost essentials', color: sectionLabelColor),
+          _GhostMasterToggle(
             label: 'Ghost Mode',
-            subtitle: 'Suppress read receipts for messages',
             value: appState.ghostModeEnabled,
             onChanged: (v) => appState.setGhostModeEnabled(v),
             isDark: isDark,
             useMaterial: appState.materialSwitches,
           ),
-          _ToggleRow(
-            label: 'Send read stories',
-            subtitle: 'Send story view confirmations to others',
-            value: appState.sendReadStories,
-            onChanged: (v) => appState.setSendReadStories(v),
+          _LockableToggleRow(
+            label: "Don't Read Messages",
+            subtitle: 'Block read receipts from being sent',
+            value: !appState.sendReadMessages,
+            locked: appState.sendReadMessagesLocked,
+            onChanged: (v) => appState.setSendReadMessages(!v),
+            onLock: () => appState.toggleLock('sendReadMessages'),
             isDark: isDark,
-            useMaterial: appState.materialSwitches,
+          ),
+          _LockableToggleRow(
+            label: "Don't Read Stories",
+            subtitle: 'Block story view confirmations',
+            value: !appState.sendReadStories,
+            locked: appState.sendReadStoriesLocked,
+            onChanged: (v) => appState.setSendReadStories(!v),
+            onLock: () => appState.toggleLock('sendReadStories'),
+            isDark: isDark,
+          ),
+          _LockableToggleRow(
+            label: "Don't Send Online",
+            subtitle: 'Never report online status to the server',
+            value: !appState.sendOnlinePackets,
+            locked: appState.sendOnlinePacketsLocked,
+            onChanged: (v) => appState.setSendOnlinePackets(!v),
+            onLock: () => appState.toggleLock('sendOnlinePackets'),
+            isDark: isDark,
+          ),
+          _LockableToggleRow(
+            label: "Don't Send Typing",
+            subtitle: 'Block typing and upload progress indicators',
+            value: !appState.sendUploadProgress,
+            locked: appState.sendUploadProgressLocked,
+            onChanged: (v) => appState.setSendUploadProgress(!v),
+            onLock: () => appState.toggleLock('sendUploadProgress'),
+            isDark: isDark,
+          ),
+          _LockableToggleRow(
+            label: 'Go Offline Automatically',
+            subtitle: 'Immediately go offline after any online appearance',
+            value: appState.sendOfflinePacketAfterOnline,
+            locked: appState.sendOfflinePacketAfterOnlineLocked,
+            onChanged: (v) => appState.setSendOfflinePacketAfterOnline(v),
+            onLock: () => appState.toggleLock('sendOfflinePacketAfterOnline'),
+            isDark: isDark,
           ),
           _ToggleRow(
-            label: 'Mark read after action',
-            subtitle: 'Mark messages read when you reply or react',
+            label: 'Read on Interact',
+            subtitle: 'Automatically marks a message as read when you send a reply, react, or forward',
             value: appState.markReadAfterAction,
             onChanged: (v) => appState.setMarkReadAfterAction(v),
             isDark: isDark,
             useMaterial: appState.materialSwitches,
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
+            child: Text(
+              'Long-press any option to prevent it from changing when toggling Ghost Mode.',
+              style: TextStyle(fontSize: 12, color: subtitleColor),
+            ),
           ),
           _ToggleRow(
             label: 'Show message seconds',
@@ -523,6 +566,144 @@ class _AvatarPreview extends StatelessWidget {
             const SizedBox(width: 12),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _GhostMasterToggle extends StatelessWidget {
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final bool isDark;
+  final bool useMaterial;
+
+  const _GhostMasterToggle({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+    required this.isDark,
+    this.useMaterial = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => onChanged(!value),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+        child: Row(
+          children: [
+            Icon(
+              Icons.visibility_off,
+              size: 20,
+              color: value ? const Color(0xFF40A7E3) : (isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(label,
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : Colors.black87)),
+            ),
+            const SizedBox(width: 12),
+            if (useMaterial)
+              Switch(
+                value: value,
+                onChanged: onChanged,
+                activeColor: const Color(0xFF40A7E3),
+              )
+            else
+              _TelegramToggle(value: value, onChanged: onChanged),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LockableToggleRow extends StatelessWidget {
+  final String label;
+  final String? subtitle;
+  final bool value;
+  final bool locked;
+  final ValueChanged<bool> onChanged;
+  final VoidCallback onLock;
+  final bool isDark;
+
+  const _LockableToggleRow({
+    required this.label,
+    this.subtitle,
+    required this.value,
+    required this.locked,
+    required this.onChanged,
+    required this.onLock,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onLongPress: onLock,
+      child: InkWell(
+        onTap: locked ? null : () => onChanged(!value),
+        child: Opacity(
+          opacity: locked ? 0.4 : 1.0,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 34, vertical: 8),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: Checkbox(
+                    value: value,
+                    onChanged: locked ? null : (v) => onChanged(v ?? false),
+                    activeColor: const Color(0xFF40A7E3),
+                    side: BorderSide(
+                      color: isDark ? const Color(0xFF5A6A78) : const Color(0xFFCBCBCB),
+                      width: 2,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(label,
+                                style: TextStyle(
+                                    fontSize: 14,
+                                    color: isDark ? Colors.white : Colors.black87)),
+                          ),
+                          if (locked) ...[
+                            const SizedBox(width: 6),
+                            Icon(Icons.lock, size: 14,
+                              color: isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999)),
+                          ],
+                        ],
+                      ),
+                      if (subtitle != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(subtitle!,
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: isDark
+                                      ? const Color(0xFF6D7F8F)
+                                      : const Color(0xFF999999))),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -100,10 +100,18 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _showStreamerToggleInDrawer = false;
   bool _showStreamerToggleInTray = false;
 
-  // §43.13: AyuGram ghost mode & read receipt settings.
-  bool _ghostModeEnabled = false;
+  // §50.7: AyuGram ghost mode — 6 read toggles + 5 locked variants.
+  bool _sendReadMessages = true;
   bool _sendReadStories = true;
+  bool _sendOnlinePackets = true;
+  bool _sendUploadProgress = true;
+  bool _sendOfflinePacketAfterOnline = false;
   bool _markReadAfterAction = true;
+  bool _sendReadMessagesLocked = false;
+  bool _sendReadStoriesLocked = false;
+  bool _sendOnlinePacketsLocked = false;
+  bool _sendUploadProgressLocked = false;
+  bool _sendOfflinePacketAfterOnlineLocked = false;
   int _showViewsPanelInContextMenu = 0; // 0=visible, 1=hidden, 2=visibleWithModifier
   bool _showMessageSeconds = false;
 
@@ -221,10 +229,24 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get showStreamerToggleInDrawer => _showStreamerToggleInDrawer;
   bool get showStreamerToggleInTray => _showStreamerToggleInTray;
 
-  // §43.13 AyuGram ghost mode getters
-  bool get ghostModeEnabled => _ghostModeEnabled;
+  // §50.7 AyuGram ghost mode — computed active when ALL 5 core toggles are "ghost".
+  bool get ghostModeEnabled =>
+      (_sendReadMessagesLocked || !_sendReadMessages) &&
+      (_sendReadStoriesLocked || !_sendReadStories) &&
+      (_sendOnlinePacketsLocked || !_sendOnlinePackets) &&
+      (_sendUploadProgressLocked || !_sendUploadProgress) &&
+      (_sendOfflinePacketAfterOnlineLocked || _sendOfflinePacketAfterOnline);
+  bool get sendReadMessages => _sendReadMessages;
   bool get sendReadStories => _sendReadStories;
+  bool get sendOnlinePackets => _sendOnlinePackets;
+  bool get sendUploadProgress => _sendUploadProgress;
+  bool get sendOfflinePacketAfterOnline => _sendOfflinePacketAfterOnline;
   bool get markReadAfterAction => _markReadAfterAction;
+  bool get sendReadMessagesLocked => _sendReadMessagesLocked;
+  bool get sendReadStoriesLocked => _sendReadStoriesLocked;
+  bool get sendOnlinePacketsLocked => _sendOnlinePacketsLocked;
+  bool get sendUploadProgressLocked => _sendUploadProgressLocked;
+  bool get sendOfflinePacketAfterOnlineLocked => _sendOfflinePacketAfterOnlineLocked;
   int get showViewsPanelInContextMenu => _showViewsPanelInContextMenu;
   bool get showMessageSeconds => _showMessageSeconds;
 
@@ -321,13 +343,54 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  // §43.13 AyuGram ghost mode setters
+  // §50.7 Ghost mode master toggle — sets all 5 core toggles respecting locks.
   void setGhostModeEnabled(bool v) {
-    if (_ghostModeEnabled == v) return;
-    _ghostModeEnabled = v;
+    bool changed = false;
+    if (v) {
+      if (!_sendReadMessagesLocked && _sendReadMessages) {
+        _sendReadMessages = false; changed = true;
+      }
+      if (!_sendReadStoriesLocked && _sendReadStories) {
+        _sendReadStories = false; changed = true;
+      }
+      if (!_sendOnlinePacketsLocked && _sendOnlinePackets) {
+        _sendOnlinePackets = false; changed = true;
+      }
+      if (!_sendUploadProgressLocked && _sendUploadProgress) {
+        _sendUploadProgress = false; changed = true;
+      }
+      if (!_sendOfflinePacketAfterOnlineLocked && !_sendOfflinePacketAfterOnline) {
+        _sendOfflinePacketAfterOnline = true; changed = true;
+      }
+    } else {
+      if (!_sendReadMessagesLocked && !_sendReadMessages) {
+        _sendReadMessages = true; changed = true;
+      }
+      if (!_sendReadStoriesLocked && !_sendReadStories) {
+        _sendReadStories = true; changed = true;
+      }
+      if (!_sendOnlinePacketsLocked && !_sendOnlinePackets) {
+        _sendOnlinePackets = true; changed = true;
+      }
+      if (!_sendUploadProgressLocked && !_sendUploadProgress) {
+        _sendUploadProgress = true; changed = true;
+      }
+      if (!_sendOfflinePacketAfterOnlineLocked && _sendOfflinePacketAfterOnline) {
+        _sendOfflinePacketAfterOnline = false; changed = true;
+      }
+    }
+    if (!changed) return;
+    _engine.updateConfig(sendReadReceipts: _sendReadMessages, sendTyping: _sendUploadProgress);
     notifyListeners();
     _saveWindowPrefs();
-    _engine.updateConfig(sendReadReceipts: !v);
+  }
+
+  void setSendReadMessages(bool v) {
+    if (_sendReadMessages == v) return;
+    _sendReadMessages = v;
+    _engine.updateConfig(sendReadReceipts: v);
+    notifyListeners();
+    _saveWindowPrefs();
   }
 
   void setSendReadStories(bool v) {
@@ -337,11 +400,63 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _saveWindowPrefs();
   }
 
+  void setSendOnlinePackets(bool v) {
+    if (_sendOnlinePackets == v) return;
+    _sendOnlinePackets = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setSendUploadProgress(bool v) {
+    if (_sendUploadProgress == v) return;
+    _sendUploadProgress = v;
+    _engine.updateConfig(sendTyping: v);
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setSendOfflinePacketAfterOnline(bool v) {
+    if (_sendOfflinePacketAfterOnline == v) return;
+    _sendOfflinePacketAfterOnline = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
   void setMarkReadAfterAction(bool v) {
     if (_markReadAfterAction == v) return;
     _markReadAfterAction = v;
     notifyListeners();
     _saveWindowPrefs();
+  }
+
+  void toggleLock(String field) {
+    switch (field) {
+      case 'sendReadMessages':
+        _sendReadMessagesLocked = !_sendReadMessagesLocked;
+      case 'sendReadStories':
+        _sendReadStoriesLocked = !_sendReadStoriesLocked;
+      case 'sendOnlinePackets':
+        _sendOnlinePacketsLocked = !_sendOnlinePacketsLocked;
+      case 'sendUploadProgress':
+        _sendUploadProgressLocked = !_sendUploadProgressLocked;
+      case 'sendOfflinePacketAfterOnline':
+        _sendOfflinePacketAfterOnlineLocked = !_sendOfflinePacketAfterOnlineLocked;
+      default:
+        return;
+    }
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  bool isLocked(String field) {
+    return switch (field) {
+      'sendReadMessages' => _sendReadMessagesLocked,
+      'sendReadStories' => _sendReadStoriesLocked,
+      'sendOnlinePackets' => _sendOnlinePacketsLocked,
+      'sendUploadProgress' => _sendUploadProgressLocked,
+      'sendOfflinePacketAfterOnline' => _sendOfflinePacketAfterOnlineLocked,
+      _ => false,
+    };
   }
 
   void setShowViewsPanelInContextMenu(int v) {
@@ -807,6 +922,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _ensureActiveAccount();
       // Load window prefs (native frame toggle) before marking initialized.
       _loadWindowPrefs();
+      // §50.7 Sync ghost mode toggles to engine on startup.
+      _engine.updateConfig(sendReadReceipts: _sendReadMessages, sendTyping: _sendUploadProgress);
       WidgetsBinding.instance.addObserver(this);
       if (_systemDarkMode) {
         final brightness =
@@ -1285,10 +1402,19 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       // §50.2 Streamer Mode toggle visibility (persistent); mode itself is NOT persisted
       _showStreamerToggleInDrawer = data['showStreamerToggleInDrawer'] as bool? ?? false;
       _showStreamerToggleInTray = data['showStreamerToggleInTray'] as bool? ?? false;
-      // §43.13 AyuGram ghost mode prefs
-      _ghostModeEnabled = data['ghostModeEnabled'] as bool? ?? false;
+      // §50.7 AyuGram ghost mode — 6 toggles + 5 locks
+      final oldGhost = data['ghostModeEnabled'] as bool?;
+      _sendReadMessages = data['sendReadMessages'] as bool? ?? (oldGhost != null ? !oldGhost : true);
       _sendReadStories = data['sendReadStories'] as bool? ?? true;
+      _sendOnlinePackets = data['sendOnlinePackets'] as bool? ?? true;
+      _sendUploadProgress = data['sendUploadProgress'] as bool? ?? true;
+      _sendOfflinePacketAfterOnline = data['sendOfflinePacketAfterOnline'] as bool? ?? false;
       _markReadAfterAction = data['markReadAfterAction'] as bool? ?? true;
+      _sendReadMessagesLocked = data['sendReadMessagesLocked'] as bool? ?? false;
+      _sendReadStoriesLocked = data['sendReadStoriesLocked'] as bool? ?? false;
+      _sendOnlinePacketsLocked = data['sendOnlinePacketsLocked'] as bool? ?? false;
+      _sendUploadProgressLocked = data['sendUploadProgressLocked'] as bool? ?? false;
+      _sendOfflinePacketAfterOnlineLocked = data['sendOfflinePacketAfterOnlineLocked'] as bool? ?? false;
       _showViewsPanelInContextMenu = data['showViewsPanelInContextMenu'] as int? ?? 0;
       _showMessageSeconds = data['showMessageSeconds'] as bool? ?? false;
       _loadWallpaper(data);
@@ -1346,9 +1472,17 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'showDrawerThemeToggle': _showDrawerThemeToggle,
         'showStreamerToggleInDrawer': _showStreamerToggleInDrawer,
         'showStreamerToggleInTray': _showStreamerToggleInTray,
-        'ghostModeEnabled': _ghostModeEnabled,
+        'sendReadMessages': _sendReadMessages,
         'sendReadStories': _sendReadStories,
+        'sendOnlinePackets': _sendOnlinePackets,
+        'sendUploadProgress': _sendUploadProgress,
+        'sendOfflinePacketAfterOnline': _sendOfflinePacketAfterOnline,
         'markReadAfterAction': _markReadAfterAction,
+        'sendReadMessagesLocked': _sendReadMessagesLocked,
+        'sendReadStoriesLocked': _sendReadStoriesLocked,
+        'sendOnlinePacketsLocked': _sendOnlinePacketsLocked,
+        'sendUploadProgressLocked': _sendUploadProgressLocked,
+        'sendOfflinePacketAfterOnlineLocked': _sendOfflinePacketAfterOnlineLocked,
         'showViewsPanelInContextMenu': _showViewsPanelInContextMenu,
         'showMessageSeconds': _showMessageSeconds,
         'wallpaperType': _wallpaper.type.index,

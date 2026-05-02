@@ -345,7 +345,7 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                           context, position, isDark, appState);
                       },
                     ),
-                    // §43.13: Ghost Mode quick toggle.
+                    // §50.7: Ghost Mode quick toggle (computed from 5 core toggles).
                     _MenuRow(
                       icon: Icons.visibility_off,
                       label: 'Ghost Mode',
