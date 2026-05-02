@@ -288,6 +288,7 @@ class _ChatViewState extends State<ChatView>
   int _dragHoveredCard = 0; // 0=none, 1=document, 2=photo
   _DragZoneLayout _dragLayout = _DragZoneLayout.photoFiles;
   late final AnimationController _dragOverlayAnimCtrl;
+  bool _isVoiceRecording = false;
   bool _webPreviewInvert = false;
   bool _webPreviewCancelled = false;
   bool _webPreviewLoading = false;
@@ -3596,6 +3597,15 @@ class _ChatViewState extends State<ChatView>
     return KeyEventResult.ignored;
   }
 
+  bool _canSendFiles(ChatInfo? chat) {
+    if (chat == null) return false;
+    if (chat.writeRestrictionType > 0) return false;
+    if (chat.notJoined) return false;
+    if (chat.type == ChatType.channel && !chat.canPost) return false;
+    if (chat.isBlocked) return false;
+    return true;
+  }
+
   Widget _wrapDropTarget(Widget child) {
     if (kIsWeb) {
       return buildWebDropZone(
@@ -3613,6 +3623,11 @@ class _ChatViewState extends State<ChatView>
     }
     return DropTarget(
       onDragEntered: (_) {
+        // §48.8: no overlay during voice recording.
+        if (_isVoiceRecording) return;
+        // §48.9: no overlay if user cannot send any file type to this peer.
+        final chat = context.read<ChatState>().activeChat;
+        if (!_canSendFiles(chat)) return;
         setState(() {
           _isDragOver = true;
           _dragLayout = _DragZoneLayout.photoFiles;
@@ -3627,6 +3642,7 @@ class _ChatViewState extends State<ChatView>
         _dragOverlayAnimCtrl.reverse();
       },
       onDragUpdated: (details) {
+        if (!_isDragOver) return;
         final box = context.findRenderObject() as RenderBox?;
         if (box == null) return;
         final pos = details.localPosition;
@@ -3669,6 +3685,9 @@ class _ChatViewState extends State<ChatView>
         _dragOverlayAnimCtrl.value = 0;
         // §48.3: IgnoreAction — reject drop when cursor is outside all zones.
         if (droppedCard == 0) return;
+        // §48.9: verify canWriteMessage on drop.
+        final chat = context.read<ChatState>().activeChat;
+        if (!_canSendFiles(chat)) return;
         final paths = details.files.map((f) => f.path).toList();
         // §48.4: classify and reject invalid drops.
         final classification = _classifyDragFiles(paths);
@@ -4306,6 +4325,9 @@ class _ChatViewState extends State<ChatView>
                   : ToggleCommentsState.empty,
               onCommentsToggle: () {
                 setState(() => _commentsShown = !_commentsShown);
+              },
+              onRecordingChanged: (recording) {
+                setState(() => _isVoiceRecording = recording);
               },
             ),
           if (chatState.visibleReplyKeyboard != null)
@@ -11129,6 +11151,7 @@ class _ComposeArea extends StatefulWidget {
   final String sendBy;
   final ToggleCommentsState commentsState;
   final VoidCallback? onCommentsToggle;
+  final ValueChanged<bool>? onRecordingChanged;
 
   const _ComposeArea({
     required this.controller,
@@ -11172,6 +11195,7 @@ class _ComposeArea extends StatefulWidget {
     this.sendBy = 'enter',
     this.commentsState = ToggleCommentsState.empty,
     this.onCommentsToggle,
+    this.onRecordingChanged,
   });
 
   @override
@@ -11320,6 +11344,7 @@ class _ComposeAreaState extends State<_ComposeArea>
       _lockProgress = 0.0;
       _slideLeftOffset = 0.0;
     });
+    widget.onRecordingChanged?.call(true);
     _lockShowController.forward(from: 0.0);
     GestureBinding.instance.pointerRouter.addGlobalRoute(_onGlobalPointerEvent);
     _recordingTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
@@ -11374,6 +11399,7 @@ class _ComposeAreaState extends State<_ComposeArea>
       _slideLeftOffset = 0.0;
       _ttlArmed = false;
     });
+    widget.onRecordingChanged?.call(false);
   }
 
   void _cancelRecording() {
@@ -11394,6 +11420,7 @@ class _ComposeAreaState extends State<_ComposeArea>
       _slideLeftOffset = 0.0;
       _ttlArmed = false;
     });
+    widget.onRecordingChanged?.call(false);
   }
 
   void _onTextLengthChanged() {
