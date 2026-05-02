@@ -761,6 +761,70 @@ func (e *Engine) GetScheduledMessages(accountID, chatID string) ([]CachedMessage
 	return result, nil
 }
 
+func (e *Engine) GetUnreadMentions(accountID, chatID string, limit int) ([]CachedMessage, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type mentionsGetter interface {
+		GetUnreadMentions(chatID string, limit int) ([]cores.Message, error)
+	}
+	mg, ok := acc.Core.(mentionsGetter)
+	if !ok {
+		return nil, nil
+	}
+	msgs, err := mg.GetUnreadMentions(chatID, limit)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]CachedMessage, len(msgs))
+	for i, m := range msgs {
+		result[i] = CachedMessage{
+			AccountID:  accountID,
+			ChatID:     chatID,
+			MsgID:      m.ID,
+			SenderID:   m.SenderID,
+			SenderName: m.SenderName,
+			ContentText: m.Text,
+			Timestamp:  m.Timestamp.UnixMilli(),
+			IsOutgoing: m.IsOutgoing,
+		}
+	}
+	return result, nil
+}
+
+func (e *Engine) GetUnreadReactions(accountID, chatID string, limit int) ([]CachedMessage, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type reactionsGetter interface {
+		GetUnreadReactions(chatID string, limit int) ([]cores.Message, error)
+	}
+	rg, ok := acc.Core.(reactionsGetter)
+	if !ok {
+		return nil, nil
+	}
+	msgs, err := rg.GetUnreadReactions(chatID, limit)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]CachedMessage, len(msgs))
+	for i, m := range msgs {
+		result[i] = CachedMessage{
+			AccountID:  accountID,
+			ChatID:     chatID,
+			MsgID:      m.ID,
+			SenderID:   m.SenderID,
+			SenderName: m.SenderName,
+			ContentText: m.Text,
+			Timestamp:  m.Timestamp.UnixMilli(),
+			IsOutgoing: m.IsOutgoing,
+		}
+	}
+	return result, nil
+}
+
 func (e *Engine) GetMessageReactorsList(accountID, chatID string, msgID, limit int, offset, reactionFilter string) ([]cores.Reaction, string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

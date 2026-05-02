@@ -2176,6 +2176,36 @@ class EngineService {
     }
   }
 
+  Future<CachedMessage?> getOldestUnreadMention(String accountId, String chatId) async {
+    final req = epb.EngineGetMessagesRequest()
+      ..accountId = accountId
+      ..chatId = chatId;
+    try {
+      final respBytes = await _callAsync('__engine', 'GetUnreadMentions', req.writeToBuffer());
+      if (respBytes.isEmpty) return null;
+      final resp = epb.EngineGetMessagesResponse.fromBuffer(respBytes);
+      if (resp.messages.isEmpty) return null;
+      return _cachedMsgFromProto(resp.messages.first);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<CachedMessage?> getOldestUnreadReaction(String accountId, String chatId) async {
+    final req = epb.EngineGetMessagesRequest()
+      ..accountId = accountId
+      ..chatId = chatId;
+    try {
+      final respBytes = await _callAsync('__engine', 'GetUnreadReactions', req.writeToBuffer());
+      if (respBytes.isEmpty) return null;
+      final resp = epb.EngineGetMessagesResponse.fromBuffer(respBytes);
+      if (resp.messages.isEmpty) return null;
+      return _cachedMsgFromProto(resp.messages.first);
+    } catch (e) {
+      return null;
+    }
+  }
+
   // ── Inline bot results (JSON-based, no proto) ──
 
   Future<InlineBotResults?> getInlineBotResults(String accountId, String botId, String query, {String offset = '', String chatId = ''}) async {

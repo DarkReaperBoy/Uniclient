@@ -971,8 +971,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §49 — Scroll Behaviors
 # Touches: dart/lib/ui/chat_view.dart (partial: _scrollToBottom + _ScrollToBottomFab exist; rest NOT implemented)
 
-- [ ] Scroll-to-mention button — "@" corner button when unread mentions; jump to oldest on click; stacked 4px above scroll-to-bottom — spec §49.9
-- [ ] Scroll-to-reaction button — heart corner button when unread reactions; jump to oldest on click; stacked above mentions — spec §49.10
 - [ ] Keyboard scrolling — forward PageUp/PageDown/Down to scroll; Up when field empty triggers edit-last; middle-click autoscroll with directional cursor; Escape/any-button stops autoscroll — spec §49.11
 - [ ] Sticky date header — overlay sticking to viewport top; fade in/out 200ms; auto-hide after 1000ms no-scroll; 13px semibold badge; 12px h-pad, 3px top, 4px bottom pad; msgServiceBg/msgServiceFg; CalendarBox on click — spec §49.13, §49.16
 - [ ] Corner buttons stack layout — all at 12px from right; 4px vertical gap; 4×62+3×4+10=270px total; smooth slide when middle button hides/shows — spec §49.17

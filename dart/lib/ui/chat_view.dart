@@ -844,6 +844,30 @@ class _ChatViewState extends State<ChatView>
     _smoothScrollTo(0);
   }
 
+  void _scrollToMention() {
+    final chatState = context.read<ChatState>();
+    final chat = chatState.activeChat;
+    if (chat == null) return;
+    final engine = context.read<EngineService>();
+    engine.getOldestUnreadMention(chat.accountId, chat.chatId).then((msg) {
+      if (msg != null && mounted) {
+        chatState.jumpToMessage(msg.timestamp, highlightMsgId: msg.msgId);
+      }
+    });
+  }
+
+  void _scrollToReaction() {
+    final chatState = context.read<ChatState>();
+    final chat = chatState.activeChat;
+    if (chat == null) return;
+    final engine = context.read<EngineService>();
+    engine.getOldestUnreadReaction(chat.accountId, chat.chatId).then((msg) {
+      if (msg != null && mounted) {
+        chatState.jumpToMessage(msg.timestamp, highlightMsgId: msg.msgId);
+      }
+    });
+  }
+
   /// Spec §49.8: Smooth scroll engine.
   /// Duration: 240ms (slideDuration).
   /// Short scroll (≤ 1 viewport): sineInOut.
@@ -4211,7 +4235,7 @@ class _ChatViewState extends State<ChatView>
                     child: _CornerButton(
                       icon: Icons.alternate_email,
                       count: chat.unreadMentionCount,
-                      onTap: _scrollToBottom,
+                      onTap: _scrollToMention,
                     ),
                   ),
                 ),
@@ -4233,7 +4257,7 @@ class _ChatViewState extends State<ChatView>
                     child: _CornerButton(
                       icon: Icons.favorite_border,
                       count: chat.unreadReactionCount,
-                      onTap: _scrollToBottom,
+                      onTap: _scrollToReaction,
                     ),
                   ),
                 ),
