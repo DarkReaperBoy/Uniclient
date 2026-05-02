@@ -195,6 +195,8 @@ type Dialog struct {
 	IsForum             bool   `json:"is_forum,omitempty"`
 	WriteRestrictionType int   `json:"write_restriction_type,omitempty"`
 	WriteRestrictionText string `json:"write_restriction_text,omitempty"`
+	NotJoined           bool   `json:"not_joined,omitempty"`
+	JoinRequest         bool   `json:"join_request,omitempty"`
 	Platform            string `json:"platform"`
 }
 

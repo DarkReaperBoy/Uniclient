@@ -351,6 +351,33 @@ func (e *Engine) Shutdown() error {
 // LeaveChat removes the current user from a chat/channel/room. For DMs this
 // deletes the local chat history. After leaving, triggers a sync so the chat
 // disappears from the list.
+func (e *Engine) JoinChannel(accountID, chatID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+
+	type channelJoiner interface {
+		JoinChannel(chatID string) error
+	}
+	j, ok := acc.Core.(channelJoiner)
+	if !ok {
+		return fmt.Errorf("platform does not support JoinChannel")
+	}
+	if err := j.JoinChannel(chatID); err != nil {
+		return err
+	}
+
+	e.db.Exec("UPDATE chats SET not_joined = 0 WHERE account_id = ? AND chat_id = ?", accountID, chatID)
+
+	e.emitEvent(EventChatUpdated, accountID, map[string]string{
+		"account_id": accountID,
+		"chat_id":    chatID,
+	})
+
+	return nil
+}
+
 func (e *Engine) LeaveChat(accountID, chatID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

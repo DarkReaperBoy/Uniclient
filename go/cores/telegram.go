@@ -10999,6 +10999,8 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 					dialog.IsScam = c.Scam
 					dialog.IsFake = c.Fake
 					dialog.EmojiStatusID = extractEmojiStatusID(c.EmojiStatus)
+					dialog.NotJoined = c.Left
+					dialog.JoinRequest = c.JoinRequest
 					_, hasAdmin := c.GetAdminRights()
 					if !c.Creator && !hasAdmin {
 						var personalRights *tg.ChatBannedRights

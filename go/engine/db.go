@@ -126,6 +126,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV23,
 	migrateV24,
 	migrateV25,
+	migrateV26,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -627,6 +628,17 @@ func migrateV25(tx *sql.Tx) error {
 	for _, col := range []string{"voice_messages_forbidden", "contact_require_premium"} {
 		if !columnExists(tx, "users", col) {
 			if _, err := tx.Exec(`ALTER TABLE users ADD COLUMN ` + col + ` INTEGER NOT NULL DEFAULT 0`); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func migrateV26(tx *sql.Tx) error {
+	for _, col := range []string{"not_joined", "join_request"} {
+		if !columnExists(tx, "chats", col) {
+			if _, err := tx.Exec(`ALTER TABLE chats ADD COLUMN ` + col + ` INTEGER NOT NULL DEFAULT 0`); err != nil {
 				return err
 			}
 		}

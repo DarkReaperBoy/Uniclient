@@ -620,6 +620,13 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.JoinChat(req.AccountId, req.ChannelName)
 
+	case "JoinChannel":
+		var req pb.EngineLeaveChatRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.JoinChannel(req.AccountId, req.ChatId)
+
 	case "LeaveChat":
 		var req pb.EngineLeaveChatRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

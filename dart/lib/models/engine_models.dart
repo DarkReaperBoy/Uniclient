@@ -223,6 +223,8 @@ class ChatInfo {
   final bool isForum;
   final int writeRestrictionType;
   final String writeRestrictionText;
+  final bool notJoined;
+  final bool joinRequest;
 
   const ChatInfo({
     required this.accountId,
@@ -268,6 +270,8 @@ class ChatInfo {
     this.isForum = false,
     this.writeRestrictionType = 0,
     this.writeRestrictionText = '',
+    this.notJoined = false,
+    this.joinRequest = false,
   });
 
   factory ChatInfo.fromJson(Map<String, dynamic> j) => ChatInfo(
@@ -314,6 +318,8 @@ class ChatInfo {
     isForum: j['is_forum'] as bool? ?? false,
     writeRestrictionType: j['write_restriction_type'] as int? ?? 0,
     writeRestrictionText: j['write_restriction_text'] as String? ?? '',
+    notJoined: j['not_joined'] as bool? ?? false,
+    joinRequest: j['join_request'] as bool? ?? false,
   );
 
   /// Time as DateTime for display.

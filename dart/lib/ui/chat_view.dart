@@ -4143,6 +4143,12 @@ class _ChatViewState extends State<ChatView>
               color: const Color(0xFFdf3f40),
               onTap: () => chatState.reportSpam(chat.accountId, chat.chatId),
             )
+          // §47: Join-to-send — show JOIN button when user hasn't joined.
+          else if (chat.notJoined)
+            _JoinChannelButton(
+              chat: chat,
+              chatState: chatState,
+            )
           else if (chat.type == ChatType.channel)
             _ChannelComposeBar(
               chat: chat,
@@ -7691,6 +7697,40 @@ class _FallbackComposeButtonState extends State<_FallbackComposeButton> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Spec §47: Join-to-send button — shown when user hasn't joined a channel/group.
+class _JoinChannelButton extends StatelessWidget {
+  final ChatInfo chat;
+  final ChatState chatState;
+
+  const _JoinChannelButton({
+    required this.chat,
+    required this.chatState,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accentColor = isDark
+        ? const Color(0xFF6ab3f3)
+        : const Color(0xFF168acd);
+
+    String label;
+    if (chat.type == ChatType.channel) {
+      label = 'JOIN CHANNEL';
+    } else if (chat.joinRequest) {
+      label = 'APPLY TO JOIN GROUP';
+    } else {
+      label = 'JOIN GROUP';
+    }
+
+    return _FallbackComposeButton(
+      label: label,
+      color: accentColor,
+      onTap: () => chatState.joinChannel(chat.accountId, chat.chatId),
     );
   }
 }

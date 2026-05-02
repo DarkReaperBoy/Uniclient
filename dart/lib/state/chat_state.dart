@@ -1494,6 +1494,14 @@ class ChatState extends ChangeNotifier {
     loadChats();
   }
 
+  Future<void> joinChannel(String accountId, String chatId) async {
+    await _engine.joinChannel(accountId, chatId);
+    loadChats();
+    if (_activeChat?.accountId == accountId && _activeChat?.chatId == chatId) {
+      openChatById(chatId);
+    }
+  }
+
   void leaveChat(String accountId, String chatId) {
     _engine.leaveChat(accountId, chatId);
     // If this was the active chat, clear it.
