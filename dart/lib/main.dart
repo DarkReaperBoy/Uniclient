@@ -44,9 +44,20 @@ import 'ui/notification_popup.dart';
 import 'ui/custom_emoji_cache.dart';
 import 'package:media_kit/media_kit.dart';
 
+/// §51.7: `-ghost` CLI flag — forces Ghost Mode on at startup.
+bool _cliGhostFlag = false;
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
+
+  // §51.7: Parse -ghost CLI flag.
+  if (!kIsWeb) {
+    final args = Platform.executableArguments;
+    if (args.contains('-ghost') || args.contains('--ghost')) {
+      _cliGhostFlag = true;
+    }
+  }
 
   // Catch all Flutter framework errors and print to stderr.
   FlutterError.onError = (details) {
@@ -100,6 +111,7 @@ class _UniClientAppState extends State<UniClientApp>
   final WebNotifier _webNotifier = WebNotifier();
   VoidCallback? _unreadListener;
   VoidCallback? _streamerSyncListener;
+  VoidCallback? _ghostSyncListener;
   AppState? _appStateRef;
   ChatState? _chatStateRef;
   Timer? _debugCmdTimer;
@@ -257,6 +269,11 @@ class _UniClientAppState extends State<UniClientApp>
       downloadDir: downloadDir,
     );
 
+    // §51.7: Apply -ghost CLI flag — force ghost mode on at startup (non-persistent).
+    if (_cliGhostFlag && !appState.ghostModeEnabled) {
+      appState.setGhostModeEnabled(true);
+    }
+
     // Initialize folder state for the active account.
     if (appState.activeAccountId.isNotEmpty) {
       chatState.switchAccount(appState.activeAccountId);
@@ -281,6 +298,20 @@ class _UniClientAppState extends State<UniClientApp>
       appState.addListener(_streamerSyncListener!);
       _tray.updateStreamerItem(
           appState.showStreamerToggleInTray, appState.streamerModeEnabled);
+
+      // §51.6: Ghost Mode tray toggle — sync item visibility + state.
+      _tray.onGhostToggle = () {
+        appState.setGhostModeEnabled(!appState.ghostModeEnabled);
+        _tray.updateGhostItem(
+            appState.showGhostToggleInTray, appState.ghostModeEnabled);
+      };
+      _ghostSyncListener = () {
+        _tray.updateGhostItem(
+            appState.showGhostToggleInTray, appState.ghostModeEnabled);
+      };
+      appState.addListener(_ghostSyncListener!);
+      _tray.updateGhostItem(
+          appState.showGhostToggleInTray, appState.ghostModeEnabled);
 
       // Track unread count changes and update tray tooltip (§37.11).
       if (_tray.isAvailable) {
@@ -1759,6 +1790,9 @@ class _UniClientAppState extends State<UniClientApp>
     }
     if (_streamerSyncListener != null && _appStateRef != null) {
       _appStateRef!.removeListener(_streamerSyncListener!);
+    }
+    if (_ghostSyncListener != null && _appStateRef != null) {
+      _appStateRef!.removeListener(_ghostSyncListener!);
     }
     if (_chatStateRef != null) _chatStateRef!.onNotification = null;
     _themeFadeCtrl?.dispose();

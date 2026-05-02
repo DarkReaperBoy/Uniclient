@@ -213,6 +213,16 @@ class GhostSettingsPage extends StatelessWidget {
             isDark: isDark,
             useMaterial: appState.materialSwitches,
           ),
+          if (!Platform.isAndroid && !Platform.isIOS) ...[
+            Container(height: 1, color: dividerColor, margin: const EdgeInsets.symmetric(horizontal: 22)),
+            _ToggleRow(
+              label: 'Show Ghost Mode in Tray',
+              value: appState.showGhostToggleInTray,
+              onChanged: (v) => appState.setShowGhostToggleInTray(v),
+              isDark: isDark,
+              useMaterial: appState.materialSwitches,
+            ),
+          ],
           const SizedBox(height: 24),
         ],
       ),

@@ -45,6 +45,9 @@ class SystemTray {
   /// Callback invoked when the user clicks the Streamer Mode tray item.
   void Function()? onStreamerToggle;
 
+  /// Callback invoked when the user clicks the Ghost Mode tray item.
+  void Function()? onGhostToggle;
+
   /// Initialize the tray.  Call once after the engine is running.
   /// No-op on Flutter Web — native tray is desktop-only (§13.5).
   Future<void> init() async {
@@ -107,6 +110,19 @@ class SystemTray {
       });
     } catch (e) {
       Debug.log('TRAY', 'setStreamerTrayItem failed: $e');
+    }
+  }
+
+  /// Show or hide the Ghost Mode tray item, updating its label.
+  Future<void> updateGhostItem(bool show, bool enabled) async {
+    if (!_available) return;
+    try {
+      await _channel.invokeMethod<void>('setGhostTrayItem', {
+        'show': show,
+        'enabled': enabled,
+      });
+    } catch (e) {
+      Debug.log('TRAY', 'setGhostTrayItem failed: $e');
     }
   }
 
@@ -185,6 +201,9 @@ class SystemTray {
       case 'onStreamerToggle':
         Debug.log('TRAY', 'streamer toggle requested from tray menu');
         onStreamerToggle?.call();
+      case 'onGhostToggle':
+        Debug.log('TRAY', 'ghost toggle requested from tray menu');
+        onGhostToggle?.call();
       default:
         Debug.log('TRAY', 'unknown native call: ${call.method}');
     }

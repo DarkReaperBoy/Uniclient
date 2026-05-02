@@ -176,6 +176,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   // §51.5: Ghost Mode / LRead / SRead drawer visibility.
   bool _showGhostToggleInDrawer = true;
+  // §51.6: Ghost Mode tray toggle visibility (persistent, default true).
+  bool _showGhostToggleInTray = true;
   bool _showLReadToggleInDrawer = false;
   bool _showSReadToggleInDrawer = true;
 
@@ -308,6 +310,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get streamerModeEnabled => _streamerModeEnabled;
   bool get showStreamerToggleInDrawer => _showStreamerToggleInDrawer;
   bool get showStreamerToggleInTray => _showStreamerToggleInTray;
+  bool get showGhostToggleInTray => _showGhostToggleInTray;
   bool get showGhostToggleInDrawer => _showGhostToggleInDrawer;
   bool get showLReadToggleInDrawer => _showLReadToggleInDrawer;
   bool get showSReadToggleInDrawer => _showSReadToggleInDrawer;
@@ -433,6 +436,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setShowStreamerToggleInTray(bool v) {
     if (_showStreamerToggleInTray == v) return;
     _showStreamerToggleInTray = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setShowGhostToggleInTray(bool v) {
+    if (_showGhostToggleInTray == v) return;
+    _showGhostToggleInTray = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -1655,6 +1665,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _showStreamerToggleInDrawer = data['showStreamerToggleInDrawer'] as bool? ?? false;
       _showStreamerToggleInTray = data['showStreamerToggleInTray'] as bool? ?? false;
       _showGhostToggleInDrawer = data['showGhostToggleInDrawer'] as bool? ?? true;
+      _showGhostToggleInTray = data['showGhostToggleInTray'] as bool? ?? true;
       _showLReadToggleInDrawer = data['showLReadToggleInDrawer'] as bool? ?? false;
       _showSReadToggleInDrawer = data['showSReadToggleInDrawer'] as bool? ?? true;
       // §51.1 Ghost Mode per-account settings (with migration from flat format).
@@ -1753,6 +1764,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'showStreamerToggleInDrawer': _showStreamerToggleInDrawer,
         'showStreamerToggleInTray': _showStreamerToggleInTray,
         'showGhostToggleInDrawer': _showGhostToggleInDrawer,
+        'showGhostToggleInTray': _showGhostToggleInTray,
         'showLReadToggleInDrawer': _showLReadToggleInDrawer,
         'showSReadToggleInDrawer': _showSReadToggleInDrawer,
         'useGlobalGhostMode': _useGlobalGhostMode,

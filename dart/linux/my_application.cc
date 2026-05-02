@@ -22,6 +22,7 @@ struct _MyApplication {
   GtkWidget* tray_menu;
   GtkWidget* show_hide_item;
   GtkWidget* streamer_item;
+  GtkWidget* ghost_item;
 #endif
 };
 
@@ -68,6 +69,15 @@ static void on_tray_streamer_toggle(GtkMenuItem* /*item*/, gpointer user_data) {
   if (self->tray_channel) {
     fl_method_channel_invoke_method(
         self->tray_channel, "onStreamerToggle", nullptr, nullptr, nullptr,
+        nullptr);
+  }
+}
+
+static void on_tray_ghost_toggle(GtkMenuItem* /*item*/, gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  if (self->tray_channel) {
+    fl_method_channel_invoke_method(
+        self->tray_channel, "onGhostToggle", nullptr, nullptr, nullptr,
         nullptr);
   }
 }
@@ -120,6 +130,12 @@ static void init_tray(MyApplication* self) {
                    G_CALLBACK(on_tray_streamer_toggle), self);
   gtk_widget_hide(self->streamer_item);
 
+  self->ghost_item = gtk_menu_item_new_with_label("Enable Ghost Mode");
+  gtk_menu_shell_append(GTK_MENU_SHELL(self->tray_menu), self->ghost_item);
+  g_signal_connect(self->ghost_item, "activate",
+                   G_CALLBACK(on_tray_ghost_toggle), self);
+  gtk_widget_hide(self->ghost_item);
+
   GtkWidget* separator = gtk_separator_menu_item_new();
   gtk_menu_shell_append(GTK_MENU_SHELL(self->tray_menu), separator);
 
@@ -129,6 +145,7 @@ static void init_tray(MyApplication* self) {
 
   gtk_widget_show_all(self->tray_menu);
   gtk_widget_hide(self->streamer_item);
+  gtk_widget_hide(self->ghost_item);
   app_indicator_set_menu(self->indicator, GTK_MENU(self->tray_menu));
 
   g_free(icon_path);
@@ -221,6 +238,25 @@ static void tray_method_call_handler(FlMethodChannel* channel,
         gtk_widget_show(self->streamer_item);
       } else {
         gtk_widget_hide(self->streamer_item);
+      }
+    }
+#endif
+    fl_method_call_respond_success(method_call, nullptr, nullptr);
+  } else if (g_strcmp0(method, "setGhostTrayItem") == 0) {
+#ifdef HAVE_APPINDICATOR
+    FlValue* args = fl_method_call_get_args(method_call);
+    if (self->ghost_item && fl_value_get_type(args) == FL_VALUE_TYPE_MAP) {
+      FlValue* show_val = fl_value_lookup_string(args, "show");
+      FlValue* enabled_val = fl_value_lookup_string(args, "enabled");
+      gboolean show = show_val ? fl_value_get_bool(show_val) : FALSE;
+      gboolean enabled = enabled_val ? fl_value_get_bool(enabled_val) : FALSE;
+      if (show) {
+        gtk_menu_item_set_label(GTK_MENU_ITEM(self->ghost_item),
+                                enabled ? "Disable Ghost Mode"
+                                        : "Enable Ghost Mode");
+        gtk_widget_show(self->ghost_item);
+      } else {
+        gtk_widget_hide(self->ghost_item);
       }
     }
 #endif
@@ -696,6 +732,7 @@ static void my_application_init(MyApplication* self) {
   self->tray_menu = nullptr;
   self->show_hide_item = nullptr;
   self->streamer_item = nullptr;
+  self->ghost_item = nullptr;
 #endif
 }
 
