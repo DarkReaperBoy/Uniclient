@@ -8,7 +8,7 @@ import 'package:provider/provider.dart';
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
-import 'custom_emoji_cache.dart';
+import 'custom_emoji_cache.dart' show CustomEmojiCache, EmojiSizeTag;
 
 class EmojiStatusWidget extends StatefulWidget {
   final String emojiStatusId;
@@ -45,6 +45,9 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
   void initState() {
     super.initState();
     _parseEmojiStatusId();
+    if (_documentId != null) {
+      CustomEmojiCache.instance.acquire(_documentId!, EmojiSizeTag.normal);
+    }
     CustomEmojiCache.instance.addListener(_onCacheUpdate);
     _requestIfNeeded();
   }
@@ -53,11 +56,18 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
   void didUpdateWidget(EmojiStatusWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.emojiStatusId != widget.emojiStatusId) {
+      final oldDocId = _documentId;
       _lottieController?.dispose();
       _lottieController = null;
       _decompressedLottie = null;
       _loopCount = 0;
       _parseEmojiStatusId();
+      if (oldDocId != null) {
+        CustomEmojiCache.instance.release(oldDocId, EmojiSizeTag.normal);
+      }
+      if (_documentId != null) {
+        CustomEmojiCache.instance.acquire(_documentId!, EmojiSizeTag.normal);
+      }
       _requestIfNeeded();
     }
   }
@@ -65,6 +75,9 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
   @override
   void dispose() {
     CustomEmojiCache.instance.removeListener(_onCacheUpdate);
+    if (_documentId != null) {
+      CustomEmojiCache.instance.release(_documentId!, EmojiSizeTag.normal);
+    }
     _lottieController?.dispose();
     super.dispose();
   }

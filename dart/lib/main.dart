@@ -41,6 +41,7 @@ import 'utils/system_unlock.dart';
 import 'utils/web_notifier.dart';
 import 'notifications/notification_system.dart';
 import 'ui/notification_popup.dart';
+import 'ui/custom_emoji_cache.dart';
 import 'package:media_kit/media_kit.dart';
 
 void main() {
@@ -245,6 +246,8 @@ class _UniClientAppState extends State<UniClientApp>
         Directory(dir).createSync(recursive: true);
       }
     }
+
+    await CustomEmojiCache.instance.initDiskCache(cacheDir);
 
     await appState.initialize(
       configDir: configDir,

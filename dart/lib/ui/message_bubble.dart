@@ -1949,6 +1949,7 @@ class _ReactionPreviewOverlayState extends State<_ReactionPreviewOverlay>
   @override
   void initState() {
     super.initState();
+    CustomEmojiCache.instance.acquire(widget.documentId, EmojiSizeTag.normal);
     CustomEmojiCache.instance.addListener(_onCacheUpdate);
     _requestFile();
     _loadSetInfo();
@@ -1957,6 +1958,7 @@ class _ReactionPreviewOverlayState extends State<_ReactionPreviewOverlay>
   @override
   void dispose() {
     CustomEmojiCache.instance.removeListener(_onCacheUpdate);
+    CustomEmojiCache.instance.release(widget.documentId, EmojiSizeTag.normal);
     _lottieController?.dispose();
     super.dispose();
   }
@@ -5408,13 +5410,24 @@ class _LargeCustomEmojiTileState extends State<_LargeCustomEmojiTile>
   @override
   void initState() {
     super.initState();
+    CustomEmojiCache.instance.acquire(widget.documentId, EmojiSizeTag.isolated);
     CustomEmojiCache.instance.addListener(_onCacheUpdate);
     _requestIfNeeded();
   }
 
   @override
+  void didUpdateWidget(_LargeCustomEmojiTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.documentId != widget.documentId) {
+      CustomEmojiCache.instance.release(oldWidget.documentId, EmojiSizeTag.isolated);
+      CustomEmojiCache.instance.acquire(widget.documentId, EmojiSizeTag.isolated);
+    }
+  }
+
+  @override
   void dispose() {
     CustomEmojiCache.instance.removeListener(_onCacheUpdate);
+    CustomEmojiCache.instance.release(widget.documentId, EmojiSizeTag.isolated);
     _lottieController?.dispose();
     super.dispose();
   }
@@ -5583,14 +5596,25 @@ class _CustomEmojiInlineState extends State<_CustomEmojiInline>
       vsync: this,
       duration: const Duration(milliseconds: 120),
     );
+    CustomEmojiCache.instance.acquire(widget.documentId, EmojiSizeTag.normal);
     CustomEmojiCache.instance.addListener(_onCacheUpdate);
     _requestIfNeeded();
     _updatePhase();
   }
 
   @override
+  void didUpdateWidget(_CustomEmojiInline oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.documentId != widget.documentId) {
+      CustomEmojiCache.instance.release(oldWidget.documentId, EmojiSizeTag.normal);
+      CustomEmojiCache.instance.acquire(widget.documentId, EmojiSizeTag.normal);
+    }
+  }
+
+  @override
   void dispose() {
     CustomEmojiCache.instance.removeListener(_onCacheUpdate);
+    CustomEmojiCache.instance.release(widget.documentId, EmojiSizeTag.normal);
     _lottieController?.dispose();
     _fadeController.dispose();
     super.dispose();
