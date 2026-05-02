@@ -49,6 +49,8 @@ type ChatInfo struct {
 	StoryCount           int    `json:"story_count,omitempty"`
 	HasUnreadStory       bool   `json:"has_unread_story,omitempty"`
 	IsForum              bool   `json:"is_forum,omitempty"`
+	WriteRestrictionType int    `json:"write_restriction_type,omitempty"`
+	WriteRestrictionText string `json:"write_restriction_text,omitempty"`
 }
 
 // chatTypeToInt converts cores.ChatType to DB integer.
@@ -83,7 +85,8 @@ func (e *Engine) GetUnifiedChatList(limit, offset int) ([]ChatInfo, error) {
 		        c.is_verified, c.is_scam, c.is_fake,
 		        c.slowmode_seconds, c.slowmode_next_send_date,
 		        c.stars_to_send, c.ttl_period, c.emoji_status_id,
-		        c.story_count, c.has_unread_story, c.is_forum
+		        c.story_count, c.has_unread_story, c.is_forum,
+		        c.write_restriction_type, c.write_restriction_text
 		 FROM chats c
 		 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
 		 ORDER BY c.is_archived ASC, c.is_pinned DESC, c.last_msg_time DESC
@@ -115,7 +118,8 @@ func (e *Engine) GetChatList(accountID string, archived bool, limit, offset int)
 		        c.is_verified, c.is_scam, c.is_fake,
 		        c.slowmode_seconds, c.slowmode_next_send_date,
 		        c.stars_to_send, c.ttl_period, c.emoji_status_id,
-		        c.story_count, c.has_unread_story, c.is_forum
+		        c.story_count, c.has_unread_story, c.is_forum,
+		        c.write_restriction_type, c.write_restriction_text
 		 FROM chats c
 		 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
 		 WHERE c.account_id = ? AND c.is_archived = ?
@@ -141,6 +145,7 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 		var unreadMark, isVerified, isScam, isFake int
 
 		var hasUnreadStory, isForumInt int
+		var writeRestrictionText sql.NullString
 		if err := rows.Scan(
 			&c.AccountID, &c.ChatID, &c.Type, &c.Title, &avatarPath,
 			&lastMsgID, &lastMsgText, &lastMsgTime, &lastMsgSender,
@@ -152,6 +157,7 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 			&c.SlowmodeSeconds, &c.SlowmodeNextSendDate,
 			&c.StarsToSend, &c.TtlPeriod, &emojiStatusID,
 			&c.StoryCount, &hasUnreadStory, &isForumInt,
+			&c.WriteRestrictionType, &writeRestrictionText,
 		); err != nil {
 			return chats, err
 		}
@@ -183,6 +189,7 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 		c.EmojiStatusID = emojiStatusID.String
 		c.HasUnreadStory = hasUnreadStory == 1
 		c.IsForum = isForumInt == 1
+		c.WriteRestrictionText = writeRestrictionText.String
 
 		chats = append(chats, c)
 	}
@@ -226,8 +233,9 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 		                     unread_mark, unread_mention_count, unread_reaction_count,
 		                     is_verified, is_scam, is_fake,
 		                     slowmode_seconds, slowmode_next_send_date, stars_to_send, ttl_period,
-		                     emoji_status_id, story_count, has_unread_story, is_forum, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		                     emoji_status_id, story_count, has_unread_story, is_forum,
+		                     write_restriction_type, write_restriction_text, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(account_id, chat_id) DO UPDATE SET
 		     type = excluded.type,
 		     title = excluded.title,
@@ -259,6 +267,8 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 		     story_count = excluded.story_count,
 		     has_unread_story = excluded.has_unread_story,
 		     is_forum = excluded.is_forum,
+		     write_restriction_type = excluded.write_restriction_type,
+		     write_restriction_text = excluded.write_restriction_text,
 		     updated_at = excluded.updated_at`,
 		accountID, d.ID, chatType, d.Title, lastMsgID, lastMsgText,
 		lastMsgTime, lastMsgSender, lastMsgIsOutgoing, lastMsgStatus, lastMsgMediaType, lastMsgThumbB64,
@@ -267,7 +277,8 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 		boolToInt(d.UnreadMark), d.UnreadMentionCount, d.UnreadReactionCount,
 		boolToInt(d.IsVerified), boolToInt(d.IsScam), boolToInt(d.IsFake),
 		d.SlowmodeSeconds, d.SlowmodeNextSendDate, d.StarsToSend, d.TtlPeriod,
-		d.EmojiStatusID, d.StoryCount, boolToInt(d.HasUnreadStory), boolToInt(d.IsForum), now)
+		d.EmojiStatusID, d.StoryCount, boolToInt(d.HasUnreadStory), boolToInt(d.IsForum),
+		d.WriteRestrictionType, d.WriteRestrictionText, now)
 	if err != nil {
 		return err
 	}

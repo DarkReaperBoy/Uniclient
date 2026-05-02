@@ -221,6 +221,8 @@ class ChatInfo {
   final int ttlPeriod;
   final String emojiStatusId;
   final bool isForum;
+  final int writeRestrictionType;
+  final String writeRestrictionText;
 
   const ChatInfo({
     required this.accountId,
@@ -264,6 +266,8 @@ class ChatInfo {
     this.ttlPeriod = 0,
     this.emojiStatusId = '',
     this.isForum = false,
+    this.writeRestrictionType = 0,
+    this.writeRestrictionText = '',
   });
 
   factory ChatInfo.fromJson(Map<String, dynamic> j) => ChatInfo(
@@ -308,6 +312,8 @@ class ChatInfo {
     ttlPeriod: j['ttl_period'] as int? ?? 0,
     emojiStatusId: j['emoji_status_id'] as String? ?? '',
     isForum: j['is_forum'] as bool? ?? false,
+    writeRestrictionType: j['write_restriction_type'] as int? ?? 0,
+    writeRestrictionText: j['write_restriction_text'] as String? ?? '',
   );
 
   /// Time as DateTime for display.

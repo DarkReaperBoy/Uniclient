@@ -3512,6 +3512,8 @@ class EngineService {
     ttlPeriod: p.ttlPeriod,
     emojiStatusId: p.emojiStatusId,
     isForum: p.isForum,
+    writeRestrictionType: p.writeRestrictionType,
+    writeRestrictionText: p.writeRestrictionText,
   );
 
   static CachedMessage _cachedMsgFromProto(epb.EngineCachedMessage p) {

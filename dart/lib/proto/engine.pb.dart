@@ -1447,6 +1447,8 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     $core.int? ttlPeriod,
     $core.String? emojiStatusId,
     $core.bool? isForum,
+    $core.int? writeRestrictionType,
+    $core.String? writeRestrictionText,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -1530,6 +1532,12 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     if (isForum != null) {
       $result.isForum = isForum;
     }
+    if (writeRestrictionType != null) {
+      $result.writeRestrictionType = writeRestrictionType;
+    }
+    if (writeRestrictionText != null) {
+      $result.writeRestrictionText = writeRestrictionText;
+    }
     return $result;
   }
   EngineChatInfo._() : super();
@@ -1564,6 +1572,8 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     ..a<$core.int>(25, _omitFieldNames ? '' : 'ttlPeriod', $pb.PbFieldType.O3)
     ..aOS(26, _omitFieldNames ? '' : 'emojiStatusId')
     ..aOB(27, _omitFieldNames ? '' : 'isForum')
+    ..a<$core.int>(28, _omitFieldNames ? '' : 'writeRestrictionType', $pb.PbFieldType.O3)
+    ..aOS(29, _omitFieldNames ? '' : 'writeRestrictionText')
     ..hasRequiredFields = false
   ;
 
@@ -1830,6 +1840,24 @@ class EngineChatInfo extends $pb.GeneratedMessage {
   $core.bool hasIsForum() => $_has(26);
   @$pb.TagNumber(27)
   void clearIsForum() => clearField(27);
+
+  @$pb.TagNumber(28)
+  $core.int get writeRestrictionType => $_getIZ(27);
+  @$pb.TagNumber(28)
+  set writeRestrictionType($core.int v) { $_setSignedInt32(27, v); }
+  @$pb.TagNumber(28)
+  $core.bool hasWriteRestrictionType() => $_has(27);
+  @$pb.TagNumber(28)
+  void clearWriteRestrictionType() => clearField(28);
+
+  @$pb.TagNumber(29)
+  $core.String get writeRestrictionText => $_getSZ(28);
+  @$pb.TagNumber(29)
+  set writeRestrictionText($core.String v) { $_setString(28, v); }
+  @$pb.TagNumber(29)
+  $core.bool hasWriteRestrictionText() => $_has(28);
+  @$pb.TagNumber(29)
+  void clearWriteRestrictionText() => clearField(29);
 }
 
 class EngineGetChatListRequest extends $pb.GeneratedMessage {

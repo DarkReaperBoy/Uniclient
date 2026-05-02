@@ -4117,6 +4117,12 @@ class _ChatViewState extends State<ChatView>
               chatState: chatState,
               linkedChatId: chatState.linkedChatId,
             )
+          // §47: Write restriction bar — replaces compose when user cannot send.
+          else if (chat.writeRestrictionType > 0)
+            _WriteRestrictionBar(
+              restrictionType: chat.writeRestrictionType,
+              restrictionText: chat.writeRestrictionText,
+            )
           // §23.9: Topic-level write restriction — closed topics block compose.
           else if (chat.type == ChatType.topic && (() {
             final t = chatState.forumTopics.cast<ForumTopic?>().firstWhere(
@@ -7448,6 +7454,146 @@ class _ChatIntroWidgetState extends State<_ChatIntroWidget> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// §47: Write restriction bar — replaces compose when user cannot send messages.
+/// Types: 1=Rights (admin-restricted), 2=PremiumRequired, 3=Frozen, 4=Hidden.
+class _WriteRestrictionBar extends StatelessWidget {
+  final int restrictionType;
+  final String restrictionText;
+
+  const _WriteRestrictionBar({
+    required this.restrictionType,
+    required this.restrictionText,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (restrictionType == 4) return const SizedBox.shrink();
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212b) : const Color(0xFFffffff);
+
+    if (restrictionType == 3) {
+      return Container(
+        height: 46,
+        color: bgColor,
+        alignment: Alignment.center,
+        child: GestureDetector(
+          onTap: () => _showFrozenDialog(context),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Your account is frozen',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFFd14e4e),
+                ),
+              ),
+              const SizedBox(height: 1),
+              Text(
+                'Click to view details',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: isDark ? const Color(0xFF7e9bb0) : const Color(0xFF999999),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (restrictionType == 2) {
+      return Container(
+        height: 46,
+        color: bgColor,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                restrictionText.isNotEmpty ? restrictionText : 'Only Premium users can message this user.',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: isDark ? const Color(0xFF7e9bb0) : const Color(0xFF999999),
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () => _showPremiumToast(context),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF40a7e3),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.lock_outline, size: 14, color: Colors.white),
+                    const SizedBox(width: 4),
+                    Text('Unlock', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Type 1: Rights — centered restriction text.
+    return Container(
+      height: 46,
+      color: bgColor,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Text(
+        restrictionText.isNotEmpty ? restrictionText : 'Sending messages is not allowed in this group.',
+        style: TextStyle(
+          fontSize: 13,
+          color: isDark ? const Color(0xFF7e9bb0) : const Color(0xFF999999),
+        ),
+        textAlign: TextAlign.center,
+        overflow: TextOverflow.ellipsis,
+        maxLines: 2,
+      ),
+    );
+  }
+
+  void _showFrozenDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Account Frozen'),
+        content: const Text(
+          'Your account has been frozen by Telegram. '
+          'This may be due to suspicious activity. '
+          'Please check the official Telegram app for more details.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPremiumToast(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Subscribe to Telegram Premium to message this user.'),
+        duration: Duration(milliseconds: 1500),
       ),
     );
   }

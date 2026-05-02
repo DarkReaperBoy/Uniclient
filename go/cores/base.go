@@ -191,6 +191,8 @@ type Dialog struct {
 	StoryCount          int    `json:"story_count,omitempty"`
 	HasUnreadStory      bool   `json:"has_unread_story,omitempty"`
 	IsForum             bool   `json:"is_forum,omitempty"`
+	WriteRestrictionType int   `json:"write_restriction_type,omitempty"`
+	WriteRestrictionText string `json:"write_restriction_text,omitempty"`
 	Platform            string `json:"platform"`
 }
 

@@ -3653,6 +3653,8 @@ func chatInfoToProto(c *engine.ChatInfo) *pb.EngineChatInfo {
 		TtlPeriod:             int32(c.TtlPeriod),
 		EmojiStatusId:         c.EmojiStatusID,
 		IsForum:               c.IsForum,
+		WriteRestrictionType:  int32(c.WriteRestrictionType),
+		WriteRestrictionText:  c.WriteRestrictionText,
 	}
 }
 

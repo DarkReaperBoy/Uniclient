@@ -124,6 +124,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV21,
 	migrateV22,
 	migrateV23,
+	migrateV24,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -602,6 +603,20 @@ func migrateV23(tx *sql.Tx) error {
 			if _, err := tx.Exec(`ALTER TABLE users ADD COLUMN ` + col + ` TEXT`); err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+func migrateV24(tx *sql.Tx) error {
+	if !columnExists(tx, "chats", "write_restriction_type") {
+		if _, err := tx.Exec(`ALTER TABLE chats ADD COLUMN write_restriction_type INTEGER NOT NULL DEFAULT 0`); err != nil {
+			return err
+		}
+	}
+	if !columnExists(tx, "chats", "write_restriction_text") {
+		if _, err := tx.Exec(`ALTER TABLE chats ADD COLUMN write_restriction_text TEXT`); err != nil {
+			return err
 		}
 	}
 	return nil

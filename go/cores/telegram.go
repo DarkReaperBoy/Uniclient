@@ -10973,6 +10973,10 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 					if _, ok := c.Photo.(*tg.ChatPhoto); ok {
 						dialog.AvatarURL = "has_photo"
 					}
+					if c.DefaultBannedRights.SendPlain && !c.Creator {
+						dialog.WriteRestrictionType = 1
+						dialog.WriteRestrictionText = "Sending messages is not allowed in this group."
+					}
 				}
 			}
 		case *tg.PeerChannel:
@@ -10985,6 +10989,11 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 					dialog.IsScam = c.Scam
 					dialog.IsFake = c.Fake
 					dialog.EmojiStatusID = extractEmojiStatusID(c.EmojiStatus)
+					_, hasAdmin := c.GetAdminRights()
+					if c.DefaultBannedRights.SendPlain && !c.Creator && !hasAdmin {
+						dialog.WriteRestrictionType = 1
+						dialog.WriteRestrictionText = "Sending messages is not allowed in this group."
+					}
 					if c.Broadcast {
 						dialog.Type = ChatTypeChannel
 					} else {

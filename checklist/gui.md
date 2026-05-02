@@ -961,7 +961,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §47 — Restricted Permissions UI
 # Touches: dart/lib/ui/chat_view.dart (compose area replacement), new compose_restriction.dart
 
-- [ ] Write restriction bar — replace compose area at 46px height; Rights: centered FlatLabel; PremiumRequired: label + "Unlock" RoundButton + lock icon → Premium promo toast; Frozen: red title + subtitle → freeze info dialog; Hidden: no compose; boost button when boostsToLift > 0 — spec §47
 - [ ] Permission-specific restriction text — timed + permanent personal restrictions for all 11 types; default group restrictions; DM-level voice/video/premium restrictions — spec §47
 - [ ] Forbidden send button states — 50% opacity on record/round buttons; suppress ripple; toast with restriction error (1500ms, 200ms fade-in, 1000ms fade-out, 160ms slide, 19/13/19/12px padding, 160–360px width, 6px radius); default (non-pointer) cursor — spec §47
 - [ ] Slow mode countdown — MM:SS countdown on send button; 13px normalFont windowSubTextFg; refresh every 200ms; non-pointer cursor; accessible name text; block send while sending; block multi-file + long-split messages — spec §47

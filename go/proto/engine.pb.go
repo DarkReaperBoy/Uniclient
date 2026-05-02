@@ -1141,6 +1141,8 @@ type EngineChatInfo struct {
 	TtlPeriod            int32                  `protobuf:"varint,25,opt,name=ttl_period,json=ttlPeriod,proto3" json:"ttl_period,omitempty"`
 	EmojiStatusId        string                 `protobuf:"bytes,26,opt,name=emoji_status_id,json=emojiStatusId,proto3" json:"emoji_status_id,omitempty"`
 	IsForum              bool                   `protobuf:"varint,27,opt,name=is_forum,json=isForum,proto3" json:"is_forum,omitempty"`
+	WriteRestrictionType int32                  `protobuf:"varint,28,opt,name=write_restriction_type,json=writeRestrictionType,proto3" json:"write_restriction_type,omitempty"`
+	WriteRestrictionText string                 `protobuf:"bytes,29,opt,name=write_restriction_text,json=writeRestrictionText,proto3" json:"write_restriction_text,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -1362,6 +1364,20 @@ func (x *EngineChatInfo) GetIsForum() bool {
 		return x.IsForum
 	}
 	return false
+}
+
+func (x *EngineChatInfo) GetWriteRestrictionType() int32 {
+	if x != nil {
+		return x.WriteRestrictionType
+	}
+	return 0
+}
+
+func (x *EngineChatInfo) GetWriteRestrictionText() string {
+	if x != nil {
+		return x.WriteRestrictionText
+	}
+	return ""
 }
 
 type EngineGetChatListRequest struct {

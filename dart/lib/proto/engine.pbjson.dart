@@ -326,6 +326,9 @@ const EngineChatInfo$json = {
     {'1': 'stars_to_send', '3': 24, '4': 1, '5': 5, '10': 'starsToSend'},
     {'1': 'ttl_period', '3': 25, '4': 1, '5': 5, '10': 'ttlPeriod'},
     {'1': 'emoji_status_id', '3': 26, '4': 1, '5': 9, '10': 'emojiStatusId'},
+    {'1': 'is_forum', '3': 27, '4': 1, '5': 8, '10': 'isForum'},
+    {'1': 'write_restriction_type', '3': 28, '4': 1, '5': 5, '10': 'writeRestrictionType'},
+    {'1': 'write_restriction_text', '3': 29, '4': 1, '5': 9, '10': 'writeRestrictionText'},
   ],
 };
 

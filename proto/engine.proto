@@ -177,6 +177,8 @@ message EngineChatInfo {
   int32  ttl_period               = 25;
   string emoji_status_id          = 26;
   bool   is_forum                 = 27;
+  int32  write_restriction_type   = 28;
+  string write_restriction_text   = 29;
 }
 
 message EngineGetChatListRequest {
