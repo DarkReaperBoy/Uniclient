@@ -302,6 +302,7 @@ class _ChatViewState extends State<ChatView>
   final Map<String, _WebPreviewDraft> _webPreviewDrafts = {};
   static final Map<String, double> _savedScrollOffsets = {};
   String? _pendingScrollRestore;
+  bool _isSyntheticScroll = false;
   AutocompleteQuery? _acQuery;
   List<MemberInfo> _acMembers = [];
   List<MemberInfo> _acFilteredMembers = [];
@@ -724,6 +725,8 @@ class _ChatViewState extends State<ChatView>
     if (_scrollController.offset < 10) {
       context.read<ChatState>().clearOpenedUnread();
     }
+    // Spec §49.8: synthetic scrolls don't count as user-initiated.
+    if (_isSyntheticScroll) return;
   }
 
   /// §49.6: Handle new message in active chat — auto-scroll or increment badge.
@@ -733,7 +736,7 @@ class _ChatViewState extends State<ChatView>
     if (msg.isOutgoing) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !_scrollController.hasClients) return;
-        _scrollController.jumpTo(0);
+        _smoothScrollTo(0, synthetic: true);
       });
       return;
     }
@@ -746,7 +749,7 @@ class _ChatViewState extends State<ChatView>
     if (atBottom) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !_scrollController.hasClients) return;
-        _scrollController.jumpTo(0);
+        _smoothScrollTo(0, synthetic: true);
       });
     } else {
       chatState.incrementOpenedUnread();
@@ -838,11 +841,41 @@ class _ChatViewState extends State<ChatView>
       chatState.returnToLatest();
       return;
     }
-    _scrollController.animateTo(
-      0,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOutCirc,
-    );
+    _smoothScrollTo(0);
+  }
+
+  /// Spec §49.8: Smooth scroll engine.
+  /// Duration: 240ms (slideDuration).
+  /// Short scroll (≤ 1 viewport): sineInOut.
+  /// Long scroll (> 1 viewport): jump to within 1 viewport, then easeOutCubic.
+  /// [synthetic] prevents _onScroll from treating it as a user scroll.
+  void _smoothScrollTo(double target, {bool synthetic = false}) {
+    if (!_scrollController.hasClients) return;
+    final pos = _scrollController.position;
+    final clamped = target.clamp(pos.minScrollExtent, pos.maxScrollExtent);
+    final delta = (clamped - pos.pixels).abs();
+    if (delta < 1.0) return;
+
+    if (synthetic) _isSyntheticScroll = true;
+    final viewportHeight = pos.viewportDimension;
+
+    if (delta <= viewportHeight) {
+      _scrollController.animateTo(
+        clamped,
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeInOutSine,
+      ).whenComplete(() => _isSyntheticScroll = false);
+    } else {
+      final jumpTarget = clamped > pos.pixels
+          ? clamped - viewportHeight
+          : clamped + viewportHeight;
+      _scrollController.jumpTo(jumpTarget.clamp(pos.minScrollExtent, pos.maxScrollExtent));
+      _scrollController.animateTo(
+        clamped,
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
+      ).whenComplete(() => _isSyntheticScroll = false);
+    }
   }
 
   /// §49.3: Scroll to a message and highlight it with fade-in/fade-out animation.
@@ -886,31 +919,7 @@ class _ChatViewState extends State<ChatView>
       _scrollController.position.minScrollExtent,
       _scrollController.position.maxScrollExtent,
     );
-    final delta = (target - _scrollController.offset).abs();
-    final viewportHeight = _scrollController.position.viewportDimension;
-
-    if (delta < 1.0) return;
-
-    if (delta <= viewportHeight) {
-      _scrollController.animateTo(
-        target,
-        duration: const Duration(milliseconds: 240),
-        curve: Curves.easeInOutSine,
-      );
-    } else {
-      final jumpTarget = target > _scrollController.offset
-          ? target - viewportHeight
-          : target + viewportHeight;
-      _scrollController.jumpTo(jumpTarget.clamp(
-        _scrollController.position.minScrollExtent,
-        _scrollController.position.maxScrollExtent,
-      ));
-      _scrollController.animateTo(
-        target,
-        duration: const Duration(milliseconds: 240),
-        curve: Curves.easeOutCubic,
-      );
-    }
+    _smoothScrollTo(target, synthetic: true);
   }
 
   void _startHighlightAnimation() {
@@ -946,11 +955,7 @@ class _ChatViewState extends State<ChatView>
     final target = isUp
         ? (pos.pixels + pageHeight).clamp(pos.minScrollExtent, pos.maxScrollExtent)
         : (pos.pixels - pageHeight).clamp(pos.minScrollExtent, pos.maxScrollExtent);
-    _scrollController.animateTo(
-      target,
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeOutCubic,
-    );
+    _smoothScrollTo(target);
   }
 
   void _showBusinessBotMenu(BuildContext context, ChatState chatState) {
