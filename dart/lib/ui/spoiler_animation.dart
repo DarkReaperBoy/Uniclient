@@ -305,6 +305,15 @@ class SpoilerTilePainter extends CustomPainter {
       old.frame != frame || old.revealProgress != revealProgress;
 }
 
+class SpoilerRevealManager extends ChangeNotifier {
+  SpoilerRevealManager._();
+  static final instance = SpoilerRevealManager._();
+
+  void hideAll() {
+    notifyListeners();
+  }
+}
+
 mixin SpoilerAnimationMixin<T extends StatefulWidget> on State<T> {
   SpoilerSpriteSheet? spoilerSheet;
   bool spoilerRegistered = false;

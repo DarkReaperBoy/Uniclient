@@ -7,6 +7,7 @@ import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../notifications/notification_types.dart';
 import '../ui/message_bubble.dart';
+import '../ui/spoiler_animation.dart';
 
 /// Chat list + active chat + messages state.
 class ChatState extends ChangeNotifier {
@@ -724,6 +725,7 @@ class ChatState extends ChangeNotifier {
     if (_chatOpenHistory.length > _maxChatOpenHistory) {
       _chatOpenHistory.removeRange(_maxChatOpenHistory, _chatOpenHistory.length);
     }
+    SpoilerRevealManager.instance.hideAll();
     _activeChat = chat;
     _openedUnreadCount = chat.unreadCount;
     _messages = [];
@@ -1203,6 +1205,7 @@ class ChatState extends ChangeNotifier {
   void jumpToMessage(int timestampMs) {
     final chat = _activeChat;
     if (chat == null) return;
+    SpoilerRevealManager.instance.hideAll();
 
     // getMessages returns messages with timestamp < beforeMs, newest first.
     // +1 ensures the target message itself is included as the first item.

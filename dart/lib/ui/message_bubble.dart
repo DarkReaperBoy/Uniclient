@@ -2142,6 +2142,9 @@ class _TextSpoilerWidgetState extends State<_TextSpoilerWidget>
       _revealController.forward().then((_) {
         if (mounted) disposeSpoiler();
       });
+    } else if (!widget.revealed && old.revealed) {
+      _revealController.value = 0.0;
+      if (!spoilerRegistered) initSpoiler(SpoilerType.text);
     }
   }
 
@@ -2164,7 +2167,7 @@ class _TextSpoilerWidgetState extends State<_TextSpoilerWidget>
       child: AnimatedBuilder(
         animation: _revealController,
         builder: (_, __) {
-          final revealVal = Curves.easeInOut.transform(_revealController.value);
+          final revealVal = _revealController.value;
           if (revealVal >= 1.0) {
             return Text(widget.text, style: widget.style);
           }
@@ -2346,6 +2349,9 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
       duration: const Duration(milliseconds: 200),
       vsync: this,
     )..addListener(() { if (mounted) setState(() {}); });
+    if (widget.message.mediaSpoiler) {
+      SpoilerRevealManager.instance.addListener(_onHideMediaSpoiler);
+    }
     _decodeThumb();
     if (widget.message.mediaLocalPath.isNotEmpty) {
       _fullImageLoaded = true;
@@ -2478,8 +2484,20 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
     }
   }
 
+  void _onHideMediaSpoiler() {
+    if (_spoilerRevealed && mounted) {
+      setState(() {
+        _spoilerRevealed = false;
+        _spoilerRevealCtrl.value = 0.0;
+      });
+    }
+  }
+
   @override
   void dispose() {
+    if (widget.message.mediaSpoiler) {
+      SpoilerRevealManager.instance.removeListener(_onHideMediaSpoiler);
+    }
     _scrollPosition?.removeListener(_checkVideoNoteVisibility);
     _scrollPosition = null;
     _disposeVideoNote();
@@ -4896,9 +4914,32 @@ class _RichMessageText extends StatefulWidget {
 class _RichMessageTextState extends State<_RichMessageText> {
   final Set<int> _revealedSpoilers = {};
   final List<TapGestureRecognizer> _recognizers = [];
+  List<_TextEntity>? _cachedEntities;
+
+  @override
+  void initState() {
+    super.initState();
+    SpoilerRevealManager.instance.addListener(_onHideSpoilers);
+  }
+
+  void _onHideSpoilers() {
+    if (_revealedSpoilers.isNotEmpty && mounted) {
+      setState(() => _revealedSpoilers.clear());
+    }
+  }
+
+  void _revealAllSpoilers() {
+    final entities = _cachedEntities ?? _parseEntities();
+    setState(() {
+      for (final e in entities.where((e) => e.type == 'spoiler')) {
+        _revealedSpoilers.add(e.offset);
+      }
+    });
+  }
 
   @override
   void dispose() {
+    SpoilerRevealManager.instance.removeListener(_onHideSpoilers);
     for (final r in _recognizers) {
       r.dispose();
     }
@@ -4939,6 +4980,7 @@ class _RichMessageTextState extends State<_RichMessageText> {
     _recognizers.clear();
 
     var entities = _parseEntities();
+    _cachedEntities = entities;
     final text = widget.text;
     if (entities.isEmpty) {
       if (widget.onContextMenu != null) {
@@ -5051,13 +5093,7 @@ class _RichMessageTextState extends State<_RichMessageText> {
 
     if (!hasUnrevealed) return result;
     return GestureDetector(
-      onTap: () {
-        setState(() {
-          for (final e in entities.where((e) => e.type == 'spoiler')) {
-            _revealedSpoilers.add(e.offset);
-          }
-        });
-      },
+      onTap: _revealAllSpoilers,
       behavior: HitTestBehavior.opaque,
       child: result,
     );
@@ -5148,7 +5184,7 @@ class _RichMessageTextState extends State<_RichMessageText> {
             style: widget.baseStyle,
             isDark: isDark,
             revealed: revealed,
-            onReveal: () => setState(() => _revealedSpoilers.add(idx)),
+            onReveal: _revealAllSpoilers,
           ),
         );
       case 'url':
