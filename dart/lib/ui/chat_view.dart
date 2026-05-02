@@ -4563,6 +4563,64 @@ class _TopBarButton extends StatelessWidget {
   }
 }
 
+/// §48.11: Back button wrapped in DragTarget — hovering a forward drag
+/// over it for 1s (`ChoosePeerByDragTimeout`) navigates back to the dialog list.
+class _ForwardDragBackButton extends StatefulWidget {
+  final VoidCallback? onBack;
+  final ValueChanged<Offset>? onSecondaryTap;
+
+  const _ForwardDragBackButton({this.onBack, this.onSecondaryTap});
+
+  @override
+  State<_ForwardDragBackButton> createState() => _ForwardDragBackButtonState();
+}
+
+class _ForwardDragBackButtonState extends State<_ForwardDragBackButton> {
+  Timer? _hoverTimer;
+
+  @override
+  void dispose() {
+    _hoverTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DragTarget<ForwardDragData>(
+      onWillAcceptWithDetails: (_) => true,
+      onMove: (_) {
+        if (_hoverTimer != null) return;
+        _hoverTimer = Timer(const Duration(milliseconds: 1000), () {
+          _hoverTimer = null;
+          widget.onBack?.call();
+        });
+      },
+      onLeave: (_) {
+        _hoverTimer?.cancel();
+        _hoverTimer = null;
+      },
+      builder: (context, candidateData, rejectedData) {
+        return GestureDetector(
+          onSecondaryTapUp: (details) {
+            widget.onSecondaryTap?.call(details.globalPosition);
+          },
+          child: SizedBox(
+            width: 60,
+            height: 54,
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back, size: 20),
+              onPressed: widget.onBack,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              splashRadius: 20,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _ChatTopBar extends StatelessWidget {
   final ChatInfo chat;
   final String? typingUser;
@@ -5152,23 +5210,12 @@ class _ChatTopBar extends StatelessWidget {
       child: Row(
         children: [
           if (showBackButton)
-            // Spec §4.2: historyTopBarBack — exact 60px width, full 54px height.
-            // Right-click opens call-type menu per spec §4.2.
-            GestureDetector(
-              onSecondaryTapUp: (details) {
-                _showBackButtonCallMenu(context, details.globalPosition);
-              },
-              child: SizedBox(
-                width: 60,
-                height: 54,
-                child: IconButton(
-                  icon: const Icon(Icons.arrow_back, size: 20),
-                  onPressed: onBack,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  splashRadius: 20,
-                ),
-              ),
+            // §48.11: Back button is a DragTarget — hovering a forward drag
+            // over it for 1s navigates back to dialog list.
+            _ForwardDragBackButton(
+              onBack: onBack,
+              onSecondaryTap: (pos) =>
+                  _showBackButtonCallMenu(context, pos),
             )
           else
             // Spec §4.2: _leftTaken = 17px when no back button.

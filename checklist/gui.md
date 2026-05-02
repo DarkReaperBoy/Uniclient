@@ -966,8 +966,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §48 — Drag-and-Drop File Overlay
 # Touches: dart/lib/ui/chat_view.dart, dart/lib/ui/shell.dart, new drag_drop_overlay.dart
 
-- [ ] Forward via drag — x-td-forward MIME type; open target chat after 1s hover over dialog; navigate back after 1s hover over back button; topic chooser for forum peer — spec §48.11
-
 ---
 
 ## §49 — Scroll Behaviors

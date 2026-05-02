@@ -383,6 +383,43 @@ class _ChatListPanelState extends State<ChatListPanel>
     return true;
   }
 
+  /// §48.11: Show topic chooser when forward-drag drops on a forum peer.
+  void _showForwardTopicChooser(
+    BuildContext ctx,
+    ChatState chatState,
+    ChatInfo forumChat,
+    List<String> msgIds,
+  ) {
+    final engine = ctx.read<EngineService>();
+    engine.getForumTopics(forumChat.accountId, forumChat.chatId).then((topics) {
+      if (!mounted || topics.isEmpty) {
+        chatState.forwardMessages(msgIds, forumChat.chatId);
+        showTelegramToast(ctx, 'Messages forwarded.');
+        return;
+      }
+      topics.sort((a, b) {
+        if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+        final aId = int.tryParse(a.topMessageId) ?? 0;
+        final bId = int.tryParse(b.topMessageId) ?? 0;
+        return bId.compareTo(aId);
+      });
+      showDialog<ForumTopic>(
+        context: ctx,
+        builder: (dialogCtx) => _ForwardTopicChooserDialog(
+          forumTitle: forumChat.title,
+          topics: topics,
+        ),
+      ).then((topic) {
+        if (topic == null) return;
+        chatState.forwardMessages(msgIds, topic.id);
+        showTelegramToast(ctx, 'Messages forwarded to "${topic.title}".');
+      });
+    }).catchError((_) {
+      chatState.forwardMessages(msgIds, forumChat.chatId);
+      showTelegramToast(ctx, 'Messages forwarded.');
+    });
+  }
+
   @override
   void dispose() {
     if (ChatListPanel.focusSearchRequest == _focusSearch) {
@@ -792,22 +829,33 @@ class _ChatListPanelState extends State<ChatListPanel>
                               onAcceptWithDetails: (details) {
                                 _forwardHoverTimer?.cancel();
                                 setState(() => _forwardHoveredChatId = null);
-                                chatState.forwardMessages(
-                                  details.data.messageIds,
-                                  chat.chatId,
-                                );
-                                showTelegramToast(
-                                    context, 'Messages forwarded.');
+                                // §48.11: Forum peer → topic chooser before
+                                // forwarding; normal peer → forward directly.
+                                if (chat.isForum) {
+                                  _showForwardTopicChooser(
+                                    context,
+                                    chatState,
+                                    chat,
+                                    details.data.messageIds,
+                                  );
+                                } else {
+                                  chatState.forwardMessages(
+                                    details.data.messageIds,
+                                    chat.chatId,
+                                  );
+                                  showTelegramToast(
+                                      context, 'Messages forwarded.');
+                                }
                               },
                               onMove: (details) {
                                 if (_forwardHoveredChatId != chat.chatId) {
                                   _forwardHoverTimer?.cancel();
                                   setState(() =>
                                       _forwardHoveredChatId = chat.chatId);
-                                  // Spec §2.7: Auto-select on hover after
-                                  // kFreezeTimeout (2000ms).
+                                  // §48.11: ChoosePeerByDragTimeout — open
+                                  // target chat after 1s forward-drag hover.
                                   _forwardHoverTimer = Timer(
-                                    const Duration(milliseconds: 2000),
+                                    const Duration(milliseconds: 1000),
                                     () {
                                       if (mounted &&
                                           _forwardHoveredChatId ==
@@ -5635,6 +5683,85 @@ class _SavedSublistRowState extends State<_SavedSublistRow> {
       return days[dt.weekday - 1];
     }
     return '${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')}.${dt.year % 100}';
+  }
+}
+
+/// §48.11: Topic chooser dialog shown when forward-dragging onto a forum peer.
+class _ForwardTopicChooserDialog extends StatelessWidget {
+  final String forumTitle;
+  final List<ForumTopic> topics;
+
+  const _ForwardTopicChooserDialog({
+    required this.forumTitle,
+    required this.topics,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 320, maxHeight: 400),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
+              child: Text(
+                'Forward to topic in "$forumTitle"',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const Divider(height: 1),
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: topics.length,
+                itemBuilder: (ctx, i) {
+                  final topic = topics[i];
+                  return ListTile(
+                    leading: topic.id == '1'
+                        ? GeneralForumTopicIcon(
+                            size: ForumTopicIcon.defaultSize)
+                        : ForumTopicIcon(
+                            colorId: topic.colorId,
+                            title: topic.title,
+                            size: ForumTopicIcon.defaultSize,
+                          ),
+                    title: Text(
+                      topic.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                    dense: true,
+                    onTap: () => Navigator.of(ctx).pop(topic),
+                  );
+                },
+              ),
+            ),
+            const Divider(height: 1),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(
+                'Cancel',
+                style: TextStyle(
+                  color: isDark
+                      ? const Color(0xFF6AB3F3)
+                      : const Color(0xFF168ACD),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 }
 
