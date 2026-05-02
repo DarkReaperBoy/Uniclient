@@ -5357,12 +5357,33 @@ class _LargeIsolatedEmoji extends StatelessWidget {
     final children = <Widget>[];
     for (final item in info.items) {
       if (item.isCustom) {
-        children.add(_LargeCustomEmojiTile(
+        Widget tile = _LargeCustomEmojiTile(
           documentId: item.documentId,
           accountId: accountId,
           altText: item.altText,
           size: size,
-        ));
+        );
+        if (info.count == 1) {
+          tile = _TapSplashEmoji(
+            size: size,
+            onTap: () => _ReactionPreviewOverlay.show(
+              context: context,
+              documentId: item.documentId,
+              accountId: accountId,
+            ),
+            child: tile,
+          );
+        } else {
+          tile = GestureDetector(
+            onTap: () => _ReactionPreviewOverlay.show(
+              context: context,
+              documentId: item.documentId,
+              accountId: accountId,
+            ),
+            child: tile,
+          );
+        }
+        children.add(tile);
       } else {
         children.add(SizedBox(
           width: size,
@@ -5557,17 +5578,83 @@ class _LargeCustomEmojiTileState extends State<_LargeCustomEmojiTile>
   }
 }
 
+// ── §45.9: Tap splash for isolated single custom emoji ──
+
+class _TapSplashEmoji extends StatefulWidget {
+  final Widget child;
+  final double size;
+  final VoidCallback onTap;
+
+  const _TapSplashEmoji({
+    required this.child,
+    required this.size,
+    required this.onTap,
+  });
+
+  @override
+  State<_TapSplashEmoji> createState() => _TapSplashEmojiState();
+}
+
+class _TapSplashEmojiState extends State<_TapSplashEmoji>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _scale = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.15), weight: 40),
+      TweenSequenceItem(tween: Tween(begin: 1.15, end: 1.0), weight: 60),
+    ]).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _handleTap() {
+    _controller.forward(from: 0);
+    widget.onTap();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _handleTap,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: _scale.value,
+            child: child,
+          );
+        },
+        child: widget.child,
+      ),
+    );
+  }
+}
+
 // ── Animated custom emoji inline widget (§45.3) ──
 
 class _CustomEmojiInline extends StatefulWidget {
   final int documentId;
   final String accountId;
   final String altText;
+  final VoidCallback? onTap;
 
   const _CustomEmojiInline({
     required this.documentId,
     required this.accountId,
     required this.altText,
+    this.onTap,
   });
 
   @override
@@ -5693,6 +5780,24 @@ class _CustomEmojiInlineState extends State<_CustomEmojiInline>
     _lottieController!.forward();
   }
 
+  bool _tapDown = false;
+
+  Widget _wrapTap(Widget child) {
+    if (widget.onTap == null) return child;
+    return Listener(
+      behavior: HitTestBehavior.opaque,
+      onPointerDown: (_) => _tapDown = true,
+      onPointerUp: (_) {
+        if (_tapDown) {
+          _tapDown = false;
+          widget.onTap!();
+        }
+      },
+      onPointerCancel: (_) => _tapDown = false,
+      child: child,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cache = CustomEmojiCache.instance;
@@ -5702,7 +5807,7 @@ class _CustomEmojiInlineState extends State<_CustomEmojiInline>
     if (file != null && !powerSaving) {
       final cachedWidget = _buildCachedEmoji(file, cache);
       if (_fadeController.isAnimating || _fadeController.value < 1.0) {
-        return SizedBox(
+        return _wrapTap(SizedBox(
           width: _adjustedSize,
           height: _adjustedSize,
           child: AnimatedBuilder(
@@ -5721,16 +5826,16 @@ class _CustomEmojiInlineState extends State<_CustomEmojiInline>
             },
             child: cachedWidget,
           ),
-        );
+        ));
       }
-      return cachedWidget;
+      return _wrapTap(cachedWidget);
     }
 
     if (file != null && powerSaving) {
-      return _buildStaticFrame(file, cache);
+      return _wrapTap(_buildStaticFrame(file, cache));
     }
 
-    return _buildPreviewOrBlank(cache);
+    return _wrapTap(_buildPreviewOrBlank(cache));
   }
 
   Widget _buildCachedEmoji(CustomEmojiFileData file, CustomEmojiCache cache) {
@@ -6404,14 +6509,21 @@ class _RichMessageTextState extends State<_RichMessageText> {
         );
       case 'custom_emoji':
         if (entity.documentId == 0) return TextSpan(text: text);
+        final emojiDocId = entity.documentId;
+        final emojiAcctId = widget.accountId;
         return WidgetSpan(
           alignment: PlaceholderAlignment.middle,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 1),
             child: _CustomEmojiInline(
-              documentId: entity.documentId,
-              accountId: widget.accountId,
+              documentId: emojiDocId,
+              accountId: emojiAcctId,
               altText: text,
+              onTap: () => _ReactionPreviewOverlay.show(
+                context: context,
+                documentId: emojiDocId,
+                accountId: emojiAcctId,
+              ),
             ),
           ),
         );
