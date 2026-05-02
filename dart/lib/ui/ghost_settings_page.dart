@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import 'settings_style.dart';
+import 'telegram_toast.dart';
 
 class GhostSettingsPage extends StatelessWidget {
   const GhostSettingsPage({super.key});
@@ -72,7 +73,15 @@ class GhostSettingsPage extends StatelessWidget {
           _GhostMasterToggle(
             label: 'Ghost Mode',
             value: appState.ghostModeEnabled,
-            onChanged: (v) => appState.setGhostModeEnabled(v),
+            onChanged: (v) {
+              final before = appState.ghostModeEnabled;
+              appState.setGhostModeEnabled(v);
+              if (before != appState.ghostModeEnabled) {
+                showTelegramToast(context, appState.ghostModeEnabled
+                    ? 'Ghost Mode turned on'
+                    : 'Ghost Mode turned off');
+              }
+            },
             isDark: isDark,
             useMaterial: appState.materialSwitches,
           ),

@@ -353,9 +353,25 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                       label: 'Ghost Mode',
                       trailing: _InlineToggle(
                         value: appState.ghostModeEnabled,
-                        onChanged: (v) => appState.setGhostModeEnabled(v),
+                        onChanged: (v) {
+                          final before = appState.ghostModeEnabled;
+                          appState.setGhostModeEnabled(v);
+                          if (before != appState.ghostModeEnabled) {
+                            showTelegramToast(context, appState.ghostModeEnabled
+                                ? 'Ghost Mode turned on'
+                                : 'Ghost Mode turned off');
+                          }
+                        },
                       ),
-                      onTap: () => appState.setGhostModeEnabled(!appState.ghostModeEnabled),
+                      onTap: () {
+                        final before = appState.ghostModeEnabled;
+                        appState.setGhostModeEnabled(!before);
+                        if (before != appState.ghostModeEnabled) {
+                          showTelegramToast(context, appState.ghostModeEnabled
+                              ? 'Ghost Mode turned on'
+                              : 'Ghost Mode turned off');
+                        }
+                      },
                     ),
                     // §51.5: LRead toggle — quick toggle for sendReadMessages (default hidden).
                     if (appState.showLReadToggleInDrawer)
