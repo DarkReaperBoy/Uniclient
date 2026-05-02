@@ -364,6 +364,12 @@ class _ChatViewState extends State<ChatView>
   final _highlightMsgKey = GlobalKey();
   final _highlightQueue = <String>[];
 
+  /// §49.13: Sticky date header overlay state.
+  String _stickyDateText = '';
+  int _stickyDateTimestamp = 0;
+  Timer? _stickyDateHideTimer;
+  bool _stickyDateVisible = false;
+
   @override
   void initState() {
     super.initState();
@@ -527,6 +533,7 @@ class _ChatViewState extends State<ChatView>
     }
     ChatView.testVideoPublishedToast = null;
     _highlightAnimCtrl.dispose();
+    _stickyDateHideTimer?.cancel();
     _dragOverlayAnimCtrl.dispose();
     _scheduledSlideCtrl.dispose();
     _selectionCurvedAnim.dispose();
@@ -631,6 +638,10 @@ class _ChatViewState extends State<ChatView>
       _mentionsAnimCtrl.value = 0;
       _reactionsAnimCtrl.value = 0;
       _pollVotesAnimCtrl.value = 0;
+      _stickyDateVisible = false;
+      _stickyDateText = '';
+      _stickyDateTimestamp = 0;
+      _stickyDateHideTimer?.cancel();
       if (_editingMsgId != null || _replyToId != null || _isSearching || _pinnedBarDismissed || _isForwarding) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
@@ -728,6 +739,7 @@ class _ChatViewState extends State<ChatView>
       context.read<ChatState>().loadMoreMessages();
     }
     _updateFabVisibility();
+    _updateStickyDateHeader();
     // Spec §49.4: destroy unread bar when user scrolls to bottom.
     if (_scrollController.offset < 10) {
       context.read<ChatState>().clearOpenedUnread();
@@ -777,6 +789,62 @@ class _ChatViewState extends State<ChatView>
         _fabAnimCtrl.reverse();
       }
     }
+  }
+
+  /// §49.13: Update sticky date header based on topmost visible message.
+  void _updateStickyDateHeader() {
+    if (!_scrollController.hasClients) return;
+    final messages = context.read<ChatState>().messages;
+    if (messages.isEmpty) return;
+
+    final offset = _scrollController.offset;
+    // Don't show when at the very bottom (near newest messages).
+    if (offset < 20) {
+      if (_stickyDateVisible) {
+        setState(() => _stickyDateVisible = false);
+        _stickyDateHideTimer?.cancel();
+      }
+      return;
+    }
+
+    // Estimate the topmost visible message index.
+    // Reversed ListView: index 0 = newest (bottom). Higher offset = older messages at top.
+    // Average item height ~80px is a rough estimate.
+    final pos = _scrollController.position;
+    final viewportHeight = pos.viewportDimension;
+    final topOffset = offset + viewportHeight;
+    final estimatedIndex = (topOffset / 80.0).floor().clamp(0, messages.length - 1);
+
+    final topMsg = messages[estimatedIndex];
+    final topDt = DateTime.fromMillisecondsSinceEpoch(topMsg.timestamp);
+
+    // Format the date text.
+    final now = DateTime.now();
+    final diff = now.difference(topDt);
+    String dateText;
+    if (diff.inDays == 0 && topDt.day == now.day) {
+      dateText = 'Today';
+    } else if (diff.inDays == 1 || (diff.inDays == 0 && topDt.day != now.day)) {
+      dateText = 'Yesterday';
+    } else {
+      dateText = '${_DateSeparator._months[topDt.month - 1]} ${topDt.day}, ${topDt.year}';
+    }
+
+    final needsRebuild = dateText != _stickyDateText || !_stickyDateVisible;
+    if (needsRebuild) {
+      setState(() {
+        _stickyDateText = dateText;
+        _stickyDateTimestamp = topMsg.timestamp;
+        _stickyDateVisible = true;
+      });
+    }
+
+    // Reset auto-hide timer: hide after 1000ms of no scrolling.
+    _stickyDateHideTimer?.cancel();
+    _stickyDateHideTimer = Timer(const Duration(milliseconds: 1000), () {
+      if (!mounted) return;
+      setState(() => _stickyDateVisible = false);
+    });
   }
 
   /// §23.8: Check if entering scheduled view with video messages and show tip toast.
@@ -4269,6 +4337,18 @@ class _ChatViewState extends State<ChatView>
                     highlightMsgKey: _activeHighlightId != null ? _highlightMsgKey : null,
                   ),
                 ),
+                // §49.13/§49.16: Sticky date header overlay.
+                if (_stickyDateText.isNotEmpty)
+                  Positioned(
+                    top: 4,
+                    left: 0,
+                    right: 0,
+                    child: _StickyDateHeader(
+                      text: _stickyDateText,
+                      visible: _stickyDateVisible,
+                      timestamp: _stickyDateTimestamp,
+                    ),
+                  ),
                 // Spec §5 / §49.17: Stacked corner buttons.
                 // Order bottom→top: Jump-down → Mentions → Reactions → PollVotes.
                 // 4px gap (historyUnreadThingsSkip) between buttons, 12px right, 10px bottom.
@@ -6374,6 +6454,72 @@ class _DateSeparator extends StatelessWidget {
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
+}
+
+/// §49.13/§49.16: Sticky date header that overlays at the top of the message
+/// list while scrolling. Fades in/out over 200ms, auto-hides 1000ms after
+/// scroll stops. Click opens CalendarBox.
+class _StickyDateHeader extends StatelessWidget {
+  final String text;
+  final bool visible;
+  final int timestamp;
+
+  const _StickyDateHeader({
+    required this.text,
+    required this.visible,
+    required this.timestamp,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      ignoring: !visible,
+      child: AnimatedOpacity(
+        opacity: visible ? 1.0 : 0.0,
+        duration: const Duration(milliseconds: 200),
+        child: Center(
+          child: GestureDetector(
+            onTap: () {
+              if (timestamp > 0) {
+                final dt = DateTime.fromMillisecondsSinceEpoch(timestamp);
+                final chatState = context.read<ChatState>();
+                showDialog(
+                  context: context,
+                  builder: (ctx) => _CalendarBox(
+                    initialDate: dt,
+                    minDate: DateTime(2013, 8, 1),
+                    maxDate: DateTime.now(),
+                    onDateSelected: (date) {
+                      Navigator.of(ctx).pop();
+                      chatState.jumpToMessage(date.millisecondsSinceEpoch);
+                    },
+                  ),
+                );
+              }
+            },
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(12, 3, 12, 4),
+                decoration: BoxDecoration(
+                  color: context.palette.msgServiceBg,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  text,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: context.palette.msgServiceFg,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _CalendarBox extends StatefulWidget {
