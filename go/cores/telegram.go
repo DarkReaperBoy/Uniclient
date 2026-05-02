@@ -1100,8 +1100,9 @@ func (t *TelegramCore) SendMessage(chatID string, msg OutgoingMessage) (*Message
 	wpUrl, _ := msg.Extra["web_page_url"].(string)
 	_, forceLarge := msg.Extra["force_large_media"]
 	_, forceSmall := msg.Extra["force_small_media"]
+	_, invertMedia := msg.Extra["invert_media"]
 
-	if wpUrl != "" && (forceLarge || forceSmall) {
+	if wpUrl != "" && (forceLarge || forceSmall || invertMedia) {
 		mediaReq := &tg.MessagesSendMediaRequest{
 			Peer:     inputPeer,
 			Message:  msg.Text,
@@ -1111,6 +1112,9 @@ func (t *TelegramCore) SendMessage(chatID string, msg OutgoingMessage) (*Message
 				ForceLargeMedia: forceLarge,
 				ForceSmallMedia: forceSmall,
 			},
+		}
+		if invertMedia {
+			mediaReq.SetInvertMedia(true)
 		}
 		if len(tgEntities) > 0 {
 			mediaReq.SetEntities(tgEntities)

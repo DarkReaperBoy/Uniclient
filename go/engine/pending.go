@@ -38,6 +38,7 @@ type sendPayload struct {
 	WebPageUrl      string             `json:"web_page_url,omitempty"`
 	ForceLargeMedia bool               `json:"force_large_media,omitempty"`
 	ForceSmallMedia bool               `json:"force_small_media,omitempty"`
+	InvertMedia     bool               `json:"invert_media,omitempty"`
 }
 
 type sendContactPayload struct {
@@ -115,7 +116,7 @@ func getChatLock(accountID, chatID string) *sync.Mutex {
 
 // SendMessage queues a message for sending through the pending queue.
 // Returns the local_id for optimistic UI display.
-func (e *Engine) SendMessage(accountID, chatID, text, replyToID string, entities []cores.TextEntity, silent bool, scheduleDate int64, topicRootID string, webPageUrl string, forceLargeMedia bool, forceSmallMedia bool) (string, error) {
+func (e *Engine) SendMessage(accountID, chatID, text, replyToID string, entities []cores.TextEntity, silent bool, scheduleDate int64, topicRootID string, webPageUrl string, forceLargeMedia bool, forceSmallMedia bool, invertMedia bool) (string, error) {
 	log.Printf("[engine] SendMessage(%s, %s): text=%q replyToID=%q silent=%v scheduleDate=%d topicRootID=%q", accountID, chatID, text, replyToID, silent, scheduleDate, topicRootID)
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -135,6 +136,7 @@ func (e *Engine) SendMessage(accountID, chatID, text, replyToID string, entities
 		WebPageUrl:      webPageUrl,
 		ForceLargeMedia: forceLargeMedia,
 		ForceSmallMedia: forceSmallMedia,
+		InvertMedia:     invertMedia,
 	})
 
 	// Write to pending table.
@@ -511,6 +513,9 @@ func (e *Engine) executePending(acc *Account, chatID, localID, action string, pa
 		}
 		if p.ForceSmallMedia {
 			extra["force_small_media"] = true
+		}
+		if p.InvertMedia {
+			extra["invert_media"] = true
 		}
 		msg := cores.OutgoingMessage{Text: p.Text, ReplyToID: p.ReplyToID, Entities: p.Entities, Extra: extra}
 		log.Printf("[engine] executePending SEND: chatID=%s replyToID=%q text=%q silent=%v scheduleDate=%d topicRootID=%q", chatID, p.ReplyToID, p.Text, p.Silent, p.ScheduleDate, p.TopicRootID)

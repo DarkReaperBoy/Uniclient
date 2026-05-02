@@ -1584,7 +1584,7 @@ class EngineService {
     return resp.messages.map(_cachedMsgFromProto).toList();
   }
 
-  Future<String> sendMessage(String accountId, String chatId, String text, {String replyToId = '', String entities = '', bool silent = false, int scheduleDate = 0, String topicRootId = '', String webPageUrl = '', bool forceLargeMedia = false, bool forceSmallMedia = false}) async {
+  Future<String> sendMessage(String accountId, String chatId, String text, {String replyToId = '', String entities = '', bool silent = false, int scheduleDate = 0, String topicRootId = '', String webPageUrl = '', bool forceLargeMedia = false, bool forceSmallMedia = false, bool invertMedia = false}) async {
     final req = epb.EngineSendMessageRequest()
       ..accountId = accountId
       ..chatId = chatId
@@ -1608,6 +1608,9 @@ class EngineService {
     }
     if (forceSmallMedia) {
       req.forceSmallMedia = true;
+    }
+    if (invertMedia) {
+      req.invertMedia = true;
     }
     final respBytes = await _callAsync('__engine', 'SendMessage', req.writeToBuffer());
     final resp = epb.EngineSendMessageResponse.fromBuffer(respBytes);

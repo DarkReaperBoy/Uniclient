@@ -238,6 +238,7 @@ class _ChatViewState extends State<ChatView>
   bool _isDragOver = false;
   int _dragHoveredCard = 0; // 0=none, 1=document, 2=photo
   late final AnimationController _dragOverlayAnimCtrl;
+  bool _webPreviewInvert = false;
   bool _webPreviewCancelled = false;
   String _lastPreviewUrl = '';
   Timer? _previewDebounce;
@@ -2327,6 +2328,7 @@ class _ChatViewState extends State<ChatView>
           _webPreviewCancelled = false;
           _webPreviewForceLarge = false;
           _webPreviewForceSmall = false;
+          _webPreviewInvert = false;
         });
       }
       return;
@@ -2348,6 +2350,7 @@ class _ChatViewState extends State<ChatView>
             _lastPreviewUrl = url;
             _webPreviewForceLarge = false;
             _webPreviewForceSmall = false;
+            _webPreviewInvert = false;
           });
         } else {
           setState(() {
@@ -2355,6 +2358,7 @@ class _ChatViewState extends State<ChatView>
             _lastPreviewUrl = url;
             _webPreviewForceLarge = false;
             _webPreviewForceSmall = false;
+            _webPreviewInvert = false;
           });
         }
       });
@@ -2367,6 +2371,7 @@ class _ChatViewState extends State<ChatView>
       _webPreviewCancelled = true;
       _webPreviewForceLarge = false;
       _webPreviewForceSmall = false;
+      _webPreviewInvert = false;
     });
   }
 
@@ -2382,6 +2387,13 @@ class _ChatViewState extends State<ChatView>
         _webPreviewForceLarge = false;
         _webPreviewForceSmall = true;
       }
+    });
+  }
+
+  void _toggleWebPreviewInvert() {
+    if (_webPreview == null) return;
+    setState(() {
+      _webPreviewInvert = !_webPreviewInvert;
     });
   }
 
@@ -2905,15 +2917,17 @@ class _ChatViewState extends State<ChatView>
     }
     chatState.sendMessage(text, replyToId: _replyToId ?? '', entities: entities,
         silent: silent, scheduleDate: scheduleDate,
-        webPageUrl: (_webPreview != null && (_webPreviewForceLarge || _webPreviewForceSmall)) ? _webPreview!.url : '',
+        webPageUrl: (_webPreview != null && (_webPreviewForceLarge || _webPreviewForceSmall || _webPreviewInvert)) ? _webPreview!.url : '',
         forceLargeMedia: _webPreviewForceLarge,
-        forceSmallMedia: _webPreviewForceSmall);
+        forceSmallMedia: _webPreviewForceSmall,
+        invertMedia: _webPreviewInvert);
     _composeController.clear();
     setState(() {
       _replyToId = null;
       _webPreview = null;
       _webPreviewForceLarge = false;
       _webPreviewForceSmall = false;
+      _webPreviewInvert = false;
       _webPreviewCancelled = false;
       _lastPreviewUrl = '';
     });
@@ -3716,6 +3730,9 @@ class _ChatViewState extends State<ChatView>
                   (!_webPreviewForceLarge && _webPreview!.defaultSmallMedia),
               canToggleSize: _webPreview!.hasLargeMedia,
               onToggleSize: _toggleWebPreviewMediaSize,
+              isInverted: _webPreviewInvert,
+              hasText: _composeController.text.isNotEmpty,
+              onToggleInvert: _toggleWebPreviewInvert,
               onCancel: _cancelWebPreview,
             ),
           if (_acQuery != null && _acQuery!.type == AutocompleteType.mention && _acFilteredMembers.isNotEmpty)
@@ -6097,6 +6114,9 @@ class _WebPreviewBar extends StatelessWidget {
   final bool isSmallMedia;
   final bool canToggleSize;
   final VoidCallback onToggleSize;
+  final bool isInverted;
+  final bool hasText;
+  final VoidCallback onToggleInvert;
   final VoidCallback onCancel;
 
   const _WebPreviewBar({
@@ -6104,6 +6124,9 @@ class _WebPreviewBar extends StatelessWidget {
     required this.isSmallMedia,
     required this.canToggleSize,
     required this.onToggleSize,
+    required this.isInverted,
+    required this.hasText,
+    required this.onToggleInvert,
     required this.onCancel,
   });
 
@@ -6111,7 +6134,10 @@ class _WebPreviewBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = PaletteProvider.of(context);
     final hasThumb = preview.thumbB64.isNotEmpty;
-    final rightButtonsWidth = canToggleSize ? 90.0 : 49.0;
+    final showInvert = hasText;
+    var rightButtonsWidth = 41.0; // close button
+    if (canToggleSize) rightButtonsWidth += 49.0;
+    if (showInvert) rightButtonsWidth += 41.0;
 
     if (isSmallMedia && hasThumb) {
       return Container(
@@ -6189,6 +6215,22 @@ class _WebPreviewBar extends StatelessWidget {
                 ),
               ),
             ),
+            if (showInvert)
+              Positioned(
+                right: 41.0 + (canToggleSize ? 49.0 : 0),
+                top: 0,
+                child: SizedBox(
+                  width: 41,
+                  height: 49,
+                  child: IconButton(
+                    onPressed: onToggleInvert,
+                    tooltip: isInverted ? 'Move down' : 'Move up',
+                    icon: Icon(isInverted ? Icons.arrow_downward : Icons.arrow_upward, size: 16, color: palette.historyReplyIconFg.withValues(alpha: 0.6)),
+                    splashRadius: 18,
+                    padding: EdgeInsets.zero,
+                  ),
+                ),
+              ),
             if (canToggleSize)
               Positioned(
                 right: 41,
@@ -6301,6 +6343,22 @@ class _WebPreviewBar extends StatelessWidget {
               ),
             ),
           ),
+          if (showInvert)
+            Positioned(
+              right: 41.0 + (canToggleSize ? 49.0 : 0),
+              top: 0,
+              child: SizedBox(
+                width: 41,
+                height: 49,
+                child: IconButton(
+                  onPressed: onToggleInvert,
+                  tooltip: isInverted ? 'Move down' : 'Move up',
+                  icon: Icon(isInverted ? Icons.arrow_downward : Icons.arrow_upward, size: 16, color: palette.historyReplyIconFg.withValues(alpha: 0.6)),
+                  splashRadius: 18,
+                  padding: EdgeInsets.zero,
+                ),
+              ),
+            ),
           if (canToggleSize)
             Positioned(
               right: 41,

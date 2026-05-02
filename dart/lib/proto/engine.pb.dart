@@ -3816,6 +3816,7 @@ class EngineSendMessageRequest extends $pb.GeneratedMessage {
     $core.String? webPageUrl,
     $core.bool? forceLargeMedia,
     $core.bool? forceSmallMedia,
+    $core.bool? invertMedia,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -3851,6 +3852,9 @@ class EngineSendMessageRequest extends $pb.GeneratedMessage {
     if (forceSmallMedia != null) {
       $result.forceSmallMedia = forceSmallMedia;
     }
+    if (invertMedia != null) {
+      $result.invertMedia = invertMedia;
+    }
     return $result;
   }
   EngineSendMessageRequest._() : super();
@@ -3869,6 +3873,7 @@ class EngineSendMessageRequest extends $pb.GeneratedMessage {
     ..aOS(9, _omitFieldNames ? '' : 'webPageUrl')
     ..aOB(10, _omitFieldNames ? '' : 'forceLargeMedia')
     ..aOB(11, _omitFieldNames ? '' : 'forceSmallMedia')
+    ..aOB(12, _omitFieldNames ? '' : 'invertMedia')
     ..hasRequiredFields = false
   ;
 
@@ -3991,6 +3996,15 @@ class EngineSendMessageRequest extends $pb.GeneratedMessage {
   $core.bool hasForceSmallMedia() => $_has(10);
   @$pb.TagNumber(11)
   void clearForceSmallMedia() => clearField(11);
+
+  @$pb.TagNumber(12)
+  $core.bool get invertMedia => $_getBF(11);
+  @$pb.TagNumber(12)
+  set invertMedia($core.bool v) { $_setBool(11, v); }
+  @$pb.TagNumber(12)
+  $core.bool hasInvertMedia() => $_has(11);
+  @$pb.TagNumber(12)
+  void clearInvertMedia() => clearField(12);
 }
 
 class EngineSendMessageResponse extends $pb.GeneratedMessage {
