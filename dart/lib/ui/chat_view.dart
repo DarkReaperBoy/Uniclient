@@ -696,8 +696,18 @@ class _ChatViewState extends State<ChatView>
     if (pos.pixels >= pos.maxScrollExtent - preloadThreshold) {
       context.read<ChatState>().loadMoreMessages();
     }
-    // Spec §5: show FAB after scrolling 480px from bottom.
-    final showFab = _scrollController.offset > 480;
+    _updateFabVisibility();
+    // Spec §49.4: destroy unread bar when user scrolls to bottom.
+    if (_scrollController.offset < 10) {
+      context.read<ChatState>().clearOpenedUnread();
+    }
+  }
+
+  void _updateFabVisibility() {
+    // Spec §49.5: show when >480px from bottom OR unread messages exist below.
+    final scrolledFar = _scrollController.hasClients && _scrollController.offset > 480;
+    final hasUnreadBelow = context.read<ChatState>().openedUnreadCount > 0;
+    final showFab = scrolledFar || hasUnreadBelow;
     if (showFab != _showScrollToBottom) {
       _showScrollToBottom = showFab;
       if (showFab) {
@@ -705,10 +715,6 @@ class _ChatViewState extends State<ChatView>
       } else {
         _fabAnimCtrl.reverse();
       }
-    }
-    // Spec §49.4: destroy unread bar when user scrolls to bottom.
-    if (_scrollController.offset < 10) {
-      context.read<ChatState>().clearOpenedUnread();
     }
   }
 
@@ -775,9 +781,11 @@ class _ChatViewState extends State<ChatView>
   }
 
   void _scrollToBottom() {
+    // Spec §49.5: Ctrl held → force jump to position (bypasses reply-return).
     final chatState = context.read<ChatState>();
     if (chatState.isJumped) {
       chatState.returnToLatest();
+      return;
     }
     _scrollController.animateTo(
       0,
@@ -3796,6 +3804,11 @@ class _ChatViewState extends State<ChatView>
     if (chat == null) {
       return const SizedBox.shrink();
     }
+
+    // Spec §49.5: sync FAB visibility with unread state changes.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _updateFabVisibility();
+    });
 
     // §23.8: detect transition into scheduled view and trigger video tip toast.
     // §23.10: track slide direction for section enter/exit animation.
@@ -9641,12 +9654,11 @@ class _ScrollToBottomFabState extends State<_ScrollToBottomFab> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    // Spec colors.
+    // Spec §49.15 colors.
     final discBg = isDark ? const Color(0xFF1D2B3A) : const Color(0xFFFFFFFF);
     final discBgOver = isDark ? const Color(0xFF243446) : const Color(0xFFF1F1F1);
     final arrowColor = isDark ? const Color(0xFFADB4BA) : const Color(0xFF999999);
-    const shadowColor = Color(0x40000000); // #00000040 = 25% black
-    // Badge: muted palette.
+    // Badge: muted palette (dialogsUnreadBgMuted).
     final badgeBg = isDark ? const Color(0xFF3E546A) : const Color(0xFFBBBBBB);
 
     return MouseRegion(
@@ -9657,11 +9669,11 @@ class _ScrollToBottomFabState extends State<_ScrollToBottomFab> {
         behavior: HitTestBehavior.opaque,
         child: SizedBox(
           width: 52,
-          height: 62 + (widget.unreadCount > 0 ? 26 : 0), // badge adds 22+4 above
+          height: 62,
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              // Badge: 4px above the 62px button area.
+              // §49.15: Badge positioned at y=0 (top of 52px button), centered.
               if (widget.unreadCount > 0)
                 Positioned(
                   top: 0,
@@ -9670,7 +9682,7 @@ class _ScrollToBottomFabState extends State<_ScrollToBottomFab> {
                   child: Center(
                     child: Container(
                       constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 5),
                       decoration: BoxDecoration(
                         color: badgeBg,
                         borderRadius: BorderRadius.circular(11),
@@ -9690,56 +9702,29 @@ class _ScrollToBottomFabState extends State<_ScrollToBottomFab> {
                     ),
                   ),
                 ),
-              // Button area: 52×62, disc at (5,15) within it.
+              // §49.15: Disc at (5px, 15px) from top-left of 52×62 area.
+              // 42px diameter with drop shadow, ripple area.
               Positioned(
-                bottom: 0,
-                left: 0,
-                child: SizedBox(
-                  width: 52,
-                  height: 62,
-                  child: Stack(
-                    children: [
-                      // Shadow disc (slightly offset down for drop shadow).
-                      Positioned(
-                        left: 5,
-                        top: 17, // 15 + 2px shadow offset
-                        child: Container(
-                          width: 42,
-                          height: 42,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: shadowColor,
-                          ),
-                        ),
-                      ),
-                      // Main disc.
-                      Positioned(
-                        left: 5,
-                        top: 15,
-                        child: Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: _hovered ? discBgOver : discBg,
-                          ),
-                        ),
-                      ),
-                      // Arrow icon centered on disc.
-                      Positioned(
-                        left: 5,
-                        top: 15,
-                        child: SizedBox(
-                          width: 42,
-                          height: 42,
-                          child: Icon(
-                            Icons.arrow_downward,
-                            size: 20,
-                            color: arrowColor,
-                          ),
-                        ),
+                left: 5,
+                top: 15,
+                child: Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _hovered ? discBgOver : discBg,
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x40000000),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
                       ),
                     ],
+                  ),
+                  child: Icon(
+                    Icons.arrow_downward,
+                    size: 20,
+                    color: arrowColor,
                   ),
                 ),
               ),
