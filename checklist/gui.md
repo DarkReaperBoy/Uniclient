@@ -982,7 +982,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §51 — Ghost Mode (AyuGram)
 # Touches: dart/lib/ui/hamburger_drawer.dart, dart/lib/ui/settings_screen.dart, new ghost_mode.dart
 
-- [ ] Ghost Mode settings page layout — Settings > AyuGram > AyuGram first category; Ghost essentials (collapsible) + Read on Interact + Schedule Messages + Send without Sound + Spy essentials (Save Deleted/History/Bots) + Other (Local Premium/Disable Ads) + divider descriptions — spec §51.4
 - [ ] Drawer integration — ghost toggle row (ayuGhostIcon + switch bound to ghostModeActiveValue, gated showGhostToggleInDrawer default true); LRead/SRead buttons — spec §51.5
 - [ ] Tray + CLI integration — Ghost Mode tray item (gated showGhostToggleInTray default true); "Enable/Disable Ghost Mode" label; Windows Jump List "Enter with Ghost" item; -ghost CLI flag — spec §51.6–51.7
 - [ ] Visual feedback — real-time drawer switch; dynamic tray label; "Ghost Mode turned on/off" toast; master toggle reflected in settings collapsible — spec §51.8

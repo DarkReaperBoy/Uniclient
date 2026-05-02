@@ -1,11 +1,8 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-import '../models/engine_models.dart';
 import '../state/app_state.dart';
+import 'ghost_settings_page.dart';
 import 'settings_style.dart';
 
 class AyuGramSettingsScreen extends StatefulWidget {
@@ -47,147 +44,27 @@ class _AyuGramSettingsScreenState extends State<AyuGramSettingsScreen> {
       body: ListView(
         padding: EdgeInsets.zero,
         children: [
-          // ── Ghost essentials (§51.2.1) ──
-          _GhostEssentialsHeader(
-            sectionLabelColor: sectionLabelColor,
-            accounts: appState.accounts,
-            useGlobal: appState.useGlobalGhostMode,
-            activeAccount: appState.activeAccount,
-            onScopeChanged: (bool global, String? userId) {
-              if (global) {
-                appState.setUseGlobalGhostMode(true);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Switched to same settings for all accounts.'),
-                    duration: Duration(seconds: 2),
+          // ── AyuGram category: Ghost Mode + Spy + Other (§51.4) ──
+          _NavRow(
+            icon: Icons.visibility_off,
+            iconBg: const Color(0xFF6B72D5),
+            label: 'AyuGram',
+            subtitle: appState.ghostModeEnabled ? 'Ghost Mode active' : null,
+            isDark: isDark,
+            onTap: () {
+              Navigator.of(context).push(
+                settingsPageRoute(
+                  ChangeNotifierProvider.value(
+                    value: appState,
+                    child: const GhostSettingsPage(),
                   ),
-                );
-              } else {
-                appState.setUseGlobalGhostMode(false);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Switched to individual settings for each account.'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              }
+                ),
+              );
             },
           ),
-          _GhostMasterToggle(
-            label: 'Ghost Mode',
-            value: appState.ghostModeEnabled,
-            onChanged: (v) => appState.setGhostModeEnabled(v),
-            isDark: isDark,
-            useMaterial: appState.materialSwitches,
-          ),
-          AnimatedSize(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOutCubic,
-            alignment: Alignment.topCenter,
-            child: appState.ghostModeEnabled
-                ? Column(
-                    children: [
-                      _LockableToggleRow(
-                        label: "Don't Read Messages",
-                        subtitle: 'Block read receipts from being sent',
-                        value: !appState.sendReadMessages,
-                        locked: appState.sendReadMessagesLocked,
-                        onChanged: (v) => appState.setSendReadMessages(!v),
-                        onLock: () => appState.toggleLock('sendReadMessages'),
-                        isDark: isDark,
-                      ),
-                      _LockableToggleRow(
-                        label: "Don't Read Stories",
-                        subtitle: 'Block story view confirmations',
-                        value: !appState.sendReadStories,
-                        locked: appState.sendReadStoriesLocked,
-                        onChanged: (v) => appState.setSendReadStories(!v),
-                        onLock: () => appState.toggleLock('sendReadStories'),
-                        isDark: isDark,
-                      ),
-                      _LockableToggleRow(
-                        label: "Don't Send Online",
-                        subtitle: 'Never report online status to the server',
-                        value: !appState.sendOnlinePackets,
-                        locked: appState.sendOnlinePacketsLocked,
-                        onChanged: (v) => appState.setSendOnlinePackets(!v),
-                        onLock: () => appState.toggleLock('sendOnlinePackets'),
-                        isDark: isDark,
-                      ),
-                      _LockableToggleRow(
-                        label: "Don't Send Typing",
-                        subtitle: 'Block typing and upload progress indicators',
-                        value: !appState.sendUploadProgress,
-                        locked: appState.sendUploadProgressLocked,
-                        onChanged: (v) => appState.setSendUploadProgress(!v),
-                        onLock: () => appState.toggleLock('sendUploadProgress'),
-                        isDark: isDark,
-                      ),
-                      _LockableToggleRow(
-                        label: 'Go Offline Automatically',
-                        subtitle: 'Immediately go offline after any online appearance',
-                        value: appState.sendOfflinePacketAfterOnline,
-                        locked: appState.sendOfflinePacketAfterOnlineLocked,
-                        onChanged: (v) => appState.setSendOfflinePacketAfterOnline(v),
-                        onLock: () => appState.toggleLock('sendOfflinePacketAfterOnline'),
-                        isDark: isDark,
-                      ),
-                    ],
-                  )
-                : const SizedBox.shrink(),
-          ),
-          _ToggleRow(
-            label: 'Read on Interact',
-            subtitle: null,
-            value: appState.markReadAfterAction,
-            onChanged: (v) => appState.setMarkReadAfterAction(v),
-            isDark: isDark,
-            useMaterial: appState.materialSwitches,
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
-            child: Text(
-              'Automatically marks a message as read when you send a reply, react, or vote in a poll.',
-              style: TextStyle(fontSize: 12, color: subtitleColor),
-            ),
-          ),
-          _ToggleRow(
-            label: 'Schedule Messages',
-            subtitle: null,
-            value: appState.useScheduledMessages,
-            onChanged: (v) => appState.setUseScheduledMessages(v),
-            isDark: isDark,
-            useMaterial: appState.materialSwitches,
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
-            child: Text(
-              'Automatically schedules outgoing messages to send after ~12 seconds. Avoid using on unreliable networks.',
-              style: TextStyle(fontSize: 12, color: subtitleColor),
-            ),
-          ),
-          _ToggleRow(
-            label: 'Send without Sound',
-            subtitle: null,
-            value: appState.sendWithoutSound,
-            onChanged: (v) => appState.setSendWithoutSound(v),
-            isDark: isDark,
-            useMaterial: appState.materialSwitches,
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
-            child: Text(
-              'Sends outgoing messages without sound by default.',
-              style: TextStyle(fontSize: 12, color: subtitleColor),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
-            child: Text(
-              'Shift+click or long-press any option to lock it from changing when toggling Ghost Mode.',
-              style: TextStyle(fontSize: 12, color: subtitleColor),
-            ),
-          ),
+          Container(height: 1, color: dividerColor),
+          const SizedBox(height: 7),
+
           _ToggleRow(
             label: 'Show message seconds',
             subtitle: 'Display seconds in read timestamps (HH:mm:ss)',
@@ -647,146 +524,66 @@ class _AvatarPreview extends StatelessWidget {
   }
 }
 
-class _GhostMasterToggle extends StatelessWidget {
-  final String label;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-  final bool isDark;
-  final bool useMaterial;
-
-  const _GhostMasterToggle({
-    required this.label,
-    required this.value,
-    required this.onChanged,
-    required this.isDark,
-    this.useMaterial = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () => onChanged(!value),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
-        child: Row(
-          children: [
-            Icon(
-              Icons.visibility_off,
-              size: 20,
-              color: value ? const Color(0xFF40A7E3) : (isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999)),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(label,
-                  style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.white : Colors.black87)),
-            ),
-            const SizedBox(width: 12),
-            if (useMaterial)
-              Switch(
-                value: value,
-                onChanged: onChanged,
-                activeColor: const Color(0xFF40A7E3),
-              )
-            else
-              _TelegramToggle(value: value, onChanged: onChanged),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _LockableToggleRow extends StatelessWidget {
+class _NavRow extends StatelessWidget {
+  final IconData icon;
+  final Color iconBg;
   final String label;
   final String? subtitle;
-  final bool value;
-  final bool locked;
-  final ValueChanged<bool> onChanged;
-  final VoidCallback onLock;
   final bool isDark;
+  final VoidCallback onTap;
 
-  const _LockableToggleRow({
+  const _NavRow({
+    required this.icon,
+    required this.iconBg,
     required this.label,
     this.subtitle,
-    required this.value,
-    required this.locked,
-    required this.onChanged,
-    required this.onLock,
     required this.isDark,
+    required this.onTap,
   });
-
-  void _handleTap() {
-    if (HardwareKeyboard.instance.isShiftPressed) {
-      onLock();
-    } else if (!locked) {
-      onChanged(!value);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onLongPress: onLock,
-      child: InkWell(
-        onTap: _handleTap,
-        child: Opacity(
-          opacity: locked ? 0.4 : 1.0,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 34, vertical: 8),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: Checkbox(
-                    value: value,
-                    onChanged: locked ? null : (v) => onChanged(v ?? false),
-                    activeColor: const Color(0xFF40A7E3),
-                    side: BorderSide(
-                      color: isDark ? const Color(0xFF5A6A78) : const Color(0xFFCBCBCB),
-                      width: 2,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(label,
-                                style: TextStyle(
-                                    fontSize: 14,
-                                    color: isDark ? Colors.white : Colors.black87)),
-                          ),
-                          if (locked) ...[
-                            const SizedBox(width: 6),
-                            Icon(Icons.lock, size: 14,
-                              color: isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999)),
-                          ],
-                        ],
-                      ),
-                      if (subtitle != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Text(subtitle!,
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  color: isDark
-                                      ? const Color(0xFF6D7F8F)
-                                      : const Color(0xFF999999))),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subtextColor = isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: SettingsStyle.iconRowPadding,
+        child: Row(
+          children: [
+            Container(
+              width: SettingsStyle.iconSize,
+              height: SettingsStyle.iconSize,
+              decoration: BoxDecoration(
+                color: iconBg,
+                borderRadius: BorderRadius.circular(SettingsStyle.iconRadius),
+              ),
+              child: Icon(icon, color: Colors.white, size: SettingsStyle.iconInner),
             ),
-          ),
+            const SizedBox(width: SettingsStyle.iconGap),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label,
+                      style: TextStyle(
+                          fontSize: SettingsStyle.buttonFontSize,
+                          color: textColor)),
+                  if (subtitle != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(subtitle!,
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: subtextColor)),
+                    ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right,
+                size: 20,
+                color: isDark ? const Color(0xFF5A6A78) : const Color(0xFFCBCBCB)),
+          ],
         ),
       ),
     );
@@ -842,234 +639,3 @@ class _DropdownRow extends StatelessWidget {
   }
 }
 
-class _GhostEssentialsHeader extends StatelessWidget {
-  final Color sectionLabelColor;
-  final List<AccountInfo> accounts;
-  final bool useGlobal;
-  final AccountInfo? activeAccount;
-  final void Function(bool global, String? userId) onScopeChanged;
-
-  const _GhostEssentialsHeader({
-    required this.sectionLabelColor,
-    required this.accounts,
-    required this.useGlobal,
-    required this.activeAccount,
-    required this.onScopeChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final showPicker = accounts.length > 1;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final activeTextFg = isDark
-        ? const Color(0xFF6AB2F2)
-        : const Color(0xFF3390EC);
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(22, 14, 22, 6),
-      child: Row(
-        children: [
-          Text('Ghost essentials',
-              style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: sectionLabelColor)),
-          if (showPicker) ...[
-            const SizedBox(width: 8),
-            _AccountPickerButton(
-              accounts: accounts,
-              useGlobal: useGlobal,
-              activeAccount: activeAccount,
-              activeTextFg: activeTextFg,
-              onScopeChanged: onScopeChanged,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _AccountPickerButton extends StatelessWidget {
-  final List<AccountInfo> accounts;
-  final bool useGlobal;
-  final AccountInfo? activeAccount;
-  final Color activeTextFg;
-  final void Function(bool global, String? userId) onScopeChanged;
-
-  const _AccountPickerButton({
-    required this.accounts,
-    required this.useGlobal,
-    required this.activeAccount,
-    required this.activeTextFg,
-    required this.onScopeChanged,
-  });
-
-  static String _accountLabel(AccountInfo a) {
-    if (a.displayName.isNotEmpty) return a.displayName;
-    if (a.phone.isNotEmpty) return a.phone;
-    final platformName = a.platform.isNotEmpty
-        ? '${a.platform[0].toUpperCase()}${a.platform.substring(1)}'
-        : 'Account';
-    final shortId = a.id.length > 8 ? a.id.substring(a.id.length - 8) : a.id;
-    return '$platformName ($shortId)';
-  }
-
-  String get _currentLabel {
-    if (useGlobal) return 'Global';
-    if (activeAccount != null) return _accountLabel(activeAccount!);
-    return 'Account';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => _showPicker(context),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            _currentLabel,
-            style: TextStyle(
-              fontSize: 14,
-              color: activeTextFg,
-            ),
-          ),
-          const SizedBox(width: 2),
-          Icon(
-            Icons.keyboard_arrow_down,
-            size: 18,
-            color: activeTextFg,
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showPicker(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final RenderBox button = context.findRenderObject() as RenderBox;
-    final Offset offset = button.localToGlobal(Offset.zero);
-    final Size buttonSize = button.size;
-
-    showMenu<String>(
-      context: context,
-      position: RelativeRect.fromLTRB(
-        offset.dx,
-        offset.dy + buttonSize.height,
-        offset.dx + buttonSize.width,
-        offset.dy + buttonSize.height,
-      ),
-      color: isDark ? const Color(0xFF1B2836) : Colors.white,
-      items: [
-        PopupMenuItem<String>(
-          value: 'global',
-          child: Row(
-            children: [
-              _GlobalSettingsAvatar(),
-              const SizedBox(width: 10),
-              const Text('Global Settings'),
-            ],
-          ),
-        ),
-        ...accounts.map((a) => PopupMenuItem<String>(
-          value: a.selfUserId,
-          child: Row(
-            children: [
-              _AccountAvatar(account: a),
-              const SizedBox(width: 10),
-              Flexible(
-                child: Text(
-                  _accountLabel(a),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        )),
-      ],
-    ).then((value) {
-      if (value == null) return;
-      if (value == 'global') {
-        onScopeChanged(true, null);
-      } else {
-        onScopeChanged(false, value);
-      }
-    });
-  }
-}
-
-class _GlobalSettingsAvatar extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 30,
-      height: 30,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF9C27B0), Color(0xFF7B1FA2)],
-        ),
-      ),
-      child: const Center(
-        child: Text(
-          'GS',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AccountAvatar extends StatelessWidget {
-  final AccountInfo account;
-  const _AccountAvatar({required this.account});
-
-  @override
-  Widget build(BuildContext context) {
-    if (account.avatarPath.isNotEmpty) {
-      final file = File(account.avatarPath);
-      if (file.existsSync()) {
-        return ClipOval(
-          child: Image.file(file, width: 30, height: 30, fit: BoxFit.cover),
-        );
-      }
-    }
-    final name = _AccountPickerButton._accountLabel(account);
-    final initial = name.characters.first.toUpperCase();
-    final colors = [
-      const Color(0xFFC03D33),
-      const Color(0xFF4FAD2D),
-      const Color(0xFFD09306),
-      const Color(0xFF168ACD),
-      const Color(0xFF8544D6),
-      const Color(0xFFCD4073),
-      const Color(0xFF2996AD),
-    ];
-    final colorIndex = account.selfUserId.hashCode.abs() % colors.length;
-    return Container(
-      width: 30,
-      height: 30,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: colors[colorIndex],
-      ),
-      child: Center(
-        child: Text(
-          initial,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-    );
-  }
-}

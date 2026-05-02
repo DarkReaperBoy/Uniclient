@@ -180,6 +180,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   int _showViewsPanelInContextMenu = 0; // 0=visible, 1=hidden, 2=visibleWithModifier
   bool _showMessageSeconds = false;
 
+  // §51.4: Spy essentials + Other section settings.
+  bool _saveDeletedMessages = true;
+  bool _saveMessagesHistory = true;
+  bool _saveForBots = false;
+  bool _localPremium = false;
+  bool _disableAds = true;
+
   // §50.7: Per-peer read exclusions. Key: "accountId:chatId", value: 0=default, 1=neverRead, 2=alwaysRead.
   Map<String, int> _readExclusions = {};
 
@@ -335,6 +342,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get sendOfflinePacketAfterOnlineLocked => _ghostSettings.sendOfflinePacketAfterOnlineLocked;
   int get showViewsPanelInContextMenu => _showViewsPanelInContextMenu;
   bool get showMessageSeconds => _showMessageSeconds;
+  bool get saveDeletedMessages => _saveDeletedMessages;
+  bool get saveMessagesHistory => _saveMessagesHistory;
+  bool get saveForBots => _saveForBots;
+  bool get localPremium => _localPremium;
+  bool get disableAds => _disableAds;
 
   // §25.15 AyuGram setters
   void setBubbleRadius(int v) {
@@ -600,6 +612,41 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     'sendOfflinePacketAfterOnline' => _ghostSettings.sendOfflinePacketAfterOnlineLocked,
     _ => false,
   };
+
+  void setSaveDeletedMessages(bool v) {
+    if (_saveDeletedMessages == v) return;
+    _saveDeletedMessages = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setSaveMessagesHistory(bool v) {
+    if (_saveMessagesHistory == v) return;
+    _saveMessagesHistory = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setSaveForBots(bool v) {
+    if (_saveForBots == v) return;
+    _saveForBots = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setLocalPremium(bool v) {
+    if (_localPremium == v) return;
+    _localPremium = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setDisableAds(bool v) {
+    if (_disableAds == v) return;
+    _disableAds = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
 
   void _syncGhostToEngine() {
     final s = _ghostSettings;
@@ -1609,6 +1656,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       }
       _showViewsPanelInContextMenu = data['showViewsPanelInContextMenu'] as int? ?? 0;
       _showMessageSeconds = data['showMessageSeconds'] as bool? ?? false;
+      _saveDeletedMessages = data['saveDeletedMessages'] as bool? ?? true;
+      _saveMessagesHistory = data['saveMessagesHistory'] as bool? ?? true;
+      _saveForBots = data['saveForBots'] as bool? ?? false;
+      _localPremium = data['localPremium'] as bool? ?? false;
+      _disableAds = data['disableAds'] as bool? ?? true;
       final rawExcl = data['readExclusions'] as Map<String, dynamic>?;
       if (rawExcl != null) {
         _readExclusions = rawExcl.map((k, v) => MapEntry(k, (v as int?) ?? 0));
@@ -1672,6 +1724,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'ghostModeSettings': _ghostModeSettings.map((k, v) => MapEntry(k, v.toJson())),
         'showViewsPanelInContextMenu': _showViewsPanelInContextMenu,
         'showMessageSeconds': _showMessageSeconds,
+        'saveDeletedMessages': _saveDeletedMessages,
+        'saveMessagesHistory': _saveMessagesHistory,
+        'saveForBots': _saveForBots,
+        'localPremium': _localPremium,
+        'disableAds': _disableAds,
         'readExclusions': _readExclusions,
         'wallpaperType': _wallpaper.type.index,
         'wallpaperColors': _wallpaper.backgroundColors
