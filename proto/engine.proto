@@ -1269,6 +1269,7 @@ message EngineGetCustomEmojiThumbsRequest {
 message EngineCustomEmojiThumb {
   int64  document_id = 1;
   string thumb_b64   = 2;
+  string path_b64    = 3;
 }
 
 message EngineGetCustomEmojiThumbsResponse {

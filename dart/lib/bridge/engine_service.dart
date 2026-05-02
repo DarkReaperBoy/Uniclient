@@ -920,7 +920,7 @@ class EngineService {
 
   // ── Custom emoji thumbnails (for forum topic icons) ──
 
-  Future<Map<int, String>> getCustomEmojiThumbs(String accountId, List<int> documentIds) async {
+  Future<Map<int, CustomEmojiThumbData>> getCustomEmojiThumbs(String accountId, List<int> documentIds) async {
     final req = epb.EngineGetCustomEmojiThumbsRequest()
       ..accountId = accountId
       ..documentIds.addAll(documentIds.map((id) => Int64(id)));
@@ -929,7 +929,11 @@ class EngineService {
       if (respBytes.isEmpty) return {};
       final resp = epb.EngineGetCustomEmojiThumbsResponse.fromBuffer(respBytes);
       return {
-        for (final t in resp.thumbs) t.documentId.toInt(): t.thumbB64,
+        for (final t in resp.thumbs)
+          t.documentId.toInt(): CustomEmojiThumbData(
+            thumbB64: t.thumbB64,
+            pathB64: t.pathB64,
+          ),
       };
     } catch (e) {
       Debug.error('ENGINE', 'getCustomEmojiThumbs failed', e);

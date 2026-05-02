@@ -393,7 +393,7 @@ Future<void> _fetchCustomEmojiThumb(EngineService engine, String accountId, int 
   final future = () async {
     final result = await engine.getCustomEmojiThumbs(accountId, [documentId]);
     if (result.containsKey(documentId)) {
-      _customEmojiThumbCache[documentId] = result[documentId]!;
+      _customEmojiThumbCache[documentId] = result[documentId]!.thumbB64;
     }
     _customEmojiPendingRequests.remove(documentId);
   }();

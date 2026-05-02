@@ -13,6 +13,7 @@ class CustomEmojiCache {
   CustomEmojiCache._();
 
   final Map<int, Uint8List> _thumbs = {};
+  final Map<int, Uint8List> _paths = {};
   final Map<int, CustomEmojiFileData> _files = {};
   final Set<int> _pending = {};
   final Set<int> _filePending = {};
@@ -28,10 +29,12 @@ class CustomEmojiCache {
   void removeListener(VoidCallback cb) => _listeners.remove(cb);
 
   Uint8List? getThumb(int documentId) => _thumbs[documentId];
+  Uint8List? getPath(int documentId) => _paths[documentId];
   CustomEmojiFileData? getFile(int documentId) => _files[documentId];
   bool isPending(int documentId) => _pending.contains(documentId);
   bool hasFailed(int documentId) => _failed.contains(documentId);
   bool isFilePending(int documentId) => _filePending.contains(documentId);
+  bool hasAnyPreview(int documentId) => _thumbs.containsKey(documentId) || _paths.containsKey(documentId);
 
   void request(int documentId, String accountId, EngineService engine) {
     if (_thumbs.containsKey(documentId) || _pending.contains(documentId) || _failed.contains(documentId)) return;
@@ -85,14 +88,21 @@ class CustomEmojiCache {
     try {
       final result = await engine.getCustomEmojiThumbs(accountId, ids);
       for (final entry in result.entries) {
-        final bytes = base64Decode(entry.value);
-        _thumbs[entry.key] = bytes;
+        final data = entry.value;
+        if (data.thumbB64.isNotEmpty) {
+          _thumbs[entry.key] = base64Decode(data.thumbB64);
+        }
+        if (data.pathB64.isNotEmpty) {
+          _paths[entry.key] = base64Decode(data.pathB64);
+        }
         _pending.remove(entry.key);
       }
       for (final id in ids) {
-        if (!_thumbs.containsKey(id)) {
+        if (!_thumbs.containsKey(id) && !_paths.containsKey(id)) {
           _pending.remove(id);
           _failed.add(id);
+        } else {
+          _pending.remove(id);
         }
       }
     } catch (_) {

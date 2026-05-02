@@ -5561,27 +5561,38 @@ class _CustomEmojiInline extends StatefulWidget {
   State<_CustomEmojiInline> createState() => _CustomEmojiInlineState();
 }
 
+enum _EmojiLoadPhase { loading, caching, cached }
+
 class _CustomEmojiInlineState extends State<_CustomEmojiInline>
     with TickerProviderStateMixin {
   static const double _emojiSize = 18.0;
-  static const double _adjustedSize = 20.0; // round(18 * 1.12)
+  static const double _adjustedSize = 20.0;
   static const int _maxLoops = 2;
+  static const double _previewOpacity = 0.125; // 12.5% per spec §45.7
 
   AnimationController? _lottieController;
+  late AnimationController _fadeController;
   int _loopCount = 0;
   Uint8List? _decompressedLottie;
+  _EmojiLoadPhase _phase = _EmojiLoadPhase.loading;
 
   @override
   void initState() {
     super.initState();
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+    );
     CustomEmojiCache.instance.addListener(_onCacheUpdate);
     _requestIfNeeded();
+    _updatePhase();
   }
 
   @override
   void dispose() {
     CustomEmojiCache.instance.removeListener(_onCacheUpdate);
     _lottieController?.dispose();
+    _fadeController.dispose();
     super.dispose();
   }
 
@@ -5592,12 +5603,29 @@ class _CustomEmojiInlineState extends State<_CustomEmojiInline>
     if (file != null && file.isTgs && _decompressedLottie == null) {
       _decompressLottie(file.fileData);
     }
+    _updatePhase();
     setState(() {});
+  }
+
+  void _updatePhase() {
+    final cache = CustomEmojiCache.instance;
+    final file = cache.getFile(widget.documentId);
+    final oldPhase = _phase;
+    if (file != null) {
+      _phase = _EmojiLoadPhase.cached;
+    } else if (cache.hasAnyPreview(widget.documentId)) {
+      _phase = _EmojiLoadPhase.caching;
+    } else {
+      _phase = _EmojiLoadPhase.loading;
+    }
+    if (oldPhase != _EmojiLoadPhase.cached && _phase == _EmojiLoadPhase.cached) {
+      _fadeController.forward(from: 0);
+    }
   }
 
   void _requestIfNeeded() {
     final cache = CustomEmojiCache.instance;
-    if (cache.getThumb(widget.documentId) == null &&
+    if (!cache.hasAnyPreview(widget.documentId) &&
         !cache.isPending(widget.documentId) &&
         !cache.hasFailed(widget.documentId) &&
         widget.accountId.isNotEmpty) {
@@ -5648,41 +5676,113 @@ class _CustomEmojiInlineState extends State<_CustomEmojiInline>
     final powerSaving = _isPowerSaving(context);
 
     if (file != null && !powerSaving) {
-      if (file.isTgs && _decompressedLottie != null) {
+      final cachedWidget = _buildCachedEmoji(file, cache);
+      if (_fadeController.isAnimating || _fadeController.value < 1.0) {
         return SizedBox(
           width: _adjustedSize,
           height: _adjustedSize,
-          child: Lottie.memory(
-            _decompressedLottie!,
-            width: _adjustedSize,
-            height: _adjustedSize,
-            fit: BoxFit.contain,
-            controller: _lottieController,
-            onLoaded: _onLottieLoaded,
-            errorBuilder: (_, __, ___) => _buildThumbOrFallback(cache),
+          child: AnimatedBuilder(
+            animation: _fadeController,
+            builder: (context, child) {
+              return Stack(
+                children: [
+                  if (_fadeController.value < 1.0)
+                    Opacity(
+                      opacity: _previewOpacity * (1.0 - _fadeController.value),
+                      child: _buildPreview(cache),
+                    ),
+                  Opacity(opacity: _fadeController.value, child: child),
+                ],
+              );
+            },
+            child: cachedWidget,
           ),
         );
       }
-      if (file.isWebp) {
-        return SizedBox(
-          width: _adjustedSize,
-          height: _adjustedSize,
-          child: Image.memory(
-            file.fileData,
-            width: _adjustedSize,
-            height: _adjustedSize,
-            fit: BoxFit.contain,
-            gaplessPlayback: true,
-            errorBuilder: (_, __, ___) => _buildThumbOrFallback(cache),
-          ),
-        );
-      }
+      return cachedWidget;
     }
 
-    return _buildThumbOrFallback(cache);
+    if (file != null && powerSaving) {
+      return _buildStaticFrame(file, cache);
+    }
+
+    return _buildPreviewOrBlank(cache);
   }
 
-  Widget _buildThumbOrFallback(CustomEmojiCache cache) {
+  Widget _buildCachedEmoji(CustomEmojiFileData file, CustomEmojiCache cache) {
+    if (file.isTgs && _decompressedLottie != null) {
+      return SizedBox(
+        width: _adjustedSize,
+        height: _adjustedSize,
+        child: Lottie.memory(
+          _decompressedLottie!,
+          width: _adjustedSize,
+          height: _adjustedSize,
+          fit: BoxFit.contain,
+          controller: _lottieController,
+          onLoaded: _onLottieLoaded,
+          errorBuilder: (_, __, ___) => _buildPreviewOrBlank(cache),
+        ),
+      );
+    }
+    if (file.isWebp) {
+      return SizedBox(
+        width: _adjustedSize,
+        height: _adjustedSize,
+        child: Image.memory(
+          file.fileData,
+          width: _adjustedSize,
+          height: _adjustedSize,
+          fit: BoxFit.contain,
+          gaplessPlayback: true,
+          errorBuilder: (_, __, ___) => _buildPreviewOrBlank(cache),
+        ),
+      );
+    }
+    return _buildPreviewOrBlank(cache);
+  }
+
+  Widget _buildStaticFrame(CustomEmojiFileData file, CustomEmojiCache cache) {
+    if (file.isWebp) {
+      return SizedBox(
+        width: _adjustedSize,
+        height: _adjustedSize,
+        child: Image.memory(
+          file.fileData,
+          width: _adjustedSize,
+          height: _adjustedSize,
+          fit: BoxFit.contain,
+          gaplessPlayback: true,
+          errorBuilder: (_, __, ___) => _buildPreviewOrBlank(cache),
+        ),
+      );
+    }
+    return _buildPreviewOrBlank(cache);
+  }
+
+  Widget _buildPreviewOrBlank(CustomEmojiCache cache) {
+    final preview = _buildPreview(cache);
+    if (preview is! SizedBox || (preview as SizedBox).child != null) {
+      return Opacity(opacity: _previewOpacity, child: preview);
+    }
+    return preview;
+  }
+
+  Widget _buildPreview(CustomEmojiCache cache) {
+    final pathBytes = cache.getPath(widget.documentId);
+    if (pathBytes != null) {
+      return SizedBox(
+        width: _adjustedSize,
+        height: _adjustedSize,
+        child: CustomPaint(
+          size: const Size(_adjustedSize, _adjustedSize),
+          painter: _SvgPathPreviewPainter(
+            pathBytes: pathBytes,
+            color: DefaultTextStyle.of(context).style.color ?? Colors.white,
+          ),
+        ),
+      );
+    }
     final thumb = cache.getThumb(widget.documentId);
     if (thumb != null) {
       return SizedBox(
@@ -5694,19 +5794,196 @@ class _CustomEmojiInlineState extends State<_CustomEmojiInline>
           height: _adjustedSize,
           fit: BoxFit.contain,
           gaplessPlayback: true,
-          errorBuilder: (_, __, ___) => SizedBox(
+          errorBuilder: (_, __, ___) => const SizedBox(
             width: _adjustedSize,
             height: _adjustedSize,
-            child: Text(widget.altText, style: const TextStyle(fontSize: _emojiSize)),
           ),
         ),
       );
     }
-    return SizedBox(
-      width: _adjustedSize,
-      height: _adjustedSize,
-      child: Text(widget.altText, style: const TextStyle(fontSize: _emojiSize)),
-    );
+    return const SizedBox(width: _adjustedSize, height: _adjustedSize);
+  }
+}
+
+class _SvgPathPreviewPainter extends CustomPainter {
+  final Uint8List pathBytes;
+  final Color color;
+
+  static const List<String> _commands = [
+    'A', 'C', 'c', 'H', 'h', 'L', 'l', 'M', 'm',
+    'Q', 'q', 'S', 's', 'T', 't', 'V', 'v', 'Z', 'z',
+  ];
+
+  _SvgPathPreviewPainter({required this.pathBytes, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final svgPath = _decompressPath();
+    if (svgPath.isEmpty) return;
+    final path = _parseSvgPath(svgPath);
+    final bounds = path.getBounds();
+    if (bounds.isEmpty) return;
+    final sx = size.width / 512.0;
+    final sy = size.height / 512.0;
+    final scale = math.min(sx, sy);
+    canvas.save();
+    canvas.scale(scale, scale);
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+    canvas.drawPath(path, paint);
+    canvas.restore();
+  }
+
+  String _decompressPath() {
+    final buf = StringBuffer('M');
+    for (final byte in pathBytes) {
+      if (byte >= 192) {
+        final idx = byte - 192;
+        if (idx < _commands.length) buf.write(_commands[idx]);
+      } else if (byte >= 128) {
+        buf.write(',');
+        buf.write((byte & 63).toString());
+      } else if (byte >= 64) {
+        buf.write('-');
+        buf.write((byte & 63).toString());
+      } else {
+        buf.write(byte.toString());
+      }
+    }
+    buf.write('z');
+    return buf.toString();
+  }
+
+  static ui.Path _parseSvgPath(String d) {
+    final path = ui.Path();
+    final tokens = _tokenize(d);
+    var i = 0;
+    var cx = 0.0, cy = 0.0;
+    var cmd = '';
+
+    double next() => i < tokens.length ? tokens[i++] : 0.0;
+
+    while (i < tokens.length || cmd.isNotEmpty) {
+      if (i < tokens.length && tokens[i].isNaN) {
+        cmd = String.fromCharCode(tokens[i].toInt().abs());
+        i++;
+      } else if (cmd.isEmpty) {
+        break;
+      }
+
+      switch (cmd) {
+        case 'M':
+          cx = next(); cy = next();
+          path.moveTo(cx, cy);
+          cmd = 'L';
+        case 'm':
+          cx += next(); cy += next();
+          path.moveTo(cx, cy);
+          cmd = 'l';
+        case 'L':
+          cx = next(); cy = next();
+          path.lineTo(cx, cy);
+        case 'l':
+          cx += next(); cy += next();
+          path.lineTo(cx, cy);
+        case 'H':
+          cx = next();
+          path.lineTo(cx, cy);
+        case 'h':
+          cx += next();
+          path.lineTo(cx, cy);
+        case 'V':
+          cy = next();
+          path.lineTo(cx, cy);
+        case 'v':
+          cy += next();
+          path.lineTo(cx, cy);
+        case 'C':
+          final x1 = next(), y1 = next();
+          final x2 = next(), y2 = next();
+          cx = next(); cy = next();
+          path.cubicTo(x1, y1, x2, y2, cx, cy);
+        case 'c':
+          final x1 = cx + next(), y1 = cy + next();
+          final x2 = cx + next(), y2 = cy + next();
+          cx += next(); cy += next();
+          path.cubicTo(x1, y1, x2, y2, cx, cy);
+        case 'S':
+          final x2 = next(), y2 = next();
+          cx = next(); cy = next();
+          path.cubicTo(cx, cy, x2, y2, cx, cy);
+        case 's':
+          final x2 = cx + next(), y2 = cy + next();
+          cx += next(); cy += next();
+          path.cubicTo(cx, cy, x2, y2, cx, cy);
+        case 'Q':
+          final x1 = next(), y1 = next();
+          cx = next(); cy = next();
+          path.quadraticBezierTo(x1, y1, cx, cy);
+        case 'q':
+          final x1 = cx + next(), y1 = cy + next();
+          cx += next(); cy += next();
+          path.quadraticBezierTo(x1, y1, cx, cy);
+        case 'T':
+          cx = next(); cy = next();
+          path.quadraticBezierTo(cx, cy, cx, cy);
+        case 't':
+          cx += next(); cy += next();
+          path.quadraticBezierTo(cx, cy, cx, cy);
+        case 'A':
+          for (var j = 0; j < 5; j++) next();
+          cx = next(); cy = next();
+          path.lineTo(cx, cy);
+        case 'Z': case 'z':
+          path.close();
+          cmd = '';
+        default:
+          cmd = '';
+      }
+    }
+    return path;
+  }
+
+  static List<double> _tokenize(String d) {
+    final result = <double>[];
+    final len = d.length;
+    var i = 0;
+    while (i < len) {
+      final c = d.codeUnitAt(i);
+      if (_isCommand(c)) {
+        result.add(double.nan);
+        result.add(-(c.toDouble()));
+        i++;
+      } else if (_isDigit(c) || c == 0x2D || c == 0x2E) {
+        final start = i;
+        if (c == 0x2D) i++;
+        while (i < len && (_isDigit(d.codeUnitAt(i)) || d.codeUnitAt(i) == 0x2E)) {
+          i++;
+        }
+        result.add(double.tryParse(d.substring(start, i)) ?? 0);
+      } else {
+        i++;
+      }
+    }
+    return result;
+  }
+
+  static bool _isCommand(int c) =>
+      (c >= 0x41 && c <= 0x5A) || (c >= 0x61 && c <= 0x7A);
+
+  static bool _isDigit(int c) => c >= 0x30 && c <= 0x39;
+
+  @override
+  bool shouldRepaint(_SvgPathPreviewPainter oldDelegate) =>
+      !_bytesEqual(pathBytes, oldDelegate.pathBytes) || color != oldDelegate.color;
+
+  static bool _bytesEqual(Uint8List a, Uint8List b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 }
 

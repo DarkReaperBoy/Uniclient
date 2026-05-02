@@ -345,10 +345,11 @@ type StickerInfo struct {
 	FileID   string `json:"file_id"`
 }
 
-// CustomEmojiThumb holds a document ID and its base64 thumbnail.
+// CustomEmojiThumb holds a document ID, its base64 thumbnail, and optional SVG path.
 type CustomEmojiThumb struct {
 	DocumentID int64  `json:"document_id"`
 	ThumbB64   string `json:"thumb_b64"`
+	PathB64    string `json:"path_b64,omitempty"`
 }
 
 // CustomEmojiFile holds a document ID, its MIME type, and the full file data.

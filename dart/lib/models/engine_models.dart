@@ -2077,6 +2077,12 @@ class StickerSetInfo {
   });
 }
 
+class CustomEmojiThumbData {
+  final String thumbB64;
+  final String pathB64;
+  const CustomEmojiThumbData({required this.thumbB64, this.pathB64 = ''});
+}
+
 class CustomEmojiFileData {
   final String mimeType;
   final Uint8List fileData;

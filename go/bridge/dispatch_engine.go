@@ -1752,6 +1752,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			resp.Thumbs = append(resp.Thumbs, &pb.EngineCustomEmojiThumb{
 				DocumentId: t.DocumentID,
 				ThumbB64:   t.ThumbB64,
+				PathB64:    t.PathB64,
 			})
 		}
 		return proto.Marshal(resp)

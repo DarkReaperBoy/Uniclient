@@ -949,7 +949,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §45 — Custom Emoji Rendering
 # Touches: dart/lib/ui/message_bubble.dart, dart/lib/ui/chat_view.dart, new custom_emoji.dart
 
-- [ ] Loading states — SVG path preview at 12.5% opacity; cross-res image preview fallback; blank when no preview; Loading→Caching→Cached transitions — spec §45.7
 - [ ] Caching — in-memory instance cache per (DocumentId, SizeTag) with refcount; disk sprite atlas LZ4; 16 frames/row; cross-res preview; evict on last Object removed — spec §45.8
 - [ ] Click behavior — CustomEmojiClickHandler opens reaction/emoji preview overlay; "View Pack" rounded-rect with pack name; StickerSetBox on View Pack click; tap splash for isolated single emoji — spec §45.9
 - [ ] Custom emoji in compose field — QTextObjectInterface system; Unicode alt text + custom link tag; 20px width, max(fontLineHeight,18px) height; coalesced repaints — spec §45.10

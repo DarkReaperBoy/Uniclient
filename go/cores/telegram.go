@@ -12402,7 +12402,7 @@ func (t *TelegramCore) GetCustomEmojiThumbs(documentIDs []int64) ([]CustomEmojiT
 	if err != nil {
 		return nil, fmt.Errorf("get custom emoji documents: %w", err)
 	}
-	var result []CustomEmojiThumb
+	thumbByID := make(map[int64]*CustomEmojiThumb)
 	var needDownload []struct {
 		doc *tg.Document
 		loc tg.InputFileLocationClass
@@ -12412,14 +12412,18 @@ func (t *TelegramCore) GetCustomEmojiThumbs(documentIDs []int64) ([]CustomEmojiT
 		if !ok {
 			continue
 		}
-		thumb := extractStrippedThumbB64(d.Thumbs)
-		if thumb != "" {
-			result = append(result, CustomEmojiThumb{
-				DocumentID: d.ID,
-				ThumbB64:   thumb,
-			})
+		entry := &CustomEmojiThumb{DocumentID: d.ID}
+		for _, s := range d.Thumbs {
+			if ps, ok := s.(*tg.PhotoPathSize); ok && len(ps.Bytes) > 0 {
+				entry.PathB64 = base64.StdEncoding.EncodeToString(ps.Bytes)
+			}
+		}
+		entry.ThumbB64 = extractStrippedThumbB64(d.Thumbs)
+		if entry.ThumbB64 != "" {
+			thumbByID[d.ID] = entry
 			continue
 		}
+		thumbByID[d.ID] = entry
 		var thumbType string
 		for _, s := range d.Thumbs {
 			switch s.(type) {
@@ -12450,10 +12454,13 @@ func (t *TelegramCore) GetCustomEmojiThumbs(documentIDs []int64) ([]CustomEmojiT
 		if err != nil || len(buf) == 0 {
 			continue
 		}
-		result = append(result, CustomEmojiThumb{
-			DocumentID: nd.doc.ID,
-			ThumbB64:   base64.StdEncoding.EncodeToString(buf),
-		})
+		if entry, ok := thumbByID[nd.doc.ID]; ok {
+			entry.ThumbB64 = base64.StdEncoding.EncodeToString(buf)
+		}
+	}
+	result := make([]CustomEmojiThumb, 0, len(thumbByID))
+	for _, entry := range thumbByID {
+		result = append(result, *entry)
 	}
 	return result, nil
 }

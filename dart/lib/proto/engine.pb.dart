@@ -12180,10 +12180,12 @@ class EngineCustomEmojiThumb extends $pb.GeneratedMessage {
   factory EngineCustomEmojiThumb({
     $fixnum.Int64? documentId,
     $core.String? thumbB64,
+    $core.String? pathB64,
   }) {
     final $result = create();
     if (documentId != null) $result.documentId = documentId;
     if (thumbB64 != null) $result.thumbB64 = thumbB64;
+    if (pathB64 != null) $result.pathB64 = pathB64;
     return $result;
   }
   EngineCustomEmojiThumb._() : super();
@@ -12192,6 +12194,7 @@ class EngineCustomEmojiThumb extends $pb.GeneratedMessage {
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineCustomEmojiThumb', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
     ..aInt64(1, _omitFieldNames ? '' : 'documentId')
     ..aOS(2, _omitFieldNames ? '' : 'thumbB64')
+    ..aOS(3, _omitFieldNames ? '' : 'pathB64')
     ..hasRequiredFields = false
   ;
 
@@ -12215,6 +12218,11 @@ class EngineCustomEmojiThumb extends $pb.GeneratedMessage {
   $core.String get thumbB64 => $_getSZ(1);
   @$pb.TagNumber(2)
   set thumbB64($core.String v) { $_setString(1, v); }
+
+  @$pb.TagNumber(3)
+  $core.String get pathB64 => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set pathB64($core.String v) { $_setString(2, v); }
 }
 
 class EngineGetCustomEmojiThumbsResponse extends $pb.GeneratedMessage {

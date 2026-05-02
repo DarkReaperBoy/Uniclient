@@ -10684,6 +10684,7 @@ type EngineCustomEmojiThumb struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	DocumentId    int64                  `protobuf:"varint,1,opt,name=document_id,json=documentId,proto3" json:"document_id,omitempty"`
 	ThumbB64      string                 `protobuf:"bytes,2,opt,name=thumb_b64,json=thumbB64,proto3" json:"thumb_b64,omitempty"`
+	PathB64       string                 `protobuf:"bytes,3,opt,name=path_b64,json=pathB64,proto3" json:"path_b64,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -10728,6 +10729,13 @@ func (x *EngineCustomEmojiThumb) GetDocumentId() int64 {
 func (x *EngineCustomEmojiThumb) GetThumbB64() string {
 	if x != nil {
 		return x.ThumbB64
+	}
+	return ""
+}
+
+func (x *EngineCustomEmojiThumb) GetPathB64() string {
+	if x != nil {
+		return x.PathB64
 	}
 	return ""
 }
@@ -12527,11 +12535,12 @@ const file_proto_engine_proto_rawDesc = "" +
 	"!EngineGetCustomEmojiThumbsRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12!\n" +
-	"\fdocument_ids\x18\x02 \x03(\x03R\vdocumentIds\"V\n" +
+	"\fdocument_ids\x18\x02 \x03(\x03R\vdocumentIds\"q\n" +
 	"\x16EngineCustomEmojiThumb\x12\x1f\n" +
 	"\vdocument_id\x18\x01 \x01(\x03R\n" +
 	"documentId\x12\x1b\n" +
-	"\tthumb_b64\x18\x02 \x01(\tR\bthumbB64\"_\n" +
+	"\tthumb_b64\x18\x02 \x01(\tR\bthumbB64\x12\x19\n" +
+	"\bpath_b64\x18\x03 \x01(\tR\apathB64\"_\n" +
 	"\"EngineGetCustomEmojiThumbsResponse\x129\n" +
 	"\x06thumbs\x18\x01 \x03(\v2!.uniclient.EngineCustomEmojiThumbR\x06thumbs\"\xb9\x01\n" +
 	"\x1dEngineGetSavedSublistsRequest\x12\x1d\n" +
