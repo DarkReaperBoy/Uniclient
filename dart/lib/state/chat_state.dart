@@ -1888,6 +1888,7 @@ class ChatState extends ChangeNotifier {
           wpForceLargeMedia: extra['wp_force_large_media'] == true,
           wpForceSmallMedia: extra['wp_force_small_media'] == true,
           wpHasLargeMedia: extra['wp_has_large_media'] == true,
+          wpHasIv: extra['wp_has_iv'] == true,
           wpPhotoW: (extra['wp_photo_w'] as num?)?.toInt() ?? 0,
           wpPhotoH: (extra['wp_photo_h'] as num?)?.toInt() ?? 0,
           wpDuration: (extra['wp_duration'] as num?)?.toInt() ?? 0,

@@ -2134,6 +2134,16 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return data, nil
 
+	case "GetInstantViewPage":
+		var params struct {
+			AccountID string `json:"account_id"`
+			URL       string `json:"url"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return e.GetInstantViewPage(params.AccountID, params.URL)
+
 	case "BotCallback":
 		var req pb.EngineBotCallbackRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

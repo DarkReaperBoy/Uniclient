@@ -1190,6 +1190,24 @@ func (e *Engine) GetWebPagePreview(accountID, url string) (*cores.WebPagePreview
 	return fetcher.GetWebPagePreviewFull(url)
 }
 
+func (e *Engine) GetInstantViewPage(accountID, url string) ([]byte, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	type ivFetcher interface {
+		GetInstantViewPage(url string) ([]byte, error)
+	}
+	fetcher, ok := acc.Core.(ivFetcher)
+	if !ok {
+		return nil, fmt.Errorf("instant view not supported for this account type")
+	}
+	return fetcher.GetInstantViewPage(url)
+}
+
 // SendAsPeerInfo describes a peer the user can send messages as.
 type SendAsPeerInfo struct {
 	PeerID      string `json:"peer_id"`

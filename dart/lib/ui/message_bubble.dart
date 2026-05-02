@@ -12,6 +12,7 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData, KeyDownEve
 import 'custom_emoji_cache.dart';
 import 'gesture_utils.dart';
 import 'info_panel.dart';
+import 'instant_view.dart';
 import 'reactions_detail.dart';
 import 'popup_menu.dart';
 import 'shell.dart';
@@ -7969,7 +7970,9 @@ class _WebPagePreview extends StatelessWidget {
       case 'telegram_botapp': return 'OPEN APP';
       case 'telegram_stickerset': return 'VIEW STICKERS';
       case 'telegram_newbot': return 'START BOT';
-      default: return null;
+      default:
+        if (message.wpHasIv) return 'INSTANT VIEW';
+        return null;
     }
   }
 
@@ -8021,14 +8024,19 @@ class _WebPagePreview extends StatelessWidget {
     return RichText(text: TextSpan(children: spans), maxLines: _descMaxLines(), overflow: TextOverflow.ellipsis);
   }
 
-  Widget? _buildActionButton(Color accentColor) {
+  Widget? _buildActionButton(BuildContext context, Color accentColor) {
     final label = _actionButtonLabel();
     if (label == null) return null;
     final dividerColor = accentColor.withAlpha((255 * 0.3).round());
     return GestureDetector(
       onTap: () {
         final url = message.wpUrl;
-        if (url.isNotEmpty) Process.run('xdg-open', [url]);
+        if (url.isEmpty) return;
+        if (message.wpType.toLowerCase() == 'article_with_iv' || message.wpHasIv) {
+          openInstantView(context, message.accountId, url, siteName: message.wpSiteName);
+        } else {
+          Process.run('xdg-open', [url]);
+        }
       },
       behavior: HitTestBehavior.opaque,
       child: Column(
@@ -8109,7 +8117,7 @@ class _WebPagePreview extends StatelessWidget {
       textWidgets.add(_buildDescription(accentColor));
     }
 
-    final actionButton = _buildActionButton(accentColor);
+    final actionButton = _buildActionButton(context, accentColor);
 
     if (isArticle) {
       return Container(

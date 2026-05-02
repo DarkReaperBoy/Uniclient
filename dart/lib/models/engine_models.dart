@@ -498,6 +498,7 @@ class CachedMessage {
   final bool wpForceLargeMedia;
   final bool wpForceSmallMedia;
   final bool wpHasLargeMedia;
+  final bool wpHasIv;
   final int wpPhotoW;
   final int wpPhotoH;
   final int wpDuration;
@@ -617,6 +618,7 @@ class CachedMessage {
     this.wpForceLargeMedia = false,
     this.wpForceSmallMedia = false,
     this.wpHasLargeMedia = false,
+    this.wpHasIv = false,
     this.wpPhotoW = 0,
     this.wpPhotoH = 0,
     this.wpDuration = 0,
@@ -801,6 +803,7 @@ class CachedMessage {
     bool? wpForceLargeMedia,
     bool? wpForceSmallMedia,
     bool? wpHasLargeMedia,
+    bool? wpHasIv,
     int? wpPhotoW,
     int? wpPhotoH,
     int? wpDuration,
@@ -909,6 +912,7 @@ class CachedMessage {
     wpForceLargeMedia: wpForceLargeMedia ?? this.wpForceLargeMedia,
     wpForceSmallMedia: wpForceSmallMedia ?? this.wpForceSmallMedia,
     wpHasLargeMedia: wpHasLargeMedia ?? this.wpHasLargeMedia,
+    wpHasIv: wpHasIv ?? this.wpHasIv,
     wpPhotoW: wpPhotoW ?? this.wpPhotoW,
     wpPhotoH: wpPhotoH ?? this.wpPhotoH,
     wpDuration: wpDuration ?? this.wpDuration,

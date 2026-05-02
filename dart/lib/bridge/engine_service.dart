@@ -837,6 +837,23 @@ class EngineService {
     }
   }
 
+  // ── Instant View ──
+
+  Future<Map<String, dynamic>?> getInstantViewPage(String accountId, String url) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'url': url,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetInstantViewPage', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    } catch (e) {
+      Debug.error('ENGINE', 'getInstantViewPage failed', e);
+      return null;
+    }
+  }
+
   // ── Sticker sets ──
 
   Future<StickerSetInfo?> getStickerSetInfo(String accountId, {String shortName = '', int setId = 0, int accessHash = 0}) async {
@@ -3576,6 +3593,7 @@ class EngineService {
       wpForceLargeMedia: _boolExtraFromRaw(contentRaw, 'wp_force_large_media'),
       wpForceSmallMedia: _boolExtraFromRaw(contentRaw, 'wp_force_small_media'),
       wpHasLargeMedia: _boolExtraFromRaw(contentRaw, 'wp_has_large_media'),
+      wpHasIv: _boolExtraFromRaw(contentRaw, 'wp_has_iv'),
       wpPhotoW: _int64FieldFromRaw(contentRaw, 'wp_photo_w'),
       wpPhotoH: _int64FieldFromRaw(contentRaw, 'wp_photo_h'),
       wpDuration: _int64FieldFromRaw(contentRaw, 'wp_duration'),

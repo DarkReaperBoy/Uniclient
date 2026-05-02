@@ -955,7 +955,6 @@ Status key: `[ ]` not started · `[x]` done
 # Touches: dart/lib/ui/chat_view.dart (FieldHeader bar), new link_preview.dart
 
 - [x] Large vs small media layout — small (article) for profile pages; large for Twitter/Facebook/ArticleWithIV/collage/no-text; forceLargeMedia/forceSmallMedia via DraftOptionsBox — spec §46.3
-- [ ] Instant View reader — detect iv non-null; "INSTANT VIEW" button in bubble; open built-in IV reader on click — spec §46.10
 - [ ] API + AyuGram improvements — MTPmessages_GetWebPagePreview; getBetterLinkPreview URL rewriting (x.com→fixupx.com etc.); MTPinputMediaWebPage with force_large/small/optional on send; two-level debounce + cancel on switch; URL→WebPageData in-memory cache + session cache + draft persistence — spec §46.11–46.13
 
 ---
