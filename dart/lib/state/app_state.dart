@@ -15,6 +15,80 @@ import '../theme/wallpaper.dart';
 import '../ui/media_viewer.dart';
 import '../utils/debug.dart';
 
+/// §51.1: Ghost Mode per-account settings object.
+/// Key "0" is the global profile; other keys are bare user IDs (uint64 as string).
+class GhostModeAccountSettings {
+  bool sendReadMessages;
+  bool sendReadStories;
+  bool sendOnlinePackets;
+  bool sendUploadProgress;
+  bool sendOfflinePacketAfterOnline;
+  bool markReadAfterAction;
+  bool useScheduledMessages;
+  bool sendWithoutSound;
+  bool sendReadMessagesLocked;
+  bool sendReadStoriesLocked;
+  bool sendOnlinePacketsLocked;
+  bool sendUploadProgressLocked;
+  bool sendOfflinePacketAfterOnlineLocked;
+
+  GhostModeAccountSettings({
+    this.sendReadMessages = true,
+    this.sendReadStories = true,
+    this.sendOnlinePackets = true,
+    this.sendUploadProgress = true,
+    this.sendOfflinePacketAfterOnline = false,
+    this.markReadAfterAction = true,
+    this.useScheduledMessages = false,
+    this.sendWithoutSound = false,
+    this.sendReadMessagesLocked = false,
+    this.sendReadStoriesLocked = false,
+    this.sendOnlinePacketsLocked = false,
+    this.sendUploadProgressLocked = false,
+    this.sendOfflinePacketAfterOnlineLocked = false,
+  });
+
+  bool get ghostModeActive =>
+      (sendReadMessagesLocked || !sendReadMessages) &&
+      (sendReadStoriesLocked || !sendReadStories) &&
+      (sendOnlinePacketsLocked || !sendOnlinePackets) &&
+      (sendUploadProgressLocked || !sendUploadProgress) &&
+      (sendOfflinePacketAfterOnlineLocked || sendOfflinePacketAfterOnline);
+
+  factory GhostModeAccountSettings.fromJson(Map<String, dynamic> j) =>
+      GhostModeAccountSettings(
+        sendReadMessages: j['sendReadMessages'] as bool? ?? true,
+        sendReadStories: j['sendReadStories'] as bool? ?? true,
+        sendOnlinePackets: j['sendOnlinePackets'] as bool? ?? true,
+        sendUploadProgress: j['sendUploadProgress'] as bool? ?? true,
+        sendOfflinePacketAfterOnline: j['sendOfflinePacketAfterOnline'] as bool? ?? false,
+        markReadAfterAction: j['markReadAfterAction'] as bool? ?? true,
+        useScheduledMessages: j['useScheduledMessages'] as bool? ?? false,
+        sendWithoutSound: j['sendWithoutSound'] as bool? ?? false,
+        sendReadMessagesLocked: j['sendReadMessagesLocked'] as bool? ?? false,
+        sendReadStoriesLocked: j['sendReadStoriesLocked'] as bool? ?? false,
+        sendOnlinePacketsLocked: j['sendOnlinePacketsLocked'] as bool? ?? false,
+        sendUploadProgressLocked: j['sendUploadProgressLocked'] as bool? ?? false,
+        sendOfflinePacketAfterOnlineLocked: j['sendOfflinePacketAfterOnlineLocked'] as bool? ?? false,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'sendReadMessages': sendReadMessages,
+        'sendReadStories': sendReadStories,
+        'sendOnlinePackets': sendOnlinePackets,
+        'sendUploadProgress': sendUploadProgress,
+        'sendOfflinePacketAfterOnline': sendOfflinePacketAfterOnline,
+        'markReadAfterAction': markReadAfterAction,
+        'useScheduledMessages': useScheduledMessages,
+        'sendWithoutSound': sendWithoutSound,
+        'sendReadMessagesLocked': sendReadMessagesLocked,
+        'sendReadStoriesLocked': sendReadStoriesLocked,
+        'sendOnlinePacketsLocked': sendOnlinePacketsLocked,
+        'sendUploadProgressLocked': sendUploadProgressLocked,
+        'sendOfflinePacketAfterOnlineLocked': sendOfflinePacketAfterOnlineLocked,
+      };
+}
+
 /// Top-level app state: accounts, connection, config, active platform.
 class AppState extends ChangeNotifier with WidgetsBindingObserver {
   final EngineService _engine;
@@ -100,18 +174,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _showStreamerToggleInDrawer = false;
   bool _showStreamerToggleInTray = false;
 
-  // §50.7: AyuGram ghost mode — 6 read toggles + 5 locked variants.
-  bool _sendReadMessages = true;
-  bool _sendReadStories = true;
-  bool _sendOnlinePackets = true;
-  bool _sendUploadProgress = true;
-  bool _sendOfflinePacketAfterOnline = false;
-  bool _markReadAfterAction = true;
-  bool _sendReadMessagesLocked = false;
-  bool _sendReadStoriesLocked = false;
-  bool _sendOnlinePacketsLocked = false;
-  bool _sendUploadProgressLocked = false;
-  bool _sendOfflinePacketAfterOnlineLocked = false;
+  // §51.1: Ghost Mode per-account settings. Key "0" is global; other keys are user IDs.
+  bool _useGlobalGhostMode = true;
+  Map<String, GhostModeAccountSettings> _ghostModeSettings = {'0': GhostModeAccountSettings()};
   int _showViewsPanelInContextMenu = 0; // 0=visible, 1=hidden, 2=visibleWithModifier
   bool _showMessageSeconds = false;
 
@@ -232,24 +297,42 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get showStreamerToggleInDrawer => _showStreamerToggleInDrawer;
   bool get showStreamerToggleInTray => _showStreamerToggleInTray;
 
-  // §50.7 AyuGram ghost mode — computed active when ALL 5 core toggles are "ghost".
-  bool get ghostModeEnabled =>
-      (_sendReadMessagesLocked || !_sendReadMessages) &&
-      (_sendReadStoriesLocked || !_sendReadStories) &&
-      (_sendOnlinePacketsLocked || !_sendOnlinePackets) &&
-      (_sendUploadProgressLocked || !_sendUploadProgress) &&
-      (_sendOfflinePacketAfterOnlineLocked || _sendOfflinePacketAfterOnline);
-  bool get sendReadMessages => _sendReadMessages;
-  bool get sendReadStories => _sendReadStories;
-  bool get sendOnlinePackets => _sendOnlinePackets;
-  bool get sendUploadProgress => _sendUploadProgress;
-  bool get sendOfflinePacketAfterOnline => _sendOfflinePacketAfterOnline;
-  bool get markReadAfterAction => _markReadAfterAction;
-  bool get sendReadMessagesLocked => _sendReadMessagesLocked;
-  bool get sendReadStoriesLocked => _sendReadStoriesLocked;
-  bool get sendOnlinePacketsLocked => _sendOnlinePacketsLocked;
-  bool get sendUploadProgressLocked => _sendUploadProgressLocked;
-  bool get sendOfflinePacketAfterOnlineLocked => _sendOfflinePacketAfterOnlineLocked;
+  // §51.1: Resolved ghost settings for the active account.
+  GhostModeAccountSettings get _ghostSettings {
+    if (_useGlobalGhostMode) return _ghostModeSettings['0'] ?? GhostModeAccountSettings();
+    final userId = activeAccount?.selfUserId ?? '';
+    if (userId.isEmpty) return _ghostModeSettings['0'] ?? GhostModeAccountSettings();
+    return _ghostModeSettings[userId] ?? _ghostModeSettings['0'] ?? GhostModeAccountSettings();
+  }
+
+  String get _ghostKey {
+    if (_useGlobalGhostMode) return '0';
+    final userId = activeAccount?.selfUserId ?? '';
+    return userId.isEmpty ? '0' : userId;
+  }
+
+  GhostModeAccountSettings _ensureGhostSettings() {
+    final key = _ghostKey;
+    return _ghostModeSettings.putIfAbsent(key, GhostModeAccountSettings.new);
+  }
+
+  bool get useGlobalGhostMode => _useGlobalGhostMode;
+  Map<String, GhostModeAccountSettings> get ghostModeSettings =>
+      Map.unmodifiable(_ghostModeSettings);
+  bool get ghostModeEnabled => _ghostSettings.ghostModeActive;
+  bool get sendReadMessages => _ghostSettings.sendReadMessages;
+  bool get sendReadStories => _ghostSettings.sendReadStories;
+  bool get sendOnlinePackets => _ghostSettings.sendOnlinePackets;
+  bool get sendUploadProgress => _ghostSettings.sendUploadProgress;
+  bool get sendOfflinePacketAfterOnline => _ghostSettings.sendOfflinePacketAfterOnline;
+  bool get markReadAfterAction => _ghostSettings.markReadAfterAction;
+  bool get useScheduledMessages => _ghostSettings.useScheduledMessages;
+  bool get sendWithoutSound => _ghostSettings.sendWithoutSound;
+  bool get sendReadMessagesLocked => _ghostSettings.sendReadMessagesLocked;
+  bool get sendReadStoriesLocked => _ghostSettings.sendReadStoriesLocked;
+  bool get sendOnlinePacketsLocked => _ghostSettings.sendOnlinePacketsLocked;
+  bool get sendUploadProgressLocked => _ghostSettings.sendUploadProgressLocked;
+  bool get sendOfflinePacketAfterOnlineLocked => _ghostSettings.sendOfflinePacketAfterOnlineLocked;
   int get showViewsPanelInContextMenu => _showViewsPanelInContextMenu;
   bool get showMessageSeconds => _showMessageSeconds;
 
@@ -346,104 +429,136 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  // §50.7 Ghost mode master toggle — sets all 5 core toggles respecting locks.
+  // §51.1 Ghost mode master toggle — sets all 5 core toggles respecting locks.
   void setGhostModeEnabled(bool v) {
+    final s = _ensureGhostSettings();
     bool changed = false;
     if (v) {
-      if (!_sendReadMessagesLocked && _sendReadMessages) {
-        _sendReadMessages = false; changed = true;
+      if (!s.sendReadMessagesLocked && s.sendReadMessages) {
+        s.sendReadMessages = false; changed = true;
       }
-      if (!_sendReadStoriesLocked && _sendReadStories) {
-        _sendReadStories = false; changed = true;
+      if (!s.sendReadStoriesLocked && s.sendReadStories) {
+        s.sendReadStories = false; changed = true;
       }
-      if (!_sendOnlinePacketsLocked && _sendOnlinePackets) {
-        _sendOnlinePackets = false; changed = true;
+      if (!s.sendOnlinePacketsLocked && s.sendOnlinePackets) {
+        s.sendOnlinePackets = false; changed = true;
       }
-      if (!_sendUploadProgressLocked && _sendUploadProgress) {
-        _sendUploadProgress = false; changed = true;
+      if (!s.sendUploadProgressLocked && s.sendUploadProgress) {
+        s.sendUploadProgress = false; changed = true;
       }
-      if (!_sendOfflinePacketAfterOnlineLocked && !_sendOfflinePacketAfterOnline) {
-        _sendOfflinePacketAfterOnline = true; changed = true;
+      if (!s.sendOfflinePacketAfterOnlineLocked && !s.sendOfflinePacketAfterOnline) {
+        s.sendOfflinePacketAfterOnline = true; changed = true;
       }
     } else {
-      if (!_sendReadMessagesLocked && !_sendReadMessages) {
-        _sendReadMessages = true; changed = true;
+      if (!s.sendReadMessagesLocked && !s.sendReadMessages) {
+        s.sendReadMessages = true; changed = true;
       }
-      if (!_sendReadStoriesLocked && !_sendReadStories) {
-        _sendReadStories = true; changed = true;
+      if (!s.sendReadStoriesLocked && !s.sendReadStories) {
+        s.sendReadStories = true; changed = true;
       }
-      if (!_sendOnlinePacketsLocked && !_sendOnlinePackets) {
-        _sendOnlinePackets = true; changed = true;
+      if (!s.sendOnlinePacketsLocked && !s.sendOnlinePackets) {
+        s.sendOnlinePackets = true; changed = true;
       }
-      if (!_sendUploadProgressLocked && !_sendUploadProgress) {
-        _sendUploadProgress = true; changed = true;
+      if (!s.sendUploadProgressLocked && !s.sendUploadProgress) {
+        s.sendUploadProgress = true; changed = true;
       }
-      if (!_sendOfflinePacketAfterOnlineLocked && _sendOfflinePacketAfterOnline) {
-        _sendOfflinePacketAfterOnline = false; changed = true;
+      if (!s.sendOfflinePacketAfterOnlineLocked && s.sendOfflinePacketAfterOnline) {
+        s.sendOfflinePacketAfterOnline = false; changed = true;
       }
     }
     if (!changed) return;
-    _engine.updateConfig(sendReadReceipts: _sendReadMessages, sendTyping: _sendUploadProgress);
+    _syncGhostToEngine();
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setUseGlobalGhostMode(bool v) {
+    if (_useGlobalGhostMode == v) return;
+    _useGlobalGhostMode = v;
+    _syncGhostToEngine();
     notifyListeners();
     _saveWindowPrefs();
   }
 
   void setSendReadMessages(bool v) {
-    if (_sendReadMessages == v) return;
-    _sendReadMessages = v;
+    final s = _ensureGhostSettings();
+    if (s.sendReadMessages == v) return;
+    s.sendReadMessages = v;
     _engine.updateConfig(sendReadReceipts: v);
     notifyListeners();
     _saveWindowPrefs();
   }
 
   void setSendReadStories(bool v) {
-    if (_sendReadStories == v) return;
-    _sendReadStories = v;
+    final s = _ensureGhostSettings();
+    if (s.sendReadStories == v) return;
+    s.sendReadStories = v;
     notifyListeners();
     _saveWindowPrefs();
   }
 
   void setSendOnlinePackets(bool v) {
-    if (_sendOnlinePackets == v) return;
-    _sendOnlinePackets = v;
+    final s = _ensureGhostSettings();
+    if (s.sendOnlinePackets == v) return;
+    s.sendOnlinePackets = v;
     notifyListeners();
     _saveWindowPrefs();
   }
 
   void setSendUploadProgress(bool v) {
-    if (_sendUploadProgress == v) return;
-    _sendUploadProgress = v;
+    final s = _ensureGhostSettings();
+    if (s.sendUploadProgress == v) return;
+    s.sendUploadProgress = v;
     _engine.updateConfig(sendTyping: v);
     notifyListeners();
     _saveWindowPrefs();
   }
 
   void setSendOfflinePacketAfterOnline(bool v) {
-    if (_sendOfflinePacketAfterOnline == v) return;
-    _sendOfflinePacketAfterOnline = v;
+    final s = _ensureGhostSettings();
+    if (s.sendOfflinePacketAfterOnline == v) return;
+    s.sendOfflinePacketAfterOnline = v;
     notifyListeners();
     _saveWindowPrefs();
   }
 
   void setMarkReadAfterAction(bool v) {
-    if (_markReadAfterAction == v) return;
-    _markReadAfterAction = v;
+    final s = _ensureGhostSettings();
+    if (s.markReadAfterAction == v) return;
+    s.markReadAfterAction = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setUseScheduledMessages(bool v) {
+    final s = _ensureGhostSettings();
+    if (s.useScheduledMessages == v) return;
+    s.useScheduledMessages = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setSendWithoutSound(bool v) {
+    final s = _ensureGhostSettings();
+    if (s.sendWithoutSound == v) return;
+    s.sendWithoutSound = v;
     notifyListeners();
     _saveWindowPrefs();
   }
 
   void toggleLock(String field) {
+    final s = _ensureGhostSettings();
     switch (field) {
       case 'sendReadMessages':
-        _sendReadMessagesLocked = !_sendReadMessagesLocked;
+        s.sendReadMessagesLocked = !s.sendReadMessagesLocked;
       case 'sendReadStories':
-        _sendReadStoriesLocked = !_sendReadStoriesLocked;
+        s.sendReadStoriesLocked = !s.sendReadStoriesLocked;
       case 'sendOnlinePackets':
-        _sendOnlinePacketsLocked = !_sendOnlinePacketsLocked;
+        s.sendOnlinePacketsLocked = !s.sendOnlinePacketsLocked;
       case 'sendUploadProgress':
-        _sendUploadProgressLocked = !_sendUploadProgressLocked;
+        s.sendUploadProgressLocked = !s.sendUploadProgressLocked;
       case 'sendOfflinePacketAfterOnline':
-        _sendOfflinePacketAfterOnlineLocked = !_sendOfflinePacketAfterOnlineLocked;
+        s.sendOfflinePacketAfterOnlineLocked = !s.sendOfflinePacketAfterOnlineLocked;
       default:
         return;
     }
@@ -451,15 +566,30 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _saveWindowPrefs();
   }
 
-  bool isLocked(String field) {
-    return switch (field) {
-      'sendReadMessages' => _sendReadMessagesLocked,
-      'sendReadStories' => _sendReadStoriesLocked,
-      'sendOnlinePackets' => _sendOnlinePacketsLocked,
-      'sendUploadProgress' => _sendUploadProgressLocked,
-      'sendOfflinePacketAfterOnline' => _sendOfflinePacketAfterOnlineLocked,
-      _ => false,
-    };
+  bool isLocked(String field) => switch (field) {
+    'sendReadMessages' => _ghostSettings.sendReadMessagesLocked,
+    'sendReadStories' => _ghostSettings.sendReadStoriesLocked,
+    'sendOnlinePackets' => _ghostSettings.sendOnlinePacketsLocked,
+    'sendUploadProgress' => _ghostSettings.sendUploadProgressLocked,
+    'sendOfflinePacketAfterOnline' => _ghostSettings.sendOfflinePacketAfterOnlineLocked,
+    _ => false,
+  };
+
+  void _syncGhostToEngine() {
+    final s = _ghostSettings;
+    _engine.updateConfig(sendReadReceipts: s.sendReadMessages, sendTyping: s.sendUploadProgress);
+  }
+
+  void _autoMigrateGhostToGlobal() {
+    if (_useGlobalGhostMode || _accounts.length > 1) return;
+    final userId = _accounts.firstOrNull?.selfUserId ?? '';
+    if (userId.isEmpty) return;
+    final perAccount = _ghostModeSettings[userId];
+    if (perAccount == null) return;
+    _ghostModeSettings['0'] = perAccount;
+    _ghostModeSettings.remove(userId);
+    _useGlobalGhostMode = true;
+    _saveWindowPrefs();
   }
 
   // §50.7: Per-peer read exclusion. 0=default, 1=neverRead, 2=alwaysRead.
@@ -940,8 +1070,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _ensureActiveAccount();
       // Load window prefs (native frame toggle) before marking initialized.
       _loadWindowPrefs();
-      // §50.7 Sync ghost mode toggles to engine on startup.
-      _engine.updateConfig(sendReadReceipts: _sendReadMessages, sendTyping: _sendUploadProgress);
+      // §51.1 Sync ghost mode toggles to engine on startup.
+      _syncGhostToEngine();
       WidgetsBinding.instance.addObserver(this);
       if (_systemDarkMode) {
         final brightness =
@@ -1119,6 +1249,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setActiveAccountId(String accountId) {
     if (_activeAccountId == accountId) return;
     _activeAccountId = accountId;
+    if (!_useGlobalGhostMode) _syncGhostToEngine();
+    _autoMigrateGhostToGlobal();
     notifyListeners();
   }
 
@@ -1420,19 +1552,35 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       // §50.2 Streamer Mode toggle visibility (persistent); mode itself is NOT persisted
       _showStreamerToggleInDrawer = data['showStreamerToggleInDrawer'] as bool? ?? false;
       _showStreamerToggleInTray = data['showStreamerToggleInTray'] as bool? ?? false;
-      // §50.7 AyuGram ghost mode — 6 toggles + 5 locks
-      final oldGhost = data['ghostModeEnabled'] as bool?;
-      _sendReadMessages = data['sendReadMessages'] as bool? ?? (oldGhost != null ? !oldGhost : true);
-      _sendReadStories = data['sendReadStories'] as bool? ?? true;
-      _sendOnlinePackets = data['sendOnlinePackets'] as bool? ?? true;
-      _sendUploadProgress = data['sendUploadProgress'] as bool? ?? true;
-      _sendOfflinePacketAfterOnline = data['sendOfflinePacketAfterOnline'] as bool? ?? false;
-      _markReadAfterAction = data['markReadAfterAction'] as bool? ?? true;
-      _sendReadMessagesLocked = data['sendReadMessagesLocked'] as bool? ?? false;
-      _sendReadStoriesLocked = data['sendReadStoriesLocked'] as bool? ?? false;
-      _sendOnlinePacketsLocked = data['sendOnlinePacketsLocked'] as bool? ?? false;
-      _sendUploadProgressLocked = data['sendUploadProgressLocked'] as bool? ?? false;
-      _sendOfflinePacketAfterOnlineLocked = data['sendOfflinePacketAfterOnlineLocked'] as bool? ?? false;
+      // §51.1 Ghost Mode per-account settings (with migration from flat format).
+      final ghostMap = data['ghostModeSettings'] as Map<String, dynamic>?;
+      if (ghostMap != null) {
+        _useGlobalGhostMode = data['useGlobalGhostMode'] as bool? ?? true;
+        _ghostModeSettings = ghostMap.map((k, v) =>
+            MapEntry(k, GhostModeAccountSettings.fromJson(v as Map<String, dynamic>)));
+        if (!_ghostModeSettings.containsKey('0')) {
+          _ghostModeSettings['0'] = GhostModeAccountSettings();
+        }
+      } else {
+        // Migrate old flat format → global ("0") profile.
+        final oldGhost = data['ghostModeEnabled'] as bool?;
+        _useGlobalGhostMode = true;
+        _ghostModeSettings = {
+          '0': GhostModeAccountSettings(
+            sendReadMessages: data['sendReadMessages'] as bool? ?? (oldGhost != null ? !oldGhost : true),
+            sendReadStories: data['sendReadStories'] as bool? ?? true,
+            sendOnlinePackets: data['sendOnlinePackets'] as bool? ?? true,
+            sendUploadProgress: data['sendUploadProgress'] as bool? ?? true,
+            sendOfflinePacketAfterOnline: data['sendOfflinePacketAfterOnline'] as bool? ?? false,
+            markReadAfterAction: data['markReadAfterAction'] as bool? ?? true,
+            sendReadMessagesLocked: data['sendReadMessagesLocked'] as bool? ?? false,
+            sendReadStoriesLocked: data['sendReadStoriesLocked'] as bool? ?? false,
+            sendOnlinePacketsLocked: data['sendOnlinePacketsLocked'] as bool? ?? false,
+            sendUploadProgressLocked: data['sendUploadProgressLocked'] as bool? ?? false,
+            sendOfflinePacketAfterOnlineLocked: data['sendOfflinePacketAfterOnlineLocked'] as bool? ?? false,
+          ),
+        };
+      }
       _showViewsPanelInContextMenu = data['showViewsPanelInContextMenu'] as int? ?? 0;
       _showMessageSeconds = data['showMessageSeconds'] as bool? ?? false;
       final rawExcl = data['readExclusions'] as Map<String, dynamic>?;
@@ -1494,17 +1642,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'showDrawerThemeToggle': _showDrawerThemeToggle,
         'showStreamerToggleInDrawer': _showStreamerToggleInDrawer,
         'showStreamerToggleInTray': _showStreamerToggleInTray,
-        'sendReadMessages': _sendReadMessages,
-        'sendReadStories': _sendReadStories,
-        'sendOnlinePackets': _sendOnlinePackets,
-        'sendUploadProgress': _sendUploadProgress,
-        'sendOfflinePacketAfterOnline': _sendOfflinePacketAfterOnline,
-        'markReadAfterAction': _markReadAfterAction,
-        'sendReadMessagesLocked': _sendReadMessagesLocked,
-        'sendReadStoriesLocked': _sendReadStoriesLocked,
-        'sendOnlinePacketsLocked': _sendOnlinePacketsLocked,
-        'sendUploadProgressLocked': _sendUploadProgressLocked,
-        'sendOfflinePacketAfterOnlineLocked': _sendOfflinePacketAfterOnlineLocked,
+        'useGlobalGhostMode': _useGlobalGhostMode,
+        'ghostModeSettings': _ghostModeSettings.map((k, v) => MapEntry(k, v.toJson())),
         'showViewsPanelInContextMenu': _showViewsPanelInContextMenu,
         'showMessageSeconds': _showMessageSeconds,
         'readExclusions': _readExclusions,

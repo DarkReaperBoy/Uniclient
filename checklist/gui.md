@@ -982,7 +982,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §51 — Ghost Mode (AyuGram)
 # Touches: dart/lib/ui/hamburger_drawer.dart, dart/lib/ui/settings_screen.dart, new ghost_mode.dart
 
-- [ ] Ghost Mode architecture + storage — per-account settings keyed by user ID; global mode key "0"; isGhostModeActive computed from 5 core toggles + lock states — spec §51.1
 - [ ] 5 core toggles UI — collapsible "Ghost Mode" section; Don't Read Messages / Don't Read Stories / Don't Send Online / Don't Send Typing / Go Offline Automatically; Shift+click lock (40% opacity locked); prevent locking last unlocked; master toggle sets all unlocked toggles — spec §51.2.1
 - [ ] 3 additional toggles — Read on Interact; Schedule Messages (auto-schedule ~12s ahead); Send without Sound (flip send menu label to "Send with Sound"); Read on Interact ↔ Schedule Messages mutually exclusive — spec §51.2.2
 - [ ] Per-account picker — LinkButton next to "Ghost essentials" title (>1 account); down-arrow icon windowActiveTextFg; PopupMenu: "Global Settings" (purple gradient circle "GS") + per-account items; toast on scope switch; auto-migrate to global when 1 account — spec §51.3
