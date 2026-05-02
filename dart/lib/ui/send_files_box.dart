@@ -95,8 +95,9 @@ enum _FileType { photo, video, music, file }
 
 enum _DragZoneMode { documentOnly, photoOnly, both }
 
-enum MimeDataState { photoFiles, mediaFiles, image, files }
+enum MimeDataState { photoFiles, mediaFiles, image, files, none }
 
+/// §48.4: classify files — GIFs are MediaFiles not PhotoFiles.
 MimeDataState classifyMimeData(List<String> paths) {
   if (paths.isEmpty) return MimeDataState.files;
   bool allPhoto = true;
@@ -105,16 +106,14 @@ MimeDataState classifyMimeData(List<String> paths) {
     final name = p.split('/').last;
     final ext = name.split('.').last.toLowerCase();
     if (ext == 'gif') {
-      allPhoto = false;
-      allMedia = false;
-      break;
-    }
-    final isPhoto = _kPhotoExts.contains(ext);
-    final isVideo = _kVideoExts.contains(ext);
-    if (!isPhoto) allPhoto = false;
-    if (!isPhoto && !isVideo) {
-      allMedia = false;
-      break;
+      allPhoto = false; // GIFs are media, not photos
+    } else {
+      final isPhoto = _kPhotoExts.contains(ext);
+      final isVideo = _kVideoExts.contains(ext);
+      if (!isPhoto) allPhoto = false;
+      if (!isPhoto && !isVideo) {
+        allMedia = false;
+      }
     }
   }
   if (allPhoto) return MimeDataState.photoFiles;

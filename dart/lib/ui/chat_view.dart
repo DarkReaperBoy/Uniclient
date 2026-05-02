@@ -432,7 +432,7 @@ class _ChatViewState extends State<ChatView>
         setState(() {
           _isDragOver = true;
           _dragHoveredCard = card;
-          _dragLayout = _DragZoneLayout.values[layout.clamp(0, 3)];
+          _dragLayout = _DragZoneLayout.values[layout.clamp(0, 4)];
         });
         _dragOverlayAnimCtrl.forward();
       }
@@ -3315,7 +3315,7 @@ class _ChatViewState extends State<ChatView>
     return 'START';
   }
 
-  Future<void> _uploadFiles(ChatState chatState, List<String> paths) async {
+  Future<void> _uploadFiles(ChatState chatState, List<String> paths, {bool? overrideSendAsDocuments}) async {
     final chat = chatState.activeChat;
     final result = await showSendFilesBox(
       context,
@@ -3324,6 +3324,7 @@ class _ChatViewState extends State<ChatView>
       isSelfChat: chat != null && chat.title == 'Saved Messages' && chat.type == ChatType.dm,
       starsPerMessage: chat?.starsToSend ?? 0,
       isSlowMode: (chat?.slowmodeSeconds ?? 0) > 0,
+      overrideSendAsDocuments: overrideSendAsDocuments,
     );
     if (result == null || result.paths.isEmpty) return;
     for (final path in result.paths) {
@@ -3668,9 +3669,13 @@ class _ChatViewState extends State<ChatView>
         // §48.3: IgnoreAction — reject drop when cursor is outside all zones.
         if (droppedCard == 0) return;
         final paths = details.files.map((f) => f.path).toList();
-        if (paths.isNotEmpty) {
-          _uploadFiles(context.read<ChatState>(), paths);
-        }
+        // §48.4: classify and reject invalid drops.
+        final classification = _classifyDragFiles(paths);
+        if (classification == _DragZoneLayout.none) return;
+        // Card 1 = document zone, Card 2 = photo/media zone.
+        final asDocuments = droppedCard == 1;
+        _uploadFiles(context.read<ChatState>(), paths,
+            overrideSendAsDocuments: asDocuments);
       },
       child: child,
     );
@@ -14837,18 +14842,31 @@ String _formatTime12h(DateTime dt) {
   return '${h - 12}:$m PM';
 }
 
-/// §48.2 four drag states determining overlay layout.
-enum _DragZoneLayout { files, photoFiles, mediaFiles, image }
+/// §48.2 five drag states determining overlay layout.
+enum _DragZoneLayout { files, photoFiles, mediaFiles, image, none }
 
-/// §48.4 classify dragged files by extension.
+const _kMaxDragFileSize = 4 * 1024 * 1024 * 1024; // 4 GB (kFileSizePremiumLimit)
+
+/// §48.4 classify dragged files: reject null data, forward data, non-local
+/// URLs, directories, files >4GB. GIFs are MediaFiles not PhotoFiles.
 _DragZoneLayout _classifyDragFiles(List<String> paths) {
-  if (paths.isEmpty) return _DragZoneLayout.files;
-  const imageExts = {'.jpg', '.jpeg', '.png', '.bmp', '.webp', '.tiff', '.tif'};
-  const videoExts = {'.mp4', '.mov', '.avi', '.mkv', '.webm', '.m4v', '.3gp'};
+  if (paths.isEmpty) return _DragZoneLayout.none;
+  const imageExts = {'.jpg', '.jpeg', '.png', '.bmp', '.webp', '.tiff', '.tif', '.heic', '.heif'};
+  const videoExts = {'.mp4', '.mov', '.avi', '.mkv', '.webm', '.m4v', '.3gp', '.flv'};
   const gifExt = '.gif';
   bool allSmallImages = true;
   bool allMedia = true;
   for (final p in paths) {
+    if (p.startsWith('http://') || p.startsWith('https://') || p.startsWith('ftp://')) {
+      return _DragZoneLayout.none;
+    }
+    try {
+      if (FileSystemEntity.isDirectorySync(p)) return _DragZoneLayout.none;
+      final size = File(p).lengthSync();
+      if (size > _kMaxDragFileSize) return _DragZoneLayout.none;
+    } catch (_) {
+      return _DragZoneLayout.none;
+    }
     final ext = p.contains('.') ? '.${p.split('.').last.toLowerCase()}' : '';
     if (ext == gifExt) {
       allSmallImages = false; // GIFs are media, not photos
@@ -14907,6 +14925,8 @@ class _DragOverlay extends StatelessWidget {
         children = [
           card('Drop images here', 'to send them in a quick way', 2),
         ];
+      case _DragZoneLayout.none:
+        return const SizedBox.shrink();
     }
 
     return Container(
