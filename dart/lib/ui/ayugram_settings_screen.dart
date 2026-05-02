@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import 'settings_style.dart';
 
@@ -45,7 +48,31 @@ class _AyuGramSettingsScreenState extends State<AyuGramSettingsScreen> {
         padding: EdgeInsets.zero,
         children: [
           // ── Ghost essentials (§51.2.1) ──
-          _SectionLabel(label: 'Ghost essentials', color: sectionLabelColor),
+          _GhostEssentialsHeader(
+            sectionLabelColor: sectionLabelColor,
+            accounts: appState.accounts,
+            useGlobal: appState.useGlobalGhostMode,
+            activeAccount: appState.activeAccount,
+            onScopeChanged: (bool global, String? userId) {
+              if (global) {
+                appState.setUseGlobalGhostMode(true);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Switched to same settings for all accounts.'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              } else {
+                appState.setUseGlobalGhostMode(false);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Switched to individual settings for each account.'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+          ),
           _GhostMasterToggle(
             label: 'Ghost Mode',
             value: appState.ghostModeEnabled,
@@ -810,6 +837,238 @@ class _DropdownRow extends StatelessWidget {
             },
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _GhostEssentialsHeader extends StatelessWidget {
+  final Color sectionLabelColor;
+  final List<AccountInfo> accounts;
+  final bool useGlobal;
+  final AccountInfo? activeAccount;
+  final void Function(bool global, String? userId) onScopeChanged;
+
+  const _GhostEssentialsHeader({
+    required this.sectionLabelColor,
+    required this.accounts,
+    required this.useGlobal,
+    required this.activeAccount,
+    required this.onScopeChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final showPicker = accounts.length > 1;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final activeTextFg = isDark
+        ? const Color(0xFF6AB2F2)
+        : const Color(0xFF3390EC);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 14, 22, 6),
+      child: Row(
+        children: [
+          Text('Ghost essentials',
+              style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: sectionLabelColor)),
+          if (showPicker) ...[
+            const SizedBox(width: 8),
+            _AccountPickerButton(
+              accounts: accounts,
+              useGlobal: useGlobal,
+              activeAccount: activeAccount,
+              activeTextFg: activeTextFg,
+              onScopeChanged: onScopeChanged,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _AccountPickerButton extends StatelessWidget {
+  final List<AccountInfo> accounts;
+  final bool useGlobal;
+  final AccountInfo? activeAccount;
+  final Color activeTextFg;
+  final void Function(bool global, String? userId) onScopeChanged;
+
+  const _AccountPickerButton({
+    required this.accounts,
+    required this.useGlobal,
+    required this.activeAccount,
+    required this.activeTextFg,
+    required this.onScopeChanged,
+  });
+
+  static String _accountLabel(AccountInfo a) {
+    if (a.displayName.isNotEmpty) return a.displayName;
+    if (a.phone.isNotEmpty) return a.phone;
+    final platformName = a.platform.isNotEmpty
+        ? '${a.platform[0].toUpperCase()}${a.platform.substring(1)}'
+        : 'Account';
+    final shortId = a.id.length > 8 ? a.id.substring(a.id.length - 8) : a.id;
+    return '$platformName ($shortId)';
+  }
+
+  String get _currentLabel {
+    if (useGlobal) return 'Global';
+    if (activeAccount != null) return _accountLabel(activeAccount!);
+    return 'Account';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => _showPicker(context),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            _currentLabel,
+            style: TextStyle(
+              fontSize: 14,
+              color: activeTextFg,
+            ),
+          ),
+          const SizedBox(width: 2),
+          Icon(
+            Icons.keyboard_arrow_down,
+            size: 18,
+            color: activeTextFg,
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPicker(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final RenderBox button = context.findRenderObject() as RenderBox;
+    final Offset offset = button.localToGlobal(Offset.zero);
+    final Size buttonSize = button.size;
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        offset.dx,
+        offset.dy + buttonSize.height,
+        offset.dx + buttonSize.width,
+        offset.dy + buttonSize.height,
+      ),
+      color: isDark ? const Color(0xFF1B2836) : Colors.white,
+      items: [
+        PopupMenuItem<String>(
+          value: 'global',
+          child: Row(
+            children: [
+              _GlobalSettingsAvatar(),
+              const SizedBox(width: 10),
+              const Text('Global Settings'),
+            ],
+          ),
+        ),
+        ...accounts.map((a) => PopupMenuItem<String>(
+          value: a.selfUserId,
+          child: Row(
+            children: [
+              _AccountAvatar(account: a),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text(
+                  _accountLabel(a),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        )),
+      ],
+    ).then((value) {
+      if (value == null) return;
+      if (value == 'global') {
+        onScopeChanged(true, null);
+      } else {
+        onScopeChanged(false, value);
+      }
+    });
+  }
+}
+
+class _GlobalSettingsAvatar extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 30,
+      height: 30,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF9C27B0), Color(0xFF7B1FA2)],
+        ),
+      ),
+      child: const Center(
+        child: Text(
+          'GS',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AccountAvatar extends StatelessWidget {
+  final AccountInfo account;
+  const _AccountAvatar({required this.account});
+
+  @override
+  Widget build(BuildContext context) {
+    if (account.avatarPath.isNotEmpty) {
+      final file = File(account.avatarPath);
+      if (file.existsSync()) {
+        return ClipOval(
+          child: Image.file(file, width: 30, height: 30, fit: BoxFit.cover),
+        );
+      }
+    }
+    final name = _AccountPickerButton._accountLabel(account);
+    final initial = name.characters.first.toUpperCase();
+    final colors = [
+      const Color(0xFFC03D33),
+      const Color(0xFF4FAD2D),
+      const Color(0xFFD09306),
+      const Color(0xFF168ACD),
+      const Color(0xFF8544D6),
+      const Color(0xFFCD4073),
+      const Color(0xFF2996AD),
+    ];
+    final colorIndex = account.selfUserId.hashCode.abs() % colors.length;
+    return Container(
+      width: 30,
+      height: 30,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: colors[colorIndex],
+      ),
+      child: Center(
+        child: Text(
+          initial,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }
