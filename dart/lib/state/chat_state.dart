@@ -21,6 +21,7 @@ class ChatState extends ChangeNotifier {
   List<CachedMessage> _pinnedMessages = [];
   bool _loadingMessages = false;
   bool _hasMoreMessages = true;
+  bool _isFirstLoad = true;
   DateTime? _jumpedUntil; // suppress polling refresh until this time
   final Map<String, String> _typingUsers = {}; // chatId → userName
   final Map<String, bool> _onlineUsers = {}; // "accountId:chatId" → isOnline (DMs only)
@@ -413,6 +414,7 @@ class ChatState extends ChangeNotifier {
   void toggleScheduledView() {
     _isScheduledView = !_isScheduledView;
     _messages = [];
+    _isFirstLoad = true;
     if (_isScheduledView) {
       _loadScheduledMessages();
     } else {
@@ -676,6 +678,7 @@ class ChatState extends ChangeNotifier {
     if (_foldersForAccount == accountId) return;
     _activeChat = null;
     _messages = [];
+    _isFirstLoad = true;
     _activeFolderId = null;
     _activeChannelId = null;
     _stopPolling();
@@ -744,6 +747,7 @@ class ChatState extends ChangeNotifier {
     _messages = [];
     _pinnedMessages = [];
     _hasMoreMessages = true;
+    _isFirstLoad = true;
     _jumpedUntil = null; // clear jump lock on chat change
     _activeChannelId = null; // reset channel selection on chat change
     _hiddenKeyboardMsgId = null;
@@ -1145,6 +1149,7 @@ class ChatState extends ChangeNotifier {
     _activeSublist = null;
     _openedUnreadCount = 0;
     _messages = [];
+    _isFirstLoad = true;
     _pinnedMessages = [];
     _activeGroupCall = null;
     _engine.clearActiveChat();
@@ -1247,6 +1252,7 @@ class ChatState extends ChangeNotifier {
     _jumpedUntil = null;
     _messages = [];
     _hasMoreMessages = true;
+    _isFirstLoad = true;
     _loadMessages();
   }
 
@@ -1585,11 +1591,14 @@ class ChatState extends ChangeNotifier {
     _loadingMessages = true;
     notifyListeners();
 
+    // Spec §49.1: first load 30 messages, subsequent loads 50.
+    final limit = _isFirstLoad ? 30 : 50;
     final beforeMs = _messages.isNotEmpty ? _messages.last.timestamp : 0;
-    final newMsgs = _engine.getMessages(chat.accountId, chat.chatId, beforeMs: beforeMs);
+    final newMsgs = _engine.getMessages(chat.accountId, chat.chatId, beforeMs: beforeMs, limit: limit);
 
-    if (newMsgs.length < 50) _hasMoreMessages = false;
+    if (newMsgs.length < limit) _hasMoreMessages = false;
     _messages.addAll(newMsgs);
+    _isFirstLoad = false;
     _loadingMessages = false;
     _autoDownloadMedia(newMsgs);
     notifyListeners();

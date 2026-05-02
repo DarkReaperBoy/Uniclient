@@ -673,9 +673,12 @@ class _ChatViewState extends State<ChatView>
   }
 
   void _onScroll() {
-    // Load more messages when near the top (oldest messages).
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 200) {
+    // Spec §49.1: preload when within 3 viewport heights of edge.
+    final pos = _scrollController.position;
+    final preloadThreshold = pos.hasViewportDimension
+        ? pos.viewportDimension * 3
+        : 200.0;
+    if (pos.pixels >= pos.maxScrollExtent - preloadThreshold) {
       context.read<ChatState>().loadMoreMessages();
     }
     // Spec §5: show FAB after scrolling 480px from bottom.
