@@ -130,6 +130,7 @@ class ChatView extends StatefulWidget {
 
   static VoidCallback? testVideoTipToast;
   static VoidCallback? testVideoPublishedToast;
+  static void Function(int card)? testDragOverlay;
 
   static void Function(bool isUp)? scrollPageRequest;
   static void requestScrollPage(bool isUp) =>
@@ -422,6 +423,15 @@ class _ChatViewState extends State<ChatView>
     };
     ChatView.testVideoTipToast = _showVideoProcessingTip;
     ChatView.testVideoPublishedToast = () => showVideoPublishedToast('test', null);
+    ChatView.testDragOverlay = (card) {
+      if (card < 0) {
+        setState(() { _isDragOver = false; _dragHoveredCard = 0; });
+        _dragOverlayAnimCtrl.reverse();
+      } else {
+        setState(() { _isDragOver = true; _dragHoveredCard = card; });
+        _dragOverlayAnimCtrl.forward();
+      }
+    };
     _searchController.addListener(_onSearchQueryChanged);
   }
 
@@ -14792,52 +14802,39 @@ String _formatTime12h(DateTime dt) {
   return '${h - 12}:$m PM';
 }
 
+/// §48 drag-and-drop file overlay. Two-zone layout with text-only cards.
+/// Text color animates windowSubTextFg → windowActiveTextFg on hover (200ms).
+/// No icons (§48.7). dragMargin (0,10,0,10), boxRadius 8, boxRoundShadow 8px.
 class _DragOverlay extends StatelessWidget {
   final int hoveredCard;
   const _DragOverlay({required this.hoveredCard});
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final boxBg = isDark ? const Color(0xFF17212B) : Colors.white;
-    final shadowColor = isDark
-        ? const Color(0x40000000)
-        : const Color(0x26000000);
-    final restColor = isDark
-        ? const Color(0xFF7c99b2)
-        : const Color(0xFF999999);
-    final activeColor = isDark
-        ? const Color(0xFF6ab3f3)
-        : const Color(0xFF168acd);
+    final palette = PaletteProvider.of(context);
 
     return Container(
       color: const Color(0x80000000),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       child: Column(
         children: [
           Expanded(
             child: _DragCard(
               title: 'Drop files here',
-              subtitle: 'to send them as files',
-              icon: Icons.insert_drive_file_outlined,
+              subtitle: 'to send them as documents',
               isHovered: hoveredCard == 1,
-              boxBg: boxBg,
-              shadowColor: shadowColor,
-              restColor: restColor,
-              activeColor: activeColor,
+              boxBg: palette.boxBg,
+              restColor: palette.windowSubTextFg,
+              activeColor: palette.windowActiveTextFg,
             ),
           ),
-          const SizedBox(height: 10),
           Expanded(
             child: _DragCard(
               title: 'Drop photos here',
-              subtitle: 'to send them quick',
-              icon: Icons.image_outlined,
+              subtitle: 'to send them in a quick way',
               isHovered: hoveredCard == 2,
-              boxBg: boxBg,
-              shadowColor: shadowColor,
-              restColor: restColor,
-              activeColor: activeColor,
+              boxBg: palette.boxBg,
+              restColor: palette.windowSubTextFg,
+              activeColor: palette.windowActiveTextFg,
             ),
           ),
         ],
@@ -14846,68 +14843,121 @@ class _DragOverlay extends StatelessWidget {
   }
 }
 
-class _DragCard extends StatelessWidget {
+class _DragCard extends StatefulWidget {
   final String title;
   final String subtitle;
-  final IconData icon;
   final bool isHovered;
   final Color boxBg;
-  final Color shadowColor;
   final Color restColor;
   final Color activeColor;
 
   const _DragCard({
     required this.title,
     required this.subtitle,
-    required this.icon,
     required this.isHovered,
     required this.boxBg,
-    required this.shadowColor,
     required this.restColor,
     required this.activeColor,
   });
 
   @override
+  State<_DragCard> createState() => _DragCardState();
+}
+
+class _DragCardState extends State<_DragCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _colorAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _colorAnim = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+      value: widget.isHovered ? 1.0 : 0.0,
+    );
+  }
+
+  @override
+  void didUpdateWidget(_DragCard old) {
+    super.didUpdateWidget(old);
+    if (widget.isHovered != old.isHovered) {
+      if (widget.isHovered) {
+        _colorAnim.forward();
+      } else {
+        _colorAnim.reverse();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _colorAnim.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final textColor = isHovered ? activeColor : restColor;
+    const dragHeight = 72.0;
 
     return Container(
+      margin: const EdgeInsets.fromLTRB(0, 10, 0, 10),
       decoration: BoxDecoration(
-        color: boxBg,
+        color: widget.boxBg,
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
-            color: shadowColor,
-            blurRadius: 16,
-            offset: const Offset(0, 4),
+            color: const Color(0x26000000),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 48, color: textColor),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 27,
-                fontWeight: FontWeight.w600,
-                color: textColor,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: TextStyle(
-                fontSize: 19,
-                fontWeight: FontWeight.w600,
-                color: textColor,
-              ),
-            ),
-          ],
-        ),
+      child: AnimatedBuilder(
+        animation: _colorAnim,
+        builder: (context, _) {
+          final textColor = Color.lerp(
+              widget.restColor, widget.activeColor, _colorAnim.value)!;
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final h = constraints.maxHeight;
+              final mainTop = (h - dragHeight) / 2;
+              final subTop = (h + dragHeight) / 2 - 19;
+              return Stack(
+                children: [
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    top: mainTop,
+                    child: Text(
+                      widget.title,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 27,
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    top: subTop,
+                    child: Text(
+                      widget.subtitle,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          );
+        },
       ),
     );
   }

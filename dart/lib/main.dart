@@ -620,6 +620,10 @@ class _UniClientAppState extends State<UniClientApp>
             ChatView.testVideoPublishedToast?.call();
           }
 
+        case 'testDragOverlay':
+          final card = (cmd['card'] as num?)?.toInt() ?? 0;
+          ChatView.testDragOverlay?.call(card);
+
         case 'dismissPopup':
           _dispatchTap(1, 1);
 

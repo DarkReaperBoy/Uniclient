@@ -966,7 +966,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §48 — Drag-and-Drop File Overlay
 # Touches: dart/lib/ui/chat_view.dart, dart/lib/ui/shell.dart, new drag_drop_overlay.dart
 
-- [ ] Drop zone appearance — rounded rects boxBg background + boxRoundShadow; drag margin (0,10,0,10) + padding (20,10,20,10); 27px semibold main text; 19px semibold subtext; text color windowSubTextFg→windowActiveTextFg on hover over 200ms — spec §48.1
 - [ ] Two-zone layout — Files: single full-height document zone; PhotoFiles: doc top + photo bottom; MediaFiles: media top/bottom labels; Image: single full-height photo zone — spec §48.2
 - [ ] Zone detection + drop action — cursor inside padded region triggers highlight; CopyAction inside zone, IgnoreAction outside — spec §48.3
 - [ ] File type classification — classify dragged files: Image / PhotoFiles / MediaFiles / Files / None; reject null data, forward data, non-local URLs, directories, files >4GB; GIFs are MediaFiles not PhotoFiles — spec §48.4
