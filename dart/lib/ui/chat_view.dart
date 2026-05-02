@@ -242,6 +242,8 @@ class _ChatViewState extends State<ChatView>
   bool _webPreviewCancelled = false;
   String _lastPreviewUrl = '';
   Timer? _previewDebounce;
+  final Set<String> _nullResolvedUrls = {};
+  final Map<String, WebPagePreview> _previewCache = {};
   AutocompleteQuery? _acQuery;
   List<MemberInfo> _acMembers = [];
   List<MemberInfo> _acFilteredMembers = [];
@@ -2329,39 +2331,104 @@ class _ChatViewState extends State<ChatView>
           _webPreviewForceLarge = false;
           _webPreviewForceSmall = false;
           _webPreviewInvert = false;
+          _nullResolvedUrls.clear();
+          _previewCache.clear();
         });
       }
       return;
     }
-    final url = links.first;
-    if (url == _lastPreviewUrl) return;
-    if (_webPreviewCancelled && url == _lastPreviewUrl) return;
-    _webPreviewCancelled = false;
+
+    if (_webPreviewCancelled) return;
+
+    String? urlToFetch;
+    for (final link in links) {
+      if (_nullResolvedUrls.contains(link)) continue;
+      if (_previewCache.containsKey(link)) {
+        if (link == _lastPreviewUrl) return;
+        setState(() {
+          _webPreview = _previewCache[link];
+          _lastPreviewUrl = link;
+          _webPreviewForceLarge = false;
+          _webPreviewForceSmall = false;
+          _webPreviewInvert = false;
+        });
+        return;
+      }
+      urlToFetch = link;
+      break;
+    }
+
+    if (urlToFetch == null) {
+      if (_webPreview != null) {
+        setState(() {
+          _webPreview = null;
+          _lastPreviewUrl = '';
+        });
+      }
+      return;
+    }
+
+    if (urlToFetch == _lastPreviewUrl) return;
+
     _previewDebounce = Timer(const Duration(milliseconds: 800), () {
       if (!mounted) return;
       final accountId = chatState.activeChat?.accountId ?? '';
       if (accountId.isEmpty) return;
       final engine = context.read<EngineService>();
-      engine.getWebPagePreview(accountId, url).then((preview) {
+      engine.getWebPagePreview(accountId, urlToFetch!).then((preview) {
         if (!mounted) return;
         if (preview != null) {
+          _previewCache[urlToFetch!] = preview;
           setState(() {
             _webPreview = preview;
-            _lastPreviewUrl = url;
+            _lastPreviewUrl = urlToFetch!;
             _webPreviewForceLarge = false;
             _webPreviewForceSmall = false;
             _webPreviewInvert = false;
           });
         } else {
-          setState(() {
-            _webPreview = null;
-            _lastPreviewUrl = url;
-            _webPreviewForceLarge = false;
-            _webPreviewForceSmall = false;
-            _webPreviewInvert = false;
-          });
+          _nullResolvedUrls.add(urlToFetch!);
+          _onLinksChanged(_detectedLinks, chatState);
         }
       });
+    });
+  }
+
+  void _switchPreviewUrl(String url) {
+    if (url == _lastPreviewUrl) return;
+    _previewDebounce?.cancel();
+
+    if (_previewCache.containsKey(url)) {
+      setState(() {
+        _webPreview = _previewCache[url];
+        _lastPreviewUrl = url;
+        _webPreviewCancelled = false;
+        _webPreviewForceLarge = false;
+        _webPreviewForceSmall = false;
+        _webPreviewInvert = false;
+      });
+      return;
+    }
+
+    final chatState = context.read<ChatState>();
+    final accountId = chatState.activeChat?.accountId ?? '';
+    if (accountId.isEmpty) return;
+    final engine = context.read<EngineService>();
+    engine.getWebPagePreview(accountId, url).then((preview) {
+      if (!mounted) return;
+      if (preview != null) {
+        _previewCache[url] = preview;
+        setState(() {
+          _webPreview = preview;
+          _lastPreviewUrl = url;
+          _webPreviewCancelled = false;
+          _webPreviewForceLarge = false;
+          _webPreviewForceSmall = false;
+          _webPreviewInvert = false;
+        });
+      } else {
+        _nullResolvedUrls.add(url);
+      }
     });
   }
 
@@ -2373,6 +2440,22 @@ class _ChatViewState extends State<ChatView>
       _webPreviewForceSmall = false;
       _webPreviewInvert = false;
     });
+  }
+
+  void _switchPreviewPrev() {
+    final viableLinks = _detectedLinks.where((l) => !_nullResolvedUrls.contains(l)).toList();
+    if (viableLinks.length < 2) return;
+    final idx = viableLinks.indexOf(_lastPreviewUrl);
+    if (idx <= 0) return;
+    _switchPreviewUrl(viableLinks[idx - 1]);
+  }
+
+  void _switchPreviewNext() {
+    final viableLinks = _detectedLinks.where((l) => !_nullResolvedUrls.contains(l)).toList();
+    if (viableLinks.length < 2) return;
+    final idx = viableLinks.indexOf(_lastPreviewUrl);
+    if (idx < 0 || idx >= viableLinks.length - 1) return;
+    _switchPreviewUrl(viableLinks[idx + 1]);
   }
 
   void _toggleWebPreviewMediaSize() {
@@ -2930,6 +3013,8 @@ class _ChatViewState extends State<ChatView>
       _webPreviewInvert = false;
       _webPreviewCancelled = false;
       _lastPreviewUrl = '';
+      _nullResolvedUrls.clear();
+      _previewCache.clear();
     });
     if (scheduleDate > 0) {
       showTelegramToast(context, 'Message scheduled');
@@ -3724,17 +3809,25 @@ class _ChatViewState extends State<ChatView>
               onCancel: () => setState(() => _replyToId = null),
             )
           else if (_webPreview != null)
-            _WebPreviewBar(
-              preview: _webPreview!,
-              isSmallMedia: _webPreviewForceSmall ||
-                  (!_webPreviewForceLarge && _webPreview!.defaultSmallMedia),
-              canToggleSize: _webPreview!.hasLargeMedia,
-              onToggleSize: _toggleWebPreviewMediaSize,
-              isInverted: _webPreviewInvert,
-              hasText: _composeController.text.isNotEmpty,
-              onToggleInvert: _toggleWebPreviewInvert,
-              onCancel: _cancelWebPreview,
-            ),
+            Builder(builder: (_) {
+              final viableLinks = _detectedLinks.where((l) => !_nullResolvedUrls.contains(l)).toList();
+              final idx = viableLinks.indexOf(_lastPreviewUrl);
+              return _WebPreviewBar(
+                preview: _webPreview!,
+                isSmallMedia: _webPreviewForceSmall ||
+                    (!_webPreviewForceLarge && _webPreview!.defaultSmallMedia),
+                canToggleSize: _webPreview!.hasLargeMedia,
+                onToggleSize: _toggleWebPreviewMediaSize,
+                isInverted: _webPreviewInvert,
+                hasText: _composeController.text.isNotEmpty,
+                onToggleInvert: _toggleWebPreviewInvert,
+                onCancel: _cancelWebPreview,
+                linkCount: viableLinks.length,
+                activeLinkIndex: idx >= 0 ? idx : 0,
+                onPrevLink: _switchPreviewPrev,
+                onNextLink: _switchPreviewNext,
+              );
+            }),
           if (_acQuery != null && _acQuery!.type == AutocompleteType.mention && _acFilteredMembers.isNotEmpty)
             _AutocompletePanel(
               members: _acFilteredMembers,
@@ -6118,6 +6211,10 @@ class _WebPreviewBar extends StatelessWidget {
   final bool hasText;
   final VoidCallback onToggleInvert;
   final VoidCallback onCancel;
+  final int linkCount;
+  final int activeLinkIndex;
+  final VoidCallback? onPrevLink;
+  final VoidCallback? onNextLink;
 
   const _WebPreviewBar({
     required this.preview,
@@ -6128,27 +6225,80 @@ class _WebPreviewBar extends StatelessWidget {
     required this.hasText,
     required this.onToggleInvert,
     required this.onCancel,
+    this.linkCount = 1,
+    this.activeLinkIndex = 0,
+    this.onPrevLink,
+    this.onNextLink,
   });
+
+  String get _descriptionText {
+    if (linkCount > 1) {
+      final desc = preview.description.isNotEmpty ? preview.description : preview.url;
+      return 'Link ${activeLinkIndex + 1} of $linkCount · $desc';
+    }
+    return preview.description.isNotEmpty ? preview.description : preview.url;
+  }
+
+  Widget _linkIcon(TelegramPalette palette) {
+    if (linkCount <= 1) {
+      return Icon(Icons.link, size: 22, color: palette.historyReplyIconFg);
+    }
+    return GestureDetector(
+      onTap: onNextLink,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Icon(Icons.link, size: 22, color: palette.historyReplyIconFg),
+          Positioned(
+            right: -6,
+            top: -4,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 3),
+              decoration: BoxDecoration(
+                color: palette.windowBgActive,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
+              child: Center(
+                child: Text(
+                  '${activeLinkIndex + 1}/$linkCount',
+                  style: const TextStyle(
+                    fontSize: 8,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    height: 1.0,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final palette = PaletteProvider.of(context);
     final hasThumb = preview.thumbB64.isNotEmpty;
     final showInvert = hasText;
+    final hasMultipleLinks = linkCount > 1;
     var rightButtonsWidth = 41.0; // close button
     if (canToggleSize) rightButtonsWidth += 49.0;
     if (showInvert) rightButtonsWidth += 41.0;
+    if (hasMultipleLinks) rightButtonsWidth += 56.0;
 
     if (isSmallMedia && hasThumb) {
       return Container(
         height: 49,
         color: palette.historyComposeAreaBg,
         child: Stack(
+          clipBehavior: Clip.none,
           children: [
             Positioned(
               left: 7,
               top: 7,
-              child: Icon(Icons.link, size: 22, color: palette.historyReplyIconFg),
+              child: _linkIcon(palette),
             ),
             Positioned(left: 33, top: 8, bottom: 8, width: 2,
               child: Container(
@@ -6181,9 +6331,7 @@ class _WebPreviewBar extends StatelessWidget {
               top: 24,
               right: rightButtonsWidth + 42,
               child: Text(
-                preview.description.isNotEmpty
-                    ? preview.description
-                    : preview.url,
+                _descriptionText,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -6215,6 +6363,42 @@ class _WebPreviewBar extends StatelessWidget {
                 ),
               ),
             ),
+            if (hasMultipleLinks) ...[
+              Positioned(
+                right: 41.0 + (canToggleSize ? 49.0 : 0) + (showInvert ? 41.0 : 0),
+                top: 0,
+                child: SizedBox(
+                  width: 28,
+                  height: 49,
+                  child: IconButton(
+                    onPressed: activeLinkIndex > 0 ? onPrevLink : null,
+                    icon: Icon(Icons.chevron_left, size: 18,
+                      color: activeLinkIndex > 0
+                        ? palette.historyReplyIconFg.withValues(alpha: 0.6)
+                        : palette.historyReplyIconFg.withValues(alpha: 0.2)),
+                    splashRadius: 14,
+                    padding: EdgeInsets.zero,
+                  ),
+                ),
+              ),
+              Positioned(
+                right: 41.0 + (canToggleSize ? 49.0 : 0) + (showInvert ? 41.0 : 0) + 28,
+                top: 0,
+                child: SizedBox(
+                  width: 28,
+                  height: 49,
+                  child: IconButton(
+                    onPressed: activeLinkIndex < linkCount - 1 ? onNextLink : null,
+                    icon: Icon(Icons.chevron_right, size: 18,
+                      color: activeLinkIndex < linkCount - 1
+                        ? palette.historyReplyIconFg.withValues(alpha: 0.6)
+                        : palette.historyReplyIconFg.withValues(alpha: 0.2)),
+                    splashRadius: 14,
+                    padding: EdgeInsets.zero,
+                  ),
+                ),
+              ),
+            ],
             if (showInvert)
               Positioned(
                 right: 41.0 + (canToggleSize ? 49.0 : 0),
@@ -6271,11 +6455,12 @@ class _WebPreviewBar extends StatelessWidget {
       height: 49,
       color: palette.historyComposeAreaBg,
       child: Stack(
+        clipBehavior: Clip.none,
         children: [
           Positioned(
             left: 7,
             top: 7,
-            child: Icon(Icons.link, size: 22, color: palette.historyReplyIconFg),
+            child: _linkIcon(palette),
           ),
           Positioned(left: 33, top: 8, bottom: 8, width: 2,
             child: Container(
@@ -6331,9 +6516,7 @@ class _WebPreviewBar extends StatelessWidget {
             top: 24,
             right: rightButtonsWidth,
             child: Text(
-              preview.description.isNotEmpty
-                  ? preview.description
-                  : preview.url,
+              _descriptionText,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -6343,6 +6526,42 @@ class _WebPreviewBar extends StatelessWidget {
               ),
             ),
           ),
+          if (hasMultipleLinks) ...[
+            Positioned(
+              right: 41.0 + (canToggleSize ? 49.0 : 0) + (showInvert ? 41.0 : 0),
+              top: 0,
+              child: SizedBox(
+                width: 28,
+                height: 49,
+                child: IconButton(
+                  onPressed: activeLinkIndex > 0 ? onPrevLink : null,
+                  icon: Icon(Icons.chevron_left, size: 18,
+                    color: activeLinkIndex > 0
+                      ? palette.historyReplyIconFg.withValues(alpha: 0.6)
+                      : palette.historyReplyIconFg.withValues(alpha: 0.2)),
+                  splashRadius: 14,
+                  padding: EdgeInsets.zero,
+                ),
+              ),
+            ),
+            Positioned(
+              right: 41.0 + (canToggleSize ? 49.0 : 0) + (showInvert ? 41.0 : 0) + 28,
+              top: 0,
+              child: SizedBox(
+                width: 28,
+                height: 49,
+                child: IconButton(
+                  onPressed: activeLinkIndex < linkCount - 1 ? onNextLink : null,
+                  icon: Icon(Icons.chevron_right, size: 18,
+                    color: activeLinkIndex < linkCount - 1
+                      ? palette.historyReplyIconFg.withValues(alpha: 0.6)
+                      : palette.historyReplyIconFg.withValues(alpha: 0.2)),
+                  splashRadius: 14,
+                  padding: EdgeInsets.zero,
+                ),
+              ),
+            ),
+          ],
           if (showInvert)
             Positioned(
               right: 41.0 + (canToggleSize ? 49.0 : 0),
