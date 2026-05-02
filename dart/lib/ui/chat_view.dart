@@ -12,6 +12,7 @@ import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:lottie/lottie.dart' as lottie;
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
@@ -25,6 +26,7 @@ import '../theme/theme.dart';
 import '../theme/wallpaper.dart';
 import '../data/emoji_data.dart';
 import 'chat_list_row.dart' show ForwardDragData, MyNotesUserpic, SavedMessagesUserpic;
+import 'custom_emoji_cache.dart';
 import 'reactions_detail.dart';
 import 'info_panel.dart';
 import 'shell.dart';
@@ -112,6 +114,7 @@ class ChatView extends StatefulWidget {
   static void Function(String text, {int? selStart, int? selEnd})? setComposeRequest;
   static void Function(FormatType type)? toggleFormatRequest;
   static String Function()? getComposeEntitiesRequest;
+  static void Function(int documentId, String altText)? insertCustomEmojiRequest;
   static VoidCallback? selectAllComposeRequest;
   static VoidCallback? showLinkDialogRequest;
   static VoidCallback? showCodeLanguageDialogRequest;
@@ -344,6 +347,9 @@ class _ChatViewState extends State<ChatView>
     ChatView.setComposeRequest = _setComposeText;
     ChatView.toggleFormatRequest = _toggleComposeFormat;
     ChatView.getComposeEntitiesRequest = _getComposeEntities;
+    ChatView.insertCustomEmojiRequest = (docId, alt) {
+      _composeController.insertCustomEmoji(docId, alt);
+    };
     ChatView.selectAllComposeRequest = _selectAllCompose;
     ChatView.showLinkDialogRequest = _showLinkDialogFromHarness;
     ChatView.showCodeLanguageDialogRequest = _showCodeLanguageDialogFromHarness;
@@ -395,6 +401,7 @@ class _ChatViewState extends State<ChatView>
     if (ChatView.getComposeEntitiesRequest == _getComposeEntities) {
       ChatView.getComposeEntitiesRequest = null;
     }
+    ChatView.insertCustomEmojiRequest = null;
     if (ChatView.selectAllComposeRequest == _selectAllCompose) {
       ChatView.selectAllComposeRequest = null;
     }
@@ -454,6 +461,7 @@ class _ChatViewState extends State<ChatView>
     final chatId = chatState.activeChat?.chatId;
     if (chatId != null && chatId != _lastChatId) {
       _lastChatId = chatId;
+      _composeController.accountId = chatState.activeChat?.accountId ?? '';
       // Chat changed — cancel any in-progress edit/reply/search so stale
       // state doesn't leak into the new chat's compose area.
       // Also reset pinned bar dismiss state and corner button tracking.
@@ -3798,6 +3806,14 @@ class _ChatViewState extends State<ChatView>
               text: newText,
               selection: TextSelection.collapsed(offset: start + emoji.length),
             );
+          },
+          onCustomEmojiSelected: (documentId, altText) {
+            final richCtrl = _composeController is RichTextEditingController
+                ? _composeController as RichTextEditingController
+                : null;
+            if (richCtrl != null) {
+              richCtrl.insertCustomEmoji(documentId, altText);
+            }
           },
         ),
       ),
@@ -8358,7 +8374,7 @@ class _CornerButtonState extends State<_CornerButton> {
 
 // ── Rich text editing controller (spec §7 / §41.4) ──
 
-enum FormatType { bold, italic, underline, strike, code, spoiler, blockquote, link }
+enum FormatType { bold, italic, underline, strike, code, spoiler, blockquote, link, customEmoji }
 
 class ComposeEntity {
   int offset;
@@ -8366,8 +8382,10 @@ class ComposeEntity {
   final FormatType type;
   final String? url;
   final String? language;
+  final int? documentId;
+  final String? altText;
 
-  ComposeEntity({required this.offset, required this.length, required this.type, this.url, this.language});
+  ComposeEntity({required this.offset, required this.length, required this.type, this.url, this.language, this.documentId, this.altText});
 
   Map<String, dynamic> toJson() {
     final typeStr = switch (type) {
@@ -8379,16 +8397,21 @@ class ComposeEntity {
       FormatType.spoiler => 'spoiler',
       FormatType.blockquote => 'blockquote',
       FormatType.link => 'text_url',
+      FormatType.customEmoji => 'custom_emoji',
     };
-    final m = {'type': typeStr, 'offset': offset, 'length': length};
+    final m = <String, dynamic>{'type': typeStr, 'offset': offset, 'length': length};
     if (url != null && url!.isNotEmpty) m['url'] = url!;
     if (language != null && language!.isNotEmpty) m['language'] = language!;
+    if (documentId != null && documentId != 0) m['document_id'] = documentId!;
     return m;
   }
 }
 
 class RichTextEditingController extends TextEditingController {
   final List<ComposeEntity> entities = [];
+  String accountId = '';
+
+  static const String _emojiPlaceholder = '￼';
 
   String _prevText = '';
 
@@ -8608,6 +8631,33 @@ class RichTextEditingController extends TextEditingController {
     selection = TextSelection.collapsed(offset: pos + insert.length);
   }
 
+  void insertCustomEmoji(int documentId, String altText) {
+    final sel = selection;
+    final pos = sel.isValid ? sel.baseOffset : text.length;
+    final end = sel.isValid ? sel.extentOffset : text.length;
+    final before = _prevText.substring(0, pos < _prevText.length ? pos : _prevText.length);
+    final after = end <= _prevText.length ? _prevText.substring(end) : '';
+    _prevText = '$before$_emojiPlaceholder$after';
+    for (final e in entities) {
+      if (e.offset >= pos) {
+        e.offset += 1 - (end - pos);
+      } else if (e.offset + e.length > pos) {
+        e.length += 1 - (end - pos);
+      }
+    }
+    entities.add(ComposeEntity(
+      offset: pos,
+      length: 1,
+      type: FormatType.customEmoji,
+      documentId: documentId,
+      altText: altText,
+    ));
+    value = TextEditingValue(
+      text: _prevText,
+      selection: TextSelection.collapsed(offset: pos + 1),
+    );
+  }
+
   bool hasFormat(FormatType type) {
     final sel = selection;
     if (!sel.isValid || sel.isCollapsed) return false;
@@ -8620,8 +8670,24 @@ class RichTextEditingController extends TextEditingController {
   }
 
   ({String text, String entitiesJson}) getTextWithAppliedMarkdown() {
-    final src = text.trim();
+    var src = text.trim();
     if (src.isEmpty) return (text: src, entitiesJson: entitiesJson);
+
+    final emojiEnts = entities.where((e) => e.type == FormatType.customEmoji).toList()
+      ..sort((a, b) => b.offset.compareTo(a.offset));
+    for (final ce in emojiEnts) {
+      if (ce.offset < 0 || ce.offset >= src.length) continue;
+      final alt = ce.altText ?? '';
+      src = src.substring(0, ce.offset) + alt + src.substring(ce.offset + ce.length);
+      final delta = alt.length - ce.length;
+      for (final e in entities) {
+        if (e == ce) {
+          e.length = alt.length;
+          continue;
+        }
+        if (e.offset > ce.offset) e.offset += delta;
+      }
+    }
 
     final mdDelimiters = <({String delim, FormatType type, bool isBlock})>[
       (delim: '```', type: FormatType.code, isBlock: true),
@@ -8706,7 +8772,8 @@ class RichTextEditingController extends TextEditingController {
       if (newLen > 0) {
         adjustedExisting.add(ComposeEntity(
           offset: newStart, length: newLen, type: e.type,
-          url: e.url, language: e.language));
+          url: e.url, language: e.language,
+          documentId: e.documentId, altText: e.altText));
       }
     }
 
@@ -8770,16 +8837,28 @@ class RichTextEditingController extends TextEditingController {
 
       final active = <FormatType>{};
       String? linkUrl;
+      ComposeEntity? emojiEntity;
       for (final e in entities) {
         final eStart = e.offset.clamp(0, t.length);
         final eEnd = (e.offset + e.length).clamp(0, t.length);
         if (eStart <= segStart && eEnd >= segEnd) {
           active.add(e.type);
           if (e.type == FormatType.link) linkUrl = e.url;
+          if (e.type == FormatType.customEmoji) emojiEntity = e;
         }
       }
 
-      if (active.isEmpty) {
+      if (emojiEntity != null && emojiEntity.documentId != null && accountId.isNotEmpty) {
+        spans.add(WidgetSpan(
+          alignment: PlaceholderAlignment.middle,
+          child: _ComposeCustomEmoji(
+            key: ValueKey('ce_${emojiEntity.documentId}_$segStart'),
+            documentId: emojiEntity.documentId!,
+            accountId: accountId,
+            altText: emojiEntity.altText ?? '',
+          ),
+        ));
+      } else if (active.isEmpty) {
         spans.add(TextSpan(text: t.substring(segStart, segEnd)));
       } else {
         final hasCode = active.contains(FormatType.code);
@@ -8828,6 +8907,244 @@ class RichTextEditingController extends TextEditingController {
     }
 
     return TextSpan(style: style, children: spans);
+  }
+}
+
+class _ComposeCustomEmoji extends StatefulWidget {
+  final int documentId;
+  final String accountId;
+  final String altText;
+
+  const _ComposeCustomEmoji({
+    super.key,
+    required this.documentId,
+    required this.accountId,
+    required this.altText,
+  });
+
+  @override
+  State<_ComposeCustomEmoji> createState() => _ComposeCustomEmojiState();
+}
+
+class _ComposeCustomEmojiState extends State<_ComposeCustomEmoji>
+    with TickerProviderStateMixin {
+  static const double _emojiSize = 18.0;
+  static const double _adjustedSize = 20.0;
+  static const int _maxLoops = 2;
+  static const double _previewOpacity = 0.125;
+
+  AnimationController? _lottieController;
+  late AnimationController _fadeController;
+  int _loopCount = 0;
+  Uint8List? _decompressedLottie;
+  bool _cached = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+    );
+    CustomEmojiCache.instance.acquire(widget.documentId, EmojiSizeTag.normal);
+    CustomEmojiCache.instance.addListener(_onCacheUpdate);
+    _requestIfNeeded();
+    _updatePhase();
+  }
+
+  @override
+  void didUpdateWidget(_ComposeCustomEmoji oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.documentId != widget.documentId) {
+      CustomEmojiCache.instance.release(oldWidget.documentId, EmojiSizeTag.normal);
+      CustomEmojiCache.instance.acquire(widget.documentId, EmojiSizeTag.normal);
+      _cached = false;
+      _decompressedLottie = null;
+      _lottieController?.dispose();
+      _lottieController = null;
+      _requestIfNeeded();
+      _updatePhase();
+    }
+  }
+
+  @override
+  void dispose() {
+    CustomEmojiCache.instance.removeListener(_onCacheUpdate);
+    CustomEmojiCache.instance.release(widget.documentId, EmojiSizeTag.normal);
+    _lottieController?.dispose();
+    _fadeController.dispose();
+    super.dispose();
+  }
+
+  void _onCacheUpdate() {
+    if (!mounted) return;
+    final cache = CustomEmojiCache.instance;
+    final file = cache.getFile(widget.documentId);
+    if (file != null && file.isTgs && _decompressedLottie == null) {
+      try {
+        _decompressedLottie = Uint8List.fromList(gzip.decode(file.fileData));
+      } catch (_) {}
+    }
+    _updatePhase();
+    setState(() {});
+  }
+
+  void _updatePhase() {
+    final file = CustomEmojiCache.instance.getFile(widget.documentId);
+    final wasCached = _cached;
+    _cached = file != null;
+    if (!wasCached && _cached) {
+      _fadeController.forward(from: 0);
+    }
+  }
+
+  void _requestIfNeeded() {
+    final cache = CustomEmojiCache.instance;
+    if (!cache.hasAnyPreview(widget.documentId) &&
+        !cache.isPending(widget.documentId) &&
+        !cache.hasFailed(widget.documentId) &&
+        widget.accountId.isNotEmpty) {
+      final engine = context.read<EngineService>();
+      cache.request(widget.documentId, widget.accountId, engine);
+    }
+    if (cache.getFile(widget.documentId) == null &&
+        !cache.isFilePending(widget.documentId) &&
+        widget.accountId.isNotEmpty) {
+      final engine = context.read<EngineService>();
+      cache.requestFile(widget.documentId, widget.accountId, engine);
+    }
+  }
+
+  void _onLottieLoaded(lottie.LottieComposition composition) {
+    _lottieController?.dispose();
+    _lottieController = AnimationController(
+      vsync: this,
+      duration: composition.duration,
+    );
+    _loopCount = 0;
+    _lottieController!.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _loopCount++;
+        if (_loopCount < _maxLoops) {
+          _lottieController!.forward(from: 0);
+        }
+      }
+    });
+    _lottieController!.forward();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cache = CustomEmojiCache.instance;
+    final file = cache.getFile(widget.documentId);
+
+    if (file != null) {
+      final cachedWidget = _buildCachedEmoji(file, cache);
+      if (_fadeController.isAnimating || _fadeController.value < 1.0) {
+        return SizedBox(
+          width: _adjustedSize,
+          height: _adjustedSize,
+          child: AnimatedBuilder(
+            animation: _fadeController,
+            builder: (context, child) => Stack(
+              children: [
+                if (_fadeController.value < 1.0)
+                  Opacity(
+                    opacity: _previewOpacity * (1.0 - _fadeController.value),
+                    child: _buildPreview(cache),
+                  ),
+                Opacity(opacity: _fadeController.value, child: child),
+              ],
+            ),
+            child: cachedWidget,
+          ),
+        );
+      }
+      return cachedWidget;
+    }
+
+    return _buildPreviewOrBlank(cache);
+  }
+
+  Widget _buildCachedEmoji(CustomEmojiFileData file, CustomEmojiCache cache) {
+    if (file.isTgs && _decompressedLottie != null) {
+      return SizedBox(
+        width: _adjustedSize,
+        height: _adjustedSize,
+        child: lottie.Lottie.memory(
+          _decompressedLottie!,
+          width: _adjustedSize,
+          height: _adjustedSize,
+          fit: BoxFit.contain,
+          controller: _lottieController,
+          onLoaded: _onLottieLoaded,
+          errorBuilder: (_, __, ___) => _buildPreviewOrBlank(cache),
+        ),
+      );
+    }
+    if (file.isWebp) {
+      return SizedBox(
+        width: _adjustedSize,
+        height: _adjustedSize,
+        child: Image.memory(
+          file.fileData,
+          width: _adjustedSize,
+          height: _adjustedSize,
+          fit: BoxFit.contain,
+          gaplessPlayback: true,
+          errorBuilder: (_, __, ___) => _buildPreviewOrBlank(cache),
+        ),
+      );
+    }
+    return _buildPreviewOrBlank(cache);
+  }
+
+  Widget _buildPreviewOrBlank(CustomEmojiCache cache) {
+    final thumb = cache.getThumb(widget.documentId);
+    if (thumb != null) {
+      return Opacity(
+        opacity: _previewOpacity,
+        child: SizedBox(
+          width: _adjustedSize,
+          height: _adjustedSize,
+          child: Image.memory(
+            thumb,
+            width: _adjustedSize,
+            height: _adjustedSize,
+            fit: BoxFit.contain,
+            gaplessPlayback: true,
+          ),
+        ),
+      );
+    }
+    return SizedBox(
+      width: _adjustedSize,
+      height: _adjustedSize,
+      child: Center(
+        child: Text(
+          widget.altText.isNotEmpty ? widget.altText : '?',
+          style: const TextStyle(fontSize: 14),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPreview(CustomEmojiCache cache) {
+    final thumb = cache.getThumb(widget.documentId);
+    if (thumb != null) {
+      return SizedBox(
+        width: _adjustedSize,
+        height: _adjustedSize,
+        child: Image.memory(
+          thumb,
+          width: _adjustedSize,
+          height: _adjustedSize,
+          fit: BoxFit.contain,
+          gaplessPlayback: true,
+        ),
+      );
+    }
+    return const SizedBox(width: _adjustedSize, height: _adjustedSize);
   }
 }
 

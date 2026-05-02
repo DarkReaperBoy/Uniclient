@@ -418,6 +418,12 @@ class _UniClientAppState extends State<UniClientApp>
           File('/tmp/uniclient_debug_out.json').writeAsStringSync(
             jsonEncode({'entities': entities}),
           );
+        case 'insertCustomEmoji':
+          final docId = (cmd['documentId'] as num?)?.toInt() ?? 0;
+          final alt = cmd['altText'] as String? ?? '';
+          if (docId != 0) {
+            ChatView.insertCustomEmojiRequest?.call(docId, alt);
+          }
         case 'getMessages':
           // Dump current messages to output file.
           final out = chatState.messages.take(20).map((m) => {

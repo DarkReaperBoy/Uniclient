@@ -202,12 +202,14 @@ class EmojiTabbedPanel extends StatefulWidget {
   final bool visible;
   final VoidCallback onHide;
   final ValueChanged<String>? onEmojiSelected;
+  final void Function(int documentId, String altText)? onCustomEmojiSelected;
 
   const EmojiTabbedPanel({
     super.key,
     required this.visible,
     required this.onHide,
     this.onEmojiSelected,
+    this.onCustomEmojiSelected,
   });
 
   @override
@@ -375,6 +377,7 @@ class _EmojiTabbedPanelState extends State<EmojiTabbedPanel>
                             prevTab: _prevTab,
                             slideController: _tabSlideController,
                             onEmojiSelected: widget.onEmojiSelected,
+                            onCustomEmojiSelected: widget.onCustomEmojiSelected,
                           ),
                         ),
                       ],
@@ -464,16 +467,18 @@ class _TabContent extends StatelessWidget {
   final int prevTab;
   final AnimationController slideController;
   final ValueChanged<String>? onEmojiSelected;
+  final void Function(int documentId, String altText)? onCustomEmojiSelected;
 
   const _TabContent({
     required this.activeTab,
     required this.prevTab,
     required this.slideController,
     this.onEmojiSelected,
+    this.onCustomEmojiSelected,
   });
 
   Widget _buildTabWidget(int index, Color placeholderColor) {
-    if (index == 0) return _EmojiTab(onEmojiSelected: onEmojiSelected);
+    if (index == 0) return _EmojiTab(onEmojiSelected: onEmojiSelected, onCustomEmojiSelected: onCustomEmojiSelected);
     if (index == 1) return _StickerTab(onStickerSelected: onEmojiSelected);
     return _GifTab(onGifSelected: onEmojiSelected);
   }
@@ -742,8 +747,9 @@ List<String> _recentEmojis = [];
 
 class _EmojiTab extends StatefulWidget {
   final ValueChanged<String>? onEmojiSelected;
+  final void Function(int documentId, String altText)? onCustomEmojiSelected;
 
-  const _EmojiTab({this.onEmojiSelected});
+  const _EmojiTab({this.onEmojiSelected, this.onCustomEmojiSelected});
 
   @override
   State<_EmojiTab> createState() => _EmojiTabState();
@@ -926,7 +932,18 @@ class _EmojiTabState extends State<_EmojiTab> {
             childAspectRatio: 1.0,
           ),
           delegate: SliverChildBuilderDelegate(
-            (context, index) => _CustomEmojiCell(sticker: visibleStickers[index]),
+            (context, index) {
+              final sticker = visibleStickers[index];
+              return _CustomEmojiCell(
+                sticker: sticker,
+                onTap: () {
+                  final docId = int.tryParse(sticker.fileId) ?? 0;
+                  if (docId != 0 && widget.onCustomEmojiSelected != null) {
+                    widget.onCustomEmojiSelected!(docId, sticker.emoji);
+                  }
+                },
+              );
+            },
             childCount: visibleStickers.length,
           ),
         ),
@@ -1070,8 +1087,9 @@ class _CustomPackHeader extends StatelessWidget {
 
 class _CustomEmojiCell extends StatefulWidget {
   final StickerInfoItem sticker;
+  final VoidCallback? onTap;
 
-  const _CustomEmojiCell({required this.sticker});
+  const _CustomEmojiCell({required this.sticker, this.onTap});
 
   @override
   State<_CustomEmojiCell> createState() => _CustomEmojiCellState();
@@ -1100,17 +1118,21 @@ class _CustomEmojiCellState extends State<_CustomEmojiCell> {
       child = _fallbackEmoji();
     }
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 100),
-        decoration: BoxDecoration(
-          color: _hovered ? hoverBg : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        cursor: SystemMouseCursors.click,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 100),
+          decoration: BoxDecoration(
+            color: _hovered ? hoverBg : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          alignment: Alignment.center,
+          child: child,
         ),
-        alignment: Alignment.center,
-        child: child,
       ),
     );
   }
