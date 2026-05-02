@@ -526,6 +526,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final s = _ensureGhostSettings();
     if (s.markReadAfterAction == v) return;
     s.markReadAfterAction = v;
+    if (v) s.useScheduledMessages = false;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -534,6 +535,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final s = _ensureGhostSettings();
     if (s.useScheduledMessages == v) return;
     s.useScheduledMessages = v;
+    if (v) s.markReadAfterAction = false;
     notifyListeners();
     _saveWindowPrefs();
   }

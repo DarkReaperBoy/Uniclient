@@ -111,11 +111,48 @@ class _AyuGramSettingsScreenState extends State<AyuGramSettingsScreen> {
           ),
           _ToggleRow(
             label: 'Read on Interact',
-            subtitle: 'Automatically marks a message as read when you send a reply, react, or forward',
+            subtitle: null,
             value: appState.markReadAfterAction,
             onChanged: (v) => appState.setMarkReadAfterAction(v),
             isDark: isDark,
             useMaterial: appState.materialSwitches,
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
+            child: Text(
+              'Automatically marks a message as read when you send a reply, react, or vote in a poll.',
+              style: TextStyle(fontSize: 12, color: subtitleColor),
+            ),
+          ),
+          _ToggleRow(
+            label: 'Schedule Messages',
+            subtitle: null,
+            value: appState.useScheduledMessages,
+            onChanged: (v) => appState.setUseScheduledMessages(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
+            child: Text(
+              'Automatically schedules outgoing messages to send after ~12 seconds. Avoid using on unreliable networks.',
+              style: TextStyle(fontSize: 12, color: subtitleColor),
+            ),
+          ),
+          _ToggleRow(
+            label: 'Send without Sound',
+            subtitle: null,
+            value: appState.sendWithoutSound,
+            onChanged: (v) => appState.setSendWithoutSound(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
+            child: Text(
+              'Sends outgoing messages without sound by default.',
+              style: TextStyle(fontSize: 12, color: subtitleColor),
+            ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),

@@ -14102,12 +14102,13 @@ class _SendButtonState extends State<_SendButton>
     final box = context.findRenderObject() as RenderBox;
     final pos = box.localToGlobal(Offset(0, -4));
 
+    final silentDefault = context.read<AppState>().sendWithoutSound;
     showTelegramMenu<String>(
       context: context,
       position: pos,
       items: [
         if (!widget.isSelfChat)
-          const TelegramMenuItem(value: 'silent', icon: Icon(Icons.volume_off_outlined), label: 'Send without Sound'),
+          TelegramMenuItem(value: 'silent', icon: const Icon(Icons.volume_off_outlined), label: silentDefault ? 'Send with Sound' : 'Send without Sound'),
         TelegramMenuItem(value: 'schedule', icon: const Icon(Icons.schedule_outlined), label: widget.isSelfChat ? 'Set Reminder' : 'Schedule Message'),
         if (widget.chatType == ChatType.dm && !widget.isSelfChat)
           const TelegramMenuItem(value: 'when_online', icon: Icon(Icons.person_outline), label: 'Send When Online'),
