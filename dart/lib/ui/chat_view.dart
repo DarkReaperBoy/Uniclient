@@ -5341,16 +5341,19 @@ class _ChatTopBar extends StatelessWidget {
                       onPressed: () {
                         final ctx = searchFocusNode?.context;
                         if (ctx == null) return;
-                        showDatePicker(
+                        final chatState = ctx.read<ChatState>();
+                        showDialog(
                           context: ctx,
-                          initialDate: DateTime.now(),
-                          firstDate: DateTime(2013, 8),
-                          lastDate: DateTime.now(),
-                        ).then((date) {
-                          if (date == null) return;
-                          final chatState = ctx.read<ChatState>();
-                          chatState.jumpToMessage(date.millisecondsSinceEpoch);
-                        });
+                          builder: (dCtx) => _CalendarBox(
+                            initialDate: DateTime.now(),
+                            minDate: DateTime(2013, 8, 1),
+                            maxDate: DateTime.now(),
+                            onDateSelected: (date) {
+                              Navigator.of(dCtx).pop();
+                              chatState.jumpToMessage(date.millisecondsSinceEpoch);
+                            },
+                          ),
+                        );
                       },
                     ),
                     // Spec §4.3: "choose from user" filter button (person icon).
@@ -5989,7 +5992,6 @@ class _DateSeparator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final dt = DateTime.fromMillisecondsSinceEpoch(timestamp);
     final now = DateTime.now();
     final diff = now.difference(dt);
@@ -6010,21 +6012,43 @@ class _DateSeparator extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 10, bottom: 2),
       child: Center(
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(12, 3, 12, 4),
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Text(
-            text,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: context.palette.msgServiceFg,
+        child: GestureDetector(
+          onTap: isScheduled ? null : () => _showCalendarBox(context, dt),
+          child: MouseRegion(
+            cursor: isScheduled ? SystemMouseCursors.basic : SystemMouseCursors.click,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(12, 3, 12, 4),
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                text,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: context.palette.msgServiceFg,
+                ),
+              ),
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  void _showCalendarBox(BuildContext context, DateTime initialDate) {
+    final chatState = context.read<ChatState>();
+    showDialog(
+      context: context,
+      builder: (ctx) => _CalendarBox(
+        initialDate: initialDate,
+        minDate: DateTime(2013, 8, 1),
+        maxDate: DateTime.now(),
+        onDateSelected: (date) {
+          Navigator.of(ctx).pop();
+          chatState.jumpToMessage(date.millisecondsSinceEpoch);
+        },
       ),
     );
   }
@@ -6033,6 +6057,214 @@ class _DateSeparator extends StatelessWidget {
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
+}
+
+class _CalendarBox extends StatefulWidget {
+  final DateTime initialDate;
+  final DateTime minDate;
+  final DateTime maxDate;
+  final ValueChanged<DateTime> onDateSelected;
+
+  const _CalendarBox({
+    required this.initialDate,
+    required this.minDate,
+    required this.maxDate,
+    required this.onDateSelected,
+  });
+
+  @override
+  State<_CalendarBox> createState() => _CalendarBoxState();
+}
+
+class _CalendarBoxState extends State<_CalendarBox> {
+  late int _year;
+  late int _month;
+
+  @override
+  void initState() {
+    super.initState();
+    _year = widget.initialDate.year;
+    _month = widget.initialDate.month;
+  }
+
+  bool _canGoBack() {
+    return _year > widget.minDate.year ||
+        (_year == widget.minDate.year && _month > widget.minDate.month);
+  }
+
+  bool _canGoForward() {
+    return _year < widget.maxDate.year ||
+        (_year == widget.maxDate.year && _month < widget.maxDate.month);
+  }
+
+  void _prevMonth() {
+    if (!_canGoBack()) return;
+    setState(() {
+      _month--;
+      if (_month < 1) { _month = 12; _year--; }
+    });
+  }
+
+  void _nextMonth() {
+    if (!_canGoForward()) return;
+    setState(() {
+      _month++;
+      if (_month > 12) { _month = 1; _year++; }
+    });
+  }
+
+  bool _isDayEnabled(int day) {
+    final d = DateTime(_year, _month, day);
+    return !d.isAfter(widget.maxDate) &&
+        !d.isBefore(DateTime(widget.minDate.year, widget.minDate.month, widget.minDate.day));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = palette.windowBgActive;
+    final today = DateTime.now();
+    final isToday = (int day) => today.year == _year && today.month == _month && today.day == day;
+    final isInitial = (int day) =>
+        widget.initialDate.year == _year &&
+        widget.initialDate.month == _month &&
+        widget.initialDate.day == day;
+
+    final firstDow = DateTime(_year, _month, 1).weekday % 7;
+    final daysInMonth = DateUtils.getDaysInMonth(_year, _month);
+
+    return Dialog(
+      backgroundColor: palette.boxBg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: SizedBox(
+        width: 320,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Month/year header with navigation arrows
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.chevron_left, size: 24),
+                    onPressed: _canGoBack() ? _prevMonth : null,
+                    color: palette.windowFg,
+                    splashRadius: 16,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                  ),
+                  Expanded(
+                    child: Text(
+                      '${_DateSeparator._months[_month - 1]} $_year',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: palette.windowBoldFg,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.chevron_right, size: 24),
+                    onPressed: _canGoForward() ? _nextMonth : null,
+                    color: palette.windowFg,
+                    splashRadius: 16,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                  ),
+                ],
+              ),
+            ),
+            // Day-of-week headers
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+                    .map((d) => Expanded(
+                          child: Center(
+                            child: Text(
+                              d,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: palette.windowSubTextFg,
+                              ),
+                            ),
+                          ),
+                        ))
+                    .toList(),
+              ),
+            ),
+            const SizedBox(height: 4),
+            // Day grid
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: _buildDayGrid(firstDow, daysInMonth, accent, isToday, isInitial, palette, isDark),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDayGrid(int firstDow, int daysInMonth, Color accent,
+      bool Function(int) isToday, bool Function(int) isInitial,
+      TelegramPalette palette, bool isDark) {
+    final rows = <Widget>[];
+    var day = 1;
+    for (var week = 0; day <= daysInMonth; week++) {
+      final cells = <Widget>[];
+      for (var col = 0; col < 7; col++) {
+        if ((week == 0 && col < firstDow) || day > daysInMonth) {
+          cells.add(const Expanded(child: SizedBox(height: 36)));
+        } else {
+          final d = day;
+          final enabled = _isDayEnabled(d);
+          final todayMatch = isToday(d);
+          final initialMatch = isInitial(d);
+          cells.add(Expanded(
+            child: GestureDetector(
+              onTap: enabled ? () => widget.onDateSelected(DateTime(_year, _month, d, 12)) : null,
+              child: MouseRegion(
+                cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+                child: Container(
+                  height: 36,
+                  alignment: Alignment.center,
+                  decoration: initialMatch
+                      ? BoxDecoration(shape: BoxShape.circle, color: accent)
+                      : todayMatch
+                          ? BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: accent, width: 1.5),
+                            )
+                          : null,
+                  child: Text(
+                    '$d',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: (todayMatch || initialMatch) ? FontWeight.w600 : FontWeight.normal,
+                      color: !enabled
+                          ? palette.windowSubTextFg.withValues(alpha: 0.4)
+                          : initialMatch
+                              ? Colors.white
+                              : todayMatch
+                                  ? accent
+                                  : palette.windowFg,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ));
+          day++;
+        }
+      }
+      rows.add(Row(children: cells));
+    }
+    return Column(children: rows);
+  }
 }
 
 class _ServiceMessage extends StatelessWidget {
