@@ -3,6 +3,8 @@
 /// These are used by the EngineService for typed event dispatch and API responses.
 library;
 
+import 'dart:typed_data';
+
 import '../utils/safe_string.dart';
 
 // ── Chat types ──
@@ -2067,6 +2069,16 @@ class StickerSetInfo {
     this.archived = false,
     this.stickers = const [],
   });
+}
+
+class CustomEmojiFileData {
+  final String mimeType;
+  final Uint8List fileData;
+  const CustomEmojiFileData({required this.mimeType, required this.fileData});
+
+  bool get isTgs => mimeType == 'application/x-tgsticker';
+  bool get isWebm => mimeType == 'video/webm';
+  bool get isWebp => mimeType == 'image/webp';
 }
 
 class CustomEmojiSetSummary {

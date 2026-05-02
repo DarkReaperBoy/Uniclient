@@ -5043,7 +5043,14 @@ class _LargeCustomEmojiTile extends StatefulWidget {
   State<_LargeCustomEmojiTile> createState() => _LargeCustomEmojiTileState();
 }
 
-class _LargeCustomEmojiTileState extends State<_LargeCustomEmojiTile> {
+class _LargeCustomEmojiTileState extends State<_LargeCustomEmojiTile>
+    with TickerProviderStateMixin {
+  static const int _maxLoops = 2;
+
+  AnimationController? _lottieController;
+  int _loopCount = 0;
+  Uint8List? _decompressedLottie;
+
   @override
   void initState() {
     super.initState();
@@ -5054,25 +5061,109 @@ class _LargeCustomEmojiTileState extends State<_LargeCustomEmojiTile> {
   @override
   void dispose() {
     _CustomEmojiCache.instance.removeListener(_onCacheUpdate);
+    _lottieController?.dispose();
     super.dispose();
   }
 
   void _onCacheUpdate() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    final cache = _CustomEmojiCache.instance;
+    final file = cache.getFile(widget.documentId);
+    if (file != null && file.isTgs && _decompressedLottie == null) {
+      _decompressLottie(file.fileData);
+    }
+    setState(() {});
   }
 
   void _requestIfNeeded() {
     final cache = _CustomEmojiCache.instance;
-    if (cache.getThumb(widget.documentId) != null) return;
-    if (cache.isPending(widget.documentId) || cache.hasFailed(widget.documentId)) return;
-    if (widget.accountId.isEmpty) return;
-    final engine = context.read<EngineService>();
-    cache.request(widget.documentId, widget.accountId, engine);
+    if (cache.getThumb(widget.documentId) == null &&
+        !cache.isPending(widget.documentId) &&
+        !cache.hasFailed(widget.documentId) &&
+        widget.accountId.isNotEmpty) {
+      final engine = context.read<EngineService>();
+      cache.request(widget.documentId, widget.accountId, engine);
+    }
+    if (cache.getFile(widget.documentId) == null &&
+        !cache.isFilePending(widget.documentId) &&
+        widget.accountId.isNotEmpty) {
+      final engine = context.read<EngineService>();
+      cache.requestFile(widget.documentId, widget.accountId, engine);
+    }
+  }
+
+  void _decompressLottie(Uint8List tgsData) {
+    try {
+      _decompressedLottie = Uint8List.fromList(gzip.decode(tgsData));
+    } catch (_) {}
+  }
+
+  bool _isPowerSaving(BuildContext context) {
+    final appState = context.read<AppState>();
+    return appState.powerSaving(AppState.kPowerSavingEmojiChat);
+  }
+
+  void _onLottieLoaded(LottieComposition composition) {
+    _lottieController?.dispose();
+    _lottieController = AnimationController(
+      vsync: this,
+      duration: composition.duration,
+    );
+    _loopCount = 0;
+    _lottieController!.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _loopCount++;
+        if (_loopCount < _maxLoops) {
+          _lottieController!.forward(from: 0);
+        }
+      }
+    });
+    _lottieController!.forward();
   }
 
   @override
   Widget build(BuildContext context) {
-    final thumb = _CustomEmojiCache.instance.getThumb(widget.documentId);
+    final cache = _CustomEmojiCache.instance;
+    final file = cache.getFile(widget.documentId);
+    final powerSaving = _isPowerSaving(context);
+
+    if (file != null && !powerSaving) {
+      if (file.isTgs && _decompressedLottie != null) {
+        return SizedBox(
+          width: widget.size,
+          height: widget.size,
+          child: Lottie.memory(
+            _decompressedLottie!,
+            width: widget.size,
+            height: widget.size,
+            fit: BoxFit.contain,
+            controller: _lottieController,
+            onLoaded: _onLottieLoaded,
+            errorBuilder: (_, __, ___) => _buildThumbOrFallback(cache),
+          ),
+        );
+      }
+      if (file.isWebp) {
+        return SizedBox(
+          width: widget.size,
+          height: widget.size,
+          child: Image.memory(
+            file.fileData,
+            width: widget.size,
+            height: widget.size,
+            fit: BoxFit.contain,
+            gaplessPlayback: true,
+            errorBuilder: (_, __, ___) => _buildThumbOrFallback(cache),
+          ),
+        );
+      }
+    }
+
+    return _buildThumbOrFallback(cache);
+  }
+
+  Widget _buildThumbOrFallback(_CustomEmojiCache cache) {
+    final thumb = cache.getThumb(widget.documentId);
     if (thumb != null) {
       return SizedBox(
         width: widget.size,
@@ -5099,25 +5190,32 @@ class _LargeCustomEmojiTileState extends State<_LargeCustomEmojiTile> {
   }
 }
 
-// ── Custom emoji inline cache + widget ──
+// ── Custom emoji cache: thumbnails + full animation files (§45.3) ──
 
 class _CustomEmojiCache {
   static final _CustomEmojiCache instance = _CustomEmojiCache._();
   _CustomEmojiCache._();
 
   final Map<int, Uint8List> _thumbs = {};
+  final Map<int, CustomEmojiFileData> _files = {};
   final Set<int> _pending = {};
+  final Set<int> _filePending = {};
   final Set<int> _failed = {};
+  final Set<int> _fileFailed = {};
   final List<VoidCallback> _listeners = [];
   Timer? _batchTimer;
+  Timer? _fileBatchTimer;
   final List<_PendingRequest> _batchQueue = [];
+  final List<_PendingRequest> _fileBatchQueue = [];
 
   void addListener(VoidCallback cb) => _listeners.add(cb);
   void removeListener(VoidCallback cb) => _listeners.remove(cb);
 
   Uint8List? getThumb(int documentId) => _thumbs[documentId];
+  CustomEmojiFileData? getFile(int documentId) => _files[documentId];
   bool isPending(int documentId) => _pending.contains(documentId);
   bool hasFailed(int documentId) => _failed.contains(documentId);
+  bool isFilePending(int documentId) => _filePending.contains(documentId);
 
   void request(int documentId, String accountId, EngineService engine) {
     if (_thumbs.containsKey(documentId) || _pending.contains(documentId) || _failed.contains(documentId)) return;
@@ -5127,24 +5225,47 @@ class _CustomEmojiCache {
     _batchTimer = Timer(const Duration(milliseconds: 16), _flushBatch);
   }
 
+  void requestFile(int documentId, String accountId, EngineService engine) {
+    if (_files.containsKey(documentId) || _filePending.contains(documentId) || _fileFailed.contains(documentId)) return;
+    _filePending.add(documentId);
+    _fileBatchQueue.add(_PendingRequest(documentId, accountId, engine));
+    _fileBatchTimer?.cancel();
+    _fileBatchTimer = Timer(const Duration(milliseconds: 50), _flushFileBatch);
+  }
+
   void _flushBatch() {
     if (_batchQueue.isEmpty) return;
     final batch = List<_PendingRequest>.from(_batchQueue);
     _batchQueue.clear();
-
     final byAccount = <String, List<_PendingRequest>>{};
     for (final req in batch) {
       (byAccount[req.accountId] ??= []).add(req);
     }
-
     for (final entry in byAccount.entries) {
       final ids = entry.value.map((r) => r.documentId).toList();
       final engine = entry.value.first.engine;
-      _fetchBatch(entry.key, ids, engine);
+      _fetchThumbBatch(entry.key, ids, engine);
     }
   }
 
-  Future<void> _fetchBatch(String accountId, List<int> ids, EngineService engine) async {
+  void _flushFileBatch() {
+    if (_fileBatchQueue.isEmpty) return;
+    final batch = List<_PendingRequest>.from(_fileBatchQueue);
+    _fileBatchQueue.clear();
+    final byAccount = <String, List<_PendingRequest>>{};
+    for (final req in batch) {
+      (byAccount[req.accountId] ??= []).add(req);
+    }
+    for (final entry in byAccount.entries) {
+      final ids = entry.value.map((r) => r.documentId).toList();
+      final engine = entry.value.first.engine;
+      for (var i = 0; i < ids.length; i += 100) {
+        _fetchFileBatch(entry.key, ids.sublist(i, math.min(i + 100, ids.length)), engine);
+      }
+    }
+  }
+
+  Future<void> _fetchThumbBatch(String accountId, List<int> ids, EngineService engine) async {
     try {
       final result = await engine.getCustomEmojiThumbs(accountId, ids);
       for (final entry in result.entries) {
@@ -5164,6 +5285,32 @@ class _CustomEmojiCache {
         _failed.add(id);
       }
     }
+    _notifyListeners();
+  }
+
+  Future<void> _fetchFileBatch(String accountId, List<int> ids, EngineService engine) async {
+    try {
+      final result = await engine.getCustomEmojiFiles(accountId, ids);
+      for (final entry in result.entries) {
+        _files[entry.key] = entry.value;
+        _filePending.remove(entry.key);
+      }
+      for (final id in ids) {
+        if (!_files.containsKey(id)) {
+          _filePending.remove(id);
+          _fileFailed.add(id);
+        }
+      }
+    } catch (_) {
+      for (final id in ids) {
+        _filePending.remove(id);
+        _fileFailed.add(id);
+      }
+    }
+    _notifyListeners();
+  }
+
+  void _notifyListeners() {
     for (final cb in List<VoidCallback>.from(_listeners)) {
       cb();
     }
@@ -5176,6 +5323,8 @@ class _PendingRequest {
   final EngineService engine;
   const _PendingRequest(this.documentId, this.accountId, this.engine);
 }
+
+// ── Animated custom emoji inline widget (§45.3) ──
 
 class _CustomEmojiInline extends StatefulWidget {
   final int documentId;
@@ -5192,9 +5341,15 @@ class _CustomEmojiInline extends StatefulWidget {
   State<_CustomEmojiInline> createState() => _CustomEmojiInlineState();
 }
 
-class _CustomEmojiInlineState extends State<_CustomEmojiInline> {
+class _CustomEmojiInlineState extends State<_CustomEmojiInline>
+    with TickerProviderStateMixin {
   static const double _emojiSize = 18.0;
   static const double _adjustedSize = 20.0; // round(18 * 1.12)
+  static const int _maxLoops = 2;
+
+  AnimationController? _lottieController;
+  int _loopCount = 0;
+  Uint8List? _decompressedLottie;
 
   @override
   void initState() {
@@ -5206,47 +5361,131 @@ class _CustomEmojiInlineState extends State<_CustomEmojiInline> {
   @override
   void dispose() {
     _CustomEmojiCache.instance.removeListener(_onCacheUpdate);
+    _lottieController?.dispose();
     super.dispose();
   }
 
   void _onCacheUpdate() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    final cache = _CustomEmojiCache.instance;
+    final file = cache.getFile(widget.documentId);
+    if (file != null && file.isTgs && _decompressedLottie == null) {
+      _decompressLottie(file.fileData);
+    }
+    setState(() {});
   }
 
   void _requestIfNeeded() {
     final cache = _CustomEmojiCache.instance;
-    if (cache.getThumb(widget.documentId) != null) return;
-    if (cache.isPending(widget.documentId) || cache.hasFailed(widget.documentId)) return;
-    if (widget.accountId.isEmpty) return;
-    final engine = context.read<EngineService>();
-    cache.request(widget.documentId, widget.accountId, engine);
+    if (cache.getThumb(widget.documentId) == null &&
+        !cache.isPending(widget.documentId) &&
+        !cache.hasFailed(widget.documentId) &&
+        widget.accountId.isNotEmpty) {
+      final engine = context.read<EngineService>();
+      cache.request(widget.documentId, widget.accountId, engine);
+    }
+    if (cache.getFile(widget.documentId) == null &&
+        !cache.isFilePending(widget.documentId) &&
+        widget.accountId.isNotEmpty) {
+      final engine = context.read<EngineService>();
+      cache.requestFile(widget.documentId, widget.accountId, engine);
+    }
+  }
+
+  void _decompressLottie(Uint8List tgsData) {
+    try {
+      _decompressedLottie = Uint8List.fromList(gzip.decode(tgsData));
+    } catch (_) {}
+  }
+
+  bool _isPowerSaving(BuildContext context) {
+    final appState = context.read<AppState>();
+    return appState.powerSaving(AppState.kPowerSavingEmojiChat);
+  }
+
+  void _onLottieLoaded(LottieComposition composition) {
+    _lottieController?.dispose();
+    _lottieController = AnimationController(
+      vsync: this,
+      duration: composition.duration,
+    );
+    _loopCount = 0;
+    _lottieController!.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _loopCount++;
+        if (_loopCount < _maxLoops) {
+          _lottieController!.forward(from: 0);
+        }
+      }
+    });
+    _lottieController!.forward();
   }
 
   @override
   Widget build(BuildContext context) {
-    final thumb = _CustomEmojiCache.instance.getThumb(widget.documentId);
-    if (thumb == null) {
+    final cache = _CustomEmojiCache.instance;
+    final file = cache.getFile(widget.documentId);
+    final powerSaving = _isPowerSaving(context);
+
+    if (file != null && !powerSaving) {
+      if (file.isTgs && _decompressedLottie != null) {
+        return SizedBox(
+          width: _adjustedSize,
+          height: _adjustedSize,
+          child: Lottie.memory(
+            _decompressedLottie!,
+            width: _adjustedSize,
+            height: _adjustedSize,
+            fit: BoxFit.contain,
+            controller: _lottieController,
+            onLoaded: _onLottieLoaded,
+            errorBuilder: (_, __, ___) => _buildThumbOrFallback(cache),
+          ),
+        );
+      }
+      if (file.isWebp) {
+        return SizedBox(
+          width: _adjustedSize,
+          height: _adjustedSize,
+          child: Image.memory(
+            file.fileData,
+            width: _adjustedSize,
+            height: _adjustedSize,
+            fit: BoxFit.contain,
+            gaplessPlayback: true,
+            errorBuilder: (_, __, ___) => _buildThumbOrFallback(cache),
+          ),
+        );
+      }
+    }
+
+    return _buildThumbOrFallback(cache);
+  }
+
+  Widget _buildThumbOrFallback(_CustomEmojiCache cache) {
+    final thumb = cache.getThumb(widget.documentId);
+    if (thumb != null) {
       return SizedBox(
         width: _adjustedSize,
         height: _adjustedSize,
-        child: Text(widget.altText, style: const TextStyle(fontSize: _emojiSize)),
+        child: Image.memory(
+          thumb,
+          width: _adjustedSize,
+          height: _adjustedSize,
+          fit: BoxFit.contain,
+          gaplessPlayback: true,
+          errorBuilder: (_, __, ___) => SizedBox(
+            width: _adjustedSize,
+            height: _adjustedSize,
+            child: Text(widget.altText, style: const TextStyle(fontSize: _emojiSize)),
+          ),
+        ),
       );
     }
     return SizedBox(
       width: _adjustedSize,
       height: _adjustedSize,
-      child: Image.memory(
-        thumb,
-        width: _adjustedSize,
-        height: _adjustedSize,
-        fit: BoxFit.contain,
-        gaplessPlayback: true,
-        errorBuilder: (_, __, ___) => SizedBox(
-          width: _adjustedSize,
-          height: _adjustedSize,
-          child: Text(widget.altText, style: const TextStyle(fontSize: _emojiSize)),
-        ),
-      ),
+      child: Text(widget.altText, style: const TextStyle(fontSize: _emojiSize)),
     );
   }
 }

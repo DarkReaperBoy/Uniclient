@@ -12447,6 +12447,40 @@ func (t *TelegramCore) GetCustomEmojiThumbs(documentIDs []int64) ([]CustomEmojiT
 	return result, nil
 }
 
+func (t *TelegramCore) GetCustomEmojiFiles(documentIDs []int64) ([]CustomEmojiFile, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	docs, err := t.api.MessagesGetCustomEmojiDocuments(t.ctx, documentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("get custom emoji documents: %w", err)
+	}
+	var result []CustomEmojiFile
+	for _, doc := range docs {
+		d, ok := doc.(*tg.Document)
+		if !ok {
+			continue
+		}
+		loc := &tg.InputDocumentFileLocation{
+			ID:            d.ID,
+			AccessHash:    d.AccessHash,
+			FileReference: d.FileReference,
+		}
+		buf, err := t.downloadSmallFile(loc, 512*1024)
+		if err != nil || len(buf) == 0 {
+			continue
+		}
+		result = append(result, CustomEmojiFile{
+			DocumentID: d.ID,
+			MimeType:   d.MimeType,
+			FileData:   buf,
+		})
+	}
+	return result, nil
+}
+
 func (t *TelegramCore) downloadSmallFile(loc tg.InputFileLocationClass, maxBytes int) ([]byte, error) {
 	var buf bytes.Buffer
 	d := downloader.NewDownloader()

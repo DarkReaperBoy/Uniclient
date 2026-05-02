@@ -949,7 +949,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §45 — Custom Emoji Rendering
 # Touches: dart/lib/ui/message_bubble.dart, dart/lib/ui/chat_view.dart, new custom_emoji.dart
 
-- [ ] Animated custom emoji playback — TGS (Lottie) + WebM (video) + WebP (static); async decode on worker thread; preload 3 frames; cap 180 frames; pause when context.paused; PowerSaving flags kEmojiChat/Panel/Reactions/Status; LimitedLoopsEmoji wrapper — spec §45.3
 - [ ] AyuGram premium bypass — AllowEmojiWithoutPremium=true skips premium gate; fallback to sticker alt text for non-AyuGram — spec §45.4
 - [ ] Emoji status rendering — render next to peer name in headers/dialogs/profile; collectible status (center/edge colors); userpic prefix circle; kEmojiStatus power saving — spec §45.5
 - [ ] Custom emoji in reactions — Unicode reactions at 2× emojiSize; custom at Normal 18/20px; floating preview overlay on click; "View Pack" label — spec §45.6

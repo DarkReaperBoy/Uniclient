@@ -1339,3 +1339,22 @@ message EngineClearCallHistoryRequest {
   string account_id = 1;
   bool   revoke     = 2; // "Also delete for other participants"
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Custom Emoji Files — full animation data for animated playback (§45.3)
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineGetCustomEmojiFilesRequest {
+  string account_id        = 1;
+  repeated int64 document_ids = 2;
+}
+
+message EngineCustomEmojiFile {
+  int64  document_id = 1;
+  string mime_type   = 2; // application/x-tgsticker, video/webm, image/webp
+  bytes  file_data   = 3;
+}
+
+message EngineGetCustomEmojiFilesResponse {
+  repeated EngineCustomEmojiFile files = 1;
+}

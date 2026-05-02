@@ -12822,5 +12822,126 @@ class EngineClearCallHistoryRequest extends $pb.GeneratedMessage {
   set revoke($core.bool v) { $_setBool(1, v); }
 }
 
+// ── Custom Emoji Files (§45.3 animated playback) ──
+
+class EngineGetCustomEmojiFilesRequest extends $pb.GeneratedMessage {
+  factory EngineGetCustomEmojiFilesRequest({
+    $core.String? accountId,
+    $core.Iterable<$fixnum.Int64>? documentIds,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    if (documentIds != null) $result.documentIds.addAll(documentIds);
+    return $result;
+  }
+  EngineGetCustomEmojiFilesRequest._() : super();
+  factory EngineGetCustomEmojiFilesRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetCustomEmojiFilesRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..p<$fixnum.Int64>(2, _omitFieldNames ? '' : 'documentIds', $pb.PbFieldType.K6)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGetCustomEmojiFilesRequest clone() => EngineGetCustomEmojiFilesRequest()..mergeFromMessage(this);
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineGetCustomEmojiFilesRequest create() => EngineGetCustomEmojiFilesRequest._();
+  EngineGetCustomEmojiFilesRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineGetCustomEmojiFilesRequest> createRepeated() => $pb.PbList<EngineGetCustomEmojiFilesRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetCustomEmojiFilesRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetCustomEmojiFilesRequest>(create);
+  static EngineGetCustomEmojiFilesRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.List<$fixnum.Int64> get documentIds => $_getList(1);
+}
+
+class EngineCustomEmojiFile extends $pb.GeneratedMessage {
+  factory EngineCustomEmojiFile({
+    $fixnum.Int64? documentId,
+    $core.String? mimeType,
+    $core.List<$core.int>? fileData,
+  }) {
+    final $result = create();
+    if (documentId != null) $result.documentId = documentId;
+    if (mimeType != null) $result.mimeType = mimeType;
+    if (fileData != null) $result.fileData = fileData;
+    return $result;
+  }
+  EngineCustomEmojiFile._() : super();
+  factory EngineCustomEmojiFile.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineCustomEmojiFile', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aInt64(1, _omitFieldNames ? '' : 'documentId')
+    ..aOS(2, _omitFieldNames ? '' : 'mimeType')
+    ..a<$core.List<$core.int>>(3, _omitFieldNames ? '' : 'fileData', $pb.PbFieldType.OY)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Will be removed in next major version')
+  EngineCustomEmojiFile clone() => EngineCustomEmojiFile()..mergeFromMessage(this);
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineCustomEmojiFile create() => EngineCustomEmojiFile._();
+  EngineCustomEmojiFile createEmptyInstance() => create();
+  static $pb.PbList<EngineCustomEmojiFile> createRepeated() => $pb.PbList<EngineCustomEmojiFile>();
+  @$core.pragma('dart2js:noInline')
+  static EngineCustomEmojiFile getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineCustomEmojiFile>(create);
+  static EngineCustomEmojiFile? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $fixnum.Int64 get documentId => $_getI64(0);
+  @$pb.TagNumber(1)
+  set documentId($fixnum.Int64 v) { $_setInt64(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.String get mimeType => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set mimeType($core.String v) { $_setString(1, v); }
+
+  @$pb.TagNumber(3)
+  $core.List<$core.int> get fileData => $_getN(2);
+  @$pb.TagNumber(3)
+  set fileData($core.List<$core.int> v) { $_setBytes(2, v); }
+}
+
+class EngineGetCustomEmojiFilesResponse extends $pb.GeneratedMessage {
+  factory EngineGetCustomEmojiFilesResponse({
+    $core.Iterable<EngineCustomEmojiFile>? files,
+  }) {
+    final $result = create();
+    if (files != null) $result.files.addAll(files);
+    return $result;
+  }
+  EngineGetCustomEmojiFilesResponse._() : super();
+  factory EngineGetCustomEmojiFilesResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetCustomEmojiFilesResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..pc<EngineCustomEmojiFile>(1, _omitFieldNames ? '' : 'files', $pb.PbFieldType.PM, subBuilder: EngineCustomEmojiFile.create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGetCustomEmojiFilesResponse clone() => EngineGetCustomEmojiFilesResponse()..mergeFromMessage(this);
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineGetCustomEmojiFilesResponse create() => EngineGetCustomEmojiFilesResponse._();
+  EngineGetCustomEmojiFilesResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineGetCustomEmojiFilesResponse> createRepeated() => $pb.PbList<EngineGetCustomEmojiFilesResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetCustomEmojiFilesResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetCustomEmojiFilesResponse>(create);
+  static EngineGetCustomEmojiFilesResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<EngineCustomEmojiFile> get files => $_getList(0);
+}
+
 const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
 const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

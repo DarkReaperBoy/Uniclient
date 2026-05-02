@@ -960,6 +960,25 @@ func (e *Engine) GetCustomEmojiThumbs(accountID string, documentIDs []int64) ([]
 	return fetcher.GetCustomEmojiThumbs(documentIDs)
 }
 
+type CustomEmojiFilesFetcher interface {
+	GetCustomEmojiFiles(documentIDs []int64) ([]cores.CustomEmojiFile, error)
+}
+
+func (e *Engine) GetCustomEmojiFiles(accountID string, documentIDs []int64) ([]cores.CustomEmojiFile, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(CustomEmojiFilesFetcher)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support custom emoji files")
+	}
+	return fetcher.GetCustomEmojiFiles(documentIDs)
+}
+
 type InstalledStickerPacksFetcher interface {
 	GetInstalledStickerPacks() ([]cores.StickerPackSummary, error)
 }

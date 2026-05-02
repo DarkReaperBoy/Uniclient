@@ -350,6 +350,13 @@ type CustomEmojiThumb struct {
 	ThumbB64   string `json:"thumb_b64"`
 }
 
+// CustomEmojiFile holds a document ID, its MIME type, and the full file data.
+type CustomEmojiFile struct {
+	DocumentID int64  `json:"document_id"`
+	MimeType   string `json:"mime_type"`
+	FileData   []byte `json:"file_data"`
+}
+
 // StickerSetResult holds the structured result of a sticker set lookup.
 type StickerSetResult struct {
 	Title     string        `json:"title"`

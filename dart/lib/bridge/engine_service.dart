@@ -937,6 +937,28 @@ class EngineService {
     }
   }
 
+  // ── Custom emoji full files (for animated playback §45.3) ──
+
+  Future<Map<int, CustomEmojiFileData>> getCustomEmojiFiles(String accountId, List<int> documentIds) async {
+    final req = epb.EngineGetCustomEmojiFilesRequest()
+      ..accountId = accountId
+      ..documentIds.addAll(documentIds.map((id) => Int64(id)));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetCustomEmojiFiles', req.writeToBuffer());
+      if (respBytes.isEmpty) return {};
+      final resp = epb.EngineGetCustomEmojiFilesResponse.fromBuffer(respBytes);
+      return {
+        for (final f in resp.files) f.documentId.toInt(): CustomEmojiFileData(
+          mimeType: f.mimeType,
+          fileData: Uint8List.fromList(f.fileData),
+        ),
+      };
+    } catch (e) {
+      Debug.error('ENGINE', 'getCustomEmojiFiles failed', e);
+      return {};
+    }
+  }
+
   // ── Installed custom emoji sets ──
 
   Future<List<CustomEmojiSetSummary>> getInstalledEmojiSets(String accountId) async {
