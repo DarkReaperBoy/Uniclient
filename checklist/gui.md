@@ -977,7 +977,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §50 — Streamer Mode & Read Toggles (AyuGram)
 # Touches: dart/lib/ui/hamburger_drawer.dart, dart/lib/ui/settings_screen.dart, new streamer_mode.dart
 
-- [ ] Streamer Mode scope + state — global (all windows, all accounts); showStreamerToggle settings global + persistent; reflect state in drawer switch and tray label — spec §50.4–50.5
 - [ ] Read toggles (6 toggles) — sendReadMessages (block messages.readHistory); sendReadStories (block stories.readStories); sendOnlinePackets (block account.updateStatus online); sendUploadProgress (block messages.setTyping); sendOfflinePacketAfterOnline (auto-offline after online); markReadAfterAction (local badge zero on reply/react/forward); locked variants per toggle — spec §50.7
 - [ ] Read Message context action — chat-list right-click "Read Message" with confirmation dialog; per-peer Never/Always Read exclusions — spec §50.7
 
