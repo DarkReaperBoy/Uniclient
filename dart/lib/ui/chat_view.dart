@@ -3628,26 +3628,45 @@ class _ChatViewState extends State<ChatView>
       onDragUpdated: (details) {
         final box = context.findRenderObject() as RenderBox?;
         if (box == null) return;
-        final localY = details.localPosition.dy;
+        final pos = details.localPosition;
+        final w = box.size.width;
         final h = box.size.height;
-        final int newCard;
-        if (_dragLayout == _DragZoneLayout.files) {
-          newCard = 1; // single document zone
-        } else if (_dragLayout == _DragZoneLayout.image) {
-          newCard = 2; // single photo zone
+        // §48.3: dragPadding {left:20, top:10, right:20, bottom:10} inside each
+        // card rect (which already has dragMargin {0,10,0,10}). Cursor must be
+        // inside the padded inner rect to trigger highlight (CopyAction).
+        const mT = 10.0, mB = 10.0;
+        const pL = 20.0, pT = 10.0, pR = 20.0, pB = 10.0;
+        int newCard = 0;
+        final isSingle = _dragLayout == _DragZoneLayout.files ||
+            _dragLayout == _DragZoneLayout.image;
+        if (isSingle) {
+          if (pos.dx >= pL && pos.dx <= w - pR &&
+              pos.dy >= mT + pT && pos.dy <= h - mB - pB) {
+            newCard = _dragLayout == _DragZoneLayout.files ? 1 : 2;
+          }
         } else {
-          newCard = localY < h / 2 ? 1 : 2;
+          final half = h / 2;
+          if (pos.dx >= pL && pos.dx <= w - pR) {
+            if (pos.dy >= mT + pT && pos.dy <= half - mB - pB) {
+              newCard = 1;
+            } else if (pos.dy >= half + mT + pT && pos.dy <= h - mB - pB) {
+              newCard = 2;
+            }
+          }
         }
         if (newCard != _dragHoveredCard) {
           setState(() => _dragHoveredCard = newCard);
         }
       },
       onDragDone: (details) {
+        final droppedCard = _dragHoveredCard;
         setState(() {
           _isDragOver = false;
           _dragHoveredCard = 0;
         });
         _dragOverlayAnimCtrl.reverse();
+        // §48.3: IgnoreAction — reject drop when cursor is outside all zones.
+        if (droppedCard == 0) return;
         final paths = details.files.map((f) => f.path).toList();
         if (paths.isNotEmpty) {
           _uploadFiles(context.read<ChatState>(), paths);
