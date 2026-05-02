@@ -6068,91 +6068,90 @@ class _WebPreviewBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final titleColor = isDark ? const Color(0xFF429BDB) : theme.colorScheme.primary;
-    final descColor = isDark ? const Color(0xFFFFFFFF) : const Color(0xFF000000);
-    final cancelColor = isDark ? const Color(0xFF6C7883) : const Color(0xFFA0ACB6);
+    final palette = PaletteProvider.of(context);
     final hasThumb = preview.thumbB64.isNotEmpty;
+    final textLeft = hasThumb ? 95.0 : 53.0;
 
     return Container(
       height: 49,
-      color: theme.colorScheme.surface,
-      child: Row(
+      color: palette.historyComposeAreaBg,
+      child: Stack(
         children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 7, top: 7),
-            child: Align(
-              alignment: Alignment.topLeft,
-              child: Icon(Icons.link, size: 22, color: titleColor),
-            ),
+          Positioned(
+            left: 7,
+            top: 7,
+            child: Icon(Icons.link, size: 22, color: palette.historyReplyIconFg),
           ),
-          const SizedBox(width: 24),
-          Container(width: 2, height: 36, color: titleColor),
-          const SizedBox(width: 10),
-          if (hasThumb) ...[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: SizedBox(
-                width: 32,
-                height: 32,
-                child: Image.memory(
-                  base64Decode(preview.thumbB64),
-                  fit: BoxFit.cover,
+          if (hasThumb)
+            Positioned(
+              left: 53,
+              top: 8,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: SizedBox(
                   width: 32,
                   height: 32,
-                  gaplessPlayback: true,
-                  errorBuilder: (_, __, ___) => Container(
-                    color: Colors.grey.withValues(alpha: 0.3),
-                    child: const Icon(Icons.language, size: 16, color: Colors.grey),
+                  child: Image.memory(
+                    base64Decode(preview.thumbB64),
+                    fit: BoxFit.cover,
+                    width: 32,
+                    height: 32,
+                    gaplessPlayback: true,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: Colors.grey.withValues(alpha: 0.3),
+                      child: const Icon(Icons.language, size: 16, color: Colors.grey),
+                    ),
                   ),
                 ),
               ),
             ),
-            const SizedBox(width: 10),
-          ],
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  preview.title.isNotEmpty
-                      ? preview.title
-                      : (preview.siteName.isNotEmpty ? preview.siteName : preview.url),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    height: 1.25,
-                    color: titleColor,
-                  ),
-                ),
-                Text(
-                  preview.description.isNotEmpty
-                      ? preview.description
-                      : preview.url,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    height: 1.25,
-                    color: descColor.withValues(alpha: 0.7),
-                  ),
-                ),
-              ],
+          Positioned(
+            left: textLeft,
+            top: 6,
+            right: 60,
+            child: Text(
+              preview.title.isNotEmpty
+                  ? preview.title
+                  : (preview.siteName.isNotEmpty ? preview.siteName : preview.url),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                height: 1.0,
+                color: palette.windowActiveTextFg,
+              ),
             ),
           ),
-          SizedBox(
-            width: 49,
-            height: 49,
-            child: IconButton(
-              onPressed: onCancel,
-              icon: Icon(Icons.close, size: 18, color: cancelColor),
-              splashRadius: 20,
-              padding: EdgeInsets.zero,
+          Positioned(
+            left: textLeft,
+            top: 24,
+            right: 60,
+            child: Text(
+              preview.description.isNotEmpty
+                  ? preview.description
+                  : preview.url,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.0,
+                color: palette.historyComposeAreaFg,
+              ),
+            ),
+          ),
+          Positioned(
+            right: 0,
+            top: 0,
+            child: SizedBox(
+              width: 49,
+              height: 49,
+              child: IconButton(
+                onPressed: onCancel,
+                icon: Icon(Icons.close, size: 18, color: palette.historyReplyIconFg.withValues(alpha: 0.5)),
+                splashRadius: 20,
+                padding: EdgeInsets.zero,
+              ),
             ),
           ),
         ],
