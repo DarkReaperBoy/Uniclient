@@ -226,11 +226,12 @@ func (ft *ForumTopic) IsGeneral() bool { return ft.ID == "1" }
 // within a message's text. Offset and Length are in UTF-16 code units to match
 // Telegram's convention; the Dart side works natively in UTF-16.
 type TextEntity struct {
-	Type     string `json:"type"`               // "bold","italic","underline","strike","code","pre","text_url","url","mention","hashtag","bot_command","email","phone","cashtag","spoiler","blockquote","custom_emoji","mention_name","bank_card"
-	Offset   int    `json:"offset"`             // start position in UTF-16 code units
-	Length   int    `json:"length"`             // length in UTF-16 code units
-	URL      string `json:"url,omitempty"`      // for text_url
-	Language string `json:"language,omitempty"` // for pre (code block language)
+	Type       string `json:"type"`               // "bold","italic","underline","strike","code","pre","text_url","url","mention","hashtag","bot_command","email","phone","cashtag","spoiler","blockquote","custom_emoji","mention_name","bank_card"
+	Offset     int    `json:"offset"`             // start position in UTF-16 code units
+	Length     int    `json:"length"`             // length in UTF-16 code units
+	URL        string `json:"url,omitempty"`      // for text_url
+	Language   string `json:"language,omitempty"` // for pre (code block language)
+	DocumentID int64  `json:"document_id,omitempty"` // for custom_emoji
 }
 
 // Message represents a single message with its content, metadata, and attachments.

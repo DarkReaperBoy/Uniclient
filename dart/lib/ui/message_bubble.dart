@@ -713,6 +713,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                         baseStyle: theme.textTheme.bodyMedium ?? const TextStyle(),
                         theme: theme,
                         isOutgoing: isOutgoing,
+                        accountId: message.accountId,
                         onContextMenu: onContextMenu,
                       ),
                     if (message.hasWebPage)
@@ -768,6 +769,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                         baseStyle: theme.textTheme.bodyMedium ?? const TextStyle(),
                         theme: theme,
                         isOutgoing: isOutgoing,
+                        accountId: message.accountId,
                         onContextMenu: onContextMenu,
                       ),
                     // Reactions row — pill badges above the timestamp.
@@ -4876,6 +4878,158 @@ class _ForwardsIconPainter extends CustomPainter {
   bool shouldRepaint(covariant _ForwardsIconPainter old) => color != old.color;
 }
 
+// ── Custom emoji inline cache + widget ──
+
+class _CustomEmojiCache {
+  static final _CustomEmojiCache instance = _CustomEmojiCache._();
+  _CustomEmojiCache._();
+
+  final Map<int, Uint8List> _thumbs = {};
+  final Set<int> _pending = {};
+  final Set<int> _failed = {};
+  final List<VoidCallback> _listeners = [];
+  Timer? _batchTimer;
+  final List<_PendingRequest> _batchQueue = [];
+
+  void addListener(VoidCallback cb) => _listeners.add(cb);
+  void removeListener(VoidCallback cb) => _listeners.remove(cb);
+
+  Uint8List? getThumb(int documentId) => _thumbs[documentId];
+  bool isPending(int documentId) => _pending.contains(documentId);
+  bool hasFailed(int documentId) => _failed.contains(documentId);
+
+  void request(int documentId, String accountId, EngineService engine) {
+    if (_thumbs.containsKey(documentId) || _pending.contains(documentId) || _failed.contains(documentId)) return;
+    _pending.add(documentId);
+    _batchQueue.add(_PendingRequest(documentId, accountId, engine));
+    _batchTimer?.cancel();
+    _batchTimer = Timer(const Duration(milliseconds: 16), _flushBatch);
+  }
+
+  void _flushBatch() {
+    if (_batchQueue.isEmpty) return;
+    final batch = List<_PendingRequest>.from(_batchQueue);
+    _batchQueue.clear();
+
+    final byAccount = <String, List<_PendingRequest>>{};
+    for (final req in batch) {
+      (byAccount[req.accountId] ??= []).add(req);
+    }
+
+    for (final entry in byAccount.entries) {
+      final ids = entry.value.map((r) => r.documentId).toList();
+      final engine = entry.value.first.engine;
+      _fetchBatch(entry.key, ids, engine);
+    }
+  }
+
+  Future<void> _fetchBatch(String accountId, List<int> ids, EngineService engine) async {
+    try {
+      final result = await engine.getCustomEmojiThumbs(accountId, ids);
+      for (final entry in result.entries) {
+        final bytes = base64Decode(entry.value);
+        _thumbs[entry.key] = bytes;
+        _pending.remove(entry.key);
+      }
+      for (final id in ids) {
+        if (!_thumbs.containsKey(id)) {
+          _pending.remove(id);
+          _failed.add(id);
+        }
+      }
+    } catch (_) {
+      for (final id in ids) {
+        _pending.remove(id);
+        _failed.add(id);
+      }
+    }
+    for (final cb in List<VoidCallback>.from(_listeners)) {
+      cb();
+    }
+  }
+}
+
+class _PendingRequest {
+  final int documentId;
+  final String accountId;
+  final EngineService engine;
+  const _PendingRequest(this.documentId, this.accountId, this.engine);
+}
+
+class _CustomEmojiInline extends StatefulWidget {
+  final int documentId;
+  final String accountId;
+  final String altText;
+
+  const _CustomEmojiInline({
+    required this.documentId,
+    required this.accountId,
+    required this.altText,
+  });
+
+  @override
+  State<_CustomEmojiInline> createState() => _CustomEmojiInlineState();
+}
+
+class _CustomEmojiInlineState extends State<_CustomEmojiInline> {
+  static const double _emojiSize = 18.0;
+  static const double _adjustedSize = 20.0; // round(18 * 1.12)
+
+  @override
+  void initState() {
+    super.initState();
+    _CustomEmojiCache.instance.addListener(_onCacheUpdate);
+    _requestIfNeeded();
+  }
+
+  @override
+  void dispose() {
+    _CustomEmojiCache.instance.removeListener(_onCacheUpdate);
+    super.dispose();
+  }
+
+  void _onCacheUpdate() {
+    if (mounted) setState(() {});
+  }
+
+  void _requestIfNeeded() {
+    final cache = _CustomEmojiCache.instance;
+    if (cache.getThumb(widget.documentId) != null) return;
+    if (cache.isPending(widget.documentId) || cache.hasFailed(widget.documentId)) return;
+    if (widget.accountId.isEmpty) return;
+    final engine = context.read<EngineService>();
+    cache.request(widget.documentId, widget.accountId, engine);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final thumb = _CustomEmojiCache.instance.getThumb(widget.documentId);
+    if (thumb == null) {
+      return SizedBox(
+        width: _adjustedSize,
+        height: _adjustedSize,
+        child: Text(widget.altText, style: const TextStyle(fontSize: _emojiSize)),
+      );
+    }
+    return SizedBox(
+      width: _adjustedSize,
+      height: _adjustedSize,
+      child: Image.memory(
+        thumb,
+        width: _adjustedSize,
+        height: _adjustedSize,
+        fit: BoxFit.contain,
+        gaplessPlayback: true,
+        errorBuilder: (_, __, ___) => SizedBox(
+          width: _adjustedSize,
+          height: _adjustedSize,
+          child: Text(widget.altText, style: const TextStyle(fontSize: _emojiSize)),
+        ),
+      ),
+    );
+  }
+}
+
 // ── Rich text entity model ──
 
 class _TextEntity {
@@ -4884,6 +5038,7 @@ class _TextEntity {
   final int length;
   final String url;
   final String language;
+  final int documentId;
 
   const _TextEntity({
     required this.type,
@@ -4891,6 +5046,7 @@ class _TextEntity {
     required this.length,
     this.url = '',
     this.language = '',
+    this.documentId = 0,
   });
 
   factory _TextEntity.fromJson(Map<String, dynamic> j) => _TextEntity(
@@ -4899,6 +5055,7 @@ class _TextEntity {
     length: j['length'] as int? ?? 0,
     url: j['url'] as String? ?? '',
     language: j['language'] as String? ?? '',
+    documentId: (j['document_id'] as num?)?.toInt() ?? 0,
   );
 }
 
@@ -4910,6 +5067,7 @@ class _RichMessageText extends StatefulWidget {
   final TextStyle baseStyle;
   final ThemeData theme;
   final bool isOutgoing;
+  final String accountId;
   final void Function(Offset position, String selectedText)? onContextMenu;
 
   const _RichMessageText({
@@ -4918,6 +5076,7 @@ class _RichMessageText extends StatefulWidget {
     required this.baseStyle,
     required this.theme,
     required this.isOutgoing,
+    this.accountId = '',
     this.onContextMenu,
   });
 
@@ -5026,7 +5185,7 @@ class _RichMessageTextState extends State<_RichMessageText> {
     final inlineEntities = entities.where((e) => e.type != 'blockquote').toList();
 
     // SelectableText.rich can't handle WidgetSpan (pre/spoiler) or blockquotes.
-    final hasWidgetSpans = entities.any((e) => e.type == 'pre' || e.type == 'spoiler');
+    final hasWidgetSpans = entities.any((e) => e.type == 'pre' || e.type == 'spoiler' || e.type == 'custom_emoji');
     final canBeSelectable = !hasWidgetSpans && blockquotes.isEmpty && widget.onContextMenu != null;
 
     Widget result;
@@ -5263,7 +5422,18 @@ class _RichMessageTextState extends State<_RichMessageText> {
           recognizer: recognizer,
         );
       case 'custom_emoji':
-        return TextSpan(text: text);
+        if (entity.documentId == 0) return TextSpan(text: text);
+        return WidgetSpan(
+          alignment: PlaceholderAlignment.middle,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 1),
+            child: _CustomEmojiInline(
+              documentId: entity.documentId,
+              accountId: widget.accountId,
+              altText: text,
+            ),
+          ),
+        );
       default:
         return TextSpan(text: text);
     }

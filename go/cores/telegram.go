@@ -10624,7 +10624,7 @@ func convertTgEntities(entities []tg.MessageEntityClass) []TextEntity {
 		case *tg.MessageEntityBlockquote:
 			te = TextEntity{Type: "blockquote", Offset: v.Offset, Length: v.Length}
 		case *tg.MessageEntityCustomEmoji:
-			te = TextEntity{Type: "custom_emoji", Offset: v.Offset, Length: v.Length}
+			te = TextEntity{Type: "custom_emoji", Offset: v.Offset, Length: v.Length, DocumentID: v.DocumentID}
 		default:
 			continue
 		}
@@ -12392,6 +12392,10 @@ func (t *TelegramCore) GetCustomEmojiThumbs(documentIDs []int64) ([]CustomEmojiT
 		return nil, fmt.Errorf("get custom emoji documents: %w", err)
 	}
 	var result []CustomEmojiThumb
+	var needDownload []struct {
+		doc *tg.Document
+		loc tg.InputFileLocationClass
+	}
 	for _, doc := range docs {
 		d, ok := doc.(*tg.Document)
 		if !ok {
@@ -12403,9 +12407,57 @@ func (t *TelegramCore) GetCustomEmojiThumbs(documentIDs []int64) ([]CustomEmojiT
 				DocumentID: d.ID,
 				ThumbB64:   thumb,
 			})
+			continue
+		}
+		var thumbType string
+		for _, s := range d.Thumbs {
+			switch s.(type) {
+			case *tg.PhotoSize:
+				thumbType = "s"
+			case *tg.PhotoCachedSize:
+				thumbType = "s"
+			}
+			if thumbType != "" {
+				break
+			}
+		}
+		if thumbType != "" {
+			loc := &tg.InputDocumentFileLocation{
+				ID:            d.ID,
+				AccessHash:    d.AccessHash,
+				FileReference: d.FileReference,
+				ThumbSize:     thumbType,
+			}
+			needDownload = append(needDownload, struct {
+				doc *tg.Document
+				loc tg.InputFileLocationClass
+			}{d, loc})
 		}
 	}
+	for _, nd := range needDownload {
+		buf, err := t.downloadSmallFile(nd.loc, 64*1024)
+		if err != nil || len(buf) == 0 {
+			continue
+		}
+		result = append(result, CustomEmojiThumb{
+			DocumentID: nd.doc.ID,
+			ThumbB64:   base64.StdEncoding.EncodeToString(buf),
+		})
+	}
 	return result, nil
+}
+
+func (t *TelegramCore) downloadSmallFile(loc tg.InputFileLocationClass, maxBytes int) ([]byte, error) {
+	var buf bytes.Buffer
+	d := downloader.NewDownloader()
+	_, err := d.Download(t.api, loc).Stream(t.ctx, &buf)
+	if err != nil {
+		return nil, err
+	}
+	if buf.Len() > maxBytes {
+		return buf.Bytes()[:maxBytes], nil
+	}
+	return buf.Bytes(), nil
 }
 
 func (t *TelegramCore) GetInstalledStickerPacks() ([]StickerPackSummary, error) {
