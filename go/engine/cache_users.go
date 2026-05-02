@@ -28,8 +28,10 @@ type CachedUser struct {
 	BirthdayDay         int    `json:"birthday_day,omitempty"`
 	BirthdayMonth       int    `json:"birthday_month,omitempty"`
 	BirthdayYear        int    `json:"birthday_year,omitempty"`
-	PersonalChannelID   string `json:"personal_channel_id,omitempty"`
-	PersonalChannelName string `json:"personal_channel_name,omitempty"`
+	PersonalChannelID      string `json:"personal_channel_id,omitempty"`
+	PersonalChannelName    string `json:"personal_channel_name,omitempty"`
+	VoiceMessagesForbidden bool   `json:"voice_messages_forbidden,omitempty"`
+	ContactRequirePremium  bool   `json:"contact_require_premium,omitempty"`
 }
 
 // UpsertUser inserts or updates a user profile in the cache.
@@ -41,8 +43,8 @@ func (e *Engine) UpsertUser(accountID string, u cores.User) error {
 	}
 
 	_, err := e.db.Exec(
-		`INSERT INTO users (account_id, user_id, display_name, username, phone, bio, is_bot, is_online, is_contact, is_blocked, bot_menu_text, last_seen, birthday_day, birthday_month, birthday_year, personal_channel_id, personal_channel_name, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO users (account_id, user_id, display_name, username, phone, bio, is_bot, is_online, is_contact, is_blocked, bot_menu_text, last_seen, birthday_day, birthday_month, birthday_year, personal_channel_id, personal_channel_name, voice_messages_forbidden, contact_require_premium, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(account_id, user_id) DO UPDATE SET
 		     display_name = excluded.display_name,
 		     username = excluded.username,
@@ -59,10 +61,13 @@ func (e *Engine) UpsertUser(accountID string, u cores.User) error {
 		     birthday_year = CASE WHEN excluded.birthday_year > 0 THEN excluded.birthday_year ELSE users.birthday_year END,
 		     personal_channel_id = COALESCE(NULLIF(excluded.personal_channel_id, ''), users.personal_channel_id),
 		     personal_channel_name = COALESCE(NULLIF(excluded.personal_channel_name, ''), users.personal_channel_name),
+		     voice_messages_forbidden = excluded.voice_messages_forbidden,
+		     contact_require_premium = excluded.contact_require_premium,
 		     updated_at = excluded.updated_at`,
 		accountID, u.ID, u.DisplayName, u.Username, u.Phone, u.Bio,
 		boolToInt(u.IsBot), boolToInt(u.IsOnline), boolToInt(u.IsContact), boolToInt(u.IsBlocked), u.BotMenuText, lastSeen,
-		u.BirthdayDay, u.BirthdayMonth, u.BirthdayYear, u.PersonalChannelID, u.PersonalChannelName, now)
+		u.BirthdayDay, u.BirthdayMonth, u.BirthdayYear, u.PersonalChannelID, u.PersonalChannelName,
+		boolToInt(u.VoiceMessagesForbidden), boolToInt(u.ContactRequirePremium), now)
 	return err
 }
 
@@ -73,18 +78,21 @@ func (e *Engine) GetUser(accountID, userID string) (*CachedUser, error) {
 	var personalChannelID, personalChannelName sql.NullString
 	var lastSeen sql.NullInt64
 	var isBot, isOnline, isContact, isBlocked int
+	var voiceForbidden, contactPremium int
 
 	err := e.db.QueryRow(
 		`SELECT account_id, user_id, display_name, username, phone, bio, avatar_path,
 		        is_bot, is_online, is_contact, is_blocked, bot_menu_text, last_seen,
 		        birthday_day, birthday_month, birthday_year,
-		        personal_channel_id, personal_channel_name
+		        personal_channel_id, personal_channel_name,
+		        voice_messages_forbidden, contact_require_premium
 		 FROM users WHERE account_id = ? AND user_id = ?`,
 		accountID, userID).Scan(
 		&u.AccountID, &u.UserID, &displayName, &username, &phone, &bio, &avatarPath,
 		&isBot, &isOnline, &isContact, &isBlocked, &botMenuText, &lastSeen,
 		&u.BirthdayDay, &u.BirthdayMonth, &u.BirthdayYear,
-		&personalChannelID, &personalChannelName)
+		&personalChannelID, &personalChannelName,
+		&voiceForbidden, &contactPremium)
 	if err != nil {
 		return nil, err
 	}
@@ -101,6 +109,8 @@ func (e *Engine) GetUser(accountID, userID string) (*CachedUser, error) {
 	u.BotMenuText = botMenuText.String
 	u.PersonalChannelID = personalChannelID.String
 	u.PersonalChannelName = personalChannelName.String
+	u.VoiceMessagesForbidden = voiceForbidden == 1
+	u.ContactRequirePremium = contactPremium == 1
 	if lastSeen.Valid {
 		u.LastSeen = lastSeen.Int64
 	}

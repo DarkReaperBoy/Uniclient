@@ -158,8 +158,10 @@ type User struct {
 	BirthdayDay   int        `json:"birthday_day,omitempty"`
 	BirthdayMonth int        `json:"birthday_month,omitempty"`
 	BirthdayYear  int        `json:"birthday_year,omitempty"`
-	PersonalChannelID   string `json:"personal_channel_id,omitempty"`
-	PersonalChannelName string `json:"personal_channel_name,omitempty"`
+	PersonalChannelID      string `json:"personal_channel_id,omitempty"`
+	PersonalChannelName    string `json:"personal_channel_name,omitempty"`
+	VoiceMessagesForbidden bool   `json:"voice_messages_forbidden,omitempty"`
+	ContactRequirePremium  bool   `json:"contact_require_premium,omitempty"`
 }
 
 // Dialog represents a conversation (DM, group, channel, or topic) in the chat list.

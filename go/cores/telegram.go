@@ -10973,9 +10973,12 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 					if _, ok := c.Photo.(*tg.ChatPhoto); ok {
 						dialog.AvatarURL = "has_photo"
 					}
-					if c.DefaultBannedRights.SendPlain && !c.Creator {
-						dialog.WriteRestrictionType = 1
-						dialog.WriteRestrictionText = "Sending messages is not allowed in this group."
+					if !c.Creator {
+						rType, rText := computeWriteRestriction(nil, c.DefaultBannedRights)
+						if rType > 0 {
+							dialog.WriteRestrictionType = rType
+							dialog.WriteRestrictionText = rText
+						}
 					}
 				}
 			}
@@ -10990,9 +10993,16 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 					dialog.IsFake = c.Fake
 					dialog.EmojiStatusID = extractEmojiStatusID(c.EmojiStatus)
 					_, hasAdmin := c.GetAdminRights()
-					if c.DefaultBannedRights.SendPlain && !c.Creator && !hasAdmin {
-						dialog.WriteRestrictionType = 1
-						dialog.WriteRestrictionText = "Sending messages is not allowed in this group."
+					if !c.Creator && !hasAdmin {
+						var personalRights *tg.ChatBannedRights
+						if br, ok := c.GetBannedRights(); ok && !br.Zero() {
+							personalRights = &br
+						}
+						rType, rText := computeWriteRestriction(personalRights, c.DefaultBannedRights)
+						if rType > 0 {
+							dialog.WriteRestrictionType = rType
+							dialog.WriteRestrictionText = rText
+						}
 					}
 					if c.Broadcast {
 						dialog.Type = ChatTypeChannel
@@ -13840,6 +13850,124 @@ type DefaultBannedRights struct {
 	SlowmodeSeconds   int  `json:"slowmode_seconds"`
 }
 
+// computeWriteRestriction determines restriction type and text from ChatBannedRights.
+// personalRights are the user's own restrictions (from Channel.BannedRights).
+// defaultRights are the group-wide restrictions (from DefaultBannedRights).
+// Returns (type, text). type=0 means no restriction.
+func computeWriteRestriction(personalRights *tg.ChatBannedRights, defaultRights tg.ChatBannedRights) (int, string) {
+	if personalRights != nil && !personalRights.Zero() {
+		until := personalRights.UntilDate
+		isTimed := until > 0 && until < 2145916800 // before 2038
+		if personalRights.SendPlain {
+			if isTimed {
+				return 1, fmt.Sprintf("The admins of this group have restricted you from sending messages until %s.", formatRestrictionDate(until))
+			}
+			return 1, "The admins of this group have restricted your ability to send messages."
+		}
+		if personalRights.SendPhotos {
+			if isTimed {
+				return 1, fmt.Sprintf("The admins of this group have restricted you from sending photos here until %s.", formatRestrictionDate(until))
+			}
+			return 1, "The admins of this group restricted you from sending photos here."
+		}
+		if personalRights.SendVideos {
+			if isTimed {
+				return 1, fmt.Sprintf("The admins of this group have restricted you from sending videos here until %s.", formatRestrictionDate(until))
+			}
+			return 1, "The admins of this group restricted you from sending videos here."
+		}
+		if personalRights.SendAudios {
+			if isTimed {
+				return 1, fmt.Sprintf("The admins of this group have restricted you from sending music here until %s.", formatRestrictionDate(until))
+			}
+			return 1, "The admins of this group restricted you from sending music here."
+		}
+		if personalRights.SendDocs {
+			if isTimed {
+				return 1, fmt.Sprintf("The admins of this group have restricted you from sending files here until %s.", formatRestrictionDate(until))
+			}
+			return 1, "The admins of this group restricted you from sending files here."
+		}
+		if personalRights.SendVoices {
+			if isTimed {
+				return 1, fmt.Sprintf("The admins of this group have restricted you from sending voice messages here until %s.", formatRestrictionDate(until))
+			}
+			return 1, "The admins of this group restricted you from sending voice messages here."
+		}
+		if personalRights.SendRoundvideos {
+			if isTimed {
+				return 1, fmt.Sprintf("The admins of this group have restricted you from sending video messages here until %s.", formatRestrictionDate(until))
+			}
+			return 1, "The admins of this group restricted you from sending video messages here."
+		}
+		if personalRights.SendStickers {
+			if isTimed {
+				return 1, fmt.Sprintf("The admins of this group have restricted your ability to send stickers until %s.", formatRestrictionDate(until))
+			}
+			return 1, "The admins of this group have restricted your ability to send stickers."
+		}
+		if personalRights.SendGifs {
+			if isTimed {
+				return 1, fmt.Sprintf("The admins of this group have restricted your ability to send GIFs until %s.", formatRestrictionDate(until))
+			}
+			return 1, "The admins of this group have restricted your ability to send GIFs."
+		}
+		if personalRights.SendInline || personalRights.SendGames {
+			if isTimed {
+				return 1, fmt.Sprintf("The admins of this group have restricted your ability to send inline content until %s.", formatRestrictionDate(until))
+			}
+			return 1, "The admins of this group have restricted your ability to send inline content."
+		}
+		if personalRights.SendPolls {
+			if isTimed {
+				return 1, fmt.Sprintf("The admins of this group have restricted your ability to send polls until %s.", formatRestrictionDate(until))
+			}
+			return 1, "The admins of this group have restricted your ability to send polls."
+		}
+	}
+
+	// Check default (group-wide) restrictions
+	if defaultRights.SendPlain {
+		return 1, "Sending messages is not allowed in this group."
+	}
+	if defaultRights.SendPhotos {
+		return 1, "Sending photos isn't allowed in this group."
+	}
+	if defaultRights.SendVideos {
+		return 1, "Sending videos isn't allowed in this group."
+	}
+	if defaultRights.SendAudios {
+		return 1, "Sending music isn't allowed in this group."
+	}
+	if defaultRights.SendDocs {
+		return 1, "Sending files isn't allowed in this group."
+	}
+	if defaultRights.SendVoices {
+		return 1, "Sending voice messages isn't allowed in this group."
+	}
+	if defaultRights.SendRoundvideos {
+		return 1, "Sending video messages isn't allowed in this group."
+	}
+	if defaultRights.SendStickers {
+		return 1, "Stickers aren't allowed in this group."
+	}
+	if defaultRights.SendGifs {
+		return 1, "Sending GIFs isn't allowed in this group."
+	}
+	if defaultRights.SendInline || defaultRights.SendGames {
+		return 1, "Sending inline content isn't allowed in this group."
+	}
+	if defaultRights.SendPolls {
+		return 1, "Sorry, sending polls is not allowed in this group."
+	}
+	return 0, ""
+}
+
+func formatRestrictionDate(unixTime int) string {
+	t := time.Unix(int64(unixTime), 0)
+	return t.Format("Jan 2, 2006") + ", " + t.Format("3:04 PM")
+}
+
 func (t *TelegramCore) GetDefaultBannedRights(chatID string) (*DefaultBannedRights, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return nil, ErrAuth }
@@ -14420,6 +14548,8 @@ func (t *TelegramCore) GetFullUser(userID string) (*User, error) {
 					}
 				}
 			}
+			cu.VoiceMessagesForbidden = result.FullUser.VoiceMessagesForbidden
+			cu.ContactRequirePremium = result.FullUser.ContactRequirePremium
 			return cu, nil
 		}
 	}

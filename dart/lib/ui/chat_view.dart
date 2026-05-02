@@ -327,6 +327,11 @@ class _ChatViewState extends State<ChatView>
   String _botMenuText = '';
   String _botDescription = '';
 
+  // §47: DM-level restrictions (loaded from user profile)
+  bool _dmVoiceForbidden = false;
+  bool _dmPremiumRequired = false;
+  String _dmRestrictionUserName = '';
+
   // §23.8: Video processing toasts state
   bool _showVideoTipToast = false;
   bool _showVideoTooltip = false;
@@ -602,6 +607,8 @@ class _ChatViewState extends State<ChatView>
       _loadSendAs(chatState);
       // Fetch bot menu button text for bot DMs.
       _loadBotMenuText(chatState);
+      // §47: Load DM-level restrictions (voice forbidden, premium required).
+      _loadDmRestrictions(chatState);
     }
   }
 
@@ -620,6 +627,30 @@ class _ChatViewState extends State<ChatView>
       final desc = profile?.bio ?? '';
       if (text != _botMenuText || desc != _botDescription) {
         setState(() { _botMenuText = text; _botDescription = desc; });
+      }
+    });
+  }
+
+  void _loadDmRestrictions(ChatState chatState) {
+    final chat = chatState.activeChat;
+    if (chat == null || chat.type != ChatType.dm) {
+      if (_dmVoiceForbidden || _dmPremiumRequired) {
+        setState(() { _dmVoiceForbidden = false; _dmPremiumRequired = false; });
+      }
+      return;
+    }
+    final engine = context.read<EngineService>();
+    engine.getUserProfile(chat.accountId, chat.chatId).then((profile) {
+      if (!mounted) return;
+      final voiceForbid = profile?.voiceMessagesForbidden ?? false;
+      final premiumReq = profile?.contactRequirePremium ?? false;
+      final name = profile?.displayName ?? '';
+      if (voiceForbid != _dmVoiceForbidden || premiumReq != _dmPremiumRequired) {
+        setState(() {
+          _dmVoiceForbidden = voiceForbid;
+          _dmPremiumRequired = premiumReq;
+          _dmRestrictionUserName = name;
+        });
       }
     });
   }
@@ -4123,6 +4154,12 @@ class _ChatViewState extends State<ChatView>
               restrictionType: chat.writeRestrictionType,
               restrictionText: chat.writeRestrictionText,
             )
+          // §47: DM premium restriction — user requires premium to be messaged.
+          else if (_dmPremiumRequired && chat.type == ChatType.dm)
+            _WriteRestrictionBar(
+              restrictionType: 2,
+              restrictionText: 'Only Premium users can message ${_dmRestrictionUserName.isNotEmpty ? _dmRestrictionUserName : "this user"}.',
+            )
           // §23.9: Topic-level write restriction — closed topics block compose.
           else if (chat.type == ChatType.topic && (() {
             final t = chatState.forumTopics.cast<ForumTopic?>().firstWhere(
@@ -4153,8 +4190,11 @@ class _ChatViewState extends State<ChatView>
               isForwarding: _isForwarding,
               chatType: chat.type,
               isSelfChat: chat.title == 'Saved Messages' && chat.type == ChatType.dm,
-              voiceRestricted: chat.voiceRestricted,
+              voiceRestricted: chat.voiceRestricted || _dmVoiceForbidden,
               videoRestricted: chat.videoRestricted,
+              voiceRestrictionText: _dmVoiceForbidden
+                  ? '${_dmRestrictionUserName.isNotEmpty ? _dmRestrictionUserName : "This user"} doesn\'t accept voice messages.'
+                  : null,
               slowmodeSeconds: chat.slowmodeSeconds,
               slowmodeNextSendDate: chat.slowmodeNextSendDate,
               starsToSend: chat.starsToSend,
@@ -10946,6 +10986,7 @@ class _ComposeArea extends StatefulWidget {
   final ValueChanged<List<String>>? onFilesSelected;
   final bool voiceRestricted;
   final bool videoRestricted;
+  final String? voiceRestrictionText;
   final int slowmodeSeconds;
   final int slowmodeNextSendDate;
   final int starsToSend;
@@ -10986,6 +11027,7 @@ class _ComposeArea extends StatefulWidget {
     this.onFilesSelected,
     this.voiceRestricted = false,
     this.videoRestricted = false,
+    this.voiceRestrictionText,
     this.slowmodeSeconds = 0,
     this.slowmodeNextSendDate = 0,
     this.starsToSend = 0,
@@ -12196,6 +12238,7 @@ class _ComposeAreaState extends State<_ComposeArea>
               chatType: widget.chatType,
               isSelfChat: widget.isSelfChat,
               forbidden: forbidden,
+              forbiddenMessage: widget.voiceRestrictionText,
               slowmodeText: type == SendButtonType.slowmode
                   ? _formatSlowmode(_slowmodeSecondsLeft)
                   : null,
@@ -12939,6 +12982,7 @@ class _SendButton extends StatefulWidget {
   final ChatType chatType;
   final bool isSelfChat;
   final bool forbidden;
+  final String? forbiddenMessage;
   final String? slowmodeText;
   final int starsToSend;
 
@@ -12955,6 +12999,7 @@ class _SendButton extends StatefulWidget {
     this.chatType = ChatType.dm,
     this.isSelfChat = false,
     this.forbidden = false,
+    this.forbiddenMessage,
     this.slowmodeText,
     this.starsToSend = 0,
   });
@@ -13080,9 +13125,10 @@ class _SendButtonState extends State<_SendButton>
 
   void _onTap() {
     if (widget.forbidden && _isForbiddable(widget.type)) {
-      final msg = widget.type == SendButtonType.round
-          ? 'The admins of this group restricted you from sending video messages here.'
-          : 'The admins of this group restricted you from sending voice messages here.';
+      final msg = widget.forbiddenMessage ??
+          (widget.type == SendButtonType.round
+              ? 'The admins of this group restricted you from sending video messages here.'
+              : 'The admins of this group restricted you from sending voice messages here.');
       showTelegramToast(context, msg);
       return;
     }

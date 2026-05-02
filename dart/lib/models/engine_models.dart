@@ -1550,6 +1550,8 @@ class UserProfile {
   final int birthdayYear;
   final String personalChannelId;
   final String personalChannelName;
+  final bool voiceMessagesForbidden;
+  final bool contactRequirePremium;
 
   const UserProfile({
     required this.userId,
@@ -1566,6 +1568,8 @@ class UserProfile {
     this.birthdayYear = 0,
     this.personalChannelId = '',
     this.personalChannelName = '',
+    this.voiceMessagesForbidden = false,
+    this.contactRequirePremium = false,
   });
 
   bool get hasBirthday => birthdayDay > 0 && birthdayMonth > 0;
@@ -1585,6 +1589,8 @@ class UserProfile {
     birthdayYear: j['birthday_year'] as int? ?? 0,
     personalChannelId: j['personal_channel_id'] as String? ?? '',
     personalChannelName: j['personal_channel_name'] as String? ?? '',
+    voiceMessagesForbidden: j['voice_messages_forbidden'] as bool? ?? false,
+    contactRequirePremium: j['contact_require_premium'] as bool? ?? false,
   );
 }
 
