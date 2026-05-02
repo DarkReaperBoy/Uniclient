@@ -323,6 +323,7 @@ class _ChatViewState extends State<ChatView>
   bool _inlineBotLoading = false;
 
   bool _emojiPanelVisible = false;
+  bool _commentsShown = true;
 
   String _botMenuText = '';
   String _botDescription = '';
@@ -4232,6 +4233,14 @@ class _ChatViewState extends State<ChatView>
               onEscape: () => _handleEscape(),
               onScrollPage: (isUp) => _scrollPage(isUp),
               sendBy: context.read<AppState>().sendBy,
+              commentsState: chat.type == ChatType.channel && chatState.linkedChatId.isNotEmpty
+                  ? (_commentsShown
+                      ? ToggleCommentsState.shown
+                      : ToggleCommentsState.hidden)
+                  : ToggleCommentsState.empty,
+              onCommentsToggle: () {
+                setState(() => _commentsShown = !_commentsShown);
+              },
             ),
           if (chatState.visibleReplyKeyboard != null)
             _BotReplyKeyboard(
@@ -10991,6 +11000,8 @@ class _ComposeContextMenuState extends State<_ComposeContextMenu>
 /// Compose area at bottom. Spec §7 + §24.6.
 enum SendButtonType { send, schedule, save, record, round, cancel, slowmode, editPrice }
 
+enum ToggleCommentsState { empty, shown, hidden, withNew }
+
 enum AutocompleteType { mention, hashtag, command, emoji, stickerSuggestion }
 
 class AutocompleteQuery {
@@ -11045,6 +11056,8 @@ class _ComposeArea extends StatefulWidget {
   final VoidCallback? onEscape;
   final ValueChanged<bool>? onScrollPage;
   final String sendBy;
+  final ToggleCommentsState commentsState;
+  final VoidCallback? onCommentsToggle;
 
   const _ComposeArea({
     required this.controller,
@@ -11086,6 +11099,8 @@ class _ComposeArea extends StatefulWidget {
     this.onEscape,
     this.onScrollPage,
     this.sendBy = 'enter',
+    this.commentsState = ToggleCommentsState.empty,
+    this.onCommentsToggle,
   });
 
   @override
@@ -12152,6 +12167,15 @@ class _ComposeAreaState extends State<_ComposeArea>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
+          _CommentsButton(
+            state: widget.commentsState,
+            iconColor: iconFg,
+            hoverColor: iconFgOver,
+            dotColor: isDark
+                ? const Color(0xFF6ab3f3)
+                : const Color(0xFF419fd9),
+            onPressed: () => widget.onCommentsToggle?.call(),
+          ),
           KeyedSubtree(
             key: _attachButtonKey,
             child: _ComposeSlotButton(
@@ -12481,6 +12505,78 @@ class _ComposeSlotButtonState extends State<_ComposeSlotButton> {
             width: 44,
             height: 46,
             child: Center(child: iconWidget),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CommentsButton extends StatefulWidget {
+  final ToggleCommentsState state;
+  final Color iconColor;
+  final Color hoverColor;
+  final Color dotColor;
+  final VoidCallback onPressed;
+
+  const _CommentsButton({
+    required this.state,
+    required this.iconColor,
+    required this.hoverColor,
+    required this.dotColor,
+    required this.onPressed,
+  });
+
+  @override
+  State<_CommentsButton> createState() => _CommentsButtonState();
+}
+
+class _CommentsButtonState extends State<_CommentsButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.state == ToggleCommentsState.empty) {
+      return const SizedBox.shrink();
+    }
+    final color = _hovered ? widget.hoverColor : widget.iconColor;
+    final icon = widget.state == ToggleCommentsState.hidden
+        ? Icons.mode_comment_outlined
+        : Icons.mode_comment;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: TelegramTooltip(
+        message: widget.state == ToggleCommentsState.hidden
+            ? 'Show Comments'
+            : 'Hide Comments',
+        child: InkResponse(
+          onTap: widget.onPressed,
+          radius: 20,
+          child: SizedBox(
+            width: 44,
+            height: 46,
+            child: Center(
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(icon, size: 22, color: color),
+                  if (widget.state == ToggleCommentsState.withNew)
+                    Positioned(
+                      right: -3,
+                      top: -3,
+                      child: Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: widget.dotColor,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
