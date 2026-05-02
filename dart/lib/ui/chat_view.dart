@@ -171,6 +171,29 @@ class ChatView extends StatefulWidget {
   State<ChatView> createState() => _ChatViewState();
 }
 
+class _WebPreviewDraft {
+  bool removed;
+  bool forceLarge;
+  bool forceSmall;
+  bool invert;
+  String lastUrl;
+  WebPagePreview? preview;
+  Map<String, WebPagePreview> cache;
+  Set<String> nullResolved;
+
+  _WebPreviewDraft({
+    this.removed = false,
+    this.forceLarge = false,
+    this.forceSmall = false,
+    this.invert = false,
+    this.lastUrl = '',
+    this.preview,
+    Map<String, WebPagePreview>? cache,
+    Set<String>? nullResolved,
+  }) : cache = cache ?? {},
+       nullResolved = nullResolved ?? {};
+}
+
 class _ChatViewState extends State<ChatView>
     with TickerProviderStateMixin {
   static const _kRescheduleLimit = 20;
@@ -246,6 +269,7 @@ class _ChatViewState extends State<ChatView>
   Timer? _pendingRetryTimer;
   final Set<String> _nullResolvedUrls = {};
   final Map<String, WebPagePreview> _previewCache = {};
+  final Map<String, _WebPreviewDraft> _webPreviewDrafts = {};
   AutocompleteQuery? _acQuery;
   List<MemberInfo> _acMembers = [];
   List<MemberInfo> _acFilteredMembers = [];
@@ -468,8 +492,49 @@ class _ChatViewState extends State<ChatView>
     final chatState = context.read<ChatState>();
     final chatId = chatState.activeChat?.chatId;
     if (chatId != null && chatId != _lastChatId) {
+      // Save web preview draft for old chat before switching.
+      if (_lastChatId != null) {
+        _webPreviewDrafts[_lastChatId!] = _WebPreviewDraft(
+          removed: _webPreviewCancelled,
+          forceLarge: _webPreviewForceLarge,
+          forceSmall: _webPreviewForceSmall,
+          invert: _webPreviewInvert,
+          lastUrl: _lastPreviewUrl,
+          preview: _webPreview,
+          cache: Map.of(_previewCache),
+          nullResolved: Set.of(_nullResolvedUrls),
+        );
+      }
       _lastChatId = chatId;
       _composeController.accountId = chatState.activeChat?.accountId ?? '';
+      // Restore web preview draft for new chat.
+      final savedDraft = _webPreviewDrafts[chatId];
+      _previewDebounce?.cancel();
+      _pendingRetryTimer?.cancel();
+      if (savedDraft != null) {
+        _webPreviewCancelled = savedDraft.removed;
+        _webPreviewForceLarge = savedDraft.forceLarge;
+        _webPreviewForceSmall = savedDraft.forceSmall;
+        _webPreviewInvert = savedDraft.invert;
+        _lastPreviewUrl = savedDraft.lastUrl;
+        _webPreview = savedDraft.removed ? null : savedDraft.preview;
+        _webPreviewLoading = false;
+        _previewCache.clear();
+        _previewCache.addAll(savedDraft.cache);
+        _nullResolvedUrls.clear();
+        _nullResolvedUrls.addAll(savedDraft.nullResolved);
+      } else {
+        _webPreview = null;
+        _webPreviewCancelled = false;
+        _webPreviewForceLarge = false;
+        _webPreviewForceSmall = false;
+        _webPreviewInvert = false;
+        _webPreviewLoading = false;
+        _lastPreviewUrl = '';
+        _previewCache.clear();
+        _nullResolvedUrls.clear();
+      }
+      _detectedLinks = const [];
       // Chat changed — cancel any in-progress edit/reply/search so stale
       // state doesn't leak into the new chat's compose area.
       // Also reset pinned bar dismiss state and corner button tracking.
@@ -2553,6 +2618,62 @@ class _ChatViewState extends State<ChatView>
     });
   }
 
+  void _showDraftOptionsBox() {
+    if (_webPreview == null) return;
+    final palette = PaletteProvider.of(context);
+    final hasText = _composeController.text.isNotEmpty;
+    final canToggle = _webPreview!.hasLargeMedia;
+    final isSmall = _webPreviewForceSmall ||
+        (!_webPreviewForceLarge && _webPreview!.defaultSmallMedia);
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: palette.boxBg,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 320),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (hasText)
+                _DraftOptionRow(
+                  icon: _webPreviewInvert ? Icons.arrow_downward : Icons.arrow_upward,
+                  label: _webPreviewInvert ? 'Move down' : 'Move up',
+                  palette: palette,
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _toggleWebPreviewInvert();
+                  },
+                ),
+              if (canToggle)
+                _DraftOptionRow(
+                  icon: isSmall ? Icons.open_in_full : Icons.close_fullscreen,
+                  label: isSmall ? 'Enlarge media' : 'Shrink media',
+                  palette: palette,
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _toggleWebPreviewMediaSize();
+                  },
+                ),
+              _DraftOptionRow(
+                icon: Icons.delete_outline,
+                label: 'Remove link preview',
+                palette: palette,
+                isAttention: true,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _cancelWebPreview();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   static final _extractUrlRegex = RegExp(
     r'(?:https?://|www\.)[^\s<>\[\](){}"' "'" r']+',
     caseSensitive: false,
@@ -3899,6 +4020,7 @@ class _ChatViewState extends State<ChatView>
                 hasText: _composeController.text.isNotEmpty,
                 onToggleInvert: _toggleWebPreviewInvert,
                 onCancel: _cancelWebPreview,
+                onTapOptions: _showDraftOptionsBox,
                 linkCount: loading ? 0 : viableLinks.length,
                 activeLinkIndex: idx >= 0 ? idx : 0,
                 onPrevLink: _switchPreviewPrev,
@@ -6289,6 +6411,7 @@ class _WebPreviewBar extends StatelessWidget {
   final bool hasText;
   final VoidCallback onToggleInvert;
   final VoidCallback onCancel;
+  final VoidCallback? onTapOptions;
   final int linkCount;
   final int activeLinkIndex;
   final VoidCallback? onPrevLink;
@@ -6304,6 +6427,7 @@ class _WebPreviewBar extends StatelessWidget {
     required this.hasText,
     required this.onToggleInvert,
     required this.onCancel,
+    this.onTapOptions,
     this.linkCount = 1,
     this.activeLinkIndex = 0,
     this.onPrevLink,
@@ -6369,7 +6493,10 @@ class _WebPreviewBar extends StatelessWidget {
     if (hasMultipleLinks) rightButtonsWidth += 56.0;
 
     if (isSmallMedia && hasThumb) {
-      return Container(
+      return GestureDetector(
+        onTap: !isLoading ? onTapOptions : null,
+        behavior: HitTestBehavior.translucent,
+        child: Container(
         height: 49,
         color: palette.historyComposeAreaBg,
         child: Stack(
@@ -6527,11 +6654,15 @@ class _WebPreviewBar extends StatelessWidget {
             ),
           ],
         ),
+      ),
       );
     }
 
     final textLeft = hasThumb ? 95.0 : 53.0;
-    return Container(
+    return GestureDetector(
+      onTap: !isLoading ? onTapOptions : null,
+      behavior: HitTestBehavior.translucent,
+      child: Container(
       height: 49,
       color: palette.historyComposeAreaBg,
       child: Stack(
@@ -6689,6 +6820,52 @@ class _WebPreviewBar extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    ),
+    );
+  }
+}
+
+class _DraftOptionRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final TelegramPalette palette;
+  final bool isAttention;
+  final VoidCallback onTap;
+
+  const _DraftOptionRow({
+    required this.icon,
+    required this.label,
+    required this.palette,
+    this.isAttention = false,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isAttention
+        ? const Color(0xFFE53935)
+        : palette.windowBoldFg;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: color),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
