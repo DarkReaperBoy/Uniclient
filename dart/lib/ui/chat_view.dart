@@ -3292,6 +3292,7 @@ class _ChatViewState extends State<ChatView>
       chatType: chat?.type ?? ChatType.dm,
       isSelfChat: chat != null && chat.title == 'Saved Messages' && chat.type == ChatType.dm,
       starsPerMessage: chat?.starsToSend ?? 0,
+      isSlowMode: (chat?.slowmodeSeconds ?? 0) > 0,
     );
     if (result == null || result.paths.isEmpty) return;
     for (final path in result.paths) {
@@ -11098,6 +11099,7 @@ class _ComposeAreaState extends State<_ComposeArea>
   int _consecutiveEnters = 0;
   Timer? _slowmodeTimer;
   int _slowmodeSecondsLeft = 0;
+  bool _slowmodeSending = false;
   bool _isRecording = false;
   bool _isVideoRound = false;
   DateTime? _recordingStart;
@@ -11135,6 +11137,7 @@ class _ComposeAreaState extends State<_ComposeArea>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.slowmodeNextSendDate != widget.slowmodeNextSendDate ||
         oldWidget.slowmodeSeconds != widget.slowmodeSeconds) {
+      _slowmodeSending = false;
       _startSlowmodeTimer();
     }
   }
@@ -11291,7 +11294,7 @@ class _ComposeAreaState extends State<_ComposeArea>
   SendButtonType _computeSendButtonType() {
     if (widget.isEditing) return SendButtonType.save;
     if (widget.isForwarding) return SendButtonType.send;
-    if (_slowmodeSecondsLeft > 0) return SendButtonType.slowmode;
+    if (_slowmodeSecondsLeft > 0 || _slowmodeSending) return SendButtonType.slowmode;
     if (!_hasText) {
       final appState = context.read<AppState>();
       return appState.recordVideoMessages
@@ -11328,10 +11331,17 @@ class _ComposeAreaState extends State<_ComposeArea>
   }
 
   void _doSend() {
+    if (widget.slowmodeSeconds > 0 && widget.controller.text.length > _kMaxMessageLength) {
+      showTelegramToast(context, 'Message is too long for slow mode.');
+      return;
+    }
     if (_silentMode && widget.onSendSilent != null) {
       widget.onSendSilent!();
     } else {
       widget.onSend();
+    }
+    if (widget.slowmodeSeconds > 0 && !widget.isEditing) {
+      setState(() => _slowmodeSending = true);
     }
   }
 
@@ -12239,7 +12249,7 @@ class _ComposeAreaState extends State<_ComposeArea>
               isSelfChat: widget.isSelfChat,
               forbidden: forbidden,
               forbiddenMessage: widget.voiceRestrictionText,
-              slowmodeText: type == SendButtonType.slowmode
+              slowmodeText: type == SendButtonType.slowmode && _slowmodeSecondsLeft > 0
                   ? _formatSlowmode(_slowmodeSecondsLeft)
                   : null,
               starsToSend: widget.starsToSend,
@@ -13325,7 +13335,7 @@ class _SendButtonState extends State<_SendButton>
           child: Text(
             widget.slowmodeText!,
             style: TextStyle(
-              fontSize: 14,
+              fontSize: 13,
               fontWeight: FontWeight.normal,
               color: isDark
                   ? const Color(0xFF7e8e9f)
@@ -13383,9 +13393,14 @@ class _SendButtonState extends State<_SendButton>
                   ),
                 )
               : (isForbidden || isSlowmode)
-              ? GestureDetector(
-                  onTap: _onTap,
-                  child: SizedBox(width: buttonWidth, height: 46, child: content),
+              ? Semantics(
+                  label: isSlowmode && widget.slowmodeText != null
+                      ? 'Slowmode: ${widget.slowmodeText}'
+                      : 'Restricted',
+                  child: GestureDetector(
+                    onTap: _onTap,
+                    child: SizedBox(width: buttonWidth, height: 46, child: content),
+                  ),
                 )
               : isRecordOrRound
               ? SizedBox(width: buttonWidth, height: 46, child: content)
