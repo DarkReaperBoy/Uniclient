@@ -42,6 +42,7 @@ import 'call_panel.dart';
 import 'chat_export.dart';
 import 'forum_topic_icon.dart';
 import 'edit_forum_topic_box.dart';
+import 'emoji_status_widget.dart';
 import 'choose_datetime_box.dart';
 import 'emoji_panel.dart';
 import '../utils/web_drop.dart';
@@ -4781,6 +4782,14 @@ class _ChatTopBar extends StatelessWidget {
                           if (chat.isFake) ...[
                             const SizedBox(width: 4),
                             _TopBarWarningBadge(label: 'FAKE'),
+                          ],
+                          if (chat.emojiStatusId.isNotEmpty) ...[
+                            const SizedBox(width: 4),
+                            EmojiStatusWidget(
+                              emojiStatusId: chat.emojiStatusId,
+                              accountId: chat.accountId,
+                              size: 18,
+                            ),
                           ],
                           if (chat.isMuted) ...[
                             const SizedBox(width: 4),

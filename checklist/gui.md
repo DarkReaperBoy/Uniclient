@@ -949,7 +949,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §45 — Custom Emoji Rendering
 # Touches: dart/lib/ui/message_bubble.dart, dart/lib/ui/chat_view.dart, new custom_emoji.dart
 
-- [ ] Emoji status rendering — render next to peer name in headers/dialogs/profile; collectible status (center/edge colors); userpic prefix circle; kEmojiStatus power saving — spec §45.5
 - [ ] Custom emoji in reactions — Unicode reactions at 2× emojiSize; custom at Normal 18/20px; floating preview overlay on click; "View Pack" label — spec §45.6
 - [ ] Loading states — SVG path preview at 12.5% opacity; cross-res image preview fallback; blank when no preview; Loading→Caching→Cached transitions — spec §45.7
 - [ ] Caching — in-memory instance cache per (DocumentId, SizeTag) with refcount; disk sprite atlas LZ4; 16 frames/row; cross-res preview; evict on last Object removed — spec §45.8

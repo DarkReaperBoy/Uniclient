@@ -9,6 +9,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 
+import 'custom_emoji_cache.dart';
 import 'gesture_utils.dart';
 import 'info_panel.dart';
 import 'reactions_detail.dart';
@@ -5054,20 +5055,20 @@ class _LargeCustomEmojiTileState extends State<_LargeCustomEmojiTile>
   @override
   void initState() {
     super.initState();
-    _CustomEmojiCache.instance.addListener(_onCacheUpdate);
+    CustomEmojiCache.instance.addListener(_onCacheUpdate);
     _requestIfNeeded();
   }
 
   @override
   void dispose() {
-    _CustomEmojiCache.instance.removeListener(_onCacheUpdate);
+    CustomEmojiCache.instance.removeListener(_onCacheUpdate);
     _lottieController?.dispose();
     super.dispose();
   }
 
   void _onCacheUpdate() {
     if (!mounted) return;
-    final cache = _CustomEmojiCache.instance;
+    final cache = CustomEmojiCache.instance;
     final file = cache.getFile(widget.documentId);
     if (file != null && file.isTgs && _decompressedLottie == null) {
       _decompressLottie(file.fileData);
@@ -5076,7 +5077,7 @@ class _LargeCustomEmojiTileState extends State<_LargeCustomEmojiTile>
   }
 
   void _requestIfNeeded() {
-    final cache = _CustomEmojiCache.instance;
+    final cache = CustomEmojiCache.instance;
     if (cache.getThumb(widget.documentId) == null &&
         !cache.isPending(widget.documentId) &&
         !cache.hasFailed(widget.documentId) &&
@@ -5123,7 +5124,7 @@ class _LargeCustomEmojiTileState extends State<_LargeCustomEmojiTile>
 
   @override
   Widget build(BuildContext context) {
-    final cache = _CustomEmojiCache.instance;
+    final cache = CustomEmojiCache.instance;
     final file = cache.getFile(widget.documentId);
     final powerSaving = _isPowerSaving(context);
 
@@ -5162,7 +5163,7 @@ class _LargeCustomEmojiTileState extends State<_LargeCustomEmojiTile>
     return _buildThumbOrFallback(cache);
   }
 
-  Widget _buildThumbOrFallback(_CustomEmojiCache cache) {
+  Widget _buildThumbOrFallback(CustomEmojiCache cache) {
     final thumb = cache.getThumb(widget.documentId);
     if (thumb != null) {
       return SizedBox(
@@ -5188,140 +5189,6 @@ class _LargeCustomEmojiTileState extends State<_LargeCustomEmojiTile>
       ),
     );
   }
-}
-
-// ── Custom emoji cache: thumbnails + full animation files (§45.3) ──
-
-class _CustomEmojiCache {
-  static final _CustomEmojiCache instance = _CustomEmojiCache._();
-  _CustomEmojiCache._();
-
-  final Map<int, Uint8List> _thumbs = {};
-  final Map<int, CustomEmojiFileData> _files = {};
-  final Set<int> _pending = {};
-  final Set<int> _filePending = {};
-  final Set<int> _failed = {};
-  final Set<int> _fileFailed = {};
-  final List<VoidCallback> _listeners = [];
-  Timer? _batchTimer;
-  Timer? _fileBatchTimer;
-  final List<_PendingRequest> _batchQueue = [];
-  final List<_PendingRequest> _fileBatchQueue = [];
-
-  void addListener(VoidCallback cb) => _listeners.add(cb);
-  void removeListener(VoidCallback cb) => _listeners.remove(cb);
-
-  Uint8List? getThumb(int documentId) => _thumbs[documentId];
-  CustomEmojiFileData? getFile(int documentId) => _files[documentId];
-  bool isPending(int documentId) => _pending.contains(documentId);
-  bool hasFailed(int documentId) => _failed.contains(documentId);
-  bool isFilePending(int documentId) => _filePending.contains(documentId);
-
-  void request(int documentId, String accountId, EngineService engine) {
-    if (_thumbs.containsKey(documentId) || _pending.contains(documentId) || _failed.contains(documentId)) return;
-    _pending.add(documentId);
-    _batchQueue.add(_PendingRequest(documentId, accountId, engine));
-    _batchTimer?.cancel();
-    _batchTimer = Timer(const Duration(milliseconds: 16), _flushBatch);
-  }
-
-  void requestFile(int documentId, String accountId, EngineService engine) {
-    if (_files.containsKey(documentId) || _filePending.contains(documentId) || _fileFailed.contains(documentId)) return;
-    _filePending.add(documentId);
-    _fileBatchQueue.add(_PendingRequest(documentId, accountId, engine));
-    _fileBatchTimer?.cancel();
-    _fileBatchTimer = Timer(const Duration(milliseconds: 50), _flushFileBatch);
-  }
-
-  void _flushBatch() {
-    if (_batchQueue.isEmpty) return;
-    final batch = List<_PendingRequest>.from(_batchQueue);
-    _batchQueue.clear();
-    final byAccount = <String, List<_PendingRequest>>{};
-    for (final req in batch) {
-      (byAccount[req.accountId] ??= []).add(req);
-    }
-    for (final entry in byAccount.entries) {
-      final ids = entry.value.map((r) => r.documentId).toList();
-      final engine = entry.value.first.engine;
-      _fetchThumbBatch(entry.key, ids, engine);
-    }
-  }
-
-  void _flushFileBatch() {
-    if (_fileBatchQueue.isEmpty) return;
-    final batch = List<_PendingRequest>.from(_fileBatchQueue);
-    _fileBatchQueue.clear();
-    final byAccount = <String, List<_PendingRequest>>{};
-    for (final req in batch) {
-      (byAccount[req.accountId] ??= []).add(req);
-    }
-    for (final entry in byAccount.entries) {
-      final ids = entry.value.map((r) => r.documentId).toList();
-      final engine = entry.value.first.engine;
-      for (var i = 0; i < ids.length; i += 100) {
-        _fetchFileBatch(entry.key, ids.sublist(i, math.min(i + 100, ids.length)), engine);
-      }
-    }
-  }
-
-  Future<void> _fetchThumbBatch(String accountId, List<int> ids, EngineService engine) async {
-    try {
-      final result = await engine.getCustomEmojiThumbs(accountId, ids);
-      for (final entry in result.entries) {
-        final bytes = base64Decode(entry.value);
-        _thumbs[entry.key] = bytes;
-        _pending.remove(entry.key);
-      }
-      for (final id in ids) {
-        if (!_thumbs.containsKey(id)) {
-          _pending.remove(id);
-          _failed.add(id);
-        }
-      }
-    } catch (_) {
-      for (final id in ids) {
-        _pending.remove(id);
-        _failed.add(id);
-      }
-    }
-    _notifyListeners();
-  }
-
-  Future<void> _fetchFileBatch(String accountId, List<int> ids, EngineService engine) async {
-    try {
-      final result = await engine.getCustomEmojiFiles(accountId, ids);
-      for (final entry in result.entries) {
-        _files[entry.key] = entry.value;
-        _filePending.remove(entry.key);
-      }
-      for (final id in ids) {
-        if (!_files.containsKey(id)) {
-          _filePending.remove(id);
-          _fileFailed.add(id);
-        }
-      }
-    } catch (_) {
-      for (final id in ids) {
-        _filePending.remove(id);
-        _fileFailed.add(id);
-      }
-    }
-    _notifyListeners();
-  }
-
-  void _notifyListeners() {
-    for (final cb in List<VoidCallback>.from(_listeners)) {
-      cb();
-    }
-  }
-}
-
-class _PendingRequest {
-  final int documentId;
-  final String accountId;
-  final EngineService engine;
-  const _PendingRequest(this.documentId, this.accountId, this.engine);
 }
 
 // ── Animated custom emoji inline widget (§45.3) ──
@@ -5354,20 +5221,20 @@ class _CustomEmojiInlineState extends State<_CustomEmojiInline>
   @override
   void initState() {
     super.initState();
-    _CustomEmojiCache.instance.addListener(_onCacheUpdate);
+    CustomEmojiCache.instance.addListener(_onCacheUpdate);
     _requestIfNeeded();
   }
 
   @override
   void dispose() {
-    _CustomEmojiCache.instance.removeListener(_onCacheUpdate);
+    CustomEmojiCache.instance.removeListener(_onCacheUpdate);
     _lottieController?.dispose();
     super.dispose();
   }
 
   void _onCacheUpdate() {
     if (!mounted) return;
-    final cache = _CustomEmojiCache.instance;
+    final cache = CustomEmojiCache.instance;
     final file = cache.getFile(widget.documentId);
     if (file != null && file.isTgs && _decompressedLottie == null) {
       _decompressLottie(file.fileData);
@@ -5376,7 +5243,7 @@ class _CustomEmojiInlineState extends State<_CustomEmojiInline>
   }
 
   void _requestIfNeeded() {
-    final cache = _CustomEmojiCache.instance;
+    final cache = CustomEmojiCache.instance;
     if (cache.getThumb(widget.documentId) == null &&
         !cache.isPending(widget.documentId) &&
         !cache.hasFailed(widget.documentId) &&
@@ -5423,7 +5290,7 @@ class _CustomEmojiInlineState extends State<_CustomEmojiInline>
 
   @override
   Widget build(BuildContext context) {
-    final cache = _CustomEmojiCache.instance;
+    final cache = CustomEmojiCache.instance;
     final file = cache.getFile(widget.documentId);
     final powerSaving = _isPowerSaving(context);
 
@@ -5462,7 +5329,7 @@ class _CustomEmojiInlineState extends State<_CustomEmojiInline>
     return _buildThumbOrFallback(cache);
   }
 
-  Widget _buildThumbOrFallback(_CustomEmojiCache cache) {
+  Widget _buildThumbOrFallback(CustomEmojiCache cache) {
     final thumb = cache.getThumb(widget.documentId);
     if (thumb != null) {
       return SizedBox(

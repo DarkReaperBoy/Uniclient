@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
+import 'emoji_status_widget.dart';
 import 'forum_topic_icon.dart';
 
 /// Spec §2.7: Data carried during a drag-and-drop forward gesture.
@@ -237,6 +238,15 @@ class ChatListRow extends StatelessWidget {
                                 if (chat.isFake) ...[
                                   const SizedBox(width: 4),
                                   _WarningBadge(label: 'FAKE', isActive: isActive),
+                                ],
+                                if (chat.emojiStatusId.isNotEmpty) ...[
+                                  const SizedBox(width: 4),
+                                  EmojiStatusWidget(
+                                    emojiStatusId: chat.emojiStatusId,
+                                    accountId: chat.accountId,
+                                    size: 16,
+                                    fallbackColor: isActive ? Colors.white : null,
+                                  ),
                                 ],
                                 if (chat.isMuted) ...[
                                   const SizedBox(width: 4),

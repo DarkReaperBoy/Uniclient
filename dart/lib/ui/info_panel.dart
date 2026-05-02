@@ -24,6 +24,7 @@ import 'contacts_screen.dart' show showShareContactBox;
 import 'popup_menu.dart';
 import 'telegram_tooltip.dart';
 import 'telegram_toast.dart';
+import 'emoji_status_widget.dart';
 import 'peer_short_info.dart';
 
 enum InfoWrapMode { side, narrow, layer }
@@ -356,6 +357,7 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
   final bool hasUnreadStory;
   final List<Color>? profileBgColors;
   final String emojiStatusId;
+  final String accountId;
   final List<PinnedGiftItem> pinnedGifts;
 
   static const double maxHeight = 236.0;
@@ -385,6 +387,7 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
     this.hasUnreadStory = false,
     this.profileBgColors,
     this.emojiStatusId = '',
+    this.accountId = '',
     this.pinnedGifts = const [],
   });
 
@@ -555,15 +558,32 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
               right: 20,
               child: Opacity(
                 opacity: t,
-                child: Text(
-                  displayName,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: gradientTextColor,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        displayName,
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: gradientTextColor,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (emojiStatusId.isNotEmpty && accountId.isNotEmpty) ...[
+                      const SizedBox(width: 4),
+                      EmojiStatusWidget(
+                        emojiStatusId: emojiStatusId,
+                        accountId: accountId,
+                        size: 22,
+                        fallbackColor: gradientTextColor,
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ),
@@ -1634,6 +1654,7 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
               storyCount: widget.chat.storyCount,
               hasUnreadStory: widget.chat.hasUnreadStory,
               emojiStatusId: widget.chat.emojiStatusId,
+              accountId: widget.chat.accountId,
               pinnedGifts: widget.pinnedGifts,
             ),
           ),
