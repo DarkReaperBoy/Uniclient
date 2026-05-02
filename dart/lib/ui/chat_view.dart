@@ -13129,7 +13129,7 @@ class _SendButtonState extends State<_SendButton>
           (widget.type == SendButtonType.round
               ? 'The admins of this group restricted you from sending video messages here.'
               : 'The admins of this group restricted you from sending voice messages here.');
-      showTelegramToast(context, msg);
+      showTelegramToast(context, msg, multiline: true);
       return;
     }
     switch (widget.type) {
@@ -13364,7 +13364,7 @@ class _SendButtonState extends State<_SendButton>
           ? _onRecordPointerCancel
           : null,
       child: MouseRegion(
-        cursor: isSlowmode ? SystemMouseCursors.basic : SystemMouseCursors.click,
+        cursor: (isSlowmode || isForbidden) ? SystemMouseCursors.basic : SystemMouseCursors.click,
         onEnter: (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() => _hovered = false),
         child: TelegramTooltip(
