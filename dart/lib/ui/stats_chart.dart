@@ -161,6 +161,10 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
   double _curRulerMn = 0, _curRulerMx = 1;
   double _rulerCrossfade = 1.0;
 
+  late AnimationController _pieAnimController;
+  int? _pieDataIndex;
+  int _pieHoverSlice = -1;
+
   @override
   void initState() {
     super.initState();
@@ -184,6 +188,10 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
               Curves.easeInCubic.transform(_rulerAnimController.value);
         });
       });
+    _pieAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    )..addListener(() => setState(() {}));
   }
 
   @override
@@ -196,10 +204,28 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
     }
   }
 
+  bool get _isPieActive =>
+      _pieDataIndex != null && widget.data.chartType == 'StackLinear';
+
+  void _enterPieMode(int dataIndex) {
+    setState(() {
+      _pieDataIndex = dataIndex;
+      _pieHoverSlice = -1;
+    });
+    _pieAnimController.forward(from: 0);
+  }
+
+  void _exitPieMode() {
+    _pieAnimController.reverse().then((_) {
+      if (mounted) setState(() => _pieDataIndex = null);
+    });
+  }
+
   @override
   void dispose() {
     _animController.dispose();
     _rulerAnimController.dispose();
+    _pieAnimController.dispose();
     super.dispose();
   }
 
@@ -298,30 +324,73 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
     final textColor = isDark ? Colors.white : Colors.black;
     final subtitleColor = isDark ? Colors.white60 : Colors.black54;
 
+    final pieT = _isPieActive
+        ? Curves.easeOutCirc.transform(_pieAnimController.value)
+        : (_pieDataIndex != null ? Curves.easeOutCirc.transform(_pieAnimController.value) : 0.0);
+
+    String subtitleText = _visibleDateRange();
+    if (_isPieActive && _pieDataIndex != null) {
+      final dt = _toDate(widget.data.timestamps[_pieDataIndex!]);
+      if (widget.data.weekFormat) {
+        final dtEnd = dt.add(const Duration(days: 6));
+        subtitleText =
+            '${dt.day} ${_months[dt.month - 1]} ${dt.year} – ${dtEnd.day} ${_months[dtEnd.month - 1]} ${dtEnd.year}';
+      } else {
+        subtitleText = '${dt.day} ${_months[dt.month - 1]} ${dt.year}';
+      }
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
           height: _kHeaderHeight,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
+          child: Row(
             children: [
-              Text(
-                widget.data.title,
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: textColor),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      widget.data.title,
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: textColor),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      subtitleText,
+                      style: TextStyle(fontSize: 11, color: subtitleColor),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
               ),
-              Text(
-                _visibleDateRange(),
-                style: TextStyle(fontSize: 11, color: subtitleColor),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+              if (_isPieActive)
+                GestureDetector(
+                  onTap: _exitPieMode,
+                  child: Container(
+                    height: 20,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: widget.theme.colorScheme.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      'Zoom Out',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: widget.theme.colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -332,25 +401,52 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
             return Stack(
               clipBehavior: Clip.none,
               children: [
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTapDown: (d) => _onChartTap(d, w),
-                  child: CustomPaint(
-                    size: Size(w, _kChartHeight),
-                    painter: _ChartAreaPainter(
-                      data: widget.data,
-                      isDark: isDark,
-                      rangeStart: _rangeStart,
-                      rangeEnd: _rangeEnd,
-                      selectedIndex: _selectedIndex,
-                      lineVisible: _lineVisible,
-                      rulerCrossfade: _rulerCrossfade,
-                      prevRulerMn: _prevRulerMn,
-                      prevRulerMx: _prevRulerMx,
+                Opacity(
+                  opacity: 1.0 - pieT,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTapDown: (d) => _onChartTap(d, w),
+                    child: CustomPaint(
+                      size: Size(w, _kChartHeight),
+                      painter: _ChartAreaPainter(
+                        data: widget.data,
+                        isDark: isDark,
+                        rangeStart: _rangeStart,
+                        rangeEnd: _rangeEnd,
+                        selectedIndex: _selectedIndex,
+                        lineVisible: _lineVisible,
+                        rulerCrossfade: _rulerCrossfade,
+                        prevRulerMn: _prevRulerMn,
+                        prevRulerMx: _prevRulerMx,
+                      ),
                     ),
                   ),
                 ),
-                if (_selectedIndex != null) _buildTooltip(w, isDark),
+                if (pieT > 0 && _pieDataIndex != null)
+                  Opacity(
+                    opacity: pieT,
+                    child: MouseRegion(
+                      onHover: (e) => _onPieHover(e.localPosition, w),
+                      onExit: (_) => setState(() => _pieHoverSlice = -1),
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTapDown: (d) => _onPieHover(d.localPosition, w),
+                        child: CustomPaint(
+                          size: Size(w, _kChartHeight),
+                          painter: _PieChartPainter(
+                            data: widget.data,
+                            dataIndex: _pieDataIndex!,
+                            lineVisible: _lineVisible,
+                            isDark: isDark,
+                            hoverSlice: _pieHoverSlice,
+                            animProgress: pieT,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                if (_selectedIndex != null && !_isPieActive)
+                  _buildTooltip(w, isDark),
               ],
             );
           }),
@@ -568,6 +664,10 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
         _rangeStart + (details.localPosition.dx / chartWidth) * span;
     final n = widget.data.timestamps.length;
     final idx = (xFrac * (n - 1)).round().clamp(0, n - 1);
+    if (widget.data.chartType == 'StackLinear' && !_isPieActive) {
+      _enterPieMode(idx);
+      return;
+    }
     setState(() => _selectedIndex = _selectedIndex == idx ? null : idx);
   }
 
@@ -637,6 +737,53 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
       _animToEnd = targetCenter + span / 2;
       _animController.forward(from: 0);
     }
+  }
+
+  void _onPieHover(Offset pos, double chartWidth) {
+    if (_pieDataIndex == null) return;
+    final lines = widget.data.lines
+        .where((l) => _lineVisible[l.id] ?? true)
+        .toList();
+    if (lines.isEmpty) return;
+
+    final idx = _pieDataIndex!;
+    double total = 0;
+    for (final l in lines) {
+      if (idx < l.values.length) total += l.values[idx];
+    }
+    if (total == 0) {
+      setState(() => _pieHoverSlice = -1);
+      return;
+    }
+
+    final cx = chartWidth / 2;
+    const cy = _kChartHeight / 2;
+    final radius = math.min(cx, cy) * 0.75;
+    final dx = pos.dx - cx;
+    final dy = pos.dy - cy;
+    final dist = math.sqrt(dx * dx + dy * dy);
+
+    if (dist > radius + 20) {
+      setState(() => _pieHoverSlice = -1);
+      return;
+    }
+
+    var angle = math.atan2(dy, dx);
+    if (angle < -math.pi / 2) angle += 2 * math.pi;
+    final normAngle = angle + math.pi / 2;
+    final clampAngle = normAngle < 0 ? normAngle + 2 * math.pi : normAngle;
+
+    double cumAngle = 0;
+    for (int i = 0; i < lines.length; i++) {
+      final val = idx < lines[i].values.length ? lines[i].values[idx] : 0.0;
+      final sweep = (val / total) * 2 * math.pi;
+      if (clampAngle >= cumAngle && clampAngle < cumAngle + sweep) {
+        if (_pieHoverSlice != i) setState(() => _pieHoverSlice = i);
+        return;
+      }
+      cumAngle += sweep;
+    }
+    setState(() => _pieHoverSlice = -1);
   }
 
   void _toggleLine(String lineId) {
@@ -1317,5 +1464,94 @@ class _FooterPainter extends CustomPainter {
       isDark != old.isDark ||
       rangeStart != old.rangeStart ||
       rangeEnd != old.rangeEnd ||
+      lineVisible != old.lineVisible;
+}
+
+class _PieChartPainter extends CustomPainter {
+  final StatsChartData data;
+  final int dataIndex;
+  final Map<String, bool> lineVisible;
+  final bool isDark;
+  final int hoverSlice;
+  final double animProgress;
+
+  static const _popOut = 8.0;
+  static const _labelFontSize = 20.0;
+
+  _PieChartPainter({
+    required this.data,
+    required this.dataIndex,
+    required this.lineVisible,
+    required this.isDark,
+    required this.hoverSlice,
+    required this.animProgress,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final lines =
+        data.lines.where((l) => lineVisible[l.id] ?? true).toList();
+    if (lines.isEmpty) return;
+
+    double total = 0;
+    for (final l in lines) {
+      if (dataIndex < l.values.length) total += l.values[dataIndex];
+    }
+    if (total == 0) return;
+
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final radius = math.min(cx, cy) * 0.75 * animProgress;
+
+    double startAngle = -math.pi / 2;
+    for (int i = 0; i < lines.length; i++) {
+      final val =
+          dataIndex < lines[i].values.length ? lines[i].values[dataIndex] : 0.0;
+      final sweep = (val / total) * 2 * math.pi;
+      if (sweep <= 0) continue;
+
+      final midAngle = startAngle + sweep / 2;
+      double offsetX = 0, offsetY = 0;
+      if (i == hoverSlice) {
+        offsetX = math.cos(midAngle) * _popOut * animProgress;
+        offsetY = math.sin(midAngle) * _popOut * animProgress;
+      }
+
+      final rect = Rect.fromCircle(
+        center: Offset(cx + offsetX, cy + offsetY),
+        radius: radius,
+      );
+      canvas.drawArc(rect, startAngle, sweep, true, Paint()..color = lines[i].color);
+
+      if (animProgress > 0.5) {
+        final pct = (val / total * 100).round();
+        if (pct >= 3) {
+          final labelR = radius * 0.65;
+          final lx = cx + offsetX + math.cos(midAngle) * labelR;
+          final ly = cy + offsetY + math.sin(midAngle) * labelR;
+          final tp = TextPainter(
+            text: TextSpan(
+              text: '$pct%',
+              style: TextStyle(
+                fontSize: _labelFontSize * animProgress,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+            textDirection: TextDirection.ltr,
+          )..layout();
+          tp.paint(canvas, Offset(lx - tp.width / 2, ly - tp.height / 2));
+        }
+      }
+
+      startAngle += sweep;
+    }
+  }
+
+  @override
+  bool shouldRepaint(_PieChartPainter old) =>
+      dataIndex != old.dataIndex ||
+      hoverSlice != old.hoverSlice ||
+      animProgress != old.animProgress ||
       lineVisible != old.lineVisible;
 }
