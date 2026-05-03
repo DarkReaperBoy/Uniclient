@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../theme/telegram_palette.dart';
 import 'forum_topic_icon.dart';
 
 const double _boxMaxHeight = 408;
@@ -381,7 +382,7 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
   Widget _buildShadowSeparator(bool isDark) {
     return Container(
       height: 1,
-      color: isDark ? const Color(0xFF04080e56) : const Color(0x18000000),
+      color: context.palette.shadowFg,
     );
   }
 

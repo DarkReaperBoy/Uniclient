@@ -479,7 +479,7 @@ class _UniClientShellState extends State<UniClientShell>
           FilterColumn(
             onOpenDrawer: () => _openDrawer(context),
           ),
-        if (showFilters) _ColumnShadow(isDark: isDark),
+        if (showFilters) _ColumnShadow(),
         AnimatedContainer(
           duration: _isDragging ? Duration.zero : const Duration(milliseconds: 180),
           curve: Curves.easeOutCirc,
@@ -491,7 +491,7 @@ class _UniClientShellState extends State<UniClientShell>
             collapsed: _dialogsCollapsed,
           ),
         ),
-        _ColumnShadow(isDark: isDark),
+        _ColumnShadow(),
         _ResizeHandle(
           onDragStart: () => setState(() => _isDragging = true),
           onDragEnd: () => setState(() => _isDragging = false),
@@ -570,7 +570,7 @@ class _UniClientShellState extends State<UniClientShell>
           FilterColumn(
             onOpenDrawer: () => _openDrawer(context),
           ),
-        if (showFilters) _ColumnShadow(isDark: isDark),
+        if (showFilters) _ColumnShadow(),
         // Dialogs column.
         AnimatedContainer(
           duration: _isDragging ? Duration.zero : const Duration(milliseconds: 180),
@@ -584,7 +584,7 @@ class _UniClientShellState extends State<UniClientShell>
           ),
         ),
         // Dialogs-chat shadow separator + resize handle.
-        _ColumnShadow(isDark: isDark),
+        _ColumnShadow(),
         _ResizeHandle(
           onDragStart: () => setState(() => _isDragging = true),
           onDragEnd: () => setState(() => _isDragging = false),
@@ -621,7 +621,7 @@ class _UniClientShellState extends State<UniClientShell>
         // Chat-info shadow separator. Stays visible during close animation,
         // removed when animation reaches dismissed state (spec §1 _thirdShadow).
         if (!_thirdColumnAnim.isDismissed && chatState.activeChat != null) ...[
-          _ColumnShadow(isDark: isDark),
+          _ColumnShadow(),
           // Resize handle only while info is open (not during close animation).
           if (_infoOpen)
             _ResizeHandle(
@@ -658,7 +658,7 @@ class _UniClientShellState extends State<UniClientShell>
   void _openDrawer(BuildContext context) {
     showDialog(
       context: context,
-      barrierColor: Colors.black54,
+      barrierColor: context.palette.layerBg,
       builder: (_) => Align(
         alignment: Alignment.centerLeft,
         child: Material(
@@ -688,7 +688,7 @@ class _InfoLayerOverlay extends StatelessWidget {
     return GestureDetector(
       onTap: onClose,
       child: Container(
-        color: Colors.black54,
+        color: context.palette.layerBg,
         alignment: Alignment.topCenter,
         padding: const EdgeInsets.only(left: 48, right: 48, top: 20),
         child: GestureDetector(
@@ -762,17 +762,13 @@ class _SlideWrapCallBarState extends State<_SlideWrapCallBar>
 }
 
 class _ColumnShadow extends StatelessWidget {
-  final bool isDark;
-
-  const _ColumnShadow({required this.isDark});
+  const _ColumnShadow();
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: 1,
-      color: isDark
-          ? const Color(0x5604080e) // #04080e at alpha 0x56
-          : const Color(0x18000000), // #000000 at alpha 0x18
+      color: context.palette.shadowFg,
     );
   }
 }

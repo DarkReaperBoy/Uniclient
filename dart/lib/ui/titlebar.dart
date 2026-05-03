@@ -5,6 +5,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../theme/telegram_palette.dart';
+
 /// Parsed window button layout from the desktop environment.
 /// Format: "left_buttons:right_buttons" where each side has comma-separated
 /// button names (minimize, maximize, close). Unknown tokens (appmenu, icon,
@@ -138,14 +140,13 @@ class _CustomTitlebarState extends State<CustomTitlebar> {
     } catch (_) {}
   }
 
-  Widget _buildButton(_ButtonType type, Color iconColor, bool isDark) {
+  Widget _buildButton(_ButtonType type, Color iconColor, Color hoverBg) {
     switch (type) {
       case _ButtonType.minimize:
         return _WinButton(
           icon: Icons.remove,
           onTap: _minimize,
-          hoverBg:
-              isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.08),
+          hoverBg: hoverBg,
           iconColor: iconColor,
         );
       case _ButtonType.maximize:
@@ -153,8 +154,7 @@ class _CustomTitlebarState extends State<CustomTitlebar> {
           icon: _isMaximized ? Icons.filter_none : Icons.crop_square,
           iconSize: _isMaximized ? 12 : 14,
           onTap: _toggleMaximize,
-          hoverBg:
-              isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.08),
+          hoverBg: hoverBg,
           iconColor: iconColor,
         );
       case _ButtonType.close:
@@ -172,18 +172,18 @@ class _CustomTitlebarState extends State<CustomTitlebar> {
   Widget build(BuildContext context) {
     if (kIsWeb || !Platform.isLinux) return const SizedBox.shrink();
 
+    final palette = context.palette;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
-    final iconColor =
-        isDark ? const Color(0xFFAAAAAA) : const Color(0xFF555555);
-    final sepColor =
-        isDark ? const Color(0x5604080E) : const Color(0x18000000);
+    final bgColor = palette.titleBg;
+    final iconColor = palette.titleFg;
+    final sepColor = palette.shadowFg;
 
+    final hoverBg = palette.windowBgOver;
     final leftButtons = _layout.left
-        .map((t) => _buildButton(t, iconColor, isDark))
+        .map((t) => _buildButton(t, iconColor, hoverBg))
         .toList();
     final rightButtons = _layout.right
-        .map((t) => _buildButton(t, iconColor, isDark))
+        .map((t) => _buildButton(t, iconColor, hoverBg))
         .toList();
 
     return Container(

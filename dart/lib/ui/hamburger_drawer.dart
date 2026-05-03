@@ -24,6 +24,7 @@ import 'web_app_panel.dart';
 import 'settings_style.dart' show settingsPageRoute;
 import 'telegram_toast.dart';
 import 'telegram_tooltip.dart';
+import '../theme/telegram_palette.dart';
 
 /// Hamburger menu drawer. Spec §3: 274px wide, 134px cover.
 /// Shows active account profile at top, collapsible account switcher,
@@ -58,12 +59,9 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
               onToggle: () => appState.setMainMenuAccountsShown(!accountsExpanded),
               accountCount: appState.accounts.length,
             ),
-            // 1px PlainShadow at bottom of cover (spec §3: shadowFg).
             Container(
               height: 1,
-              color: isDark
-                  ? const Color(0x5604080e)
-                  : const Color(0x18000000),
+              color: context.palette.shadowFg,
             ),
             // Spec §3: entire menu below cover is a single defaultSolidScroll
             // ScrollArea. Accounts extend the layout; the scroll bar takes over.
@@ -145,9 +143,7 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                                   // PlainShadow below accounts when open (spec §3).
                                   Container(
                                     height: 1,
-                                    color: isDark
-                                        ? const Color(0x5604080e)
-                                        : const Color(0x18000000),
+                                    color: context.palette.shadowFg,
                                   ),
                                 ],
                               )
@@ -208,9 +204,7 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                       padding: const EdgeInsets.symmetric(vertical: 6),
                       child: Container(
                         height: 1,
-                        color: isDark
-                            ? const Color(0x5604080e)
-                            : const Color(0x18000000),
+                        color: context.palette.shadowFg,
                       ),
                     ),
                     // §3.3: New Group row (§54.8: gated).

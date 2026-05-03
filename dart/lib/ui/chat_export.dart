@@ -48,9 +48,7 @@ class _ExportTopBarState extends State<ExportTopBar>
     final chatState = context.watch<ChatState>();
     final palette = PaletteProvider.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final shadowColor = isDark
-        ? const Color(0x5604080e)
-        : const Color(0x18000000);
+    final shadowColor = palette.shadowFg;
 
     return SizeTransition(
       sizeFactor: CurvedAnimation(

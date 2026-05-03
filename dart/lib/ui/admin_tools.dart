@@ -2563,7 +2563,7 @@ class _AdminLogScreenState extends State<_AdminLogScreen> {
     final topBarBg = isDark ? const Color(0xFF17212B) : Colors.white;
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subTextColor = isDark ? const Color(0xFF708499) : const Color(0xFF999999);
-    final shadowColor = isDark ? const Color(0xFF04080E) : const Color(0x18000000);
+    final shadowColor = palette.shadowFg;
 
     return Scaffold(
       backgroundColor: bgColor,

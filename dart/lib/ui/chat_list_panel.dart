@@ -4597,7 +4597,7 @@ class _ForumTopicHeaderState extends State<_ForumTopicHeader>
               color: Color.lerp(bg, highlightBg, _highlightAnimation.value),
               border: Border(
                 bottom: BorderSide(
-                  color: isDark ? const Color(0x8F04080e) : const Color(0x18000000),
+                  color: context.palette.shadowFg,
                 ),
               ),
             ),

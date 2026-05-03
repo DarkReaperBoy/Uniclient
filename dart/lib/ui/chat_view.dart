@@ -5020,13 +5020,8 @@ class _TopBarButton extends StatelessWidget {
     final menuIconFgOver = isDark
         ? const Color(0xFFdcdcdc)
         : const Color(0xFF8a8a8a);
-    final windowBgOver = isDark
-        ? const Color(0xFF202b36)
-        : const Color(0xFFf1f1f1);
-    // Spec §4.3: windowActiveTextFg — day #168acd, night #6ab3f3.
-    final windowActiveTextFg = isDark
-        ? const Color(0xFF6ab3f3)
-        : const Color(0xFF168acd);
+    final windowBgOver = context.palette.windowBgOver;
+    final windowActiveTextFg = context.palette.windowActiveTextFg;
 
     final restColor = isActive ? windowActiveTextFg : menuIconFg;
     final hoverColor = isActive ? windowActiveTextFg : menuIconFgOver;
@@ -5714,10 +5709,9 @@ class _ChatTopBar extends StatelessWidget {
     } else {
       subtitle = '';
     }
-    // Spec §4.1: topBarBg = windowBg. Day #ffffff, night #17212b.
-    final topBarBg = isDark ? const Color(0xFF17212b) : Colors.white;
-    // Spec §4.1: shadowFg divider. Day #00000018 (~9% black), night #04080e56 (~34%).
-    final shadowFg = isDark ? const Color(0x5604080e) : const Color(0x18000000);
+    final palette = context.palette;
+    final topBarBg = palette.topBarBg;
+    final shadowFg = palette.shadowFg;
 
     return Container(
       height: 54, // topBarHeight per spec §4.1
@@ -6049,11 +6043,11 @@ class _ChatTopBar extends StatelessWidget {
   }
 
   Widget _buildScheduledTopBar(BuildContext context, ThemeData theme, bool isDark) {
-    final topBarBg = isDark ? const Color(0xFF17212b) : Colors.white;
-    final shadowFg = isDark ? const Color(0x5604080e) : const Color(0x18000000);
+    final topBarBg = context.palette.topBarBg;
+    final shadowFg = context.palette.shadowFg;
     final isSavedMessages = chat.title == 'Saved Messages';
     final titleText = isSavedMessages ? 'Reminders' : 'Scheduled messages';
-    final dialogsNameFg = isDark ? const Color(0xFFf5f5f5) : const Color(0xFF222222);
+    final dialogsNameFg = context.palette.windowBoldFg;
 
     return Container(
       height: 54,
@@ -6112,9 +6106,9 @@ class _ChatTopBar extends StatelessWidget {
   }
 
   Widget _buildEditHistoryTopBar(BuildContext context, ThemeData theme, bool isDark) {
-    final topBarBg = isDark ? const Color(0xFF17212b) : Colors.white;
-    final shadowFg = isDark ? const Color(0x5604080e) : const Color(0x18000000);
-    final dialogsNameFg = isDark ? const Color(0xFFf5f5f5) : const Color(0xFF222222);
+    final topBarBg = context.palette.topBarBg;
+    final shadowFg = context.palette.shadowFg;
+    final dialogsNameFg = context.palette.windowBoldFg;
     final subtitleFg = isDark ? const Color(0xFF98b4d3) : const Color(0xFF999999);
 
     return Container(
@@ -6172,9 +6166,9 @@ class _ChatTopBar extends StatelessWidget {
   }
 
   Widget _buildDeletedMessagesTopBar(BuildContext context, ThemeData theme, bool isDark) {
-    final topBarBg = isDark ? const Color(0xFF17212b) : Colors.white;
-    final shadowFg = isDark ? const Color(0x5604080e) : const Color(0x18000000);
-    final dialogsNameFg = isDark ? const Color(0xFFf5f5f5) : const Color(0xFF222222);
+    final topBarBg = context.palette.topBarBg;
+    final shadowFg = context.palette.shadowFg;
+    final dialogsNameFg = context.palette.windowBoldFg;
     final subtitleFg = isDark ? const Color(0xFF98b4d3) : const Color(0xFF999999);
 
     return _DeletedMessagesTopBarStateful(
@@ -8196,9 +8190,7 @@ class _BotReplyKeyboard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final composeBg = isDark
-        ? AppColors.historyComposeAreaBgNight
-        : AppColors.historyComposeAreaBg;
+    final composeBg = context.palette.historyComposeAreaBg;
 
     return AnimatedSize(
       duration: const Duration(milliseconds: 200),
@@ -9140,8 +9132,8 @@ class _SelectionBar extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     // Spec §4.1: match top bar colors in selection mode.
-    final topBarBg = isDark ? const Color(0xFF17212b) : Colors.white;
-    final shadowFg = isDark ? const Color(0x5604080e) : const Color(0x18000000);
+    final topBarBg = context.palette.topBarBg;
+    final shadowFg = context.palette.shadowFg;
 
     // Spec §4.7: defaultActiveButton — blue pill RoundButton, white text.
     // Corner radii: 8px outer ends, 4px small inner ends (segmented pill).
@@ -9417,9 +9409,7 @@ class _SelectionOverflowMenu extends StatelessWidget {
     final iconColor = isDark
         ? const Color(0xFF6AB2F2)
         : const Color(0xFF168ACD);
-    final windowBgOver = isDark
-        ? const Color(0xFF202b36)
-        : const Color(0xFFf1f1f1);
+    final windowBgOver = context.palette.windowBgOver;
 
     return SizedBox(
       width: 44,
@@ -9463,7 +9453,7 @@ class _GroupCallBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final barBg = isDark ? const Color(0xFF1B2734) : const Color(0xFFFFFFFF);
-    final shadowColor = isDark ? const Color(0x5604080E) : const Color(0x18000000);
+    final shadowColor = context.palette.shadowFg;
     final textColor = isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222);
     final subtitleColor = isDark ? const Color(0xFF7E8B99) : const Color(0xFF999999);
     final accentGreen = const Color(0xFF4DC920);
@@ -9639,7 +9629,7 @@ class _BusinessBotBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final barBg = isDark ? const Color(0xFF1B2734) : const Color(0xFFFFFFFF);
-    final shadowColor = isDark ? const Color(0x5604080E) : const Color(0x18000000);
+    final shadowColor = context.palette.shadowFg;
     final textColor = isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222);
     final subtitleColor = isDark ? const Color(0xFF7E8B99) : const Color(0xFF999999);
     final accentColor = isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
@@ -9868,12 +9858,13 @@ class _SubsectionTabsStripState extends State<_SubsectionTabsStrip> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final shadowFg = isDark ? const Color(0x5604080e) : const Color(0x18000000);
-    final windowBg = isDark ? const Color(0xFF17212b) : Colors.white;
-    final menuIconFg = isDark ? const Color(0xFF7b8a97) : const Color(0xFF999999);
-    final tabInactiveFg = isDark ? const Color(0xFF7b8a97) : const Color(0xFF999999);
-    final tabActiveFg = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd);
-    final hoverBg = isDark ? const Color(0xFF202b36) : const Color(0xFFf1f1f1);
+    final pal = context.palette;
+    final shadowFg = pal.shadowFg;
+    final windowBg = pal.windowBg;
+    final menuIconFg = pal.menuIconFg;
+    final tabInactiveFg = pal.windowSubTextFg;
+    final tabActiveFg = pal.windowActiveTextFg;
+    final hoverBg = pal.windowBgOver;
 
     final sublists = widget.sublists;
 
@@ -10155,7 +10146,7 @@ class _PinnedBar extends StatelessWidget {
     // Spec §4.4: historyPinnedBg. Day=#ffffff, night=#1b2734.
     final pinnedBg = isDark ? const Color(0xFF1b2734) : Colors.white;
     // Spec §4.4: bottom divider same as top bar shadow.
-    final shadowFg = isDark ? const Color(0x5604080e) : const Color(0x18000000);
+    final shadowFg = context.palette.shadowFg;
     // Spec §4.4: left accent stripe in msgInReplyBarColor.
     // Day = activeLineFg (~#168acd). Night ≈ #429bdb.
     final accentColor = isDark ? const Color(0xFF429bdb) : const Color(0xFF168acd);
@@ -13381,15 +13372,10 @@ class _ComposeAreaState extends State<_ComposeArea>
     }
 
     final isDark = theme.brightness == Brightness.dark;
-    final composeBg = isDark
-        ? AppColors.historyComposeAreaBgNight
-        : AppColors.historyComposeAreaBg;
-    final iconFg = isDark
-        ? AppColors.historyComposeIconFgNight
-        : AppColors.historyComposeIconFg;
-    final iconFgOver = isDark
-        ? AppColors.historyComposeIconFgOverNight
-        : AppColors.historyComposeIconFgOver;
+    final pal = context.palette;
+    final composeBg = pal.historyComposeAreaBg;
+    final iconFg = pal.historyComposeIconFg;
+    final iconFgOver = pal.historyComposeIconFgOver;
 
     if (_isRecording) {
       final recordBar = Container(
