@@ -259,6 +259,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _localPremium = false;
   bool _disableAds = true;
 
+  // §54.15: Other settings.
+  bool _crashReporting = true;
+
   // §50.7: Per-peer read exclusions. Key: "accountId:chatId", value: 0=default, 1=neverRead, 2=alwaysRead.
   Map<String, int> _readExclusions = {};
 
@@ -489,6 +492,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get replaceMarksWithIcons => _replaceMarksWithIcons;
   bool get localPremium => _localPremium;
   bool get disableAds => _disableAds;
+  bool get crashReporting => _crashReporting;
 
   // §25.15 AyuGram setters
   void setBubbleRadius(int v) {
@@ -957,6 +961,101 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _disableAds = v;
     notifyListeners();
     _saveWindowPrefs();
+  }
+
+  void setCrashReporting(bool v) {
+    if (_crashReporting == v) return;
+    _crashReporting = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void resetAyuSettings() {
+    _bubbleRadius = 16;
+    _removeTail = false;
+    _materialSwitches = true;
+    _avatarCorners = 23;
+    _singleCornerRadius = false;
+    _disableCustomBackgrounds = false;
+    _hidePremiumStatuses = false;
+    _monoFont = '';
+    _hideNotificationCounters = false;
+    _hideAllChatsFolder = false;
+    _hideNotificationBadge = false;
+    _appIcon = '';
+    _simpleQuotes = false;
+    _semiTransparentDeleted = false;
+    _wideMultiplier = 1.0;
+    _showDrawerThemeToggle = true;
+    _showMyProfileInDrawer = true;
+    _showBotsInDrawer = true;
+    _showNewGroupInDrawer = true;
+    _showNewChannelInDrawer = true;
+    _showContactsInDrawer = true;
+    _showCallsInDrawer = true;
+    _showSavedMessagesInDrawer = true;
+    _showStreamerToggleInDrawer = false;
+    _showStreamerToggleInTray = false;
+    _showGhostToggleInDrawer = true;
+    _showGhostToggleInTray = true;
+    _showLReadToggleInDrawer = false;
+    _showSReadToggleInDrawer = true;
+    _useGlobalGhostMode = true;
+    _ghostModeSettings = {'0': GhostModeAccountSettings()};
+    _showViewsPanelInContextMenu = 0;
+    _showRepeatMessageInContextMenu = 1;
+    _showReactionsPanelInContextMenu = 0;
+    _showHideMessageInContextMenu = 1;
+    _showUserMessagesInContextMenu = 2;
+    _showMessageDetailsInContextMenu = 2;
+    _showAddFilterInContextMenu = 0;
+    _showMessageSeconds = false;
+    _translationProvider = 0;
+    _disableStories = false;
+    _disableOpenLinkWarning = false;
+    _collapseSimilarChannels = true;
+    _hideSimilarChannelsTab = false;
+    _disableNotifyDelay = false;
+    _filterZalgo = true;
+    _improveLinkPreviews = false;
+    _showPeerId = 2;
+    _spoofClientAsAndroid = false;
+    _increaseContentHeight = false;
+    _increaseContentWidth = false;
+    _confirmStickers = false;
+    _confirmGifs = false;
+    _confirmVoiceMessages = false;
+    _showAttachButton = true;
+    _showCommandsButton = true;
+    _showAutoDeleteButton = true;
+    _showEmojiButton = true;
+    _showMicrophoneButton = true;
+    _showGiftButton = true;
+    _showAiEditorButton = true;
+    _showAttachPopup = true;
+    _showEmojiPopup = true;
+    _showOnlyAddedEmojisAndStickers = false;
+    _showChannelReactions = true;
+    _showGroupReactions = true;
+    _showPrivateChatReactions = true;
+    _recentStickersCount = 100;
+    _channelBottomButton = 2;
+    _quickAdminShortcuts = true;
+    _showMessageShot = true;
+    _hideFastShare = false;
+    _saveDeletedMessages = true;
+    _saveMessagesHistory = true;
+    _saveForBots = false;
+    _deletedMark = '\u{1F9F9}';
+    _editedMark = '';
+    _replaceMarksWithIcons = true;
+    _localPremium = false;
+    _disableAds = true;
+    _crashReporting = true;
+    _readExclusions = {};
+    notifyListeners();
+    _saveWindowPrefs();
+    _syncGhostToEngine();
   }
 
   void _syncGhostToEngine() {
@@ -2304,6 +2403,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _replaceMarksWithIcons = data['replaceMarksWithIcons'] as bool? ?? true;
       _localPremium = data['localPremium'] as bool? ?? false;
       _disableAds = data['disableAds'] as bool? ?? true;
+      _crashReporting = data['crashReporting'] as bool? ?? true;
       final rawExcl = data['readExclusions'] as Map<String, dynamic>?;
       if (rawExcl != null) {
         _readExclusions = rawExcl.map((k, v) => MapEntry(k, (v as int?) ?? 0));
@@ -2433,6 +2533,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'replaceMarksWithIcons': _replaceMarksWithIcons,
         'localPremium': _localPremium,
         'disableAds': _disableAds,
+        'crashReporting': _crashReporting,
         'readExclusions': _readExclusions,
         'wallpaperType': _wallpaper.type.index,
         'wallpaperColors': _wallpaper.backgroundColors
