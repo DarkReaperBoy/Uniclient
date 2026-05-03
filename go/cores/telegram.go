@@ -21322,8 +21322,9 @@ func (t *TelegramCore) GetMessageStatsJSON(chatID string, msgID int) (map[string
 	peer, err := t.resolvePeer(chatID); if err != nil { return nil, err }
 	ch, ok := peer.(*tg.PeerChannel); if !ok { return nil, fmt.Errorf("not a channel") }
 	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
+	inputCh := &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash}
 	result, err := t.api.StatsGetMessageStats(t.ctx, &tg.StatsGetMessageStatsRequest{
-		Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
+		Channel: inputCh,
 		MsgID: msgID,
 	})
 	if err != nil { return nil, err }
@@ -21334,7 +21335,85 @@ func (t *TelegramCore) GetMessageStatsJSON(chatID string, msgID int) (map[string
 	if c := statsGraphToMap("Reactions By Emotion", result.ReactionsByEmotionGraph, "Bar"); c != nil {
 		charts = append(charts, c)
 	}
-	return map[string]interface{}{"charts": charts}, nil
+	out := map[string]interface{}{"charts": charts}
+
+	fwds, ferr := t.api.StatsGetMessagePublicForwards(t.ctx, &tg.StatsGetMessagePublicForwardsRequest{
+		Channel: inputCh,
+		MsgID:   msgID,
+		Limit:   50,
+	})
+	if ferr == nil && fwds != nil {
+		out["public_forwards_count"] = fwds.Count
+		chatMap := map[int64]tg.ChatClass{}
+		for _, c := range fwds.Chats {
+			switch v := c.(type) {
+			case *tg.Chat:
+				chatMap[v.ID] = v
+			case *tg.Channel:
+				chatMap[v.ID] = v
+			}
+		}
+		userMap := map[int64]tg.UserClass{}
+		for _, u := range fwds.Users {
+			if usr, ok := u.(*tg.User); ok {
+				userMap[usr.ID] = usr
+			}
+		}
+		var forwards []map[string]interface{}
+		for _, f := range fwds.Forwards {
+			switch pf := f.(type) {
+			case *tg.PublicForwardMessage:
+				msg, ok := pf.Message.(*tg.Message)
+				if !ok { continue }
+				row := map[string]interface{}{"type": "message"}
+				var peerID int64
+				switch p := msg.PeerID.(type) {
+				case *tg.PeerChannel:
+					peerID = p.ChannelID
+				case *tg.PeerChat:
+					peerID = p.ChatID
+				case *tg.PeerUser:
+					peerID = p.UserID
+				}
+				if ch, ok := chatMap[peerID]; ok {
+					switch v := ch.(type) {
+					case *tg.Channel:
+						row["name"] = v.Title
+						row["peer_id"] = fmt.Sprintf("channel_%d", v.ID)
+					case *tg.Chat:
+						row["name"] = v.Title
+						row["peer_id"] = fmt.Sprintf("chat_%d", v.ID)
+					}
+				} else if u, ok := userMap[peerID]; ok {
+					if usr, ok := u.(*tg.User); ok {
+						name := usr.FirstName
+						if usr.LastName != "" { name += " " + usr.LastName }
+						row["name"] = name
+						row["peer_id"] = fmt.Sprintf("user_%d", usr.ID)
+					}
+				}
+				row["msg_id"] = msg.ID
+				row["views"] = msg.Views
+				row["date"] = msg.Date
+				forwards = append(forwards, row)
+			case *tg.PublicForwardStory:
+				row := map[string]interface{}{"type": "story"}
+				switch p := pf.Peer.(type) {
+				case *tg.PeerChannel:
+					if ch, ok := chatMap[p.ChannelID]; ok {
+						if v, ok := ch.(*tg.Channel); ok {
+							row["name"] = v.Title
+							row["peer_id"] = fmt.Sprintf("channel_%d", v.ID)
+						}
+					}
+				}
+				forwards = append(forwards, row)
+			}
+		}
+		out["public_forwards"] = forwards
+	}
+
+	return out, nil
 }
 
 // StatsGetStoryPublicForwards returns public forwards of a story.

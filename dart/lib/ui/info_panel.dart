@@ -6494,6 +6494,8 @@ class _MessageStatsPageState extends State<_MessageStatsPage> {
   bool _loading = true;
   String? _error;
   List<StatsChartData> _charts = [];
+  int _publicForwardsCount = 0;
+  List<Map<String, dynamic>> _publicForwards = [];
 
   @override
   void initState() {
@@ -6521,7 +6523,16 @@ class _MessageStatsPageState extends State<_MessageStatsPage> {
           if (parsed != null) charts.add(parsed);
         }
       }
-      setState(() { _charts = charts; _loading = false; });
+      final pfCount = data['public_forwards_count'] as int? ?? 0;
+      final pfList = (data['public_forwards'] as List<dynamic>?)
+          ?.whereType<Map<String, dynamic>>()
+          .toList() ?? [];
+      setState(() {
+        _charts = charts;
+        _publicForwardsCount = pfCount;
+        _publicForwards = pfList;
+        _loading = false;
+      });
     } catch (e) {
       if (mounted) setState(() { _error = e.toString(); _loading = false; });
     }
@@ -6530,8 +6541,10 @@ class _MessageStatsPageState extends State<_MessageStatsPage> {
   @override
   Widget build(BuildContext context) {
     final views = widget.postData['views'] as int? ?? 0;
-    final forwards = widget.postData['forwards'] as int? ?? 0;
+    final totalForwards = widget.postData['forwards'] as int? ?? 0;
     final reactions = widget.postData['reactions'] as int? ?? 0;
+    final publicShares = _loading ? totalForwards : _publicForwardsCount;
+    final privateShares = _loading ? 0 : (totalForwards - _publicForwardsCount).clamp(0, totalForwards);
 
     return Column(
       children: [
@@ -6588,7 +6601,7 @@ class _MessageStatsPageState extends State<_MessageStatsPage> {
                   label: 'Views',
                 ),
                 _OverviewCellData(
-                  value: _fmtCount(forwards),
+                  value: _fmtCount(publicShares),
                   change: null, growth: 0,
                   label: 'Public Shares',
                 ),
@@ -6597,8 +6610,8 @@ class _MessageStatsPageState extends State<_MessageStatsPage> {
                   change: null, growth: 0,
                   label: 'Reactions',
                 ),
-                const _OverviewCellData(
-                  value: '—',
+                _OverviewCellData(
+                  value: _loading ? '...' : _fmtCount(privateShares),
                   change: null, growth: 0,
                   label: 'Private Shares',
                 ),
@@ -6611,13 +6624,24 @@ class _MessageStatsPageState extends State<_MessageStatsPage> {
                 const SizedBox(height: 16),
                 Text(_error!, style: TextStyle(fontSize: 12,
                   color: widget.theme.colorScheme.error)),
-              ] else
+              ] else ...[
                 for (final chart in _charts) ...[
                   const SizedBox(height: 13),
                   Divider(height: 1, color: widget.theme.dividerColor),
                   const SizedBox(height: 13),
                   StatsChartWidget(data: chart, theme: widget.theme),
                 ],
+                if (_publicForwards.isNotEmpty) ...[
+                  const SizedBox(height: 13),
+                  Divider(height: 1, color: widget.theme.dividerColor),
+                  const SizedBox(height: 13),
+                  _PublicForwardsSection(
+                    forwards: _publicForwards,
+                    totalCount: _publicForwardsCount,
+                    theme: widget.theme,
+                  ),
+                ],
+              ],
               const SizedBox(height: 20),
             ],
           ),
@@ -6653,41 +6677,254 @@ class _MessagePreviewRow extends StatelessWidget {
     final thumbB64 = post['thumb_b64'] as String? ?? '';
     final dateStr = _RecentMessageRow._formatPostDate(date);
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          _PostThumbnail(
-            mediaType: mediaType,
-            thumbB64: thumbB64,
-            chat: chat,
-            theme: theme,
-          ),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  text.isNotEmpty ? text : _RecentMessageRow._mediaLabel(mediaType),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 13, color: theme.textTheme.bodyLarge?.color),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  dateStr,
-                  style: TextStyle(fontSize: 11, color: theme.textTheme.bodySmall?.color),
-                ),
-              ],
+    return GestureDetector(
+      onSecondaryTapDown: (details) => _showContextMenu(context, details.globalPosition),
+      onLongPressStart: (details) => _showContextMenu(context, details.globalPosition),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            _PostThumbnail(
+              mediaType: mediaType,
+              thumbB64: thumbB64,
+              chat: chat,
+              theme: theme,
             ),
-          ),
-        ],
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    text.isNotEmpty ? text : _RecentMessageRow._mediaLabel(mediaType),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 13, color: theme.textTheme.bodyLarge?.color),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    dateStr,
+                    style: TextStyle(fontSize: 11, color: theme.textTheme.bodySmall?.color),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+
+  void _showContextMenu(BuildContext context, Offset position) {
+    final msgId = post['msg_id']?.toString() ?? '';
+    final date = post['date'] as int? ?? 0;
+    showTelegramMenu<String>(
+      context: context,
+      position: position,
+      items: [
+        TelegramMenuItem(
+          value: 'show_in_chat',
+          icon: const Icon(Icons.chat_bubble_outline, size: 20),
+          label: 'Show in Chat',
+        ),
+      ],
+    ).then((value) {
+      if (value == 'show_in_chat' && msgId.isNotEmpty && date > 0 && context.mounted) {
+        final chatState = context.read<ChatState>();
+        chatState.jumpToMessage(date * 1000, highlightMsgId: msgId);
+      }
+    });
+  }
+}
+
+class _PublicForwardsSection extends StatelessWidget {
+  final List<Map<String, dynamic>> forwards;
+  final int totalCount;
+  final ThemeData theme;
+
+  const _PublicForwardsSection({
+    required this.forwards,
+    required this.totalCount,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final subColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Public Shares',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: theme.textTheme.bodyLarge?.color,
+                ),
+              ),
+            ),
+            Text(
+              totalCount.toString(),
+              style: TextStyle(fontSize: 13, color: subColor),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        for (final fwd in forwards)
+          _PublicForwardRow(forward: fwd, theme: theme),
+      ],
+    );
+  }
+}
+
+class _PublicForwardRow extends StatelessWidget {
+  final Map<String, dynamic> forward;
+  final ThemeData theme;
+
+  const _PublicForwardRow({
+    required this.forward,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final name = forward['name'] as String? ?? 'Unknown';
+    final isStory = forward['type'] == 'story';
+    final views = forward['views'] as int?;
+    final subColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
+
+    return InkWell(
+      onTap: () {},
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            if (isStory)
+              _StoryRingAvatar(name: name, size: 36)
+            else
+              _ForwardAvatar(name: name, size: 36),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: theme.textTheme.bodyLarge?.color,
+                    ),
+                  ),
+                  if (views != null) ...[
+                    const SizedBox(height: 1),
+                    Text(
+                      '${_fmtViews(views)} views',
+                      style: TextStyle(fontSize: 11, color: subColor),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _fmtViews(int n) {
+    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+    if (n >= 10000) return '${(n / 1000).toStringAsFixed(1)}K';
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(2)}K';
+    return n.toString();
+  }
+}
+
+class _ForwardAvatar extends StatelessWidget {
+  final String name;
+  final double size;
+
+  const _ForwardAvatar({required this.name, required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _avatarColor(name);
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+      child: Center(
+        child: Text(
+          initial,
+          style: TextStyle(color: Colors.white, fontSize: size * 0.45, fontWeight: FontWeight.w600),
+        ),
+      ),
+    );
+  }
+
+  static Color _avatarColor(String name) {
+    const colors = [
+      Color(0xFFE17076), Color(0xFF7BC862), Color(0xFFE5CA77), Color(0xFF65AADD),
+      Color(0xFFA695E7), Color(0xFFEE7AAE), Color(0xFF6EC9CB), Color(0xFFE17076),
+    ];
+    return colors[name.hashCode.abs() % colors.length];
+  }
+}
+
+class _StoryRingAvatar extends StatelessWidget {
+  final String name;
+  final double size;
+
+  const _StoryRingAvatar({required this.name, required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    final color = _ForwardAvatar._avatarColor(name);
+    return CustomPaint(
+      painter: _StoryRingPainter(),
+      child: Padding(
+        padding: const EdgeInsets.all(3),
+        child: Container(
+          width: size - 6,
+          height: size - 6,
+          decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+          child: Center(
+            child: Text(
+              initial,
+              style: TextStyle(color: Colors.white, fontSize: (size - 6) * 0.45, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StoryRingPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final gradient = SweepGradient(
+      colors: const [Color(0xFF34C759), Color(0xFF007AFF), Color(0xFF34C759)],
+    );
+    final paint = Paint()
+      ..shader = gradient.createShader(rect)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    canvas.drawOval(rect.deflate(1), paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
