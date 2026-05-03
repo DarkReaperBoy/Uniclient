@@ -185,6 +185,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _useGlobalGhostMode = true;
   Map<String, GhostModeAccountSettings> _ghostModeSettings = {'0': GhostModeAccountSettings()};
   int _showViewsPanelInContextMenu = 0; // 0=visible, 1=hidden, 2=visibleWithModifier
+  int _showRepeatMessageInContextMenu = 1; // 0=visible, 1=hidden, 2=visibleWithModifier (default: hidden per §53.3)
   bool _showMessageSeconds = false;
 
   // §51.4: Spy essentials + Other section settings.
@@ -355,6 +356,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get sendUploadProgressLocked => _ghostSettings.sendUploadProgressLocked;
   bool get sendOfflinePacketAfterOnlineLocked => _ghostSettings.sendOfflinePacketAfterOnlineLocked;
   int get showViewsPanelInContextMenu => _showViewsPanelInContextMenu;
+  int get showRepeatMessageInContextMenu => _showRepeatMessageInContextMenu;
   bool get showMessageSeconds => _showMessageSeconds;
   bool get saveDeletedMessages => _saveDeletedMessages;
   bool get saveMessagesHistory => _saveMessagesHistory;
@@ -770,6 +772,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setShowViewsPanelInContextMenu(int v) {
     if (_showViewsPanelInContextMenu == v) return;
     _showViewsPanelInContextMenu = v.clamp(0, 2);
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setShowRepeatMessageInContextMenu(int v) {
+    if (_showRepeatMessageInContextMenu == v) return;
+    _showRepeatMessageInContextMenu = v.clamp(0, 2);
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -1746,6 +1755,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         };
       }
       _showViewsPanelInContextMenu = data['showViewsPanelInContextMenu'] as int? ?? 0;
+      _showRepeatMessageInContextMenu = data['showRepeatMessageInContextMenu'] as int? ?? 1;
       _showMessageSeconds = data['showMessageSeconds'] as bool? ?? false;
       _saveDeletedMessages = data['saveDeletedMessages'] as bool? ?? true;
       _saveMessagesHistory = data['saveMessagesHistory'] as bool? ?? true;
@@ -1821,6 +1831,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'useGlobalGhostMode': _useGlobalGhostMode,
         'ghostModeSettings': _ghostModeSettings.map((k, v) => MapEntry(k, v.toJson())),
         'showViewsPanelInContextMenu': _showViewsPanelInContextMenu,
+        'showRepeatMessageInContextMenu': _showRepeatMessageInContextMenu,
         'showMessageSeconds': _showMessageSeconds,
         'saveDeletedMessages': _saveDeletedMessages,
         'saveMessagesHistory': _saveMessagesHistory,

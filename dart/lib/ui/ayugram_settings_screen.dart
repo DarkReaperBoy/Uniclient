@@ -84,6 +84,17 @@ class _AyuGramSettingsScreenState extends State<AyuGramSettingsScreen> {
             onChanged: (v) => appState.setShowViewsPanelInContextMenu(v),
             isDark: isDark,
           ),
+          _DropdownRow(
+            label: 'Repeat Message in context menu',
+            value: appState.showRepeatMessageInContextMenu,
+            items: const {
+              0: 'Always visible',
+              1: 'Hidden',
+              2: 'Visible with Ctrl/Shift',
+            },
+            onChanged: (v) => appState.setShowRepeatMessageInContextMenu(v),
+            isDark: isDark,
+          ),
           Container(height: 1, color: dividerColor),
           const SizedBox(height: 7),
 

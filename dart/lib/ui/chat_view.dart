@@ -1320,7 +1320,8 @@ class _ChatViewState extends State<ChatView>
           const TelegramMenuItem(value: 'hide_message', icon: Icon(Icons.visibility_off), label: 'Hide Message'),
         if (isGroupOrChannel && msg.senderId.isNotEmpty)
           TelegramMenuItem(value: 'user_messages', icon: const Icon(Icons.person_search), label: "${msg.senderName.split(' ').first}'s Messages"),
-        const TelegramMenuItem(value: 'repeat_message', icon: Icon(Icons.repeat), label: 'Repeat Message'),
+        if (_shouldShowRepeatMessage(msg, chat))
+          const TelegramMenuItem(value: 'repeat_message', icon: Icon(Icons.repeat), label: 'Repeat Message'),
         const TelegramMenuItem(value: 'message_details', icon: Icon(Icons.info_outline), label: 'Message Details'),
         if (msg.reactions.isNotEmpty && _shouldShowViewsPanel())
           const TelegramMenuItem(value: 'who_reacted', icon: Icon(Icons.favorite_outline), label: 'Who Reacted'),
@@ -1975,14 +1976,35 @@ class _ChatViewState extends State<ChatView>
     );
   }
 
-  // AyuGram §9.6: Repeat Message — re-send the message content.
   void _repeatMessage(ChatState chatState, CachedMessage msg) {
-    if (msg.contentText.isNotEmpty) {
-      chatState.sendMessage(msg.contentText);
-    } else if (msg.hasMedia && msg.forwardFrom.isNotEmpty) {
-      _forwardSingle(context, chatState, msg.msgId);
-    } else if (msg.contentText.isNotEmpty || msg.hasMedia) {
-      chatState.sendMessage(msg.contentText.isNotEmpty ? msg.contentText : '[Repeated message]');
+    final chat = chatState.activeChat;
+    if (chat == null) return;
+    final appState = context.read<AppState>();
+    final isShift = HardwareKeyboard.instance.logicalKeysPressed.contains(LogicalKeyboardKey.shiftLeft) ||
+        HardwareKeyboard.instance.logicalKeysPressed.contains(LogicalKeyboardKey.shiftRight);
+    final ghostSchedule = appState.useScheduledMessages ? 0x7FFFFFFE : 0;
+    final silent = appState.sendWithoutSound;
+
+    if (isShift) {
+      final engine = context.read<EngineService>();
+      engine.resendAsOwn(
+        chat.accountId, chat.chatId, msg.msgId, chat.chatId,
+        silent: silent, scheduleDate: ghostSchedule,
+      ).then((_) {
+        chatState.refreshMessages();
+        if (mounted) showTelegramToast(context, 'Message sent as own');
+      }).catchError((e) {
+        if (mounted) showTelegramToast(context, 'Failed: $e');
+      });
+    } else {
+      chatState.forwardMessages(
+        [msg.msgId], chat.chatId,
+        silent: silent, scheduleDate: ghostSchedule,
+      ).then((_) {
+        if (mounted) showTelegramToast(context, 'Message forwarded');
+      }).catchError((e) {
+        if (mounted) showTelegramToast(context, 'Failed: $e');
+      });
     }
   }
 
@@ -2049,6 +2071,21 @@ class _ChatViewState extends State<ChatView>
           keys.contains(LogicalKeyboardKey.shiftRight);
     }
     return true; // visible (0)
+  }
+
+  bool _shouldShowRepeatMessage(CachedMessage msg, ChatInfo? chat) {
+    if (msg.isService) return false;
+    if (chat?.type == ChatType.channel) return false;
+    final mode = context.read<AppState>().showRepeatMessageInContextMenu;
+    if (mode == 1) return false;
+    if (mode == 2) {
+      final keys = HardwareKeyboard.instance.logicalKeysPressed;
+      return keys.contains(LogicalKeyboardKey.controlLeft) ||
+          keys.contains(LogicalKeyboardKey.controlRight) ||
+          keys.contains(LogicalKeyboardKey.shiftLeft) ||
+          keys.contains(LogicalKeyboardKey.shiftRight);
+    }
+    return true;
   }
 
   String _readReceiptLabel(CachedMessage msg) {
