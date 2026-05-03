@@ -25,9 +25,10 @@ class StatsChartData {
     this.currency,
   });
 
-  static StatsChartData? fromMap(Map<String, dynamic> map) {
+  static StatsChartData? fromMap(Map<String, dynamic> map, {String? parentChartType}) {
     final title = map['title'] as String? ?? '';
-    final chartType = map['type'] as String? ?? 'Linear';
+    final rawType = map['type'] as String? ?? '';
+    final chartType = rawType.isNotEmpty ? rawType : (parentChartType ?? 'Linear');
     final dataStr = map['data'] as String?;
     if (dataStr == null || dataStr.isEmpty) return null;
 
@@ -126,12 +127,16 @@ class StatsChartWidget extends StatefulWidget {
   final StatsChartData data;
   final ThemeData theme;
   final void Function(int index)? onZoom;
+  final Future<StatsChartData?> Function(String token, int timestamp)? onLoadZoomData;
+  final bool hideHeader;
 
   const StatsChartWidget({
     super.key,
     required this.data,
     required this.theme,
     this.onZoom,
+    this.onLoadZoomData,
+    this.hideHeader = false,
   });
 
   @override
@@ -165,6 +170,10 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
   int? _pieDataIndex;
   int _pieHoverSlice = -1;
 
+  StatsChartData? _serverZoomedData;
+  bool _serverZoomLoading = false;
+  late AnimationController _serverZoomAnim;
+
   @override
   void initState() {
     super.initState();
@@ -192,6 +201,10 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
       vsync: this,
       duration: const Duration(milliseconds: 400),
     )..addListener(() => setState(() {}));
+    _serverZoomAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    )..addListener(() => setState(() {}));
   }
 
   @override
@@ -207,6 +220,8 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
   bool get _isPieActive =>
       _pieDataIndex != null && widget.data.chartType == 'StackLinear';
 
+  bool get _isServerZoomed => _serverZoomedData != null;
+
   void _enterPieMode(int dataIndex) {
     setState(() {
       _pieDataIndex = dataIndex;
@@ -221,11 +236,48 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
     });
   }
 
+  void _requestServerZoom(int index) async {
+    final token = widget.data.zoomToken;
+    if (token == null || token.isEmpty) return;
+    if (widget.onLoadZoomData == null) {
+      widget.onZoom?.call(index);
+      return;
+    }
+
+    final ts = widget.data.timestamps[index];
+    final timestamp = ts.abs() > 1e12 ? ts ~/ 1000 : ts;
+
+    setState(() => _serverZoomLoading = true);
+    try {
+      final data = await widget.onLoadZoomData!(token, timestamp);
+      if (!mounted) return;
+      if (data == null) {
+        setState(() => _serverZoomLoading = false);
+        return;
+      }
+      setState(() {
+        _serverZoomedData = data;
+        _serverZoomLoading = false;
+        _selectedIndex = null;
+      });
+      _serverZoomAnim.forward(from: 0);
+    } catch (_) {
+      if (mounted) setState(() => _serverZoomLoading = false);
+    }
+  }
+
+  void _exitServerZoom() {
+    _serverZoomAnim.reverse().then((_) {
+      if (mounted) setState(() => _serverZoomedData = null);
+    });
+  }
+
   @override
   void dispose() {
     _animController.dispose();
     _rulerAnimController.dispose();
     _pieAnimController.dispose();
+    _serverZoomAnim.dispose();
     super.dispose();
   }
 
@@ -317,6 +369,17 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
         '${de.day} ${_months[de.month - 1]} ${de.year}';
   }
 
+  String _zoomedDateRange() {
+    if (_serverZoomedData == null) return '';
+    final zd = _serverZoomedData!;
+    if (zd.timestamps.isEmpty) return '';
+    final ds = _toDate(zd.timestamps.first);
+    final de = _toDate(zd.timestamps.last);
+    return '${ds.day} ${_months[ds.month - 1]} ${ds.year}'
+        ' – '
+        '${de.day} ${_months[de.month - 1]} ${de.year}';
+  }
+
   @override
   Widget build(BuildContext context) {
     _updateRulerRange();
@@ -328,8 +391,16 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
         ? Curves.easeOutCirc.transform(_pieAnimController.value)
         : (_pieDataIndex != null ? Curves.easeOutCirc.transform(_pieAnimController.value) : 0.0);
 
+    final serverZoomT = (_isServerZoomed || _serverZoomAnim.isAnimating)
+        ? Curves.easeOutCirc.transform(_serverZoomAnim.value)
+        : 0.0;
+
+    final showZoomOut = _isPieActive || _isServerZoomed;
+
     String subtitleText = _visibleDateRange();
-    if (_isPieActive && _pieDataIndex != null) {
+    if (_isServerZoomed) {
+      subtitleText = _zoomedDateRange();
+    } else if (_isPieActive && _pieDataIndex != null) {
       final dt = _toDate(widget.data.timestamps[_pieDataIndex!]);
       if (widget.data.weekFormat) {
         final dtEnd = dt.add(const Duration(days: 6));
@@ -343,57 +414,90 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          height: _kHeaderHeight,
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      widget.data.title,
-                      style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: textColor),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      subtitleText,
-                      style: TextStyle(fontSize: 11, color: subtitleColor),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+        if (!widget.hideHeader)
+          SizedBox(
+            height: _kHeaderHeight,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        widget.data.title,
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: textColor),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        subtitleText,
+                        style: TextStyle(fontSize: 11, color: subtitleColor),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              if (_isPieActive)
-                GestureDetector(
-                  onTap: _exitPieMode,
-                  child: Container(
-                    height: 20,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    decoration: BoxDecoration(
-                      color: widget.theme.colorScheme.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
+                if (_serverZoomLoading)
+                  const Padding(
+                    padding: EdgeInsets.only(right: 8),
+                    child: SizedBox(
+                      width: 16, height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
                     ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      'Zoom Out',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: widget.theme.colorScheme.primary,
+                  ),
+                if (showZoomOut)
+                  GestureDetector(
+                    onTap: _isServerZoomed ? _exitServerZoom : _exitPieMode,
+                    child: Container(
+                      height: 20,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      decoration: BoxDecoration(
+                        color: widget.theme.colorScheme.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        'Zoom Out',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: widget.theme.colorScheme.primary,
+                        ),
                       ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
-        ),
+        if (serverZoomT < 1.0) ...[
+          Opacity(
+            opacity: _isServerZoomed ? 1.0 - serverZoomT : 1.0,
+            child: _buildOriginalChartBody(isDark, pieT),
+          ),
+        ],
+        if (_serverZoomedData != null && serverZoomT > 0)
+          Opacity(
+            opacity: serverZoomT,
+            child: StatsChartWidget(
+              key: ValueKey('zoomed_${widget.data.title}'),
+              data: _serverZoomedData!,
+              theme: widget.theme,
+              hideHeader: true,
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildOriginalChartBody(bool isDark, double pieT) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         SizedBox(
           height: _kChartHeight,
           child: LayoutBuilder(builder: (ctx, box) {
@@ -643,7 +747,7 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
         borderRadius: BorderRadius.circular(_kTooltipRadius),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: zoomEnabled ? () => widget.onZoom?.call(idx) : null,
+          onTap: zoomEnabled ? () => _requestServerZoom(idx) : null,
           borderRadius: BorderRadius.circular(_kTooltipRadius),
           child: SizedBox(width: _kTooltipWidth, child: content),
         ),

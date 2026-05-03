@@ -5464,6 +5464,18 @@ class _StatisticsPageState extends State<_StatisticsPage>
     }
   }
 
+  Future<StatsChartData?> _loadZoomData(String token, int timestamp, String parentChartType) async {
+    try {
+      final engine = context.read<EngineService>();
+      final data = await engine.loadStatsGraph(
+        widget.chat.accountId, token, x: timestamp,
+      );
+      return StatsChartData.fromMap(data, parentChartType: parentChartType);
+    } catch (_) {
+      return null;
+    }
+  }
+
   String _formatDateRange() {
     if (_stats == null) return '';
     final minDate = _stats!['period_min'] as int?;
@@ -5631,7 +5643,11 @@ class _StatisticsPageState extends State<_StatisticsPage>
           const SizedBox(height: 13),
           Divider(height: 1, color: widget.theme.dividerColor),
           const SizedBox(height: 13),
-          StatsChartWidget(data: chart, theme: widget.theme),
+          StatsChartWidget(
+            data: chart,
+            theme: widget.theme,
+            onLoadZoomData: (token, timestamp) => _loadZoomData(token, timestamp, chart.chartType),
+          ),
         ],
         if (isChannel && recentPosts.isNotEmpty) ...[
           const SizedBox(height: 13),
@@ -6538,6 +6554,18 @@ class _MessageStatsPageState extends State<_MessageStatsPage> {
     }
   }
 
+  Future<StatsChartData?> _loadZoomData(String token, int timestamp, String parentChartType) async {
+    try {
+      final engine = context.read<EngineService>();
+      final data = await engine.loadStatsGraph(
+        widget.chat.accountId, token, x: timestamp,
+      );
+      return StatsChartData.fromMap(data, parentChartType: parentChartType);
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final views = widget.postData['views'] as int? ?? 0;
@@ -6629,7 +6657,11 @@ class _MessageStatsPageState extends State<_MessageStatsPage> {
                   const SizedBox(height: 13),
                   Divider(height: 1, color: widget.theme.dividerColor),
                   const SizedBox(height: 13),
-                  StatsChartWidget(data: chart, theme: widget.theme),
+                  StatsChartWidget(
+                    data: chart,
+                    theme: widget.theme,
+                    onLoadZoomData: (token, timestamp) => _loadZoomData(token, timestamp, chart.chartType),
+                  ),
                 ],
                 if (_publicForwards.isNotEmpty) ...[
                   const SizedBox(height: 13),

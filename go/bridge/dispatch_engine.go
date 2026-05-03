@@ -3617,6 +3617,21 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(stats)
 
+	case "LoadStatsGraphEngine":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Token     string `json:"token"`
+			X         int64  `json:"x"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		graph, err := e.LoadStatsGraph(params.AccountID, params.Token, params.X)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(graph)
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}

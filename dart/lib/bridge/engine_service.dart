@@ -1569,6 +1569,17 @@ class EngineService {
     return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> loadStatsGraph(String accountId, String token, {int x = 0}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'token': token,
+      'x': x,
+    }));
+    final respBytes = await _callAsync('__engine', 'LoadStatsGraphEngine', Uint8List.fromList(payload));
+    if (respBytes.isEmpty) return {};
+    return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+  }
+
   // ── Stories ──
 
   Future<List<StoryItem>> fetchPeerStories(String accountId, String peerId) async {

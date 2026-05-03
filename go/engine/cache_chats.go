@@ -1318,6 +1318,10 @@ type MessageStatsGetter interface {
 	GetMessageStatsJSON(chatID string, msgID int) (map[string]interface{}, error)
 }
 
+type StatsGraphLoader interface {
+	LoadStatsGraph(token string, x int64) (map[string]interface{}, error)
+}
+
 func (e *Engine) GetBroadcastStats(accountID, chatID string) (map[string]interface{}, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -1361,4 +1365,19 @@ func (e *Engine) GetMessageStats(accountID, chatID string, msgID int) (map[strin
 		return nil, fmt.Errorf("platform does not support message stats")
 	}
 	return getter.GetMessageStatsJSON(chatID, msgID)
+}
+
+func (e *Engine) LoadStatsGraph(accountID, token string, x int64) (map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	loader, ok := acc.Core.(StatsGraphLoader)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support stats graph loading")
+	}
+	return loader.LoadStatsGraph(token, x)
 }

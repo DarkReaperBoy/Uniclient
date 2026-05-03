@@ -21437,6 +21437,21 @@ func (t *TelegramCore) StatsLoadAsyncGraph(request *tg.StatsLoadAsyncGraphReques
 	return t.api.StatsLoadAsyncGraph(t.ctx, request)
 }
 
+// LoadStatsGraph loads a stats graph by zoom token and optional X timestamp.
+func (t *TelegramCore) LoadStatsGraph(token string, x int64) (map[string]interface{}, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return nil, ErrAuth }
+	req := &tg.StatsLoadAsyncGraphRequest{Token: token}
+	if x != 0 {
+		req.SetX(x)
+	}
+	result, err := t.api.StatsLoadAsyncGraph(t.ctx, req)
+	if err != nil { return nil, err }
+	m := statsGraphToMap("", result, "")
+	if m == nil { return nil, fmt.Errorf("graph returned empty or error") }
+	return m, nil
+}
+
 // --- Stickers (11 methods) ---
 
 // StickersAddStickerToSet adds a new sticker to an existing sticker set.
