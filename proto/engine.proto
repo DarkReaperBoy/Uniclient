@@ -427,6 +427,15 @@ message EngineResendAsOwnRequest {
   int64  schedule_date   = 6;
 }
 
+message EngineResendAlbumAsOwnRequest {
+  string account_id      = 1;
+  string source_chat_id  = 2;
+  repeated string msg_ids = 3;
+  string to_chat_id      = 4;
+  bool   silent          = 5;
+  int64  schedule_date   = 6;
+}
+
 message EngineSendContactRequest {
   string account_id  = 1;
   string to_chat_id  = 2;

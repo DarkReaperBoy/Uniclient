@@ -32,6 +32,7 @@ import (
 	"github.com/gotd/td/telegram/dcs"
 	"github.com/gotd/td/telegram/downloader"
 	"github.com/gotd/td/telegram/message"
+	"github.com/gotd/td/telegram/message/styling"
 	"github.com/gotd/td/telegram/uploader"
 	"github.com/gotd/td/tgerr"
 	"github.com/gotd/td/tg"
@@ -1523,39 +1524,35 @@ func (t *TelegramCore) UploadFile(chatID string, file FileUpload, progress func(
 
 	var result tg.UpdatesClass
 
-	// Detect media type and send appropriately for inline preview
+	// Detect media type and send appropriately for inline preview.
+	// Voice check must precede generic audio/ prefix check.
 	switch {
 	case strings.HasPrefix(file.MimeType, "image/"):
-		// Send as photo — shows inline preview in Telegram
 		photo := message.UploadedPhoto(upload)
 		result, err = target.Media(t.ctx, photo)
 
 	case strings.HasPrefix(file.MimeType, "video/"):
-		// Send as video with attributes — plays inline in Telegram
 		doc := message.UploadedDocument(upload).
 			MIME(file.MimeType).
 			Filename(file.Name).
 			Video()
 		result, err = target.Media(t.ctx, doc)
 
-	case strings.HasPrefix(file.MimeType, "audio/"):
-		// Send as audio — shows audio player in Telegram
-		doc := message.UploadedDocument(upload).
-			MIME(file.MimeType).
-			Filename(file.Name).
-			Audio()
-		result, err = target.Media(t.ctx, doc)
-
-	case file.MimeType == "audio/ogg" || strings.HasSuffix(file.Name, ".ogg"):
-		// Send as voice message
+	case file.MimeType == "audio/ogg" || file.MimeType == "audio/opus" || strings.HasSuffix(file.Name, ".ogg"):
 		doc := message.UploadedDocument(upload).
 			MIME("audio/ogg").
 			Filename(file.Name).
 			Voice()
 		result, err = target.Media(t.ctx, doc)
 
+	case strings.HasPrefix(file.MimeType, "audio/"):
+		doc := message.UploadedDocument(upload).
+			MIME(file.MimeType).
+			Filename(file.Name).
+			Audio()
+		result, err = target.Media(t.ctx, doc)
+
 	default:
-		// Send as generic document/file
 		doc := message.UploadedDocument(upload).
 			MIME(file.MimeType).
 			Filename(file.Name)
@@ -1567,6 +1564,158 @@ func (t *TelegramCore) UploadFile(chatID string, file FileUpload, progress func(
 	}
 
 	return t.extractMessageFromUpdates(result, chatID), nil
+}
+
+// UploadFileWithOptions uploads a file with extended options (voice, video note,
+// silent, schedule, caption). Used by the resend-as-own pipeline.
+func (t *TelegramCore) UploadFileWithOptions(chatID string, file FileUpload, opts UploadOptions, progress func(sent, total int64)) (*Message, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return nil, err
+	}
+
+	u := uploader.NewUploader(t.api)
+	if progress != nil {
+		u = u.WithProgress(&uploadProgress{callback: progress, total: file.Size})
+	}
+
+	upload, err := u.Upload(t.ctx, uploader.NewUpload(file.Name, io.NopCloser(file.Reader), file.Size))
+	if err != nil {
+		return nil, fmt.Errorf("upload: %w", err)
+	}
+
+	inputPeer, err := t.toInputPeer(peer)
+	if err != nil {
+		return nil, err
+	}
+
+	var caption []styling.StyledTextOption
+	if opts.Caption != "" {
+		caption = []styling.StyledTextOption{styling.Plain(opts.Caption)}
+	}
+
+	var media message.MediaOption
+	switch {
+	case opts.IsVoice:
+		media = message.UploadedDocument(upload, caption...).MIME("audio/ogg").Filename(file.Name).Voice()
+	case opts.IsVideoNote:
+		attrs := []tg.DocumentAttributeClass{
+			&tg.DocumentAttributeVideo{
+				RoundMessage: true,
+				W:            opts.Width,
+				H:            opts.Height,
+				Duration:     float64(opts.Duration),
+			},
+		}
+		media = message.UploadedDocument(upload, caption...).MIME("video/mp4").Filename(file.Name).Attributes(attrs...)
+	case strings.HasPrefix(file.MimeType, "image/"):
+		media = message.UploadedPhoto(upload, caption...)
+	case strings.HasPrefix(file.MimeType, "video/"):
+		media = message.UploadedDocument(upload, caption...).MIME(file.MimeType).Filename(file.Name).Video()
+	case file.MimeType == "audio/ogg" || file.MimeType == "audio/opus":
+		media = message.UploadedDocument(upload, caption...).MIME("audio/ogg").Filename(file.Name).Voice()
+	case strings.HasPrefix(file.MimeType, "audio/"):
+		media = message.UploadedDocument(upload, caption...).MIME(file.MimeType).Filename(file.Name).Audio()
+	default:
+		media = message.UploadedDocument(upload, caption...).MIME(file.MimeType).Filename(file.Name)
+	}
+
+	builder := t.sender.To(inputPeer).CloneBuilder()
+	if opts.Silent {
+		builder = builder.Silent()
+	}
+	if opts.ScheduleDate > 0 {
+		builder = builder.ScheduleTS(int(opts.ScheduleDate))
+	}
+
+	result, err := builder.Media(t.ctx, media)
+	if err != nil {
+		return nil, fmt.Errorf("send file: %w", err)
+	}
+	return t.extractMessageFromUpdates(result, chatID), nil
+}
+
+// SendMediaAlbum sends multiple media items as a single album (grouped message).
+func (t *TelegramCore) SendMediaAlbum(chatID string, items []AlbumItem, silent bool, scheduleDate int64) ([]*Message, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return nil, err
+	}
+	inputPeer, err := t.toInputPeer(peer)
+	if err != nil {
+		return nil, err
+	}
+
+	u := uploader.NewUploader(t.api)
+	var multiMedia []tg.InputSingleMedia
+
+	for _, item := range items {
+		upload, err := u.Upload(t.ctx, uploader.NewUpload(item.Upload.Name, io.NopCloser(item.Upload.Reader), item.Upload.Size))
+		if err != nil {
+			return nil, fmt.Errorf("upload album item %s: %w", item.Upload.Name, err)
+		}
+
+		var inputMedia tg.InputMediaClass
+		if item.IsPhoto {
+			inputMedia = &tg.InputMediaUploadedPhoto{
+				File: upload,
+			}
+		} else {
+			attrs := []tg.DocumentAttributeClass{
+				&tg.DocumentAttributeFilename{FileName: item.Upload.Name},
+			}
+			if strings.HasPrefix(item.Upload.MimeType, "video/") {
+				attrs = append(attrs, &tg.DocumentAttributeVideo{})
+			}
+			inputMedia = &tg.InputMediaUploadedDocument{
+				File:       upload,
+				MimeType:   item.Upload.MimeType,
+				Attributes: attrs,
+			}
+		}
+
+		entry := tg.InputSingleMedia{
+			RandomID: time.Now().UnixNano() + int64(len(multiMedia)),
+			Media:    inputMedia,
+		}
+		if item.Caption != "" {
+			entry.Message = item.Caption
+		}
+		multiMedia = append(multiMedia, entry)
+	}
+
+	req := &tg.MessagesSendMultiMediaRequest{
+		Peer:       inputPeer,
+		MultiMedia: multiMedia,
+		Silent:     silent,
+	}
+	if scheduleDate > 0 {
+		req.ScheduleDate = int(scheduleDate)
+		req.SetFlags()
+	}
+
+	result, err := t.api.MessagesSendMultiMedia(t.ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("send album: %w", err)
+	}
+
+	var msgs []*Message
+	if m := t.extractMessageFromUpdates(result, chatID); m != nil {
+		msgs = append(msgs, m)
+	}
+	return msgs, nil
 }
 
 // DownloadFile downloads a file from Telegram by its file reference.

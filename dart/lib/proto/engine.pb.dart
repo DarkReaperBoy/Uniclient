@@ -4844,6 +4844,81 @@ class EngineResendAsOwnRequest extends $pb.GeneratedMessage {
   set scheduleDate($fixnum.Int64 v) { $_setInt64(5, v); }
 }
 
+class EngineResendAlbumAsOwnRequest extends $pb.GeneratedMessage {
+  factory EngineResendAlbumAsOwnRequest({
+    $core.String? accountId,
+    $core.String? sourceChatId,
+    $core.List<$core.String>? msgIds,
+    $core.String? toChatId,
+    $core.bool? silent,
+    $fixnum.Int64? scheduleDate,
+  }) {
+    final $result = create();
+    if (accountId != null) { $result.accountId = accountId; }
+    if (sourceChatId != null) { $result.sourceChatId = sourceChatId; }
+    if (msgIds != null) { $result.msgIds.addAll(msgIds); }
+    if (toChatId != null) { $result.toChatId = toChatId; }
+    if (silent != null) { $result.silent = silent; }
+    if (scheduleDate != null) { $result.scheduleDate = scheduleDate; }
+    return $result;
+  }
+  EngineResendAlbumAsOwnRequest._() : super();
+  factory EngineResendAlbumAsOwnRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineResendAlbumAsOwnRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'sourceChatId')
+    ..pPS(3, _omitFieldNames ? '' : 'msgIds')
+    ..aOS(4, _omitFieldNames ? '' : 'toChatId')
+    ..aOB(5, _omitFieldNames ? '' : 'silent')
+    ..aInt64(6, _omitFieldNames ? '' : 'scheduleDate')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineResendAlbumAsOwnRequest clone() => EngineResendAlbumAsOwnRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineResendAlbumAsOwnRequest copyWith(void Function(EngineResendAlbumAsOwnRequest) updates) => super.copyWith((message) => updates(message as EngineResendAlbumAsOwnRequest)) as EngineResendAlbumAsOwnRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineResendAlbumAsOwnRequest create() => EngineResendAlbumAsOwnRequest._();
+  EngineResendAlbumAsOwnRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineResendAlbumAsOwnRequest> createRepeated() => $pb.PbList<EngineResendAlbumAsOwnRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineResendAlbumAsOwnRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineResendAlbumAsOwnRequest>(create);
+  static EngineResendAlbumAsOwnRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.String get sourceChatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set sourceChatId($core.String v) { $_setString(1, v); }
+
+  @$pb.TagNumber(3)
+  $core.List<$core.String> get msgIds => $_getList(2);
+
+  @$pb.TagNumber(4)
+  $core.String get toChatId => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set toChatId($core.String v) { $_setString(3, v); }
+
+  @$pb.TagNumber(5)
+  $core.bool get silent => $_getBF(4);
+  @$pb.TagNumber(5)
+  set silent($core.bool v) { $_setBool(4, v); }
+
+  @$pb.TagNumber(6)
+  $fixnum.Int64 get scheduleDate => $_getI64(5);
+  @$pb.TagNumber(6)
+  set scheduleDate($fixnum.Int64 v) { $_setInt64(5, v); }
+}
+
 class EngineReactToMessageRequest extends $pb.GeneratedMessage {
   factory EngineReactToMessageRequest({
     $core.String? accountId,

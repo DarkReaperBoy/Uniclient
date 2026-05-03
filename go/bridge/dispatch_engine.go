@@ -690,6 +690,13 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.ResendAsOwn(req.AccountId, req.SourceChatId, req.MsgId, req.ToChatId, req.Silent, req.ScheduleDate)
 
+	case "ResendAlbumAsOwn":
+		var req pb.EngineResendAlbumAsOwnRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.ResendAlbumAsOwn(req.AccountId, req.SourceChatId, req.MsgIds, req.ToChatId, req.Silent, req.ScheduleDate)
+
 	case "SendScheduledNow":
 		var req pb.EngineSendScheduledNowRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

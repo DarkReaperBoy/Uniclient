@@ -133,6 +133,24 @@ class AyuForward {
     return chunks;
   }
 
+  /// Groups messages by their groupedId (album membership). Messages with the
+  /// same non-empty groupedId are batched together. Non-album messages get
+  /// their own single-element group.
+  static List<List<CachedMessage>> _groupByAlbum(List<CachedMessage> messages) {
+    final groups = <List<CachedMessage>>[];
+    final albumMap = <String, List<CachedMessage>>{};
+
+    for (final msg in messages) {
+      if (msg.groupedId.isNotEmpty) {
+        albumMap.putIfAbsent(msg.groupedId, () => []).add(msg);
+      } else {
+        groups.add([msg]);
+      }
+    }
+    groups.addAll(albumMap.values);
+    return groups;
+  }
+
   static Future<void> intelligentForward({
     required EngineService engine,
     required String accountId,
@@ -184,15 +202,29 @@ class AyuForward {
               progress?.update(sent: sentSoFar);
             }
           case ForwardMethod.resendAsOwn:
-            for (final msg in chunk.messages) {
+            final albumGroups = _groupByAlbum(chunk.messages);
+            for (final group in albumGroups) {
               if (progress?.isCancelled == true) break;
               progress?.update(phase: AyuForwardPhase.downloading);
-              await engine.resendAsOwn(
-                accountId, sourceChatId, msg.msgId, toChatId,
-                silent: silent,
-                scheduleDate: scheduleDate,
-              );
-              sentSoFar++;
+
+              if (group.length > 1) {
+                await engine.resendAlbumAsOwn(
+                  accountId,
+                  sourceChatId,
+                  group.map((m) => m.msgId).toList(),
+                  toChatId,
+                  silent: silent,
+                  scheduleDate: scheduleDate,
+                );
+                sentSoFar += group.length;
+              } else {
+                await engine.resendAsOwn(
+                  accountId, sourceChatId, group.first.msgId, toChatId,
+                  silent: silent,
+                  scheduleDate: scheduleDate,
+                );
+                sentSoFar++;
+              }
               progress?.update(
                 phase: AyuForwardPhase.sending,
                 sent: sentSoFar,

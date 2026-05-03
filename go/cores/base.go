@@ -730,3 +730,32 @@ type ForwardOptions struct {
 type ForwardWithOptionsSupporter interface {
 	ForwardMessageWithOptions(fromChatID, msgID, toChatID string, opts ForwardOptions) (*Message, error)
 }
+
+// UploadOptions provides extra control over media uploads for the resend pipeline.
+type UploadOptions struct {
+	Caption      string
+	Silent       bool
+	ScheduleDate int64
+	IsVoice      bool
+	IsVideoNote  bool
+	Width        int
+	Height       int
+	Duration     int
+}
+
+// UploadWithOptionsSupporter allows uploading files with extra metadata.
+type UploadWithOptionsSupporter interface {
+	UploadFileWithOptions(chatID string, file FileUpload, opts UploadOptions, progress func(sent, total int64)) (*Message, error)
+}
+
+// AlbumItem represents one item in a media album for batch sending.
+type AlbumItem struct {
+	Upload  FileUpload
+	Caption string
+	IsPhoto bool
+}
+
+// MediaAlbumSender can send multiple media items as a single album message.
+type MediaAlbumSender interface {
+	SendMediaAlbum(chatID string, items []AlbumItem, silent bool, scheduleDate int64) ([]*Message, error)
+}

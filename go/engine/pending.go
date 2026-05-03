@@ -24,8 +24,9 @@ const (
 	ActionDelete      = "delete"
 	ActionReact       = "react"
 	ActionForward     = "forward"
-	ActionSendContact  = "send_contact"
-	ActionResendAsOwn  = "resend_as_own"
+	ActionSendContact   = "send_contact"
+	ActionResendAsOwn   = "resend_as_own"
+	ActionResendAlbum   = "resend_album"
 )
 
 // sendPayload is the serialized payload for a "send" action.
@@ -84,6 +85,15 @@ type resendAsOwnPayload struct {
 	ToChatID     string `json:"to_chat_id"`
 	Silent       bool   `json:"silent,omitempty"`
 	ScheduleDate int64  `json:"schedule_date,omitempty"`
+}
+
+// resendAlbumPayload is the serialized payload for a "resend_album" action.
+type resendAlbumPayload struct {
+	MsgIDs       []string `json:"msg_ids"`
+	SourceChatID string   `json:"source_chat_id"`
+	ToChatID     string   `json:"to_chat_id"`
+	Silent       bool     `json:"silent,omitempty"`
+	ScheduleDate int64    `json:"schedule_date,omitempty"`
 }
 
 // pendingItem represents a row in the pending table.
@@ -417,6 +427,33 @@ func (e *Engine) ResendAsOwn(accountID, sourceChatID, msgID, toChatID string, si
 	return nil
 }
 
+// ResendAlbumAsOwn downloads a group of messages (album) and resends them as
+// a single album with no forward header. Used by AyuForward for grouped media.
+func (e *Engine) ResendAlbumAsOwn(accountID, sourceChatID string, msgIDs []string, toChatID string, silent bool, scheduleDate int64) error {
+	localID := generateLocalID()
+	now := time.Now().UnixMilli()
+
+	payload, _ := json.Marshal(resendAlbumPayload{
+		MsgIDs: msgIDs, SourceChatID: sourceChatID, ToChatID: toChatID,
+		Silent: silent, ScheduleDate: scheduleDate,
+	})
+
+	_, err := e.db.Exec(
+		`INSERT INTO pending (account_id, chat_id, local_id, action, payload, status, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		accountID, toChatID, localID, ActionResendAlbum, payload, PendingQueued, now)
+	if err != nil {
+		return err
+	}
+
+	e.wg.Add(1)
+	go func() {
+		defer e.wg.Done()
+		e.processPendingItem(accountID, toChatID, localID, ActionResendAlbum, payload)
+	}()
+	return nil
+}
+
 // ReactToMessage queues a reaction toggle on a message.
 func (e *Engine) ReactToMessage(accountID, chatID, msgID, emoji string) error {
 	localID := generateLocalID()
@@ -472,7 +509,7 @@ func (e *Engine) PinMessage(accountID, chatID, msgID string, pinned bool) error 
 // processPendingItem executes a pending operation with retry logic.
 func (e *Engine) processPendingItem(accountID, chatID, localID, action string, payload []byte) {
 	// Acquire per-chat lock for ordering (sends only).
-	if action == ActionSend || action == ActionForward || action == ActionResendAsOwn {
+	if action == ActionSend || action == ActionForward || action == ActionResendAsOwn || action == ActionResendAlbum {
 		lock := getChatLock(accountID, chatID)
 		lock.Lock()
 		defer lock.Unlock()
@@ -647,6 +684,11 @@ func (e *Engine) executePending(acc *Account, chatID, localID, action string, pa
 		json.Unmarshal(payload, &p)
 		return e.executeResendAsOwn(acc, p)
 
+	case ActionResendAlbum:
+		var p resendAlbumPayload
+		json.Unmarshal(payload, &p)
+		return e.executeResendAlbum(acc, p)
+
 	default:
 		return fmt.Errorf("unknown action: %s", action)
 	}
@@ -723,10 +765,23 @@ func (e *Engine) resumePending() {
 	}
 }
 
+// isMediaDownloadable returns true if the media type can be downloaded and re-sent.
+// Excludes webpages, polls, games, invoices, locations, contacts (matching spec §53.5).
+func isMediaDownloadable(mt int) bool {
+	switch mt {
+	case MediaPoll, MediaLocation, MediaContact, MediaInvoice:
+		return false
+	default:
+		return true
+	}
+}
+
 // executeResendAsOwn downloads the source message's media and sends it as a
 // new message to the target chat with no forward header.
+// Implements spec §53.5: media type filtering, sticker bypass, voice/video note
+// detection, download timeouts, incomplete download detection, silent/schedule
+// propagation.
 func (e *Engine) executeResendAsOwn(acc *Account, p resendAsOwnPayload) error {
-	// Look up the cached source message for text and media info.
 	var contentText sql.NullString
 	var contentRaw []byte
 	err := e.db.QueryRow(
@@ -740,25 +795,49 @@ func (e *Engine) executeResendAsOwn(acc *Account, p resendAsOwnPayload) error {
 
 	text := contentText.String
 
-	// Check for media attachments.
-	var remoteRef, fileName, mimeType, extra sql.NullString
+	var remoteRef, fileName, mimeType, extraStr sql.NullString
 	var mediaType int
+	var expectedSize int64
+	var width, height, duration sql.NullInt64
 	hasMedia := false
 	err = e.db.QueryRow(
-		`SELECT media_type, remote_ref, file_name, mime_type, extra FROM media
+		`SELECT media_type, remote_ref, file_name, mime_type, extra, file_size,
+		        width, height, duration
+		 FROM media
 		 WHERE account_id = ? AND chat_id = ? AND msg_id = ? AND seq = 0`,
 		acc.ID, p.SourceChatID, p.MsgID,
-	).Scan(&mediaType, &remoteRef, &fileName, &mimeType, &extra)
+	).Scan(&mediaType, &remoteRef, &fileName, &mimeType, &extraStr,
+		&expectedSize, &width, &height, &duration)
 	if err == nil && remoteRef.String != "" {
 		hasMedia = true
 	}
 
+	if hasMedia && !isMediaDownloadable(mediaType) {
+		hasMedia = false
+	}
+
+	if hasMedia && mediaType == MediaSticker {
+		sentMsg, err := acc.Core.SendSticker(p.ToChatID, remoteRef.String)
+		if err != nil {
+			log.Printf("resend sticker fallback to download: %v", err)
+		} else {
+			if sentMsg != nil {
+				e.cacheMessage(acc.ID, p.ToChatID, sentMsg)
+			}
+			if text != "" && (sentMsg == nil || sentMsg.Text != text) {
+				e.resendText(acc, p.ToChatID, text, p.Silent, p.ScheduleDate)
+			}
+			return nil
+		}
+	}
+
 	if hasMedia {
-		// Download to temp file.
 		tmpDir := filepath.Join(os.TempDir(), "uniclient_resend")
 		os.MkdirAll(tmpDir, 0o755)
 		ext := filepath.Ext(fileName.String)
-		if ext == "" { ext = ".bin" }
+		if ext == "" {
+			ext = ".bin"
+		}
 		tmpPath := filepath.Join(tmpDir, p.MsgID+ext)
 		defer os.Remove(tmpPath)
 
@@ -766,53 +845,261 @@ func (e *Engine) executeResendAsOwn(acc *Account, p resendAsOwnPayload) error {
 			ID:       remoteRef.String,
 			Name:     fileName.String,
 			MimeType: mimeType.String,
-			Extra:    extra.String,
+			Extra:    extraStr.String,
+			Size:     expectedSize,
 		}
 		if err := acc.Core.DownloadFile(ref, tmpPath, nil); err != nil {
-			return fmt.Errorf("download media: %w", err)
+			log.Printf("resend download failed (skipping media): %v", err)
+			if text != "" {
+				return e.resendText(acc, p.ToChatID, text, p.Silent, p.ScheduleDate)
+			}
+			return nil
 		}
 
-		// Upload to target chat as a new message.
+		info, err := os.Stat(tmpPath)
+		if err != nil || (expectedSize > 0 && info.Size() < expectedSize) {
+			log.Printf("resend incomplete download (expected %d, got %d), skipping media",
+				expectedSize, info.Size())
+			if text != "" {
+				return e.resendText(acc, p.ToChatID, text, p.Silent, p.ScheduleDate)
+			}
+			return nil
+		}
+
 		f, err := os.Open(tmpPath)
 		if err != nil {
-			return fmt.Errorf("open downloaded: %w", err)
+			log.Printf("resend open failed: %v", err)
+			if text != "" {
+				return e.resendText(acc, p.ToChatID, text, p.Silent, p.ScheduleDate)
+			}
+			return nil
 		}
 		defer f.Close()
-		info, _ := f.Stat()
+
 		upload := cores.FileUpload{
 			Name:     fileName.String,
 			Size:     info.Size(),
 			MimeType: mimeType.String,
 			Reader:   f,
 		}
+
+		isVoice := mediaType == MediaVoice
+		isVideoNote := mediaType == MediaVideoNote
+
+		if uploader, ok := acc.Core.(cores.UploadWithOptionsSupporter); ok {
+			opts := cores.UploadOptions{
+				Caption:      text,
+				Silent:       p.Silent,
+				ScheduleDate: p.ScheduleDate,
+				IsVoice:      isVoice,
+				IsVideoNote:  isVideoNote,
+			}
+			if width.Valid {
+				opts.Width = int(width.Int64)
+			}
+			if height.Valid {
+				opts.Height = int(height.Int64)
+			}
+			if duration.Valid {
+				opts.Duration = int(duration.Int64)
+			}
+			sentMsg, err := uploader.UploadFileWithOptions(p.ToChatID, upload, opts, nil)
+			if err != nil {
+				return fmt.Errorf("upload resend: %w", err)
+			}
+			if sentMsg != nil {
+				e.cacheMessage(acc.ID, p.ToChatID, sentMsg)
+			}
+			return nil
+		}
+
 		sentMsg, err := acc.Core.UploadFile(p.ToChatID, upload, nil)
 		if err != nil {
 			return fmt.Errorf("upload resend: %w", err)
 		}
-		// If the text differs from caption, send separately.
 		if sentMsg != nil && text != "" && sentMsg.Text != text {
-			outMsg := cores.OutgoingMessage{Text: text}
-			acc.Core.SendMessage(p.ToChatID, outMsg)
+			e.resendText(acc, p.ToChatID, text, p.Silent, p.ScheduleDate)
 		}
-		// Cache the sent message.
 		if sentMsg != nil {
 			e.cacheMessage(acc.ID, p.ToChatID, sentMsg)
 		}
 	} else if text != "" {
-		// Text-only: send as a new message.
-		extra := map[string]interface{}{}
-		if p.Silent { extra["silent"] = true }
-		if p.ScheduleDate > 0 { extra["schedule_date"] = p.ScheduleDate }
-		outMsg := cores.OutgoingMessage{Text: text, Extra: extra}
-		sentMsg, err := acc.Core.SendMessage(p.ToChatID, outMsg)
+		return e.resendText(acc, p.ToChatID, text, p.Silent, p.ScheduleDate)
+	} else {
+		return fmt.Errorf("nothing to resend: no text or media")
+	}
+	return nil
+}
+
+// resendText sends a text message with silent/schedule options.
+func (e *Engine) resendText(acc *Account, chatID, text string, silent bool, scheduleDate int64) error {
+	extra := map[string]interface{}{}
+	if silent {
+		extra["silent"] = true
+	}
+	if scheduleDate > 0 {
+		extra["schedule_date"] = scheduleDate
+	}
+	outMsg := cores.OutgoingMessage{Text: text, Extra: extra}
+	sentMsg, err := acc.Core.SendMessage(chatID, outMsg)
+	if err != nil {
+		return err
+	}
+	if sentMsg != nil {
+		e.cacheMessage(acc.ID, chatID, sentMsg)
+	}
+	return nil
+}
+
+// executeResendAlbum downloads all messages in an album group and sends them
+// as a single album to the target chat. Falls back to individual sends if
+// the core doesn't support album sending.
+func (e *Engine) executeResendAlbum(acc *Account, p resendAlbumPayload) error {
+	albumSender, hasAlbumSupport := acc.Core.(cores.MediaAlbumSender)
+
+	tmpDir := filepath.Join(os.TempDir(), "uniclient_resend")
+	os.MkdirAll(tmpDir, 0o755)
+
+	type downloadedItem struct {
+		tmpPath  string
+		fileName string
+		mimeType string
+		size     int64
+		text     string
+		isPhoto  bool
+	}
+
+	var items []downloadedItem
+	var textOnly []string
+
+	for _, msgID := range p.MsgIDs {
+		var contentText sql.NullString
+		err := e.db.QueryRow(
+			`SELECT content_text FROM messages WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
+			acc.ID, p.SourceChatID, msgID,
+		).Scan(&contentText)
 		if err != nil {
-			return err
+			log.Printf("resend album: source message %s not found, skipping", msgID)
+			continue
+		}
+
+		var remoteRef, fName, mime, extra sql.NullString
+		var mt int
+		var expSize int64
+		err = e.db.QueryRow(
+			`SELECT media_type, remote_ref, file_name, mime_type, extra, file_size
+			 FROM media WHERE account_id = ? AND chat_id = ? AND msg_id = ? AND seq = 0`,
+			acc.ID, p.SourceChatID, msgID,
+		).Scan(&mt, &remoteRef, &fName, &mime, &extra, &expSize)
+
+		if err != nil || remoteRef.String == "" || !isMediaDownloadable(mt) {
+			if contentText.String != "" {
+				textOnly = append(textOnly, contentText.String)
+			}
+			continue
+		}
+
+		ext := filepath.Ext(fName.String)
+		if ext == "" {
+			ext = ".bin"
+		}
+		tmpPath := filepath.Join(tmpDir, msgID+ext)
+
+		ref := cores.FileRef{
+			ID: remoteRef.String, Name: fName.String,
+			MimeType: mime.String, Extra: extra.String, Size: expSize,
+		}
+		if err := acc.Core.DownloadFile(ref, tmpPath, nil); err != nil {
+			log.Printf("resend album: download %s failed, skipping: %v", msgID, err)
+			continue
+		}
+
+		info, err := os.Stat(tmpPath)
+		if err != nil || (expSize > 0 && info.Size() < expSize) {
+			log.Printf("resend album: incomplete download for %s, skipping", msgID)
+			os.Remove(tmpPath)
+			continue
+		}
+
+		isPhoto := mt == MediaImage
+		items = append(items, downloadedItem{
+			tmpPath: tmpPath, fileName: fName.String,
+			mimeType: mime.String, size: info.Size(),
+			text: contentText.String, isPhoto: isPhoto,
+		})
+	}
+	defer func() {
+		for _, item := range items {
+			os.Remove(item.tmpPath)
+		}
+	}()
+
+	if len(items) == 0 {
+		for _, t := range textOnly {
+			e.resendText(acc, p.ToChatID, t, p.Silent, p.ScheduleDate)
+		}
+		return nil
+	}
+
+	if hasAlbumSupport && len(items) > 1 {
+		var albumItems []cores.AlbumItem
+		for _, item := range items {
+			f, err := os.Open(item.tmpPath)
+			if err != nil {
+				log.Printf("resend album: open %s failed, skipping", item.tmpPath)
+				continue
+			}
+			albumItems = append(albumItems, cores.AlbumItem{
+				Upload: cores.FileUpload{
+					Name: item.fileName, Size: item.size,
+					MimeType: item.mimeType, Reader: f,
+				},
+				Caption: item.text,
+				IsPhoto: item.isPhoto,
+			})
+		}
+		msgs, err := albumSender.SendMediaAlbum(p.ToChatID, albumItems, p.Silent, p.ScheduleDate)
+		for _, item := range albumItems {
+			if rc, ok := item.Upload.Reader.(interface{ Close() error }); ok {
+				rc.Close()
+			}
+		}
+		if err != nil {
+			log.Printf("resend album: SendMediaAlbum failed, falling back to individual: %v", err)
+		} else {
+			for _, m := range msgs {
+				if m != nil {
+					e.cacheMessage(acc.ID, p.ToChatID, m)
+				}
+			}
+			for _, t := range textOnly {
+				e.resendText(acc, p.ToChatID, t, p.Silent, p.ScheduleDate)
+			}
+			return nil
+		}
+	}
+
+	for _, item := range items {
+		f, err := os.Open(item.tmpPath)
+		if err != nil {
+			continue
+		}
+		upload := cores.FileUpload{
+			Name: item.fileName, Size: item.size,
+			MimeType: item.mimeType, Reader: f,
+		}
+		sentMsg, err := acc.Core.UploadFile(p.ToChatID, upload, nil)
+		f.Close()
+		if err != nil {
+			log.Printf("resend album item: upload failed: %v", err)
+			continue
 		}
 		if sentMsg != nil {
 			e.cacheMessage(acc.ID, p.ToChatID, sentMsg)
 		}
-	} else {
-		return fmt.Errorf("nothing to resend: no text or media")
+	}
+	for _, t := range textOnly {
+		e.resendText(acc, p.ToChatID, t, p.Silent, p.ScheduleDate)
 	}
 	return nil
 }

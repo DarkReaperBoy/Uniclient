@@ -3038,6 +3038,14 @@ message TelegramGetInstalledStickerPacksResponse {
   repeated StickerPackSummary result_1 = 1;
 }
 
+message TelegramGetInstantViewPageRequest {
+  string url = 1;
+}
+
+message TelegramGetInstantViewPageResponse {
+  bytes result_1 = 1;
+}
+
 message TelegramGetInviteImportersRequest {
   string chat_id = 1;
   string link = 2;
@@ -6028,6 +6036,17 @@ message TelegramSendLocationRequest {
 
 message TelegramSendLocationResponse {
   uniclient.Message result_1 = 1;
+}
+
+message TelegramSendMediaAlbumRequest {
+  string chat_id = 1;
+  repeated AlbumItem items = 2;
+  bool silent = 3;
+  int64 schedule_date = 4;
+}
+
+message TelegramSendMediaAlbumResponse {
+  repeated uniclient.Message result_1 = 1;
 }
 
 message TelegramSendMessageRequest {

@@ -2096,6 +2096,22 @@ class EngineService {
     await _callAsync('__engine', 'ResendAsOwn', req.writeToBuffer());
   }
 
+  Future<void> resendAlbumAsOwn(String accountId, String sourceChatId, List<String> msgIds, String toChatId, {
+    bool silent = false,
+    int scheduleDate = 0,
+  }) async {
+    final req = epb.EngineResendAlbumAsOwnRequest()
+      ..accountId = accountId
+      ..sourceChatId = sourceChatId
+      ..msgIds.addAll(msgIds)
+      ..toChatId = toChatId
+      ..silent = silent;
+    if (scheduleDate > 0) {
+      req.scheduleDate = Int64(scheduleDate);
+    }
+    await _callAsync('__engine', 'ResendAlbumAsOwn', req.writeToBuffer());
+  }
+
   Future<void> sendContact(String accountId, String toChatId, String phone, String firstName, String lastName, {String userId = ''}) async {
     final req = epb.EngineSendContactRequest()
       ..accountId = accountId

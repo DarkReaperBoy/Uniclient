@@ -994,7 +994,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §53 — Forward Enhancements (AyuGram)
 # Touches: dart/lib/ui/chat_view.dart, new forward_progress.dart
 
-- [ ] Download-and-resend pipeline — scan for downloadable media (exclude webpages/polls/games); new random group IDs; download documents (15min timeout) + photos (5min timeout); send text via sendMessageSync; stickers via SendExistingDocument; voice/video via FileLoadTask; photos/videos/GIFs/documents via sendFiles+PreparedList; batch album groups; skip failed downloads silently; wait server ack per message (5min timeout) — spec §53.5
 - [ ] AyuNoForwards flag system — bit 63 message-level; channel-level; user-level NoForwardsMyEnabled/NoForwardsPeerEnabled; polymorphic isAyuNoForwards() — spec §53.6
 
 ---
