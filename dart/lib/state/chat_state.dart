@@ -7,12 +7,14 @@ import 'package:flutter/widgets.dart';
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../notifications/notification_types.dart';
+import '../state/app_state.dart';
 import '../ui/message_bubble.dart';
 import '../ui/spoiler_animation.dart';
 
 /// Chat list + active chat + messages state.
 class ChatState extends ChangeNotifier {
   final EngineService _engine;
+  final AppState _appState;
 
   List<ChatInfo> _chats = [];
   ChatInfo? _activeChat;
@@ -118,7 +120,7 @@ class ChatState extends ChangeNotifier {
   Timer? _loadChatsDebounce;
   bool _disposed = false;
 
-  ChatState(this._engine) {
+  ChatState(this._engine, this._appState) {
     // Snapshot events are per-account; reload the unified list from SQLite
     // so that one account's sync doesn't erase another's chats.
     _subs.add(_engine.onChatSnapshot.listen((_) {
@@ -1943,7 +1945,19 @@ class ChatState extends ChangeNotifier {
   void _handleMsgDeleted(MsgDeletedEvent event) {
     if (_disposed) return;
     if (_activeChat?.accountId != event.accountId || _activeChat?.chatId != event.chatId) return;
-    _messages.removeWhere((m) => m.msgId == event.msgId);
+
+    final idx = _messages.indexWhere((m) => m.msgId == event.msgId);
+    if (idx < 0) return;
+
+    final savable = _appState.saveDeletedMessages &&
+        (!event.senderIsBot || _appState.saveForBots);
+
+    if (savable) {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      _messages[idx] = _messages[idx].copyWith(isDeleted: true, deletedAt: now);
+    } else {
+      _messages.removeAt(idx);
+    }
     notifyListeners();
   }
 

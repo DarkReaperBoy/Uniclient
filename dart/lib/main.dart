@@ -74,12 +74,14 @@ void main() {
 
   final engineService = EngineService();
 
+  final appState = AppState(engineService);
+
   runApp(
     MultiProvider(
       providers: [
         Provider<EngineService>.value(value: engineService),
-        ChangeNotifierProvider(create: (_) => AppState(engineService)),
-        ChangeNotifierProvider(create: (_) => ChatState(engineService)),
+        ChangeNotifierProvider.value(value: appState),
+        ChangeNotifierProvider(create: (_) => ChatState(engineService, appState)),
         ChangeNotifierProvider(create: (_) => AuthState(engineService)),
         ChangeNotifierProvider(create: (_) => AudioService()),
       ],

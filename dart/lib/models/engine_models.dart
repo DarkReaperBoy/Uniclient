@@ -447,6 +447,10 @@ class CachedMessage {
   final List<int> mediaWaveform; // 5-bit amplitude samples (0–31), typically 100 entries for voice messages
   final List<MessageReaction> reactions;
 
+  // Anti-recall metadata.
+  final bool isDeleted;
+  final int deletedAt;
+
   // Forum topic info (populated from contentRaw extra fields).
   final String topicId;    // topic root message ID (empty = not a forum topic message)
   final String topicName;  // topic title (may be empty if not cached)
@@ -590,6 +594,8 @@ class CachedMessage {
     this.altQualities = const [],
     this.mediaWaveform = const [],
     this.reactions = const [],
+    this.isDeleted = false,
+    this.deletedAt = 0,
     this.topicId = '',
     this.topicName = '',
     this.topicColorId = 0,
@@ -697,6 +703,8 @@ class CachedMessage {
     mediaDuration: j['media_duration'] as int? ?? 0,
     mediaDownloadState: j['media_download_state'] as int? ?? 0,
     mediaWaveform: (j['media_waveform'] as List<dynamic>?)?.cast<int>() ?? const [],
+    isDeleted: j['is_deleted'] as bool? ?? false,
+    deletedAt: j['deleted_at'] as int? ?? 0,
     mediaSpoiler: j['media_spoiler'] as bool? ?? false,
     groupedId: j['grouped_id'] as String? ?? '',
     reactions: (j['reactions'] as List<dynamic>?)
@@ -781,6 +789,8 @@ class CachedMessage {
     List<VideoQuality>? altQualities,
     List<int>? mediaWaveform,
     List<MessageReaction>? reactions,
+    bool? isDeleted,
+    int? deletedAt,
     String? viaBotName,
     bool? mediaSpoiler,
     String? groupedId,
@@ -884,6 +894,8 @@ class CachedMessage {
     altQualities: altQualities ?? this.altQualities,
     mediaWaveform: mediaWaveform ?? this.mediaWaveform,
     reactions: reactions ?? this.reactions,
+    isDeleted: isDeleted ?? this.isDeleted,
+    deletedAt: deletedAt ?? this.deletedAt,
     topicId: topicId,
     topicName: topicName,
     topicColorId: topicColorId,
@@ -1773,12 +1785,14 @@ class MsgDeletedEvent {
   final String accountId;
   final String chatId;
   final String msgId;
-  const MsgDeletedEvent({this.accountId = '', this.chatId = '', this.msgId = ''});
+  final bool senderIsBot;
+  const MsgDeletedEvent({this.accountId = '', this.chatId = '', this.msgId = '', this.senderIsBot = false});
 
   factory MsgDeletedEvent.fromJson(Map<String, dynamic> j) => MsgDeletedEvent(
     accountId: j['account_id'] as String? ?? '',
     chatId: j['chat_id'] as String? ?? '',
     msgId: j['msg_id'] as String? ?? '',
+    senderIsBot: j['sender_is_bot'] as bool? ?? false,
   );
 }
 

@@ -80,9 +80,10 @@ type MsgEditedEvent struct {
 }
 
 type MsgDeletedEvent struct {
-	AccountID string `json:"account_id"`
-	ChatID    string `json:"chat_id"`
-	MsgID     string `json:"msg_id"`
+	AccountID   string `json:"account_id"`
+	ChatID      string `json:"chat_id"`
+	MsgID       string `json:"msg_id"`
+	SenderIsBot bool   `json:"sender_is_bot"`
 }
 
 type MsgStatusEvent struct {
@@ -318,16 +319,49 @@ func (e *Engine) handleEditMessage(accountID, chatID string, msg *cores.Message)
 	})
 }
 
-// handleDeleteMessage removes from cache and emits event.
+// handleDeleteMessage marks message as deleted (anti-recall) and emits event.
 func (e *Engine) handleDeleteMessage(accountID, chatID, msgID string) {
-	e.db.Exec(
-		"DELETE FROM messages WHERE account_id = ? AND chat_id = ? AND msg_id = ?",
-		accountID, chatID, msgID)
+	resolvedChatID := chatID
+	var senderID string
+
+	if resolvedChatID == "" {
+		e.db.QueryRow(
+			"SELECT chat_id, sender_id FROM messages WHERE account_id = ? AND msg_id = ? LIMIT 1",
+			accountID, msgID,
+		).Scan(&resolvedChatID, &senderID)
+	} else {
+		e.db.QueryRow(
+			"SELECT sender_id FROM messages WHERE account_id = ? AND chat_id = ? AND msg_id = ? LIMIT 1",
+			accountID, resolvedChatID, msgID,
+		).Scan(&senderID)
+	}
+
+	var senderIsBot bool
+	if senderID != "" {
+		var isBot int
+		e.db.QueryRow(
+			"SELECT is_bot FROM users WHERE account_id = ? AND user_id = ? LIMIT 1",
+			accountID, senderID,
+		).Scan(&isBot)
+		senderIsBot = isBot == 1
+	}
+
+	now := time.Now().UnixMilli()
+	if resolvedChatID != "" {
+		e.db.Exec(
+			"UPDATE messages SET is_deleted = 1, deleted_at = ? WHERE account_id = ? AND chat_id = ? AND msg_id = ?",
+			now, accountID, resolvedChatID, msgID)
+	} else {
+		e.db.Exec(
+			"UPDATE messages SET is_deleted = 1, deleted_at = ? WHERE account_id = ? AND msg_id = ?",
+			now, accountID, msgID)
+	}
 
 	e.emitEvent(EventMsgDeleted, accountID, MsgDeletedEvent{
-		AccountID: accountID,
-		ChatID:    chatID,
-		MsgID:     msgID,
+		AccountID:   accountID,
+		ChatID:      resolvedChatID,
+		MsgID:       msgID,
+		SenderIsBot: senderIsBot,
 	})
 }
 
