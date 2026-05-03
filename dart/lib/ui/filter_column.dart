@@ -362,12 +362,12 @@ class _FilterColumnState extends State<FilterColumn> {
             iconCentered: true,
             onTap: widget.onOpenDrawer ?? () {},
           ),
-          // "All Chats" — pinned, not draggable.
+          if (!appState.hideAllChatsFolder)
           _SideBarButton(
             icon: Icons.chat,
             label: 'All',
             isActive: activeFolderId == null,
-            unreadCount: allUnread,
+            unreadCount: appState.hideNotificationCounters ? 0 : allUnread,
             unreadAllMuted: chatState.isAccountUnreadAllMuted(appState.activeAccountId),
             onTap: () => chatState.setActiveFolder(null),
           ),
@@ -385,7 +385,7 @@ class _FilterColumnState extends State<FilterColumn> {
                   mainAxisSize: MainAxisSize.min,
                   children: List.generate(folders.length, (index) {
                     final folder = folders[index];
-                    final unread = chatState.unreadCountForFolder(folder.id);
+                    final unread = appState.hideNotificationCounters ? 0 : chatState.unreadCountForFolder(folder.id);
                     final allMuted = chatState.isFolderUnreadAllMuted(folder.id);
                     final isDragged = _dragActive && _dragIndex == index;
                     final shift = _computeShiftForTab(index);

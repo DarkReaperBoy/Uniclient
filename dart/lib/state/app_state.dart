@@ -166,6 +166,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   int _avatarCorners = 23; // 0-23 (kMaxAvatarCorners), 23=circle (default)
   bool _singleCornerRadius = false;
   bool _disableCustomBackgrounds = false;
+  bool _hidePremiumStatuses = false;
+  String _monoFont = '';
+  bool _hideNotificationCounters = false;
+  bool _hideAllChatsFolder = false;
+  bool _hideNotificationBadge = false;
+  String _appIcon = '';
   bool _simpleQuotes = false;
   bool _semiTransparentDeleted = false;
   double _wideMultiplier = 1.0; // §54.3: 1.00–4.00 in 0.05 steps
@@ -334,6 +340,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   int get avatarCorners => _avatarCorners;
   bool get singleCornerRadius => _singleCornerRadius;
   bool get disableCustomBackgrounds => _disableCustomBackgrounds;
+  bool get hidePremiumStatuses => _hidePremiumStatuses;
+  String get monoFont => _monoFont;
+  bool get hideNotificationCounters => _hideNotificationCounters;
+  bool get hideAllChatsFolder => _hideAllChatsFolder;
+  bool get hideNotificationBadge => _hideNotificationBadge;
+  String get appIcon => _appIcon;
   bool get simpleQuotes => _simpleQuotes;
   bool get semiTransparentDeleted => _semiTransparentDeleted;
   double get wideMultiplier => _wideMultiplier;
@@ -463,6 +475,48 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setDisableCustomBackgrounds(bool v) {
     if (_disableCustomBackgrounds == v) return;
     _disableCustomBackgrounds = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setHidePremiumStatuses(bool v) {
+    if (_hidePremiumStatuses == v) return;
+    _hidePremiumStatuses = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setMonoFont(String v) {
+    if (_monoFont == v) return;
+    _monoFont = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setHideNotificationCounters(bool v) {
+    if (_hideNotificationCounters == v) return;
+    _hideNotificationCounters = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setHideAllChatsFolder(bool v) {
+    if (_hideAllChatsFolder == v) return;
+    _hideAllChatsFolder = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setHideNotificationBadge(bool v) {
+    if (_hideNotificationBadge == v) return;
+    _hideNotificationBadge = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setAppIcon(String v) {
+    if (_appIcon == v) return;
+    _appIcon = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -1930,6 +1984,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           (oldAvatarRadius != null ? (oldAvatarRadius * 23 / 50).round().clamp(0, 23) : 23);
       _singleCornerRadius = data['singleCornerRadius'] as bool? ?? false;
       _disableCustomBackgrounds = data['disableCustomBackgrounds'] as bool? ?? false;
+      _hidePremiumStatuses = data['hidePremiumStatuses'] as bool? ?? false;
+      _monoFont = data['monoFont'] as String? ?? '';
+      _hideNotificationCounters = data['hideNotificationCounters'] as bool? ?? false;
+      _hideAllChatsFolder = data['hideAllChatsFolder'] as bool? ?? false;
+      _hideNotificationBadge = data['hideNotificationBadge'] as bool? ?? false;
+      _appIcon = data['appIcon'] as String? ?? '';
       _simpleQuotes = data['simpleQuotes'] as bool? ?? false;
       _semiTransparentDeleted = data['semiTransparentDeleted'] as bool? ?? false;
       _wideMultiplier = (data['wideMultiplier'] as num?)?.toDouble() ?? 1.0;
@@ -2059,6 +2119,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'avatarCorners': _avatarCorners,
         'singleCornerRadius': _singleCornerRadius,
         'disableCustomBackgrounds': _disableCustomBackgrounds,
+        'hidePremiumStatuses': _hidePremiumStatuses,
+        'monoFont': _monoFont,
+        'hideNotificationCounters': _hideNotificationCounters,
+        'hideAllChatsFolder': _hideAllChatsFolder,
+        'hideNotificationBadge': _hideNotificationBadge,
+        'appIcon': _appIcon,
         'simpleQuotes': _simpleQuotes,
         'semiTransparentDeleted': _semiTransparentDeleted,
         'wideMultiplier': _wideMultiplier,

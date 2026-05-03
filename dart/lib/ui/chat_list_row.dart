@@ -239,7 +239,8 @@ class ChatListRow extends StatelessWidget {
                                   const SizedBox(width: 4),
                                   _WarningBadge(label: 'FAKE', isActive: isActive),
                                 ],
-                                if (chat.emojiStatusId.isNotEmpty) ...[
+                                if (chat.emojiStatusId.isNotEmpty &&
+                                    !context.read<AppState>().hidePremiumStatuses) ...[
                                   const SizedBox(width: 4),
                                   EmojiStatusWidget(
                                     emojiStatusId: chat.emojiStatusId,

@@ -343,6 +343,50 @@ class _AyuGramSettingsScreenState extends State<AyuGramSettingsScreen> {
             isDark: isDark,
             useMaterial: appState.materialSwitches,
           ),
+          _ToggleRow(
+            label: 'Hide premium statuses',
+            subtitle: 'Hide emoji status badges next to usernames',
+            value: appState.hidePremiumStatuses,
+            onChanged: (v) => appState.setHidePremiumStatuses(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _MonoFontRow(
+            currentFont: appState.monoFont,
+            onChanged: (v) => appState.setMonoFont(v),
+            isDark: isDark,
+          ),
+          Container(height: 1, color: dividerColor),
+          const SizedBox(height: 7),
+
+          // ── Chat Folders section (§54.10) ──
+          _SectionLabel(label: 'Chat Folders', color: sectionLabelColor),
+          _ToggleRow(
+            label: 'Hide notification counters',
+            subtitle: 'Hide unread count badges on folder tabs',
+            value: appState.hideNotificationCounters,
+            onChanged: (v) => appState.setHideNotificationCounters(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _ToggleRow(
+            label: 'Hide "All Chats" tab',
+            subtitle: 'Remove the All Chats folder tab from the folder bar',
+            value: appState.hideAllChatsFolder,
+            onChanged: (v) => appState.setHideAllChatsFolder(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          Container(height: 1, color: dividerColor),
+          const SizedBox(height: 7),
+
+          // ── App Icon section (§54.10) ──
+          _SectionLabel(label: 'App Icon', color: sectionLabelColor),
+          _AppIconPicker(
+            selectedIcon: appState.appIcon,
+            onChanged: (v) => appState.setAppIcon(v),
+            isDark: isDark,
+          ),
           Container(height: 1, color: dividerColor),
           const SizedBox(height: 7),
 
@@ -1546,6 +1590,320 @@ class _EditMarkBoxState extends State<_EditMarkBox> {
 
   void _resetToDefault() {
     _controller.text = widget.defaultValue;
+  }
+}
+
+class _MonoFontRow extends StatelessWidget {
+  final String currentFont;
+  final ValueChanged<String> onChanged;
+  final bool isDark;
+
+  const _MonoFontRow({
+    required this.currentFont,
+    required this.onChanged,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final displayValue = currentFont.isEmpty ? 'Default' : currentFont;
+    return InkWell(
+      onTap: () => _showFontSelectorBox(context),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Monospace font',
+                      style: TextStyle(
+                          fontSize: 14,
+                          color: isDark ? Colors.white : Colors.black87)),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      'Font for code and pre blocks',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: isDark
+                              ? const Color(0xFF6D7F8F)
+                              : const Color(0xFF999999)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Text(displayValue,
+                style: TextStyle(
+                    fontSize: 14,
+                    color: isDark
+                        ? const Color(0xFF6AB2F2)
+                        : const Color(0xFF3390EC))),
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_right,
+                size: 20,
+                color: isDark
+                    ? const Color(0xFF5A6A78)
+                    : const Color(0xFFCBCBCB)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showFontSelectorBox(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => _FontSelectorBox(
+        currentFont: currentFont,
+        onSaved: onChanged,
+      ),
+    );
+  }
+}
+
+class _FontSelectorBox extends StatefulWidget {
+  final String currentFont;
+  final ValueChanged<String> onSaved;
+
+  const _FontSelectorBox({
+    required this.currentFont,
+    required this.onSaved,
+  });
+
+  @override
+  State<_FontSelectorBox> createState() => _FontSelectorBoxState();
+}
+
+class _FontSelectorBoxState extends State<_FontSelectorBox> {
+  late final TextEditingController _controller;
+
+  static const _presets = [
+    '',
+    'Cascadia Mono',
+    'JetBrains Mono',
+    'Fira Code',
+    'Source Code Pro',
+    'Inconsolata',
+    'Ubuntu Mono',
+    'Hack',
+    'Roboto Mono',
+    'IBM Plex Mono',
+    'Cousine',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.currentFont);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1B2836) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final accentColor =
+        isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
+    final subtitleColor =
+        isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: SizedBox(
+        width: 320,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Monospace Font',
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: textColor)),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _controller,
+                autofocus: true,
+                style: TextStyle(fontSize: 14, color: textColor),
+                decoration: InputDecoration(
+                  hintText: 'Cascadia Mono',
+                  hintStyle: TextStyle(fontSize: 14, color: subtitleColor),
+                  isDense: true,
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
+                  enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(
+                        color: isDark
+                            ? const Color(0xFF3B4A59)
+                            : const Color(0xFFDDDDDD)),
+                  ),
+                  focusedBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: accentColor, width: 2),
+                  ),
+                ),
+                onSubmitted: (_) => _save(),
+              ),
+              const SizedBox(height: 12),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 200),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _presets.length,
+                  itemBuilder: (ctx, i) {
+                    final font = _presets[i];
+                    final isSelected = _controller.text == font;
+                    final label = font.isEmpty ? 'Default (Cascadia Mono)' : font;
+                    return InkWell(
+                      onTap: () {
+                        setState(() => _controller.text = font);
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(label,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontFamily: font.isEmpty ? 'monospace' : font,
+                                    color: isSelected ? accentColor : textColor,
+                                    fontWeight: isSelected
+                                        ? FontWeight.w600
+                                        : FontWeight.normal,
+                                  )),
+                            ),
+                            if (isSelected)
+                              Icon(Icons.check, size: 18, color: accentColor),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('Cancel',
+                        style: TextStyle(fontSize: 13, color: accentColor)),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: _save,
+                    child: Text('Save',
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: accentColor)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _save() {
+    widget.onSaved(_controller.text);
+    Navigator.of(context).pop();
+  }
+}
+
+class _AppIconPicker extends StatelessWidget {
+  final String selectedIcon;
+  final ValueChanged<String> onChanged;
+  final bool isDark;
+
+  const _AppIconPicker({
+    required this.selectedIcon,
+    required this.onChanged,
+    required this.isDark,
+  });
+
+  static const _icons = [
+    'default', 'alt', 'discord', 'spotify', 'extera', 'nothing',
+    'bard', 'yaplus', 'win95', 'chibi', 'chibi2', 'extera2',
+  ];
+
+  static const _iconColors = [
+    Color(0xFF40A7E3), Color(0xFF5288C1), Color(0xFF5865F2), Color(0xFF1DB954),
+    Color(0xFF6B72D5), Color(0xFF808080), Color(0xFFE67E22), Color(0xFFCC3333),
+    Color(0xFF008080), Color(0xFFFF69B4), Color(0xFFDA70D6), Color(0xFF4169E1),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = selectedIcon.isEmpty ? 'default' : selectedIcon;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 4,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+        ),
+        itemCount: _icons.length,
+        itemBuilder: (ctx, i) {
+          final name = _icons[i];
+          final isSelected = name == selected;
+          final color = _iconColors[i % _iconColors.length];
+          return GestureDetector(
+            onTap: () => onChanged(name == 'default' ? '' : name),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: isSelected
+                    ? Border.all(
+                        color: isDark
+                            ? const Color(0xFF6AB2F2)
+                            : const Color(0xFF3390EC),
+                        width: 2,
+                      )
+                    : null,
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Center(
+                  child: Text(
+                    name == 'default' ? 'U' : name[0].toUpperCase(),
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 }
 

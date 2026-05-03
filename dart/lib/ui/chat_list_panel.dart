@@ -681,6 +681,8 @@ class _ChatListPanelState extends State<ChatListPanel>
               _HorizontalFolderTabs(
                 chatState: chatState,
                 allUnread: chatState.unreadCountForAccount(appState.activeAccountId),
+                hideAllChats: appState.hideAllChatsFolder,
+                hideCounters: appState.hideNotificationCounters,
               ),
             // Search tabs strip (spec §2.2: shown when typing in search bar).
             if (_searching && _searchController.text.isNotEmpty)
@@ -1801,8 +1803,15 @@ class _SearchBar extends StatelessWidget {
 class _HorizontalFolderTabs extends StatefulWidget {
   final ChatState chatState;
   final int allUnread;
+  final bool hideAllChats;
+  final bool hideCounters;
 
-  const _HorizontalFolderTabs({required this.chatState, required this.allUnread});
+  const _HorizontalFolderTabs({
+    required this.chatState,
+    required this.allUnread,
+    this.hideAllChats = false,
+    this.hideCounters = false,
+  });
 
   @override
   State<_HorizontalFolderTabs> createState() => _HorizontalFolderTabsState();
@@ -1832,13 +1841,14 @@ class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
   Tween<double> _widthTween = Tween(begin: 0, end: 0);
   bool _indicatorInitialized = false;
 
-  int get _tabCount => widget.chatState.folders.length + 1;
+  int get _allChatsOffset => widget.hideAllChats ? 0 : 1;
+  int get _tabCount => widget.chatState.folders.length + _allChatsOffset;
 
   int get _activeIndex {
     final id = widget.chatState.activeFolderId;
-    if (id == null) return 0;
+    if (id == null) return widget.hideAllChats ? -1 : 0;
     final idx = widget.chatState.folders.indexWhere((f) => f.id == id);
-    return idx < 0 ? 0 : idx + 1;
+    return idx < 0 ? (widget.hideAllChats ? -1 : 0) : idx + _allChatsOffset;
   }
 
   @override
@@ -1895,12 +1905,13 @@ class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
 
   void _onTabTapped(int index) {
     if (_dragActive) return;
-    if (index == 0) {
+    if (!widget.hideAllChats && index == 0) {
       widget.chatState.setActiveFolder(null);
     } else {
       final folders = widget.chatState.folders;
-      if (index - 1 < folders.length) {
-        widget.chatState.setActiveFolder(folders[index - 1].id);
+      final folderIdx = index - _allChatsOffset;
+      if (folderIdx >= 0 && folderIdx < folders.length) {
+        widget.chatState.setActiveFolder(folders[folderIdx].id);
       }
     }
   }
@@ -1922,8 +1933,8 @@ class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
   void _onPointerDown(PointerDownEvent event) {
     if (event.buttons != kPrimaryButton) return;
     final tabIdx = _hitTestTab(event.position);
-    // Index 0 = "All Chats" — pinned, cannot be dragged (spec: addPinnedInterval)
-    if (tabIdx <= 0) return;
+    if (tabIdx < 0) return;
+    if (!widget.hideAllChats && tabIdx == 0) return;
     _dragPointer = event.pointer;
     _dragIndex = tabIdx;
     _dragStart = event.position;
@@ -1948,8 +1959,8 @@ class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
     if (_dragActive && _dragIndex != null) {
       final targetIndex = _computeDropIndex();
       if (targetIndex != null && targetIndex != _dragIndex!) {
-        final oldFolderIdx = _dragIndex! - 1;
-        var newFolderIdx = targetIndex - 1;
+        final oldFolderIdx = _dragIndex! - _allChatsOffset;
+        var newFolderIdx = targetIndex - _allChatsOffset;
         if (newFolderIdx < 0) newFolderIdx = 0;
         widget.chatState.reorderFolders(oldFolderIdx, newFolderIdx);
       }
@@ -2169,12 +2180,13 @@ class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
                   mainAxisSize: MainAxisSize.min,
                   children: List.generate(tabCount, (i) {
                     final isActive = i == _activeIndex;
-                    final isAllChats = i == 0;
-                    final folder = isAllChats ? null : folders[i - 1];
+                    final isAllChats = !widget.hideAllChats && i == 0;
+                    final folder = isAllChats ? null : folders[i - _allChatsOffset];
                     final label = isAllChats ? 'All' : folder!.name;
-                    final unread = isAllChats
+                    final rawUnread = isAllChats
                         ? widget.allUnread
                         : widget.chatState.unreadCountForFolder(folder!.id);
+                    final unread = widget.hideCounters ? 0 : rawUnread;
                     final isDragged = _dragActive && _dragIndex == i;
                     double shiftX = 0;
                     if (_dragActive && _dragIndex != null && i != _dragIndex!) {

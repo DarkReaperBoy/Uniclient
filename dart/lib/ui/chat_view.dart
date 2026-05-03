@@ -5920,7 +5920,8 @@ class _ChatTopBar extends StatelessWidget {
                             const SizedBox(width: 4),
                             _TopBarWarningBadge(label: 'FAKE'),
                           ],
-                          if (chat.emojiStatusId.isNotEmpty) ...[
+                          if (chat.emojiStatusId.isNotEmpty &&
+                              !context.read<AppState>().hidePremiumStatuses) ...[
                             const SizedBox(width: 4),
                             EmojiStatusWidget(
                               emojiStatusId: chat.emojiStatusId,

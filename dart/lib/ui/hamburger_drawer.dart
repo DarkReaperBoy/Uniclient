@@ -627,7 +627,8 @@ class _ProfileCover extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (account?.isVerified == true || account?.isPremium == true) ...[
+                if ((account?.isVerified == true || account?.isPremium == true) &&
+                    !context.read<AppState>().hidePremiumStatuses) ...[
                   const SizedBox(width: 4),
                   Icon(
                     account?.isPremium == true

@@ -574,7 +574,8 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    if (emojiStatusId.isNotEmpty && accountId.isNotEmpty) ...[
+                    if (emojiStatusId.isNotEmpty && accountId.isNotEmpty &&
+                        !context.read<AppState>().hidePremiumStatuses) ...[
                       const SizedBox(width: 4),
                       EmojiStatusWidget(
                         emojiStatusId: emojiStatusId,

@@ -6559,15 +6559,17 @@ class _RichMessageTextState extends State<_RichMessageText> {
       case 'strike':
         return TextSpan(text: text, style: const TextStyle(decoration: TextDecoration.lineThrough));
       case 'code':
+        final monoFont = context.read<AppState>().monoFont;
         return TextSpan(
           text: text,
           style: TextStyle(
-            fontFamily: 'monospace',
+            fontFamily: monoFont.isEmpty ? 'monospace' : monoFont,
             backgroundColor: isDark ? const Color(0xFF1E2A36) : const Color(0xFFF0F0F0),
             fontSize: (widget.baseStyle.fontSize ?? 14) * 0.9,
           ),
         );
       case 'pre':
+        final monoFontPre = context.read<AppState>().monoFont;
         return WidgetSpan(
           child: Container(
             width: double.infinity,
@@ -6580,7 +6582,7 @@ class _RichMessageTextState extends State<_RichMessageText> {
             child: SelectableText(
               text,
               style: TextStyle(
-                fontFamily: 'monospace',
+                fontFamily: monoFontPre.isEmpty ? 'monospace' : monoFontPre,
                 fontSize: (widget.baseStyle.fontSize ?? 14) * 0.9,
                 color: widget.baseStyle.color,
               ),
