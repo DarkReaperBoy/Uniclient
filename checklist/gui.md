@@ -988,9 +988,7 @@ Status key: `[ ]` not started · `[x]` done
 ## §52 — Anti-Recall & Message History (AyuGram)
 # Touches: dart/lib/ui/message_bubble.dart, dart/lib/ui/chat_view.dart, dart/lib/ui/settings_screen.dart, new anti_recall.dart
 
-- [ ] SQLite storage — ayudata.db; DeletedMessage/EditedMessage/DeletedDialog/SchemaVersion tables; indexes on (userId,dialogId,topicId,messageId); skip empty-text saves; corruption recovery (rename with timestamp + recreate) — spec §52.6
-- [ ] Context menu integration — "Edits history" (pencil, when revisions exist); "Hide message" (clear icon); "Read until here" (when ghost blocks reads); "Burn media" (TTL media unread); "View deleted messages" chat-list; "Jump to beginning" chat-list — spec §52.7
-- [ ] EditMarkBox — 320px wide dialog; title + input field + "Save" + "Reset to default" buttons — spec §52.10
+- [ ] Context menu additions — "Burn media" (TTL media unread) message context item; "Jump to beginning" chat-list context item — spec §52.7
 
 ---
 
