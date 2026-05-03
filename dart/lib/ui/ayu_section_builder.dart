@@ -515,6 +515,7 @@ Scaffold ayuSettingsScaffold({
   required BuildContext context,
   required String title,
   required List<Widget> children,
+  List<Widget>? actions,
 }) {
   final isDark = Theme.of(context).brightness == Brightness.dark;
   return Scaffold(
@@ -529,6 +530,7 @@ Scaffold ayuSettingsScaffold({
         icon: const Icon(Icons.arrow_back),
         onPressed: () => Navigator.of(context).pop(),
       ),
+      actions: actions,
     ),
     body: ListView(
       padding: EdgeInsets.zero,

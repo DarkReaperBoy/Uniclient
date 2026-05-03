@@ -259,6 +259,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _localPremium = false;
   bool _disableAds = true;
 
+  // §54.16: AyuGram Filters settings.
+  bool _filtersEnabled = false;
+  bool _filtersEnabledInChats = false;
+  bool _hideFromBlocked = false;
+  Set<int> _shadowBanIds = {};
+
   // §54.15: Other settings.
   bool _crashReporting = true;
 
@@ -493,6 +499,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get localPremium => _localPremium;
   bool get disableAds => _disableAds;
   bool get crashReporting => _crashReporting;
+
+  // §54.16: AyuGram Filters settings getters.
+  bool get filtersEnabled => _filtersEnabled;
+  bool get filtersEnabledInChats => _filtersEnabledInChats;
+  bool get hideFromBlocked => _hideFromBlocked;
+  Set<int> get shadowBanIds => _shadowBanIds;
 
   // §25.15 AyuGram setters
   void setBubbleRadius(int v) {
@@ -1052,6 +1064,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _localPremium = false;
     _disableAds = true;
     _crashReporting = true;
+    _filtersEnabled = false;
+    _filtersEnabledInChats = false;
+    _hideFromBlocked = false;
+    _shadowBanIds = {};
     _readExclusions = {};
     notifyListeners();
     _saveWindowPrefs();
@@ -1246,6 +1262,39 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
     _saveWindowPrefs();
   }
+
+  // §54.16: AyuGram Filters settings setters.
+  void setFiltersEnabled(bool v) {
+    if (_filtersEnabled == v) return;
+    _filtersEnabled = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  void setFiltersEnabledInChats(bool v) {
+    if (_filtersEnabledInChats == v) return;
+    _filtersEnabledInChats = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  void setHideFromBlocked(bool v) {
+    if (_hideFromBlocked == v) return;
+    _hideFromBlocked = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  void addShadowBan(int id) {
+    if (_shadowBanIds.contains(id)) return;
+    _shadowBanIds = {..._shadowBanIds, id};
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  void removeShadowBan(int id) {
+    if (!_shadowBanIds.contains(id)) return;
+    _shadowBanIds = {..._shadowBanIds}..remove(id);
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  bool isShadowBanned(int id) => _shadowBanIds.contains(id);
 
   // §54.9: Message field button toggle setters.
   void setShowAttachButton(bool v) {
@@ -2404,6 +2453,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _localPremium = data['localPremium'] as bool? ?? false;
       _disableAds = data['disableAds'] as bool? ?? true;
       _crashReporting = data['crashReporting'] as bool? ?? true;
+      _filtersEnabled = data['filtersEnabled'] as bool? ?? false;
+      _filtersEnabledInChats = data['filtersEnabledInChats'] as bool? ?? false;
+      _hideFromBlocked = data['hideFromBlocked'] as bool? ?? false;
+      final rawShadowBan = data['shadowBanIds'] as List<dynamic>?;
+      if (rawShadowBan != null) {
+        _shadowBanIds = rawShadowBan.map((e) => (e as num).toInt()).toSet();
+      }
       final rawExcl = data['readExclusions'] as Map<String, dynamic>?;
       if (rawExcl != null) {
         _readExclusions = rawExcl.map((k, v) => MapEntry(k, (v as int?) ?? 0));
@@ -2534,6 +2590,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'localPremium': _localPremium,
         'disableAds': _disableAds,
         'crashReporting': _crashReporting,
+        'filtersEnabled': _filtersEnabled,
+        'filtersEnabledInChats': _filtersEnabledInChats,
+        'hideFromBlocked': _hideFromBlocked,
+        'shadowBanIds': _shadowBanIds.toList(),
         'readExclusions': _readExclusions,
         'wallpaperType': _wallpaper.type.index,
         'wallpaperColors': _wallpaper.backgroundColors
