@@ -1019,7 +1019,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §57 — Appendix B: Dark Theme Color Palette
 # Touches: new theme_colors.dart (applied throughout all widgets)
 
-- [ ] Theme infrastructure — dual-theme (day-blue / night) color system; alias resolution (references resolve to hex); 8-digit hex with alpha (#00000054); DPI scaling at runtime (100%/125%/150%/200%/300%); map Telegram hex to Flutter Color(0xAARRGGBB) — spec §57
 - [ ] Window / chrome colors — windowBg/BgOver/BgRipple/BgActive/Fg/FgOver/FgActive; window text tokens (windowSubTextFg/FgOver, windowBoldFg/FgOver, windowActiveTextFg); shadow tokens (windowShadowFg/Fallback, shadowFg) with alpha; title bar tokens (titleBg/BgActive/Shadow/Fg/FgActive); layerBg (#0000007F) — spec §57.1
 - [ ] Dialog / chat list colors — dialog background tokens (dialogsBg/BgOver/BgActive/RippleBg/RippleBgActive); name tokens; text tokens (dialogsTextFg/FgOver/FgActive/FgService); date/draft tokens (draft red #DD4B39 light / #FF525D dark); unread badge tokens (6 variants); online badge tokens; icon tokens (sentIcon/sendingIcon/verifiedIcon/archiveFg); forward tokens — spec §57.2
 - [ ] Top bar colors — topBarBg (light #FFFFFF, dark #17212B); missing top bar tokens resolved via menuIconFg/windowFg/windowSubTextFg — spec §57.3

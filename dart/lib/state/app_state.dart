@@ -176,6 +176,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _simpleQuotes = false;
   bool _semiTransparentDeleted = false;
   double _wideMultiplier = 1.0; // §54.3: 1.00–4.00 in 0.05 steps
+  double _uiScalePercent = 100.0; // §14.4 / §57: Interface scale, 100–300%
   bool _showDrawerThemeToggle = true;
 
   // §54.8: Per-item drawer visibility toggles (all default true).
@@ -388,6 +389,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get simpleQuotes => _simpleQuotes;
   bool get semiTransparentDeleted => _semiTransparentDeleted;
   double get wideMultiplier => _wideMultiplier;
+  double get uiScalePercent => _uiScalePercent;
+  double get uiScaleFactor => _uiScalePercent / 100.0;
   bool get showDrawerThemeToggle => _showDrawerThemeToggle;
 
   // §54.8: Per-item drawer visibility getters.
@@ -607,6 +610,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     v = v.clamp(1.0, 4.0);
     if ((_wideMultiplier - v).abs() < 0.001) return;
     _wideMultiplier = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setUiScalePercent(double v) {
+    v = (v / 5).round() * 5.0;
+    v = v.clamp(100.0, 300.0);
+    if ((_uiScalePercent - v).abs() < 0.01) return;
+    _uiScalePercent = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -2366,6 +2378,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _simpleQuotes = data['simpleQuotes'] as bool? ?? false;
       _semiTransparentDeleted = data['semiTransparentDeleted'] as bool? ?? false;
       _wideMultiplier = (data['wideMultiplier'] as num?)?.toDouble() ?? 1.0;
+      _uiScalePercent = (data['uiScalePercent'] as num?)?.toDouble() ?? 100.0;
       _showDrawerThemeToggle = data['showDrawerThemeToggle'] as bool? ?? true;
       // §54.8: Per-item drawer visibility.
       _showMyProfileInDrawer = data['showMyProfileInDrawer'] as bool? ?? true;
@@ -2536,6 +2549,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'simpleQuotes': _simpleQuotes,
         'semiTransparentDeleted': _semiTransparentDeleted,
         'wideMultiplier': _wideMultiplier,
+        'uiScalePercent': _uiScalePercent,
         'showDrawerThemeToggle': _showDrawerThemeToggle,
         'showMyProfileInDrawer': _showMyProfileInDrawer,
         'showBotsInDrawer': _showBotsInDrawer,

@@ -1844,7 +1844,8 @@ class _UniClientAppState extends State<UniClientApp>
       darkTheme: AppTheme.fromPalette(palette),
       themeMode: ThemeMode.light,
       builder: (context, navigator) {
-        return Listener(
+        final scaleFactor = appState.uiScaleFactor;
+        Widget content = Listener(
           behavior: HitTestBehavior.translucent,
           onPointerDown: (_) => appState.updateNonIdle(),
           onPointerMove: (_) => appState.updateNonIdle(),
@@ -1928,6 +1929,16 @@ class _UniClientAppState extends State<UniClientApp>
           ],
         ),
         );
+        if (scaleFactor != 1.0) {
+          final mq = MediaQuery.of(context);
+          content = MediaQuery(
+            data: mq.copyWith(
+              textScaler: TextScaler.linear(scaleFactor),
+            ),
+            child: content,
+          );
+        }
+        return content;
       },
       home: const UniClientShell(),
     ),

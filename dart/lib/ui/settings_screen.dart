@@ -952,9 +952,9 @@ class _InterfaceScaleSection extends StatefulWidget {
 }
 
 class _InterfaceScaleSectionState extends State<_InterfaceScaleSection> {
-  bool _useDefault = true;
-  double _scalePercent = 100;
-  double _committedScale = 100;
+  late bool _useDefault;
+  late double _scalePercent;
+  late double _committedScale;
   bool _isDragging = false;
 
   static const double _kMin = 100;
@@ -962,6 +962,15 @@ class _InterfaceScaleSectionState extends State<_InterfaceScaleSection> {
   static const double _kStep = 5;
 
   double _snap(double v) => (v / _kStep).round() * _kStep;
+
+  @override
+  void initState() {
+    super.initState();
+    final saved = widget.appState.uiScalePercent;
+    _committedScale = saved;
+    _scalePercent = saved;
+    _useDefault = (saved - 100.0).abs() < 0.01;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -982,7 +991,16 @@ class _InterfaceScaleSectionState extends State<_InterfaceScaleSection> {
     return Column(
       children: [
         InkWell(
-          onTap: () => setState(() => _useDefault = !_useDefault),
+          onTap: () {
+            setState(() {
+              _useDefault = !_useDefault;
+              if (_useDefault && (_scalePercent - 100.0).abs() > 0.01) {
+                _scalePercent = 100;
+                _committedScale = 100;
+                widget.appState.setUiScalePercent(100);
+              }
+            });
+          },
           hoverColor: hoverBg,
           splashColor: hoverBg.withValues(alpha: 0.5),
           child: Padding(
@@ -1003,7 +1021,16 @@ class _InterfaceScaleSectionState extends State<_InterfaceScaleSection> {
                   height: 20,
                   child: Switch(
                     value: _useDefault,
-                    onChanged: (v) => setState(() => _useDefault = v),
+                    onChanged: (v) {
+                      setState(() {
+                        _useDefault = v;
+                        if (v && (_scalePercent - 100.0).abs() > 0.01) {
+                          _scalePercent = 100;
+                          _committedScale = 100;
+                          widget.appState.setUiScalePercent(100);
+                        }
+                      });
+                    },
                     activeColor: accentColor,
                   ),
                 ),
@@ -1110,10 +1137,11 @@ class _InterfaceScaleSectionState extends State<_InterfaceScaleSection> {
       context,
       text: 'Some settings will be applied after restarting.',
       title: 'Restart Required',
-      confirmText: 'Restart Now',
+      confirmText: 'Apply',
       cancelText: 'Cancel',
       onConfirm: () {
         setState(() => _committedScale = newScale);
+        widget.appState.setUiScalePercent(newScale);
       },
       onCancel: () {
         setState(() => _scalePercent = _committedScale);
