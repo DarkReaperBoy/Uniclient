@@ -87,6 +87,65 @@ class _AyuGramSettingsScreenState extends State<AyuGramSettingsScreen> {
           Container(height: 1, color: dividerColor),
           const SizedBox(height: 7),
 
+          // ── Spy Essentials section (§52.1) ──
+          _SectionLabel(label: 'Spy Essentials', color: sectionLabelColor),
+          _ToggleRow(
+            label: 'Save deleted messages',
+            subtitle: 'Preserve messages that others delete',
+            value: appState.saveDeletedMessages,
+            onChanged: (v) => appState.setSaveDeletedMessages(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _ToggleRow(
+            label: 'Save messages history',
+            subtitle: 'Keep pre-edit text of edited messages',
+            value: appState.saveMessagesHistory,
+            onChanged: (v) => appState.setSaveMessagesHistory(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _ToggleRow(
+            label: 'Save for bots',
+            subtitle: 'Also save deleted/edited messages from bots',
+            value: appState.saveForBots,
+            onChanged: (v) => appState.setSaveForBots(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _ToggleRow(
+            label: 'Semi-transparent deleted messages',
+            subtitle: 'Reduce opacity for deleted messages (beta)',
+            value: appState.semiTransparentDeleted,
+            onChanged: (v) => appState.setSemiTransparentDeleted(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _ToggleRow(
+            label: 'Replace marks with icons',
+            subtitle: 'Use icons instead of text for deleted/edited status',
+            value: appState.replaceMarksWithIcons,
+            onChanged: (v) => appState.setReplaceMarksWithIcons(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _MarkButtonRow(
+            label: 'Deleted mark',
+            currentValue: appState.deletedMark,
+            defaultValue: '\u{1F9F9}',
+            onSaved: (v) => appState.setDeletedMark(v),
+            isDark: isDark,
+          ),
+          _MarkButtonRow(
+            label: 'Edited mark',
+            currentValue: appState.editedMark,
+            defaultValue: '',
+            onSaved: (v) => appState.setEditedMark(v),
+            isDark: isDark,
+          ),
+          Container(height: 1, color: dividerColor),
+          const SizedBox(height: 7),
+
           // ── Messages section ──
           _SectionLabel(label: 'Messages', color: sectionLabelColor),
           _SliderRow(
@@ -117,14 +176,6 @@ class _AyuGramSettingsScreenState extends State<AyuGramSettingsScreen> {
             subtitle: 'Uniform reply bar style without colorful accents',
             value: appState.simpleQuotes,
             onChanged: (v) => appState.setSimpleQuotes(v),
-            isDark: isDark,
-            useMaterial: appState.materialSwitches,
-          ),
-          _ToggleRow(
-            label: 'Semi-transparent deleted messages',
-            subtitle: 'Reduce opacity for deleted messages (beta)',
-            value: appState.semiTransparentDeleted,
-            onChanged: (v) => appState.setSemiTransparentDeleted(v),
             isDark: isDark,
             useMaterial: appState.materialSwitches,
           ),
@@ -660,6 +711,186 @@ class _DropdownRow extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _MarkButtonRow extends StatelessWidget {
+  final String label;
+  final String currentValue;
+  final String defaultValue;
+  final ValueChanged<String> onSaved;
+  final bool isDark;
+
+  const _MarkButtonRow({
+    required this.label,
+    required this.currentValue,
+    required this.defaultValue,
+    required this.onSaved,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final displayValue = currentValue.isEmpty ? '(default)' : currentValue;
+    return InkWell(
+      onTap: () => _showEditMarkBox(context),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(label,
+                  style: TextStyle(
+                      fontSize: 14,
+                      color: isDark ? Colors.white : Colors.black87)),
+            ),
+            Text(displayValue,
+                style: TextStyle(
+                    fontSize: 14,
+                    color: isDark
+                        ? const Color(0xFF6AB2F2)
+                        : const Color(0xFF3390EC))),
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_right,
+                size: 20,
+                color: isDark
+                    ? const Color(0xFF5A6A78)
+                    : const Color(0xFFCBCBCB)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showEditMarkBox(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => _EditMarkBox(
+        title: label,
+        currentValue: currentValue,
+        defaultValue: defaultValue,
+        onSaved: onSaved,
+      ),
+    );
+  }
+}
+
+class _EditMarkBox extends StatefulWidget {
+  final String title;
+  final String currentValue;
+  final String defaultValue;
+  final ValueChanged<String> onSaved;
+
+  const _EditMarkBox({
+    required this.title,
+    required this.currentValue,
+    required this.defaultValue,
+    required this.onSaved,
+  });
+
+  @override
+  State<_EditMarkBox> createState() => _EditMarkBoxState();
+}
+
+class _EditMarkBoxState extends State<_EditMarkBox> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.currentValue);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1B2836) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final accentColor =
+        isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: SizedBox(
+        width: 320,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(widget.title,
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: textColor)),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _controller,
+                autofocus: true,
+                style: TextStyle(fontSize: 14, color: textColor),
+                decoration: InputDecoration(
+                  isDense: true,
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
+                  enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(
+                        color: isDark
+                            ? const Color(0xFF3B4A59)
+                            : const Color(0xFFDDDDDD)),
+                  ),
+                  focusedBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: accentColor, width: 2),
+                  ),
+                ),
+                onSubmitted: (_) => _save(),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  TextButton(
+                    onPressed: _resetToDefault,
+                    child: Text('Reset to default',
+                        style: TextStyle(fontSize: 13, color: accentColor)),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('Cancel',
+                        style: TextStyle(fontSize: 13, color: accentColor)),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: _save,
+                    child: Text('Save',
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: accentColor)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _save() {
+    widget.onSaved(_controller.text);
+    Navigator.of(context).pop();
+  }
+
+  void _resetToDefault() {
+    _controller.text = widget.defaultValue;
   }
 }
 

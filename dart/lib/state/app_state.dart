@@ -191,6 +191,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _saveDeletedMessages = true;
   bool _saveMessagesHistory = true;
   bool _saveForBots = false;
+  String _deletedMark = '\u{1F9F9}'; // broom emoji
+  String _editedMark = ''; // empty = Telegram default "edited"
+  bool _replaceMarksWithIcons = true;
   bool _localPremium = false;
   bool _disableAds = true;
 
@@ -356,6 +359,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get saveDeletedMessages => _saveDeletedMessages;
   bool get saveMessagesHistory => _saveMessagesHistory;
   bool get saveForBots => _saveForBots;
+  String get deletedMark => _deletedMark;
+  String get editedMark => _editedMark;
+  bool get replaceMarksWithIcons => _replaceMarksWithIcons;
   bool get localPremium => _localPremium;
   bool get disableAds => _disableAds;
 
@@ -681,6 +687,27 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setSaveForBots(bool v) {
     if (_saveForBots == v) return;
     _saveForBots = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setDeletedMark(String v) {
+    if (_deletedMark == v) return;
+    _deletedMark = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setEditedMark(String v) {
+    if (_editedMark == v) return;
+    _editedMark = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setReplaceMarksWithIcons(bool v) {
+    if (_replaceMarksWithIcons == v) return;
+    _replaceMarksWithIcons = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -1723,6 +1750,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _saveDeletedMessages = data['saveDeletedMessages'] as bool? ?? true;
       _saveMessagesHistory = data['saveMessagesHistory'] as bool? ?? true;
       _saveForBots = data['saveForBots'] as bool? ?? false;
+      _deletedMark = data['deletedMark'] as String? ?? '\u{1F9F9}';
+      _editedMark = data['editedMark'] as String? ?? '';
+      _replaceMarksWithIcons = data['replaceMarksWithIcons'] as bool? ?? true;
       _localPremium = data['localPremium'] as bool? ?? false;
       _disableAds = data['disableAds'] as bool? ?? true;
       final rawExcl = data['readExclusions'] as Map<String, dynamic>?;
@@ -1795,6 +1825,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'saveDeletedMessages': _saveDeletedMessages,
         'saveMessagesHistory': _saveMessagesHistory,
         'saveForBots': _saveForBots,
+        'deletedMark': _deletedMark,
+        'editedMark': _editedMark,
+        'replaceMarksWithIcons': _replaceMarksWithIcons,
         'localPremium': _localPremium,
         'disableAds': _disableAds,
         'readExclusions': _readExclusions,
