@@ -168,6 +168,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _disableCustomBackgrounds = false;
   bool _simpleQuotes = false;
   bool _semiTransparentDeleted = false;
+  double _wideMultiplier = 1.0; // §54.3: 1.00–4.00 in 0.05 steps
   bool _showDrawerThemeToggle = true;
 
   // §50.2: Streamer Mode — global, non-persistent (OFF on every cold launch).
@@ -310,6 +311,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get disableCustomBackgrounds => _disableCustomBackgrounds;
   bool get simpleQuotes => _simpleQuotes;
   bool get semiTransparentDeleted => _semiTransparentDeleted;
+  double get wideMultiplier => _wideMultiplier;
   bool get showDrawerThemeToggle => _showDrawerThemeToggle;
 
   // §50.2 Streamer Mode getters
@@ -417,6 +419,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setSimpleQuotes(bool v) {
     if (_simpleQuotes == v) return;
     _simpleQuotes = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setWideMultiplier(double v) {
+    v = (v * 20).round() / 20.0; // snap to 0.05 increments
+    v = v.clamp(1.0, 4.0);
+    if ((_wideMultiplier - v).abs() < 0.001) return;
+    _wideMultiplier = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -1729,6 +1740,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _disableCustomBackgrounds = data['disableCustomBackgrounds'] as bool? ?? false;
       _simpleQuotes = data['simpleQuotes'] as bool? ?? false;
       _semiTransparentDeleted = data['semiTransparentDeleted'] as bool? ?? false;
+      _wideMultiplier = (data['wideMultiplier'] as num?)?.toDouble() ?? 1.0;
       _showDrawerThemeToggle = data['showDrawerThemeToggle'] as bool? ?? true;
       // §50.2 Streamer Mode toggle visibility (persistent); mode itself is NOT persisted
       _showStreamerToggleInDrawer = data['showStreamerToggleInDrawer'] as bool? ?? false;
@@ -1834,6 +1846,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'disableCustomBackgrounds': _disableCustomBackgrounds,
         'simpleQuotes': _simpleQuotes,
         'semiTransparentDeleted': _semiTransparentDeleted,
+        'wideMultiplier': _wideMultiplier,
         'showDrawerThemeToggle': _showDrawerThemeToggle,
         'showStreamerToggleInDrawer': _showStreamerToggleInDrawer,
         'showStreamerToggleInTray': _showStreamerToggleInTray,

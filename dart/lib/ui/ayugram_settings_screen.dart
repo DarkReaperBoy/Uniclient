@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
 import 'ayu_toggle.dart';
+import 'confirm_box.dart';
 import 'ghost_settings_page.dart';
 import 'settings_style.dart';
 
@@ -160,6 +161,11 @@ class _AyuGramSettingsScreenState extends State<AyuGramSettingsScreen> {
 
           // ── Messages section ──
           _SectionLabel(label: 'Messages', color: sectionLabelColor),
+          _WideMultiplierSlider(
+            value: appState.wideMultiplier,
+            onChanged: (v) => appState.setWideMultiplier(v),
+            isDark: isDark,
+          ),
           _SliderRow(
             label: 'Bubble corner radius',
             value: appState.bubbleRadius,
@@ -289,6 +295,119 @@ class _AyuGramSettingsScreenState extends State<AyuGramSettingsScreen> {
             ),
           ),
           const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+}
+
+class _WideMultiplierSlider extends StatefulWidget {
+  final double value;
+  final ValueChanged<double> onChanged;
+  final bool isDark;
+
+  const _WideMultiplierSlider({
+    required this.value,
+    required this.onChanged,
+    required this.isDark,
+  });
+
+  @override
+  State<_WideMultiplierSlider> createState() => _WideMultiplierSliderState();
+}
+
+class _WideMultiplierSliderState extends State<_WideMultiplierSlider> {
+  late double _localValue;
+  double _committedValue = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    _localValue = widget.value;
+    _committedValue = widget.value;
+  }
+
+  @override
+  void didUpdateWidget(_WideMultiplierSlider old) {
+    super.didUpdateWidget(old);
+    if ((old.value - widget.value).abs() > 0.001) {
+      _localValue = widget.value;
+      _committedValue = widget.value;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accentColor = const Color(0xFF40A7E3);
+    final textColor = widget.isDark ? Colors.white : Colors.black87;
+    final subtitleColor = widget.isDark
+        ? const Color(0xFF6D7F8F)
+        : const Color(0xFF999999);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text('Wide Messages Multiplier',
+                    style: TextStyle(fontSize: 14, color: textColor)),
+              ),
+              Text(_localValue.toStringAsFixed(2),
+                  style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF40A7E3))),
+            ],
+          ),
+          SliderTheme(
+            data: SliderThemeData(
+              activeTrackColor: accentColor,
+              inactiveTrackColor: widget.isDark
+                  ? const Color(0xFF2B3C4C)
+                  : const Color(0xFFD5D5D5),
+              thumbColor: accentColor,
+              overlayColor: const Color(0x2940A7E3),
+              trackHeight: 3,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7.5),
+            ),
+            child: Slider(
+              value: _localValue,
+              min: 1.0,
+              max: 4.0,
+              divisions: 60,
+              onChanged: (v) {
+                setState(() => _localValue = v);
+              },
+              onChangeEnd: (v) {
+                final snapped = (v * 20).round() / 20.0;
+                if ((snapped - _committedValue).abs() < 0.001) return;
+                showConfirmBox(
+                  context,
+                  title: 'Restart Required',
+                  text: 'Some settings will be applied after restarting.',
+                  confirmText: 'Apply',
+                  cancelText: 'Cancel',
+                  onConfirm: () {
+                    _committedValue = snapped;
+                    widget.onChanged(snapped);
+                  },
+                  onCancel: () {
+                    setState(() => _localValue = _committedValue);
+                  },
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
+              'Change message width for better display on wide monitors.',
+              style: TextStyle(fontSize: 12, color: subtitleColor),
+            ),
+          ),
         ],
       ),
     );

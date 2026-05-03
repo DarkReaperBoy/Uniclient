@@ -407,7 +407,7 @@ class _MessageBubbleState extends State<MessageBubble> {
     );
   }
 
-  static const _maxWidth = 430.0;
+  static const _baseMaxWidth = 430.0;
   static const _radiusLarge = 16.0;
   static const _radiusSmall = 6.0;
 
@@ -437,6 +437,10 @@ class _MessageBubbleState extends State<MessageBubble> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final isOutgoing = message.isOutgoing;
+    final wm = context.watch<AppState>().wideMultiplier;
+    final _maxWidth = (wm - 1.0).abs() > 0.01
+        ? (_baseMaxWidth * wm).roundToDouble().clamp(_baseMaxWidth, _baseMaxWidth * 4)
+        : _baseMaxWidth;
 
     // AyuGram spec: sticker-only messages render without a bubble background.
     // A sticker-only message has no text body, reply, or forward header — only
@@ -3045,12 +3049,15 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
     final message = widget.message;
     final theme = widget.theme;
 
-    // Photos/videos: max 430×430. GIFs: 320px wide, 1080px tall (spec §6 max inline area 1920×1080).
+    final wm = context.watch<AppState>().wideMultiplier;
+    final double baseMax = (wm - 1.0).abs() > 0.01
+        ? (_MessageBubbleState._baseMaxWidth * wm).roundToDouble()
+        : _MessageBubbleState._baseMaxWidth;
     final bool isGif = message.mediaType == 7;
-    final double maxW = isGif ? 320.0 : 430.0;
-    final double maxH = isGif ? 1080.0 : 430.0;
+    final double maxW = isGif ? 320.0 : baseMax;
+    final double maxH = isGif ? 1080.0 : baseMax;
     double displayWidth = maxW;
-    double displayHeight = maxW * 287.0 / 430.0;
+    double displayHeight = maxW * 287.0 / baseMax;
     if (message.mediaWidth > 0 && message.mediaHeight > 0) {
       final aspect = message.mediaWidth / message.mediaHeight;
       if (aspect >= 1) {
@@ -4506,7 +4513,10 @@ class _LocationIndicatorState extends State<_LocationIndicator> {
     final hasVenue = message.venueTitle.isNotEmpty;
     final isLive = message.geoLive;
 
-    final mapW = 430.0;
+    final wmLoc = context.watch<AppState>().wideMultiplier;
+    final mapW = (wmLoc - 1.0).abs() > 0.01
+        ? (_MessageBubbleState._baseMaxWidth * wmLoc).roundToDouble()
+        : _MessageBubbleState._baseMaxWidth;
     final mapH = 200.0;
 
     return GestureDetector(
