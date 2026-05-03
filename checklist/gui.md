@@ -999,7 +999,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §54 — AyuGram UI Customization
 # Touches: dart/lib/ui/settings_screen.dart, dart/lib/ui/chat_list_row.dart, new ayu_settings.dart
 
-- [ ] Message Bubble Radius — live MessagePreview widget (two fake messages); 17-stop slider (0=square, 16=max); map to BubbleRadiusLarge+BubbleRadiusSmall via SetBubbleRadiusOverride; restart prompt — spec §54.4
 - [ ] Message Tail Removal — toggle (default false); Corner::Tail→Corner::Large; reactive update no restart — spec §54.5
 - [ ] Quote & Reply Styling — "Disable Colorful Replies" toggle (default false); transparent quote background; skip backgroundEmojiData; keep accent bar visible — spec §54.6
 - [ ] Context Menu Customization — 7 configurable items (Reactions Panel, Views Panel, Hide Message, User Messages, Message Details, Repeat Message, Add Filter) with Hidden/Shown/Extended-Menu three-state; choose-button → single-choice dialog; extended-menu description; fixed actions: View Deleted/Jump to Beginning/Open Channel/Delete Own Messages/Edit History/Read Until/Burn/Create Filter — spec §54.7

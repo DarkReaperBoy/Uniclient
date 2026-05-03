@@ -166,19 +166,15 @@ class _AyuGramSettingsScreenState extends State<AyuGramSettingsScreen> {
             onChanged: (v) => appState.setWideMultiplier(v),
             isDark: isDark,
           ),
-          _SliderRow(
-            label: 'Bubble corner radius',
+          _BubbleRadiusSection(
             value: appState.bubbleRadius,
-            min: 0,
-            max: 16,
-            divisions: 16,
-            valueLabel: '${appState.bubbleRadius}',
-            onChanged: (v) => appState.setBubbleRadius(v.round()),
-            isDark: isDark,
-          ),
-          _BubblePreview(
-            radius: appState.bubbleRadius.toDouble(),
             showTail: !appState.removeTail,
+            simpleQuotes: appState.simpleQuotes,
+            semiTransparentDeleted: appState.semiTransparentDeleted,
+            replaceMarksWithIcons: appState.replaceMarksWithIcons,
+            deletedMark: appState.deletedMark,
+            editedMark: appState.editedMark,
+            onChanged: (v) => appState.setBubbleRadius(v),
             isDark: isDark,
           ),
           _ToggleRow(
@@ -557,83 +553,357 @@ class _SliderRow extends StatelessWidget {
   }
 }
 
-class _BubblePreview extends StatelessWidget {
-  final double radius;
+class _BubbleRadiusSection extends StatefulWidget {
+  final int value;
   final bool showTail;
+  final bool simpleQuotes;
+  final bool semiTransparentDeleted;
+  final bool replaceMarksWithIcons;
+  final String deletedMark;
+  final String editedMark;
+  final ValueChanged<int> onChanged;
   final bool isDark;
 
-  const _BubblePreview({
-    required this.radius,
+  const _BubbleRadiusSection({
+    required this.value,
     required this.showTail,
+    required this.simpleQuotes,
+    required this.semiTransparentDeleted,
+    required this.replaceMarksWithIcons,
+    required this.deletedMark,
+    required this.editedMark,
+    required this.onChanged,
+    required this.isDark,
+  });
+
+  @override
+  State<_BubbleRadiusSection> createState() => _BubbleRadiusSectionState();
+}
+
+class _BubbleRadiusSectionState extends State<_BubbleRadiusSection> {
+  late int _localValue;
+  late int _committedValue;
+
+  @override
+  void initState() {
+    super.initState();
+    _localValue = widget.value;
+    _committedValue = widget.value;
+  }
+
+  @override
+  void didUpdateWidget(_BubbleRadiusSection old) {
+    super.didUpdateWidget(old);
+    if (old.value != widget.value) {
+      _localValue = widget.value;
+      _committedValue = widget.value;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final radiusLarge = _localValue.toDouble();
+    final radiusSmall = widget.showTail
+        ? (radiusLarge * 6 / 16).clamp(0.0, 6.0)
+        : radiusLarge;
+    final subtitleColor = widget.isDark
+        ? const Color(0xFF6D7F8F)
+        : const Color(0xFF999999);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Slider
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text('Message Bubble Radius',
+                        style: TextStyle(
+                            fontSize: 14,
+                            color: widget.isDark ? Colors.white : Colors.black87)),
+                  ),
+                  Text('$_localValue',
+                      style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF40A7E3))),
+                ],
+              ),
+              SliderTheme(
+                data: SliderThemeData(
+                  activeTrackColor: const Color(0xFF40A7E3),
+                  inactiveTrackColor: widget.isDark
+                      ? const Color(0xFF2B3C4C)
+                      : const Color(0xFFD5D5D5),
+                  thumbColor: const Color(0xFF40A7E3),
+                  overlayColor: const Color(0x2940A7E3),
+                  trackHeight: 3,
+                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7.5),
+                ),
+                child: Slider(
+                  value: _localValue.toDouble(),
+                  min: 0,
+                  max: 16,
+                  divisions: 16,
+                  onChanged: (v) {
+                    setState(() => _localValue = v.round());
+                  },
+                  onChangeEnd: (v) {
+                    final newVal = v.round();
+                    if (newVal == _committedValue) return;
+                    showConfirmBox(
+                      context,
+                      title: 'Restart Required',
+                      text: 'Bubble radius will be applied after restarting.',
+                      confirmText: 'Apply',
+                      cancelText: 'Cancel',
+                      onConfirm: () {
+                        _committedValue = newVal;
+                        widget.onChanged(newVal);
+                      },
+                      onCancel: () {
+                        setState(() => _localValue = _committedValue);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Live MessagePreview — spec §54.4
+        _MessagePreview(
+          radiusLarge: radiusLarge,
+          radiusSmall: radiusSmall,
+          showTail: widget.showTail,
+          simpleQuotes: widget.simpleQuotes,
+          semiTransparentDeleted: widget.semiTransparentDeleted,
+          replaceMarksWithIcons: widget.replaceMarksWithIcons,
+          deletedMark: widget.deletedMark,
+          editedMark: widget.editedMark,
+          isDark: widget.isDark,
+        ),
+      ],
+    );
+  }
+}
+
+class _MessagePreview extends StatelessWidget {
+  final double radiusLarge;
+  final double radiusSmall;
+  final bool showTail;
+  final bool simpleQuotes;
+  final bool semiTransparentDeleted;
+  final bool replaceMarksWithIcons;
+  final String deletedMark;
+  final String editedMark;
+  final bool isDark;
+
+  const _MessagePreview({
+    required this.radiusLarge,
+    required this.radiusSmall,
+    required this.showTail,
+    required this.simpleQuotes,
+    required this.semiTransparentDeleted,
+    required this.replaceMarksWithIcons,
+    required this.deletedMark,
+    required this.editedMark,
     required this.isDark,
   });
 
   @override
   Widget build(BuildContext context) {
-    final tailRadius = showTail ? (radius * 6 / 16).clamp(0.0, 6.0) : radius;
+    final inBg = isDark ? const Color(0xFF182533) : const Color(0xFFFFFFFF);
+    final outBg = isDark ? const Color(0xFF2B5278) : const Color(0xFFEFFEDE);
+    final textColor = isDark ? Colors.white.withValues(alpha: 0.87) : Colors.black87;
+    final metaColor = isDark ? const Color(0xFF6D8DA0) : const Color(0xFF5E9E5E);
+    final quoteBarColor = simpleQuotes
+        ? (isDark ? const Color(0xFF65B9F4) : const Color(0xFF168ACD))
+        : const Color(0xFF4FAD2D);
+    final quoteNameColor = simpleQuotes
+        ? (isDark ? const Color(0xFF65B9F4) : const Color(0xFF168ACD))
+        : const Color(0xFF4FAD2D);
+    final deletedOpacity = semiTransparentDeleted ? 0.7 : 1.0;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
-      child: Row(
-        children: [
-          // Incoming bubble
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-            decoration: BoxDecoration(
-              color: isDark
-                  ? const Color(0xFF182533)
-                  : const Color(0xFFFFFFFF),
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(radius),
-                topRight: Radius.circular(radius),
-                bottomLeft: Radius.circular(tailRadius),
-                bottomRight: Radius.circular(radius),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: isDark
-                      ? Colors.transparent
-                      : const Color(0x18000000),
-                  offset: const Offset(0, 2),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF0E1621) : const Color(0xFFF0F0F0),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Incoming message: "Update wehn?"
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 240),
+                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+                decoration: BoxDecoration(
+                  color: inBg,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(radiusLarge),
+                    topRight: Radius.circular(radiusLarge),
+                    bottomLeft: Radius.circular(radiusSmall),
+                    bottomRight: Radius.circular(radiusLarge),
+                  ),
+                  boxShadow: [
+                    if (!isDark)
+                      const BoxShadow(
+                        color: Color(0x18000000),
+                        blurRadius: 2,
+                        offset: Offset(0, 1),
+                      ),
+                  ],
                 ),
-              ],
-            ),
-            child: Text('Hello!',
-                style: TextStyle(
-                    fontSize: 13,
-                    color: isDark ? Colors.white70 : Colors.black87)),
-          ),
-          const Spacer(),
-          // Outgoing bubble
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-            decoration: BoxDecoration(
-              color: isDark
-                  ? const Color(0xFF2B5278)
-                  : const Color(0xFFEFFEDE),
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(radius),
-                topRight: Radius.circular(radius),
-                bottomLeft: Radius.circular(radius),
-                bottomRight: Radius.circular(tailRadius),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: isDark
-                      ? Colors.transparent
-                      : const Color(0x18000000),
-                  offset: const Offset(0, 2),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('User',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: quoteNameColor)),
+                    const SizedBox(height: 2),
+                    Text('Update wehn?',
+                        style: TextStyle(fontSize: 13, color: textColor)),
+                    const SizedBox(height: 2),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Text('12:00',
+                          style: TextStyle(fontSize: 11, color: metaColor)),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
-            child: Text('Hi there!',
-                style: TextStyle(
-                    fontSize: 13,
-                    color: isDark ? Colors.white70 : Colors.black87)),
-          ),
-        ],
+            const SizedBox(height: 4),
+            // Outgoing message with reply quote: "You need to touch some grass."
+            Align(
+              alignment: Alignment.centerRight,
+              child: Opacity(
+                opacity: deletedOpacity,
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 260),
+                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: outBg,
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(radiusLarge),
+                      topRight: Radius.circular(radiusLarge),
+                      bottomLeft: Radius.circular(radiusLarge),
+                      bottomRight: Radius.circular(radiusSmall),
+                    ),
+                    boxShadow: [
+                      if (!isDark)
+                        const BoxShadow(
+                          color: Color(0x18000000),
+                          blurRadius: 2,
+                          offset: Offset(0, 1),
+                        ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Reply quote block
+                      Container(
+                        padding: const EdgeInsets.only(left: 8, top: 3, bottom: 3, right: 6),
+                        decoration: BoxDecoration(
+                          border: Border(
+                            left: BorderSide(width: 2, color: quoteBarColor),
+                          ),
+                          color: simpleQuotes
+                              ? Colors.transparent
+                              : quoteBarColor.withValues(alpha: 0.1),
+                          borderRadius: const BorderRadius.only(
+                            topRight: Radius.circular(4),
+                            bottomRight: Radius.circular(4),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('User',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: quoteNameColor)),
+                            Text('Update wehn?',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    color: textColor.withValues(alpha: 0.7))),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text('You need to touch some grass.',
+                          style: TextStyle(fontSize: 13, color: textColor)),
+                      const SizedBox(height: 2),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          const Spacer(),
+                          ..._buildMarks(textColor, metaColor),
+                          Text('12:01',
+                              style: TextStyle(fontSize: 11, color: metaColor)),
+                          const SizedBox(width: 3),
+                          Icon(Icons.done_all, size: 14, color: metaColor),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  List<Widget> _buildMarks(Color textColor, Color metaColor) {
+    final marks = <Widget>[];
+    if (replaceMarksWithIcons) {
+      marks.add(Padding(
+        padding: const EdgeInsets.only(right: 3),
+        child: Icon(Icons.delete_outline, size: 12, color: metaColor),
+      ));
+      marks.add(Padding(
+        padding: const EdgeInsets.only(right: 3),
+        child: Icon(Icons.edit, size: 12, color: metaColor),
+      ));
+    } else {
+      if (deletedMark.isNotEmpty) {
+        marks.add(Padding(
+          padding: const EdgeInsets.only(right: 3),
+          child: Text(deletedMark, style: TextStyle(fontSize: 11, color: metaColor)),
+        ));
+      }
+      if (editedMark.isNotEmpty) {
+        marks.add(Padding(
+          padding: const EdgeInsets.only(right: 3),
+          child: Text(editedMark, style: TextStyle(fontSize: 11, color: metaColor)),
+        ));
+      } else {
+        marks.add(Padding(
+          padding: const EdgeInsets.only(right: 3),
+          child: Text('edited', style: TextStyle(fontSize: 11, color: metaColor)),
+        ));
+      }
+    }
+    return marks;
   }
 }
 
