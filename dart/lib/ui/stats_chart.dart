@@ -3,14 +3,58 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
+class StatisticalValue {
+  final double value;
+  final double previousValue;
+  final double growthRatePercentage;
+
+  const StatisticalValue({
+    required this.value,
+    required this.previousValue,
+    required this.growthRatePercentage,
+  });
+
+  factory StatisticalValue.fromMap(Map<String, dynamic> map) {
+    return StatisticalValue(
+      value: (map['current'] as num?)?.toDouble() ?? 0,
+      previousValue: (map['previous'] as num?)?.toDouble() ?? 0,
+      growthRatePercentage: (map['growth'] as num?)?.toDouble() ?? 0,
+    );
+  }
+
+  double get delta => value - previousValue;
+  bool get isPositive => delta >= 0;
+  bool get isZero => value == 0 && previousValue == 0;
+}
+
+class StatisticalGraph {
+  final StatsChartData? chart;
+  final String? zoomToken;
+
+  const StatisticalGraph({this.chart, this.zoomToken});
+
+  bool get isPreLoaded => chart != null;
+  bool get isDeferred => zoomToken != null && chart == null;
+
+  factory StatisticalGraph.fromMap(Map<String, dynamic> map, {String? parentChartType}) {
+    final chart = StatsChartData.fromMap(map, parentChartType: parentChartType);
+    final token = map['zoom_token'] as String?;
+    return StatisticalGraph(chart: chart, zoomToken: token);
+  }
+}
+
 class StatsChartData {
   final String title;
   final String chartType;
   final List<int> timestamps;
   final List<ChartLine> lines;
+  final List<double> xPercentage;
   final String? zoomToken;
+  final int? defaultZoomXIndex;
   final bool weekFormat;
   final bool hasPercentages;
+  final bool isFooterHidden;
+  final double? dayStringMaxWidth;
   final double? currencyRate;
   final String? currency;
 
@@ -19,12 +63,25 @@ class StatsChartData {
     required this.chartType,
     required this.timestamps,
     required this.lines,
+    List<double>? xPercentage,
     this.zoomToken,
+    this.defaultZoomXIndex,
     this.weekFormat = false,
     this.hasPercentages = false,
+    this.isFooterHidden = false,
+    this.dayStringMaxWidth,
     this.currencyRate,
     this.currency,
-  });
+  }) : xPercentage = xPercentage ?? _computeXPercentage(timestamps);
+
+  static List<double> _computeXPercentage(List<int> timestamps) {
+    if (timestamps.length < 2) return timestamps.map((_) => 0.0).toList();
+    final first = timestamps.first.toDouble();
+    final last = timestamps.last.toDouble();
+    final range = last - first;
+    if (range == 0) return timestamps.map((_) => 0.0).toList();
+    return timestamps.map((t) => (t - first) / range).toList();
+  }
 
   static StatsChartData? fromMap(Map<String, dynamic> map, {String? parentChartType}) {
     final title = map['title'] as String? ?? '';
@@ -70,6 +127,10 @@ class StatsChartData {
       if (timestamps.isEmpty || lines.isEmpty) return null;
 
       final percentage = parsed['percentage'] as bool? ?? false;
+      final footerHidden = parsed['isFooterHidden'] as bool? ?? false;
+      final defaultZoom = parsed['defaultZoomXIndex'] as int?;
+      final dayStrWidth = (parsed['dayStringMaxWidth'] as num?)?.toDouble();
+
       bool weekFmt = false;
       if (timestamps.length >= 2) {
         final ms0 =
@@ -85,8 +146,11 @@ class StatsChartData {
         timestamps: timestamps,
         lines: lines,
         zoomToken: map['zoom_token'] as String?,
+        defaultZoomXIndex: defaultZoom,
         weekFormat: weekFmt,
         hasPercentages: percentage,
+        isFooterHidden: footerHidden,
+        dayStringMaxWidth: dayStrWidth,
         currencyRate: (parsed['rate'] as num?)?.toDouble(),
         currency: parsed['currency'] as String?,
       );
@@ -753,32 +817,33 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
             );
           }),
         ),
-        SizedBox(
-          height: _kFooterHeight,
-          child: LayoutBuilder(builder: (ctx, box) {
-            final w = box.maxWidth;
-            return GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onPanStart: (d) => _onFooterPanStart(d, w),
-              onPanUpdate: (d) => _onFooterPanUpdate(d, w),
-              onPanEnd: (_) => _dragMode = _DragMode.none,
-              onTapUp: (d) => _onFooterTap(d, w),
-              child: CustomPaint(
-                size: Size(w, _kFooterHeight),
-                painter: _FooterPainter(
-                  data: widget.data,
-                  isDark: isDark,
-                  rangeStart: _rangeStart,
-                  rangeEnd: _rangeEnd,
-                  lineVisible: _lineVisible,
-                  accentColor: widget.theme.colorScheme.primary,
-                  lineAlphas: _lineAlphas,
-                  animatedFooterYMax: _footerAnimatedMax,
+        if (!widget.data.isFooterHidden)
+          SizedBox(
+            height: _kFooterHeight,
+            child: LayoutBuilder(builder: (ctx, box) {
+              final w = box.maxWidth;
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onPanStart: (d) => _onFooterPanStart(d, w),
+                onPanUpdate: (d) => _onFooterPanUpdate(d, w),
+                onPanEnd: (_) => _dragMode = _DragMode.none,
+                onTapUp: (d) => _onFooterTap(d, w),
+                child: CustomPaint(
+                  size: Size(w, _kFooterHeight),
+                  painter: _FooterPainter(
+                    data: widget.data,
+                    isDark: isDark,
+                    rangeStart: _rangeStart,
+                    rangeEnd: _rangeEnd,
+                    lineVisible: _lineVisible,
+                    accentColor: widget.theme.colorScheme.primary,
+                    lineAlphas: _lineAlphas,
+                    animatedFooterYMax: _footerAnimatedMax,
+                  ),
                 ),
-              ),
-            );
-          }),
-        ),
+              );
+            }),
+          ),
         if (widget.data.lines.length > 1)
           Padding(
             padding: const EdgeInsets.only(top: 12, bottom: 8),

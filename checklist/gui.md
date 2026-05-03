@@ -1007,8 +1007,6 @@ Status key: `[ ]` not started · `[x]` done
 
 
 
-- [ ] Statistics data models — StatisticalValue (.value/.previousValue/.growthRatePercentage); StatisticalGraph (.chart pre-loaded or .zoomToken deferred); StatisticalChart (.timestamps/.lines/.xPercentage/.defaultZoomXIndex/.weekFormat/.hasPercentages/.isFooterHidden/.currencyRate/.currency) — spec §55.11
-
 ---
 
 ## §56 — Appendix A: Resolved Style Constants

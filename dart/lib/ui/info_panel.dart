@@ -5735,14 +5735,14 @@ class _StatisticsPageState extends State<_StatisticsPage>
   }
 
   Widget _buildChannelOverview() {
-    final followers = _stats!['followers'] as Map<String, dynamic>?;
+    final followers = _parseStatValue(_stats!['followers'] as Map<String, dynamic>?);
     final notifPct = (_stats!['enabled_notifications'] as num?)?.toDouble() ?? 0;
-    final viewsPerPost = _stats!['views_per_post'] as Map<String, dynamic>?;
-    final viewsPerStory = _stats!['views_per_story'] as Map<String, dynamic>?;
-    final sharesPerPost = _stats!['shares_per_post'] as Map<String, dynamic>?;
-    final sharesPerStory = _stats!['shares_per_story'] as Map<String, dynamic>?;
-    final reactionsPerPost = _stats!['reactions_per_post'] as Map<String, dynamic>?;
-    final reactionsPerStory = _stats!['reactions_per_story'] as Map<String, dynamic>?;
+    final viewsPerPost = _parseStatValue(_stats!['views_per_post'] as Map<String, dynamic>?);
+    final viewsPerStory = _parseStatValue(_stats!['views_per_story'] as Map<String, dynamic>?);
+    final sharesPerPost = _parseStatValue(_stats!['shares_per_post'] as Map<String, dynamic>?);
+    final sharesPerStory = _parseStatValue(_stats!['shares_per_story'] as Map<String, dynamic>?);
+    final reactionsPerPost = _parseStatValue(_stats!['reactions_per_post'] as Map<String, dynamic>?);
+    final reactionsPerStory = _parseStatValue(_stats!['reactions_per_story'] as Map<String, dynamic>?);
 
     final hasStoryMetrics = _hasNonZero(sharesPerPost) ||
         _hasNonZero(sharesPerStory) ||
@@ -5812,10 +5812,10 @@ class _StatisticsPageState extends State<_StatisticsPage>
   }
 
   Widget _buildGroupOverview() {
-    final members = _stats!['members'] as Map<String, dynamic>?;
-    final messages = _stats!['messages'] as Map<String, dynamic>?;
-    final viewers = _stats!['viewers'] as Map<String, dynamic>?;
-    final posters = _stats!['posters'] as Map<String, dynamic>?;
+    final members = _parseStatValue(_stats!['members'] as Map<String, dynamic>?);
+    final messages = _parseStatValue(_stats!['messages'] as Map<String, dynamic>?);
+    final viewers = _parseStatValue(_stats!['viewers'] as Map<String, dynamic>?);
+    final posters = _parseStatValue(_stats!['posters'] as Map<String, dynamic>?);
 
     return _OverviewGrid(theme: widget.theme, cells: [
       _OverviewCellData(
@@ -5845,34 +5845,33 @@ class _StatisticsPageState extends State<_StatisticsPage>
     ]);
   }
 
-  bool _hasNonZero(Map<String, dynamic>? v) {
-    if (v == null) return false;
-    return (v['current'] as num?)?.toDouble() != 0;
-  }
-
-  String _formatAbsValue(Map<String, dynamic>? v) {
-    if (v == null) return '0';
-    final current = (v['current'] as num?)?.toDouble() ?? 0;
-    return _formatCountShort(current);
-  }
-
-  String? _formatChange(Map<String, dynamic>? v) {
+  StatisticalValue? _parseStatValue(Map<String, dynamic>? v) {
     if (v == null) return null;
-    final current = (v['current'] as num?)?.toDouble() ?? 0;
-    final previous = (v['previous'] as num?)?.toDouble() ?? 0;
-    final delta = current - previous;
-    if (delta == 0 && previous == 0) return null;
-    final growth = (v['growth'] as num?)?.toDouble() ?? 0;
-    final prefix = delta >= 0 ? '+' : '−';
-    final absDelta = delta.abs();
-    final deltaStr = _formatCountShort(absDelta);
-    if (growth.abs() < 0.01) return '$prefix$deltaStr';
-    return '$prefix$deltaStr (${growth.abs().toStringAsFixed(1)}%)';
+    return StatisticalValue.fromMap(v);
   }
 
-  double _getGrowth(Map<String, dynamic>? v) {
+  bool _hasNonZero(StatisticalValue? v) {
+    if (v == null) return false;
+    return v.value != 0;
+  }
+
+  String _formatAbsValue(StatisticalValue? v) {
+    if (v == null) return '0';
+    return _formatCountShort(v.value);
+  }
+
+  String? _formatChange(StatisticalValue? v) {
+    if (v == null) return null;
+    if (v.delta == 0 && v.previousValue == 0) return null;
+    final prefix = v.isPositive ? '+' : '−';
+    final deltaStr = _formatCountShort(v.delta.abs());
+    if (v.growthRatePercentage.abs() < 0.01) return '$prefix$deltaStr';
+    return '$prefix$deltaStr (${v.growthRatePercentage.abs().toStringAsFixed(1)}%)';
+  }
+
+  double _getGrowth(StatisticalValue? v) {
     if (v == null) return 0;
-    return (v['growth'] as num?)?.toDouble() ?? 0;
+    return v.growthRatePercentage;
   }
 
   String _formatCountShort(double n) {
