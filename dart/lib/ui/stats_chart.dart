@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 class StatsChartData {
   final String title;
@@ -129,6 +130,13 @@ const _kBottomCaptionHeight = 15.0;
 const _kBottomCaptionSkip = 6.0;
 const _kTooltipRadius = 8.0;
 const _kTooltipWidth = 180.0;
+const _kXExpandDuration = 200;
+const _kDtHeightSpeed1 = 0.06;
+const _kDtHeightSpeed2 = 0.06;
+const _kDtHeightSpeed3 = 0.09;
+const _kFilterSpeedDivisor = 1.2;
+const _kInstantSnapRatio = 0.97;
+const _kDateLabelFrameSpeed = 1.0 / 12.0;
 
 class StatsChartWidget extends StatefulWidget {
   final StatsChartData data;
@@ -169,10 +177,23 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
   double _animFromStart = 0, _animToStart = 0;
   double _animFromEnd = 0, _animToEnd = 0;
 
-  late AnimationController _rulerAnimController;
+  late Ticker _chartTicker;
+  Duration _prevTickDuration = Duration.zero;
+  double _smoothFPS = 60.0;
+
   double _prevRulerMn = 0, _prevRulerMx = 1;
   double _curRulerMn = 0, _curRulerMx = 1;
+  double _yProgress = 1.0;
+  double _ySpeed = _kDtHeightSpeed1;
+  bool _yFromFilter = false;
   double _rulerCrossfade = 1.0;
+
+  double _footerPrevMax = 0, _footerCurMax = 0;
+  double _footerYProgress = 1.0;
+  bool _footerInitialized = false;
+
+  double _dateLabelAlpha = 1.0;
+  double _dateLabelProgress = 1.0;
 
   late AnimationController _pieAnimController;
   int? _pieDataIndex;
@@ -198,23 +219,15 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
     };
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 150),
+      duration: const Duration(milliseconds: _kXExpandDuration),
     )..addListener(() {
-        final t = Curves.easeInOutSine.transform(_animController.value);
+        final t = _animController.value;
         setState(() {
           _rangeStart = _animFromStart + (_animToStart - _animFromStart) * t;
           _rangeEnd = _animFromEnd + (_animToEnd - _animFromEnd) * t;
         });
       });
-    _rulerAnimController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 200),
-    )..addListener(() {
-        setState(() {
-          _rulerCrossfade =
-              Curves.easeInCubic.transform(_rulerAnimController.value);
-        });
-      });
+    _chartTicker = createTicker(_onChartTick);
     _pieAnimController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
@@ -313,7 +326,7 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
   @override
   void dispose() {
     _animController.dispose();
-    _rulerAnimController.dispose();
+    _chartTicker.dispose();
     _pieAnimController.dispose();
     _serverZoomAnim.dispose();
     for (final c in _lineAlphaControllers.values) {
@@ -366,28 +379,167 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
     }
   }
 
-  void _updateRulerRange() {
+  void _updateRulerRange({bool fromFilter = false}) {
     final (mn, mx) = _computeYRange();
     final range = (_curRulerMx - _curRulerMn).abs();
     final threshold = range > 0 ? range * 0.05 : 0.001;
     if ((mn - _curRulerMn).abs() > threshold ||
         (mx - _curRulerMx).abs() > threshold) {
-      if (!_rulerAnimController.isAnimating) {
+      final maxExtent = math.max(range, (mx - mn).abs());
+      final changeAmount =
+          math.max((mn - _curRulerMn).abs(), (mx - _curRulerMx).abs());
+      final ratio = maxExtent > 0 ? changeAmount / maxExtent : 0.0;
+
+      if (ratio > _kInstantSnapRatio) {
+        _prevRulerMn = mn;
+        _prevRulerMx = mx;
+        _curRulerMn = mn;
+        _curRulerMx = mx;
+        _rulerCrossfade = 1.0;
+        _yProgress = 1.0;
+        return;
+      }
+
+      if (ratio > 0.6) {
+        _ySpeed = _kDtHeightSpeed3;
+      } else if (ratio > 0.3) {
+        _ySpeed = _kDtHeightSpeed2;
+      } else {
+        _ySpeed = _kDtHeightSpeed1;
+      }
+
+      if (_yProgress >= 1.0) {
         _prevRulerMn = _curRulerMn;
         _prevRulerMx = _curRulerMx;
       }
       _curRulerMn = mn;
       _curRulerMx = mx;
-      if (!_rulerAnimController.isAnimating) {
-        _rulerCrossfade = 0;
-        _rulerAnimController.forward(from: 0);
-      }
+      _yProgress = 0.0;
+      _rulerCrossfade = 0.0;
+      _yFromFilter = fromFilter;
+      _ensureTickerRunning();
     } else {
       _curRulerMn = mn;
       _curRulerMx = mx;
-      if (!_rulerAnimController.isAnimating) _rulerCrossfade = 1.0;
+      if (_yProgress >= 1.0) _rulerCrossfade = 1.0;
     }
   }
+
+  void _updateFooterYRange() {
+    final d = widget.data;
+    final lines =
+        d.lines.where((l) => _lineVisible[l.id] ?? true).toList();
+    if (lines.isEmpty) return;
+
+    double newMax = 0;
+    switch (d.chartType) {
+      case 'Bar':
+        for (final l in lines) {
+          for (final v in l.values) {
+            if (v > newMax) newMax = v;
+          }
+        }
+      case 'StackBar':
+        for (int i = 0; i < d.timestamps.length; i++) {
+          double s = 0;
+          for (final l in lines) {
+            if (i < l.values.length) s += l.values[i];
+          }
+          if (s > newMax) newMax = s;
+        }
+      default:
+        return;
+    }
+    if (newMax == 0) newMax = 1;
+
+    if (!_footerInitialized) {
+      _footerPrevMax = newMax;
+      _footerCurMax = newMax;
+      _footerYProgress = 1.0;
+      _footerInitialized = true;
+      return;
+    }
+
+    if ((newMax - _footerCurMax).abs() > 0.001) {
+      _footerPrevMax = _footerCurMax;
+      _footerCurMax = newMax;
+      _footerYProgress = 0.0;
+      _ensureTickerRunning();
+    }
+  }
+
+  void _ensureTickerRunning() {
+    if (!_chartTicker.isActive) {
+      _prevTickDuration = Duration.zero;
+      _chartTicker.start();
+    }
+  }
+
+  void _onChartTick(Duration elapsed) {
+    if (_prevTickDuration == Duration.zero) {
+      _prevTickDuration = elapsed;
+      return;
+    }
+
+    final dtSec =
+        (elapsed - _prevTickDuration).inMicroseconds / 1000000.0;
+    _prevTickDuration = elapsed;
+
+    if (dtSec > 0) {
+      _smoothFPS = _smoothFPS * 0.8 + (1.0 / dtSec) * 0.2;
+    }
+    double fpsM = 60.0 / _smoothFPS;
+    if (_smoothFPS < 30) fpsM *= 2.0;
+
+    bool dirty = false;
+
+    if (_yProgress < 1.0) {
+      double speed = _ySpeed * fpsM;
+      if (_yFromFilter) speed /= _kFilterSpeedDivisor;
+      _yProgress = (_yProgress + speed).clamp(0.0, 1.0);
+      if (_yProgress > _kInstantSnapRatio) _yProgress = 1.0;
+      _rulerCrossfade = Curves.easeInCubic.transform(_yProgress);
+      dirty = true;
+    }
+
+    if (_footerYProgress < 1.0) {
+      final speed = _kDtHeightSpeed3 * fpsM;
+      _footerYProgress = (_footerYProgress + speed).clamp(0.0, 1.0);
+      if (_footerYProgress > _kInstantSnapRatio) _footerYProgress = 1.0;
+      dirty = true;
+    }
+
+    if (_dateLabelProgress < 1.0) {
+      final speed = _kDateLabelFrameSpeed * fpsM;
+      _dateLabelProgress = (_dateLabelProgress + speed).clamp(0.0, 1.0);
+      _dateLabelAlpha = Curves.easeInCubic.transform(_dateLabelProgress);
+      dirty = true;
+    }
+
+    if (dirty) {
+      setState(() {});
+    }
+
+    if (_yProgress >= 1.0 &&
+        _footerYProgress >= 1.0 &&
+        _dateLabelProgress >= 1.0) {
+      _chartTicker.stop();
+      _prevTickDuration = Duration.zero;
+    }
+  }
+
+  double get _animatedYMn =>
+      _prevRulerMn +
+      (_curRulerMn - _prevRulerMn) *
+          Curves.easeInCubic.transform(_yProgress);
+  double get _animatedYMx =>
+      _prevRulerMx +
+      (_curRulerMx - _prevRulerMx) *
+          Curves.easeInCubic.transform(_yProgress);
+  double get _footerAnimatedMax =>
+      _footerPrevMax +
+      (_footerCurMax - _footerPrevMax) *
+          Curves.easeInCubic.transform(_footerYProgress);
 
   static const _months = [
     'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -424,6 +576,7 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
   @override
   Widget build(BuildContext context) {
     _updateRulerRange();
+    _updateFooterYRange();
     final isDark = widget.theme.brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
     final subtitleColor = isDark ? Colors.white60 : Colors.black54;
@@ -564,6 +717,9 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
                         rulerCrossfade: _rulerCrossfade,
                         prevRulerMn: _prevRulerMn,
                         prevRulerMx: _prevRulerMx,
+                        animatedYMn: _animatedYMn,
+                        animatedYMx: _animatedYMx,
+                        dateLabelAlpha: _dateLabelAlpha,
                       ),
                     ),
                   ),
@@ -616,6 +772,8 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
                   rangeEnd: _rangeEnd,
                   lineVisible: _lineVisible,
                   accentColor: widget.theme.colorScheme.primary,
+                  lineAlphas: _lineAlphas,
+                  animatedFooterYMax: _footerAnimatedMax,
                 ),
               ),
             );
@@ -881,6 +1039,9 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
       _animFromEnd = _rangeEnd;
       _animToEnd = targetCenter + span / 2;
       _animController.forward(from: 0);
+      _dateLabelProgress = 0.0;
+      _dateLabelAlpha = 0.0;
+      _ensureTickerRunning();
     }
   }
 
@@ -941,6 +1102,8 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
       setState(() => _lineVisible[lineId] = true);
       _lineAlphaControllers[lineId]?.forward();
     }
+    _updateRulerRange(fromFilter: true);
+    _updateFooterYRange();
   }
 
   void _longPressLine(String lineId) {
@@ -966,6 +1129,8 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
         }
       }
     }
+    _updateRulerRange(fromFilter: true);
+    _updateFooterYRange();
   }
 
   static String _formatValue(double v) {
@@ -1085,6 +1250,9 @@ class _ChartAreaPainter extends CustomPainter {
   final double rulerCrossfade;
   final double prevRulerMn;
   final double prevRulerMx;
+  final double animatedYMn;
+  final double animatedYMx;
+  final double dateLabelAlpha;
 
   _ChartAreaPainter({
     required this.data,
@@ -1097,6 +1265,9 @@ class _ChartAreaPainter extends CustomPainter {
     this.rulerCrossfade = 1.0,
     this.prevRulerMn = 0,
     this.prevRulerMx = 1,
+    this.animatedYMn = 0,
+    this.animatedYMx = 1,
+    this.dateLabelAlpha = 1.0,
   });
 
   static const _months = [
@@ -1228,10 +1399,10 @@ class _ChartAreaPainter extends CustomPainter {
       final x = _dataXToPixel(idx, n, size.width);
       if (x < -50 || x > size.width + 50) continue;
 
-      double alpha = 1.0;
-      if (x < edgeFade) alpha = (x / edgeFade).clamp(0.0, 1.0);
+      double alpha = dateLabelAlpha;
+      if (x < edgeFade) alpha *= (x / edgeFade).clamp(0.0, 1.0);
       if (x > size.width - edgeFade) {
-        alpha = ((size.width - x) / edgeFade).clamp(0.0, 1.0);
+        alpha *= ((size.width - x) / edgeFade).clamp(0.0, 1.0);
       }
 
       final ts = data.timestamps[idx];
@@ -1288,18 +1459,22 @@ class _ChartAreaPainter extends CustomPainter {
     final chartH = size.height - topPad - _kBottomCaptionHeight -
         _kBottomCaptionSkip;
     final n = data.timestamps.length;
-    final (mn, mx) = _visibleYRange(visLines);
+    final (targetMn, targetMx) = _visibleYRange(visLines);
 
-    _paintRulers(canvas, size, topPad, chartH, mn, mx);
+    _paintRulers(canvas, size, topPad, chartH, targetMn, targetMx);
+
+    final renderMn = animatedYMn;
+    final renderMx = animatedYMx;
 
     for (final (line, alpha) in rLines) {
-      double lineMn = mn, lineMx = mx;
+      double lineMn = renderMn, lineMx = renderMx;
       if (data.chartType == 'DoubleLinear' && visLines.length == 2) {
         lineMn = line.values.reduce(math.min);
         lineMx = line.values.reduce(math.max);
         if (lineMx == lineMn) lineMx = lineMn + 1;
       }
       final range = lineMx - lineMn;
+      if (range == 0) continue;
 
       final paint = Paint()
         ..color = line.color.withValues(alpha: alpha)
@@ -1323,7 +1498,8 @@ class _ChartAreaPainter extends CustomPainter {
       canvas.drawPath(path, paint);
     }
 
-    _paintSelectionIndicator(canvas, size, topPad, chartH, mn, mx, visLines);
+    _paintSelectionIndicator(
+        canvas, size, topPad, chartH, renderMn, renderMx, visLines);
     _paintDateLabels(canvas, size);
   }
 
@@ -1353,6 +1529,7 @@ class _ChartAreaPainter extends CustomPainter {
     }
     if (maxVal == 0) maxVal = 1;
 
+    final renderMax = animatedYMx > 0 ? animatedYMx : maxVal;
     _paintRulers(canvas, size, topPad, chartH, 0, maxVal);
 
     for (int i = 0; i < n; i++) {
@@ -1362,7 +1539,7 @@ class _ChartAreaPainter extends CustomPainter {
         final (line, lineAlpha) = rLines[li];
         if (i >= line.values.length) continue;
         final val = line.values[i];
-        final barH = (val / maxVal) * chartH;
+        final barH = (val / renderMax) * chartH;
         final x = groupX + barWidth * li;
         final rect =
             Rect.fromLTWH(x, topPad + chartH - barH, barWidth, barH);
@@ -1407,6 +1584,7 @@ class _ChartAreaPainter extends CustomPainter {
     }
     if (maxSum == 0) maxSum = 1;
 
+    final renderMax = animatedYMx > 0 ? animatedYMx : maxSum;
     _paintRulers(canvas, size, topPad, chartH, 0, maxSum);
 
     for (int i = 0; i < n; i++) {
@@ -1415,9 +1593,9 @@ class _ChartAreaPainter extends CustomPainter {
       for (final (line, alpha) in rLines) {
         if (i >= line.values.length) continue;
         final val = line.values[i];
-        final prevH = (cumulative / maxSum) * chartH;
+        final prevH = (cumulative / renderMax) * chartH;
         cumulative += val;
-        final curH = (cumulative / maxSum) * chartH;
+        final curH = (cumulative / renderMax) * chartH;
         final rect = Rect.fromLTWH(cx - barWidth / 2 + 0.5,
             topPad + chartH - curH, barWidth - 1, curH - prevH);
         canvas.drawRect(
@@ -1491,7 +1669,10 @@ class _ChartAreaPainter extends CustomPainter {
       selectedIndex != old.selectedIndex ||
       lineVisible != old.lineVisible ||
       lineAlphas != old.lineAlphas ||
-      rulerCrossfade != old.rulerCrossfade;
+      rulerCrossfade != old.rulerCrossfade ||
+      animatedYMn != old.animatedYMn ||
+      animatedYMx != old.animatedYMx ||
+      dateLabelAlpha != old.dateLabelAlpha;
 }
 
 class _FooterPainter extends CustomPainter {
@@ -1501,6 +1682,8 @@ class _FooterPainter extends CustomPainter {
   final double rangeEnd;
   final Map<String, bool> lineVisible;
   final Color accentColor;
+  final Map<String, double> lineAlphas;
+  final double animatedFooterYMax;
 
   _FooterPainter({
     required this.data,
@@ -1509,6 +1692,8 @@ class _FooterPainter extends CustomPainter {
     required this.rangeEnd,
     required this.lineVisible,
     required this.accentColor,
+    this.lineAlphas = const {},
+    this.animatedFooterYMax = 0,
   });
 
   @override
@@ -1583,6 +1768,8 @@ class _FooterPainter extends CustomPainter {
     switch (data.chartType) {
       case 'Linear' || 'DoubleLinear':
         for (final line in lines) {
+          final alpha = lineAlphas[line.id] ?? 1.0;
+          if (alpha < 0.01) continue;
           double mn = double.infinity, mx = double.negativeInfinity;
           for (final v in line.values) {
             if (v < mn) mn = v;
@@ -1604,16 +1791,18 @@ class _FooterPainter extends CustomPainter {
           canvas.drawPath(
               path,
               Paint()
-                ..color = line.color
+                ..color = line.color.withValues(alpha: alpha)
                 ..strokeWidth = 1
                 ..style = PaintingStyle.stroke);
         }
 
       case 'Bar':
-        double mx = 0;
-        for (final l in lines) {
-          for (final v in l.values) {
-            if (v > mx) mx = v;
+        double mx = animatedFooterYMax > 0 ? animatedFooterYMax : 0;
+        if (mx <= 0) {
+          for (final l in lines) {
+            for (final v in l.values) {
+              if (v > mx) mx = v;
+            }
           }
         }
         if (mx == 0) mx = 1;
@@ -1621,23 +1810,27 @@ class _FooterPainter extends CustomPainter {
         for (int i = 0; i < n; i++) {
           for (int j = 0; j < lines.length; j++) {
             if (i >= lines[j].values.length) continue;
+            final alpha = lineAlphas[lines[j].id] ?? 1.0;
+            if (alpha < 0.01) continue;
             final barH = (lines[j].values[i] / mx) * h;
             canvas.drawRect(
               Rect.fromLTWH(
                   w * i / n + barWidth * j, h - barH, barWidth, barH),
-              Paint()..color = lines[j].color,
+              Paint()..color = lines[j].color.withValues(alpha: alpha),
             );
           }
         }
 
       case 'StackBar':
-        double mx = 0;
-        for (int i = 0; i < n; i++) {
-          double s = 0;
-          for (final l in lines) {
-            if (i < l.values.length) s += l.values[i];
+        double mx = animatedFooterYMax > 0 ? animatedFooterYMax : 0;
+        if (mx <= 0) {
+          for (int i = 0; i < n; i++) {
+            double s = 0;
+            for (final l in lines) {
+              if (i < l.values.length) s += l.values[i];
+            }
+            if (s > mx) mx = s;
           }
-          if (s > mx) mx = s;
         }
         if (mx == 0) return;
         final barWidth = w / n;
@@ -1645,12 +1838,13 @@ class _FooterPainter extends CustomPainter {
           double cum = 0;
           for (final l in lines) {
             if (i >= l.values.length) continue;
+            final alpha = lineAlphas[l.id] ?? 1.0;
             final prev = cum / mx * h;
             cum += l.values[i];
             final cur = cum / mx * h;
             canvas.drawRect(
               Rect.fromLTWH(barWidth * i, h - cur, barWidth, cur - prev),
-              Paint()..color = l.color,
+              Paint()..color = l.color.withValues(alpha: alpha),
             );
           }
         }
@@ -1664,6 +1858,8 @@ class _FooterPainter extends CustomPainter {
         }
         var prevY = List<double>.filled(n, h);
         for (final l in lines.reversed) {
+          final alpha = lineAlphas[l.id] ?? 1.0;
+          if (alpha < 0.01) continue;
           final c = math.min(l.values.length, n);
           if (c < 2) continue;
           final path = Path();
@@ -1682,7 +1878,8 @@ class _FooterPainter extends CustomPainter {
             path.lineTo(w * i / (c - 1), prevY[i]);
           }
           path.close();
-          canvas.drawPath(path, Paint()..color = l.color);
+          canvas.drawPath(
+              path, Paint()..color = l.color.withValues(alpha: alpha));
           prevY = curY;
         }
     }
@@ -1694,7 +1891,9 @@ class _FooterPainter extends CustomPainter {
       isDark != old.isDark ||
       rangeStart != old.rangeStart ||
       rangeEnd != old.rangeEnd ||
-      lineVisible != old.lineVisible;
+      lineVisible != old.lineVisible ||
+      lineAlphas != old.lineAlphas ||
+      animatedFooterYMax != old.animatedFooterYMax;
 }
 
 class _PieChartPainter extends CustomPainter {

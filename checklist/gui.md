@@ -1006,7 +1006,7 @@ Status key: `[ ]` not started · `[x]` done
 
 
 
-- [ ] Chart animation system — X: 200ms linear (kXExpandingDuration); Y: easeInCubic adaptive speed (three tiers 0.06/0.06/0.09); Y speed ÷1.2 on filter change; Y instant snap when ratio >0.97; height alpha crossfade (old rulers out, new in); date label crossfade easeInCubic 200ms; FPS-adaptive (×60/currentFPS, ×2 below 30 FPS); footer separate Y-range animation track — spec §55.10
+
 - [ ] Statistics data models — StatisticalValue (.value/.previousValue/.growthRatePercentage); StatisticalGraph (.chart pre-loaded or .zoomToken deferred); StatisticalChart (.timestamps/.lines/.xPercentage/.defaultZoomXIndex/.weekFormat/.hasPercentages/.isFooterHidden/.currencyRate/.currency) — spec §55.11
 
 ---
