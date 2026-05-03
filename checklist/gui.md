@@ -994,7 +994,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §53 — Forward Enhancements (AyuGram)
 # Touches: dart/lib/ui/chat_view.dart, new forward_progress.dart
 
-- [ ] Intelligent forward routing — detect restricted messages (peer-level isFullAyuForwardNeeded; message-level isAyuForwardNeeded: deleted/AyuNoForwards/TTL); split selection into native-forward + download-resend chunks; execute sequentially on background thread — spec §53.1
 - [ ] Forward progress bar — replaces compose area while active; state text "Forwarding messages"/"Loading media"/"Done"; detail "sent N of total + chunk N of total"; frozenRestrictionTitle/Subtitle styles; cancel on click; hide labels when width < 2×photoSize; restore compose on finish — spec §53.2
 - [ ] Repeat Message context menu item — repeat icon; three-state visibility (Hidden/Visible/VisibleWithModifier); Shift → no-quote resend (extract text+entities, reuse file refs, preserve reply-to, no forward header); no-Shift → forward with attribution (AyuForward if restricted); applyGhostScheduling — spec §53.3
 - [ ] Restriction override — "Plain forwarding is not allowed." non-interactive label with copyright icon; intercept ShareBox submit + ApiWrap.forwardMessages for restricted content → route through AyuForward — spec §53.4

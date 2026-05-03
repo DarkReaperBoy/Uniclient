@@ -24,7 +24,8 @@ const (
 	ActionDelete      = "delete"
 	ActionReact       = "react"
 	ActionForward     = "forward"
-	ActionSendContact = "send_contact"
+	ActionSendContact  = "send_contact"
+	ActionResendAsOwn  = "resend_as_own"
 )
 
 // sendPayload is the serialized payload for a "send" action.
@@ -72,6 +73,15 @@ type forwardPayload struct {
 	ToChatID     string `json:"to_chat_id"`
 	DropAuthor   bool   `json:"drop_author,omitempty"`
 	DropCaptions bool   `json:"drop_captions,omitempty"`
+	Silent       bool   `json:"silent,omitempty"`
+	ScheduleDate int64  `json:"schedule_date,omitempty"`
+}
+
+// resendAsOwnPayload is the serialized payload for a "resend_as_own" action.
+type resendAsOwnPayload struct {
+	MsgID        string `json:"msg_id"`
+	SourceChatID string `json:"source_chat_id"`
+	ToChatID     string `json:"to_chat_id"`
 	Silent       bool   `json:"silent,omitempty"`
 	ScheduleDate int64  `json:"schedule_date,omitempty"`
 }
@@ -379,6 +389,34 @@ func (e *Engine) ForwardMessage(accountID, chatID, msgID, toChatID string, dropA
 	return nil
 }
 
+// ResendAsOwn downloads a source message's content and resends it as a new
+// message (no forward header) to toChatID. Used by AyuForward for restricted
+// content that can't be natively forwarded.
+func (e *Engine) ResendAsOwn(accountID, sourceChatID, msgID, toChatID string, silent bool, scheduleDate int64) error {
+	localID := generateLocalID()
+	now := time.Now().UnixMilli()
+
+	payload, _ := json.Marshal(resendAsOwnPayload{
+		MsgID: msgID, SourceChatID: sourceChatID, ToChatID: toChatID,
+		Silent: silent, ScheduleDate: scheduleDate,
+	})
+
+	_, err := e.db.Exec(
+		`INSERT INTO pending (account_id, chat_id, local_id, action, payload, status, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		accountID, toChatID, localID, ActionResendAsOwn, payload, PendingQueued, now)
+	if err != nil {
+		return err
+	}
+
+	e.wg.Add(1)
+	go func() {
+		defer e.wg.Done()
+		e.processPendingItem(accountID, toChatID, localID, ActionResendAsOwn, payload)
+	}()
+	return nil
+}
+
 // ReactToMessage queues a reaction toggle on a message.
 func (e *Engine) ReactToMessage(accountID, chatID, msgID, emoji string) error {
 	localID := generateLocalID()
@@ -434,7 +472,7 @@ func (e *Engine) PinMessage(accountID, chatID, msgID string, pinned bool) error 
 // processPendingItem executes a pending operation with retry logic.
 func (e *Engine) processPendingItem(accountID, chatID, localID, action string, payload []byte) {
 	// Acquire per-chat lock for ordering (sends only).
-	if action == ActionSend || action == ActionForward {
+	if action == ActionSend || action == ActionForward || action == ActionResendAsOwn {
 		lock := getChatLock(accountID, chatID)
 		lock.Lock()
 		defer lock.Unlock()
@@ -604,6 +642,11 @@ func (e *Engine) executePending(acc *Account, chatID, localID, action string, pa
 		_, err := acc.Core.ForwardMessage(chatID, p.MsgID, p.ToChatID)
 		return err
 
+	case ActionResendAsOwn:
+		var p resendAsOwnPayload
+		json.Unmarshal(payload, &p)
+		return e.executeResendAsOwn(acc, p)
+
 	default:
 		return fmt.Errorf("unknown action: %s", action)
 	}
@@ -678,6 +721,100 @@ func (e *Engine) resumePending() {
 			e.processPendingItem(item.AccountID, item.ChatID, item.LocalID, item.Action, item.Payload)
 		}()
 	}
+}
+
+// executeResendAsOwn downloads the source message's media and sends it as a
+// new message to the target chat with no forward header.
+func (e *Engine) executeResendAsOwn(acc *Account, p resendAsOwnPayload) error {
+	// Look up the cached source message for text and media info.
+	var contentText sql.NullString
+	var contentRaw []byte
+	err := e.db.QueryRow(
+		`SELECT content_text, content_raw FROM messages
+		 WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
+		acc.ID, p.SourceChatID, p.MsgID,
+	).Scan(&contentText, &contentRaw)
+	if err != nil {
+		return fmt.Errorf("source message not found: %w", err)
+	}
+
+	text := contentText.String
+
+	// Check for media attachments.
+	var remoteRef, fileName, mimeType, extra sql.NullString
+	var mediaType int
+	hasMedia := false
+	err = e.db.QueryRow(
+		`SELECT media_type, remote_ref, file_name, mime_type, extra FROM media
+		 WHERE account_id = ? AND chat_id = ? AND msg_id = ? AND seq = 0`,
+		acc.ID, p.SourceChatID, p.MsgID,
+	).Scan(&mediaType, &remoteRef, &fileName, &mimeType, &extra)
+	if err == nil && remoteRef.String != "" {
+		hasMedia = true
+	}
+
+	if hasMedia {
+		// Download to temp file.
+		tmpDir := filepath.Join(os.TempDir(), "uniclient_resend")
+		os.MkdirAll(tmpDir, 0o755)
+		ext := filepath.Ext(fileName.String)
+		if ext == "" { ext = ".bin" }
+		tmpPath := filepath.Join(tmpDir, p.MsgID+ext)
+		defer os.Remove(tmpPath)
+
+		ref := cores.FileRef{
+			ID:       remoteRef.String,
+			Name:     fileName.String,
+			MimeType: mimeType.String,
+			Extra:    extra.String,
+		}
+		if err := acc.Core.DownloadFile(ref, tmpPath, nil); err != nil {
+			return fmt.Errorf("download media: %w", err)
+		}
+
+		// Upload to target chat as a new message.
+		f, err := os.Open(tmpPath)
+		if err != nil {
+			return fmt.Errorf("open downloaded: %w", err)
+		}
+		defer f.Close()
+		info, _ := f.Stat()
+		upload := cores.FileUpload{
+			Name:     fileName.String,
+			Size:     info.Size(),
+			MimeType: mimeType.String,
+			Reader:   f,
+		}
+		sentMsg, err := acc.Core.UploadFile(p.ToChatID, upload, nil)
+		if err != nil {
+			return fmt.Errorf("upload resend: %w", err)
+		}
+		// If the text differs from caption, send separately.
+		if sentMsg != nil && text != "" && sentMsg.Text != text {
+			outMsg := cores.OutgoingMessage{Text: text}
+			acc.Core.SendMessage(p.ToChatID, outMsg)
+		}
+		// Cache the sent message.
+		if sentMsg != nil {
+			e.cacheMessage(acc.ID, p.ToChatID, sentMsg)
+		}
+	} else if text != "" {
+		// Text-only: send as a new message.
+		extra := map[string]interface{}{}
+		if p.Silent { extra["silent"] = true }
+		if p.ScheduleDate > 0 { extra["schedule_date"] = p.ScheduleDate }
+		outMsg := cores.OutgoingMessage{Text: text, Extra: extra}
+		sentMsg, err := acc.Core.SendMessage(p.ToChatID, outMsg)
+		if err != nil {
+			return err
+		}
+		if sentMsg != nil {
+			e.cacheMessage(acc.ID, p.ToChatID, sentMsg)
+		}
+	} else {
+		return fmt.Errorf("nothing to resend: no text or media")
+	}
+	return nil
 }
 
 // isRetryable returns true for transient errors that warrant a retry.

@@ -54,6 +54,7 @@ type ChatInfo struct {
 	NotJoined            bool   `json:"not_joined,omitempty"`
 	JoinRequest          bool   `json:"join_request,omitempty"`
 	CanPost              bool   `json:"can_post,omitempty"`
+	NoForwards           bool   `json:"no_forwards,omitempty"`
 }
 
 // chatTypeToInt converts cores.ChatType to DB integer.
@@ -90,7 +91,7 @@ func (e *Engine) GetUnifiedChatList(limit, offset int) ([]ChatInfo, error) {
 		        c.stars_to_send, c.ttl_period, c.emoji_status_id,
 		        c.story_count, c.has_unread_story, c.is_forum,
 		        c.write_restriction_type, c.write_restriction_text,
-		        c.not_joined, c.join_request, c.can_post
+		        c.not_joined, c.join_request, c.can_post, c.no_forwards
 		 FROM chats c
 		 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
 		 ORDER BY c.is_archived ASC, c.is_pinned DESC, c.last_msg_time DESC
@@ -124,7 +125,7 @@ func (e *Engine) GetChatList(accountID string, archived bool, limit, offset int)
 		        c.stars_to_send, c.ttl_period, c.emoji_status_id,
 		        c.story_count, c.has_unread_story, c.is_forum,
 		        c.write_restriction_type, c.write_restriction_text,
-		        c.not_joined, c.join_request, c.can_post
+		        c.not_joined, c.join_request, c.can_post, c.no_forwards
 		 FROM chats c
 		 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
 		 WHERE c.account_id = ? AND c.is_archived = ?
@@ -150,7 +151,7 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 		var unreadMark, isVerified, isScam, isFake int
 
 		var hasUnreadStory, isForumInt int
-		var notJoined, joinRequestInt, canPostInt int
+		var notJoined, joinRequestInt, canPostInt, noForwardsInt int
 		var writeRestrictionText sql.NullString
 		if err := rows.Scan(
 			&c.AccountID, &c.ChatID, &c.Type, &c.Title, &avatarPath,
@@ -164,7 +165,7 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 			&c.StarsToSend, &c.TtlPeriod, &emojiStatusID,
 			&c.StoryCount, &hasUnreadStory, &isForumInt,
 			&c.WriteRestrictionType, &writeRestrictionText,
-			&notJoined, &joinRequestInt, &canPostInt,
+			&notJoined, &joinRequestInt, &canPostInt, &noForwardsInt,
 		); err != nil {
 			return chats, err
 		}
@@ -200,6 +201,7 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 		c.NotJoined = notJoined == 1
 		c.JoinRequest = joinRequestInt == 1
 		c.CanPost = canPostInt == 1
+		c.NoForwards = noForwardsInt == 1
 
 		chats = append(chats, c)
 	}
@@ -245,8 +247,8 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 		                     slowmode_seconds, slowmode_next_send_date, stars_to_send, ttl_period,
 		                     emoji_status_id, story_count, has_unread_story, is_forum,
 		                     write_restriction_type, write_restriction_text,
-		                     not_joined, join_request, can_post, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		                     not_joined, join_request, can_post, no_forwards, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(account_id, chat_id) DO UPDATE SET
 		     type = excluded.type,
 		     title = excluded.title,
@@ -283,6 +285,7 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 		     not_joined = excluded.not_joined,
 		     join_request = excluded.join_request,
 		     can_post = excluded.can_post,
+		     no_forwards = excluded.no_forwards,
 		     updated_at = excluded.updated_at`,
 		accountID, d.ID, chatType, d.Title, lastMsgID, lastMsgText,
 		lastMsgTime, lastMsgSender, lastMsgIsOutgoing, lastMsgStatus, lastMsgMediaType, lastMsgThumbB64,
@@ -293,7 +296,7 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 		d.SlowmodeSeconds, d.SlowmodeNextSendDate, d.StarsToSend, d.TtlPeriod,
 		d.EmojiStatusID, d.StoryCount, boolToInt(d.HasUnreadStory), boolToInt(d.IsForum),
 		d.WriteRestrictionType, d.WriteRestrictionText,
-		boolToInt(d.NotJoined), boolToInt(d.JoinRequest), boolToInt(d.CanPost), now)
+		boolToInt(d.NotJoined), boolToInt(d.JoinRequest), boolToInt(d.CanPost), boolToInt(d.NoForwards), now)
 	if err != nil {
 		return err
 	}

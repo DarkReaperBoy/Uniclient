@@ -10985,6 +10985,7 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 					if _, ok := c.Photo.(*tg.ChatPhoto); ok {
 						dialog.AvatarURL = "has_photo"
 					}
+					dialog.NoForwards = c.Noforwards
 					if c.Deactivated {
 						dialog.WriteRestrictionType = 1
 						dialog.WriteRestrictionText = "Sorry, this group is not accessible."
@@ -11035,6 +11036,7 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 						dialog.CanPost = true
 					}
 					dialog.IsForum = c.Forum
+					dialog.NoForwards = c.Noforwards
 					if _, ok := c.Photo.(*tg.ChatPhoto); ok {
 						dialog.AvatarURL = "has_photo"
 					}

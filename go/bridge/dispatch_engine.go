@@ -683,6 +683,13 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.ForwardMessage(req.AccountId, req.ChatId, req.MsgId, req.ToChatId, req.DropAuthor, req.DropCaptions, req.Silent, req.ScheduleDate)
 
+	case "ResendAsOwn":
+		var req pb.EngineResendAsOwnRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.ResendAsOwn(req.AccountId, req.SourceChatId, req.MsgId, req.ToChatId, req.Silent, req.ScheduleDate)
+
 	case "SendScheduledNow":
 		var req pb.EngineSendScheduledNowRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
@@ -3787,6 +3794,7 @@ func chatInfoToProto(c *engine.ChatInfo) *pb.EngineChatInfo {
 		NotJoined:            c.NotJoined,
 		JoinRequest:          c.JoinRequest,
 		CanPost:              c.CanPost,
+		NoForwards:           c.NoForwards,
 	}
 }
 

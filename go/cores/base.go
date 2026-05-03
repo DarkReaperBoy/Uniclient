@@ -198,6 +198,7 @@ type Dialog struct {
 	NotJoined           bool   `json:"not_joined,omitempty"`
 	JoinRequest         bool   `json:"join_request,omitempty"`
 	CanPost             bool   `json:"can_post,omitempty"`
+	NoForwards          bool   `json:"no_forwards,omitempty"`
 	Platform            string `json:"platform"`
 }
 

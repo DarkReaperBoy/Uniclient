@@ -1452,6 +1452,7 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     $core.bool? notJoined,
     $core.bool? joinRequest,
     $core.bool? canPost,
+    $core.bool? noForwards,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -1550,6 +1551,9 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     if (canPost != null) {
       $result.canPost = canPost;
     }
+    if (noForwards != null) {
+      $result.noForwards = noForwards;
+    }
     return $result;
   }
   EngineChatInfo._() : super();
@@ -1589,6 +1593,7 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     ..aOB(30, _omitFieldNames ? '' : 'notJoined')
     ..aOB(31, _omitFieldNames ? '' : 'joinRequest')
     ..aOB(32, _omitFieldNames ? '' : 'canPost')
+    ..aOB(33, _omitFieldNames ? '' : 'noForwards')
     ..hasRequiredFields = false
   ;
 
@@ -1896,6 +1901,11 @@ class EngineChatInfo extends $pb.GeneratedMessage {
   $core.bool get canPost => $_getBF(31);
   @$pb.TagNumber(32)
   set canPost($core.bool v) { $_setBool(31, v); }
+
+  @$pb.TagNumber(33)
+  $core.bool get noForwards => $_getBF(32);
+  @$pb.TagNumber(33)
+  set noForwards($core.bool v) { $_setBool(32, v); }
   @$pb.TagNumber(32)
   $core.bool hasCanPost() => $_has(31);
   @$pb.TagNumber(32)
@@ -4755,6 +4765,83 @@ class EngineForwardMessageRequest extends $pb.GeneratedMessage {
   $core.bool hasScheduleDate() => $_has(7);
   @$pb.TagNumber(8)
   void clearScheduleDate() => clearField(8);
+}
+
+class EngineResendAsOwnRequest extends $pb.GeneratedMessage {
+  factory EngineResendAsOwnRequest({
+    $core.String? accountId,
+    $core.String? sourceChatId,
+    $core.String? msgId,
+    $core.String? toChatId,
+    $core.bool? silent,
+    $fixnum.Int64? scheduleDate,
+  }) {
+    final $result = create();
+    if (accountId != null) { $result.accountId = accountId; }
+    if (sourceChatId != null) { $result.sourceChatId = sourceChatId; }
+    if (msgId != null) { $result.msgId = msgId; }
+    if (toChatId != null) { $result.toChatId = toChatId; }
+    if (silent != null) { $result.silent = silent; }
+    if (scheduleDate != null) { $result.scheduleDate = scheduleDate; }
+    return $result;
+  }
+  EngineResendAsOwnRequest._() : super();
+  factory EngineResendAsOwnRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineResendAsOwnRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'sourceChatId')
+    ..aOS(3, _omitFieldNames ? '' : 'msgId')
+    ..aOS(4, _omitFieldNames ? '' : 'toChatId')
+    ..aOB(5, _omitFieldNames ? '' : 'silent')
+    ..aInt64(6, _omitFieldNames ? '' : 'scheduleDate')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineResendAsOwnRequest clone() => EngineResendAsOwnRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineResendAsOwnRequest copyWith(void Function(EngineResendAsOwnRequest) updates) => super.copyWith((message) => updates(message as EngineResendAsOwnRequest)) as EngineResendAsOwnRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineResendAsOwnRequest create() => EngineResendAsOwnRequest._();
+  EngineResendAsOwnRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineResendAsOwnRequest> createRepeated() => $pb.PbList<EngineResendAsOwnRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineResendAsOwnRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineResendAsOwnRequest>(create);
+  static EngineResendAsOwnRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.String get sourceChatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set sourceChatId($core.String v) { $_setString(1, v); }
+
+  @$pb.TagNumber(3)
+  $core.String get msgId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set msgId($core.String v) { $_setString(2, v); }
+
+  @$pb.TagNumber(4)
+  $core.String get toChatId => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set toChatId($core.String v) { $_setString(3, v); }
+
+  @$pb.TagNumber(5)
+  $core.bool get silent => $_getBF(4);
+  @$pb.TagNumber(5)
+  set silent($core.bool v) { $_setBool(4, v); }
+
+  @$pb.TagNumber(6)
+  $fixnum.Int64 get scheduleDate => $_getI64(5);
+  @$pb.TagNumber(6)
+  set scheduleDate($fixnum.Int64 v) { $_setInt64(5, v); }
 }
 
 class EngineReactToMessageRequest extends $pb.GeneratedMessage {

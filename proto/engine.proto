@@ -182,6 +182,7 @@ message EngineChatInfo {
   bool   not_joined               = 30;
   bool   join_request             = 31;
   bool   can_post                 = 32;
+  bool   no_forwards              = 33;
 }
 
 message EngineGetChatListRequest {
@@ -415,6 +416,15 @@ message EngineForwardMessageRequest {
   bool   drop_captions = 6;
   bool   silent        = 7;
   int64  schedule_date = 8;
+}
+
+message EngineResendAsOwnRequest {
+  string account_id      = 1;
+  string source_chat_id  = 2;
+  string msg_id          = 3;
+  string to_chat_id      = 4;
+  bool   silent          = 5;
+  int64  schedule_date   = 6;
 }
 
 message EngineSendContactRequest {

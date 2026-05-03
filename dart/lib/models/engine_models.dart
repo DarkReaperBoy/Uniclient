@@ -226,6 +226,7 @@ class ChatInfo {
   final bool notJoined;
   final bool joinRequest;
   final bool canPost;
+  final bool noForwards;
 
   const ChatInfo({
     required this.accountId,
@@ -274,6 +275,7 @@ class ChatInfo {
     this.notJoined = false,
     this.joinRequest = false,
     this.canPost = false,
+    this.noForwards = false,
   });
 
   factory ChatInfo.fromJson(Map<String, dynamic> j) => ChatInfo(
@@ -323,6 +325,7 @@ class ChatInfo {
     notJoined: j['not_joined'] as bool? ?? false,
     joinRequest: j['join_request'] as bool? ?? false,
     canPost: j['can_post'] as bool? ?? false,
+    noForwards: j['no_forwards'] as bool? ?? false,
   );
 
   /// Time as DateTime for display.

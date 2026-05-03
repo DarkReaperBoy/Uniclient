@@ -130,6 +130,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV27,
 	migrateV28,
 	migrateV29,
+	migrateV30,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -688,5 +689,10 @@ func migrateV29(tx *sql.Tx) error {
 		return err
 	}
 	_, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_edited_msgs ON edited_messages(account_id, chat_id, msg_id, id DESC)`)
+	return err
+}
+
+func migrateV30(tx *sql.Tx) error {
+	_, err := tx.Exec(`ALTER TABLE chats ADD COLUMN no_forwards INTEGER NOT NULL DEFAULT 0`)
 	return err
 }

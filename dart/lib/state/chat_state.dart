@@ -8,6 +8,7 @@ import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../notifications/notification_types.dart';
 import '../state/app_state.dart';
+import '../state/ayu_forward.dart';
 import '../ui/message_bubble.dart';
 import '../ui/spoiler_animation.dart';
 
@@ -1453,17 +1454,38 @@ class ChatState extends ChangeNotifier {
   }) async {
     final chat = _activeChat;
     if (chat == null) return;
+
+    // Collect CachedMessage objects for intelligent forward detection.
+    final forwardMsgs = <CachedMessage>[];
     for (final id in msgIds) {
-      await _engine.forwardMessage(chat.accountId, chat.chatId, id, toChatId,
-        dropAuthor: dropAuthor, dropCaptions: dropCaptions,
-        silent: silent, scheduleDate: scheduleDate);
+      final idx = _messages.indexWhere((m) => m.msgId == id);
+      if (idx >= 0) forwardMsgs.add(_messages[idx]);
     }
-    // If forwarding to the active chat, refresh messages immediately.
+
+    if (forwardMsgs.isNotEmpty && AyuForward.needsIntelligentForward(forwardMsgs, chat)) {
+      await AyuForward.intelligentForward(
+        engine: _engine,
+        accountId: chat.accountId,
+        sourceChatId: chat.chatId,
+        messages: forwardMsgs,
+        toChatId: toChatId,
+        sourceChat: chat,
+        dropAuthor: dropAuthor,
+        dropCaptions: dropCaptions,
+        silent: silent,
+        scheduleDate: scheduleDate,
+      );
+    } else {
+      for (final id in msgIds) {
+        await _engine.forwardMessage(chat.accountId, chat.chatId, id, toChatId,
+          dropAuthor: dropAuthor, dropCaptions: dropCaptions,
+          silent: silent, scheduleDate: scheduleDate);
+      }
+    }
+
     if (toChatId == chat.chatId) {
       _refreshMessages();
     }
-    // Always refresh chat list so the destination chat's preview updates
-    // and the forwarded message gets cached for when the user opens that chat.
     _debouncedLoadChats();
   }
 

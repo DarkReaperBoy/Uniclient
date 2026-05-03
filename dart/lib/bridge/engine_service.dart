@@ -2080,6 +2080,22 @@ class EngineService {
     await _callAsync('__engine', 'ForwardMessage', req.writeToBuffer());
   }
 
+  Future<void> resendAsOwn(String accountId, String sourceChatId, String msgId, String toChatId, {
+    bool silent = false,
+    int scheduleDate = 0,
+  }) async {
+    final req = epb.EngineResendAsOwnRequest()
+      ..accountId = accountId
+      ..sourceChatId = sourceChatId
+      ..msgId = msgId
+      ..toChatId = toChatId
+      ..silent = silent;
+    if (scheduleDate > 0) {
+      req.scheduleDate = Int64(scheduleDate);
+    }
+    await _callAsync('__engine', 'ResendAsOwn', req.writeToBuffer());
+  }
+
   Future<void> sendContact(String accountId, String toChatId, String phone, String firstName, String lastName, {String userId = ''}) async {
     final req = epb.EngineSendContactRequest()
       ..accountId = accountId
@@ -3650,6 +3666,7 @@ class EngineService {
     notJoined: p.notJoined,
     joinRequest: p.joinRequest,
     canPost: p.canPost,
+    noForwards: p.noForwards,
   );
 
   static CachedMessage _cachedMsgFromProto(epb.EngineCachedMessage p) {
