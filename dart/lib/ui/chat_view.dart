@@ -22,6 +22,7 @@ import 'gesture_utils.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/audio_service.dart';
+import '../state/ayu_forward.dart';
 import '../state/chat_state.dart';
 import '../theme/theme.dart';
 import '../theme/wallpaper.dart';
@@ -4634,6 +4635,10 @@ class _ChatViewState extends State<ChatView>
               restrictionType: 1,
               restrictionText: 'This topic is closed.',
             )
+          else if (AyuForward.isForwarding(chat.chatId))
+            _ForwardProgressBar(
+              progress: AyuForward.getProgress(chat.chatId)!,
+            )
           else
             _ComposeArea(
               controller: _composeController,
@@ -8737,6 +8742,97 @@ class _WriteRestrictionBar extends StatelessWidget {
         duration: Duration(milliseconds: 1500),
       ),
     );
+  }
+}
+
+class _ForwardProgressBar extends StatefulWidget {
+  final ForwardProgress progress;
+  const _ForwardProgressBar({required this.progress});
+
+  @override
+  State<_ForwardProgressBar> createState() => _ForwardProgressBarState();
+}
+
+class _ForwardProgressBarState extends State<_ForwardProgressBar> {
+  bool _hovered = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.progress.addListener(_onProgress);
+  }
+
+  @override
+  void didUpdateWidget(covariant _ForwardProgressBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.progress != widget.progress) {
+      oldWidget.progress.removeListener(_onProgress);
+      widget.progress.addListener(_onProgress);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.progress.removeListener(_onProgress);
+    super.dispose();
+  }
+
+  void _onProgress() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = PaletteProvider.of(context);
+    final bgColor = _hovered
+        ? palette.historyComposeButtonBgOver
+        : palette.historyComposeButtonBg;
+
+    return LayoutBuilder(builder: (context, constraints) {
+      final tooNarrow = constraints.maxWidth < 2 * 46;
+
+      return MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: widget.progress.cancel,
+          child: Container(
+            height: 46,
+            color: bgColor,
+            padding: const EdgeInsets.only(left: 10),
+            child: tooNarrow
+                ? const SizedBox.shrink()
+                : Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.progress.statusText,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: palette.windowFg,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                      if (widget.progress.detailText.isNotEmpty)
+                        Text(
+                          widget.progress.detailText,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: palette.windowSubTextFg,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                    ],
+                  ),
+          ),
+        ),
+      );
+    });
   }
 }
 

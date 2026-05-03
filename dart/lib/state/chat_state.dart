@@ -1455,12 +1455,13 @@ class ChatState extends ChangeNotifier {
     final chat = _activeChat;
     if (chat == null) return;
 
-    // Collect CachedMessage objects for intelligent forward detection.
     final forwardMsgs = <CachedMessage>[];
     for (final id in msgIds) {
       final idx = _messages.indexWhere((m) => m.msgId == id);
       if (idx >= 0) forwardMsgs.add(_messages[idx]);
     }
+
+    final progress = ForwardProgress();
 
     if (forwardMsgs.isNotEmpty && AyuForward.needsIntelligentForward(forwardMsgs, chat)) {
       await AyuForward.intelligentForward(
@@ -1474,12 +1475,22 @@ class ChatState extends ChangeNotifier {
         dropCaptions: dropCaptions,
         silent: silent,
         scheduleDate: scheduleDate,
+        progress: progress,
       );
     } else {
-      for (final id in msgIds) {
-        await _engine.forwardMessage(chat.accountId, chat.chatId, id, toChatId,
-          dropAuthor: dropAuthor, dropCaptions: dropCaptions,
-          silent: silent, scheduleDate: scheduleDate);
+      AyuForward.startNativeForward(toChatId, progress, msgIds.length);
+      int sent = 0;
+      try {
+        for (final id in msgIds) {
+          if (progress.isCancelled) break;
+          await _engine.forwardMessage(chat.accountId, chat.chatId, id, toChatId,
+            dropAuthor: dropAuthor, dropCaptions: dropCaptions,
+            silent: silent, scheduleDate: scheduleDate);
+          sent++;
+          progress.update(sent: sent);
+        }
+      } finally {
+        AyuForward.finishNativeForward(toChatId, progress, sent);
       }
     }
 
