@@ -3582,11 +3582,11 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		count, err := e.GetBroadcastStats(params.AccountID, params.ChatID)
+		stats, err := e.GetBroadcastStats(params.AccountID, params.ChatID)
 		if err != nil {
 			return nil, err
 		}
-		return json.Marshal(map[string]interface{}{"result_1": count})
+		return json.Marshal(stats)
 
 	case "GetMegagroupStatsEngine":
 		var params struct {
@@ -3596,11 +3596,11 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		count, err := e.GetMegagroupStats(params.AccountID, params.ChatID)
+		stats, err := e.GetMegagroupStats(params.AccountID, params.ChatID)
 		if err != nil {
 			return nil, err
 		}
-		return json.Marshal(map[string]interface{}{"result_1": count})
+		return json.Marshal(stats)
 
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)

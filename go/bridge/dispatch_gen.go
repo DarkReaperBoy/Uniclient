@@ -19755,8 +19755,14 @@ func dispatchTelegram(c *cores.TelegramCore, method string, payload []byte) ([]b
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		r1, err := c.GetBroadcastStats(req.ChatId)
 		if err != nil { return nil, err }
+		var count int64
+		if f, ok := r1["followers"]; ok {
+			if m, ok := f.(map[string]interface{}); ok {
+				if c, ok := m["current"].(float64); ok { count = int64(c) }
+			}
+		}
 		resp := &pbcores.TelegramGetBroadcastStatsResponse{
-			Result_1: int64(r1),
+			Result_1: count,
 		}
 		return proto.Marshal(resp)
 	case "GetCallConfig":
@@ -20007,8 +20013,14 @@ func dispatchTelegram(c *cores.TelegramCore, method string, payload []byte) ([]b
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		r1, err := c.GetMegagroupStats(req.ChatId)
 		if err != nil { return nil, err }
+		var count int64
+		if m, ok := r1["members"]; ok {
+			if mm, ok := m.(map[string]interface{}); ok {
+				if c, ok := mm["current"].(float64); ok { count = int64(c) }
+			}
+		}
 		resp := &pbcores.TelegramGetMegagroupStatsResponse{
-			Result_1: int64(r1),
+			Result_1: count,
 		}
 		return proto.Marshal(resp)
 	case "GetMembers":

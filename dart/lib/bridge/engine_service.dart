@@ -1538,26 +1538,24 @@ class EngineService {
 
   // ── Statistics ──
 
-  Future<int> getBroadcastStats(String accountId, String chatId) async {
+  Future<Map<String, dynamic>> getBroadcastStats(String accountId, String chatId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'chat_id': chatId,
     }));
     final respBytes = await _callAsync('__engine', 'GetBroadcastStatsEngine', Uint8List.fromList(payload));
-    if (respBytes.isEmpty) return 0;
-    final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
-    return data['result_1'] as int? ?? 0;
+    if (respBytes.isEmpty) return {};
+    return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
   }
 
-  Future<int> getMegagroupStats(String accountId, String chatId) async {
+  Future<Map<String, dynamic>> getMegagroupStats(String accountId, String chatId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'chat_id': chatId,
     }));
     final respBytes = await _callAsync('__engine', 'GetMegagroupStatsEngine', Uint8List.fromList(payload));
-    if (respBytes.isEmpty) return 0;
-    final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
-    return data['result_1'] as int? ?? 0;
+    if (respBytes.isEmpty) return {};
+    return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
   }
 
   // ── Stories ──

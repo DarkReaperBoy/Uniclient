@@ -1307,39 +1307,39 @@ func (e *Engine) GetCallHistory(accountID string, offsetID int, limit int) ([]Ca
 }
 
 type BroadcastStatsGetter interface {
-	GetBroadcastStats(chatID string) (int, error)
+	GetBroadcastStats(chatID string) (map[string]interface{}, error)
 }
 
 type MegagroupStatsGetter interface {
-	GetMegagroupStats(chatID string) (int, error)
+	GetMegagroupStats(chatID string) (map[string]interface{}, error)
 }
 
-func (e *Engine) GetBroadcastStats(accountID, chatID string) (int, error) {
+func (e *Engine) GetBroadcastStats(accountID, chatID string) (map[string]interface{}, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
-		return 0, fmt.Errorf("account not found: %s", accountID)
+		return nil, fmt.Errorf("account not found: %s", accountID)
 	}
 	if acc.Core == nil {
-		return 0, fmt.Errorf("account not connected: %s", accountID)
+		return nil, fmt.Errorf("account not connected: %s", accountID)
 	}
 	getter, ok := acc.Core.(BroadcastStatsGetter)
 	if !ok {
-		return 0, fmt.Errorf("platform does not support broadcast stats")
+		return nil, fmt.Errorf("platform does not support broadcast stats")
 	}
 	return getter.GetBroadcastStats(chatID)
 }
 
-func (e *Engine) GetMegagroupStats(accountID, chatID string) (int, error) {
+func (e *Engine) GetMegagroupStats(accountID, chatID string) (map[string]interface{}, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
-		return 0, fmt.Errorf("account not found: %s", accountID)
+		return nil, fmt.Errorf("account not found: %s", accountID)
 	}
 	if acc.Core == nil {
-		return 0, fmt.Errorf("account not connected: %s", accountID)
+		return nil, fmt.Errorf("account not connected: %s", accountID)
 	}
 	getter, ok := acc.Core.(MegagroupStatsGetter)
 	if !ok {
-		return 0, fmt.Errorf("platform does not support megagroup stats")
+		return nil, fmt.Errorf("platform does not support megagroup stats")
 	}
 	return getter.GetMegagroupStats(chatID)
 }

@@ -5382,7 +5382,7 @@ class _StatisticsPageState extends State<_StatisticsPage>
   bool _loading = true;
   bool _showFinished = false;
   String? _error;
-  int? _followerCount;
+  Map<String, dynamic>? _stats;
   late final AnimationController _slideController;
   late final Animation<double> _slideAnimation;
 
@@ -5413,13 +5413,13 @@ class _StatisticsPageState extends State<_StatisticsPage>
   Future<void> _loadStats() async {
     try {
       final engine = context.read<EngineService>();
-      final int count;
+      final Map<String, dynamic> data;
       if (widget.chat.type == ChatType.channel) {
-        count = await engine.getBroadcastStats(
+        data = await engine.getBroadcastStats(
           widget.chat.accountId, widget.chat.chatId,
         );
       } else {
-        count = await engine.getMegagroupStats(
+        data = await engine.getMegagroupStats(
           widget.chat.accountId, widget.chat.chatId,
         );
       }
@@ -5427,7 +5427,7 @@ class _StatisticsPageState extends State<_StatisticsPage>
         await _slideController.reverse();
         if (mounted) {
           setState(() {
-            _followerCount = count;
+            _stats = data;
             _loading = false;
           });
         }
@@ -5443,6 +5443,19 @@ class _StatisticsPageState extends State<_StatisticsPage>
         }
       }
     }
+  }
+
+  String _formatDateRange() {
+    if (_stats == null) return '';
+    final minDate = _stats!['period_min'] as int?;
+    final maxDate = _stats!['period_max'] as int?;
+    if (minDate == null || maxDate == null) return '';
+    final min = DateTime.fromMillisecondsSinceEpoch(minDate * 1000);
+    final max = DateTime.fromMillisecondsSinceEpoch(maxDate * 1000);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${min.day} ${months[min.month - 1]} ${min.year} – '
+           '${max.day} ${months[max.month - 1]} ${max.year}';
   }
 
   @override
@@ -5571,73 +5584,302 @@ class _StatisticsPageState extends State<_StatisticsPage>
   }
 
   Widget _buildContent() {
+    if (_stats == null || _stats!.isEmpty) return const SizedBox.shrink();
     final isChannel = widget.chat.type == ChatType.channel;
     return ListView(
       controller: widget.scrollController,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       children: [
-        if (_followerCount != null) ...[
-          _OverviewCard(
-            label: isChannel ? 'Followers' : 'Members',
-            value: _formatCount(_followerCount!),
-            theme: widget.theme,
-          ),
-          const SizedBox(height: 16),
-        ],
-        Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 32),
-            child: Text(
-              'Detailed charts coming soon.',
-              style: TextStyle(
-                fontSize: 13,
-                color: widget.theme.textTheme.bodySmall?.color,
-              ),
-            ),
-          ),
+        const SizedBox(height: 17),
+        _OverviewHeader(
+          title: 'Overview',
+          subtitle: _formatDateRange(),
+          theme: widget.theme,
         ),
+        const SizedBox(height: 12),
+        if (isChannel) _buildChannelOverview() else _buildGroupOverview(),
+        const SizedBox(height: 9),
       ],
     );
   }
 
-  String _formatCount(int count) {
-    if (count >= 1000000) return '${(count / 1000000).toStringAsFixed(1)}M';
-    if (count >= 1000) return '${(count / 1000).toStringAsFixed(1)}K';
-    return count.toString();
+  Widget _buildChannelOverview() {
+    final followers = _stats!['followers'] as Map<String, dynamic>?;
+    final notifPct = (_stats!['enabled_notifications'] as num?)?.toDouble() ?? 0;
+    final viewsPerPost = _stats!['views_per_post'] as Map<String, dynamic>?;
+    final viewsPerStory = _stats!['views_per_story'] as Map<String, dynamic>?;
+    final sharesPerPost = _stats!['shares_per_post'] as Map<String, dynamic>?;
+    final sharesPerStory = _stats!['shares_per_story'] as Map<String, dynamic>?;
+    final reactionsPerPost = _stats!['reactions_per_post'] as Map<String, dynamic>?;
+    final reactionsPerStory = _stats!['reactions_per_story'] as Map<String, dynamic>?;
+
+    final hasStoryMetrics = _hasNonZero(sharesPerPost) ||
+        _hasNonZero(sharesPerStory) ||
+        _hasNonZero(reactionsPerPost) ||
+        _hasNonZero(reactionsPerStory);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _OverviewGrid(theme: widget.theme, cells: [
+          _OverviewCellData(
+            value: _formatAbsValue(followers),
+            change: _formatChange(followers),
+            growth: _getGrowth(followers),
+            label: 'Followers',
+          ),
+          _OverviewCellData(
+            value: '${notifPct.toStringAsFixed(1)}%',
+            change: null,
+            growth: 0,
+            label: 'Enabled Notifications',
+          ),
+          _OverviewCellData(
+            value: _formatAbsValue(viewsPerPost),
+            change: _formatChange(viewsPerPost),
+            growth: _getGrowth(viewsPerPost),
+            label: 'Views Per Post',
+          ),
+          _OverviewCellData(
+            value: _formatAbsValue(viewsPerStory),
+            change: _formatChange(viewsPerStory),
+            growth: _getGrowth(viewsPerStory),
+            label: 'Views Per Story',
+          ),
+        ]),
+        if (hasStoryMetrics) ...[
+          const SizedBox(height: 50),
+          _OverviewGrid(theme: widget.theme, cells: [
+            _OverviewCellData(
+              value: _formatAbsValue(sharesPerPost),
+              change: _formatChange(sharesPerPost),
+              growth: _getGrowth(sharesPerPost),
+              label: 'Shares Per Post',
+            ),
+            _OverviewCellData(
+              value: _formatAbsValue(sharesPerStory),
+              change: _formatChange(sharesPerStory),
+              growth: _getGrowth(sharesPerStory),
+              label: 'Shares Per Story',
+            ),
+            _OverviewCellData(
+              value: _formatAbsValue(reactionsPerPost),
+              change: _formatChange(reactionsPerPost),
+              growth: _getGrowth(reactionsPerPost),
+              label: 'Reactions Per Post',
+            ),
+            _OverviewCellData(
+              value: _formatAbsValue(reactionsPerStory),
+              change: _formatChange(reactionsPerStory),
+              growth: _getGrowth(reactionsPerStory),
+              label: 'Reactions Per Story',
+            ),
+          ]),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildGroupOverview() {
+    final members = _stats!['members'] as Map<String, dynamic>?;
+    final messages = _stats!['messages'] as Map<String, dynamic>?;
+    final viewers = _stats!['viewers'] as Map<String, dynamic>?;
+    final posters = _stats!['posters'] as Map<String, dynamic>?;
+
+    return _OverviewGrid(theme: widget.theme, cells: [
+      _OverviewCellData(
+        value: _formatAbsValue(members),
+        change: _formatChange(members),
+        growth: _getGrowth(members),
+        label: 'Members',
+      ),
+      _OverviewCellData(
+        value: _formatAbsValue(messages),
+        change: _formatChange(messages),
+        growth: _getGrowth(messages),
+        label: 'Messages',
+      ),
+      _OverviewCellData(
+        value: _formatAbsValue(viewers),
+        change: _formatChange(viewers),
+        growth: _getGrowth(viewers),
+        label: 'Viewing Members',
+      ),
+      _OverviewCellData(
+        value: _formatAbsValue(posters),
+        change: _formatChange(posters),
+        growth: _getGrowth(posters),
+        label: 'Posting Members',
+      ),
+    ]);
+  }
+
+  bool _hasNonZero(Map<String, dynamic>? v) {
+    if (v == null) return false;
+    return (v['current'] as num?)?.toDouble() != 0;
+  }
+
+  String _formatAbsValue(Map<String, dynamic>? v) {
+    if (v == null) return '0';
+    final current = (v['current'] as num?)?.toDouble() ?? 0;
+    return _formatCountShort(current);
+  }
+
+  String? _formatChange(Map<String, dynamic>? v) {
+    if (v == null) return null;
+    final current = (v['current'] as num?)?.toDouble() ?? 0;
+    final previous = (v['previous'] as num?)?.toDouble() ?? 0;
+    final delta = current - previous;
+    if (delta == 0 && previous == 0) return null;
+    final growth = (v['growth'] as num?)?.toDouble() ?? 0;
+    final prefix = delta >= 0 ? '+' : '−';
+    final absDelta = delta.abs();
+    final deltaStr = _formatCountShort(absDelta);
+    if (growth.abs() < 0.01) return '$prefix$deltaStr';
+    return '$prefix$deltaStr (${growth.abs().toStringAsFixed(1)}%)';
+  }
+
+  double _getGrowth(Map<String, dynamic>? v) {
+    if (v == null) return 0;
+    return (v['growth'] as num?)?.toDouble() ?? 0;
+  }
+
+  String _formatCountShort(double n) {
+    final absN = n.abs();
+    if (absN >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+    if (absN >= 10000) return '${(n / 1000).toStringAsFixed(1)}K';
+    if (absN >= 1000) return '${(n / 1000).toStringAsFixed(2)}K';
+    if (n == n.truncateToDouble()) return n.toInt().toString();
+    return n.toStringAsFixed(1);
   }
 }
 
-class _OverviewCard extends StatelessWidget {
-  final String label;
+class _OverviewCellData {
   final String value;
-  final ThemeData theme;
-
-  const _OverviewCard({
-    required this.label,
+  final String? change;
+  final double growth;
+  final String label;
+  const _OverviewCellData({
     required this.value,
-    required this.theme,
+    required this.change,
+    required this.growth,
+    required this.label,
   });
+}
+
+class _OverviewHeader extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final ThemeData theme;
+  const _OverviewHeader({required this.title, required this.subtitle, required this.theme});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(8),
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: theme.textTheme.bodyLarge?.color,
+          ),
+        ),
+        if (subtitle.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              subtitle,
+              style: TextStyle(
+                fontSize: 11,
+                color: theme.textTheme.bodySmall?.color,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _OverviewGrid extends StatelessWidget {
+  final ThemeData theme;
+  final List<_OverviewCellData> cells;
+  const _OverviewGrid({required this.theme, required this.cells});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: _OverviewCell(data: cells[0], theme: theme)),
+            const SizedBox(width: 14),
+            Expanded(child: _OverviewCell(data: cells[1], theme: theme)),
+          ],
+        ),
+        const SizedBox(height: 50),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: _OverviewCell(data: cells[2], theme: theme)),
+            const SizedBox(width: 14),
+            Expanded(child: _OverviewCell(data: cells[3], theme: theme)),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _OverviewCell extends StatelessWidget {
+  final _OverviewCellData data;
+  final ThemeData theme;
+  const _OverviewCell({required this.data, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = theme.brightness == Brightness.dark;
+    final greenColor = isDark ? const Color(0xFF4FAD2D) : const Color(0xFF4FAD2D);
+    final redColor = isDark ? const Color(0xFFE05B5B) : const Color(0xFFE05B5B);
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 152),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            value,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Flexible(
+                child: Text(
+                  data.value,
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (data.change != null) ...[
+                const SizedBox(width: 5),
+                Padding(
+                  padding: const EdgeInsets.only(top: 3),
+                  child: Text(
+                    data.change!,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: data.growth >= 0 ? greenColor : redColor,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
           const SizedBox(height: 2),
           Text(
-            label,
+            data.label,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: 11,
               color: theme.textTheme.bodySmall?.color,
             ),
           ),

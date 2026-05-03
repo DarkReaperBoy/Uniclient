@@ -15310,17 +15310,44 @@ func (t *TelegramCore) GetCallConfig() (int, error) {
 }
 
 // GetBroadcastStats returns statistics for a broadcast channel.
-func (t *TelegramCore) GetBroadcastStats(chatID string) (int, error) {
+func (t *TelegramCore) GetBroadcastStats(chatID string) (map[string]interface{}, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
-	if !t.authed || t.api == nil { return 0, ErrAuth }
-	peer, err := t.resolvePeer(chatID); if err != nil { return 0, err }
-	ch, ok := peer.(*tg.PeerChannel); if !ok { return 0, fmt.Errorf("not a channel") }
+	if !t.authed || t.api == nil { return nil, ErrAuth }
+	peer, err := t.resolvePeer(chatID); if err != nil { return nil, err }
+	ch, ok := peer.(*tg.PeerChannel); if !ok { return nil, fmt.Errorf("not a channel") }
 	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
 	result, err := t.api.StatsGetBroadcastStats(t.ctx, &tg.StatsGetBroadcastStatsRequest{
 		Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
 	})
-	if err != nil { return 0, err }
-	return int(result.Followers.Current), nil
+	if err != nil { return nil, err }
+	notifPct := 0.0
+	if result.EnabledNotifications.Total > 0 {
+		notifPct = result.EnabledNotifications.Part / result.EnabledNotifications.Total * 100
+	}
+	return map[string]interface{}{
+		"period_min": result.Period.MinDate,
+		"period_max": result.Period.MaxDate,
+		"followers":          statsAbsVal(result.Followers),
+		"enabled_notifications": notifPct,
+		"views_per_post":     statsAbsVal(result.ViewsPerPost),
+		"views_per_story":    statsAbsVal(result.ViewsPerStory),
+		"shares_per_post":    statsAbsVal(result.SharesPerPost),
+		"shares_per_story":   statsAbsVal(result.SharesPerStory),
+		"reactions_per_post": statsAbsVal(result.ReactionsPerPost),
+		"reactions_per_story": statsAbsVal(result.ReactionsPerStory),
+	}, nil
+}
+
+func statsAbsVal(v tg.StatsAbsValueAndPrev) map[string]interface{} {
+	growth := 0.0
+	if v.Previous > 0 {
+		growth = (v.Current - v.Previous) / v.Previous * 100
+	}
+	return map[string]interface{}{
+		"current":  v.Current,
+		"previous": v.Previous,
+		"growth":   growth,
+	}
 }
 
 // GetAllStories returns all visible stories from contacts and channels.
@@ -15611,17 +15638,24 @@ func (t *TelegramCore) SaveGif(fileID int64, extra string, unsave bool) error {
 }
 
 // GetMegagroupStats returns statistics for a supergroup.
-func (t *TelegramCore) GetMegagroupStats(chatID string) (int, error) {
+func (t *TelegramCore) GetMegagroupStats(chatID string) (map[string]interface{}, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
-	if !t.authed || t.api == nil { return 0, ErrAuth }
-	peer, err := t.resolvePeer(chatID); if err != nil { return 0, err }
-	ch, ok := peer.(*tg.PeerChannel); if !ok { return 0, fmt.Errorf("not a supergroup") }
+	if !t.authed || t.api == nil { return nil, ErrAuth }
+	peer, err := t.resolvePeer(chatID); if err != nil { return nil, err }
+	ch, ok := peer.(*tg.PeerChannel); if !ok { return nil, fmt.Errorf("not a supergroup") }
 	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
 	result, err := t.api.StatsGetMegagroupStats(t.ctx, &tg.StatsGetMegagroupStatsRequest{
 		Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
 	})
-	if err != nil { return 0, err }
-	return int(result.Members.Current), nil
+	if err != nil { return nil, err }
+	return map[string]interface{}{
+		"period_min": result.Period.MinDate,
+		"period_max": result.Period.MaxDate,
+		"members":  statsAbsVal(result.Members),
+		"messages": statsAbsVal(result.Messages),
+		"viewers":  statsAbsVal(result.Viewers),
+		"posters":  statsAbsVal(result.Posters),
+	}, nil
 }
 
 // GetPeerStories returns the stories of a specific user or channel.
