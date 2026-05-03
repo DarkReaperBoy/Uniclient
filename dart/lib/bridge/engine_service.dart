@@ -1558,6 +1558,17 @@ class EngineService {
     return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> getMessageStats(String accountId, String chatId, int msgId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'msg_id': msgId,
+    }));
+    final respBytes = await _callAsync('__engine', 'GetMessageStatsEngine', Uint8List.fromList(payload));
+    if (respBytes.isEmpty) return {};
+    return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+  }
+
   // ── Stories ──
 
   Future<List<StoryItem>> fetchPeerStories(String accountId, String peerId) async {

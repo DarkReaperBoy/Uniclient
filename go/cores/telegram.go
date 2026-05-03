@@ -11047,6 +11047,47 @@ func tgStrippedToJPEG(data []byte) []byte {
 	return result
 }
 
+func extractMessageMediaSummary(msg *tg.Message) (mediaType int, thumbB64 string) {
+	if msg.Media == nil {
+		return 0, ""
+	}
+	switch md := msg.Media.(type) {
+	case *tg.MessageMediaPhoto:
+		if p, ok := md.Photo.(*tg.Photo); ok {
+			return 1, extractStrippedThumbB64(p.Sizes)
+		}
+		return 1, ""
+	case *tg.MessageMediaDocument:
+		if d, ok := md.Document.(*tg.Document); ok {
+			isVideo, isAnimated, isSticker, isVoice, isVideoNote, isAudio := false, false, false, false, false, false
+			for _, attr := range d.Attributes {
+				switch a := attr.(type) {
+				case *tg.DocumentAttributeVideo:
+					if a.RoundMessage { isVideoNote = true } else { isVideo = true }
+				case *tg.DocumentAttributeAnimated:
+					isAnimated = true
+				case *tg.DocumentAttributeSticker:
+					isSticker = true
+				case *tg.DocumentAttributeAudio:
+					if a.Voice { isVoice = true } else { isAudio = true }
+				}
+			}
+			tb := extractStrippedThumbB64(d.Thumbs)
+			switch {
+			case isVideoNote: return 5, tb
+			case isSticker:   return 6, tb
+			case isAnimated:  return 7, tb
+			case isVideo:     return 2, tb
+			case isVoice:     return 4, tb
+			case isAudio:     return 10, tb
+			default:          return 9, tb
+			}
+		}
+		return 9, ""
+	}
+	return 0, ""
+}
+
 func (t *TelegramCore) convertDialogs(result tg.MessagesDialogsClass) ([]Dialog, error) {
 	var dialogs []Dialog
 
@@ -15350,6 +15391,55 @@ func (t *TelegramCore) GetBroadcastStats(chatID string) (map[string]interface{},
 			charts = append(charts, c)
 		}
 	}
+	recentPosts := []map[string]interface{}{}
+	if len(result.RecentPostsInteractions) > 0 {
+		var msgIDs []tg.InputMessageClass
+		type postIA struct {
+			MsgID, Views, Forwards, Reactions int
+		}
+		var interactions []postIA
+		for _, pi := range result.RecentPostsInteractions {
+			if v, ok := pi.(*tg.PostInteractionCountersMessage); ok {
+				msgIDs = append(msgIDs, &tg.InputMessageID{ID: v.MsgID})
+				interactions = append(interactions, postIA{v.MsgID, v.Views, v.Forwards, v.Reactions})
+			}
+		}
+		if len(msgIDs) > 0 {
+			msgMap := map[int]*tg.Message{}
+			msgs, merr := t.api.ChannelsGetMessages(t.ctx, &tg.ChannelsGetMessagesRequest{
+				Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
+				ID:      msgIDs,
+			})
+			if merr == nil {
+				if cm, ok := msgs.(*tg.MessagesChannelMessages); ok {
+					for _, m := range cm.Messages {
+						if msg, ok := m.(*tg.Message); ok {
+							msgMap[msg.ID] = msg
+						}
+					}
+				}
+			}
+			for _, ia := range interactions {
+				post := map[string]interface{}{
+					"msg_id":    ia.MsgID,
+					"views":     ia.Views,
+					"forwards":  ia.Forwards,
+					"reactions": ia.Reactions,
+				}
+				if msg, ok := msgMap[ia.MsgID]; ok {
+					post["text"] = msg.Message
+					post["date"] = msg.Date
+					mt, tb := extractMessageMediaSummary(msg)
+					post["media_type"] = mt
+					if tb != "" {
+						post["thumb_b64"] = tb
+					}
+				}
+				recentPosts = append(recentPosts, post)
+			}
+		}
+	}
+
 	return map[string]interface{}{
 		"period_min": result.Period.MinDate,
 		"period_max": result.Period.MaxDate,
@@ -15362,6 +15452,7 @@ func (t *TelegramCore) GetBroadcastStats(chatID string) (map[string]interface{},
 		"reactions_per_post": statsAbsVal(result.ReactionsPerPost),
 		"reactions_per_story": statsAbsVal(result.ReactionsPerStory),
 		"charts": charts,
+		"recent_posts": recentPosts,
 	}, nil
 }
 
@@ -21163,6 +21254,27 @@ func (t *TelegramCore) StatsGetMessageStats(request *tg.StatsGetMessageStatsRequ
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return nil, ErrAuth }
 	return t.api.StatsGetMessageStats(t.ctx, request)
+}
+
+func (t *TelegramCore) GetMessageStatsJSON(chatID string, msgID int) (map[string]interface{}, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return nil, ErrAuth }
+	peer, err := t.resolvePeer(chatID); if err != nil { return nil, err }
+	ch, ok := peer.(*tg.PeerChannel); if !ok { return nil, fmt.Errorf("not a channel") }
+	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
+	result, err := t.api.StatsGetMessageStats(t.ctx, &tg.StatsGetMessageStatsRequest{
+		Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
+		MsgID: msgID,
+	})
+	if err != nil { return nil, err }
+	charts := []map[string]interface{}{}
+	if c := statsGraphToMap("Interactions", result.ViewsGraph, "DoubleLinear"); c != nil {
+		charts = append(charts, c)
+	}
+	if c := statsGraphToMap("Reactions By Emotion", result.ReactionsByEmotionGraph, "Bar"); c != nil {
+		charts = append(charts, c)
+	}
+	return map[string]interface{}{"charts": charts}, nil
 }
 
 // StatsGetStoryPublicForwards returns public forwards of a story.

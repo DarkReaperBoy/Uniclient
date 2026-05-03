@@ -1314,6 +1314,10 @@ type MegagroupStatsGetter interface {
 	GetMegagroupStats(chatID string) (map[string]interface{}, error)
 }
 
+type MessageStatsGetter interface {
+	GetMessageStatsJSON(chatID string, msgID int) (map[string]interface{}, error)
+}
+
 func (e *Engine) GetBroadcastStats(accountID, chatID string) (map[string]interface{}, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -1342,4 +1346,19 @@ func (e *Engine) GetMegagroupStats(accountID, chatID string) (map[string]interfa
 		return nil, fmt.Errorf("platform does not support megagroup stats")
 	}
 	return getter.GetMegagroupStats(chatID)
+}
+
+func (e *Engine) GetMessageStats(accountID, chatID string, msgID int) (map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	getter, ok := acc.Core.(MessageStatsGetter)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support message stats")
+	}
+	return getter.GetMessageStatsJSON(chatID, msgID)
 }

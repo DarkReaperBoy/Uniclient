@@ -31,19 +31,21 @@ import 'peer_short_info.dart';
 
 enum InfoWrapMode { side, narrow, layer }
 
-enum _InfoPageType { chatInfo, userProfile, statistics }
+enum _InfoPageType { chatInfo, userProfile, statistics, messageStats }
 
 class _InfoNavPage {
   final _InfoPageType type;
   final MemberInfo? member;
+  final Map<String, dynamic>? messagePostData;
   double scrollOffset = 0.0;
 
-  _InfoNavPage({required this.type, this.member});
+  _InfoNavPage({required this.type, this.member, this.messagePostData});
 
   String get title => switch (type) {
     _InfoPageType.chatInfo => '',
     _InfoPageType.userProfile => member?.label ?? 'User Info',
     _InfoPageType.statistics => 'Statistics',
+    _InfoPageType.messageStats => 'Message Statistics',
   };
 }
 
@@ -325,6 +327,20 @@ class _InfoPanelState extends State<InfoPanel> {
           scrollController: _getScrollController(),
           onClose: onClose,
           showBackButton: true,
+          onOpenMessageStats: (postData) {
+            _pushPage(_InfoNavPage(
+              type: _InfoPageType.messageStats,
+              messagePostData: postData,
+            ));
+          },
+        );
+      case _InfoPageType.messageStats:
+        return _MessageStatsPage(
+          chat: chat,
+          theme: theme,
+          scrollController: _getScrollController(),
+          onClose: onClose,
+          postData: _currentPage.messagePostData ?? {},
         );
     }
   }
@@ -5365,6 +5381,7 @@ class _StatisticsPage extends StatefulWidget {
   final ScrollController scrollController;
   final VoidCallback onClose;
   final bool showBackButton;
+  final void Function(Map<String, dynamic> postData)? onOpenMessageStats;
 
   const _StatisticsPage({
     required this.chat,
@@ -5372,6 +5389,7 @@ class _StatisticsPage extends StatefulWidget {
     required this.scrollController,
     required this.onClose,
     required this.showBackButton,
+    this.onOpenMessageStats,
   });
 
   @override
@@ -5595,6 +5613,7 @@ class _StatisticsPageState extends State<_StatisticsPage>
         if (parsed != null) charts.add(parsed);
       }
     }
+    final recentPosts = (_stats!['recent_posts'] as List<dynamic>?) ?? [];
     return ListView(
       controller: widget.scrollController,
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -5613,6 +5632,18 @@ class _StatisticsPageState extends State<_StatisticsPage>
           Divider(height: 1, color: widget.theme.dividerColor),
           const SizedBox(height: 13),
           StatsChartWidget(data: chart, theme: widget.theme),
+        ],
+        if (isChannel && recentPosts.isNotEmpty) ...[
+          const SizedBox(height: 13),
+          Divider(height: 1, color: widget.theme.dividerColor),
+          const SizedBox(height: 13),
+          _RecentMessagesSection(
+            posts: recentPosts.cast<Map<String, dynamic>>(),
+            dateRange: _formatDateRange(),
+            theme: widget.theme,
+            chat: widget.chat,
+            onTapPost: widget.onOpenMessageStats,
+          ),
         ],
         const SizedBox(height: 20),
       ],
@@ -5897,6 +5928,553 @@ class _OverviewCell extends StatelessWidget {
             style: TextStyle(
               fontSize: 11,
               color: theme.textTheme.bodySmall?.color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Recent Messages Section ──
+
+class _RecentMessagesSection extends StatefulWidget {
+  final List<Map<String, dynamic>> posts;
+  final String dateRange;
+  final ThemeData theme;
+  final ChatInfo chat;
+  final void Function(Map<String, dynamic> postData)? onTapPost;
+
+  const _RecentMessagesSection({
+    required this.posts,
+    required this.dateRange,
+    required this.theme,
+    required this.chat,
+    this.onTapPost,
+  });
+
+  @override
+  State<_RecentMessagesSection> createState() => _RecentMessagesSectionState();
+}
+
+class _RecentMessagesSectionState extends State<_RecentMessagesSection> {
+  static const _kFirstPage = 10;
+  static const _kPerPage = 30;
+  int _visibleCount = _kFirstPage;
+
+  @override
+  Widget build(BuildContext context) {
+    final posts = widget.posts;
+    final showCount = _visibleCount.clamp(0, posts.length);
+    final hasMore = showCount < posts.length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _OverviewHeader(
+          title: 'Recent Messages',
+          subtitle: widget.dateRange,
+          theme: widget.theme,
+        ),
+        const SizedBox(height: 8),
+        for (int i = 0; i < showCount; i++)
+          _RecentMessageRow(
+            post: posts[i],
+            theme: widget.theme,
+            chat: widget.chat,
+            onTap: () => widget.onTapPost?.call(posts[i]),
+          ),
+        if (hasMore)
+          _ShowMoreButton(
+            theme: widget.theme,
+            onTap: () => setState(() {
+              _visibleCount += _kPerPage;
+            }),
+          ),
+      ],
+    );
+  }
+}
+
+class _ShowMoreButton extends StatelessWidget {
+  final ThemeData theme;
+  final VoidCallback onTap;
+  const _ShowMoreButton({required this.theme, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        height: 44,
+        alignment: Alignment.center,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Show More',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.keyboard_arrow_down, size: 18, color: theme.colorScheme.primary),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RecentMessageRow extends StatelessWidget {
+  final Map<String, dynamic> post;
+  final ThemeData theme;
+  final ChatInfo chat;
+  final VoidCallback? onTap;
+
+  const _RecentMessageRow({
+    required this.post,
+    required this.theme,
+    required this.chat,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final text = post['text'] as String? ?? '';
+    final date = post['date'] as int? ?? 0;
+    final views = post['views'] as int? ?? 0;
+    final forwards = post['forwards'] as int? ?? 0;
+    final reactions = post['reactions'] as int? ?? 0;
+    final mediaType = post['media_type'] as int? ?? 0;
+    final thumbB64 = post['thumb_b64'] as String? ?? '';
+
+    final dateStr = _formatPostDate(date);
+    final subTextColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
+
+    return InkWell(
+      onTap: onTap,
+      onSecondaryTapDown: (details) {
+        _showContextMenu(context, details.globalPosition);
+      },
+      child: SizedBox(
+        height: 56,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            children: [
+              _PostThumbnail(
+                mediaType: mediaType,
+                thumbB64: thumbB64,
+                chat: chat,
+                theme: theme,
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      text.isNotEmpty ? text : _mediaLabel(mediaType),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: theme.textTheme.bodyLarge?.color,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      dateStr,
+                      maxLines: 1,
+                      style: TextStyle(fontSize: 11, color: subTextColor),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    '${_fmtCount(views)} views',
+                    style: TextStyle(fontSize: 11, color: subTextColor),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.reply, size: 12, color: subTextColor),
+                      const SizedBox(width: 2),
+                      Text(_fmtCount(forwards), style: TextStyle(fontSize: 11, color: subTextColor)),
+                      const SizedBox(width: 4),
+                      Icon(Icons.favorite_border, size: 12, color: subTextColor),
+                      const SizedBox(width: 2),
+                      Text(_fmtCount(reactions), style: TextStyle(fontSize: 11, color: subTextColor)),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showContextMenu(BuildContext context, Offset position) {
+    final chatState = context.read<ChatState>();
+    final msgId = post['msg_id']?.toString() ?? '';
+    final date = post['date'] as int? ?? 0;
+    showTelegramMenu<String>(
+      context: context,
+      position: position,
+      items: [
+        TelegramMenuItem(
+          value: 'show_in_chat',
+          icon: const Icon(Icons.chat_bubble_outline, size: 20),
+          label: 'Show in Chat',
+        ),
+      ],
+    ).then((value) {
+      if (value == 'show_in_chat' && msgId.isNotEmpty && date > 0) {
+        chatState.jumpToMessage(date * 1000, highlightMsgId: msgId);
+      }
+    });
+  }
+
+  static String _mediaLabel(int mediaType) => switch (mediaType) {
+    1 => 'Photo',
+    2 => 'Video',
+    3 => 'GIF',
+    4 => 'Voice Message',
+    5 => 'Video Message',
+    6 => 'Sticker',
+    7 => 'GIF',
+    9 => 'Document',
+    10 => 'Audio',
+    _ => 'Message',
+  };
+
+  static String _fmtCount(int n) {
+    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+    if (n >= 10000) return '${(n / 1000).toStringAsFixed(1)}K';
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(2)}K';
+    return n.toString();
+  }
+
+  static String _formatPostDate(int ts) {
+    if (ts == 0) return '';
+    final d = DateTime.fromMillisecondsSinceEpoch(ts * 1000);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final h = d.hour.toString().padLeft(2, '0');
+    final m = d.minute.toString().padLeft(2, '0');
+    return '${months[d.month - 1]} ${d.day}, ${d.year}, $h:$m';
+  }
+}
+
+class _PostThumbnail extends StatelessWidget {
+  final int mediaType;
+  final String thumbB64;
+  final ChatInfo chat;
+  final ThemeData theme;
+
+  const _PostThumbnail({
+    required this.mediaType,
+    required this.thumbB64,
+    required this.chat,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    Widget content;
+    if (thumbB64.isNotEmpty) {
+      final bytes = base64Decode(thumbB64);
+      content = Image.memory(
+        Uint8List.fromList(bytes),
+        width: 42,
+        height: 42,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+      );
+    } else if (mediaType > 0) {
+      final icon = switch (mediaType) {
+        1 => Icons.photo,
+        2 || 5 => Icons.videocam,
+        3 || 7 => Icons.gif_box,
+        4 => Icons.mic,
+        6 => Icons.sticky_note_2,
+        9 => Icons.insert_drive_file,
+        10 => Icons.music_note,
+        _ => Icons.article,
+      };
+      content = Container(
+        width: 42,
+        height: 42,
+        color: theme.colorScheme.primary.withValues(alpha: 0.1),
+        child: Icon(icon, size: 22, color: theme.colorScheme.primary),
+      );
+    } else {
+      content = _chatAvatar(context);
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: SizedBox(width: 42, height: 42, child: content),
+    );
+  }
+
+  Widget _chatAvatar(BuildContext context) {
+    final name = chat.title;
+    final color = _avatarColor(chat.chatId);
+    return Container(
+      width: 42,
+      height: 42,
+      decoration: BoxDecoration(color: color),
+      child: Center(
+        child: Text(
+          name.isNotEmpty ? name[0].toUpperCase() : '?',
+          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+        ),
+      ),
+    );
+  }
+
+  static Color _avatarColor(String id) {
+    final colors = [
+      const Color(0xFFE17076),
+      const Color(0xFF7BC862),
+      const Color(0xFFE5CA77),
+      const Color(0xFF65AADD),
+      const Color(0xFFA695E7),
+      const Color(0xFFEE7AAE),
+      const Color(0xFF6EC9CB),
+      const Color(0xFFE17076),
+    ];
+    final hash = id.hashCode.abs();
+    return colors[hash % colors.length];
+  }
+}
+
+// ── Message Statistics Page ──
+
+class _MessageStatsPage extends StatefulWidget {
+  final ChatInfo chat;
+  final ThemeData theme;
+  final ScrollController scrollController;
+  final VoidCallback onClose;
+  final Map<String, dynamic> postData;
+
+  const _MessageStatsPage({
+    required this.chat,
+    required this.theme,
+    required this.scrollController,
+    required this.onClose,
+    required this.postData,
+  });
+
+  @override
+  State<_MessageStatsPage> createState() => _MessageStatsPageState();
+}
+
+class _MessageStatsPageState extends State<_MessageStatsPage> {
+  bool _loading = true;
+  String? _error;
+  List<StatsChartData> _charts = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStats();
+  }
+
+  Future<void> _loadStats() async {
+    final msgId = widget.postData['msg_id'] as int? ?? 0;
+    if (msgId == 0) {
+      if (mounted) setState(() { _loading = false; });
+      return;
+    }
+    try {
+      final engine = context.read<EngineService>();
+      final data = await engine.getMessageStats(
+        widget.chat.accountId, widget.chat.chatId, msgId,
+      );
+      if (!mounted) return;
+      final chartMaps = (data['charts'] as List<dynamic>?) ?? [];
+      final charts = <StatsChartData>[];
+      for (final c in chartMaps) {
+        if (c is Map<String, dynamic>) {
+          final parsed = StatsChartData.fromMap(c);
+          if (parsed != null) charts.add(parsed);
+        }
+      }
+      setState(() { _charts = charts; _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final views = widget.postData['views'] as int? ?? 0;
+    final forwards = widget.postData['forwards'] as int? ?? 0;
+    final reactions = widget.postData['reactions'] as int? ?? 0;
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 54,
+          child: Material(
+            color: widget.theme.colorScheme.surface,
+            child: Row(
+              children: [
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.arrow_back, size: 20),
+                  onPressed: widget.onClose,
+                  tooltip: 'Back',
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    'Message Statistics',
+                    style: widget.theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+            ),
+          ),
+        ),
+        Container(height: 1, color: widget.theme.dividerColor),
+        Expanded(
+          child: ListView(
+            controller: widget.scrollController,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            children: [
+              const SizedBox(height: 12),
+              _MessagePreviewRow(
+                post: widget.postData,
+                theme: widget.theme,
+                chat: widget.chat,
+              ),
+              const SizedBox(height: 17),
+              _OverviewHeader(
+                title: 'Overview',
+                subtitle: '',
+                theme: widget.theme,
+              ),
+              const SizedBox(height: 12),
+              _OverviewGrid(theme: widget.theme, cells: [
+                _OverviewCellData(
+                  value: _fmtCount(views),
+                  change: null, growth: 0,
+                  label: 'Views',
+                ),
+                _OverviewCellData(
+                  value: _fmtCount(forwards),
+                  change: null, growth: 0,
+                  label: 'Public Shares',
+                ),
+                _OverviewCellData(
+                  value: _fmtCount(reactions),
+                  change: null, growth: 0,
+                  label: 'Reactions',
+                ),
+                const _OverviewCellData(
+                  value: '—',
+                  change: null, growth: 0,
+                  label: 'Private Shares',
+                ),
+              ]),
+              if (_loading) ...[
+                const SizedBox(height: 24),
+                const Center(child: SizedBox(width: 24, height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2))),
+              ] else if (_error != null) ...[
+                const SizedBox(height: 16),
+                Text(_error!, style: TextStyle(fontSize: 12,
+                  color: widget.theme.colorScheme.error)),
+              ] else
+                for (final chart in _charts) ...[
+                  const SizedBox(height: 13),
+                  Divider(height: 1, color: widget.theme.dividerColor),
+                  const SizedBox(height: 13),
+                  StatsChartWidget(data: chart, theme: widget.theme),
+                ],
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  static String _fmtCount(int n) {
+    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+    if (n >= 10000) return '${(n / 1000).toStringAsFixed(1)}K';
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(2)}K';
+    return n.toString();
+  }
+}
+
+class _MessagePreviewRow extends StatelessWidget {
+  final Map<String, dynamic> post;
+  final ThemeData theme;
+  final ChatInfo chat;
+
+  const _MessagePreviewRow({
+    required this.post,
+    required this.theme,
+    required this.chat,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final text = post['text'] as String? ?? '';
+    final date = post['date'] as int? ?? 0;
+    final mediaType = post['media_type'] as int? ?? 0;
+    final thumbB64 = post['thumb_b64'] as String? ?? '';
+    final dateStr = _RecentMessageRow._formatPostDate(date);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          _PostThumbnail(
+            mediaType: mediaType,
+            thumbB64: thumbB64,
+            chat: chat,
+            theme: theme,
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  text.isNotEmpty ? text : _RecentMessageRow._mediaLabel(mediaType),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 13, color: theme.textTheme.bodyLarge?.color),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  dateStr,
+                  style: TextStyle(fontSize: 11, color: theme.textTheme.bodySmall?.color),
+                ),
+              ],
             ),
           ),
         ],
