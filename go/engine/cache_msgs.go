@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"uniclient/cores"
@@ -1801,4 +1802,42 @@ func (e *Engine) HasEditRevisions(accountID, chatID, msgID string) (bool, error)
 		accountID, chatID, msgID,
 	).Scan(&count)
 	return count > 0, err
+}
+
+func (e *Engine) GetDeletedMessages(accountID, chatID string, search string, offset, limit int) ([]CachedMessage, error) {
+	var rows *sql.Rows
+	var err error
+	if search != "" {
+		escaped := strings.ReplaceAll(search, "\\", "\\\\")
+		escaped = strings.ReplaceAll(escaped, "%", "\\%")
+		escaped = strings.ReplaceAll(escaped, "_", "\\_")
+		pattern := "%" + escaped + "%"
+		rows, err = e.db.Query(
+			`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
+			        content_text, content_raw, content_rich, timestamp, edited_at,
+			        status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, is_service, has_media, grouped_id, is_deleted, deleted_at
+			 FROM messages
+			 WHERE account_id = ? AND chat_id = ? AND is_deleted = 1 AND content_text LIKE ? ESCAPE '\'
+			 ORDER BY timestamp DESC
+			 LIMIT ? OFFSET ?`, accountID, chatID, pattern, limit, offset)
+	} else {
+		rows, err = e.db.Query(
+			`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
+			        content_text, content_raw, content_rich, timestamp, edited_at,
+			        status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, is_service, has_media, grouped_id, is_deleted, deleted_at
+			 FROM messages
+			 WHERE account_id = ? AND chat_id = ? AND is_deleted = 1
+			 ORDER BY timestamp DESC
+			 LIMIT ? OFFSET ?`, accountID, chatID, limit, offset)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	msgs, err := scanMessages(rows)
+	if err != nil {
+		return nil, err
+	}
+	e.populateMediaMetadata(msgs)
+	return msgs, nil
 }

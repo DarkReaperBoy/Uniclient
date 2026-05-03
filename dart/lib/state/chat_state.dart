@@ -45,6 +45,10 @@ class ChatState extends ChangeNotifier {
   String _editHistoryMsgId = '';
   String _editHistorySenderName = '';
 
+  // ── Deleted messages view (§52.5) ──
+  bool _isDeletedMessagesView = false;
+  String _deletedMsgSearch = '';
+
   // ── Archive state ──
   bool _hasArchivedChats = false;
 
@@ -478,6 +482,74 @@ class ChatState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ── Deleted messages view (§52.5) ──
+  bool get isDeletedMessagesView => _isDeletedMessagesView;
+  String get deletedMsgSearch => _deletedMsgSearch;
+
+  void openDeletedMessages() {
+    _isDeletedMessagesView = true;
+    _deletedMsgSearch = '';
+    _messages = [];
+    _isFirstLoad = true;
+    _loadDeletedMessages();
+    notifyListeners();
+  }
+
+  void closeDeletedMessages() {
+    _isDeletedMessagesView = false;
+    _deletedMsgSearch = '';
+    _messages = [];
+    _isFirstLoad = true;
+    _loadMessages();
+    notifyListeners();
+  }
+
+  void searchDeletedMessages(String query) {
+    _deletedMsgSearch = query;
+    _messages = [];
+    _isFirstLoad = true;
+    _loadDeletedMessages();
+    notifyListeners();
+  }
+
+  void _loadDeletedMessages() {
+    final chat = _activeChat;
+    if (chat == null) return;
+    try {
+      final msgs = _engine.getDeletedMessages(
+        chat.accountId, chat.chatId,
+        search: _deletedMsgSearch, offset: 0, limit: 20,
+      );
+      if (_isDeletedMessagesView) {
+        _messages = msgs;
+        _hasMoreMessages = msgs.length >= 20;
+        _isFirstLoad = false;
+        notifyListeners();
+      }
+    } catch (_) {
+      _messages = [];
+      _isFirstLoad = false;
+      notifyListeners();
+    }
+  }
+
+  void _loadMoreDeletedMessages() {
+    final chat = _activeChat;
+    if (chat == null || _loadingMessages) return;
+    _loadingMessages = true;
+    try {
+      final msgs = _engine.getDeletedMessages(
+        chat.accountId, chat.chatId,
+        search: _deletedMsgSearch, offset: _messages.length, limit: 30,
+      );
+      _messages.addAll(msgs);
+      _hasMoreMessages = msgs.length >= 30;
+      notifyListeners();
+    } finally {
+      _loadingMessages = false;
+    }
+  }
+
   void _loadEditRevisions() {
     final chat = _activeChat;
     if (chat == null || _editHistoryMsgId.isEmpty) return;
@@ -829,6 +901,8 @@ class ChatState extends ChangeNotifier {
     _isEditHistoryView = false;
     _editHistoryMsgId = '';
     _editHistorySenderName = '';
+    _isDeletedMessagesView = false;
+    _deletedMsgSearch = '';
     _linkedChatId = '';
     _botStartToken = '';
     _loadScheduledCount(chat.accountId, chat.chatId);
@@ -1236,6 +1310,10 @@ class ChatState extends ChangeNotifier {
     if (_isScheduledView) return;
     if (_isEditHistoryView) {
       _loadMoreEditRevisions();
+      return;
+    }
+    if (_isDeletedMessagesView) {
+      _loadMoreDeletedMessages();
       return;
     }
     _loadMessages();
@@ -1886,6 +1964,7 @@ class ChatState extends ChangeNotifier {
     if (_disposed) return;
     if (_isScheduledView) return;
     if (_isEditHistoryView) return;
+    if (_isDeletedMessagesView) return;
     final chat = _activeChat;
     if (chat == null) return;
 
@@ -2013,6 +2092,7 @@ class ChatState extends ChangeNotifier {
   void _handleMsgEdited(MsgEditedEvent event) {
     if (_disposed) return;
     if (_isEditHistoryView) return;
+    if (_isDeletedMessagesView) return;
     if (_activeChat?.accountId != event.accountId || _activeChat?.chatId != event.chatId) return;
     final idx = _messages.indexWhere((m) => m.msgId == event.msgId);
     if (idx >= 0) {

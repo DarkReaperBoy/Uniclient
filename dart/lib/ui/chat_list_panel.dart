@@ -1340,6 +1340,11 @@ class _ChatListPanelState extends State<ChatListPanel>
                   ? 'Read Exclusion: Always'
                   : 'Read Exclusion',
         ),
+        const TelegramMenuItem(
+          value: 'view_deleted',
+          label: 'View deleted messages',
+          icon: Icon(Icons.delete_outline, size: 20),
+        ),
         const TelegramMenuItem.separator(),
         const TelegramMenuItem(value: 'clear_history', label: 'Clear History'),
         if (isDm)
@@ -1397,6 +1402,9 @@ class _ChatListPanelState extends State<ChatListPanel>
           if (context.mounted) {
             _showReadExclusionMenu(context, chat, globalPosition);
           }
+        case 'view_deleted':
+          chatState.openChat(chat);
+          Future.microtask(() => chatState.openDeletedMessages());
         case 'clear_history':
           if (context.mounted) {
             final chatState2 = context.read<ChatState>();

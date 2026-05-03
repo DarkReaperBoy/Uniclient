@@ -3869,6 +3869,10 @@ class _ChatViewState extends State<ChatView>
       chatState.closeEditHistory();
       return KeyEventResult.handled;
     }
+    if (chatState.isDeletedMessagesView) {
+      chatState.closeDeletedMessages();
+      return KeyEventResult.handled;
+    }
     if (chatState.isScheduledView) {
       chatState.toggleScheduledView();
       return KeyEventResult.handled;
@@ -4148,6 +4152,9 @@ class _ChatViewState extends State<ChatView>
                           isEditHistoryView: chatState.isEditHistoryView,
                           editHistorySenderName: chatState.editHistorySenderName,
                           onExitEditHistory: () => chatState.closeEditHistory(),
+                          isDeletedMessagesView: chatState.isDeletedMessagesView,
+                          onExitDeletedMessages: () => chatState.closeDeletedMessages(),
+                          onDeletedSearch: (q) => chatState.searchDeletedMessages(q),
                           activeSublist: chatState.activeSublist,
                         ),
                       ),
@@ -4560,8 +4567,8 @@ class _ChatViewState extends State<ChatView>
               },
               onClose: () => chatState.closeThemeChooser(),
             ),
-          // §52.4: No compose area in edit history view.
-          if (chatState.isEditHistoryView)
+          // §52.4/§52.5: No compose area in edit/deleted history views.
+          if (chatState.isEditHistoryView || chatState.isDeletedMessagesView)
             const SizedBox.shrink()
           // Compose area — or fallback buttons for blocked/bot/channel/spam.
           else if (chat.isBlocked)
@@ -5023,6 +5030,9 @@ class _ChatTopBar extends StatelessWidget {
   final bool isEditHistoryView;
   final String editHistorySenderName;
   final VoidCallback? onExitEditHistory;
+  final bool isDeletedMessagesView;
+  final VoidCallback? onExitDeletedMessages;
+  final ValueChanged<String>? onDeletedSearch;
 
   /// §31.4: Active saved sublist (when browsing Saved Messages sublists).
   final SavedSublistInfo? activeSublist;
@@ -5056,6 +5066,9 @@ class _ChatTopBar extends StatelessWidget {
     this.isEditHistoryView = false,
     this.editHistorySenderName = '',
     this.onExitEditHistory,
+    this.isDeletedMessagesView = false,
+    this.onExitDeletedMessages,
+    this.onDeletedSearch,
     this.activeSublist,
   });
 
@@ -5504,6 +5517,10 @@ class _ChatTopBar extends StatelessWidget {
 
     if (isEditHistoryView) {
       return _buildEditHistoryTopBar(context, theme, isDark);
+    }
+
+    if (isDeletedMessagesView) {
+      return _buildDeletedMessagesTopBar(context, theme, isDark);
     }
 
     // Subtitle: typing, online status, member count, or last seen.
@@ -6006,6 +6023,172 @@ class _ChatTopBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDeletedMessagesTopBar(BuildContext context, ThemeData theme, bool isDark) {
+    final topBarBg = isDark ? const Color(0xFF17212b) : Colors.white;
+    final shadowFg = isDark ? const Color(0x5604080e) : const Color(0x18000000);
+    final dialogsNameFg = isDark ? const Color(0xFFf5f5f5) : const Color(0xFF222222);
+    final subtitleFg = isDark ? const Color(0xFF98b4d3) : const Color(0xFF999999);
+
+    return _DeletedMessagesTopBarStateful(
+      chat: chat,
+      topBarBg: topBarBg,
+      shadowFg: shadowFg,
+      dialogsNameFg: dialogsNameFg,
+      subtitleFg: subtitleFg,
+      hideDivider: hideDivider,
+      onExit: onExitDeletedMessages,
+      onSearch: onDeletedSearch,
+      theme: theme,
+    );
+  }
+}
+
+class _DeletedMessagesTopBarStateful extends StatefulWidget {
+  final ChatInfo chat;
+  final Color topBarBg;
+  final Color shadowFg;
+  final Color dialogsNameFg;
+  final Color subtitleFg;
+  final bool hideDivider;
+  final VoidCallback? onExit;
+  final ValueChanged<String>? onSearch;
+  final ThemeData theme;
+
+  const _DeletedMessagesTopBarStateful({
+    required this.chat,
+    required this.topBarBg,
+    required this.shadowFg,
+    required this.dialogsNameFg,
+    required this.subtitleFg,
+    required this.hideDivider,
+    this.onExit,
+    this.onSearch,
+    required this.theme,
+  });
+
+  @override
+  State<_DeletedMessagesTopBarStateful> createState() => _DeletedMessagesTopBarStatefulState();
+}
+
+class _DeletedMessagesTopBarStatefulState extends State<_DeletedMessagesTopBarStateful> {
+  bool _searching = false;
+  final _searchController = TextEditingController();
+  final _searchFocusNode = FocusNode();
+  Timer? _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(() {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String query) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 400), () {
+      widget.onSearch?.call(query);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 54,
+      decoration: BoxDecoration(
+        color: widget.topBarBg,
+        border: widget.hideDivider ? null : Border(
+          bottom: BorderSide(color: widget.shadowFg, width: 1),
+        ),
+      ),
+      child: Row(
+        children: [
+          _TopBarButton(
+            icon: Icons.arrow_back,
+            width: 56,
+            onPressed: _searching
+                ? () {
+                    setState(() {
+                      _searching = false;
+                      _searchController.clear();
+                    });
+                    widget.onSearch?.call('');
+                  }
+                : widget.onExit,
+          ),
+          if (!_searching) ...[
+            _ChatTopBar._chatAvatar(widget.chat, widget.theme, 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Deleted Messages',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                      color: widget.dialogsNameFg,
+                    ),
+                  ),
+                  Text(
+                    widget.chat.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 13, color: widget.subtitleFg),
+                  ),
+                ],
+              ),
+            ),
+            _TopBarButton(
+              icon: Icons.search,
+              onPressed: () {
+                setState(() => _searching = true);
+                _searchFocusNode.requestFocus();
+              },
+            ),
+          ] else ...[
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                focusNode: _searchFocusNode,
+                autofocus: true,
+                onChanged: _onSearchChanged,
+                decoration: InputDecoration(
+                  hintText: 'Search deleted messages...',
+                  hintStyle: TextStyle(fontSize: 15, color: widget.subtitleFg),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                style: TextStyle(fontSize: 15, color: widget.dialogsNameFg),
+              ),
+            ),
+            if (_searchController.text.isNotEmpty)
+              _TopBarButton(
+                icon: Icons.close,
+                onPressed: () {
+                  _searchController.clear();
+                  widget.onSearch?.call('');
+                },
+              ),
+          ],
+          const SizedBox(width: 8),
         ],
       ),
     );

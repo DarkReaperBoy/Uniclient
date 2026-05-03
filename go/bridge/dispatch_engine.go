@@ -3526,6 +3526,26 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(map[string]interface{}{"has_revisions": has})
 
+	case "GetDeletedMessages":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Search    string `json:"search"`
+			Offset    int    `json:"offset"`
+			Limit     int    `json:"limit"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if params.Limit <= 0 {
+			params.Limit = 20
+		}
+		msgs, err := e.GetDeletedMessages(params.AccountID, params.ChatID, params.Search, params.Offset, params.Limit)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]interface{}{"messages": msgs})
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}

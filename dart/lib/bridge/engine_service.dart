@@ -1629,6 +1629,41 @@ class EngineService {
     return resp['has_revisions'] == true;
   }
 
+  List<CachedMessage> getDeletedMessages(String accountId, String chatId, {String search = '', int offset = 0, int limit = 20}) {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'search': search,
+      'offset': offset,
+      'limit': limit,
+    }));
+    final respBytes = _callRaw('__engine', 'GetDeletedMessages', Uint8List.fromList(payload));
+    final resp = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    final list = resp['messages'] as List<dynamic>? ?? [];
+    return list.map((m) {
+      final map = m as Map<String, dynamic>;
+      return CachedMessage(
+        accountId: map['account_id'] as String? ?? '',
+        chatId: map['chat_id'] as String? ?? '',
+        msgId: map['msg_id'] as String? ?? '',
+        senderId: map['sender_id'] as String? ?? '',
+        senderName: map['sender_name'] as String? ?? '',
+        contentText: map['content_text'] as String? ?? '',
+        timestamp: map['timestamp'] as int? ?? 0,
+        editedAt: map['edited_at'] as int? ?? 0,
+        status: MsgStatus.read,
+        isOutgoing: map['is_outgoing'] == true || map['is_outgoing'] == 1,
+        isDeleted: true,
+        deletedAt: map['deleted_at'] as int? ?? 0,
+        forwardFrom: map['forward_from'] as String? ?? '',
+        replyToId: map['reply_to_id'] as String? ?? '',
+        replyPreview: map['reply_preview'] as String? ?? '',
+        hasMedia: map['has_media'] == true || map['has_media'] == 1,
+        senderColorId: map['sender_color_id'] as int? ?? -1,
+      );
+    }).toList();
+  }
+
   Future<String> sendMessage(String accountId, String chatId, String text, {String replyToId = '', String entities = '', bool silent = false, int scheduleDate = 0, String topicRootId = '', String webPageUrl = '', bool forceLargeMedia = false, bool forceSmallMedia = false, bool invertMedia = false, bool webPageOptional = true}) async {
     final req = epb.EngineSendMessageRequest()
       ..accountId = accountId
