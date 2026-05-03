@@ -1271,6 +1271,7 @@ class _ChatViewState extends State<ChatView>
     final hasStickerSet = isSticker && msg.hasStickerSet;
     final hasDocId = msg.mediaRemoteRef.isNotEmpty;
     final hasLocalFile = msg.mediaLocalPath.isNotEmpty;
+    final isForwardRestricted = (chat != null && AyuForward.isChatRestricted(chat)) || AyuForward.isMessageRestricted(msg);
     final urls = _urlRegExp.allMatches(msg.contentText).map((m) => m.group(0)!).toSet().toList();
 
     final inSelection = _selectionMode && _selectedMsgIds.isNotEmpty;
@@ -1351,6 +1352,12 @@ class _ChatViewState extends State<ChatView>
         if (chat != null)
           const TelegramMenuItem(value: 'copy_link', icon: Icon(Icons.link), label: 'Copy Message Link'),
         const TelegramMenuItem(value: 'forward', icon: Icon(Icons.forward), label: 'Forward'),
+        if (isForwardRestricted)
+          TelegramMenuItem(
+            icon: isGroupOrChannel ? const Icon(Icons.copyright) : null,
+            label: 'Plain forwarding is not allowed.',
+            isDisabled: true,
+          ),
         if (canSendNow && !inSelection)
           const TelegramMenuItem(value: 'send_now', icon: Icon(Icons.send), label: 'Send now'),
         if (inSelection && allSelectedCanSendNow)

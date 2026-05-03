@@ -53,6 +53,7 @@ class TelegramMenuItem<T> {
   final Color? iconColor;
   final bool isSeparator;
   final bool isAttention;
+  final bool isDisabled;
 
   const TelegramMenuItem({
     this.value,
@@ -62,6 +63,7 @@ class TelegramMenuItem<T> {
     this.iconColor,
     this.isSeparator = false,
     this.isAttention = false,
+    this.isDisabled = false,
   });
 
   const TelegramMenuItem.separator()
@@ -71,7 +73,8 @@ class TelegramMenuItem<T> {
         labelColor = null,
         iconColor = null,
         isSeparator = true,
-        isAttention = false;
+        isAttention = false,
+        isDisabled = false;
 }
 
 class _TelegramMenuRoute<T> extends PopupRoute<T> {
@@ -412,7 +415,7 @@ class _TelegramMenuContentState<T> extends State<_TelegramMenuContent<T>> {
     super.initState();
     _selectableIndices = <int>[];
     for (int i = 0; i < widget.items.length; i++) {
-      if (!widget.items[i].isSeparator) _selectableIndices.add(i);
+      if (!widget.items[i].isSeparator && !widget.items[i].isDisabled) _selectableIndices.add(i);
     }
     HardwareKeyboard.instance.addHandler(_handleRawKey);
   }
@@ -481,6 +484,13 @@ class _TelegramMenuContentState<T> extends State<_TelegramMenuContent<T>> {
               height: 1,
               color: separatorColor,
             ),
+          );
+        }
+
+        if (item.isDisabled) {
+          return _TelegramDisabledItem<T>(
+            item: item,
+            brightness: widget.brightness,
           );
         }
 
@@ -679,6 +689,64 @@ class _TelegramRippleItemState<T> extends State<_TelegramRippleItem<T>>
             );
           },
           child: contentChild,
+        ),
+      ),
+    );
+  }
+}
+
+class _TelegramDisabledItem<T> extends StatelessWidget {
+  final TelegramMenuItem<T> item;
+  final Brightness brightness;
+
+  const _TelegramDisabledItem({
+    required this.item,
+    required this.brightness,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = brightness == Brightness.dark;
+    final textColor = isDark
+        ? const Color(0xFF6c7883)
+        : const Color(0xFF999999);
+    final iconColor = isDark
+        ? const Color(0xFF6c7883)
+        : const Color(0xFF999999);
+    final hasIcon = item.icon != null;
+
+    return IgnorePointer(
+      child: Container(
+        height: hasIcon ? 29 : 28,
+        padding: hasIcon
+            ? const EdgeInsets.only(left: 54, top: 8, right: 17, bottom: 8)
+            : const EdgeInsets.only(left: 17, top: 8, right: 17, bottom: 7),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            if (hasIcon)
+              Positioned(
+                left: -54 + 15,
+                top: -8 + 5,
+                child: IconTheme(
+                  data: IconThemeData(color: iconColor, size: 20),
+                  child: item.icon!,
+                ),
+              ),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Text(
+                item.label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.normal,
+                  color: textColor,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
       ),
     );
