@@ -1270,13 +1270,24 @@ type TextTranslator interface {
 	TranslateText(chatID, msgID, toLang string) (string, error)
 }
 
-func (e *Engine) TranslateText(accountID, chatID, msgID, toLang string) (string, error) {
+type FreeTextTranslator interface {
+	TranslateFreeText(text, toLang string) (string, error)
+}
+
+func (e *Engine) TranslateText(accountID, chatID, msgID, toLang, text string) (string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
 		return "", fmt.Errorf("account not found: %s", accountID)
 	}
 	if acc.Core == nil {
 		return "", fmt.Errorf("account not connected: %s", accountID)
+	}
+	if text != "" {
+		ft, ok := acc.Core.(FreeTextTranslator)
+		if !ok {
+			return "", fmt.Errorf("platform does not support freeform text translation")
+		}
+		return ft.TranslateFreeText(text, toLang)
 	}
 	translator, ok := acc.Core.(TextTranslator)
 	if !ok {

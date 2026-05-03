@@ -12177,6 +12177,7 @@ class EngineTranslateTextRequest extends $pb.GeneratedMessage {
     $core.String? chatId,
     $core.String? msgId,
     $core.String? toLang,
+    $core.String? text,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -12191,6 +12192,9 @@ class EngineTranslateTextRequest extends $pb.GeneratedMessage {
     if (toLang != null) {
       $result.toLang = toLang;
     }
+    if (text != null) {
+      $result.text = text;
+    }
     return $result;
   }
   EngineTranslateTextRequest._() : super();
@@ -12202,6 +12206,7 @@ class EngineTranslateTextRequest extends $pb.GeneratedMessage {
     ..aOS(2, _omitFieldNames ? '' : 'chatId')
     ..aOS(3, _omitFieldNames ? '' : 'msgId')
     ..aOS(4, _omitFieldNames ? '' : 'toLang')
+    ..aOS(5, _omitFieldNames ? '' : 'text')
     ..hasRequiredFields = false
   ;
 
@@ -12261,6 +12266,15 @@ class EngineTranslateTextRequest extends $pb.GeneratedMessage {
   $core.bool hasToLang() => $_has(3);
   @$pb.TagNumber(4)
   void clearToLang() => clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get text => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set text($core.String v) { $_setString(4, v); }
+  @$pb.TagNumber(5)
+  $core.bool hasText() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearText() => clearField(5);
 }
 
 class EngineTranslateTextResponse extends $pb.GeneratedMessage {

@@ -1237,6 +1237,22 @@ class EngineService {
     }
   }
 
+  Future<String?> translateFreeText(String accountId, String text, String toLang) async {
+    final req = epb.EngineTranslateTextRequest()
+      ..accountId = accountId
+      ..text = text
+      ..toLang = toLang;
+    try {
+      final respBytes = await _callAsync('__engine', 'TranslateText', req.writeToBuffer());
+      if (respBytes.isEmpty) return null;
+      final resp = epb.EngineTranslateTextResponse.fromBuffer(respBytes);
+      return resp.translatedText;
+    } catch (e) {
+      Debug.error('ENGINE', 'translateFreeText failed', e);
+      return null;
+    }
+  }
+
   // ── Poll actions ──
 
   Future<bool> votePoll(String accountId, String chatId, String msgId, int optionIndex) async {

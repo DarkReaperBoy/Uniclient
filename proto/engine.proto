@@ -1085,6 +1085,7 @@ message EngineTranslateTextRequest {
   string chat_id    = 2;
   string msg_id     = 3;
   string to_lang    = 4;
+  string text       = 5;
 }
 
 message EngineTranslateTextResponse {

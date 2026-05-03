@@ -285,6 +285,14 @@ class _AyuGramSettingsScreenState extends State<AyuGramSettingsScreen> {
             isDark: isDark,
             useMaterial: appState.materialSwitches,
           ),
+          _ToggleRow(
+            label: 'AI Editor',
+            subtitle: 'Show AI editor button in compose area',
+            value: appState.showAiEditorButton,
+            onChanged: (v) => appState.setShowAiEditorButton(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
           Container(height: 1, color: dividerColor),
           const SizedBox(height: 7),
 

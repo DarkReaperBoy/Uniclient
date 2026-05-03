@@ -12657,6 +12657,44 @@ class _ComposeAreaState extends State<_ComposeArea>
     );
   }
 
+  void _openAiEditor(BuildContext ctx) {
+    final text = widget.controller.text;
+    if (text.trim().isEmpty) {
+      showTelegramToast(ctx, 'Type a message first');
+      return;
+    }
+    final sel = widget.controller.selection;
+    final selectedText = sel.isValid && !sel.isCollapsed
+        ? text.substring(sel.start, sel.end)
+        : text;
+    final chatState = ctx.read<ChatState>();
+    final chat = chatState.activeChat;
+    if (chat == null) return;
+    final engine = ctx.read<EngineService>();
+    showDialog<String>(
+      context: ctx,
+      builder: (_) => _ComposeAiBox(
+        originalText: selectedText,
+        accountId: chat.accountId,
+        chatId: chat.chatId,
+        engine: engine,
+      ),
+    ).then((result) {
+      if (result != null && mounted) {
+        if (sel.isValid && !sel.isCollapsed) {
+          final newText = text.substring(0, sel.start) + result + text.substring(sel.end);
+          widget.controller.text = newText;
+          widget.controller.selection = TextSelection.collapsed(
+            offset: sel.start + result.length,
+          );
+        } else {
+          widget.controller.text = result;
+          widget.controller.selection = TextSelection.collapsed(offset: result.length);
+        }
+      }
+    });
+  }
+
   void _openBotWebApp(BuildContext ctx) async {
     final chatState = ctx.read<ChatState>();
     final chat = chatState.activeChat;
@@ -13542,6 +13580,12 @@ class _ComposeAreaState extends State<_ComposeArea>
               iconColor: iconFg,
               hoverColor: iconFgOver,
               onPressed: () => _showGiftSheet(context),
+            ),
+          if (fieldPrefs.showAiEditorButton)
+            _AiEditorButton(
+              iconColor: iconFg,
+              hoverColor: iconFgOver,
+              onPressed: () => _openAiEditor(context),
             ),
           if (fieldPrefs.showEmojiButton)
           _ComposeSlotButton(
@@ -19448,6 +19492,710 @@ class _WhoReadAvatar extends StatelessWidget {
           color: Colors.white,
           fontSize: size * 0.45,
           fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+// ── §54.9a AI Editor Button ──
+
+class _AiEditorButton extends StatefulWidget {
+  final Color iconColor;
+  final Color hoverColor;
+  final VoidCallback onPressed;
+
+  const _AiEditorButton({
+    required this.iconColor,
+    required this.hoverColor,
+    required this.onPressed,
+  });
+
+  @override
+  State<_AiEditorButton> createState() => _AiEditorButtonState();
+}
+
+class _AiEditorButtonState extends State<_AiEditorButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _hovered ? widget.hoverColor : widget.iconColor;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: TelegramTooltip(
+        message: 'AI Editor',
+        child: InkResponse(
+          onTap: widget.onPressed,
+          radius: 20,
+          child: SizedBox(
+            width: 44,
+            height: 46,
+            child: Center(
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CustomPaint(
+                  painter: _AiIconPainter(color: color),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AiIconPainter extends CustomPainter {
+  final Color color;
+  _AiIconPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: 'AI',
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: color,
+          letterSpacing: 0.5,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    textPainter.paint(canvas, Offset(
+      (size.width - textPainter.width) / 2,
+      (size.height - textPainter.height) / 2 + 2,
+    ));
+
+    void drawStar(Offset center, double r) {
+      final path = Path();
+      path.moveTo(center.dx, center.dy - r);
+      path.lineTo(center.dx + r * 0.22, center.dy - r * 0.22);
+      path.lineTo(center.dx + r, center.dy);
+      path.lineTo(center.dx + r * 0.22, center.dy + r * 0.22);
+      path.lineTo(center.dx, center.dy + r);
+      path.lineTo(center.dx - r * 0.22, center.dy + r * 0.22);
+      path.lineTo(center.dx - r, center.dy);
+      path.lineTo(center.dx - r * 0.22, center.dy - r * 0.22);
+      path.close();
+      canvas.drawPath(path, paint);
+    }
+
+    drawStar(Offset(size.width * 0.82, size.height * 0.18), 3.2);
+    drawStar(Offset(size.width * 0.2, size.height * 0.15), 2.0);
+  }
+
+  @override
+  bool shouldRepaint(_AiIconPainter old) => old.color != color;
+}
+
+// ── §54.9a ComposeAiBox Modal ──
+
+enum _AiMode { translate, style, fix }
+
+class _ComposeAiBox extends StatefulWidget {
+  final String originalText;
+  final String accountId;
+  final String chatId;
+  final EngineService engine;
+
+  const _ComposeAiBox({
+    required this.originalText,
+    required this.accountId,
+    required this.chatId,
+    required this.engine,
+  });
+
+  @override
+  State<_ComposeAiBox> createState() => _ComposeAiBoxState();
+}
+
+class _ComposeAiBoxState extends State<_ComposeAiBox> {
+  _AiMode _mode = _AiMode.translate;
+  String? _selectedStyle;
+  String? _result;
+  bool _loading = false;
+  String? _error;
+  bool _originalCollapsed = false;
+  bool _emojify = false;
+  String _targetLang = 'en';
+
+  static const _styleOptions = <String, String>{
+    'formal': 'Formal',
+    'casual': 'Casual',
+    'creative': 'Creative',
+    'concise': 'Concise',
+    'academic': 'Academic',
+  };
+
+  static const _languages = <String, String>{
+    'en': 'English',
+    'es': 'Spanish',
+    'fr': 'French',
+    'de': 'German',
+    'it': 'Italian',
+    'pt': 'Portuguese',
+    'ru': 'Russian',
+    'zh': 'Chinese',
+    'ja': 'Japanese',
+    'ko': 'Korean',
+    'ar': 'Arabic',
+    'hi': 'Hindi',
+    'tr': 'Turkish',
+    'fa': 'Persian',
+  };
+
+  void _submit() async {
+    if (_mode == _AiMode.style && _selectedStyle == null) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+      _result = null;
+    });
+
+    try {
+      if (_mode == _AiMode.translate) {
+        final result = await widget.engine.translateFreeText(
+          widget.accountId,
+          widget.originalText,
+          _targetLang,
+        );
+        if (!mounted) return;
+        setState(() {
+          _result = result ?? widget.originalText;
+          _loading = false;
+        });
+      } else {
+        setState(() {
+          _error = '${_mode == _AiMode.style ? 'Style' : 'Fix'} mode requires Telegram Premium with Cocoon AI';
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1e2c3a) : const Color(0xFFf0f0f0);
+    final surfaceBg = isDark ? const Color(0xFF17212b) : Colors.white;
+
+    return Dialog(
+      backgroundColor: surfaceBg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 400, maxHeight: 560),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildHeader(theme),
+            _buildModeTabs(theme, isDark),
+            if (_mode == _AiMode.translate)
+              _buildLanguageSelector(theme, isDark),
+            if (_mode == _AiMode.style)
+              _buildStyleTabs(theme, isDark),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 12),
+                    _buildOriginalCard(theme, cardBg, isDark),
+                    if (_loading) _buildLoadingSkeleton(theme, cardBg),
+                    if (_error != null) _buildError(theme),
+                    if (_result != null) _buildResultCard(theme, cardBg, isDark),
+                    if (_mode == _AiMode.translate)
+                      _buildEmojifyCheckbox(theme),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              ),
+            ),
+            _buildActionBar(theme, isDark),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 8, 0),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 24,
+            height: 24,
+            child: CustomPaint(
+              painter: _AiIconPainter(color: theme.colorScheme.primary),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'AI Editor',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: theme.textTheme.bodyLarge?.color,
+            ),
+          ),
+          const Spacer(),
+          IconButton(
+            icon: const Icon(Icons.close, size: 20),
+            onPressed: () => Navigator.of(context).pop(),
+            splashRadius: 18,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModeTabs(ThemeData theme, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          for (final mode in _AiMode.values)
+            Expanded(
+              child: _AiModeTab(
+                label: switch (mode) {
+                  _AiMode.translate => 'Translate',
+                  _AiMode.style => 'Style',
+                  _AiMode.fix => 'Fix',
+                },
+                selected: _mode == mode,
+                onTap: () {
+                  setState(() {
+                    _mode = mode;
+                    _result = null;
+                    _error = null;
+                    _selectedStyle = null;
+                  });
+                },
+                accentColor: theme.colorScheme.primary,
+                isDark: isDark,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLanguageSelector(ThemeData theme, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: SizedBox(
+        height: 36,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          children: _languages.entries.map((e) {
+            final selected = _targetLang == e.key;
+            return Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: ChoiceChip(
+                label: Text(e.value, style: const TextStyle(fontSize: 12)),
+                selected: selected,
+                onSelected: (_) => setState(() {
+                  _targetLang = e.key;
+                  _result = null;
+                  _error = null;
+                }),
+                selectedColor: theme.colorScheme.primary.withValues(alpha: 0.2),
+                labelStyle: TextStyle(
+                  color: selected ? theme.colorScheme.primary : null,
+                  fontWeight: selected ? FontWeight.w600 : null,
+                ),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStyleTabs(ThemeData theme, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: SizedBox(
+        height: 36,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          children: _styleOptions.entries.map((e) {
+            final selected = _selectedStyle == e.key;
+            return Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: ChoiceChip(
+                label: Text(e.value, style: const TextStyle(fontSize: 12)),
+                selected: selected,
+                onSelected: (_) => setState(() {
+                  _selectedStyle = e.key;
+                  _result = null;
+                  _error = null;
+                }),
+                selectedColor: theme.colorScheme.primary.withValues(alpha: 0.2),
+                labelStyle: TextStyle(
+                  color: selected ? theme.colorScheme.primary : null,
+                  fontWeight: selected ? FontWeight.w600 : null,
+                ),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOriginalCard(ThemeData theme, Color cardBg, bool isDark) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+            onTap: () => setState(() => _originalCollapsed = !_originalCollapsed),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  Text(
+                    'Original',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.6),
+                    ),
+                  ),
+                  const Spacer(),
+                  Icon(
+                    _originalCollapsed ? Icons.expand_more : Icons.expand_less,
+                    size: 18,
+                    color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.4),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          AnimatedCrossFade(
+            firstChild: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+              child: Text(
+                widget.originalText,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: theme.textTheme.bodyMedium?.color,
+                ),
+              ),
+            ),
+            secondChild: const SizedBox.shrink(),
+            crossFadeState: _originalCollapsed
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 200),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingSkeleton(ThemeData theme, Color cardBg) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var i = 0; i < 3; i++) ...[
+              if (i > 0) const SizedBox(height: 8),
+              Container(
+                height: 14,
+                width: i == 2 ? 120 : double.infinity,
+                decoration: BoxDecoration(
+                  color: theme.dividerColor,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildError(ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.error.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          _error!,
+          style: TextStyle(
+            fontSize: 13,
+            color: theme.colorScheme.error,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResultCard(ThemeData theme, Color cardBg, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 4, 0),
+              child: Row(
+                children: [
+                  Text(
+                    'Result',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: Icon(Icons.copy, size: 16, color: theme.colorScheme.primary),
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: _result!));
+                      showTelegramToast(context, 'Copied to clipboard');
+                    },
+                    splashRadius: 14,
+                    padding: EdgeInsets.zero,
+                    constraints: BoxConstraints.tight(const Size(32, 32)),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+              child: _mode == _AiMode.fix
+                  ? _buildDiffDisplay(theme)
+                  : Text(
+                      _result!,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: theme.textTheme.bodyMedium?.color,
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDiffDisplay(ThemeData theme) {
+    final original = widget.originalText;
+    final result = _result!;
+    final origWords = original.split(RegExp(r'(\s+)'));
+    final resWords = result.split(RegExp(r'(\s+)'));
+
+    final spans = <InlineSpan>[];
+    final oSet = origWords.toSet();
+    final rSet = resWords.toSet();
+
+    for (final w in resWords) {
+      if (w.trim().isEmpty) {
+        spans.add(TextSpan(text: w));
+        continue;
+      }
+      if (!oSet.contains(w)) {
+        spans.add(TextSpan(
+          text: w,
+          style: const TextStyle(
+            color: Color(0xFF2e7d32),
+            decoration: TextDecoration.underline,
+            decorationColor: Color(0xFF2e7d32),
+            fontSize: 14,
+          ),
+        ));
+      } else {
+        spans.add(TextSpan(
+          text: w,
+          style: TextStyle(fontSize: 14, color: theme.textTheme.bodyMedium?.color),
+        ));
+      }
+    }
+
+    for (final w in origWords) {
+      if (w.trim().isEmpty) continue;
+      if (!rSet.contains(w)) {
+        spans.add(const TextSpan(text: ' '));
+        spans.add(TextSpan(
+          text: w,
+          style: const TextStyle(
+            color: Color(0xFFc62828),
+            decoration: TextDecoration.lineThrough,
+            decorationColor: Color(0xFFc62828),
+            fontSize: 14,
+          ),
+        ));
+      }
+    }
+
+    return RichText(
+      text: TextSpan(children: spans),
+    );
+  }
+
+  Widget _buildEmojifyCheckbox(ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 20,
+            height: 20,
+            child: Checkbox(
+              value: _emojify,
+              onChanged: (v) => setState(() => _emojify = v ?? false),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Add emoji',
+            style: TextStyle(
+              fontSize: 13,
+              color: theme.textTheme.bodyMedium?.color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionBar(ThemeData theme, bool isDark) {
+    final canApply = _result != null && !_loading;
+    final canSubmit = _mode != _AiMode.style || _selectedStyle != null;
+    final buttonLabel = _result != null
+        ? 'Apply'
+        : _mode == _AiMode.style && _selectedStyle == null
+            ? 'Select Style'
+            : switch (_mode) {
+                _AiMode.translate => 'Translate',
+                _AiMode.style => 'Restyle',
+                _AiMode.fix => 'Fix',
+              };
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
+      child: Row(
+        children: [
+          Expanded(
+            child: FilledButton(
+              onPressed: canApply
+                  ? () => Navigator.of(context).pop(_result)
+                  : (canSubmit && !_loading ? _submit : null),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 42),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: _loading
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: theme.colorScheme.onPrimary,
+                      ),
+                    )
+                  : Text(buttonLabel),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AiModeTab extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final Color accentColor;
+  final bool isDark;
+
+  const _AiModeTab({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    required this.accentColor,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 36,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: selected ? accentColor : Colors.transparent,
+              width: 2,
+            ),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+            color: selected
+                ? accentColor
+                : (isDark ? const Color(0xFF8899a6) : const Color(0xFF999999)),
+          ),
         ),
       ),
     );

@@ -211,6 +211,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _showEmojiButton = true;
   bool _showMicrophoneButton = true;
   bool _showGiftButton = true;
+  bool _showAiEditorButton = true;
   bool _showAttachPopup = true;
   bool _showEmojiPopup = true;
 
@@ -408,6 +409,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get showEmojiButton => _showEmojiButton;
   bool get showMicrophoneButton => _showMicrophoneButton;
   bool get showGiftButton => _showGiftButton;
+  bool get showAiEditorButton => _showAiEditorButton;
   bool get showAttachPopup => _showAttachPopup;
   bool get showEmojiPopup => _showEmojiPopup;
 
@@ -978,6 +980,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setShowGiftButton(bool v) {
     if (_showGiftButton == v) return;
     _showGiftButton = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  void setShowAiEditorButton(bool v) {
+    if (_showAiEditorButton == v) return;
+    _showAiEditorButton = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -1985,6 +1993,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _showEmojiButton = data['showEmojiButton'] as bool? ?? true;
       _showMicrophoneButton = data['showMicrophoneButton'] as bool? ?? true;
       _showGiftButton = data['showGiftButton'] as bool? ?? true;
+      _showAiEditorButton = data['showAiEditorButton'] as bool? ?? true;
       _showAttachPopup = data['showAttachPopup'] as bool? ?? true;
       _showEmojiPopup = data['showEmojiPopup'] as bool? ?? true;
       _saveDeletedMessages = data['saveDeletedMessages'] as bool? ?? true;
@@ -2083,6 +2092,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'showEmojiButton': _showEmojiButton,
         'showMicrophoneButton': _showMicrophoneButton,
         'showGiftButton': _showGiftButton,
+        'showAiEditorButton': _showAiEditorButton,
         'showAttachPopup': _showAttachPopup,
         'showEmojiPopup': _showEmojiPopup,
         'saveDeletedMessages': _saveDeletedMessages,

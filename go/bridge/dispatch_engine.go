@@ -2111,7 +2111,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
-		text, err := e.TranslateText(req.AccountId, req.ChatId, req.MsgId, req.ToLang)
+		text, err := e.TranslateText(req.AccountId, req.ChatId, req.MsgId, req.ToLang, req.Text)
 		if err != nil {
 			return nil, err
 		}

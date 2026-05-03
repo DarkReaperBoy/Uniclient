@@ -13527,6 +13527,16 @@ func (t *TelegramCore) TranslateText(chatID string, msgID string, toLang string)
 	return "", nil
 }
 
+func (t *TelegramCore) TranslateFreeText(text, toLang string) (string, error) {
+	result, err := t.api.MessagesTranslateText(t.ctx, &tg.MessagesTranslateTextRequest{
+		Text:   []tg.TextWithEntities{{Text: text}},
+		ToLang: toLang,
+	})
+	if err != nil { return "", err }
+	if len(result.Result) > 0 { return result.Result[0].Text, nil }
+	return "", nil
+}
+
 func (t *TelegramCore) ReportMessage(chatID string, msgIDs []int, option []byte, message string) (*ReportResult, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil { return nil, err }

@@ -9105,6 +9105,7 @@ type EngineTranslateTextRequest struct {
 	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
 	MsgId         string                 `protobuf:"bytes,3,opt,name=msg_id,json=msgId,proto3" json:"msg_id,omitempty"`
 	ToLang        string                 `protobuf:"bytes,4,opt,name=to_lang,json=toLang,proto3" json:"to_lang,omitempty"`
+	Text          string                 `protobuf:"bytes,5,opt,name=text,proto3" json:"text,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -9163,6 +9164,13 @@ func (x *EngineTranslateTextRequest) GetMsgId() string {
 func (x *EngineTranslateTextRequest) GetToLang() string {
 	if x != nil {
 		return x.ToLang
+	}
+	return ""
+}
+
+func (x *EngineTranslateTextRequest) GetText() string {
+	if x != nil {
+		return x.Text
 	}
 	return ""
 }
@@ -12982,13 +12990,14 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\"J\n" +
 	"\x1aEngineGetSavedGifsResponse\x12,\n" +
-	"\x04gifs\x18\x01 \x03(\v2\x18.uniclient.EngineGifInfoR\x04gifs\"\x84\x01\n" +
+	"\x04gifs\x18\x01 \x03(\v2\x18.uniclient.EngineGifInfoR\x04gifs\"\x98\x01\n" +
 	"\x1aEngineTranslateTextRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
 	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x15\n" +
 	"\x06msg_id\x18\x03 \x01(\tR\x05msgId\x12\x17\n" +
-	"\ato_lang\x18\x04 \x01(\tR\x06toLang\"F\n" +
+	"\ato_lang\x18\x04 \x01(\tR\x06toLang\x12\x12\n" +
+	"\x04text\x18\x05 \x01(\tR\x04text\"F\n" +
 	"\x1bEngineTranslateTextResponse\x12'\n" +
 	"\x0ftranslated_text\x18\x01 \x01(\tR\x0etranslatedText\"\x9f\x01\n" +
 	"\x1aEngineReportMessageRequest\x12\x1d\n" +
