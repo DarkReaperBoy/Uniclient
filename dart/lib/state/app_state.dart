@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../bridge/engine_service.dart';
+import '../data/ayu_filter.dart';
 import '../models/engine_models.dart';
 import '../theme/theme_file.dart';
 import '../theme/telegram_palette.dart';
@@ -264,6 +265,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _filtersEnabledInChats = false;
   bool _hideFromBlocked = false;
   Set<int> _shadowBanIds = {};
+  final AyuFilterEngine filterEngine = AyuFilterEngine();
 
   // §54.15: Other settings.
   bool _crashReporting = true;
@@ -1267,34 +1269,43 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setFiltersEnabled(bool v) {
     if (_filtersEnabled == v) return;
     _filtersEnabled = v;
+    filterEngine.rebuildCache();
     notifyListeners();
     _saveWindowPrefs();
   }
   void setFiltersEnabledInChats(bool v) {
     if (_filtersEnabledInChats == v) return;
     _filtersEnabledInChats = v;
+    filterEngine.rebuildCache();
     notifyListeners();
     _saveWindowPrefs();
   }
   void setHideFromBlocked(bool v) {
     if (_hideFromBlocked == v) return;
     _hideFromBlocked = v;
+    filterEngine.rebuildCache();
     notifyListeners();
     _saveWindowPrefs();
   }
   void addShadowBan(int id) {
     if (_shadowBanIds.contains(id)) return;
     _shadowBanIds = {..._shadowBanIds, id};
+    filterEngine.rebuildCache();
     notifyListeners();
     _saveWindowPrefs();
   }
   void removeShadowBan(int id) {
     if (!_shadowBanIds.contains(id)) return;
     _shadowBanIds = {..._shadowBanIds}..remove(id);
+    filterEngine.rebuildCache();
     notifyListeners();
     _saveWindowPrefs();
   }
   bool isShadowBanned(int id) => _shadowBanIds.contains(id);
+
+  void saveFilterEngine() {
+    _saveWindowPrefs();
+  }
 
   // §54.9: Message field button toggle setters.
   void setShowAttachButton(bool v) {
@@ -2464,6 +2475,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       if (rawExcl != null) {
         _readExclusions = rawExcl.map((k, v) => MapEntry(k, (v as int?) ?? 0));
       }
+      filterEngine.loadFromJson(data);
       _loadWallpaper(data);
       _loadCustomThemeFromCache();
     } catch (_) {}
@@ -2594,6 +2606,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'filtersEnabledInChats': _filtersEnabledInChats,
         'hideFromBlocked': _hideFromBlocked,
         'shadowBanIds': _shadowBanIds.toList(),
+        ...filterEngine.toJson(),
         'readExclusions': _readExclusions,
         'wallpaperType': _wallpaper.type.index,
         'wallpaperColors': _wallpaper.backgroundColors

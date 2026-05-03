@@ -17,6 +17,7 @@ import 'package:lottie/lottie.dart' as lottie;
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
+import '../data/ayu_filter.dart';
 import 'admin_tools.dart' show showEditAdminBox, showEditRestrictedBox, showAdminLogScreen;
 import 'gesture_utils.dart';
 import '../models/engine_models.dart';
@@ -2697,6 +2698,24 @@ class _ChatViewState extends State<ChatView>
   }
 
   /// Spec §4.7: modify selection set and trigger slide animation on transitions.
+  List<CachedMessage> _filterMessages(List<CachedMessage> messages, BuildContext context) {
+    final appState = context.read<AppState>();
+    final engine = appState.filterEngine;
+    final hasHidden = _hiddenMsgIds.isNotEmpty;
+    final hasEngine = appState.filtersEnabled;
+
+    if (!hasHidden && !hasEngine) return messages;
+
+    final chatState = context.read<ChatState>();
+    final chatType = chatState.activeChat?.type;
+
+    return messages.where((m) {
+      if (hasHidden && _hiddenMsgIds.contains(m.msgId)) return false;
+      if (hasEngine && engine.isFiltered(m, appState, chatType: chatType)) return false;
+      return true;
+    }).toList();
+  }
+
   void _modifySelection(void Function() fn) {
     final wasSelecting = _selectionMode;
     setState(fn);
@@ -4397,9 +4416,7 @@ class _ChatViewState extends State<ChatView>
                     );
                   },
                   child: _MessageList(
-                    messages: _hiddenMsgIds.isEmpty
-                        ? chatState.messages
-                        : chatState.messages.where((m) => !_hiddenMsgIds.contains(m.msgId)).toList(),
+                    messages: _filterMessages(chatState.messages, context),
                     loading: chatState.loadingMessages,
                     isGroupChat: chat.type == ChatType.group || chat.type == ChatType.channel || chat.type == ChatType.topic,
                     chatType: chat.type,

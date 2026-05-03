@@ -2073,6 +2073,8 @@ class ChatState extends ChangeNotifier {
           c.accountId == event.accountId && c.chatId == event.chatId).firstOrNull;
       final msg = event.message;
 
+      if (_appState.filterEngine.isFiltered(msg, _appState, chatType: chat?.type)) return;
+
       String stickerEmoji = '';
       if (msg.mediaType == 6 && msg.contentText.isNotEmpty) {
         stickerEmoji = msg.contentText;
@@ -2191,6 +2193,10 @@ class ChatState extends ChangeNotifier {
 
   void _handleTyping(TypingEvent event) {
     if (_disposed) return;
+    if (_appState.filtersEnabled) {
+      final uid = int.tryParse(event.userId);
+      if (uid != null && _appState.isShadowBanned(uid)) return;
+    }
     _typingUsers[event.chatId] = event.userName.isNotEmpty ? event.userName : event.userId;
     notifyListeners();
 
