@@ -2980,14 +2980,11 @@ class _RecentContactsList extends StatelessWidget {
     final recent = dmChats.take(30).toList();
     if (recent.isEmpty) return const SizedBox.shrink();
 
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final nameFg = isDark ? const Color(0xFFe0e0e0) : const Color(0xFF222222);
-    final statusFg =
-        isDark ? const Color(0xFF8a8a8a) : const Color(0xFF999999);
-    final hoverBg =
-        isDark ? const Color(0xFF202b36) : const Color(0xFFf1f1f1);
-    final subColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
+    final palette = context.palette;
+    final nameFg = palette.dialogsNameFg;
+    final statusFg = palette.dialogsTextFg;
+    final hoverBg = palette.dialogsBgOver;
+    final subColor = palette.dialogsTextFg;
     final hasChannels =
         chats.any((c) => c.type == ChatType.channel && !c.isArchived);
 
@@ -3154,7 +3151,7 @@ class _RecentContactRowState extends State<_RecentContactRow> {
                             width: 12,
                             height: 12,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF4dc920),
+                              color: context.palette.dialogsOnlineBadgeFg,
                               shape: BoxShape.circle,
                               border: Border.all(
                                 color: _hovered
@@ -3197,7 +3194,7 @@ class _RecentContactRowState extends State<_RecentContactRow> {
                   style: TextStyle(
                     fontSize: 13,
                     color: widget.isOnline
-                        ? const Color(0xFF4dc920)
+                        ? context.palette.dialogsOnlineBadgeFg
                         : widget.statusFg,
                   ),
                 ),
@@ -3640,14 +3637,10 @@ class _ArchivedChatsRowState extends State<_ArchivedChatsRow> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    // Spec §2.5: dialogsNameFg for text color.
-    final nameFg = isDark ? const Color(0xFFe0e0e0) : const Color(0xFF222222);
-    // Spec §2.5: dialogsBgOver on hover.
-    final hoverBg = isDark ? const Color(0xFF202b36) : const Color(0xFFF1F1F1);
-    // Spec §2.5: unread counter always muted/gray.
-    final mutedBadgeBg = isDark ? const Color(0xFF3e546a) : const Color(0xFFbbbbbb);
+    final palette = context.palette;
+    final nameFg = palette.dialogsNameFg;
+    final hoverBg = palette.dialogsBgOver;
+    final mutedBadgeBg = palette.dialogsUnreadBgMuted;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -4751,21 +4744,15 @@ class _ForumTopicRowState extends State<_ForumTopicRow>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final palette = context.palette;
 
-    final activeBg = isDark ? const Color(0xFF2b5278) : const Color(0xFF419fd9);
-    final hoverBg = isDark ? const Color(0xFF202b36) : const Color(0xFFF1F1F1);
-    final Color? rowBg = widget.isActive ? activeBg : null;
-    final rippleColor = isDark ? const Color(0xFF1e2831) : const Color(0xFFc6c6c6);
+    final Color? rowBg = widget.isActive ? palette.dialogsBgActive : null;
 
-    final nameColor = widget.isActive
-        ? Colors.white
-        : (isDark ? const Color(0xFFe1e3e6) : const Color(0xFF222222));
+    final nameColor = widget.isActive ? palette.dialogsNameFgActive : palette.dialogsNameFg;
     final textColor = widget.isActive
-        ? Colors.white70
-        : (isDark ? const Color(0xFF7f91a4) : const Color(0xFF999999));
-    final dateColor = textColor;
+        ? palette.dialogsTextFgActive.withValues(alpha: 0.7)
+        : palette.dialogsTextFg;
+    final dateColor = widget.isActive ? palette.dialogsTextFgActive : palette.dialogsDateFg;
 
     final hasUnread = widget.topic.unreadCount > 0;
     final showPin = widget.topic.isPinned && !hasUnread;
@@ -4789,7 +4776,7 @@ class _ForumTopicRowState extends State<_ForumTopicRow>
                   child: Opacity(
                     opacity: _barAnimation.value,
                     child: Container(
-                      color: isDark
+                      color: palette.isDark
                           ? const Color(0xFF5eaade)
                           : Colors.white.withValues(alpha: 0.7),
                     ),
@@ -4801,10 +4788,10 @@ class _ForumTopicRowState extends State<_ForumTopicRow>
               type: MaterialType.transparency,
               child: InkWell(
                 onTap: widget.onTap,
-                hoverColor: widget.isActive ? Colors.white.withValues(alpha: 0.08) : hoverBg,
+                hoverColor: widget.isActive ? Colors.white.withValues(alpha: 0.08) : palette.dialogsBgOver,
                 splashColor: widget.isActive
-                    ? (isDark ? const Color(0xFF315a80) : const Color(0xFF2095d0))
-                    : rippleColor,
+                    ? palette.dialogsRippleBgActive
+                    : palette.dialogsRippleBg,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(
                     _ForumTopicRow._paddingLeft, _ForumTopicRow._paddingTop,
@@ -4881,7 +4868,6 @@ class _ForumTopicRowState extends State<_ForumTopicRow>
                           child: _TopicUnreadBadge(
                             count: widget.topic.unreadCount,
                             isActive: widget.isActive,
-                            isDark: isDark,
                           ),
                         ),
                       if (showPin)
@@ -4892,8 +4878,8 @@ class _ForumTopicRowState extends State<_ForumTopicRow>
                             Icons.push_pin,
                             size: 16,
                             color: widget.isActive
-                                ? Colors.white70
-                                : (isDark ? const Color(0xFF556a7d) : const Color(0xFFcccccc)),
+                                ? palette.dialogsTextFgActive.withValues(alpha: 0.7)
+                                : palette.dialogsTextFg,
                           ),
                         ),
                     ],
@@ -5087,25 +5073,17 @@ class _ForumTopicRowState extends State<_ForumTopicRow>
 class _TopicUnreadBadge extends StatelessWidget {
   final int count;
   final bool isActive;
-  final bool isDark;
 
   const _TopicUnreadBadge({
     required this.count,
     this.isActive = false,
-    this.isDark = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final Color bg;
-    if (isActive) {
-      bg = Colors.white;
-    } else {
-      bg = isDark ? const Color(0xFF3e88c7) : const Color(0xFF40a7e3);
-    }
-    final Color fg = isActive
-        ? (isDark ? const Color(0xFF2b5278) : const Color(0xFF419fd9))
-        : Colors.white;
+    final palette = context.palette;
+    final Color bg = isActive ? palette.dialogsUnreadBgActive : palette.dialogsUnreadBg;
+    final Color fg = isActive ? palette.dialogsUnreadFgActive : palette.dialogsUnreadFg;
     final text = count > 999 ? '${count ~/ 1000}K' : '$count';
     final minW = text.length > 2 ? 24.0 : 20.0;
     return Container(
@@ -5663,9 +5641,8 @@ class _SavedSublistRowState extends State<_SavedSublistRow> {
     final hasTags = widget.tags.isNotEmpty;
     final rowHeight = hasTags ? 72.0 : 62.0;
 
-    final bgColor = _hovered
-        ? (isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1))
-        : theme.colorScheme.surface;
+    final palette = context.palette;
+    final bgColor = _hovered ? palette.dialogsBgOver : palette.dialogsBg;
 
     final timeStr = sub.lastMsgTime > 0
         ? _formatTime(DateTime.fromMillisecondsSinceEpoch(sub.lastMsgTime))
@@ -5697,7 +5674,7 @@ class _SavedSublistRowState extends State<_SavedSublistRow> {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: theme.textTheme.bodyLarge?.color,
+                              color: palette.dialogsNameFg,
                             ),
                             overflow: TextOverflow.ellipsis,
                             maxLines: 1,
@@ -5708,7 +5685,7 @@ class _SavedSublistRowState extends State<_SavedSublistRow> {
                             timeStr,
                             style: TextStyle(
                               fontSize: 12,
-                              color: theme.hintColor,
+                              color: palette.dialogsDateFg,
                             ),
                           ),
                       ],
@@ -5721,7 +5698,7 @@ class _SavedSublistRowState extends State<_SavedSublistRow> {
                             sub.lastMsgText,
                             style: TextStyle(
                               fontSize: 13,
-                              color: theme.hintColor,
+                              color: palette.dialogsTextFg,
                             ),
                             overflow: TextOverflow.ellipsis,
                             maxLines: 1,
@@ -5746,8 +5723,9 @@ class _SavedSublistRowState extends State<_SavedSublistRow> {
   }
 
   Widget _buildTagPills(ThemeData theme, bool isDark) {
-    final tagColor = isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
-    final textColor = isDark ? const Color(0xFF8B9BAA) : const Color(0xFF999999);
+    final palette = context.palette;
+    final tagColor = palette.dialogsBgOver;
+    final textColor = palette.dialogsTextFg;
     return SizedBox(
       height: 16,
       child: ListView.separated(
@@ -5812,19 +5790,20 @@ class _SavedSublistRowState extends State<_SavedSublistRow> {
   }
 
   Widget _buildUnreadBadge(int count, ThemeData theme) {
+    final palette = context.palette;
     final text = count > 999 ? '999+' : '$count';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
       constraints: const BoxConstraints(minWidth: 20),
       decoration: BoxDecoration(
-        color: const Color(0xFF40A7E3),
+        color: palette.dialogsUnreadBg,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
         text,
         textAlign: TextAlign.center,
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: palette.dialogsUnreadFg,
           fontSize: 11,
           fontWeight: FontWeight.w700,
         ),

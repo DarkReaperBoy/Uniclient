@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
+import '../theme/telegram_palette.dart';
 import 'emoji_status_widget.dart';
 import 'forum_topic_icon.dart';
 
@@ -61,40 +62,20 @@ class ChatListRow extends StatelessWidget {
   static const _contentLeft = 68.0; // avatarLeft + avatarSize + gap
   static const _paddingRight = 10.0;
 
-  // Spec §2 exact active/selected bg per theme (computed in build).
-  // Day: #419fd9, Night: #2b5278.
-
-  // Spec §2 exact colors.
-  static const _nameColorDay = Color(0xFF222222);
-  static const _mutedColorDay = Color(0xFF999999);
-  static const _timestampColorDay = Color(0xFF999999);
-
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final palette = context.palette;
 
-    // Spec §2: Active row background differs by theme.
-    final activeBg = isDark ? const Color(0xFF2b5278) : const Color(0xFF419fd9);
-    // Spec §2: Day default bg = #ffffff; night uses theme default.
-    final defaultBg = isDark ? null : const Color(0xFFffffff);
+    final nameColor = isActive ? palette.dialogsNameFgActive : palette.dialogsNameFg;
+    final mutedColor = isActive ? palette.dialogsTextFgActive : palette.dialogsTextFg;
 
-    // Colors per state — use exact spec hex values for day theme.
-    final nameColor = isActive
-        ? Colors.white
-        : (isDark ? theme.textTheme.bodyLarge?.color : _nameColorDay);
-    final mutedColor = isActive
-        ? Colors.white
-        : (isDark ? theme.textTheme.bodySmall?.color : _mutedColorDay);
-
-    // Spec §2.7: Forward-drag hover highlight — windowBgOver tint.
     final Color? rowBg;
     if (isForwardHovered) {
-      rowBg = isDark ? const Color(0xFF2b3a4a) : const Color(0xFFe3f0fd);
+      rowBg = Color.lerp(palette.dialogsBg, palette.dialogsBgActive, 0.15);
     } else if (isActive) {
-      rowBg = activeBg;
+      rowBg = palette.dialogsBgActive;
     } else {
-      rowBg = defaultBg;
+      rowBg = palette.dialogsBg;
     }
 
     // Use a plain Container (not Material widget) to avoid MD3 surface-tint behavior
@@ -110,25 +91,16 @@ class ChatListRow extends StatelessWidget {
               : (details) => onSecondaryTap!(details.globalPosition),
           hoverColor: isActive
               ? Colors.white.withValues(alpha: 0.08)
-              : (isDark ? const Color(0xFF202b36) : const Color(0xFFF1F1F1)), // Spec §2: night #202b36, day #f1f1f1
+              : palette.dialogsBgOver,
           splashColor: isActive
-              ? (isDark ? const Color(0xFF315a80) : const Color(0xFF2095d0))
-              : (isDark ? const Color(0xFF25313d) : const Color(0xFFe5e5e5)), // Spec §2: ripple colors
+              ? palette.dialogsRippleBgActive
+              : palette.dialogsRippleBg,
           child: _HoverBuilder(
             builder: (_, isHovered) {
-              // Spec §2: Unread pill Over and Active color variants.
               final badgeBg = isActive
-                  ? (isDark
-                      ? (chat.isMuted ? const Color(0xFF7aa3ca) : Colors.white)
-                      : Colors.white)
-                  : isHovered
-                      ? (chat.isMuted
-                          ? (isDark ? const Color(0xFF4d5762) : const Color(0xFFbbbbbb))
-                          : (isDark ? const Color(0xFF4082bc) : const Color(0xFF40a7e3)))
-                      : (chat.isMuted
-                          ? (isDark ? const Color(0xFF3e546a) : const Color(0xFFbbbbbb))
-                          : (isDark ? const Color(0xFF40a7e3) : const Color(0xFF40a7e3)));
-              final badgeText = isActive ? activeBg : Colors.white;
+                  ? (chat.isMuted ? palette.dialogsUnreadBgMutedActive : palette.dialogsUnreadBgActive)
+                  : (chat.isMuted ? palette.dialogsUnreadBgMuted : palette.dialogsUnreadBg);
+              final badgeText = isActive ? palette.dialogsUnreadFgActive : palette.dialogsUnreadFg;
 
               // Spec §1: Collapsed/avatar-only mode — 72px column shows only
               // the centered avatar with compact unread overlay, no text.
@@ -228,7 +200,7 @@ class ChatListRow extends StatelessWidget {
                                   const SizedBox(width: 4),
                                   Icon(Icons.verified,
                                     size: 16,
-                                    color: isActive ? Colors.white : const Color(0xFF168acd),
+                                    color: isActive ? palette.dialogsNameFgActive : palette.dialogsVerifiedIconBg,
                                   ),
                                 ],
                                 if (chat.isScam) ...[
@@ -246,7 +218,7 @@ class ChatListRow extends StatelessWidget {
                                     emojiStatusId: chat.emojiStatusId,
                                     accountId: chat.accountId,
                                     size: 16,
-                                    fallbackColor: isActive ? Colors.white : null,
+                                    fallbackColor: isActive ? palette.dialogsNameFgActive : null,
                                   ),
                                 ],
                                 if (chat.isMuted) ...[
@@ -261,17 +233,13 @@ class ChatListRow extends StatelessWidget {
                             _SendStateIcon(
                               status: chat.lastMsgStatus,
                               isActive: isActive,
-                              isDark: isDark,
                             ),
-                          // Timestamp — spec §2: 13px, #999999 day / white active, 5px skip from right.
                           const SizedBox(width: 5),
                           Text(
                             _formatTime(chat.lastMsgTime),
                             style: TextStyle(
                               fontSize: 13,
-                              color: isActive
-                                  ? Colors.white
-                                  : (isDark ? theme.textTheme.bodySmall?.color : _timestampColorDay),
+                              color: isActive ? palette.dialogsTextFgActive : palette.dialogsDateFg,
                             ),
                           ),
                         ],
@@ -281,7 +249,7 @@ class ChatListRow extends StatelessWidget {
                       Row(
                         children: [
                           Expanded(
-                            child: _buildPreview(nameColor!, mutedColor!),
+                            child: _buildPreview(palette, nameColor, mutedColor),
                           ),
                           // Unread badge, unread dot, or pin icon.
                           if (chat.unreadCount > 0) ...[
@@ -332,22 +300,20 @@ class ChatListRow extends StatelessWidget {
     );
   }
 
-  Widget _buildPreview(Color nameColor, Color mutedColor) {
-    // Typing indicator: animated dots replacing preview text (spec §2).
+  Widget _buildPreview(TelegramPalette palette, Color nameColor, Color mutedColor) {
     if (typingUser != null) {
       return _TypingDotsIndicator(
         userName: typingUser!,
-        color: const Color(0xFF168acd),
+        color: palette.dialogsTextFgService,
       );
     }
 
-    // Draft prefix.
     if (chat.draftText.isNotEmpty) {
       return Text.rich(
         TextSpan(children: [
           TextSpan(
             text: 'Draft: ',
-            style: TextStyle(fontSize: 13, color: const Color(0xFFdd4b39)),
+            style: TextStyle(fontSize: 13, color: palette.dialogsDraftFg),
           ),
           TextSpan(
             text: chat.draftText,
@@ -385,7 +351,9 @@ class ChatListRow extends StatelessWidget {
             text: '${chat.lastMsgSender}: ',
             style: TextStyle(
               fontSize: 13,
-              color: isActive ? Colors.white70 : const Color(0xFF168acd),
+              color: isActive
+                  ? palette.dialogsTextFgActive.withValues(alpha: 0.7)
+                  : palette.dialogsTextFgService,
             ),
           ),
         TextSpan(
@@ -591,17 +559,14 @@ String _swipeActionLabel(SwipeAction action) {
 /// Spec §2.7: Background color for each swipe action (ResolveQuickActionBg).
 /// Delete → attentionButtonFg (red), Disabled → windowSubTextFgOver (gray),
 /// all others → windowBgActive (Telegram blue).
-Color _swipeActionBgColor(SwipeAction action, bool isDark) {
+Color _swipeActionBgColor(SwipeAction action, TelegramPalette palette) {
   switch (action) {
     case SwipeAction.delete:
-      // attentionButtonFg: red
-      return isDark ? const Color(0xFFd14e4e) : const Color(0xFFd14e4e);
+      return palette.attentionButtonFg;
     case SwipeAction.disabled:
-      // windowSubTextFgOver: gray
-      return isDark ? const Color(0xFF8b8b8b) : const Color(0xFF919191);
+      return palette.windowSubTextFgOver;
     default:
-      // windowBgActive: Telegram blue
-      return isDark ? const Color(0xFF2b5278) : const Color(0xFF40a7e3);
+      return palette.windowBgActive;
   }
 }
 
@@ -814,9 +779,7 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
         child: widget.child,
       );
     }
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    // Spec §2.7: Action color depends on action type (ResolveQuickActionBg).
-    final actionBg = _swipeActionBgColor(widget.action, isDark);
+    final actionBg = _swipeActionBgColor(widget.action, context.palette);
     final progress = _swipeProgress;
     return GestureDetector(
       onHorizontalDragStart: _onDragStart,
@@ -1096,7 +1059,7 @@ class _ChatAvatar extends StatelessWidget {
                   width: 12,
                   height: 12,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF4dc920),
+                    color: context.palette.dialogsOnlineBadgeFg,
                     shape: BoxShape.circle,
                     border: Border.all(color: bgColor, width: 3),
                   ),
@@ -1478,32 +1441,27 @@ class _ThreeStateBadgeIcon extends StatelessWidget {
   }
 }
 
-/// Spec §2: Send state icon — clock (sending), single check (sent), double check (delivered/read).
-/// 20px total width slot. Only shown for outgoing messages.
-/// Colors: historyOutIconFg = #57b84c day / #6bbfff night.
-/// Sending clock: historySendingOutIconFg = #98d292 day / #70a4d2 night.
 class _SendStateIcon extends StatelessWidget {
   final MsgStatus status;
   final bool isActive;
-  final bool isDark;
 
   const _SendStateIcon({
     required this.status,
     required this.isActive,
-    required this.isDark,
   });
 
   @override
   Widget build(BuildContext context) {
     if (status == MsgStatus.unknown) return const SizedBox(width: 20);
 
+    final palette = context.palette;
     final Color iconColor;
     if (isActive) {
-      iconColor = Colors.white;
+      iconColor = palette.dialogsTextFgActive;
     } else if (status == MsgStatus.sending) {
-      iconColor = isDark ? const Color(0xFF70a4d2) : const Color(0xFF98d292);
+      iconColor = palette.dialogsSendingIconFg;
     } else {
-      iconColor = isDark ? const Color(0xFF6bbfff) : const Color(0xFF57b84c);
+      iconColor = palette.dialogsSentIconFg;
     }
 
     // Spec §2: clock 11x11, single check 13x11, double check 18x11.
@@ -1775,25 +1733,18 @@ class ForumChatListRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final activeBg = isDark ? const Color(0xFF2b5278) : const Color(0xFF419fd9);
-    final defaultBg = isDark ? null : const Color(0xFFffffff);
+    final palette = context.palette;
 
-    final nameColor = isActive
-        ? Colors.white
-        : (isDark ? theme.textTheme.bodyLarge?.color : const Color(0xFF222222));
-    final mutedColor = isActive
-        ? Colors.white
-        : (isDark ? theme.textTheme.bodySmall?.color : const Color(0xFF999999));
+    final nameColor = isActive ? palette.dialogsNameFgActive : palette.dialogsNameFg;
+    final mutedColor = isActive ? palette.dialogsTextFgActive : palette.dialogsTextFg;
 
     final Color? rowBg;
     if (isForwardHovered) {
-      rowBg = isDark ? const Color(0xFF2b3a4a) : const Color(0xFFe3f0fd);
+      rowBg = Color.lerp(palette.dialogsBg, palette.dialogsBgActive, 0.15);
     } else if (isActive) {
-      rowBg = activeBg;
+      rowBg = palette.dialogsBgActive;
     } else {
-      rowBg = defaultBg;
+      rowBg = palette.dialogsBg;
     }
 
     if (isNarrow) {
@@ -1820,8 +1771,6 @@ class ForumChatListRow extends StatelessWidget {
       );
     }
 
-    final rippleColor = isDark ? const Color(0xFF1e2831) : const Color(0xFFc6c6c6);
-
     return Container(
       color: rowBg,
       child: Material(
@@ -1833,10 +1782,10 @@ class ForumChatListRow extends StatelessWidget {
               : (details) => onSecondaryTap!(details.globalPosition),
           hoverColor: isActive
               ? Colors.white.withValues(alpha: 0.08)
-              : (isDark ? const Color(0xFF202b36) : const Color(0xFFF1F1F1)),
+              : palette.dialogsBgOver,
           splashColor: isActive
-              ? (isDark ? const Color(0xFF315a80) : const Color(0xFF2095d0))
-              : rippleColor,
+              ? palette.dialogsRippleBgActive
+              : palette.dialogsRippleBg,
           child: SizedBox(
             height: _rowHeight,
             child: Padding(
@@ -1880,9 +1829,7 @@ class ForumChatListRow extends StatelessWidget {
                               _formatTime(chat.lastMsgTime),
                               style: TextStyle(
                                 fontSize: 13,
-                                color: isActive
-                                    ? Colors.white
-                                    : (isDark ? theme.textTheme.bodySmall?.color : const Color(0xFF999999)),
+                                color: isActive ? palette.dialogsTextFgActive : palette.dialogsDateFg,
                               ),
                             ),
                           ],
@@ -1893,7 +1840,6 @@ class ForumChatListRow extends StatelessWidget {
                           child: _TopicsPreview(
                             topics: recentTopics,
                             isActive: isActive,
-                            isDark: isDark,
                           ),
                         ),
                         const SizedBox(height: _topicsSkip - 4),
@@ -1932,22 +1878,21 @@ class ForumChatListRow extends StatelessWidget {
 class _TopicsPreview extends StatelessWidget {
   final List<ForumTopic> topics;
   final bool isActive;
-  final bool isDark;
 
   const _TopicsPreview({
     required this.topics,
     required this.isActive,
-    required this.isDark,
   });
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     if (topics.isEmpty) {
       return Text(
         'No topics',
         style: TextStyle(
           fontSize: 13,
-          color: isActive ? Colors.white70 : (isDark ? const Color(0xFF6c7883) : const Color(0xFF999999)),
+          color: isActive ? palette.dialogsTextFgActive.withValues(alpha: 0.7) : palette.dialogsTextFg,
         ),
       );
     }
@@ -1963,7 +1908,7 @@ class _TopicsPreview extends StatelessWidget {
               text: ', ',
               style: TextStyle(
                 fontSize: 13,
-                color: isActive ? Colors.white54 : (isDark ? const Color(0xFF6c7883) : const Color(0xFF999999)),
+                color: isActive ? palette.dialogsTextFgActive.withValues(alpha: 0.5) : palette.dialogsTextFg,
               ),
             ));
           }
@@ -1984,10 +1929,8 @@ class _TopicsPreview extends StatelessWidget {
               fontSize: 13,
               fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
               color: isActive
-                  ? Colors.white
-                  : (hasUnread
-                      ? (isDark ? Colors.white : const Color(0xFF222222))
-                      : (isDark ? const Color(0xFF6c7883) : const Color(0xFF999999))),
+                  ? palette.dialogsTextFgActive
+                  : (hasUnread ? palette.dialogsNameFg : palette.dialogsTextFg),
             ),
           ));
         }
