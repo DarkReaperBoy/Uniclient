@@ -141,7 +141,7 @@ class StatsChartWidget extends StatefulWidget {
 enum _DragMode { none, leftHandle, rightHandle, panCenter }
 
 class _StatsChartWidgetState extends State<StatsChartWidget>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   double _rangeStart = 0.0;
   double _rangeEnd = 1.0;
   int? _selectedIndex;
@@ -156,6 +156,11 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
   double _animFromStart = 0, _animToStart = 0;
   double _animFromEnd = 0, _animToEnd = 0;
 
+  late AnimationController _rulerAnimController;
+  double _prevRulerMn = 0, _prevRulerMx = 1;
+  double _curRulerMn = 0, _curRulerMx = 1;
+  double _rulerCrossfade = 1.0;
+
   @override
   void initState() {
     super.initState();
@@ -168,6 +173,15 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
         setState(() {
           _rangeStart = _animFromStart + (_animToStart - _animFromStart) * t;
           _rangeEnd = _animFromEnd + (_animToEnd - _animFromEnd) * t;
+        });
+      });
+    _rulerAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    )..addListener(() {
+        setState(() {
+          _rulerCrossfade =
+              Curves.easeInCubic.transform(_rulerAnimController.value);
         });
       });
   }
@@ -185,7 +199,75 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
   @override
   void dispose() {
     _animController.dispose();
+    _rulerAnimController.dispose();
     super.dispose();
+  }
+
+  (double, double) _computeYRange() {
+    final d = widget.data;
+    final n = d.timestamps.length;
+    if (n == 0) return (0, 1);
+    final lines =
+        d.lines.where((l) => _lineVisible[l.id] ?? true).toList();
+    if (lines.isEmpty) return (0, 1);
+    final si = (_rangeStart * (n - 1)).floor().clamp(0, n - 1);
+    final ei = (_rangeEnd * (n - 1)).ceil().clamp(0, n - 1);
+    switch (d.chartType) {
+      case 'Bar':
+        double mx = 0;
+        for (final l in lines) {
+          for (int i = si; i <= ei && i < l.values.length; i++) {
+            if (l.values[i] > mx) mx = l.values[i];
+          }
+        }
+        return (0, mx == 0 ? 1 : mx);
+      case 'StackBar':
+        double mx = 0;
+        for (int i = si; i <= ei; i++) {
+          double s = 0;
+          for (final l in lines) {
+            if (i < l.values.length) s += l.values[i];
+          }
+          if (s > mx) mx = s;
+        }
+        return (0, mx == 0 ? 1 : mx);
+      case 'StackLinear':
+        return (0, 1);
+      default:
+        double mn = double.infinity, mx = double.negativeInfinity;
+        for (final l in lines) {
+          for (int i = si; i <= ei && i < l.values.length; i++) {
+            if (l.values[i] < mn) mn = l.values[i];
+            if (l.values[i] > mx) mx = l.values[i];
+          }
+        }
+        if (mn == double.infinity) return (0, 1);
+        if (mx == mn) return (mn, mn + 1);
+        return (mn, mx);
+    }
+  }
+
+  void _updateRulerRange() {
+    final (mn, mx) = _computeYRange();
+    final range = (_curRulerMx - _curRulerMn).abs();
+    final threshold = range > 0 ? range * 0.05 : 0.001;
+    if ((mn - _curRulerMn).abs() > threshold ||
+        (mx - _curRulerMx).abs() > threshold) {
+      if (!_rulerAnimController.isAnimating) {
+        _prevRulerMn = _curRulerMn;
+        _prevRulerMx = _curRulerMx;
+      }
+      _curRulerMn = mn;
+      _curRulerMx = mx;
+      if (!_rulerAnimController.isAnimating) {
+        _rulerCrossfade = 0;
+        _rulerAnimController.forward(from: 0);
+      }
+    } else {
+      _curRulerMn = mn;
+      _curRulerMx = mx;
+      if (!_rulerAnimController.isAnimating) _rulerCrossfade = 1.0;
+    }
   }
 
   static const _months = [
@@ -211,6 +293,7 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
 
   @override
   Widget build(BuildContext context) {
+    _updateRulerRange();
     final isDark = widget.theme.brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
     final subtitleColor = isDark ? Colors.white60 : Colors.black54;
@@ -261,6 +344,9 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
                       rangeEnd: _rangeEnd,
                       selectedIndex: _selectedIndex,
                       lineVisible: _lineVisible,
+                      rulerCrossfade: _rulerCrossfade,
+                      prevRulerMn: _prevRulerMn,
+                      prevRulerMx: _prevRulerMx,
                     ),
                   ),
                 ),
@@ -634,6 +720,9 @@ class _ChartAreaPainter extends CustomPainter {
   final double rangeEnd;
   final int? selectedIndex;
   final Map<String, bool> lineVisible;
+  final double rulerCrossfade;
+  final double prevRulerMn;
+  final double prevRulerMx;
 
   _ChartAreaPainter({
     required this.data,
@@ -642,6 +731,9 @@ class _ChartAreaPainter extends CustomPainter {
     required this.rangeEnd,
     this.selectedIndex,
     required this.lineVisible,
+    this.rulerCrossfade = 1.0,
+    this.prevRulerMn = 0,
+    this.prevRulerMx = 1,
   });
 
   static const _months = [
@@ -699,12 +791,23 @@ class _ChartAreaPainter extends CustomPainter {
   void _paintRulers(
       Canvas canvas, Size size, double top, double chartH, double mn,
       double mx) {
+    if (rulerCrossfade < 1.0 &&
+        (prevRulerMn != mn || prevRulerMx != mx)) {
+      _drawRulerSet(canvas, size, top, chartH, prevRulerMn, prevRulerMx,
+          1.0 - rulerCrossfade);
+    }
+    final alpha = rulerCrossfade < 1.0 ? rulerCrossfade : 1.0;
+    _drawRulerSet(canvas, size, top, chartH, mn, mx, alpha);
+  }
+
+  void _drawRulerSet(Canvas canvas, Size size, double top, double chartH,
+      double mn, double mx, double alpha) {
     final gridColor = isDark
-        ? const Color(0x0FFFFFFF)
-        : const Color(0x0F000000);
+        ? Colors.white.withValues(alpha: 0.06 * alpha)
+        : Colors.black.withValues(alpha: 0.06 * alpha);
     final labelColor = isDark
-        ? const Color(0x99FFFFFF)
-        : const Color(0x99000000);
+        ? Colors.white.withValues(alpha: 0.6 * alpha)
+        : Colors.black.withValues(alpha: 0.6 * alpha);
     final gridPaint = Paint()
       ..color = gridColor
       ..strokeWidth = 0.5;
@@ -727,30 +830,55 @@ class _ChartAreaPainter extends CustomPainter {
   void _paintDateLabels(Canvas canvas, Size size) {
     final n = data.timestamps.length;
     if (n < 2) return;
-    final labelColor = isDark
-        ? const Color(0x99FFFFFF)
-        : const Color(0x99000000);
 
-    final visibleCount = ((rangeEnd - rangeStart) * n).round().clamp(2, n);
-    final labelCount = math.min(6, visibleCount);
-    final step = visibleCount / labelCount;
+    final span = rangeEnd - rangeStart;
+    if (span <= 0) return;
+    final pxPerPoint = size.width / (span * (n - 1));
+
+    final sampleTp = TextPainter(
+      text: TextSpan(
+          text: 'May 00',
+          style: TextStyle(
+              fontSize: 10,
+              color: isDark ? Colors.white60 : Colors.black54)),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final minSpacing = sampleTp.width + 20;
+
+    int step = 1;
+    while (step * pxPerPoint < minSpacing && step < n) {
+      step *= 2;
+    }
+
     final si = (rangeStart * (n - 1)).floor().clamp(0, n - 1);
+    final ei = (rangeEnd * (n - 1)).ceil().clamp(0, n - 1);
+    final firstLabel = ((si + step - 1) ~/ step) * step;
+    const edgeFade = 30.0;
+    final y = size.height - _kBottomCaptionHeight;
 
-    for (int i = 0; i < labelCount; i++) {
-      final idx = (si + (step * i).round()).clamp(0, n - 1);
+    for (int idx = firstLabel; idx <= ei; idx += step) {
+      final x = _dataXToPixel(idx, n, size.width);
+      if (x < -50 || x > size.width + 50) continue;
+
+      double alpha = 1.0;
+      if (x < edgeFade) alpha = (x / edgeFade).clamp(0.0, 1.0);
+      if (x > size.width - edgeFade) {
+        alpha = ((size.width - x) / edgeFade).clamp(0.0, 1.0);
+      }
+
       final ts = data.timestamps[idx];
       final dt = DateTime.fromMillisecondsSinceEpoch(
           ts.abs() > 1e12 ? ts : ts * 1000);
       final label = '${_months[dt.month - 1]} ${dt.day}';
+      final labelColor = isDark
+          ? Colors.white.withValues(alpha: 0.6 * alpha)
+          : Colors.black.withValues(alpha: 0.6 * alpha);
       final tp = TextPainter(
         text: TextSpan(
-            text: label,
-            style: TextStyle(fontSize: 10, color: labelColor)),
+            text: label, style: TextStyle(fontSize: 10, color: labelColor)),
         textDirection: TextDirection.ltr,
       )..layout();
-      final x = _dataXToPixel(idx, n, size.width);
-      final px = (x - tp.width / 2).clamp(0.0, size.width - tp.width);
-      tp.paint(canvas, Offset(px, size.height - _kBottomCaptionHeight));
+      tp.paint(canvas, Offset(x - tp.width / 2, y));
     }
   }
 
@@ -985,7 +1113,8 @@ class _ChartAreaPainter extends CustomPainter {
       rangeStart != old.rangeStart ||
       rangeEnd != old.rangeEnd ||
       selectedIndex != old.selectedIndex ||
-      lineVisible != old.lineVisible;
+      lineVisible != old.lineVisible ||
+      rulerCrossfade != old.rulerCrossfade;
 }
 
 class _FooterPainter extends CustomPainter {
