@@ -99,10 +99,23 @@ class AyuForward {
   static bool isMessageRestricted(CachedMessage msg) {
     if (msg.isDeleted) return true;
     if (msg.ttlSeconds > 0) return true;
+    if (msg.noForwards) return true;
     return false;
   }
 
   static bool isChatRestricted(ChatInfo chat) => chat.noForwards;
+
+  /// Polymorphic AyuNoForwards check: returns true if forwarding is restricted
+  /// at the chat level (channel/group noForwards flag) or message level
+  /// (per-message noForwards flag set when server indicated restriction).
+  static bool isAyuNoForwards({
+    ChatInfo? chat,
+    CachedMessage? message,
+  }) {
+    if (chat != null && chat.noForwards) return true;
+    if (message != null && message.noForwards) return true;
+    return false;
+  }
 
   static List<ForwardChunk> buildChunks(
     List<CachedMessage> messages,

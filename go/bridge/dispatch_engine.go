@@ -420,6 +420,13 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.ReadMessageContents(req.AccountId, req.UpToMsgId)
 
+	case "SetUserNoForwardsFlags":
+		var req pb.EngineSetUserNoForwardsFlagsRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.SetUserNoForwardsFlags(req.AccountId, req.UserId, req.MyEnabled, req.PeerEnabled)
+
 	case "GetForumTopics":
 		var req pb.EngineGetForumTopicsRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

@@ -469,6 +469,9 @@ class CachedMessage {
   // Media spoiler flag (photo/video/GIF marked with spoiler overlay).
   final bool mediaSpoiler;
 
+  // Message-level forwarding restriction (AyuNoForwards flag).
+  final bool noForwards;
+
   // Album grouping (messages with same groupedId form a media album).
   final String groupedId;
 
@@ -610,6 +613,7 @@ class CachedMessage {
     this.topicColorId = 0,
     this.viaBotName = '',
     this.mediaSpoiler = false,
+    this.noForwards = false,
     this.groupedId = '',
     this.views = 0,
     this.forwards = 0,
@@ -715,6 +719,7 @@ class CachedMessage {
     isDeleted: j['is_deleted'] as bool? ?? false,
     deletedAt: j['deleted_at'] as int? ?? 0,
     mediaSpoiler: j['media_spoiler'] as bool? ?? false,
+    noForwards: j['no_forwards'] as bool? ?? false,
     groupedId: j['grouped_id'] as String? ?? '',
     reactions: (j['reactions'] as List<dynamic>?)
         ?.map((r) => MessageReaction.fromJson(r as Map<String, dynamic>))
@@ -802,6 +807,7 @@ class CachedMessage {
     int? deletedAt,
     String? viaBotName,
     bool? mediaSpoiler,
+    bool? noForwards,
     String? groupedId,
     int? views,
     int? forwards,
@@ -910,6 +916,7 @@ class CachedMessage {
     topicColorId: topicColorId,
     viaBotName: viaBotName ?? this.viaBotName,
     mediaSpoiler: mediaSpoiler ?? this.mediaSpoiler,
+    noForwards: noForwards ?? this.noForwards,
     groupedId: groupedId ?? this.groupedId,
     views: views ?? this.views,
     forwards: forwards ?? this.forwards,

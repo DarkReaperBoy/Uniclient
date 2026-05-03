@@ -962,6 +962,7 @@ message EngineGetWebPagePreviewResponse {
   string thumb_b64      = 5;
   string type           = 6;
   bool   has_large_media = 7;
+  int64  pending_till   = 8;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1434,4 +1435,11 @@ message EngineGetCustomEmojiSetInfoResponse {
 message EngineReadMessageContentsRequest {
   string account_id    = 1;
   repeated int64 msg_ids = 2;
+}
+
+message EngineSetUserNoForwardsFlagsRequest {
+  string account_id     = 1;
+  string user_id        = 2;
+  bool   my_enabled     = 3;
+  bool   peer_enabled   = 4;
 }

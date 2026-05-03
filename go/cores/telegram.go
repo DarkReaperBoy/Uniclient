@@ -9987,6 +9987,7 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 		IsOutgoing: msg.Out,
 		Views:      msg.Views,
 		Forwards:   msg.Forwards,
+		NoForwards: msg.Noforwards,
 		Platform:   tgPlatform,
 	}
 

@@ -994,8 +994,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §53 — Forward Enhancements (AyuGram)
 # Touches: dart/lib/ui/chat_view.dart, new forward_progress.dart
 
-- [ ] AyuNoForwards flag system — bit 63 message-level; channel-level; user-level NoForwardsMyEnabled/NoForwardsPeerEnabled; polymorphic isAyuNoForwards() — spec §53.6
-
 ---
 
 ## §54 — AyuGram UI Customization

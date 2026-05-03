@@ -131,6 +131,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV28,
 	migrateV29,
 	migrateV30,
+	migrateV31,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -695,4 +696,17 @@ func migrateV29(tx *sql.Tx) error {
 func migrateV30(tx *sql.Tx) error {
 	_, err := tx.Exec(`ALTER TABLE chats ADD COLUMN no_forwards INTEGER NOT NULL DEFAULT 0`)
 	return err
+}
+
+func migrateV31(tx *sql.Tx) error {
+	if _, err := tx.Exec(`ALTER TABLE messages ADD COLUMN no_forwards INTEGER NOT NULL DEFAULT 0`); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`ALTER TABLE users ADD COLUMN no_forwards_my INTEGER NOT NULL DEFAULT 0`); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`ALTER TABLE users ADD COLUMN no_forwards_peer INTEGER NOT NULL DEFAULT 0`); err != nil {
+		return err
+	}
+	return nil
 }

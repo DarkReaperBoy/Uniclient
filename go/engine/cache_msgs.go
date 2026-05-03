@@ -44,6 +44,7 @@ type CachedMessage struct {
 	IsService    bool   `json:"is_service"`
 	HasMedia     bool   `json:"has_media"`
 	GroupedID    string `json:"grouped_id,omitempty"`
+	NoForwards   bool   `json:"no_forwards"`
 
 	// Anti-recall metadata.
 	IsDeleted bool  `json:"is_deleted"`
@@ -83,7 +84,7 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs int64, limit int
 		rows, err = e.db.Query(
 			`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
 			        content_text, content_raw, content_rich, timestamp, edited_at,
-			        status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, is_service, has_media, grouped_id, is_deleted, deleted_at
+			        status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at
 			 FROM messages
 			 WHERE account_id = ? AND chat_id = ? AND timestamp < ?
 			 ORDER BY timestamp DESC
@@ -92,7 +93,7 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs int64, limit int
 		rows, err = e.db.Query(
 			`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
 			        content_text, content_raw, content_rich, timestamp, edited_at,
-			        status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, is_service, has_media, grouped_id, is_deleted, deleted_at
+			        status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at
 			 FROM messages
 			 WHERE account_id = ? AND chat_id = ?
 			 ORDER BY timestamp DESC
@@ -192,13 +193,13 @@ func scanMessages(rows *sql.Rows) ([]CachedMessage, error) {
 		var localID, senderID, senderName, senderRank, replyToID, replyPreview, forwardFrom, groupedID sql.NullString
 		var contentRaw, contentRich []byte
 		var editedAt, deletedAt sql.NullInt64
-		var isPinned, isOutgoing, isService, hasMedia, isDeleted int
+		var isPinned, isOutgoing, isService, hasMedia, noForwards, isDeleted int
 
 		if err := rows.Scan(
 			&m.AccountID, &m.ChatID, &m.MsgID, &localID, &senderID, &senderName, &senderRank, &m.SenderColorID,
 			&m.ContentText, &contentRaw, &contentRich, &m.Timestamp, &editedAt,
 			&m.Status, &replyToID, &replyPreview, &forwardFrom, &isPinned, &isOutgoing, &isService, &hasMedia, &groupedID,
-			&isDeleted, &deletedAt,
+			&noForwards, &isDeleted, &deletedAt,
 		); err != nil {
 			return msgs, err
 		}
@@ -220,6 +221,7 @@ func scanMessages(rows *sql.Rows) ([]CachedMessage, error) {
 		m.IsOutgoing = isOutgoing == 1
 		m.IsService = isService == 1
 		m.HasMedia = hasMedia == 1
+		m.NoForwards = noForwards == 1
 		m.IsDeleted = isDeleted == 1
 		if deletedAt.Valid {
 			m.DeletedAt = deletedAt.Int64
@@ -362,8 +364,8 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 		`INSERT INTO messages
 		 (account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
 		  content_raw, content_rich, content_text, timestamp, edited_at,
-		  status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, is_service, has_media, grouped_id)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		  status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(account_id, chat_id, msg_id) DO UPDATE SET
 		  local_id=excluded.local_id, sender_id=excluded.sender_id, sender_name=excluded.sender_name,
 		  sender_rank=excluded.sender_rank, sender_color_id=excluded.sender_color_id,
@@ -371,11 +373,11 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 		  timestamp=excluded.timestamp, edited_at=excluded.edited_at, status=excluded.status,
 		  reply_to_id=excluded.reply_to_id, reply_preview=excluded.reply_preview, forward_from=excluded.forward_from,
 		  is_pinned=excluded.is_pinned, is_outgoing=excluded.is_outgoing, is_service=excluded.is_service,
-		  has_media=excluded.has_media, grouped_id=excluded.grouped_id`,
+		  has_media=excluded.has_media, grouped_id=excluded.grouped_id, no_forwards=excluded.no_forwards`,
 		accountID, chatID, msg.ID, nil, msg.SenderID, msg.SenderName, nullStr(msg.SenderRank), msg.SenderColorID,
 		rawBytes, richBytes, msg.Text, ts, editedAt,
 		status, nullStr(msg.ReplyToID), nullStr(msg.ReplyPreview),
-		nullStr(msg.ForwardFrom), boolToInt(msg.IsPinned), boolToInt(msg.IsOutgoing), boolToInt(msg.IsService), boolToInt(hasMedia), nullStr(msg.GroupedID))
+		nullStr(msg.ForwardFrom), boolToInt(msg.IsPinned), boolToInt(msg.IsOutgoing), boolToInt(msg.IsService), boolToInt(hasMedia), nullStr(msg.GroupedID), boolToInt(msg.NoForwards))
 
 	// Cache media references.
 	for i, att := range msg.Attachments {
@@ -404,6 +406,7 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 		IsService:    msg.IsService,
 		HasMedia:     hasMedia,
 		GroupedID:    msg.GroupedID,
+		NoForwards:   msg.NoForwards,
 	}
 
 	// Populate media metadata from what we just cached so the returned
@@ -1839,7 +1842,7 @@ func (e *Engine) GetDeletedMessages(accountID, chatID string, search string, off
 		rows, err = e.db.Query(
 			`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
 			        content_text, content_raw, content_rich, timestamp, edited_at,
-			        status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, is_service, has_media, grouped_id, is_deleted, deleted_at
+			        status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at
 			 FROM messages
 			 WHERE account_id = ? AND chat_id = ? AND is_deleted = 1 AND content_text LIKE ? ESCAPE '\'
 			 ORDER BY timestamp DESC
@@ -1848,7 +1851,7 @@ func (e *Engine) GetDeletedMessages(accountID, chatID string, search string, off
 		rows, err = e.db.Query(
 			`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
 			        content_text, content_raw, content_rich, timestamp, edited_at,
-			        status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, is_service, has_media, grouped_id, is_deleted, deleted_at
+			        status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at
 			 FROM messages
 			 WHERE account_id = ? AND chat_id = ? AND is_deleted = 1
 			 ORDER BY timestamp DESC

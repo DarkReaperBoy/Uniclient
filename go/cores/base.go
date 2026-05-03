@@ -268,6 +268,7 @@ type Message struct {
 	GroupedID     string                 `json:"grouped_id,omitempty"` // album group ID (messages with same ID form an album)
 	Views         int                    `json:"views,omitempty"`    // view count (channel posts)
 	Forwards      int                    `json:"forwards,omitempty"` // forward/share count (channel posts)
+	NoForwards    bool                   `json:"no_forwards,omitempty"` // message-level forwarding restriction (AyuNoForwards flag)
 	Platform      string                 `json:"platform"`
 	Extra         map[string]interface{} `json:"extra,omitempty"` // platform-specific metadata
 }

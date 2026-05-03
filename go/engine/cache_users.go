@@ -32,6 +32,8 @@ type CachedUser struct {
 	PersonalChannelName    string `json:"personal_channel_name,omitempty"`
 	VoiceMessagesForbidden bool   `json:"voice_messages_forbidden,omitempty"`
 	ContactRequirePremium  bool   `json:"contact_require_premium,omitempty"`
+	NoForwardsMy           bool   `json:"no_forwards_my,omitempty"`
+	NoForwardsPeer         bool   `json:"no_forwards_peer,omitempty"`
 }
 
 // UpsertUser inserts or updates a user profile in the cache.
@@ -78,21 +80,23 @@ func (e *Engine) GetUser(accountID, userID string) (*CachedUser, error) {
 	var personalChannelID, personalChannelName sql.NullString
 	var lastSeen sql.NullInt64
 	var isBot, isOnline, isContact, isBlocked int
-	var voiceForbidden, contactPremium int
+	var voiceForbidden, contactPremium, noForwardsMy, noForwardsPeer int
 
 	err := e.db.QueryRow(
 		`SELECT account_id, user_id, display_name, username, phone, bio, avatar_path,
 		        is_bot, is_online, is_contact, is_blocked, bot_menu_text, last_seen,
 		        birthday_day, birthday_month, birthday_year,
 		        personal_channel_id, personal_channel_name,
-		        voice_messages_forbidden, contact_require_premium
+		        voice_messages_forbidden, contact_require_premium,
+		        no_forwards_my, no_forwards_peer
 		 FROM users WHERE account_id = ? AND user_id = ?`,
 		accountID, userID).Scan(
 		&u.AccountID, &u.UserID, &displayName, &username, &phone, &bio, &avatarPath,
 		&isBot, &isOnline, &isContact, &isBlocked, &botMenuText, &lastSeen,
 		&u.BirthdayDay, &u.BirthdayMonth, &u.BirthdayYear,
 		&personalChannelID, &personalChannelName,
-		&voiceForbidden, &contactPremium)
+		&voiceForbidden, &contactPremium,
+		&noForwardsMy, &noForwardsPeer)
 	if err != nil {
 		return nil, err
 	}
@@ -111,6 +115,8 @@ func (e *Engine) GetUser(accountID, userID string) (*CachedUser, error) {
 	u.PersonalChannelName = personalChannelName.String
 	u.VoiceMessagesForbidden = voiceForbidden == 1
 	u.ContactRequirePremium = contactPremium == 1
+	u.NoForwardsMy = noForwardsMy == 1
+	u.NoForwardsPeer = noForwardsPeer == 1
 	if lastSeen.Valid {
 		u.LastSeen = lastSeen.Int64
 	}
@@ -651,6 +657,14 @@ func (e *Engine) UnblockUser(accountID, userID string) error {
 	e.db.Exec("UPDATE users SET is_blocked = 0 WHERE account_id = ? AND user_id = ?", accountID, userID)
 	e.emitChatUpdate(accountID, userID)
 	return nil
+}
+
+// SetUserNoForwardsFlags sets the AyuNoForwards flags for a user (local preference).
+func (e *Engine) SetUserNoForwardsFlags(accountID, userID string, myEnabled, peerEnabled bool) error {
+	_, err := e.db.Exec(
+		`UPDATE users SET no_forwards_my = ?, no_forwards_peer = ? WHERE account_id = ? AND user_id = ?`,
+		boolToInt(myEnabled), boolToInt(peerEnabled), accountID, userID)
+	return err
 }
 
 func (e *Engine) BanMember(accountID, chatID, userID string) error {

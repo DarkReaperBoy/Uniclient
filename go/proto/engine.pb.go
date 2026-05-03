@@ -8012,6 +8012,7 @@ type EngineGetWebPagePreviewResponse struct {
 	ThumbB64      string                 `protobuf:"bytes,5,opt,name=thumb_b64,json=thumbB64,proto3" json:"thumb_b64,omitempty"`
 	Type          string                 `protobuf:"bytes,6,opt,name=type,proto3" json:"type,omitempty"`
 	HasLargeMedia bool                   `protobuf:"varint,7,opt,name=has_large_media,json=hasLargeMedia,proto3" json:"has_large_media,omitempty"`
+	PendingTill   int64                  `protobuf:"varint,8,opt,name=pending_till,json=pendingTill,proto3" json:"pending_till,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -8093,6 +8094,13 @@ func (x *EngineGetWebPagePreviewResponse) GetHasLargeMedia() bool {
 		return x.HasLargeMedia
 	}
 	return false
+}
+
+func (x *EngineGetWebPagePreviewResponse) GetPendingTill() int64 {
+	if x != nil {
+		return x.PendingTill
+	}
+	return 0
 }
 
 type EngineBotCallbackRequest struct {
@@ -12072,6 +12080,74 @@ func (x *EngineReadMessageContentsRequest) GetMsgIds() []int64 {
 	return nil
 }
 
+type EngineSetUserNoForwardsFlagsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	MyEnabled     bool                   `protobuf:"varint,3,opt,name=my_enabled,json=myEnabled,proto3" json:"my_enabled,omitempty"`
+	PeerEnabled   bool                   `protobuf:"varint,4,opt,name=peer_enabled,json=peerEnabled,proto3" json:"peer_enabled,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineSetUserNoForwardsFlagsRequest) Reset() {
+	*x = EngineSetUserNoForwardsFlagsRequest{}
+	mi := &file_proto_engine_proto_msgTypes[184]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineSetUserNoForwardsFlagsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineSetUserNoForwardsFlagsRequest) ProtoMessage() {}
+
+func (x *EngineSetUserNoForwardsFlagsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[184]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineSetUserNoForwardsFlagsRequest.ProtoReflect.Descriptor instead.
+func (*EngineSetUserNoForwardsFlagsRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{184}
+}
+
+func (x *EngineSetUserNoForwardsFlagsRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineSetUserNoForwardsFlagsRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *EngineSetUserNoForwardsFlagsRequest) GetMyEnabled() bool {
+	if x != nil {
+		return x.MyEnabled
+	}
+	return false
+}
+
+func (x *EngineSetUserNoForwardsFlagsRequest) GetPeerEnabled() bool {
+	if x != nil {
+		return x.PeerEnabled
+	}
+	return false
+}
+
 var File_proto_engine_proto protoreflect.FileDescriptor
 
 const file_proto_engine_proto_rawDesc = "" +
@@ -12818,7 +12894,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x1eEngineGetWebPagePreviewRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x10\n" +
-	"\x03url\x18\x02 \x01(\tR\x03url\"\xe1\x01\n" +
+	"\x03url\x18\x02 \x01(\tR\x03url\"\x84\x02\n" +
 	"\x1fEngineGetWebPagePreviewResponse\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\x12\x1b\n" +
 	"\tsite_name\x18\x02 \x01(\tR\bsiteName\x12\x14\n" +
@@ -12826,7 +12902,8 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\vdescription\x18\x04 \x01(\tR\vdescription\x12\x1b\n" +
 	"\tthumb_b64\x18\x05 \x01(\tR\bthumbB64\x12\x12\n" +
 	"\x04type\x18\x06 \x01(\tR\x04type\x12&\n" +
-	"\x0fhas_large_media\x18\a \x01(\bR\rhasLargeMedia\"}\n" +
+	"\x0fhas_large_media\x18\a \x01(\bR\rhasLargeMedia\x12!\n" +
+	"\fpending_till\x18\b \x01(\x03R\vpendingTill\"}\n" +
 	"\x18EngineBotCallbackRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
@@ -13139,7 +13216,14 @@ const file_proto_engine_proto_rawDesc = "" +
 	" EngineReadMessageContentsRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
-	"\amsg_ids\x18\x02 \x03(\x03R\x06msgIdsB\x11Z\x0funiclient/protob\x06proto3"
+	"\amsg_ids\x18\x02 \x03(\x03R\x06msgIds\"\x9f\x01\n" +
+	"#EngineSetUserNoForwardsFlagsRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x1d\n" +
+	"\n" +
+	"my_enabled\x18\x03 \x01(\bR\tmyEnabled\x12!\n" +
+	"\fpeer_enabled\x18\x04 \x01(\bR\vpeerEnabledB\x11Z\x0funiclient/protob\x06proto3"
 
 var (
 	file_proto_engine_proto_rawDescOnce sync.Once
@@ -13153,7 +13237,7 @@ func file_proto_engine_proto_rawDescGZIP() []byte {
 	return file_proto_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 184)
+var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 185)
 var file_proto_engine_proto_goTypes = []any{
 	(*EngineEvent)(nil),                            // 0: uniclient.EngineEvent
 	(*AccountInfo)(nil),                            // 1: uniclient.AccountInfo
@@ -13339,6 +13423,7 @@ var file_proto_engine_proto_goTypes = []any{
 	(*EngineGetCustomEmojiSetInfoRequest)(nil),     // 181: uniclient.EngineGetCustomEmojiSetInfoRequest
 	(*EngineGetCustomEmojiSetInfoResponse)(nil),    // 182: uniclient.EngineGetCustomEmojiSetInfoResponse
 	(*EngineReadMessageContentsRequest)(nil),       // 183: uniclient.EngineReadMessageContentsRequest
+	(*EngineSetUserNoForwardsFlagsRequest)(nil),    // 184: uniclient.EngineSetUserNoForwardsFlagsRequest
 }
 var file_proto_engine_proto_depIdxs = []int32{
 	1,   // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
@@ -13397,7 +13482,7 @@ func file_proto_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   184,
+			NumMessages:   185,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

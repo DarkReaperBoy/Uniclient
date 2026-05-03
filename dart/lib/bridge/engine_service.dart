@@ -280,6 +280,20 @@ class EngineService {
     await _callAsync('__engine', 'UnblockUser', req.writeToBuffer());
   }
 
+  Future<void> setUserNoForwardsFlags(
+    String accountId,
+    String userId, {
+    bool myEnabled = false,
+    bool peerEnabled = false,
+  }) async {
+    final req = epb.EngineSetUserNoForwardsFlagsRequest()
+      ..accountId = accountId
+      ..userId = userId
+      ..myEnabled = myEnabled
+      ..peerEnabled = peerEnabled;
+    await _callAsync('__engine', 'SetUserNoForwardsFlags', req.writeToBuffer());
+  }
+
   Future<void> banMember(String accountId, String chatId, String userId) async {
     final req = epb.EngineBanMemberRequest()
       ..accountId = accountId
