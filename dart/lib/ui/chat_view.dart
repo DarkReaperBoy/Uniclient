@@ -7285,13 +7285,13 @@ class _UnreadBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+    final bgColor = palette.historyUnreadBarBg;
+    final fgColor = palette.historyUnreadBarFg;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF182433) : const Color(0xFFFCFBFA);
-    final fgColor = isDark ? const Color(0xFFFFFFFF) : const Color(0xFF538BB4);
-    // 1px top/bottom borders — subtle separator lines
     final borderColor = isDark
-        ? const Color(0xFF0E1621) // slightly darker than bg
-        : const Color(0xFFE8E8E8); // light gray
+        ? const Color(0xFF0E1621)
+        : const Color(0xFFE8E8E8);
 
     final label = count == 1 ? '1 unread message' : '$count unread messages';
 
@@ -7333,18 +7333,17 @@ class _ReplyBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final palette = context.palette;
     final msg = messages.where((m) => m.msgId == replyId).firstOrNull;
     final hasThumb = msg != null && msg.mediaThumbB64.isNotEmpty;
 
-    final titleColor = isDark ? const Color(0xFF429BDB) : theme.colorScheme.primary;
-    final descColor = isDark ? const Color(0xFFFFFFFF) : const Color(0xFF000000);
-    final cancelColor = isDark ? const Color(0xFF6C7883) : const Color(0xFFA0ACB6);
+    final titleColor = palette.historyReplyIconFg;
+    final descColor = palette.historyComposeAreaFg;
+    final cancelColor = palette.historyComposeIconFg;
 
     return Container(
       height: 49,
-      color: theme.colorScheme.surface,
+      color: palette.historyReplyBg,
       child: Row(
         children: [
           // Reply icon at point(7,7), 22×22.
@@ -7471,23 +7470,23 @@ class _EditBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final palette = context.palette;
     final msg = messages.where((m) => m.msgId == editingId).firstOrNull;
 
     return Container(
       height: 49,
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
+        color: palette.historyReplyBg,
         border: Border(
-          top: BorderSide(color: theme.dividerColor, width: 1),
+          top: BorderSide(color: palette.shadowFg, width: 1),
         ),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Row(
         children: [
-          Icon(Icons.edit, size: 18, color: theme.colorScheme.primary),
+          Icon(Icons.edit, size: 18, color: palette.historyReplyIconFg),
           const SizedBox(width: 10),
-          Container(width: 2, height: 28, color: theme.colorScheme.primary),
+          Container(width: 2, height: 28, color: palette.historyReplyIconFg),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -7500,14 +7499,14 @@ class _EditBar extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.primary,
+                    color: palette.historyReplyIconFg,
                   ),
                 ),
                 Text(
                   msg?.contentText ?? '',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall,
+                  style: TextStyle(fontSize: 13, color: palette.historyComposeAreaFg),
                 ),
               ],
             ),
@@ -7542,11 +7541,10 @@ class _ForwardBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final titleColor = isDark ? const Color(0xFF429BDB) : theme.colorScheme.primary;
-    final descColor = isDark ? const Color(0xFFFFFFFF) : const Color(0xFF000000);
-    final cancelColor = isDark ? const Color(0xFF6C7883) : const Color(0xFFA0ACB6);
+    final palette = context.palette;
+    final titleColor = palette.historyReplyIconFg;
+    final descColor = palette.historyComposeAreaFg;
+    final cancelColor = palette.historyComposeIconFg;
 
     final firstMsg = messages.where((m) => forwardingMsgIds.contains(m.msgId)).firstOrNull;
     final count = forwardingMsgIds.length;
@@ -7558,7 +7556,7 @@ class _ForwardBar extends StatelessWidget {
 
     return Container(
       height: 49,
-      color: theme.colorScheme.surface,
+      color: palette.historyReplyBg,
       child: Row(
         children: [
           Padding(
@@ -8325,21 +8323,11 @@ class _ContactStatusBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    // Spec: windowActiveTextFg — day #168acd, night #6ab3f3.
-    final windowActiveTextFg = isDark
-        ? const Color(0xFF6ab3f3)
-        : const Color(0xFF168acd);
-    // Spec: attentionButtonFg — red in both themes.
-    const attentionButtonFg = Color(0xFFdf3f40);
-    // Spec: historyComposeAreaBg — flat background matches compose area.
-    final bgColor = isDark
-        ? const Color(0xFF17212b)
-        : const Color(0xFFffffff);
-    // Spec: historyComposeButtonBg — hover background.
-    final hoverColor = isDark
-        ? const Color(0xFF202b36)
-        : const Color(0xFFF1F1F1);
+    final palette = context.palette;
+    final windowActiveTextFg = palette.windowActiveTextFg;
+    final attentionButtonFg = palette.attentionButtonFg;
+    final bgColor = palette.historyComposeAreaBg;
+    final hoverColor = palette.historyComposeButtonBgOver;
 
     if (chat.isBlocked) {
       // Blocked: single "Unblock" button, 46px height, attentionButtonFg red.
@@ -8371,7 +8359,7 @@ class _ContactStatusBar extends StatelessWidget {
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: isDark ? Colors.white70 : Colors.black54,
+              color: palette.windowSubTextFg,
             ),
           ),
         ),
@@ -8967,9 +8955,9 @@ class _FallbackComposeButtonState extends State<_FallbackComposeButton> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF17212b) : const Color(0xFFffffff);
-    final hoverColor = isDark ? const Color(0xFF202b36) : const Color(0xFFF1F1F1);
+    final palette = context.palette;
+    final bgColor = palette.historyComposeButtonBg;
+    final hoverColor = palette.historyComposeButtonBgOver;
     return Container(
       color: _hovered ? hoverColor : bgColor,
       height: widget.height,
@@ -10129,18 +10117,12 @@ class _PinnedBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    // Spec §4.4: historyPinnedBg. Day=#ffffff, night=#1b2734.
-    final pinnedBg = isDark ? const Color(0xFF1b2734) : Colors.white;
-    // Spec §4.4: bottom divider same as top bar shadow.
-    final shadowFg = context.palette.shadowFg;
-    // Spec §4.4: left accent stripe in msgInReplyBarColor.
-    // Day = activeLineFg (~#168acd). Night ≈ #429bdb.
-    final accentColor = isDark ? const Color(0xFF429bdb) : const Color(0xFF168acd);
-    // Spec §4.4: title color = windowActiveTextFg (blue accent).
-    final titleColor = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd);
-    // Spec §4.4: preview text = historyComposeAreaFg.
-    final previewColor = isDark ? const Color(0xFFdcdcdc) : const Color(0xFF000000);
+    final palette = context.palette;
+    final pinnedBg = palette.historyPinnedBg;
+    final shadowFg = palette.shadowFg;
+    final accentColor = palette.msgInReplyBarColor;
+    final titleColor = palette.windowActiveTextFg;
+    final previewColor = palette.historyComposeAreaFg;
 
     return Container(
       height: 49, // historyReplyHeight
@@ -10431,13 +10413,11 @@ class _ScrollToBottomFabState extends State<_ScrollToBottomFab> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    // Spec §49.15 colors.
-    final discBg = isDark ? const Color(0xFF1D2B3A) : const Color(0xFFFFFFFF);
-    final discBgOver = isDark ? const Color(0xFF243446) : const Color(0xFFF1F1F1);
-    final arrowColor = isDark ? const Color(0xFFADB4BA) : const Color(0xFF999999);
-    // Badge: muted palette (dialogsUnreadBgMuted).
-    final badgeBg = isDark ? const Color(0xFF3E546A) : const Color(0xFFBBBBBB);
+    final palette = context.palette;
+    final discBg = palette.historyToDownBg;
+    final discBgOver = palette.historyToDownBgOver;
+    final arrowColor = palette.historyToDownFg;
+    final badgeBg = palette.dialogsUnreadBgMuted;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -13369,7 +13349,7 @@ class _ComposeAreaState extends State<_ComposeArea>
         decoration: BoxDecoration(
           color: composeBg,
           border: Border(
-            top: BorderSide(color: theme.dividerColor, width: 1),
+            top: BorderSide(color: pal.shadowFg, width: 1),
           ),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 9),
@@ -13459,9 +13439,7 @@ class _ComposeAreaState extends State<_ComposeArea>
             state: widget.commentsState,
             iconColor: iconFg,
             hoverColor: iconFgOver,
-            dotColor: isDark
-                ? const Color(0xFF6ab3f3)
-                : const Color(0xFF419fd9),
+            dotColor: pal.historySendIconFg,
             onPressed: () => widget.onCommentsToggle?.call(),
           ),
           if (fieldPrefs.showAttachButton)
@@ -13512,9 +13490,7 @@ class _ComposeAreaState extends State<_ComposeArea>
                           fontWeight: FontWeight.w500,
                           color: _charRemaining < 0
                               ? const Color(0xFFE53935)
-                              : isDark
-                                  ? const Color(0xFF7e8b93)
-                                  : const Color(0xFF999999),
+                              : pal.historyComposeIconFg,
                         ),
                       ),
                     ),
@@ -13527,7 +13503,7 @@ class _ComposeAreaState extends State<_ComposeArea>
             ttlPeriod: widget.ttlPeriod,
             iconColor: iconFg,
             hoverColor: iconFgOver,
-            accentColor: theme.colorScheme.primary,
+            accentColor: pal.historySendIconFg,
             onChanged: widget.onTtlChanged,
           ),
           if (widget.scheduledCount > 0)
@@ -13540,14 +13516,14 @@ class _ComposeAreaState extends State<_ComposeArea>
             _ComposeSlotButton(
               icon: _silentMode ? Icons.notifications_off : Icons.notifications,
               tooltip: _silentMode ? 'Send with Sound' : 'Send without Sound',
-              iconColor: _silentMode ? theme.colorScheme.primary : iconFg,
-              hoverColor: _silentMode ? theme.colorScheme.primary : iconFgOver,
+              iconColor: _silentMode ? pal.historySendIconFg : iconFg,
+              hoverColor: _silentMode ? pal.historySendIconFg : iconFgOver,
               onPressed: () => setState(() => _silentMode = !_silentMode),
             ),
           if (widget.isBot && widget.chatType == ChatType.dm && widget.botMenuText.isNotEmpty)
             _BotMenuButton(
               label: widget.botMenuText,
-              accentColor: theme.colorScheme.primary,
+              accentColor: pal.historySendIconFg,
               onPressed: () {
                 _openBotWebApp(context);
               },
@@ -13583,7 +13559,7 @@ class _ComposeAreaState extends State<_ComposeArea>
             icon: Icons.emoji_emotions_outlined,
             tooltip: 'Emoji',
             iconColor: widget.emojiPanelVisible
-                ? theme.colorScheme.primary
+                ? pal.historySendIconFg
                 : iconFg,
             hoverColor: iconFgOver,
             isEmojiToggle: true,
@@ -13597,7 +13573,7 @@ class _ComposeAreaState extends State<_ComposeArea>
             return _SendButton(
               type: type,
               disabled: disabled,
-              accentColor: theme.colorScheme.primary,
+              accentColor: pal.historySendIconFg,
               iconFg: iconFg,
               onSend: _doSend,
               onSendSilent: widget.onSendSilent,
@@ -13627,7 +13603,7 @@ class _ComposeAreaState extends State<_ComposeArea>
       decoration: BoxDecoration(
         color: composeBg,
         border: Border(
-          top: BorderSide(color: theme.dividerColor, width: 1),
+          top: BorderSide(color: pal.shadowFg, width: 1),
         ),
       ),
       child: Column(
@@ -13637,7 +13613,7 @@ class _ComposeAreaState extends State<_ComposeArea>
             _FormattingToolbar(
               controller: richCtrl,
               iconColor: iconFg,
-              activeColor: theme.colorScheme.primary,
+              activeColor: pal.historySendIconFg,
               isDark: isDark,
             ),
           composeRow,
@@ -14649,8 +14625,7 @@ class _SendButtonState extends State<_SendButton>
 
   Color _colorFor(SendButtonType type) {
     if (widget.disabled) {
-      final isDark = Theme.of(context).brightness == Brightness.dark;
-      return isDark ? const Color(0xFF6f7f8e) : const Color(0xFF999999);
+      return context.palette.historyComposeIconFg;
     }
     final isSendLike = type == SendButtonType.send ||
         type == SendButtonType.save ||
@@ -14663,12 +14638,11 @@ class _SendButtonState extends State<_SendButton>
   Widget _iconWidget(SendButtonType type) {
     final hasFill = type == SendButtonType.send || type == SendButtonType.schedule;
     if (hasFill) {
-      final isDark = Theme.of(context).brightness == Brightness.dark;
       Color fillColor;
       if (widget.disabled) {
-        fillColor = isDark ? const Color(0xFF6f7f8e) : const Color(0xFF999999);
+        fillColor = context.palette.historyComposeIconFg;
       } else if (type == SendButtonType.schedule) {
-        fillColor = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF3fc1f7);
+        fillColor = context.palette.windowActiveTextFg;
       } else {
         fillColor = widget.accentColor;
       }

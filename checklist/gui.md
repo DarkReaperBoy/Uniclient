@@ -1019,7 +1019,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §57 — Appendix B: Dark Theme Color Palette
 # Touches: new theme_colors.dart (applied throughout all widgets)
 
-- [ ] History / chat area colors — compose area tokens (historyComposeAreaBg/Fg/IconFg/IconFgOver); compose button tokens (3 variants); historySendIconFg=windowBgActive; reply/pinned tokens; unread bar tokens; scroll tokens (4 with alpha); scroll-to-bottom button tokens — spec §57.5
 - [ ] Peer / author colors — 8-way peer name palette (historyPeer1–8NameFg); light: red #C03D33, green #4FAD2D, yellow #D09306, blue #168ACD, purple #8544D6, pink #CD4073, sea #2996AD, orange #CE671B; dark: red #FB6169, green #85DE85, yellow #F3BC5C, blue #65BDF3, purple #B48BF2, pink #FF5694, sea #62D4E3, orange #FAA357; 8-way userpic background colors (same both themes) — spec §57.6
 - [ ] Box / modal colors — boxBg/TextFg/TitleFg/SearchBg/TitleAdditionalFg; boxTextFgGood/Error; boxDividerBg fallback to windowBgOver — spec §57.7
 - [ ] Profile / info colors — profileStatusFgOver (base → windowSubTextFg); profileVerifiedCheckBg/Fg; profileAdminStarFg/profileOtherAdminStarFg — spec §57.8
