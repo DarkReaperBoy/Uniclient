@@ -317,6 +317,93 @@ class _AyuGramSettingsScreenState extends State<AyuGramSettingsScreen> {
           Container(height: 1, color: dividerColor),
           const SizedBox(height: 7),
 
+          // ── Stickers & Emoji section (§54.11) ──
+          _SectionLabel(label: 'Stickers & Emoji', color: sectionLabelColor),
+          _ToggleRow(
+            label: 'Show only added emojis/stickers',
+            subtitle: 'Filter picker to only show packs you\'ve added',
+            value: appState.showOnlyAddedEmojisAndStickers,
+            onChanged: (v) => appState.setShowOnlyAddedEmojisAndStickers(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _CollapsibleToggle(
+            label: 'Hide Reactions',
+            isExpanded: !appState.showChannelReactions ||
+                !appState.showGroupReactions ||
+                !appState.showPrivateChatReactions,
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+            children: [
+              _NestedCheckbox(
+                label: 'Hide in channels',
+                value: !appState.showChannelReactions,
+                onChanged: (v) => appState.setShowChannelReactions(!v),
+                isDark: isDark,
+              ),
+              _NestedCheckbox(
+                label: 'Hide in groups',
+                value: !appState.showGroupReactions,
+                onChanged: (v) => appState.setShowGroupReactions(!v),
+                isDark: isDark,
+              ),
+              _NestedCheckbox(
+                label: 'Hide in private chats',
+                value: !appState.showPrivateChatReactions,
+                onChanged: (v) => appState.setShowPrivateChatReactions(!v),
+                isDark: isDark,
+              ),
+            ],
+          ),
+          _SliderRow(
+            label: 'Recent Stickers Count',
+            value: appState.recentStickersCount,
+            min: 0,
+            max: 200,
+            divisions: 200,
+            valueLabel: '${appState.recentStickersCount}',
+            onChanged: (v) => appState.setRecentStickersCount(v.round()),
+            isDark: isDark,
+          ),
+          Container(height: 1, color: dividerColor),
+          const SizedBox(height: 7),
+
+          // ── Channels section (§54.11) ──
+          _SectionLabel(label: 'Channels', color: sectionLabelColor),
+          _DropdownRow(
+            label: 'Channel Bottom Button',
+            value: appState.channelBottomButton,
+            items: const {0: 'Hidden', 1: 'Mute/Unmute', 2: 'Discuss (fallback)'},
+            onChanged: (v) => appState.setChannelBottomButton(v),
+            isDark: isDark,
+          ),
+          _ToggleRow(
+            label: 'Quick Admin Shortcuts',
+            subtitle: 'Enable quick admin action shortcuts',
+            value: appState.quickAdminShortcuts,
+            onChanged: (v) => appState.setQuickAdminShortcuts(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _ToggleRow(
+            label: 'Message Shot',
+            subtitle: 'Share styled message screenshots',
+            value: appState.showMessageShot,
+            onChanged: (v) => appState.setShowMessageShot(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _ToggleRow(
+            label: 'Hide side "Share" button',
+            subtitle: 'Hide the circular forward button on messages',
+            value: appState.hideFastShare,
+            onChanged: (v) => appState.setHideFastShare(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          Container(height: 1, color: dividerColor),
+          const SizedBox(height: 7),
+
           // ── Appearance section ──
           _SectionLabel(label: 'Appearance', color: sectionLabelColor),
           _ToggleRow(
@@ -1907,3 +1994,146 @@ class _AppIconPicker extends StatelessWidget {
   }
 }
 
+class _CollapsibleToggle extends StatefulWidget {
+  final String label;
+  final bool isExpanded;
+  final bool isDark;
+  final bool useMaterial;
+  final List<Widget> children;
+
+  const _CollapsibleToggle({
+    required this.label,
+    required this.isExpanded,
+    required this.isDark,
+    required this.children,
+    this.useMaterial = false,
+  });
+
+  @override
+  State<_CollapsibleToggle> createState() => _CollapsibleToggleState();
+}
+
+class _CollapsibleToggleState extends State<_CollapsibleToggle> {
+  late bool _open;
+
+  @override
+  void initState() {
+    super.initState();
+    _open = widget.isExpanded;
+  }
+
+  @override
+  void didUpdateWidget(_CollapsibleToggle old) {
+    super.didUpdateWidget(old);
+    if (old.isExpanded != widget.isExpanded) {
+      _open = widget.isExpanded;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final anyChecked = widget.isExpanded;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: () => setState(() => _open = !_open),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      Text(widget.label,
+                          style: TextStyle(
+                              fontSize: 14,
+                              color: widget.isDark ? Colors.white : Colors.black87)),
+                      if (anyChecked) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: widget.isDark
+                                ? const Color(0xFF6AB2F2)
+                                : const Color(0xFF3390EC),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Icon(
+                  _open ? Icons.expand_less : Icons.expand_more,
+                  size: 20,
+                  color: widget.isDark
+                      ? const Color(0xFF6AB2F2)
+                      : const Color(0xFF3390EC),
+                ),
+              ],
+            ),
+          ),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOutCubic,
+          child: _open
+              ? Column(children: widget.children)
+              : const SizedBox.shrink(),
+        ),
+      ],
+    );
+  }
+}
+
+class _NestedCheckbox extends StatelessWidget {
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final bool isDark;
+
+  const _NestedCheckbox({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => onChanged(!value),
+      child: Padding(
+        padding: const EdgeInsets.only(left: 44, right: 22, top: 6, bottom: 6),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 22,
+              height: 22,
+              child: Checkbox(
+                value: value,
+                onChanged: (v) => onChanged(v ?? false),
+                activeColor: isDark
+                    ? const Color(0xFF6AB2F2)
+                    : const Color(0xFF3390EC),
+                side: BorderSide(
+                  color: isDark
+                      ? const Color(0xFF5A6A78)
+                      : const Color(0xFFCBCBCB),
+                  width: 2,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(label,
+                style: TextStyle(
+                    fontSize: 13,
+                    color: isDark ? Colors.white : Colors.black87)),
+          ],
+        ),
+      ),
+    );
+  }
+}

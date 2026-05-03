@@ -210,6 +210,17 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   int _showAddFilterInContextMenu = 0;
   bool _showMessageSeconds = false;
 
+  // §54.11: Additional chat settings.
+  bool _showOnlyAddedEmojisAndStickers = false;
+  bool _showChannelReactions = true;
+  bool _showGroupReactions = true;
+  bool _showPrivateChatReactions = true;
+  int _recentStickersCount = 100;
+  int _channelBottomButton = 2; // 0=Hidden, 1=MuteUnmute, 2=DiscussWithFallback
+  bool _quickAdminShortcuts = true;
+  bool _showMessageShot = true;
+  bool _hideFastShare = false;
+
   // §54.9: Message field button toggles (all default true).
   bool _showAttachButton = true;
   bool _showCommandsButton = true;
@@ -424,6 +435,17 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get showAiEditorButton => _showAiEditorButton;
   bool get showAttachPopup => _showAttachPopup;
   bool get showEmojiPopup => _showEmojiPopup;
+
+  // §54.11: Additional chat settings getters.
+  bool get showOnlyAddedEmojisAndStickers => _showOnlyAddedEmojisAndStickers;
+  bool get showChannelReactions => _showChannelReactions;
+  bool get showGroupReactions => _showGroupReactions;
+  bool get showPrivateChatReactions => _showPrivateChatReactions;
+  int get recentStickersCount => _recentStickersCount;
+  int get channelBottomButton => _channelBottomButton;
+  bool get quickAdminShortcuts => _quickAdminShortcuts;
+  bool get showMessageShot => _showMessageShot;
+  bool get hideFastShare => _hideFastShare;
 
   bool get saveDeletedMessages => _saveDeletedMessages;
   bool get saveMessagesHistory => _saveMessagesHistory;
@@ -1052,6 +1074,72 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setShowEmojiPopup(bool v) {
     if (_showEmojiPopup == v) return;
     _showEmojiPopup = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  // §54.11: Additional chat settings setters.
+  void setShowOnlyAddedEmojisAndStickers(bool v) {
+    if (_showOnlyAddedEmojisAndStickers == v) return;
+    _showOnlyAddedEmojisAndStickers = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setShowChannelReactions(bool v) {
+    if (_showChannelReactions == v) return;
+    _showChannelReactions = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setShowGroupReactions(bool v) {
+    if (_showGroupReactions == v) return;
+    _showGroupReactions = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setShowPrivateChatReactions(bool v) {
+    if (_showPrivateChatReactions == v) return;
+    _showPrivateChatReactions = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setRecentStickersCount(int v) {
+    v = v.clamp(0, 200);
+    if (_recentStickersCount == v) return;
+    _recentStickersCount = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setChannelBottomButton(int v) {
+    v = v.clamp(0, 2);
+    if (_channelBottomButton == v) return;
+    _channelBottomButton = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setQuickAdminShortcuts(bool v) {
+    if (_quickAdminShortcuts == v) return;
+    _quickAdminShortcuts = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setShowMessageShot(bool v) {
+    if (_showMessageShot == v) return;
+    _showMessageShot = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setHideFastShare(bool v) {
+    if (_hideFastShare == v) return;
+    _hideFastShare = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -2056,6 +2144,16 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _showAiEditorButton = data['showAiEditorButton'] as bool? ?? true;
       _showAttachPopup = data['showAttachPopup'] as bool? ?? true;
       _showEmojiPopup = data['showEmojiPopup'] as bool? ?? true;
+      // §54.11: Additional chat settings.
+      _showOnlyAddedEmojisAndStickers = data['showOnlyAddedEmojisAndStickers'] as bool? ?? false;
+      _showChannelReactions = data['showChannelReactions'] as bool? ?? true;
+      _showGroupReactions = data['showGroupReactions'] as bool? ?? true;
+      _showPrivateChatReactions = data['showPrivateChatReactions'] as bool? ?? true;
+      _recentStickersCount = data['recentStickersCount'] as int? ?? 100;
+      _channelBottomButton = data['channelBottomButton'] as int? ?? 2;
+      _quickAdminShortcuts = data['quickAdminShortcuts'] as bool? ?? true;
+      _showMessageShot = data['showMessageShot'] as bool? ?? true;
+      _hideFastShare = data['hideFastShare'] as bool? ?? false;
       _saveDeletedMessages = data['saveDeletedMessages'] as bool? ?? true;
       _saveMessagesHistory = data['saveMessagesHistory'] as bool? ?? true;
       _saveForBots = data['saveForBots'] as bool? ?? false;
@@ -2161,6 +2259,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'showAiEditorButton': _showAiEditorButton,
         'showAttachPopup': _showAttachPopup,
         'showEmojiPopup': _showEmojiPopup,
+        'showOnlyAddedEmojisAndStickers': _showOnlyAddedEmojisAndStickers,
+        'showChannelReactions': _showChannelReactions,
+        'showGroupReactions': _showGroupReactions,
+        'showPrivateChatReactions': _showPrivateChatReactions,
+        'recentStickersCount': _recentStickersCount,
+        'channelBottomButton': _channelBottomButton,
+        'quickAdminShortcuts': _quickAdminShortcuts,
+        'showMessageShot': _showMessageShot,
+        'hideFastShare': _hideFastShare,
         'saveDeletedMessages': _saveDeletedMessages,
         'saveMessagesHistory': _saveMessagesHistory,
         'saveForBots': _saveForBots,

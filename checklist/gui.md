@@ -999,7 +999,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §54 — AyuGram UI Customization
 # Touches: dart/lib/ui/settings_screen.dart, dart/lib/ui/chat_list_row.dart, new ayu_settings.dart
 
-- [ ] Additional Chat Settings — Show Only Added Emojis/Stickers; Hide Reactions (collapsible, 3 nested: channels/groups/private); Recent Stickers Count slider (0–200, default 100); Channel Bottom Button (Hidden/MuteUnmute/DiscussWithFallback); Quick Admin Shortcuts (default true); Message Shot (default true); Hide Side Share Button (default false); Replace Marks with Icons (default true) + custom mark sub-settings; Translucent Deleted Messages (beta badge, default false) — spec §54.11
 - [ ] AyuGram settings page structure — hierarchy: Appearance/Chats/General/Filters/Other; AyuSectionBuilder helpers: addSettingToggle/addSlider/addChooseButton/addCollapsibleToggle/addBetaBadge/addSectionDivider — spec §54.12
 - [ ] General Settings (AyuGeneral) — Translation Provider dropdown (Telegram/Google/Yandex/Native + beta badge); Disable Stories; Disable Open Link Warning; Disable Similar Channels (collapsible, 2 checkboxes); Disable Notify Delay; Filter Zalgo (beta, restart, default true); Improve Link Previews; Show Message Seconds; Show Peer ID (Hide/Telegram API/Bot API); Spoof Client as Android; Bigger Window (Height+Width checkboxes); send confirmations for Stickers/GIFs/Voice — spec §54.14
 - [ ] Peer ID Display — Telegram API: always positive bare ID; Bot API: positive for users, −bare for groups, −(bare+1T) for channels; display reactively in profile info — spec §54.14b
