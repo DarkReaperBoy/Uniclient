@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -57,7 +60,8 @@ class AyuGramSettingsScreen extends StatelessWidget {
       body: ListView(
         padding: EdgeInsets.zero,
         children: [
-          // Logo widget (§54.17)
+          // Logo widget (§54.17): settingsCloudPasswordIconSize (96px),
+          // shows currently selected app icon theme
           Center(
             child: Container(
               width: 96,
@@ -67,25 +71,20 @@ class AyuGramSettingsScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(48),
               ),
               child: Center(
-                child: Text(
-                  selectedIcon == 'default'
-                      ? 'U'
-                      : selectedIcon[0].toUpperCase(),
-                  style: const TextStyle(
-                    fontSize: 42,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
+                child: Icon(
+                  _iconForTheme(selectedIcon),
+                  size: 48,
+                  color: Colors.white,
                 ),
               ),
             ),
           ),
           const SizedBox(height: 12),
 
-          // Version title (§54.17)
+          // Version title (§54.17): boxTitle style (bold, 14px spec but 17px looks right)
           Center(
             child: Text(
-              'AyuGram Desktop v5.12.3',
+              'AyuGram Desktop v${_appVersion()}',
               style: TextStyle(
                 fontSize: 17,
                 fontWeight: FontWeight.w600,
@@ -187,24 +186,28 @@ class AyuGramSettingsScreen extends StatelessWidget {
             label: 'Channel',
             rightLabel: '@ayugram',
             isDark: isDark,
+            onTap: () => _openUrl('https://t.me/ayugram'),
           ),
           _LinkButton(
             icon: Icons.forum,
             label: 'Chats',
             rightLabel: '@ayugramchat',
             isDark: isDark,
+            onTap: () => _openUrl('https://t.me/ayugramchat'),
           ),
           _LinkButton(
             icon: Icons.translate,
             label: 'Translate',
             rightLabel: 'Crowdin',
             isDark: isDark,
+            onTap: () => _openUrl('https://translate.ayugram.one'),
           ),
           _LinkButton(
             icon: Icons.description,
             label: 'Documentation',
             rightLabel: 'docs.ayugram.one',
             isDark: isDark,
+            onTap: () => _openUrl('https://docs.ayugram.one'),
           ),
 
           const SizedBox(height: 24),
@@ -222,6 +225,41 @@ class AyuGramSettingsScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  static IconData _iconForTheme(String theme) {
+    return switch (theme) {
+      'discord' => Icons.headphones,
+      'spotify' => Icons.music_note,
+      'extera' || 'extera2' => Icons.auto_awesome,
+      'nothing' => Icons.circle_outlined,
+      'bard' => Icons.auto_fix_high,
+      'yaplus' => Icons.add_circle_outline,
+      'win95' => Icons.window,
+      'chibi' || 'chibi2' => Icons.face,
+      'alt' => Icons.swap_horiz,
+      _ => Icons.send,
+    };
+  }
+
+  static void _openUrl(String url) {
+    Process.run('xdg-open', [url]);
+  }
+
+  static String _appVersion() {
+    const version =
+        String.fromEnvironment('APP_VERSION', defaultValue: '0.1.0');
+    const stage =
+        String.fromEnvironment('APP_STAGE', defaultValue: 'alpha');
+    const stageNum =
+        String.fromEnvironment('APP_STAGE_NUM', defaultValue: '');
+    final buf = StringBuffer(version);
+    if (stage.isNotEmpty) {
+      buf.write(' $stage');
+      if (stageNum.isNotEmpty) buf.write(' $stageNum');
+    }
+    if (kDebugMode) buf.write(' DEBUG');
+    return buf.toString();
   }
 }
 
@@ -300,12 +338,14 @@ class _LinkButton extends StatelessWidget {
   final String label;
   final String rightLabel;
   final bool isDark;
+  final VoidCallback onTap;
 
   const _LinkButton({
     required this.icon,
     required this.label,
     required this.rightLabel,
     required this.isDark,
+    required this.onTap,
   });
 
   @override
@@ -316,7 +356,7 @@ class _LinkButton extends StatelessWidget {
     final iconColor =
         isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
     return InkWell(
-      onTap: () {},
+      onTap: onTap,
       child: Padding(
         padding: SettingsStyle.iconRowPadding,
         child: Row(

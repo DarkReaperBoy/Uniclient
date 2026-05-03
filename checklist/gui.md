@@ -999,8 +999,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §54 — AyuGram UI Customization
 # Touches: dart/lib/ui/settings_screen.dart, dart/lib/ui/chat_list_row.dart, new ayu_settings.dart
 
-- [ ] AyuMain landing page — app logo widget (configurable icon from 12 themes); "AyuGram Desktop v{version}" boxTitle; tagline centeredBoxLabel; 6 category navigation buttons (AyuGram/Filters/General/Appearance/Chats/Other) with icons + right-arrow chevrons; 4 link buttons (Channel/Chats/Translate/Documentation) — spec §54.17
-
 ---
 
 ## §55 — Channel & Group Statistics
