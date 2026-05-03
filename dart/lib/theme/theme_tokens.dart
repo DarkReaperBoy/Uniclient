@@ -134,4 +134,44 @@ abstract final class TgTokens {
   static const double menuIconSize = 20;
   static const double radialSize = 44;
   static const double radialLine = 3;
+
+  // §56.10 — palette quick-reference (22 most-referenced tokens)
+  // All 22 tokens are defined in TelegramPalette with light/dark values
+  // across 4 themes (dayBlue, night, classicDay, nightGreen).
+  // See TelegramPalette fields: windowBg, windowBgActive, windowFg,
+  // windowSubTextFg, windowBgOver, windowBoldFg, windowActiveTextFg,
+  // boxBg, boxTextFg, boxTextFgError, boxDividerBg, layerBg,
+  // msgServiceBg, msgServiceFg, msgInBg, msgOutBg, activeButtonBg,
+  // activeButtonFg, menuIconFg, lightButtonFg, lightButtonFgOver,
+  // attentionButtonFg.
+
+  // §56.11 — derived / compound values
+  static const double infoProfilePhotoSize = 88;
+  static const double settingsProfileCoverHeight = 112; // settingsPhotoTop(8) + photo(88) + settingsPhotoBottom(16)
+  static const double defaultVerticalListSkipDouble = 12; // defaultVerticalListSkip * 2
+  static const Duration defaultRadioDuration = Duration(milliseconds: 100);
+  static const Duration defaultRadioDurationDouble = Duration(milliseconds: 200);
+
+  // §56.12 — false-positive st:: identifiers (NOT style tokens)
+  // These appear in spec pseudocode but are C++ types/flags, not style tokens:
+  // st::All, st::One, st::Box, st::Error, st::Id, st::Widget,
+  // st::check, st::canAddCaption, st::hasGroupOption
+
+  // §56.13 — coverage notes
+  // ~90 tokens resolved with literal values (§56.1–56.9 above + TelegramPalette).
+  // ~25 tokens unresolved (theme_editor.style, intro.style, platform-specific):
+  static const List<String> unresolvedTokens = [
+    'themeEditorMargin', 'themeEditorSampleSize', 'themeEditorDescriptionSkip',
+    'themeEditorNameFont', 'themeEditorNameFg',
+    'passcodeHeaderFont', 'passcodeHeaderHeight',
+    'passcodeSubmitFont', 'passcodePadding',
+    'passcodeLetterFont', 'passcodeDigitFont',
+    'biometricPromptTitle', 'biometricPromptDescription',
+    'introStepFont', 'introStepSize', 'introTitleFont',
+    'localStorageRowHeight', 'localStorageRowPadding',
+    'localStorageLimitSlider', 'localStorageClearFont',
+    'composeFilesPreviewHeight', 'composeFilesPreviewPadding',
+    'composeAutocompleteMaxHeight', 'composeSlowmodeLabel',
+    'platformTitleFont',
+  ];
 }

@@ -38,6 +38,7 @@ class TelegramPalette {
   final Color lightButtonBgOver;
   final Color lightButtonBgRipple;
   final Color lightButtonFg;
+  final Color lightButtonFgOver;
   final Color attentionButtonFg;
   final Color attentionButtonBgOver;
   final Color attentionButtonBgRipple;
@@ -212,6 +213,7 @@ class TelegramPalette {
   final Color boxTitleAdditionalFg;
   final Color boxTextFgGood;
   final Color boxTextFgError;
+  final Color boxDividerBg;
 
   // ── §57.8 Profile / Info ──
   final Color profileStatusFgOver;
@@ -294,6 +296,7 @@ class TelegramPalette {
     required this.lightButtonBgOver,
     required this.lightButtonBgRipple,
     required this.lightButtonFg,
+    required this.lightButtonFgOver,
     required this.attentionButtonFg,
     required this.attentionButtonBgOver,
     required this.attentionButtonBgRipple,
@@ -446,6 +449,7 @@ class TelegramPalette {
     required this.boxTitleAdditionalFg,
     required this.boxTextFgGood,
     required this.boxTextFgError,
+    required this.boxDividerBg,
     required this.profileStatusFgOver,
     required this.profileVerifiedCheckBg,
     required this.profileVerifiedCheckFg,
@@ -612,6 +616,7 @@ class TelegramPalette {
       lightButtonBgOver: s(lightButtonBgOver),
       lightButtonBgRipple: s(lightButtonBgRipple),
       lightButtonFg: s(lightButtonFg),
+      lightButtonFgOver: s(lightButtonFgOver),
       attentionButtonFg: s(attentionButtonFg),
       attentionButtonBgOver: s(attentionButtonBgOver),
       attentionButtonBgRipple: s(attentionButtonBgRipple),
@@ -767,6 +772,7 @@ class TelegramPalette {
       // §25.4.3 Exclusion: good/error text
       boxTextFgGood: boxTextFgGood,
       boxTextFgError: boxTextFgError,
+      boxDividerBg: s(boxDividerBg),
       profileStatusFgOver: s(profileStatusFgOver),
       profileVerifiedCheckBg: s(profileVerifiedCheckBg),
       profileVerifiedCheckFg: s(profileVerifiedCheckFg),
@@ -849,6 +855,7 @@ class TelegramPalette {
       activeLineFg: this.activeLineFg, activeLineFgError: this.activeLineFgError,
       lightButtonBg: this.lightButtonBg, lightButtonBgOver: this.lightButtonBgOver,
       lightButtonBgRipple: this.lightButtonBgRipple, lightButtonFg: this.lightButtonFg,
+      lightButtonFgOver: this.lightButtonFgOver,
       attentionButtonFg: this.attentionButtonFg, attentionButtonBgOver: this.attentionButtonBgOver,
       attentionButtonBgRipple: this.attentionButtonBgRipple,
       outlineButtonOutlineFg: this.outlineButtonOutlineFg,
@@ -953,6 +960,7 @@ class TelegramPalette {
       boxBg: this.boxBg, boxTextFg: this.boxTextFg, boxTitleFg: this.boxTitleFg,
       boxSearchBg: this.boxSearchBg, boxTitleAdditionalFg: this.boxTitleAdditionalFg,
       boxTextFgGood: this.boxTextFgGood, boxTextFgError: this.boxTextFgError,
+      boxDividerBg: this.boxDividerBg,
       profileStatusFgOver: this.profileStatusFgOver,
       profileVerifiedCheckBg: this.profileVerifiedCheckBg,
       profileVerifiedCheckFg: this.profileVerifiedCheckFg,
@@ -1010,6 +1018,7 @@ class TelegramPalette {
       activeLineFg: activeLineFg, activeLineFgError: activeLineFgError,
       lightButtonBg: lightButtonBg, lightButtonBgOver: lightButtonBgOver,
       lightButtonBgRipple: lightButtonBgRipple, lightButtonFg: lightButtonFg,
+      lightButtonFgOver: lightButtonFgOver,
       attentionButtonFg: attentionButtonFg, attentionButtonBgOver: attentionButtonBgOver,
       attentionButtonBgRipple: attentionButtonBgRipple,
       outlineButtonOutlineFg: outlineButtonOutlineFg,
@@ -1105,6 +1114,7 @@ class TelegramPalette {
       boxBg: boxBg, boxTextFg: boxTextFg, boxTitleFg: boxTitleFg,
       boxSearchBg: boxSearchBg, boxTitleAdditionalFg: boxTitleAdditionalFg,
       boxTextFgGood: boxTextFgGood, boxTextFgError: boxTextFgError,
+      boxDividerBg: boxDividerBg,
       profileStatusFgOver: profileStatusFgOver,
       profileVerifiedCheckBg: profileVerifiedCheckBg,
       profileVerifiedCheckFg: profileVerifiedCheckFg,
@@ -1171,6 +1181,7 @@ class TelegramPalette {
     lightButtonBgOver: Color(0xFFE3F1FA),
     lightButtonBgRipple: Color(0xFFC9E4F6),
     lightButtonFg: Color(0xFF168ACD),
+    lightButtonFgOver: Color(0xFF12659A),
     attentionButtonFg: Color(0xFFD14E4E),
     attentionButtonBgOver: Color(0xFFFCDFDE),
     attentionButtonBgRipple: Color(0xFFF4C3C2),
@@ -1345,6 +1356,7 @@ class TelegramPalette {
     boxTitleAdditionalFg: Color(0xFF808080),
     boxTextFgGood: Color(0xFF4AB44A),
     boxTextFgError: Color(0xFFD84D4D),
+    boxDividerBg: Color(0xFFF1F1F1),
 
     // Profile
     profileStatusFgOver: Color(0xFF7C99B2),
@@ -1433,6 +1445,7 @@ class TelegramPalette {
     lightButtonBgOver: Color(0xFF1D2A39),
     lightButtonBgRipple: Color(0xFF223143),
     lightButtonFg: Color(0xFF6AB2F2),
+    lightButtonFgOver: Color(0xFF7EC4F4),
     attentionButtonFg: Color(0xFFEC3942),
     attentionButtonBgOver: Color(0x64592A2A),
     attentionButtonBgRipple: Color(0x64683232),
@@ -1607,6 +1620,7 @@ class TelegramPalette {
     boxTitleAdditionalFg: Color(0xFF6D7F8F),
     boxTextFgGood: Color(0xFF5598DB),
     boxTextFgError: Color(0xFFDC3D3D),
+    boxDividerBg: Color(0xFF1B2633),
 
     // Profile
     profileStatusFgOver: Color(0xFF677A8B),
@@ -1692,6 +1706,7 @@ class TelegramPalette {
     lightButtonBgOver: Color(0xFFE3F1FA),
     lightButtonBgRipple: Color(0xFFC9E4F6),
     lightButtonFg: Color(0xFF168ACD),
+    lightButtonFgOver: Color(0xFF12659A),
     attentionButtonFg: Color(0xFFD14E4E),
     attentionButtonBgOver: Color(0xFFFCDFDE),
     attentionButtonBgRipple: Color(0xFFF4C3C2),
@@ -1845,6 +1860,7 @@ class TelegramPalette {
     boxTitleAdditionalFg: Color(0xFF808080),
     boxTextFgGood: Color(0xFF4AB44A),
     boxTextFgError: Color(0xFFD84D4D),
+    boxDividerBg: Color(0xFFF1F1F1),
     profileStatusFgOver: Color(0xFF7C99B2),
     profileVerifiedCheckBg: Color(0xFF40A7E3),
     profileVerifiedCheckFg: Color(0xFFFFFFFF),
@@ -1916,6 +1932,7 @@ class TelegramPalette {
     lightButtonBgOver: Color(0xFF2E3439),
     lightButtonBgRipple: Color(0xFF353B40),
     lightButtonFg: Color(0xFF4BE1C3),
+    lightButtonFgOver: Color(0xFF56E7CA),
     attentionButtonFg: Color(0xFFEC3942),
     attentionButtonBgOver: Color(0x64592A2A),
     attentionButtonBgRipple: Color(0x64683232),
@@ -2068,6 +2085,7 @@ class TelegramPalette {
     boxTitleAdditionalFg: Color(0xFF7B8086),
     boxTextFgGood: Color(0xFF3FC1B0),
     boxTextFgError: Color(0xFFDC3D3D),
+    boxDividerBg: Color(0xFF222629),
     profileStatusFgOver: Color(0xFF7B8086),
     profileVerifiedCheckBg: Color(0xFF3FC1B0),
     profileVerifiedCheckFg: Color(0xFFFFFFFF),

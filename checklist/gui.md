@@ -1012,7 +1012,7 @@ Status key: `[ ]` not started · `[x]` done
 ## §56 — Appendix A: Resolved Style Constants
 # Touches: new theme_tokens.dart (or dart/lib/ui/theme.dart), applied throughout all widgets
 
-- [ ] Palette + coverage — all 20+ most-referenced tokens (windowBg, windowFg, windowBgActive, etc.) with light/dark values; derived compound resolution; filter false-positive tokens (st::All, st::Error, etc.); track ~25 unresolved tokens — spec §56.10–56.13
+
 
 ---
 
