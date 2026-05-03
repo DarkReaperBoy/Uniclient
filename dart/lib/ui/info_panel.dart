@@ -2157,42 +2157,66 @@ class _ChatDetailsState extends State<_ChatDetails> {
     showTelegramToast(context, '$label copied to clipboard');
   }
 
+  String? _formatPeerId(int mode) {
+    final raw = int.tryParse(widget.chat.chatId);
+    if (raw == null) return null;
+    if (mode == 2) return widget.chat.chatId;
+    // Telegram API: always positive bare ID
+    if (raw > 0) return raw.toString();
+    if (raw > -1000000000000) return (-raw).toString();
+    return (-raw - 1000000000000).toString();
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDm = widget.chat.type == ChatType.dm;
     final profile = _profile;
+    final appState = context.watch<AppState>();
+    final showPeerId = appState.showPeerId;
+    final peerIdStr = showPeerId != 0 ? _formatPeerId(showPeerId) : null;
+    final peerIdLabel = showPeerId == 1 ? 'ID (Telegram API)' : 'ID (Bot API)';
+
+    final children = <Widget>[];
 
     if (isDm && profile != null) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (profile.phone.isNotEmpty)
-            _TextWithLabel(
-              value: '+${profile.phone}',
-              label: 'Phone',
-              theme: widget.theme,
-              onTap: () => _copy('+${profile.phone}', 'Phone'),
-            ),
-          if (profile.username.isNotEmpty)
-            _TextWithLabel(
-              value: '@${profile.username}',
-              label: 'Username',
-              theme: widget.theme,
-              onTap: () => _copy('@${profile.username}', 'Username'),
-            ),
-          if (profile.bio.isNotEmpty)
-            _TextWithLabel(
-              value: profile.bio,
-              label: 'Bio',
-              theme: widget.theme,
-              onTap: () => _copy(profile.bio, 'Bio'),
-              selectable: true,
-            ),
-        ],
-      );
+      if (profile.phone.isNotEmpty)
+        children.add(_TextWithLabel(
+          value: '+${profile.phone}',
+          label: 'Phone',
+          theme: widget.theme,
+          onTap: () => _copy('+${profile.phone}', 'Phone'),
+        ));
+      if (profile.username.isNotEmpty)
+        children.add(_TextWithLabel(
+          value: '@${profile.username}',
+          label: 'Username',
+          theme: widget.theme,
+          onTap: () => _copy('@${profile.username}', 'Username'),
+        ));
+      if (profile.bio.isNotEmpty)
+        children.add(_TextWithLabel(
+          value: profile.bio,
+          label: 'Bio',
+          theme: widget.theme,
+          onTap: () => _copy(profile.bio, 'Bio'),
+          selectable: true,
+        ));
     }
 
-    return const SizedBox.shrink();
+    if (peerIdStr != null)
+      children.add(_TextWithLabel(
+        value: peerIdStr,
+        label: peerIdLabel,
+        theme: widget.theme,
+        onTap: () => _copy(peerIdStr, 'ID'),
+      ));
+
+    if (children.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: children,
+    );
   }
 }
 

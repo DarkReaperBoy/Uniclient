@@ -999,7 +999,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §54 — AyuGram UI Customization
 # Touches: dart/lib/ui/settings_screen.dart, dart/lib/ui/chat_list_row.dart, new ayu_settings.dart
 
-- [ ] Peer ID Display — Telegram API: always positive bare ID; Bot API: positive for users, −bare for groups, −(bare+1T) for channels; display reactively in profile info — spec §54.14b
 - [ ] Other Settings (AyuOther) — donation buttons with SVG icons (Boosty/TON/Bitcoin/Ethereum/Solana/Tron); DonateQrBox with wallet QR; icon backgrounds (#EEE night / #242B2C light, size/4 radius); Crash Reporting toggle (auto-update only, default true); Register URL Scheme → "Done" toast; Reset Settings → confirmation dialog — spec §54.15
 - [ ] Filters Settings (AyuFilters) — top-bar menu (Select Chat/Import/Export/Clear All); Enable Regex Filters master toggle; Enable Shared in Chats; Hide from Blocked; Shared Filters nav button; Shadow Ban nav button; per-dialog filters peer list — spec §54.16
 - [ ] Filter Engine — ICU/PCRE-compatible regex, MULTILINE always-on; match blob (text+URL+button labels+type tag); reversed flag; caseInsensitive flag; per-dialog rules before shared; own messages never filtered; filtersEnabledInChats gate; hide filtered as isEmpty (zero-height); skip in selection/notifications/media tabs/reply previews/reactions/who-viewed/typing — spec §54.16 Filter Engine
