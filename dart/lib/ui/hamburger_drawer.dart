@@ -559,7 +559,7 @@ class _ProfileCover extends StatelessWidget {
                 clipBehavior: Clip.none,
                 children: [
                   Builder(builder: (ctx) {
-                    final aR = 24.0 * (ctx.watch<AppState>().avatarCornerRadius / 50.0);
+                    final aR = 24.0 * (ctx.watch<AppState>().avatarCorners / 23.0);
                     return Container(
                       width: 48,
                       height: 48,
@@ -1086,7 +1086,7 @@ class _AccountRow extends StatelessWidget {
                   decoration: isActive
                       ? BoxDecoration(
                           borderRadius: BorderRadius.circular(
-                            18.0 * (context.watch<AppState>().avatarCornerRadius / 50.0)),
+                            18.0 * (context.watch<AppState>().avatarCorners / 23.0)),
                           border: Border.all(
                             color: theme.brightness == Brightness.dark
                                 ? const Color(0xFF5288C1)
@@ -1099,7 +1099,7 @@ class _AccountRow extends StatelessWidget {
                       ? const EdgeInsets.all(2)
                       : EdgeInsets.zero,
                   child: Builder(builder: (ctx) {
-                    final aR = 13.0 * (context.watch<AppState>().avatarCornerRadius / 50.0);
+                    final aR = 13.0 * (context.watch<AppState>().avatarCorners / 23.0);
                     return Container(
                       width: 26,
                       height: 26,

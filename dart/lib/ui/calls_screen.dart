@@ -544,9 +544,9 @@ class _GroupCallRowState extends State<_GroupCallRow> {
     final colorIndex = chat.chatId.hashCode.abs() % 7;
     final avatarColor = _avatarColors[colorIndex];
     final initials = _getInitials(chat.title);
-    final avatarCorner = context.watch<AppState>().avatarCornerRadius;
+    final avatarCorner = context.watch<AppState>().avatarCorners;
     const avatarSize = 42.0;
-    final avatarRadius = avatarSize / 2 * (avatarCorner / 50.0);
+    final avatarRadius = avatarSize / 2 * (avatarCorner / 23.0);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -1548,9 +1548,9 @@ class _ConfInviteRowState extends State<_ConfInviteRow> {
     final initials = _getInitials(c.displayName);
     final statusText = _lastSeenLabel(c);
     final statusColor = c.isOnline ? widget.accentColor : widget.subtextColor;
-    final avatarCorner = context.watch<AppState>().avatarCornerRadius;
+    final avatarCorner = context.watch<AppState>().avatarCorners;
     const avatarSize = 40.0;
-    final avatarRadius = avatarSize / 2 * (avatarCorner / 50.0);
+    final avatarRadius = avatarSize / 2 * (avatarCorner / 23.0);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -1839,9 +1839,9 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
     final colorIndex = group.peerId.hashCode.abs() % 7;
     final avatarColor = _avatarColors[colorIndex];
     final initials = _getInitials(group.peerName);
-    final avatarCorner = context.watch<AppState>().avatarCornerRadius;
+    final avatarCorner = context.watch<AppState>().avatarCorners;
     const avatarSize = 42.0;
-    final avatarRadius = avatarSize / 2 * (avatarCorner / 50.0);
+    final avatarRadius = avatarSize / 2 * (avatarCorner / 23.0);
 
     final redialIcon = group.isVideo ? Icons.videocam : Icons.call;
 

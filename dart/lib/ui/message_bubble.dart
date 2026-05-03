@@ -917,8 +917,8 @@ class _MessageBubbleState extends State<MessageBubble> {
     final onSenderContextMenu = widget.onSenderContextMenu;
 
     // §25.15.4: dynamic avatar corner radius.
-    final avatarCorner = context.watch<AppState>().avatarCornerRadius;
-    final avatarR = (avatarSize / 2) * (avatarCorner / 50.0);
+    final avatarCorner = context.watch<AppState>().avatarCorners;
+    final avatarR = (avatarSize / 2) * (avatarCorner / 23.0);
 
     final fallback = Container(
       width: avatarSize,

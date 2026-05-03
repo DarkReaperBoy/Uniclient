@@ -163,7 +163,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   int _bubbleRadius = 16; // 0-16, default matches _radiusLarge
   bool _removeTail = false;
   bool _materialSwitches = false;
-  int _avatarCornerRadius = 50; // 0-50, 50=circle (default)
+  int _avatarCorners = 23; // 0-23 (kMaxAvatarCorners), 23=circle (default)
+  bool _singleCornerRadius = false;
   bool _disableCustomBackgrounds = false;
   bool _simpleQuotes = false;
   bool _semiTransparentDeleted = false;
@@ -304,7 +305,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   int get bubbleRadius => _bubbleRadius;
   bool get removeTail => _removeTail;
   bool get materialSwitches => _materialSwitches;
-  int get avatarCornerRadius => _avatarCornerRadius;
+  int get avatarCorners => _avatarCorners;
+  bool get singleCornerRadius => _singleCornerRadius;
   bool get disableCustomBackgrounds => _disableCustomBackgrounds;
   bool get simpleQuotes => _simpleQuotes;
   bool get semiTransparentDeleted => _semiTransparentDeleted;
@@ -390,10 +392,17 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _saveWindowPrefs();
   }
 
-  void setAvatarCornerRadius(int v) {
-    v = v.clamp(0, 50);
-    if (_avatarCornerRadius == v) return;
-    _avatarCornerRadius = v;
+  void setAvatarCorners(int v) {
+    v = v.clamp(0, 23);
+    if (_avatarCorners == v) return;
+    _avatarCorners = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setSingleCornerRadius(bool v) {
+    if (_singleCornerRadius == v) return;
+    _singleCornerRadius = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -1713,7 +1722,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _bubbleRadius = (data['bubbleRadius'] as int?) ?? 16;
       _removeTail = data['removeTail'] as bool? ?? false;
       _materialSwitches = data['materialSwitches'] as bool? ?? false;
-      _avatarCornerRadius = (data['avatarCornerRadius'] as int?) ?? 50;
+      final oldAvatarRadius = data['avatarCornerRadius'] as int?;
+      _avatarCorners = (data['avatarCorners'] as int?) ??
+          (oldAvatarRadius != null ? (oldAvatarRadius * 23 / 50).round().clamp(0, 23) : 23);
+      _singleCornerRadius = data['singleCornerRadius'] as bool? ?? false;
       _disableCustomBackgrounds = data['disableCustomBackgrounds'] as bool? ?? false;
       _simpleQuotes = data['simpleQuotes'] as bool? ?? false;
       _semiTransparentDeleted = data['semiTransparentDeleted'] as bool? ?? false;
@@ -1817,7 +1829,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'bubbleRadius': _bubbleRadius,
         'removeTail': _removeTail,
         'materialSwitches': _materialSwitches,
-        'avatarCornerRadius': _avatarCornerRadius,
+        'avatarCorners': _avatarCorners,
+        'singleCornerRadius': _singleCornerRadius,
         'disableCustomBackgrounds': _disableCustomBackgrounds,
         'simpleQuotes': _simpleQuotes,
         'semiTransparentDeleted': _semiTransparentDeleted,

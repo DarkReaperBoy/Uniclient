@@ -1028,8 +1028,8 @@ class _ChatAvatar extends StatelessWidget {
     final photoSize = _hasStories ? storyPhotoSize : size;
 
     // §25.15.4: dynamic avatar corner radius from AyuGram prefs.
-    final avatarCorner = context.watch<AppState>().avatarCornerRadius;
-    final avatarRadius = photoSize / 2 * (avatarCorner / 50.0);
+    final avatarCorner = context.watch<AppState>().avatarCorners;
+    final avatarRadius = photoSize / 2 * (avatarCorner / 23.0);
 
     final Widget avatar;
     if (_isSavedMessages) {

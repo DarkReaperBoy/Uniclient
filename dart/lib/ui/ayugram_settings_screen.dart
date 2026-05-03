@@ -203,23 +203,13 @@ class _AyuGramSettingsScreenState extends State<AyuGramSettingsScreen> {
             isDark: isDark,
             useMaterial: appState.materialSwitches,
           ),
-          _SliderRow(
-            label: 'Avatar corner radius',
-            value: appState.avatarCornerRadius,
-            min: 0,
-            max: 50,
-            divisions: 50,
-            valueLabel: appState.avatarCornerRadius == 50
-                ? 'Circle'
-                : appState.avatarCornerRadius == 0
-                    ? 'Square'
-                    : '${appState.avatarCornerRadius}',
-            onChanged: (v) => appState.setAvatarCornerRadius(v.round()),
+          _AvatarCornersSection(
+            corners: appState.avatarCorners,
+            singleCornerRadius: appState.singleCornerRadius,
+            onCornersChanged: (v) => appState.setAvatarCorners(v),
+            onSingleCornerRadiusChanged: (v) => appState.setSingleCornerRadius(v),
             isDark: isDark,
-          ),
-          _AvatarPreview(
-            cornerRadius: appState.avatarCornerRadius,
-            isDark: isDark,
+            useMaterial: appState.materialSwitches,
           ),
           _ToggleRow(
             label: 'Disable custom backgrounds',
@@ -570,41 +560,162 @@ class _BubblePreview extends StatelessWidget {
   }
 }
 
-class _AvatarPreview extends StatelessWidget {
-  final int cornerRadius;
+class _AvatarCornersSection extends StatelessWidget {
+  final int corners;
+  final bool singleCornerRadius;
+  final ValueChanged<int> onCornersChanged;
+  final ValueChanged<bool> onSingleCornerRadiusChanged;
   final bool isDark;
+  final bool useMaterial;
 
-  const _AvatarPreview({required this.cornerRadius, required this.isDark});
+  const _AvatarCornersSection({
+    required this.corners,
+    required this.singleCornerRadius,
+    required this.onCornersChanged,
+    required this.onSingleCornerRadiusChanged,
+    required this.isDark,
+    required this.useMaterial,
+  });
+
+  static const _kMax = 23;
+
+  String get _badgeText {
+    if (corners == 0) return 'SQUARE';
+    if (corners >= _kMax) return 'CIRCLE';
+    return '$corners';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final fraction = cornerRadius / 50.0;
-    final actualRadius = 23.0 * fraction; // 46px diameter → 23px max radius = circle
+    final accentColor = isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subtitleColor = isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 8, 22, 4),
+          child: Row(
+            children: [
+              Text('Avatar Corners',
+                  style: TextStyle(fontSize: 14, color: textColor)),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(_badgeText,
+                    style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white)),
+              ),
+            ],
+          ),
+        ),
+        _AvatarCornersPreview(corners: corners, isDark: isDark),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 22),
+          child: SliderTheme(
+            data: SliderThemeData(
+              activeTrackColor: accentColor,
+              inactiveTrackColor: isDark
+                  ? const Color(0xFF2B3C4C)
+                  : const Color(0xFFD5D5D5),
+              thumbColor: accentColor,
+              overlayColor: const Color(0x2940A7E3),
+              trackHeight: 3,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7.5),
+            ),
+            child: Slider(
+              value: corners.toDouble(),
+              min: 0,
+              max: _kMax.toDouble(),
+              divisions: _kMax,
+              onChanged: (v) => onCornersChanged(v.round()),
+            ),
+          ),
+        ),
+        _ToggleRow(
+          label: 'Single corner radius',
+          subtitle: 'Forums will have the same avatar shape as chats',
+          value: singleCornerRadius,
+          onChanged: onSingleCornerRadiusChanged,
+          isDark: isDark,
+          useMaterial: useMaterial,
+        ),
+      ],
+    );
+  }
+}
+
+class _AvatarCornersPreview extends StatelessWidget {
+  final int corners;
+  final bool isDark;
+
+  const _AvatarCornersPreview({required this.corners, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    const photoSize = 46.0;
+    final avatarRadius = photoSize / 2 * (corners / 23.0);
+    final bgColor = isDark ? const Color(0xFF182533) : const Color(0xFFF1F1F1);
+    final nameColor = isDark ? Colors.white : Colors.black87;
+    final previewColor = isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
+    const rowHeight = 62.0;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          for (final color in [
-            const Color(0xFF5E97F6),
-            const Color(0xFFEB4D3D),
-            const Color(0xFF8BC34A),
-          ]) ...[
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 4),
+      child: Container(
+        height: rowHeight,
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Row(
+          children: [
             Container(
-              width: 46,
-              height: 46,
+              width: photoSize,
+              height: photoSize,
               decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(actualRadius),
+                color: const Color(0xFF8544D6),
+                borderRadius: BorderRadius.circular(avatarRadius),
               ),
-              child: const Center(
-                child: Icon(Icons.person, color: Colors.white, size: 24),
+              child: Center(
+                child: Text('A',
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white.withValues(alpha: 0.9))),
               ),
             ),
             const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text('AyuGram Releases',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: nameColor),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 4),
+                  Text('Preview of avatar corners',
+                      style: TextStyle(fontSize: 13, color: previewColor),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                ],
+              ),
+            ),
           ],
-        ],
+        ),
       ),
     );
   }
