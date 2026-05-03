@@ -2875,6 +2875,12 @@ class EngineService {
     int? maxCacheSize,
     bool? sendReadReceipts,
     bool? sendTyping,
+    bool? sendReadStories,
+    bool? sendOnlinePackets,
+    bool? sendOfflineAfterOnline,
+    bool? markReadAfterAction,
+    bool? useScheduledMessages,
+    bool? sendWithoutSound,
     bool? notifyDms,
     bool? notifyGroups,
     bool? notifyMentionsOnly,
@@ -2893,6 +2899,30 @@ class EngineService {
     if (sendTyping != null) {
       req.sendTyping = sendTyping;
       req.hasSendTyping_9 = true;
+    }
+    if (sendReadStories != null) {
+      req.sendReadStories = sendReadStories;
+      req.hasSendReadStories_17 = true;
+    }
+    if (sendOnlinePackets != null) {
+      req.sendOnlinePackets = sendOnlinePackets;
+      req.hasSendOnlinePackets_19 = true;
+    }
+    if (sendOfflineAfterOnline != null) {
+      req.sendOfflineAfterOnline = sendOfflineAfterOnline;
+      req.hasSendOfflineAfterOnline_21 = true;
+    }
+    if (markReadAfterAction != null) {
+      req.markReadAfterAction = markReadAfterAction;
+      req.hasMarkReadAfterAction_23 = true;
+    }
+    if (useScheduledMessages != null) {
+      req.useScheduledMessages = useScheduledMessages;
+      req.hasUseScheduledMessages_25 = true;
+    }
+    if (sendWithoutSound != null) {
+      req.sendWithoutSound = sendWithoutSound;
+      req.hasSendWithoutSound_27 = true;
     }
     if (notifyDms != null) {
       req.notifyDms = notifyDms;

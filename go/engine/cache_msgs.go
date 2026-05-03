@@ -1303,7 +1303,12 @@ func (e *Engine) VotePoll(accountID, chatID, msgID string, optionIndex int) erro
 	if !ok {
 		return fmt.Errorf("platform does not support poll voting")
 	}
-	return voter.VotePoll(chatID, msgID, optionIndex)
+	err := voter.VotePoll(chatID, msgID, optionIndex)
+	if err != nil {
+		return err
+	}
+	e.ghostAutoRead(accountID, chatID, msgID)
+	return nil
 }
 
 func (e *Engine) RetractPollVote(accountID, chatID, msgID string) error {

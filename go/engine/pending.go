@@ -399,6 +399,7 @@ func (e *Engine) ReactToMessage(accountID, chatID, msgID, emoji string) error {
 		defer e.wg.Done()
 		e.processPendingItem(accountID, chatID, localID, ActionReact, payload)
 	}()
+	e.ghostAutoRead(accountID, chatID, msgID)
 	return nil
 }
 

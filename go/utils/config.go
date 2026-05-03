@@ -32,9 +32,15 @@ type AppConfig struct {
 	DNSOverrides map[string]string `json:"dns_overrides"`
 	DNSFallback  bool              `json:"dns_fallback"`
 
-	// Privacy
-	SendReadReceipts bool `json:"send_read_receipts"`
-	SendTyping       bool `json:"send_typing"`
+	// Privacy / Ghost Mode
+	SendReadReceipts       bool `json:"send_read_receipts"`
+	SendTyping             bool `json:"send_typing"`
+	SendReadStories        bool `json:"send_read_stories"`
+	SendOnlinePackets      bool `json:"send_online_packets"`
+	SendOfflineAfterOnline bool `json:"send_offline_after_online"`
+	MarkReadAfterAction    bool `json:"mark_read_after_action"`
+	UseScheduledMessages   bool `json:"use_scheduled_messages"`
+	SendWithoutSound       bool `json:"send_without_sound"`
 
 	// Notifications
 	NotifyDMs          bool `json:"notify_dms"`
@@ -54,8 +60,10 @@ func DefaultConfig() AppConfig {
 		ProxyConfig:      ProxyConfig{Type: "none", Host: "127.0.0.1", Port: "1080"},
 		DNSOverrides:     make(map[string]string),
 		DNSFallback:      true,
-		SendReadReceipts: true,
-		SendTyping:       true,
+		SendReadReceipts:  true,
+		SendTyping:        true,
+		SendReadStories:   true,
+		SendOnlinePackets: true,
 		NotifyDMs:        true,
 		NotifyGroups:     true,
 	}

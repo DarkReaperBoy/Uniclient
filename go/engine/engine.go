@@ -255,11 +255,17 @@ type ConfigChanges struct {
 	Language     string
 	MaxCacheSize int64
 	// Use pointers for booleans so zero-value (false) is distinguishable from "not set".
-	SendReadReceipts   *bool
-	SendTyping         *bool
-	NotifyDMs          *bool
-	NotifyGroups       *bool
-	NotifyMentionsOnly *bool
+	SendReadReceipts       *bool
+	SendTyping             *bool
+	SendReadStories        *bool
+	SendOnlinePackets      *bool
+	SendOfflineAfterOnline *bool
+	MarkReadAfterAction    *bool
+	UseScheduledMessages   *bool
+	SendWithoutSound       *bool
+	NotifyDMs              *bool
+	NotifyGroups           *bool
+	NotifyMentionsOnly     *bool
 }
 
 // UpdateConfigFromBridge applies partial config changes from the bridge layer.
@@ -288,6 +294,24 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	}
 	if changes.SendTyping != nil {
 		e.config.SendTyping = *changes.SendTyping
+	}
+	if changes.SendReadStories != nil {
+		e.config.SendReadStories = *changes.SendReadStories
+	}
+	if changes.SendOnlinePackets != nil {
+		e.config.SendOnlinePackets = *changes.SendOnlinePackets
+	}
+	if changes.SendOfflineAfterOnline != nil {
+		e.config.SendOfflineAfterOnline = *changes.SendOfflineAfterOnline
+	}
+	if changes.MarkReadAfterAction != nil {
+		e.config.MarkReadAfterAction = *changes.MarkReadAfterAction
+	}
+	if changes.UseScheduledMessages != nil {
+		e.config.UseScheduledMessages = *changes.UseScheduledMessages
+	}
+	if changes.SendWithoutSound != nil {
+		e.config.SendWithoutSound = *changes.SendWithoutSound
 	}
 	if changes.NotifyDMs != nil {
 		e.config.NotifyDMs = *changes.NotifyDMs

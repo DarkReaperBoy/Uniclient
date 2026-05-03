@@ -1113,17 +1113,23 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 	case "GetConfig":
 		cfg := e.GetConfig()
 		resp := &pb.EngineGetConfigResponse{
-			Theme:              cfg.Theme,
-			AccentColor:        cfg.AccentColor,
-			FontScale:          cfg.FontScale,
-			Language:           cfg.Language,
-			DownloadDir:        cfg.DownloadDir,
-			MaxCacheSize:       cfg.MaxCacheSize,
-			SendReadReceipts:   cfg.SendReadReceipts,
-			SendTyping:         cfg.SendTyping,
-			NotifyDms:          cfg.NotifyDMs,
-			NotifyGroups:       cfg.NotifyGroups,
-			NotifyMentionsOnly: cfg.NotifyMentionsOnly,
+			Theme:                  cfg.Theme,
+			AccentColor:            cfg.AccentColor,
+			FontScale:              cfg.FontScale,
+			Language:               cfg.Language,
+			DownloadDir:            cfg.DownloadDir,
+			MaxCacheSize:           cfg.MaxCacheSize,
+			SendReadReceipts:       cfg.SendReadReceipts,
+			SendTyping:             cfg.SendTyping,
+			NotifyDms:              cfg.NotifyDMs,
+			NotifyGroups:           cfg.NotifyGroups,
+			NotifyMentionsOnly:     cfg.NotifyMentionsOnly,
+			SendReadStories:        cfg.SendReadStories,
+			SendOnlinePackets:      cfg.SendOnlinePackets,
+			SendOfflineAfterOnline: cfg.SendOfflineAfterOnline,
+			MarkReadAfterAction:    cfg.MarkReadAfterAction,
+			UseScheduledMessages:   cfg.UseScheduledMessages,
+			SendWithoutSound:       cfg.SendWithoutSound,
 		}
 		return proto.Marshal(resp)
 
@@ -1146,6 +1152,30 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if req.HasSendTyping {
 			v := req.SendTyping
 			changes.SendTyping = &v
+		}
+		if req.HasSendReadStories {
+			v := req.SendReadStories
+			changes.SendReadStories = &v
+		}
+		if req.HasSendOnlinePackets {
+			v := req.SendOnlinePackets
+			changes.SendOnlinePackets = &v
+		}
+		if req.HasSendOfflineAfterOnline {
+			v := req.SendOfflineAfterOnline
+			changes.SendOfflineAfterOnline = &v
+		}
+		if req.HasMarkReadAfterAction {
+			v := req.MarkReadAfterAction
+			changes.MarkReadAfterAction = &v
+		}
+		if req.HasUseScheduledMessages {
+			v := req.UseScheduledMessages
+			changes.UseScheduledMessages = &v
+		}
+		if req.HasSendWithoutSound {
+			v := req.SendWithoutSound
+			changes.SendWithoutSound = &v
 		}
 		if req.HasNotifyDms {
 			v := req.NotifyDms

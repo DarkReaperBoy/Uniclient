@@ -544,6 +544,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final s = _ensureGhostSettings();
     if (s.sendReadStories == v) return;
     s.sendReadStories = v;
+    _engine.updateConfig(sendReadStories: v);
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -552,6 +553,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final s = _ensureGhostSettings();
     if (s.sendOnlinePackets == v) return;
     s.sendOnlinePackets = v;
+    _engine.updateConfig(sendOnlinePackets: v);
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -569,6 +571,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final s = _ensureGhostSettings();
     if (s.sendOfflinePacketAfterOnline == v) return;
     s.sendOfflinePacketAfterOnline = v;
+    _engine.updateConfig(sendOfflineAfterOnline: v);
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -578,6 +581,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (s.markReadAfterAction == v) return;
     s.markReadAfterAction = v;
     if (v) s.useScheduledMessages = false;
+    _engine.updateConfig(
+      markReadAfterAction: v,
+      useScheduledMessages: v ? false : null,
+    );
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -587,6 +594,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (s.useScheduledMessages == v) return;
     s.useScheduledMessages = v;
     if (v) s.markReadAfterAction = false;
+    _engine.updateConfig(
+      useScheduledMessages: v,
+      markReadAfterAction: v ? false : null,
+    );
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -595,6 +606,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final s = _ensureGhostSettings();
     if (s.sendWithoutSound == v) return;
     s.sendWithoutSound = v;
+    _engine.updateConfig(sendWithoutSound: v);
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -689,7 +701,16 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   void _syncGhostToEngine() {
     final s = _ghostSettings;
-    _engine.updateConfig(sendReadReceipts: s.sendReadMessages, sendTyping: s.sendUploadProgress);
+    _engine.updateConfig(
+      sendReadReceipts: s.sendReadMessages,
+      sendTyping: s.sendUploadProgress,
+      sendReadStories: s.sendReadStories,
+      sendOnlinePackets: s.sendOnlinePackets,
+      sendOfflineAfterOnline: s.sendOfflinePacketAfterOnline,
+      markReadAfterAction: s.markReadAfterAction,
+      useScheduledMessages: s.useScheduledMessages,
+      sendWithoutSound: s.sendWithoutSound,
+    );
   }
 
   void _autoMigrateGhostToGlobal() {

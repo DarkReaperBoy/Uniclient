@@ -2994,6 +2994,8 @@ type EngineSendMessageRequest struct {
 	WebPageUrl      string                 `protobuf:"bytes,9,opt,name=web_page_url,json=webPageUrl,proto3" json:"web_page_url,omitempty"`
 	ForceLargeMedia bool                   `protobuf:"varint,10,opt,name=force_large_media,json=forceLargeMedia,proto3" json:"force_large_media,omitempty"`
 	ForceSmallMedia bool                   `protobuf:"varint,11,opt,name=force_small_media,json=forceSmallMedia,proto3" json:"force_small_media,omitempty"`
+	InvertMedia     bool                   `protobuf:"varint,12,opt,name=invert_media,json=invertMedia,proto3" json:"invert_media,omitempty"`
+	WebPageOptional bool                   `protobuf:"varint,13,opt,name=web_page_optional,json=webPageOptional,proto3" json:"web_page_optional,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -3101,6 +3103,20 @@ func (x *EngineSendMessageRequest) GetForceLargeMedia() bool {
 func (x *EngineSendMessageRequest) GetForceSmallMedia() bool {
 	if x != nil {
 		return x.ForceSmallMedia
+	}
+	return false
+}
+
+func (x *EngineSendMessageRequest) GetInvertMedia() bool {
+	if x != nil {
+		return x.InvertMedia
+	}
+	return false
+}
+
+func (x *EngineSendMessageRequest) GetWebPageOptional() bool {
+	if x != nil {
+		return x.WebPageOptional
 	}
 	return false
 }
@@ -5178,20 +5194,26 @@ func (x *EngineGetSharedMediaCountsResponse) GetCounts() []*EngineSharedMediaCou
 }
 
 type EngineGetConfigResponse struct {
-	state              protoimpl.MessageState `protogen:"open.v1"`
-	Theme              string                 `protobuf:"bytes,1,opt,name=theme,proto3" json:"theme,omitempty"`
-	AccentColor        string                 `protobuf:"bytes,2,opt,name=accent_color,json=accentColor,proto3" json:"accent_color,omitempty"`
-	FontScale          float64                `protobuf:"fixed64,3,opt,name=font_scale,json=fontScale,proto3" json:"font_scale,omitempty"`
-	Language           string                 `protobuf:"bytes,4,opt,name=language,proto3" json:"language,omitempty"`
-	DownloadDir        string                 `protobuf:"bytes,5,opt,name=download_dir,json=downloadDir,proto3" json:"download_dir,omitempty"`
-	MaxCacheSize       int64                  `protobuf:"varint,6,opt,name=max_cache_size,json=maxCacheSize,proto3" json:"max_cache_size,omitempty"`
-	SendReadReceipts   bool                   `protobuf:"varint,7,opt,name=send_read_receipts,json=sendReadReceipts,proto3" json:"send_read_receipts,omitempty"`
-	SendTyping         bool                   `protobuf:"varint,8,opt,name=send_typing,json=sendTyping,proto3" json:"send_typing,omitempty"`
-	NotifyDms          bool                   `protobuf:"varint,9,opt,name=notify_dms,json=notifyDms,proto3" json:"notify_dms,omitempty"`
-	NotifyGroups       bool                   `protobuf:"varint,10,opt,name=notify_groups,json=notifyGroups,proto3" json:"notify_groups,omitempty"`
-	NotifyMentionsOnly bool                   `protobuf:"varint,11,opt,name=notify_mentions_only,json=notifyMentionsOnly,proto3" json:"notify_mentions_only,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	Theme                  string                 `protobuf:"bytes,1,opt,name=theme,proto3" json:"theme,omitempty"`
+	AccentColor            string                 `protobuf:"bytes,2,opt,name=accent_color,json=accentColor,proto3" json:"accent_color,omitempty"`
+	FontScale              float64                `protobuf:"fixed64,3,opt,name=font_scale,json=fontScale,proto3" json:"font_scale,omitempty"`
+	Language               string                 `protobuf:"bytes,4,opt,name=language,proto3" json:"language,omitempty"`
+	DownloadDir            string                 `protobuf:"bytes,5,opt,name=download_dir,json=downloadDir,proto3" json:"download_dir,omitempty"`
+	MaxCacheSize           int64                  `protobuf:"varint,6,opt,name=max_cache_size,json=maxCacheSize,proto3" json:"max_cache_size,omitempty"`
+	SendReadReceipts       bool                   `protobuf:"varint,7,opt,name=send_read_receipts,json=sendReadReceipts,proto3" json:"send_read_receipts,omitempty"`
+	SendTyping             bool                   `protobuf:"varint,8,opt,name=send_typing,json=sendTyping,proto3" json:"send_typing,omitempty"`
+	NotifyDms              bool                   `protobuf:"varint,9,opt,name=notify_dms,json=notifyDms,proto3" json:"notify_dms,omitempty"`
+	NotifyGroups           bool                   `protobuf:"varint,10,opt,name=notify_groups,json=notifyGroups,proto3" json:"notify_groups,omitempty"`
+	NotifyMentionsOnly     bool                   `protobuf:"varint,11,opt,name=notify_mentions_only,json=notifyMentionsOnly,proto3" json:"notify_mentions_only,omitempty"`
+	SendReadStories        bool                   `protobuf:"varint,12,opt,name=send_read_stories,json=sendReadStories,proto3" json:"send_read_stories,omitempty"`
+	SendOnlinePackets      bool                   `protobuf:"varint,13,opt,name=send_online_packets,json=sendOnlinePackets,proto3" json:"send_online_packets,omitempty"`
+	SendOfflineAfterOnline bool                   `protobuf:"varint,14,opt,name=send_offline_after_online,json=sendOfflineAfterOnline,proto3" json:"send_offline_after_online,omitempty"`
+	MarkReadAfterAction    bool                   `protobuf:"varint,15,opt,name=mark_read_after_action,json=markReadAfterAction,proto3" json:"mark_read_after_action,omitempty"`
+	UseScheduledMessages   bool                   `protobuf:"varint,16,opt,name=use_scheduled_messages,json=useScheduledMessages,proto3" json:"use_scheduled_messages,omitempty"`
+	SendWithoutSound       bool                   `protobuf:"varint,17,opt,name=send_without_sound,json=sendWithoutSound,proto3" json:"send_without_sound,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *EngineGetConfigResponse) Reset() {
@@ -5301,6 +5323,48 @@ func (x *EngineGetConfigResponse) GetNotifyMentionsOnly() bool {
 	return false
 }
 
+func (x *EngineGetConfigResponse) GetSendReadStories() bool {
+	if x != nil {
+		return x.SendReadStories
+	}
+	return false
+}
+
+func (x *EngineGetConfigResponse) GetSendOnlinePackets() bool {
+	if x != nil {
+		return x.SendOnlinePackets
+	}
+	return false
+}
+
+func (x *EngineGetConfigResponse) GetSendOfflineAfterOnline() bool {
+	if x != nil {
+		return x.SendOfflineAfterOnline
+	}
+	return false
+}
+
+func (x *EngineGetConfigResponse) GetMarkReadAfterAction() bool {
+	if x != nil {
+		return x.MarkReadAfterAction
+	}
+	return false
+}
+
+func (x *EngineGetConfigResponse) GetUseScheduledMessages() bool {
+	if x != nil {
+		return x.UseScheduledMessages
+	}
+	return false
+}
+
+func (x *EngineGetConfigResponse) GetSendWithoutSound() bool {
+	if x != nil {
+		return x.SendWithoutSound
+	}
+	return false
+}
+
 type EngineUpdateConfigRequest struct {
 	state        protoimpl.MessageState `protogen:"open.v1"`
 	Theme        string                 `protobuf:"bytes,1,opt,name=theme,proto3" json:"theme,omitempty"`
@@ -5314,14 +5378,26 @@ type EngineUpdateConfigRequest struct {
 	SendTyping          bool `protobuf:"varint,8,opt,name=send_typing,json=sendTyping,proto3" json:"send_typing,omitempty"`
 	HasSendTyping       bool `protobuf:"varint,9,opt,name=has_send_typing,json=hasSendTyping,proto3" json:"has_send_typing,omitempty"`
 	// Notifications
-	NotifyDms             bool `protobuf:"varint,10,opt,name=notify_dms,json=notifyDms,proto3" json:"notify_dms,omitempty"`
-	HasNotifyDms          bool `protobuf:"varint,11,opt,name=has_notify_dms,json=hasNotifyDms,proto3" json:"has_notify_dms,omitempty"`
-	NotifyGroups          bool `protobuf:"varint,12,opt,name=notify_groups,json=notifyGroups,proto3" json:"notify_groups,omitempty"`
-	HasNotifyGroups       bool `protobuf:"varint,13,opt,name=has_notify_groups,json=hasNotifyGroups,proto3" json:"has_notify_groups,omitempty"`
-	NotifyMentionsOnly    bool `protobuf:"varint,14,opt,name=notify_mentions_only,json=notifyMentionsOnly,proto3" json:"notify_mentions_only,omitempty"`
-	HasNotifyMentionsOnly bool `protobuf:"varint,15,opt,name=has_notify_mentions_only,json=hasNotifyMentionsOnly,proto3" json:"has_notify_mentions_only,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	NotifyDms                 bool `protobuf:"varint,10,opt,name=notify_dms,json=notifyDms,proto3" json:"notify_dms,omitempty"`
+	HasNotifyDms              bool `protobuf:"varint,11,opt,name=has_notify_dms,json=hasNotifyDms,proto3" json:"has_notify_dms,omitempty"`
+	NotifyGroups              bool `protobuf:"varint,12,opt,name=notify_groups,json=notifyGroups,proto3" json:"notify_groups,omitempty"`
+	HasNotifyGroups           bool `protobuf:"varint,13,opt,name=has_notify_groups,json=hasNotifyGroups,proto3" json:"has_notify_groups,omitempty"`
+	NotifyMentionsOnly        bool `protobuf:"varint,14,opt,name=notify_mentions_only,json=notifyMentionsOnly,proto3" json:"notify_mentions_only,omitempty"`
+	HasNotifyMentionsOnly     bool `protobuf:"varint,15,opt,name=has_notify_mentions_only,json=hasNotifyMentionsOnly,proto3" json:"has_notify_mentions_only,omitempty"`
+	SendReadStories           bool `protobuf:"varint,16,opt,name=send_read_stories,json=sendReadStories,proto3" json:"send_read_stories,omitempty"`
+	HasSendReadStories        bool `protobuf:"varint,17,opt,name=has_send_read_stories,json=hasSendReadStories,proto3" json:"has_send_read_stories,omitempty"`
+	SendOnlinePackets         bool `protobuf:"varint,18,opt,name=send_online_packets,json=sendOnlinePackets,proto3" json:"send_online_packets,omitempty"`
+	HasSendOnlinePackets      bool `protobuf:"varint,19,opt,name=has_send_online_packets,json=hasSendOnlinePackets,proto3" json:"has_send_online_packets,omitempty"`
+	SendOfflineAfterOnline    bool `protobuf:"varint,20,opt,name=send_offline_after_online,json=sendOfflineAfterOnline,proto3" json:"send_offline_after_online,omitempty"`
+	HasSendOfflineAfterOnline bool `protobuf:"varint,21,opt,name=has_send_offline_after_online,json=hasSendOfflineAfterOnline,proto3" json:"has_send_offline_after_online,omitempty"`
+	MarkReadAfterAction       bool `protobuf:"varint,22,opt,name=mark_read_after_action,json=markReadAfterAction,proto3" json:"mark_read_after_action,omitempty"`
+	HasMarkReadAfterAction    bool `protobuf:"varint,23,opt,name=has_mark_read_after_action,json=hasMarkReadAfterAction,proto3" json:"has_mark_read_after_action,omitempty"`
+	UseScheduledMessages      bool `protobuf:"varint,24,opt,name=use_scheduled_messages,json=useScheduledMessages,proto3" json:"use_scheduled_messages,omitempty"`
+	HasUseScheduledMessages   bool `protobuf:"varint,25,opt,name=has_use_scheduled_messages,json=hasUseScheduledMessages,proto3" json:"has_use_scheduled_messages,omitempty"`
+	SendWithoutSound          bool `protobuf:"varint,26,opt,name=send_without_sound,json=sendWithoutSound,proto3" json:"send_without_sound,omitempty"`
+	HasSendWithoutSound       bool `protobuf:"varint,27,opt,name=has_send_without_sound,json=hasSendWithoutSound,proto3" json:"has_send_without_sound,omitempty"`
+	unknownFields             protoimpl.UnknownFields
+	sizeCache                 protoimpl.SizeCache
 }
 
 func (x *EngineUpdateConfigRequest) Reset() {
@@ -5455,6 +5531,90 @@ func (x *EngineUpdateConfigRequest) GetNotifyMentionsOnly() bool {
 func (x *EngineUpdateConfigRequest) GetHasNotifyMentionsOnly() bool {
 	if x != nil {
 		return x.HasNotifyMentionsOnly
+	}
+	return false
+}
+
+func (x *EngineUpdateConfigRequest) GetSendReadStories() bool {
+	if x != nil {
+		return x.SendReadStories
+	}
+	return false
+}
+
+func (x *EngineUpdateConfigRequest) GetHasSendReadStories() bool {
+	if x != nil {
+		return x.HasSendReadStories
+	}
+	return false
+}
+
+func (x *EngineUpdateConfigRequest) GetSendOnlinePackets() bool {
+	if x != nil {
+		return x.SendOnlinePackets
+	}
+	return false
+}
+
+func (x *EngineUpdateConfigRequest) GetHasSendOnlinePackets() bool {
+	if x != nil {
+		return x.HasSendOnlinePackets
+	}
+	return false
+}
+
+func (x *EngineUpdateConfigRequest) GetSendOfflineAfterOnline() bool {
+	if x != nil {
+		return x.SendOfflineAfterOnline
+	}
+	return false
+}
+
+func (x *EngineUpdateConfigRequest) GetHasSendOfflineAfterOnline() bool {
+	if x != nil {
+		return x.HasSendOfflineAfterOnline
+	}
+	return false
+}
+
+func (x *EngineUpdateConfigRequest) GetMarkReadAfterAction() bool {
+	if x != nil {
+		return x.MarkReadAfterAction
+	}
+	return false
+}
+
+func (x *EngineUpdateConfigRequest) GetHasMarkReadAfterAction() bool {
+	if x != nil {
+		return x.HasMarkReadAfterAction
+	}
+	return false
+}
+
+func (x *EngineUpdateConfigRequest) GetUseScheduledMessages() bool {
+	if x != nil {
+		return x.UseScheduledMessages
+	}
+	return false
+}
+
+func (x *EngineUpdateConfigRequest) GetHasUseScheduledMessages() bool {
+	if x != nil {
+		return x.HasUseScheduledMessages
+	}
+	return false
+}
+
+func (x *EngineUpdateConfigRequest) GetSendWithoutSound() bool {
+	if x != nil {
+		return x.SendWithoutSound
+	}
+	return false
+}
+
+func (x *EngineUpdateConfigRequest) GetHasSendWithoutSound() bool {
+	if x != nil {
+		return x.HasSendWithoutSound
 	}
 	return false
 }
@@ -11785,7 +11945,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x05state\x18\x01 \x01(\v2\x1a.uniclient.EngineAuthStateR\x05state\"8\n" +
 	"\x17EngineCancelAuthRequest\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x01 \x01(\tR\taccountId\"\x94\a\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\"\xdd\b\n" +
 	"\x0eEngineChatInfo\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
@@ -11821,7 +11981,13 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\n" +
 	"ttl_period\x18\x19 \x01(\x05R\tttlPeriod\x12&\n" +
 	"\x0femoji_status_id\x18\x1a \x01(\tR\remojiStatusId\x12\x19\n" +
-	"\bis_forum\x18\x1b \x01(\bR\aisForum\"\x83\x01\n" +
+	"\bis_forum\x18\x1b \x01(\bR\aisForum\x124\n" +
+	"\x16write_restriction_type\x18\x1c \x01(\x05R\x14writeRestrictionType\x124\n" +
+	"\x16write_restriction_text\x18\x1d \x01(\tR\x14writeRestrictionText\x12\x1d\n" +
+	"\n" +
+	"not_joined\x18\x1e \x01(\bR\tnotJoined\x12!\n" +
+	"\fjoin_request\x18\x1f \x01(\bR\vjoinRequest\x12\x19\n" +
+	"\bcan_post\x18  \x01(\bR\acanPost\"\x83\x01\n" +
 	"\x18EngineGetChatListRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x1a\n" +
@@ -11977,7 +12143,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\tbefore_ms\x18\x03 \x01(\x03R\bbeforeMs\x12\x14\n" +
 	"\x05limit\x18\x04 \x01(\x05R\x05limit\"W\n" +
 	"\x19EngineGetMessagesResponse\x12:\n" +
-	"\bmessages\x18\x01 \x03(\v2\x1e.uniclient.EngineCachedMessageR\bmessages\"\x8c\x02\n" +
+	"\bmessages\x18\x01 \x03(\v2\x1e.uniclient.EngineCachedMessageR\bmessages\"\xd5\x03\n" +
 	"\x18EngineSendMessageRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
@@ -11987,7 +12153,14 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x06silent\x18\x05 \x01(\bR\x06silent\x12#\n" +
 	"\rschedule_date\x18\x06 \x01(\x03R\fscheduleDate\x12\"\n" +
 	"\rtopic_root_id\x18\a \x01(\tR\vtopicRootId\x12#\n" +
-	"\rentities_json\x18\b \x01(\tR\fentitiesJson\"6\n" +
+	"\rentities_json\x18\b \x01(\tR\fentitiesJson\x12 \n" +
+	"\fweb_page_url\x18\t \x01(\tR\n" +
+	"webPageUrl\x12*\n" +
+	"\x11force_large_media\x18\n" +
+	" \x01(\bR\x0fforceLargeMedia\x12*\n" +
+	"\x11force_small_media\x18\v \x01(\bR\x0fforceSmallMedia\x12!\n" +
+	"\finvert_media\x18\f \x01(\bR\vinvertMedia\x12*\n" +
+	"\x11web_page_optional\x18\r \x01(\bR\x0fwebPageOptional\"6\n" +
 	"\x19EngineSendMessageResponse\x12\x19\n" +
 	"\blocal_id\x18\x01 \x01(\tR\alocalId\"\x84\x01\n" +
 	"\x18EngineEditMessageRequest\x12\x1d\n" +
@@ -12160,7 +12333,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"media_type\x18\x01 \x01(\tR\tmediaType\x12\x14\n" +
 	"\x05count\x18\x02 \x01(\x05R\x05count\"_\n" +
 	"\"EngineGetSharedMediaCountsResponse\x129\n" +
-	"\x06counts\x18\x01 \x03(\v2!.uniclient.EngineSharedMediaCountR\x06counts\"\x9b\x03\n" +
+	"\x06counts\x18\x01 \x03(\v2!.uniclient.EngineSharedMediaCountR\x06counts\"\xcb\x05\n" +
 	"\x17EngineGetConfigResponse\x12\x14\n" +
 	"\x05theme\x18\x01 \x01(\tR\x05theme\x12!\n" +
 	"\faccent_color\x18\x02 \x01(\tR\vaccentColor\x12\x1d\n" +
@@ -12176,7 +12349,13 @@ const file_proto_engine_proto_rawDesc = "" +
 	"notify_dms\x18\t \x01(\bR\tnotifyDms\x12#\n" +
 	"\rnotify_groups\x18\n" +
 	" \x01(\bR\fnotifyGroups\x120\n" +
-	"\x14notify_mentions_only\x18\v \x01(\bR\x12notifyMentionsOnly\"\xe2\x04\n" +
+	"\x14notify_mentions_only\x18\v \x01(\bR\x12notifyMentionsOnly\x12*\n" +
+	"\x11send_read_stories\x18\f \x01(\bR\x0fsendReadStories\x12.\n" +
+	"\x13send_online_packets\x18\r \x01(\bR\x11sendOnlinePackets\x129\n" +
+	"\x19send_offline_after_online\x18\x0e \x01(\bR\x16sendOfflineAfterOnline\x123\n" +
+	"\x16mark_read_after_action\x18\x0f \x01(\bR\x13markReadAfterAction\x124\n" +
+	"\x16use_scheduled_messages\x18\x10 \x01(\bR\x14useScheduledMessages\x12,\n" +
+	"\x12send_without_sound\x18\x11 \x01(\bR\x10sendWithoutSound\"\xec\t\n" +
 	"\x19EngineUpdateConfigRequest\x12\x14\n" +
 	"\x05theme\x18\x01 \x01(\tR\x05theme\x12!\n" +
 	"\faccent_color\x18\x02 \x01(\tR\vaccentColor\x12\x1d\n" +
@@ -12196,7 +12375,19 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\rnotify_groups\x18\f \x01(\bR\fnotifyGroups\x12*\n" +
 	"\x11has_notify_groups\x18\r \x01(\bR\x0fhasNotifyGroups\x120\n" +
 	"\x14notify_mentions_only\x18\x0e \x01(\bR\x12notifyMentionsOnly\x127\n" +
-	"\x18has_notify_mentions_only\x18\x0f \x01(\bR\x15hasNotifyMentionsOnly\"\xbf\x03\n" +
+	"\x18has_notify_mentions_only\x18\x0f \x01(\bR\x15hasNotifyMentionsOnly\x12*\n" +
+	"\x11send_read_stories\x18\x10 \x01(\bR\x0fsendReadStories\x121\n" +
+	"\x15has_send_read_stories\x18\x11 \x01(\bR\x12hasSendReadStories\x12.\n" +
+	"\x13send_online_packets\x18\x12 \x01(\bR\x11sendOnlinePackets\x125\n" +
+	"\x17has_send_online_packets\x18\x13 \x01(\bR\x14hasSendOnlinePackets\x129\n" +
+	"\x19send_offline_after_online\x18\x14 \x01(\bR\x16sendOfflineAfterOnline\x12@\n" +
+	"\x1dhas_send_offline_after_online\x18\x15 \x01(\bR\x19hasSendOfflineAfterOnline\x123\n" +
+	"\x16mark_read_after_action\x18\x16 \x01(\bR\x13markReadAfterAction\x12:\n" +
+	"\x1ahas_mark_read_after_action\x18\x17 \x01(\bR\x16hasMarkReadAfterAction\x124\n" +
+	"\x16use_scheduled_messages\x18\x18 \x01(\bR\x14useScheduledMessages\x12;\n" +
+	"\x1ahas_use_scheduled_messages\x18\x19 \x01(\bR\x17hasUseScheduledMessages\x12,\n" +
+	"\x12send_without_sound\x18\x1a \x01(\bR\x10sendWithoutSound\x123\n" +
+	"\x16has_send_without_sound\x18\x1b \x01(\bR\x13hasSendWithoutSound\"\xbf\x03\n" +
 	"\x10EngineFolderInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x19\n" +
@@ -12379,13 +12570,15 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x1eEngineGetWebPagePreviewRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x10\n" +
-	"\x03url\x18\x02 \x01(\tR\x03url\"\xa5\x01\n" +
+	"\x03url\x18\x02 \x01(\tR\x03url\"\xe1\x01\n" +
 	"\x1fEngineGetWebPagePreviewResponse\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\x12\x1b\n" +
 	"\tsite_name\x18\x02 \x01(\tR\bsiteName\x12\x14\n" +
 	"\x05title\x18\x03 \x01(\tR\x05title\x12 \n" +
 	"\vdescription\x18\x04 \x01(\tR\vdescription\x12\x1b\n" +
-	"\tthumb_b64\x18\x05 \x01(\tR\bthumbB64\"}\n" +
+	"\tthumb_b64\x18\x05 \x01(\tR\bthumbB64\x12\x12\n" +
+	"\x04type\x18\x06 \x01(\tR\x04type\x12&\n" +
+	"\x0fhas_large_media\x18\a \x01(\bR\rhasLargeMedia\"}\n" +
 	"\x18EngineBotCallbackRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +

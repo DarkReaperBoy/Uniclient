@@ -6764,6 +6764,12 @@ class EngineGetConfigResponse extends $pb.GeneratedMessage {
     $core.bool? notifyDms,
     $core.bool? notifyGroups,
     $core.bool? notifyMentionsOnly,
+    $core.bool? sendReadStories,
+    $core.bool? sendOnlinePackets,
+    $core.bool? sendOfflineAfterOnline,
+    $core.bool? markReadAfterAction,
+    $core.bool? useScheduledMessages,
+    $core.bool? sendWithoutSound,
   }) {
     final $result = create();
     if (theme != null) {
@@ -6799,6 +6805,24 @@ class EngineGetConfigResponse extends $pb.GeneratedMessage {
     if (notifyMentionsOnly != null) {
       $result.notifyMentionsOnly = notifyMentionsOnly;
     }
+    if (sendReadStories != null) {
+      $result.sendReadStories = sendReadStories;
+    }
+    if (sendOnlinePackets != null) {
+      $result.sendOnlinePackets = sendOnlinePackets;
+    }
+    if (sendOfflineAfterOnline != null) {
+      $result.sendOfflineAfterOnline = sendOfflineAfterOnline;
+    }
+    if (markReadAfterAction != null) {
+      $result.markReadAfterAction = markReadAfterAction;
+    }
+    if (useScheduledMessages != null) {
+      $result.useScheduledMessages = useScheduledMessages;
+    }
+    if (sendWithoutSound != null) {
+      $result.sendWithoutSound = sendWithoutSound;
+    }
     return $result;
   }
   EngineGetConfigResponse._() : super();
@@ -6817,6 +6841,12 @@ class EngineGetConfigResponse extends $pb.GeneratedMessage {
     ..aOB(9, _omitFieldNames ? '' : 'notifyDms')
     ..aOB(10, _omitFieldNames ? '' : 'notifyGroups')
     ..aOB(11, _omitFieldNames ? '' : 'notifyMentionsOnly')
+    ..aOB(12, _omitFieldNames ? '' : 'sendReadStories')
+    ..aOB(13, _omitFieldNames ? '' : 'sendOnlinePackets')
+    ..aOB(14, _omitFieldNames ? '' : 'sendOfflineAfterOnline')
+    ..aOB(15, _omitFieldNames ? '' : 'markReadAfterAction')
+    ..aOB(16, _omitFieldNames ? '' : 'useScheduledMessages')
+    ..aOB(17, _omitFieldNames ? '' : 'sendWithoutSound')
     ..hasRequiredFields = false
   ;
 
@@ -6939,6 +6969,36 @@ class EngineGetConfigResponse extends $pb.GeneratedMessage {
   $core.bool hasNotifyMentionsOnly() => $_has(10);
   @$pb.TagNumber(11)
   void clearNotifyMentionsOnly() => clearField(11);
+
+  @$pb.TagNumber(12)
+  $core.bool get sendReadStories => $_getBF(11);
+  @$pb.TagNumber(12)
+  set sendReadStories($core.bool v) { $_setBool(11, v); }
+
+  @$pb.TagNumber(13)
+  $core.bool get sendOnlinePackets => $_getBF(12);
+  @$pb.TagNumber(13)
+  set sendOnlinePackets($core.bool v) { $_setBool(12, v); }
+
+  @$pb.TagNumber(14)
+  $core.bool get sendOfflineAfterOnline => $_getBF(13);
+  @$pb.TagNumber(14)
+  set sendOfflineAfterOnline($core.bool v) { $_setBool(13, v); }
+
+  @$pb.TagNumber(15)
+  $core.bool get markReadAfterAction => $_getBF(14);
+  @$pb.TagNumber(15)
+  set markReadAfterAction($core.bool v) { $_setBool(14, v); }
+
+  @$pb.TagNumber(16)
+  $core.bool get useScheduledMessages => $_getBF(15);
+  @$pb.TagNumber(16)
+  set useScheduledMessages($core.bool v) { $_setBool(15, v); }
+
+  @$pb.TagNumber(17)
+  $core.bool get sendWithoutSound => $_getBF(16);
+  @$pb.TagNumber(17)
+  set sendWithoutSound($core.bool v) { $_setBool(16, v); }
 }
 
 class EngineUpdateConfigRequest extends $pb.GeneratedMessage {
@@ -6958,6 +7018,18 @@ class EngineUpdateConfigRequest extends $pb.GeneratedMessage {
     $core.bool? hasNotifyGroups_13,
     $core.bool? notifyMentionsOnly,
     $core.bool? hasNotifyMentionsOnly_15,
+    $core.bool? sendReadStories,
+    $core.bool? hasSendReadStories_17,
+    $core.bool? sendOnlinePackets,
+    $core.bool? hasSendOnlinePackets_19,
+    $core.bool? sendOfflineAfterOnline,
+    $core.bool? hasSendOfflineAfterOnline_21,
+    $core.bool? markReadAfterAction,
+    $core.bool? hasMarkReadAfterAction_23,
+    $core.bool? useScheduledMessages,
+    $core.bool? hasUseScheduledMessages_25,
+    $core.bool? sendWithoutSound,
+    $core.bool? hasSendWithoutSound_27,
   }) {
     final $result = create();
     if (theme != null) {
@@ -7005,6 +7077,42 @@ class EngineUpdateConfigRequest extends $pb.GeneratedMessage {
     if (hasNotifyMentionsOnly_15 != null) {
       $result.hasNotifyMentionsOnly_15 = hasNotifyMentionsOnly_15;
     }
+    if (sendReadStories != null) {
+      $result.sendReadStories = sendReadStories;
+    }
+    if (hasSendReadStories_17 != null) {
+      $result.hasSendReadStories_17 = hasSendReadStories_17;
+    }
+    if (sendOnlinePackets != null) {
+      $result.sendOnlinePackets = sendOnlinePackets;
+    }
+    if (hasSendOnlinePackets_19 != null) {
+      $result.hasSendOnlinePackets_19 = hasSendOnlinePackets_19;
+    }
+    if (sendOfflineAfterOnline != null) {
+      $result.sendOfflineAfterOnline = sendOfflineAfterOnline;
+    }
+    if (hasSendOfflineAfterOnline_21 != null) {
+      $result.hasSendOfflineAfterOnline_21 = hasSendOfflineAfterOnline_21;
+    }
+    if (markReadAfterAction != null) {
+      $result.markReadAfterAction = markReadAfterAction;
+    }
+    if (hasMarkReadAfterAction_23 != null) {
+      $result.hasMarkReadAfterAction_23 = hasMarkReadAfterAction_23;
+    }
+    if (useScheduledMessages != null) {
+      $result.useScheduledMessages = useScheduledMessages;
+    }
+    if (hasUseScheduledMessages_25 != null) {
+      $result.hasUseScheduledMessages_25 = hasUseScheduledMessages_25;
+    }
+    if (sendWithoutSound != null) {
+      $result.sendWithoutSound = sendWithoutSound;
+    }
+    if (hasSendWithoutSound_27 != null) {
+      $result.hasSendWithoutSound_27 = hasSendWithoutSound_27;
+    }
     return $result;
   }
   EngineUpdateConfigRequest._() : super();
@@ -7027,6 +7135,18 @@ class EngineUpdateConfigRequest extends $pb.GeneratedMessage {
     ..aOB(13, _omitFieldNames ? '' : 'hasNotifyGroups')
     ..aOB(14, _omitFieldNames ? '' : 'notifyMentionsOnly')
     ..aOB(15, _omitFieldNames ? '' : 'hasNotifyMentionsOnly')
+    ..aOB(16, _omitFieldNames ? '' : 'sendReadStories')
+    ..aOB(17, _omitFieldNames ? '' : 'hasSendReadStories')
+    ..aOB(18, _omitFieldNames ? '' : 'sendOnlinePackets')
+    ..aOB(19, _omitFieldNames ? '' : 'hasSendOnlinePackets')
+    ..aOB(20, _omitFieldNames ? '' : 'sendOfflineAfterOnline')
+    ..aOB(21, _omitFieldNames ? '' : 'hasSendOfflineAfterOnline')
+    ..aOB(22, _omitFieldNames ? '' : 'markReadAfterAction')
+    ..aOB(23, _omitFieldNames ? '' : 'hasMarkReadAfterAction')
+    ..aOB(24, _omitFieldNames ? '' : 'useScheduledMessages')
+    ..aOB(25, _omitFieldNames ? '' : 'hasUseScheduledMessages')
+    ..aOB(26, _omitFieldNames ? '' : 'sendWithoutSound')
+    ..aOB(27, _omitFieldNames ? '' : 'hasSendWithoutSound')
     ..hasRequiredFields = false
   ;
 
@@ -7187,6 +7307,66 @@ class EngineUpdateConfigRequest extends $pb.GeneratedMessage {
   $core.bool hasHasNotifyMentionsOnly_15() => $_has(14);
   @$pb.TagNumber(15)
   void clearHasNotifyMentionsOnly_15() => clearField(15);
+
+  @$pb.TagNumber(16)
+  $core.bool get sendReadStories => $_getBF(15);
+  @$pb.TagNumber(16)
+  set sendReadStories($core.bool v) { $_setBool(15, v); }
+
+  @$pb.TagNumber(17)
+  $core.bool get hasSendReadStories_17 => $_getBF(16);
+  @$pb.TagNumber(17)
+  set hasSendReadStories_17($core.bool v) { $_setBool(16, v); }
+
+  @$pb.TagNumber(18)
+  $core.bool get sendOnlinePackets => $_getBF(17);
+  @$pb.TagNumber(18)
+  set sendOnlinePackets($core.bool v) { $_setBool(17, v); }
+
+  @$pb.TagNumber(19)
+  $core.bool get hasSendOnlinePackets_19 => $_getBF(18);
+  @$pb.TagNumber(19)
+  set hasSendOnlinePackets_19($core.bool v) { $_setBool(18, v); }
+
+  @$pb.TagNumber(20)
+  $core.bool get sendOfflineAfterOnline => $_getBF(19);
+  @$pb.TagNumber(20)
+  set sendOfflineAfterOnline($core.bool v) { $_setBool(19, v); }
+
+  @$pb.TagNumber(21)
+  $core.bool get hasSendOfflineAfterOnline_21 => $_getBF(20);
+  @$pb.TagNumber(21)
+  set hasSendOfflineAfterOnline_21($core.bool v) { $_setBool(20, v); }
+
+  @$pb.TagNumber(22)
+  $core.bool get markReadAfterAction => $_getBF(21);
+  @$pb.TagNumber(22)
+  set markReadAfterAction($core.bool v) { $_setBool(21, v); }
+
+  @$pb.TagNumber(23)
+  $core.bool get hasMarkReadAfterAction_23 => $_getBF(22);
+  @$pb.TagNumber(23)
+  set hasMarkReadAfterAction_23($core.bool v) { $_setBool(22, v); }
+
+  @$pb.TagNumber(24)
+  $core.bool get useScheduledMessages => $_getBF(23);
+  @$pb.TagNumber(24)
+  set useScheduledMessages($core.bool v) { $_setBool(23, v); }
+
+  @$pb.TagNumber(25)
+  $core.bool get hasUseScheduledMessages_25 => $_getBF(24);
+  @$pb.TagNumber(25)
+  set hasUseScheduledMessages_25($core.bool v) { $_setBool(24, v); }
+
+  @$pb.TagNumber(26)
+  $core.bool get sendWithoutSound => $_getBF(25);
+  @$pb.TagNumber(26)
+  set sendWithoutSound($core.bool v) { $_setBool(25, v); }
+
+  @$pb.TagNumber(27)
+  $core.bool get hasSendWithoutSound_27 => $_getBF(26);
+  @$pb.TagNumber(27)
+  set hasSendWithoutSound_27($core.bool v) { $_setBool(26, v); }
 }
 
 class EngineFolderInfo extends $pb.GeneratedMessage {

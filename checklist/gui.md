@@ -982,7 +982,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §51 — Ghost Mode (AyuGram)
 # Touches: dart/lib/ui/hamburger_drawer.dart, dart/lib/ui/settings_screen.dart, new ghost_mode.dart
 
-- [ ] API interception — messages.readHistory + messages.readDiscussion when sendReadMessages=false; messages.getMessagesViews increment flag; stories.readStories + incrementStoryViews; account.updateStatus online; AyuWorker auto-offline polling every 3s; messages.setTyping; applyGhostScheduling; auto-read on react/vote when markReadAfterAction=true — spec §51.10
 
 ---
 

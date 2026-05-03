@@ -621,6 +621,12 @@ message EngineGetConfigResponse {
   bool   notify_dms    = 9;
   bool   notify_groups = 10;
   bool   notify_mentions_only = 11;
+  bool   send_read_stories        = 12;
+  bool   send_online_packets      = 13;
+  bool   send_offline_after_online = 14;
+  bool   mark_read_after_action   = 15;
+  bool   use_scheduled_messages   = 16;
+  bool   send_without_sound       = 17;
 }
 
 message EngineUpdateConfigRequest {
@@ -641,6 +647,18 @@ message EngineUpdateConfigRequest {
   bool has_notify_groups       = 13;
   bool notify_mentions_only    = 14;
   bool has_notify_mentions_only = 15;
+  bool send_read_stories           = 16;
+  bool has_send_read_stories       = 17;
+  bool send_online_packets         = 18;
+  bool has_send_online_packets     = 19;
+  bool send_offline_after_online   = 20;
+  bool has_send_offline_after_online = 21;
+  bool mark_read_after_action      = 22;
+  bool has_mark_read_after_action  = 23;
+  bool use_scheduled_messages      = 24;
+  bool has_use_scheduled_messages  = 25;
+  bool send_without_sound          = 26;
+  bool has_send_without_sound      = 27;
 }
 
 // ═══════════════════════════════════════════════════════════════════════

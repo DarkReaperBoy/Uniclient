@@ -407,14 +407,18 @@ func (e *Engine) incrementUnread(accountID, chatID string) {
 }
 
 // MarkChatRead resets unread count to 0 and optionally calls core.MarkAsRead.
+// Ghost mode: when SendReadReceipts is false, only the local unread count
+// is cleared — the server-side read receipt (messages.readHistory) is suppressed.
 func (e *Engine) MarkChatRead(accountID, chatID, upToMsgID string) error {
 	e.db.Exec(
 		"UPDATE chats SET unread_count = 0 WHERE account_id = ? AND chat_id = ?",
 		accountID, chatID)
 
-	// Call through to core if available.
-	if acc, ok := e.getAccount(accountID); ok && acc.Core != nil && upToMsgID != "" {
-		acc.Core.MarkAsRead(chatID, upToMsgID)
+	cfg := e.GetConfig()
+	if cfg.SendReadReceipts {
+		if acc, ok := e.getAccount(accountID); ok && acc.Core != nil && upToMsgID != "" {
+			acc.Core.MarkAsRead(chatID, upToMsgID)
+		}
 	}
 
 	e.emitChatUpdate(accountID, chatID)
