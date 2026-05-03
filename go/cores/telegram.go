@@ -15812,14 +15812,74 @@ func (t *TelegramCore) GetMegagroupStats(chatID string) (map[string]interface{},
 			charts = append(charts, c)
 		}
 	}
+	userMap := map[int64]map[string]interface{}{}
+	for _, u := range result.Users {
+		usr, ok := u.(*tg.User)
+		if !ok { continue }
+		firstName := usr.FirstName
+		lastName := usr.LastName
+		name := firstName
+		if lastName != "" {
+			name += " " + lastName
+		}
+		userMap[usr.ID] = map[string]interface{}{
+			"id":         fmt.Sprintf("%d", usr.ID),
+			"name":       name,
+			"first_name": firstName,
+			"last_name":  lastName,
+		}
+	}
+
+	topPosters := []map[string]interface{}{}
+	for _, p := range result.TopPosters {
+		entry := map[string]interface{}{
+			"user_id":   fmt.Sprintf("%d", p.UserID),
+			"messages":  p.Messages,
+			"avg_chars": p.AvgChars,
+		}
+		if u, ok := userMap[p.UserID]; ok {
+			entry["name"] = u["name"]
+		}
+		topPosters = append(topPosters, entry)
+	}
+
+	topAdmins := []map[string]interface{}{}
+	for _, a := range result.TopAdmins {
+		entry := map[string]interface{}{
+			"user_id":  fmt.Sprintf("%d", a.UserID),
+			"deleted":  a.Deleted,
+			"kicked":   a.Kicked,
+			"banned":   a.Banned,
+		}
+		if u, ok := userMap[a.UserID]; ok {
+			entry["name"] = u["name"]
+		}
+		topAdmins = append(topAdmins, entry)
+	}
+
+	topInviters := []map[string]interface{}{}
+	for _, i := range result.TopInviters {
+		entry := map[string]interface{}{
+			"user_id":     fmt.Sprintf("%d", i.UserID),
+			"invitations": i.Invitations,
+		}
+		if u, ok := userMap[i.UserID]; ok {
+			entry["name"] = u["name"]
+		}
+		topInviters = append(topInviters, entry)
+	}
+
 	return map[string]interface{}{
-		"period_min": result.Period.MinDate,
-		"period_max": result.Period.MaxDate,
-		"members":  statsAbsVal(result.Members),
-		"messages": statsAbsVal(result.Messages),
-		"viewers":  statsAbsVal(result.Viewers),
-		"posters":  statsAbsVal(result.Posters),
-		"charts": charts,
+		"period_min":    result.Period.MinDate,
+		"period_max":    result.Period.MaxDate,
+		"members":       statsAbsVal(result.Members),
+		"messages":      statsAbsVal(result.Messages),
+		"viewers":       statsAbsVal(result.Viewers),
+		"posters":       statsAbsVal(result.Posters),
+		"charts":        charts,
+		"top_posters":   topPosters,
+		"top_admins":    topAdmins,
+		"top_inviters":  topInviters,
 	}, nil
 }
 

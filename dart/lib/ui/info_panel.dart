@@ -5645,9 +5645,77 @@ class _StatisticsPageState extends State<_StatisticsPage>
             onTapPost: widget.onOpenMessageStats,
           ),
         ],
+        if (!isChannel) ..._buildTopMembersLists(),
         const SizedBox(height: 20),
       ],
     );
+  }
+
+  List<Widget> _buildTopMembersLists() {
+    final topPosters = (_stats!['top_posters'] as List<dynamic>?) ?? [];
+    final topAdmins = (_stats!['top_admins'] as List<dynamic>?) ?? [];
+    final topInviters = (_stats!['top_inviters'] as List<dynamic>?) ?? [];
+    final widgets = <Widget>[];
+
+    if (topPosters.isNotEmpty) {
+      widgets.addAll([
+        const SizedBox(height: 6),
+        Divider(height: 1, color: widget.theme.dividerColor),
+        const SizedBox(height: 6),
+        _TopMembersSection(
+          title: 'Top Senders',
+          members: topPosters.cast<Map<String, dynamic>>(),
+          theme: widget.theme,
+          statusBuilder: (m) {
+            final msgs = m['messages'] as int? ?? 0;
+            final chars = m['avg_chars'] as int? ?? 0;
+            return '$msgs messages, $chars characters';
+          },
+        ),
+      ]);
+    }
+
+    if (topAdmins.isNotEmpty) {
+      widgets.addAll([
+        const SizedBox(height: 6),
+        Divider(height: 1, color: widget.theme.dividerColor),
+        const SizedBox(height: 6),
+        _TopMembersSection(
+          title: 'Top Administrators',
+          members: topAdmins.cast<Map<String, dynamic>>(),
+          theme: widget.theme,
+          statusBuilder: (m) {
+            final deleted = m['deleted'] as int? ?? 0;
+            final banned = m['banned'] as int? ?? 0;
+            final kicked = m['kicked'] as int? ?? 0;
+            final parts = <String>[];
+            if (deleted > 0) parts.add('$deleted deletions');
+            if (banned > 0) parts.add('$banned bans');
+            if (kicked > 0) parts.add('$kicked restrictions');
+            return parts.isEmpty ? 'No actions' : parts.join(', ');
+          },
+        ),
+      ]);
+    }
+
+    if (topInviters.isNotEmpty) {
+      widgets.addAll([
+        const SizedBox(height: 6),
+        Divider(height: 1, color: widget.theme.dividerColor),
+        const SizedBox(height: 6),
+        _TopMembersSection(
+          title: 'Top Inviters',
+          members: topInviters.cast<Map<String, dynamic>>(),
+          theme: widget.theme,
+          statusBuilder: (m) {
+            final inv = m['invitations'] as int? ?? 0;
+            return '$inv invitations';
+          },
+        ),
+      ]);
+    }
+
+    return widgets;
   }
 
   Widget _buildChannelOverview() {
@@ -5928,6 +5996,147 @@ class _OverviewCell extends StatelessWidget {
             style: TextStyle(
               fontSize: 11,
               color: theme.textTheme.bodySmall?.color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Top Members Section ──
+
+class _TopMembersSection extends StatefulWidget {
+  final String title;
+  final List<Map<String, dynamic>> members;
+  final ThemeData theme;
+  final String Function(Map<String, dynamic>) statusBuilder;
+
+  const _TopMembersSection({
+    required this.title,
+    required this.members,
+    required this.theme,
+    required this.statusBuilder,
+  });
+
+  @override
+  State<_TopMembersSection> createState() => _TopMembersSectionState();
+}
+
+class _TopMembersSectionState extends State<_TopMembersSection> {
+  static const _kPerPage = 40;
+  int _visibleCount = _kPerPage;
+
+  @override
+  Widget build(BuildContext context) {
+    final members = widget.members;
+    final showCount = _visibleCount.clamp(0, members.length);
+    final hasMore = showCount < members.length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _OverviewHeader(
+          title: widget.title,
+          subtitle: '',
+          theme: widget.theme,
+        ),
+        const SizedBox(height: 8),
+        for (int i = 0; i < showCount; i++)
+          _TopMemberRow(
+            member: members[i],
+            theme: widget.theme,
+            status: widget.statusBuilder(members[i]),
+          ),
+        if (hasMore)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: TextButton(
+              onPressed: () {
+                setState(() { _visibleCount += _kPerPage; });
+              },
+              child: Text(
+                'Show More',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: widget.theme.colorScheme.primary,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _TopMemberRow extends StatelessWidget {
+  final Map<String, dynamic> member;
+  final ThemeData theme;
+  final String status;
+
+  const _TopMemberRow({
+    required this.member,
+    required this.theme,
+    required this.status,
+  });
+
+  static const _kAvatarColors = [
+    Color(0xFFC03D33),
+    Color(0xFF4FAD2D),
+    Color(0xFFD09306),
+    Color(0xFF168ACD),
+    Color(0xFF8544D6),
+    Color(0xFFCD4073),
+    Color(0xFF2996AD),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final name = member['name'] as String? ?? 'User';
+    final userId = member['user_id'] as String? ?? '0';
+    final colorIdx = (int.tryParse(userId) ?? 0).abs() % _kAvatarColors.length;
+    final avatarColor = _kAvatarColors[colorIdx];
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: avatarColor,
+            child: Text(
+              initial,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: theme.textTheme.bodyLarge?.color,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  status,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: theme.textTheme.bodySmall?.color,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
           ),
         ],
