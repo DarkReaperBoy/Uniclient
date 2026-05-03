@@ -171,6 +171,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   double _wideMultiplier = 1.0; // §54.3: 1.00–4.00 in 0.05 steps
   bool _showDrawerThemeToggle = true;
 
+  // §54.8: Per-item drawer visibility toggles (all default true).
+  bool _showMyProfileInDrawer = true;
+  bool _showBotsInDrawer = true;
+  bool _showNewGroupInDrawer = true;
+  bool _showNewChannelInDrawer = true;
+  bool _showContactsInDrawer = true;
+  bool _showCallsInDrawer = true;
+  bool _showSavedMessagesInDrawer = true;
+
   // §50.2: Streamer Mode — global, non-persistent (OFF on every cold launch).
   bool _streamerModeEnabled = false;
   bool _showStreamerToggleInDrawer = false;
@@ -318,6 +327,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get semiTransparentDeleted => _semiTransparentDeleted;
   double get wideMultiplier => _wideMultiplier;
   bool get showDrawerThemeToggle => _showDrawerThemeToggle;
+
+  // §54.8: Per-item drawer visibility getters.
+  bool get showMyProfileInDrawer => _showMyProfileInDrawer;
+  bool get showBotsInDrawer => _showBotsInDrawer;
+  bool get showNewGroupInDrawer => _showNewGroupInDrawer;
+  bool get showNewChannelInDrawer => _showNewChannelInDrawer;
+  bool get showContactsInDrawer => _showContactsInDrawer;
+  bool get showCallsInDrawer => _showCallsInDrawer;
+  bool get showSavedMessagesInDrawer => _showSavedMessagesInDrawer;
 
   // §50.2 Streamer Mode getters
   bool get streamerModeEnabled => _streamerModeEnabled;
@@ -502,6 +520,56 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setShowSReadToggleInDrawer(bool v) {
     if (_showSReadToggleInDrawer == v) return;
     _showSReadToggleInDrawer = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  // §54.8: Per-item drawer visibility setters.
+  void setShowMyProfileInDrawer(bool v) {
+    if (_showMyProfileInDrawer == v) return;
+    _showMyProfileInDrawer = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setShowBotsInDrawer(bool v) {
+    if (_showBotsInDrawer == v) return;
+    _showBotsInDrawer = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setShowNewGroupInDrawer(bool v) {
+    if (_showNewGroupInDrawer == v) return;
+    _showNewGroupInDrawer = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setShowNewChannelInDrawer(bool v) {
+    if (_showNewChannelInDrawer == v) return;
+    _showNewChannelInDrawer = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setShowContactsInDrawer(bool v) {
+    if (_showContactsInDrawer == v) return;
+    _showContactsInDrawer = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setShowCallsInDrawer(bool v) {
+    if (_showCallsInDrawer == v) return;
+    _showCallsInDrawer = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setShowSavedMessagesInDrawer(bool v) {
+    if (_showSavedMessagesInDrawer == v) return;
+    _showSavedMessagesInDrawer = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -1787,6 +1855,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _semiTransparentDeleted = data['semiTransparentDeleted'] as bool? ?? false;
       _wideMultiplier = (data['wideMultiplier'] as num?)?.toDouble() ?? 1.0;
       _showDrawerThemeToggle = data['showDrawerThemeToggle'] as bool? ?? true;
+      // §54.8: Per-item drawer visibility.
+      _showMyProfileInDrawer = data['showMyProfileInDrawer'] as bool? ?? true;
+      _showBotsInDrawer = data['showBotsInDrawer'] as bool? ?? true;
+      _showNewGroupInDrawer = data['showNewGroupInDrawer'] as bool? ?? true;
+      _showNewChannelInDrawer = data['showNewChannelInDrawer'] as bool? ?? true;
+      _showContactsInDrawer = data['showContactsInDrawer'] as bool? ?? true;
+      _showCallsInDrawer = data['showCallsInDrawer'] as bool? ?? true;
+      _showSavedMessagesInDrawer = data['showSavedMessagesInDrawer'] as bool? ?? true;
       // §50.2 Streamer Mode toggle visibility (persistent); mode itself is NOT persisted
       _showStreamerToggleInDrawer = data['showStreamerToggleInDrawer'] as bool? ?? false;
       _showStreamerToggleInTray = data['showStreamerToggleInTray'] as bool? ?? false;
@@ -1898,6 +1974,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'semiTransparentDeleted': _semiTransparentDeleted,
         'wideMultiplier': _wideMultiplier,
         'showDrawerThemeToggle': _showDrawerThemeToggle,
+        'showMyProfileInDrawer': _showMyProfileInDrawer,
+        'showBotsInDrawer': _showBotsInDrawer,
+        'showNewGroupInDrawer': _showNewGroupInDrawer,
+        'showNewChannelInDrawer': _showNewChannelInDrawer,
+        'showContactsInDrawer': _showContactsInDrawer,
+        'showCallsInDrawer': _showCallsInDrawer,
+        'showSavedMessagesInDrawer': _showSavedMessagesInDrawer,
         'showStreamerToggleInDrawer': _showStreamerToggleInDrawer,
         'showStreamerToggleInTray': _showStreamerToggleInTray,
         'showGhostToggleInDrawer': _showGhostToggleInDrawer,

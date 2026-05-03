@@ -154,7 +154,8 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                             : const SizedBox.shrink(),
                       ),
                     ),
-                    // §3.3 Menu Items — My Profile row.
+                    // §3.3 Menu Items — My Profile row (§54.8: gated).
+                    if (appState.showMyProfileInDrawer)
                     _MenuRow(
                       icon: Icons.person,
                       label: 'My Profile',
@@ -178,9 +179,8 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         );
                       },
                     ),
-                    // §3.3 / §54.8a: Menu Bots rows (dynamic per-bot).
-                    // Each attach-menu bot with inMainMenu + bot.media gets
-                    // its own row. Uses same mainMenuButton styling.
+                    // §3.3 / §54.8a: Menu Bots rows (§54.8: gated).
+                    if (appState.showBotsInDrawer)
                     for (final bot in appState.menuBots)
                       _MenuRow(
                         icon: Icons.smart_toy,
@@ -213,7 +213,8 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                             : const Color(0x18000000),
                       ),
                     ),
-                    // §3.3: New Group row — §21 wizard.
+                    // §3.3: New Group row (§54.8: gated).
+                    if (appState.showNewGroupInDrawer)
                     _MenuRow(
                       icon: Icons.group,
                       label: 'New Group',
@@ -222,7 +223,8 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         showCreateGroupWizard(context);
                       },
                     ),
-                    // §3.3: New Channel row — §21 wizard.
+                    // §3.3: New Channel row (§54.8: gated).
+                    if (appState.showNewChannelInDrawer)
                     _MenuRow(
                       icon: Icons.campaign,
                       label: 'New Channel',
@@ -231,7 +233,8 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         showCreateChannelWizard(context);
                       },
                     ),
-                    // §3.3: Contacts row (item 5) — menuIconUserShow.
+                    // §3.3: Contacts row (§54.8: gated).
+                    if (appState.showContactsInDrawer)
                     _MenuRow(
                       icon: Icons.contacts,
                       label: 'Contacts',
@@ -240,7 +243,8 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         showContactsBox(context);
                       },
                     ),
-                    // §3.3: Calls row (item 6) — menuIconPhone.
+                    // §3.3: Calls row (§54.8: gated).
+                    if (appState.showCallsInDrawer)
                     _MenuRow(
                       icon: Icons.phone,
                       label: 'Calls',
@@ -253,8 +257,8 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         );
                       },
                     ),
-                    // §3.3: Saved Messages row (item 7) — menuIconSavedMessages.
-                    // Click handler: open self-chat (Saved Messages).
+                    // §3.3: Saved Messages row (§54.8: gated).
+                    if (appState.showSavedMessagesInDrawer)
                     _MenuRow(
                       icon: Icons.bookmark,
                       label: 'Saved Messages',

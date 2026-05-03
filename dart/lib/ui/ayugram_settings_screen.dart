@@ -264,11 +264,68 @@ class _AyuGramSettingsScreenState extends State<AyuGramSettingsScreen> {
           Container(height: 1, color: dividerColor),
           const SizedBox(height: 7),
 
-          // ── Drawer Elements section (§50.3) ──
+          // ── Drawer Elements section (§54.8) ──
           _SectionLabel(label: 'Drawer Elements', color: sectionLabelColor),
           _ToggleRow(
-            label: 'Show Night Mode toggle',
-            subtitle: 'Display theme toggle in hamburger menu',
+            label: 'My Profile',
+            subtitle: 'Show My Profile in drawer',
+            value: appState.showMyProfileInDrawer,
+            onChanged: (v) => appState.setShowMyProfileInDrawer(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          if (appState.menuBots.isNotEmpty)
+          _ToggleRow(
+            label: 'Bots',
+            subtitle: 'Show menu bots in drawer',
+            value: appState.showBotsInDrawer,
+            onChanged: (v) => appState.setShowBotsInDrawer(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _ToggleRow(
+            label: 'New Group',
+            subtitle: 'Show New Group in drawer',
+            value: appState.showNewGroupInDrawer,
+            onChanged: (v) => appState.setShowNewGroupInDrawer(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _ToggleRow(
+            label: 'New Channel',
+            subtitle: 'Show New Channel in drawer',
+            value: appState.showNewChannelInDrawer,
+            onChanged: (v) => appState.setShowNewChannelInDrawer(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _ToggleRow(
+            label: 'Contacts',
+            subtitle: 'Show Contacts in drawer',
+            value: appState.showContactsInDrawer,
+            onChanged: (v) => appState.setShowContactsInDrawer(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _ToggleRow(
+            label: 'Calls',
+            subtitle: 'Show Calls in drawer',
+            value: appState.showCallsInDrawer,
+            onChanged: (v) => appState.setShowCallsInDrawer(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _ToggleRow(
+            label: 'Saved Messages',
+            subtitle: 'Show Saved Messages in drawer',
+            value: appState.showSavedMessagesInDrawer,
+            onChanged: (v) => appState.setShowSavedMessagesInDrawer(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _ToggleRow(
+            label: 'Night Mode',
+            subtitle: 'Show Night Mode toggle in drawer',
             value: appState.showDrawerThemeToggle,
             onChanged: (v) => appState.setShowDrawerThemeToggle(v),
             isDark: isDark,
@@ -309,8 +366,16 @@ class _AyuGramSettingsScreenState extends State<AyuGramSettingsScreen> {
           Container(height: 1, color: dividerColor),
           const SizedBox(height: 7),
 
-          // ── Tray Elements section (§50.3) ──
+          // ── Tray Elements section (§54.8) ──
           _SectionLabel(label: 'Tray Elements', color: sectionLabelColor),
+          _ToggleRow(
+            label: 'Ghost Mode',
+            subtitle: 'Show Ghost Mode toggle in system tray menu',
+            value: appState.showGhostToggleInTray,
+            onChanged: (v) => appState.setShowGhostToggleInTray(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
           _ToggleRow(
             label: 'Streamer Mode',
             subtitle: 'Show Streamer Mode toggle in system tray menu',
