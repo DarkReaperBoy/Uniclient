@@ -1019,7 +1019,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §57 — Appendix B: Dark Theme Color Palette
 # Touches: new theme_colors.dart (applied throughout all widgets)
 
-- [ ] Top bar colors — topBarBg (light #FFFFFF, dark #17212B); missing top bar tokens resolved via menuIconFg/windowFg/windowSubTextFg — spec §57.3
 - [ ] Message / bubble colors — incoming tokens (msgInBg/BgSelected/Shadow/DateFg/ServiceFg/ReplyBarColor/MonoFg/FileInBg); outgoing tokens (msgOutBg/BgSelected/Shadow/DateFg/ServiceFg/ReplyBarColor/MonoFg/FileOutBg); service tokens (msgServiceBg/BgSelected/Fg with alpha); overlay tokens (msgSelectOverlay/msgStickerOverlay with alpha); date image tokens; dark theme: shadows alpha 00 intentionally — spec §57.4
 - [ ] History / chat area colors — compose area tokens (historyComposeAreaBg/Fg/IconFg/IconFgOver); compose button tokens (3 variants); historySendIconFg=windowBgActive; reply/pinned tokens; unread bar tokens; scroll tokens (4 with alpha); scroll-to-bottom button tokens — spec §57.5
 - [ ] Peer / author colors — 8-way peer name palette (historyPeer1–8NameFg); light: red #C03D33, green #4FAD2D, yellow #D09306, blue #168ACD, purple #8544D6, pink #CD4073, sea #2996AD, orange #CE671B; dark: red #FB6169, green #85DE85, yellow #F3BC5C, blue #65BDF3, purple #B48BF2, pink #FF5694, sea #62D4E3, orange #FAA357; 8-way userpic background colors (same both themes) — spec §57.6

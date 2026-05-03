@@ -5013,15 +5013,11 @@ class _TopBarButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final menuIconFg = isDark
-        ? const Color(0xFF6c7883)
-        : const Color(0xFF999999);
-    final menuIconFgOver = isDark
-        ? const Color(0xFFdcdcdc)
-        : const Color(0xFF8a8a8a);
-    final windowBgOver = context.palette.windowBgOver;
-    final windowActiveTextFg = context.palette.windowActiveTextFg;
+    final palette = context.palette;
+    final menuIconFg = palette.menuIconFg;
+    final menuIconFgOver = palette.menuIconFgOver;
+    final windowBgOver = palette.windowBgOver;
+    final windowActiveTextFg = palette.windowActiveTextFg;
 
     final restColor = isActive ? windowActiveTextFg : menuIconFg;
     final hoverColor = isActive ? windowActiveTextFg : menuIconFgOver;
@@ -5099,6 +5095,7 @@ class _ForwardDragBackButtonState extends State<_ForwardDragBackButton> {
         _hoverTimer = null;
       },
       builder: (context, candidateData, rejectedData) {
+        final menuIconFg = context.palette.menuIconFg;
         return GestureDetector(
           onSecondaryTapUp: (details) {
             widget.onSecondaryTap?.call(details.globalPosition);
@@ -5108,6 +5105,7 @@ class _ForwardDragBackButtonState extends State<_ForwardDragBackButton> {
             height: 54,
             child: IconButton(
               icon: const Icon(Icons.arrow_back, size: 20),
+              color: menuIconFg,
               onPressed: widget.onBack,
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
@@ -5665,14 +5663,13 @@ class _ChatTopBar extends StatelessWidget {
     Color? subtitleColor;
     final bool isTopic = chat.type == ChatType.topic && activeTopic != null;
     final bool isTyping = typingUser != null;
+    final palette = context.palette;
     if (activeSublist != null) {
       subtitle = 'Saved Messages';
-      subtitleColor = isDark
-          ? const Color(0xFF98b4d3)
-          : const Color(0xFF999999);
+      subtitleColor = palette.windowSubTextFg;
     } else if (isTyping) {
       subtitle = ''; // rendered via _TopBarTypingDots widget instead
-      subtitleColor = theme.colorScheme.primary;
+      subtitleColor = palette.windowActiveTextFg;
     } else if (isTopic) {
       // §22.6: topic subtitle shows parent group member count.
       final pc = parentChat;
@@ -5684,21 +5681,15 @@ class _ChatTopBar extends StatelessWidget {
       } else {
         subtitle = chat.parentTitle;
       }
-      subtitleColor = isDark
-          ? const Color(0xFF98b4d3)
-          : const Color(0xFF999999);
+      subtitleColor = palette.windowSubTextFg;
     } else if (chat.type == ChatType.dm && isOnline) {
       subtitle = 'online';
-      subtitleColor = const Color(0xFF3BA55C); // online green
+      subtitleColor = palette.windowActiveTextFg;
     } else if (chat.type == ChatType.dm) {
       subtitle = _formatLastSeen(lastSeen);
-      subtitleColor = isDark
-          ? const Color(0xFF98b4d3)
-          : const Color(0xFF999999);
+      subtitleColor = palette.windowSubTextFg;
     } else if (chat.memberCount > 0) {
-      subtitleColor = isDark
-          ? const Color(0xFF98b4d3)
-          : const Color(0xFF999999);
+      subtitleColor = palette.windowSubTextFg;
       if (chat.type == ChatType.channel) {
         subtitle = '${chat.memberCount} subscribers';
       } else if (groupOnlineCount > 1) {
@@ -5709,7 +5700,6 @@ class _ChatTopBar extends StatelessWidget {
     } else {
       subtitle = '';
     }
-    final palette = context.palette;
     final topBarBg = palette.topBarBg;
     final shadowFg = palette.shadowFg;
 
@@ -5780,9 +5770,7 @@ class _ChatTopBar extends StatelessWidget {
                         decoration: InputDecoration(
                           hintText: 'Search',
                           hintStyle: TextStyle(
-                            color: isDark
-                                ? const Color(0xFF6c7883)
-                                : const Color(0xFF999999),
+                            color: palette.menuIconFg,
                             fontSize: 14,
                           ),
                           isDense: true,
@@ -5809,9 +5797,7 @@ class _ChatTopBar extends StatelessWidget {
                             : 'No results',
                         style: TextStyle(
                           fontSize: 12,
-                          color: isDark
-                              ? const Color(0xFF6c7883)
-                              : const Color(0xFF999999),
+                          color: palette.menuIconFg,
                         ),
                       ),
                     ),
@@ -5827,9 +5813,7 @@ class _ChatTopBar extends StatelessWidget {
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                         splashRadius: 14,
-                        color: isDark
-                            ? const Color(0xFF6c7883)
-                            : const Color(0xFF999999),
+                        color: palette.menuIconFg,
                       ),
                     ),
                     // Down arrow — next (older) result.
@@ -5844,9 +5828,7 @@ class _ChatTopBar extends StatelessWidget {
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                         splashRadius: 14,
-                        color: isDark
-                            ? const Color(0xFF6c7883)
-                            : const Color(0xFF999999),
+                        color: palette.menuIconFg,
                       ),
                     ),
                   ] else ...[
@@ -5918,9 +5900,9 @@ class _ChatTopBar extends StatelessWidget {
                           ),
                           if (chat.isVerified) ...[
                             const SizedBox(width: 4),
-                            const Icon(Icons.verified,
+                            Icon(Icons.verified,
                               size: 16,
-                              color: Color(0xFF168acd),
+                              color: palette.windowActiveTextFg,
                             ),
                           ],
                           if (chat.isScam) ...[
@@ -6043,11 +6025,12 @@ class _ChatTopBar extends StatelessWidget {
   }
 
   Widget _buildScheduledTopBar(BuildContext context, ThemeData theme, bool isDark) {
-    final topBarBg = context.palette.topBarBg;
-    final shadowFg = context.palette.shadowFg;
+    final pal = context.palette;
+    final topBarBg = pal.topBarBg;
+    final shadowFg = pal.shadowFg;
     final isSavedMessages = chat.title == 'Saved Messages';
     final titleText = isSavedMessages ? 'Reminders' : 'Scheduled messages';
-    final dialogsNameFg = context.palette.windowBoldFg;
+    final dialogsNameFg = pal.windowBoldFg;
 
     return Container(
       height: 54,
@@ -6064,6 +6047,7 @@ class _ChatTopBar extends StatelessWidget {
             height: 54,
             child: IconButton(
               icon: const Icon(Icons.arrow_back, size: 20),
+              color: pal.menuIconFg,
               onPressed: onExitScheduled,
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
@@ -6106,10 +6090,11 @@ class _ChatTopBar extends StatelessWidget {
   }
 
   Widget _buildEditHistoryTopBar(BuildContext context, ThemeData theme, bool isDark) {
-    final topBarBg = context.palette.topBarBg;
-    final shadowFg = context.palette.shadowFg;
-    final dialogsNameFg = context.palette.windowBoldFg;
-    final subtitleFg = isDark ? const Color(0xFF98b4d3) : const Color(0xFF999999);
+    final pal = context.palette;
+    final topBarBg = pal.topBarBg;
+    final shadowFg = pal.shadowFg;
+    final dialogsNameFg = pal.windowBoldFg;
+    final subtitleFg = pal.windowSubTextFg;
 
     return Container(
       height: 54,
@@ -6126,6 +6111,7 @@ class _ChatTopBar extends StatelessWidget {
             height: 54,
             child: IconButton(
               icon: const Icon(Icons.arrow_back, size: 20),
+              color: pal.menuIconFg,
               onPressed: onExitEditHistory,
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
@@ -6166,10 +6152,11 @@ class _ChatTopBar extends StatelessWidget {
   }
 
   Widget _buildDeletedMessagesTopBar(BuildContext context, ThemeData theme, bool isDark) {
-    final topBarBg = context.palette.topBarBg;
-    final shadowFg = context.palette.shadowFg;
-    final dialogsNameFg = context.palette.windowBoldFg;
-    final subtitleFg = isDark ? const Color(0xFF98b4d3) : const Color(0xFF999999);
+    final pal = context.palette;
+    final topBarBg = pal.topBarBg;
+    final shadowFg = pal.shadowFg;
+    final dialogsNameFg = pal.windowBoldFg;
+    final subtitleFg = pal.windowSubTextFg;
 
     return _DeletedMessagesTopBarStateful(
       chat: chat,
