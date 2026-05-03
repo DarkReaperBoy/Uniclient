@@ -210,6 +210,23 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   int _showAddFilterInContextMenu = 0;
   bool _showMessageSeconds = false;
 
+  // §54.14: AyuGram General settings.
+  int _translationProvider = 0; // 0=Telegram, 1=Google, 2=Yandex, 3=Native
+  bool _disableStories = false;
+  bool _disableOpenLinkWarning = false;
+  bool _collapseSimilarChannels = true;
+  bool _hideSimilarChannelsTab = false;
+  bool _disableNotifyDelay = false;
+  bool _filterZalgo = true;
+  bool _improveLinkPreviews = false;
+  int _showPeerId = 2; // 0=Hide, 1=Telegram API, 2=Bot API
+  bool _spoofClientAsAndroid = false;
+  bool _increaseContentHeight = false;
+  bool _increaseContentWidth = false;
+  bool _confirmStickers = false;
+  bool _confirmGifs = false;
+  bool _confirmVoiceMessages = false;
+
   // §54.11: Additional chat settings.
   bool _showOnlyAddedEmojisAndStickers = false;
   bool _showChannelReactions = true;
@@ -424,6 +441,23 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   int get showMessageDetailsInContextMenu => _showMessageDetailsInContextMenu;
   int get showAddFilterInContextMenu => _showAddFilterInContextMenu;
   bool get showMessageSeconds => _showMessageSeconds;
+
+  // §54.14: AyuGram General settings getters.
+  int get translationProvider => _translationProvider;
+  bool get disableStories => _disableStories;
+  bool get disableOpenLinkWarning => _disableOpenLinkWarning;
+  bool get collapseSimilarChannels => _collapseSimilarChannels;
+  bool get hideSimilarChannelsTab => _hideSimilarChannelsTab;
+  bool get disableNotifyDelay => _disableNotifyDelay;
+  bool get filterZalgo => _filterZalgo;
+  bool get improveLinkPreviews => _improveLinkPreviews;
+  int get showPeerId => _showPeerId;
+  bool get spoofClientAsAndroid => _spoofClientAsAndroid;
+  bool get increaseContentHeight => _increaseContentHeight;
+  bool get increaseContentWidth => _increaseContentWidth;
+  bool get confirmStickers => _confirmStickers;
+  bool get confirmGifs => _confirmGifs;
+  bool get confirmVoiceMessages => _confirmVoiceMessages;
 
   // §54.9: Message field button toggle getters.
   bool get showAttachButton => _showAttachButton;
@@ -1018,6 +1052,98 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setShowMessageSeconds(bool v) {
     if (_showMessageSeconds == v) return;
     _showMessageSeconds = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  // §54.14: AyuGram General settings setters.
+  void setTranslationProvider(int v) {
+    if (_translationProvider == v) return;
+    _translationProvider = v.clamp(0, 3);
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  void setDisableStories(bool v) {
+    if (_disableStories == v) return;
+    _disableStories = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  void setDisableOpenLinkWarning(bool v) {
+    if (_disableOpenLinkWarning == v) return;
+    _disableOpenLinkWarning = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  void setCollapseSimilarChannels(bool v) {
+    if (_collapseSimilarChannels == v) return;
+    _collapseSimilarChannels = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  void setHideSimilarChannelsTab(bool v) {
+    if (_hideSimilarChannelsTab == v) return;
+    _hideSimilarChannelsTab = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  void setDisableNotifyDelay(bool v) {
+    if (_disableNotifyDelay == v) return;
+    _disableNotifyDelay = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  void setFilterZalgo(bool v) {
+    if (_filterZalgo == v) return;
+    _filterZalgo = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  void setImproveLinkPreviews(bool v) {
+    if (_improveLinkPreviews == v) return;
+    _improveLinkPreviews = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  void setShowPeerId(int v) {
+    if (_showPeerId == v) return;
+    _showPeerId = v.clamp(0, 2);
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  void setSpoofClientAsAndroid(bool v) {
+    if (_spoofClientAsAndroid == v) return;
+    _spoofClientAsAndroid = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  void setIncreaseContentHeight(bool v) {
+    if (_increaseContentHeight == v) return;
+    _increaseContentHeight = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  void setIncreaseContentWidth(bool v) {
+    if (_increaseContentWidth == v) return;
+    _increaseContentWidth = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  void setConfirmStickers(bool v) {
+    if (_confirmStickers == v) return;
+    _confirmStickers = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  void setConfirmGifs(bool v) {
+    if (_confirmGifs == v) return;
+    _confirmGifs = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  void setConfirmVoiceMessages(bool v) {
+    if (_confirmVoiceMessages == v) return;
+    _confirmVoiceMessages = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -2134,6 +2260,22 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _showMessageDetailsInContextMenu = data['showMessageDetailsInContextMenu'] as int? ?? 2;
       _showAddFilterInContextMenu = data['showAddFilterInContextMenu'] as int? ?? 0;
       _showMessageSeconds = data['showMessageSeconds'] as bool? ?? false;
+      // §54.14: AyuGram General settings.
+      _translationProvider = data['translationProvider'] as int? ?? 0;
+      _disableStories = data['disableStories'] as bool? ?? false;
+      _disableOpenLinkWarning = data['disableOpenLinkWarning'] as bool? ?? false;
+      _collapseSimilarChannels = data['collapseSimilarChannels'] as bool? ?? true;
+      _hideSimilarChannelsTab = data['hideSimilarChannelsTab'] as bool? ?? false;
+      _disableNotifyDelay = data['disableNotifyDelay'] as bool? ?? false;
+      _filterZalgo = data['filterZalgo'] as bool? ?? true;
+      _improveLinkPreviews = data['improveLinkPreviews'] as bool? ?? false;
+      _showPeerId = data['showPeerId'] as int? ?? 2;
+      _spoofClientAsAndroid = data['spoofClientAsAndroid'] as bool? ?? false;
+      _increaseContentHeight = data['increaseContentHeight'] as bool? ?? false;
+      _increaseContentWidth = data['increaseContentWidth'] as bool? ?? false;
+      _confirmStickers = data['confirmStickers'] as bool? ?? false;
+      _confirmGifs = data['confirmGifs'] as bool? ?? false;
+      _confirmVoiceMessages = data['confirmVoiceMessages'] as bool? ?? false;
       // §54.9: Message field button toggles.
       _showAttachButton = data['showAttachButton'] as bool? ?? true;
       _showCommandsButton = data['showCommandsButton'] as bool? ?? true;
@@ -2250,6 +2392,21 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'showMessageDetailsInContextMenu': _showMessageDetailsInContextMenu,
         'showAddFilterInContextMenu': _showAddFilterInContextMenu,
         'showMessageSeconds': _showMessageSeconds,
+        'translationProvider': _translationProvider,
+        'disableStories': _disableStories,
+        'disableOpenLinkWarning': _disableOpenLinkWarning,
+        'collapseSimilarChannels': _collapseSimilarChannels,
+        'hideSimilarChannelsTab': _hideSimilarChannelsTab,
+        'disableNotifyDelay': _disableNotifyDelay,
+        'filterZalgo': _filterZalgo,
+        'improveLinkPreviews': _improveLinkPreviews,
+        'showPeerId': _showPeerId,
+        'spoofClientAsAndroid': _spoofClientAsAndroid,
+        'increaseContentHeight': _increaseContentHeight,
+        'increaseContentWidth': _increaseContentWidth,
+        'confirmStickers': _confirmStickers,
+        'confirmGifs': _confirmGifs,
+        'confirmVoiceMessages': _confirmVoiceMessages,
         'showAttachButton': _showAttachButton,
         'showCommandsButton': _showCommandsButton,
         'showAutoDeleteButton': _showAutoDeleteButton,
