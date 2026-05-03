@@ -403,6 +403,13 @@ class EngineService {
     _callRaw('__engine', 'MarkChatRead', req.writeToBuffer());
   }
 
+  void readMessageContents(String accountId, String msgId) {
+    final req = epb.EngineMarkChatReadRequest()
+      ..accountId = accountId
+      ..upToMsgId = msgId;
+    _callRaw('__engine', 'ReadMessageContents', req.writeToBuffer());
+  }
+
   /// Fetch forum topics for a chat. Returns empty list if the platform
   /// doesn't support forum topics. Topics are cached in the engine DB.
   Future<List<ForumTopic>> getForumTopics(String accountId, String chatId) async {
@@ -3689,6 +3696,8 @@ class EngineService {
       topicColorId: _topicColorFromRaw(contentRaw),
       viaBotName: _topicFieldFromRaw(contentRaw, 'via_bot_name') ?? '',
       mediaSpoiler: _boolExtraFromRaw(contentRaw, 'media_spoiler'),
+      mediaUnread: _boolExtraFromRaw(contentRaw, 'media_unread'),
+      ttlSeconds: _intExtraFromRaw(contentRaw, 'ttl_seconds'),
       altQualities: _altQualitiesFromRaw(contentRaw),
       views: _intFieldFromRaw(contentRaw, 'views'),
       forwards: _intFieldFromRaw(contentRaw, 'forwards'),
@@ -3883,6 +3892,22 @@ class EngineService {
       return extra[key] == true;
     } catch (_) {
       return false;
+    }
+  }
+
+  static int _intExtraFromRaw(String contentRaw, String key) {
+    if (contentRaw.isEmpty || !contentRaw.contains('"$key"')) return 0;
+    try {
+      final decoded = jsonDecode(contentRaw);
+      if (decoded is! Map<String, dynamic>) return 0;
+      final extra = decoded['extra'];
+      if (extra is! Map<String, dynamic>) return 0;
+      final v = extra[key];
+      if (v is int) return v;
+      if (v is double) return v.toInt();
+      return 0;
+    } catch (_) {
+      return 0;
     }
   }
 

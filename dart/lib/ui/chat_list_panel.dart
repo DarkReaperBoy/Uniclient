@@ -1345,6 +1345,12 @@ class _ChatListPanelState extends State<ChatListPanel>
           label: 'View deleted messages',
           icon: Icon(Icons.delete_outline, size: 20),
         ),
+        if (isDm || isGroupy)
+          const TelegramMenuItem(
+            value: 'jump_to_beginning',
+            label: 'Jump to beginning',
+            icon: Icon(Icons.vertical_align_top, size: 20),
+          ),
         const TelegramMenuItem.separator(),
         const TelegramMenuItem(value: 'clear_history', label: 'Clear History'),
         if (isDm)
@@ -1405,6 +1411,9 @@ class _ChatListPanelState extends State<ChatListPanel>
         case 'view_deleted':
           chatState.openChat(chat);
           Future.microtask(() => chatState.openDeletedMessages());
+        case 'jump_to_beginning':
+          chatState.openChat(chat);
+          Future.microtask(() => chatState.jumpToMessage(1));
         case 'clear_history':
           if (context.mounted) {
             final chatState2 = context.read<ChatState>();

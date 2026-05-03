@@ -451,6 +451,10 @@ class CachedMessage {
   final bool isDeleted;
   final int deletedAt;
 
+  // TTL media metadata (self-destructing media not yet viewed).
+  final bool mediaUnread;
+  final int ttlSeconds;
+
   // Forum topic info (populated from contentRaw extra fields).
   final String topicId;    // topic root message ID (empty = not a forum topic message)
   final String topicName;  // topic title (may be empty if not cached)
@@ -596,6 +600,8 @@ class CachedMessage {
     this.reactions = const [],
     this.isDeleted = false,
     this.deletedAt = 0,
+    this.mediaUnread = false,
+    this.ttlSeconds = 0,
     this.topicId = '',
     this.topicName = '',
     this.topicColorId = 0,

@@ -413,6 +413,13 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.MarkChatRead(req.AccountId, req.ChatId, req.UpToMsgId)
 
+	case "ReadMessageContents":
+		var req pb.EngineMarkChatReadRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.ReadMessageContents(req.AccountId, req.UpToMsgId)
+
 	case "GetForumTopics":
 		var req pb.EngineGetForumTopicsRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

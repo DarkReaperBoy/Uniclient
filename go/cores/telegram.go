@@ -9851,6 +9851,18 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 		}
 		m.Extra["is_silent"] = true
 	}
+	if msg.MediaUnread {
+		if m.Extra == nil {
+			m.Extra = make(map[string]interface{})
+		}
+		m.Extra["media_unread"] = true
+	}
+	if ttl, ok := msg.GetTTLPeriod(); ok && ttl > 0 {
+		if m.Extra == nil {
+			m.Extra = make(map[string]interface{})
+		}
+		m.Extra["ttl_seconds"] = ttl
+	}
 	if rp, ok := msg.GetScheduleRepeatPeriod(); ok && rp > 0 {
 		if m.Extra == nil {
 			m.Extra = make(map[string]interface{})

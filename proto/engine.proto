@@ -1407,3 +1407,12 @@ message EngineGetCustomEmojiSetInfoResponse {
   int32  count       = 5;
   bool   found       = 6;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Read Message Contents (Burn TTL Media)
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineReadMessageContentsRequest {
+  string account_id    = 1;
+  repeated int64 msg_ids = 2;
+}

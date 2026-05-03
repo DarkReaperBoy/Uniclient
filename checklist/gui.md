@@ -988,7 +988,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §52 — Anti-Recall & Message History (AyuGram)
 # Touches: dart/lib/ui/message_bubble.dart, dart/lib/ui/chat_view.dart, dart/lib/ui/settings_screen.dart, new anti_recall.dart
 
-- [ ] Context menu additions — "Burn media" (TTL media unread) message context item; "Jump to beginning" chat-list context item — spec §52.7
 
 ---
 

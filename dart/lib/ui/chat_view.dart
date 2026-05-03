@@ -1378,6 +1378,8 @@ class _ChatViewState extends State<ChatView>
         if (inSelection && allSelectedCanReschedule)
           const TelegramMenuItem(value: 'reschedule_selected', icon: Icon(Icons.schedule_send), label: 'Reschedule selected'),
         const TelegramMenuItem(value: 'read_until', icon: Icon(Icons.done_all), label: 'Read Until Here'),
+        if (msg.mediaUnread && msg.ttlSeconds > 0)
+          const TelegramMenuItem(value: 'burn_media', icon: Icon(Icons.local_fire_department), label: 'Burn Media'),
         // Pass 3: post-actions
         const TelegramMenuItem.separator(),
         if (hasStickerSet)
@@ -1474,6 +1476,8 @@ class _ChatViewState extends State<ChatView>
           _showWhoRead(msg);
         case 'read_until':
           _readUntilHere(chatState, msg);
+        case 'burn_media':
+          _burnMedia(msg);
         default:
           if (action.startsWith('copy_url:')) {
             final url = action.substring('copy_url:'.length);
@@ -2169,6 +2173,12 @@ class _ChatViewState extends State<ChatView>
     final engine = context.read<EngineService>();
     engine.markChatRead(chat.accountId, chat.chatId, msg.msgId);
     showTelegramToast(context, 'Marked as read');
+  }
+
+  void _burnMedia(CachedMessage msg) {
+    final engine = context.read<EngineService>();
+    engine.readMessageContents(msg.accountId, msg.msgId);
+    showTelegramToast(context, 'Media burned');
   }
 
   static String _formatFullDate(DateTime dt) {

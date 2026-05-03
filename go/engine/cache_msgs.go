@@ -1297,6 +1297,30 @@ func (e *Engine) TranscribeAudio(accountID, chatID, msgID string) (bool, int64, 
 	return transcriber.TranscribeAudio(chatID, msgID)
 }
 
+type MessageContentsReader interface {
+	MessagesReadMessageContents(id []int) (interface{}, error)
+}
+
+func (e *Engine) ReadMessageContents(accountID, msgID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	reader, ok := acc.Core.(MessageContentsReader)
+	if !ok {
+		return fmt.Errorf("platform does not support ReadMessageContents")
+	}
+	id, err := strconv.Atoi(msgID)
+	if err != nil {
+		return fmt.Errorf("invalid message ID: %s", msgID)
+	}
+	_, err = reader.MessagesReadMessageContents([]int{id})
+	return err
+}
+
 type PollVoter interface {
 	VotePoll(chatID string, msgID string, optionIndex int) error
 }
