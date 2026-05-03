@@ -23,6 +23,7 @@ import 'edit_forum_topic_box.dart';
 import 'forum_topic_icon.dart';
 import 'contacts_screen.dart' show showShareContactBox;
 import 'popup_menu.dart';
+import 'stats_chart.dart';
 import 'telegram_tooltip.dart';
 import 'telegram_toast.dart';
 import 'emoji_status_widget.dart';
@@ -5586,6 +5587,14 @@ class _StatisticsPageState extends State<_StatisticsPage>
   Widget _buildContent() {
     if (_stats == null || _stats!.isEmpty) return const SizedBox.shrink();
     final isChannel = widget.chat.type == ChatType.channel;
+    final chartMaps = (_stats!['charts'] as List<dynamic>?) ?? [];
+    final charts = <StatsChartData>[];
+    for (final c in chartMaps) {
+      if (c is Map<String, dynamic>) {
+        final parsed = StatsChartData.fromMap(c);
+        if (parsed != null) charts.add(parsed);
+      }
+    }
     return ListView(
       controller: widget.scrollController,
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -5599,6 +5608,13 @@ class _StatisticsPageState extends State<_StatisticsPage>
         const SizedBox(height: 12),
         if (isChannel) _buildChannelOverview() else _buildGroupOverview(),
         const SizedBox(height: 9),
+        for (final chart in charts) ...[
+          const SizedBox(height: 13),
+          Divider(height: 1, color: widget.theme.dividerColor),
+          const SizedBox(height: 13),
+          StatsChartWidget(data: chart, theme: widget.theme),
+        ],
+        const SizedBox(height: 20),
       ],
     );
   }

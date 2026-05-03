@@ -15324,6 +15324,32 @@ func (t *TelegramCore) GetBroadcastStats(chatID string) (map[string]interface{},
 	if result.EnabledNotifications.Total > 0 {
 		notifPct = result.EnabledNotifications.Part / result.EnabledNotifications.Total * 100
 	}
+	charts := []map[string]interface{}{}
+	type chartEntry struct {
+		title string
+		graph tg.StatsGraphClass
+		ctype string
+	}
+	entries := []chartEntry{
+		{"Followers", result.GrowthGraph, "Linear"},
+		{"New Followers", result.FollowersGraph, "Linear"},
+		{"Notifications", result.MuteGraph, "Linear"},
+		{"Views By Hours", result.TopHoursGraph, "Linear"},
+		{"Views By Source", result.ViewsBySourceGraph, "StackBar"},
+		{"New Followers By Source", result.NewFollowersBySourceGraph, "StackBar"},
+		{"Languages", result.LanguagesGraph, "StackLinear"},
+		{"Interactions", result.InteractionsGraph, "DoubleLinear"},
+		{"IV Interactions", result.IvInteractionsGraph, "DoubleLinear"},
+		{"Reactions By Emotion", result.ReactionsByEmotionGraph, "Bar"},
+		{"Story Interactions", result.StoryInteractionsGraph, "DoubleLinear"},
+		{"Story Reactions By Emotion", result.StoryReactionsByEmotionGraph, "Bar"},
+	}
+	for _, e := range entries {
+		c := statsGraphToMap(e.title, e.graph, e.ctype)
+		if c != nil {
+			charts = append(charts, c)
+		}
+	}
 	return map[string]interface{}{
 		"period_min": result.Period.MinDate,
 		"period_max": result.Period.MaxDate,
@@ -15335,7 +15361,32 @@ func (t *TelegramCore) GetBroadcastStats(chatID string) (map[string]interface{},
 		"shares_per_story":   statsAbsVal(result.SharesPerStory),
 		"reactions_per_post": statsAbsVal(result.ReactionsPerPost),
 		"reactions_per_story": statsAbsVal(result.ReactionsPerStory),
+		"charts": charts,
 	}, nil
+}
+
+func statsGraphToMap(title string, g tg.StatsGraphClass, chartType string) map[string]interface{} {
+	if g == nil { return nil }
+	switch v := g.(type) {
+	case *tg.StatsGraph:
+		m := map[string]interface{}{
+			"title": title,
+			"type":  chartType,
+			"data":  v.JSON.Data,
+		}
+		if tok, ok := v.GetZoomToken(); ok && tok != "" {
+			m["zoom_token"] = tok
+		}
+		return m
+	case *tg.StatsGraphAsync:
+		return map[string]interface{}{
+			"title":      title,
+			"type":       chartType,
+			"async_token": v.Token,
+		}
+	default:
+		return nil
+	}
 }
 
 func statsAbsVal(v tg.StatsAbsValueAndPrev) map[string]interface{} {
@@ -15648,6 +15699,28 @@ func (t *TelegramCore) GetMegagroupStats(chatID string) (map[string]interface{},
 		Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
 	})
 	if err != nil { return nil, err }
+	charts := []map[string]interface{}{}
+	type chartEntry struct {
+		title string
+		graph tg.StatsGraphClass
+		ctype string
+	}
+	entries := []chartEntry{
+		{"Members", result.GrowthGraph, "Linear"},
+		{"New Members", result.MembersGraph, "Linear"},
+		{"New Members By Source", result.NewMembersBySourceGraph, "StackBar"},
+		{"Members' Primary Language", result.LanguagesGraph, "StackLinear"},
+		{"Messages", result.MessagesGraph, "StackBar"},
+		{"Actions", result.ActionsGraph, "DoubleLinear"},
+		{"Top Hours", result.TopHoursGraph, "Linear"},
+		{"Days Of Week", result.WeekdaysGraph, "StackLinear"},
+	}
+	for _, e := range entries {
+		c := statsGraphToMap(e.title, e.graph, e.ctype)
+		if c != nil {
+			charts = append(charts, c)
+		}
+	}
 	return map[string]interface{}{
 		"period_min": result.Period.MinDate,
 		"period_max": result.Period.MaxDate,
@@ -15655,6 +15728,7 @@ func (t *TelegramCore) GetMegagroupStats(chatID string) (map[string]interface{},
 		"messages": statsAbsVal(result.Messages),
 		"viewers":  statsAbsVal(result.Viewers),
 		"posters":  statsAbsVal(result.Posters),
+		"charts": charts,
 	}, nil
 }
 

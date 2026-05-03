@@ -1004,7 +1004,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §55 — Channel & Group Statistics
 # Touches: dart/lib/ui/info_panel.dart (navigation entry), new statistics_panel.dart
 
-- [ ] Channel charts (12 charts) — Followers (Linear), New Followers (Linear), Notifications (Linear), Views By Hours (Linear), Views By Source (StackBar), New Followers By Source (StackBar), Languages (StackLinear), Interactions (DoubleLinear), IV Interactions (DoubleLinear), Reactions By Emotion (Bar), Story Interactions (DoubleLinear), Story Reactions (Bar); omit empty; async-load with SlideWrap reveal — spec §55.3
 - [ ] Recent messages list — "Recent Messages" section header; 56px SettingsButton rows; 42px thumbnail with roundRadiusLarge; photo/video/story/spoiler thumbnails; message text preview + date/time + view count + share count + reaction count; pagination 10+30; "Show More" toggle; "Show in Chat" context menu; tap → message statistics sub-page — spec §55.3
 - [ ] Group overview + charts (8 charts) — overview 2×2: Members/Messages/Viewing Members/Posting Members; charts: Members (Linear), New Members (Linear), New Members By Source (StackBar), Members' Primary Language (StackLinear), Messages (StackBar), Actions (DoubleLinear), Top Hours (Linear), Days Of Week (StackLinear) — spec §55.4
 - [ ] Group top members lists — Top Senders (N messages, M chars); Top Administrators (N deletions, M bans, K restrictions); Top Inviters (N invitations); hide when empty; "Show More" 40/page; tap → user profile; section separators — spec §55.4
