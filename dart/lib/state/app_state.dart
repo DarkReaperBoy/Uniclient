@@ -162,7 +162,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   // Spec §25.15: AyuGram-specific theming preferences.
   int _bubbleRadius = 16; // 0-16, default matches _radiusLarge
   bool _removeTail = false;
-  bool _materialSwitches = false;
+  bool _materialSwitches = true;
   int _avatarCorners = 23; // 0-23 (kMaxAvatarCorners), 23=circle (default)
   bool _singleCornerRadius = false;
   bool _disableCustomBackgrounds = false;

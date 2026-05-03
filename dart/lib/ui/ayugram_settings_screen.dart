@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
+import 'ayu_toggle.dart';
 import 'ghost_settings_page.dart';
 import 'settings_style.dart';
 
@@ -357,55 +358,12 @@ class _ToggleRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 12),
-            if (useMaterial)
-              Switch(
-                value: value,
-                onChanged: onChanged,
-                activeColor: const Color(0xFF40A7E3),
-              )
-            else
-              _TelegramToggle(value: value, onChanged: onChanged),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TelegramToggle extends StatelessWidget {
-  final bool value;
-  final ValueChanged<bool> onChanged;
-  const _TelegramToggle({required this.value, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return GestureDetector(
-      onTap: () => onChanged(!value),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        width: 42,
-        height: 24,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          color: value
-              ? const Color(0xFF40A7E3)
-              : isDark
-                  ? const Color(0xFF5A6A78)
-                  : const Color(0xFFCBCBCB),
-        ),
-        child: AnimatedAlign(
-          duration: const Duration(milliseconds: 150),
-          alignment: value ? Alignment.centerRight : Alignment.centerLeft,
-          child: Container(
-            width: 20,
-            height: 20,
-            margin: const EdgeInsets.all(2),
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white,
+            AyuToggle(
+              value: value,
+              onChanged: onChanged,
+              isMaterial: useMaterial,
             ),
-          ),
+          ],
         ),
       ),
     );

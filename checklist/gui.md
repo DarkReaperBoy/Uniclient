@@ -999,7 +999,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §54 — AyuGram UI Customization
 # Touches: dart/lib/ui/settings_screen.dart, dart/lib/ui/chat_list_row.dart, new ayu_settings.dart
 
-- [ ] Material Switches (MD3) — "MD3 Switch Style" toggle (default true); MD3: 32×18 track, 14px diameter, −2px shift, easeOutCubic; iOS: 36×20 track, 16px diameter, 1px shift, linear; MD3 growing thumb effect — spec §54.2
 - [ ] Wide Messages Multiplier — 61-stop slider (1.00–4.00 step 0.05); "X.XX" label; scale bubble max-width; restart prompt on release — spec §54.3
 - [ ] Message Bubble Radius — live MessagePreview widget (two fake messages); 17-stop slider (0=square, 16=max); map to BubbleRadiusLarge+BubbleRadiusSmall via SetBubbleRadiusOverride; restart prompt — spec §54.4
 - [ ] Message Tail Removal — toggle (default false); Corner::Tail→Corner::Large; reactive update no restart — spec §54.5
