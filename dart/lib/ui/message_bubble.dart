@@ -198,7 +198,7 @@ class _MessageBubbleState extends State<MessageBubble> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black87;
-    final subColor = isDark ? const Color(0xFF7F8B99) : const Color(0xFF999999);
+    final subColor = PaletteProvider.of(context).windowSubTextFg;
 
     final items = <PopupMenuEntry<String>>[];
 
@@ -436,6 +436,7 @@ class _MessageBubbleState extends State<MessageBubble> {
 
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final palette = context.palette;
     final isOutgoing = message.isOutgoing;
     final wm = context.watch<AppState>().wideMultiplier;
     final _maxWidth = (wm - 1.0).abs() > 0.01
@@ -480,23 +481,13 @@ class _MessageBubbleState extends State<MessageBubble> {
         : isOutgoing && themeOverride?.outgoingBubbleColor != null && !isSelected
             ? themeOverride!.outgoingBubbleColor!
             : isOutgoing
-                ? (isDark
-                    ? (isSelected ? AppColors.bubbleSentSelected : AppColors.bubbleSent)
-                    : (isSelected ? AppColors.bubbleSentSelectedLight : AppColors.bubbleSentLight))
-                : (isDark
-                    ? (isSelected ? AppColors.bubbleReceivedSelected : AppColors.bubbleReceived)
-                    : (isSelected ? AppColors.bubbleReceivedSelectedLight : AppColors.bubbleReceivedLight));
+                ? (isSelected ? palette.msgOutBgSelected : palette.msgOutBg)
+                : (isSelected ? palette.msgInBgSelected : palette.msgInBg);
 
     // Spec §5: 2px bottom shadow strip. Night theme alpha=00 (disabled).
     final shadowColor = noBubble
         ? Colors.transparent
-        : isOutgoing
-            ? (isDark
-                ? (isSelected ? AppColors.bubbleSentShadowSelectedNight : AppColors.bubbleSentShadowNight)
-                : (isSelected ? AppColors.bubbleSentShadowSelected : AppColors.bubbleSentShadow))
-            : (isDark
-                ? (isSelected ? AppColors.bubbleReceivedShadowSelectedNight : AppColors.bubbleReceivedShadowNight)
-                : (isSelected ? AppColors.bubbleReceivedShadowSelected : AppColors.bubbleReceivedShadow));
+        : isOutgoing ? palette.msgOutShadow : palette.msgInShadow;
 
     final alignment = isOutgoing
         ? CrossAxisAlignment.end
@@ -637,7 +628,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
-                                    color: _senderColor(message.senderId, isDark: isDark, colorId: message.senderColorId),
+                                    color: _senderColor(message.senderId, palette: palette, isDark: isDark, colorId: message.senderColorId),
                                   ),
                                 ),
                                 if (message.senderRank.isNotEmpty)
@@ -646,7 +637,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w400,
-                                      color: _senderColor(message.senderId, isDark: isDark).withValues(alpha: 0.6),
+                                      color: _senderColor(message.senderId, palette: palette, isDark: isDark).withValues(alpha: 0.6),
                                     ),
                                   ),
                               ],
@@ -680,7 +671,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w400,
-                                  color: isDark ? const Color(0xFF6d7f8f) : const Color(0xFFa0acb6),
+                                  color: palette.msgInDateFg,
                                 ),
                               ),
                               TextSpan(
@@ -688,7 +679,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
-                                  color: isDark ? const Color(0xFF71baf7) : const Color(0xFF168acd),
+                                  color: palette.msgInServiceFg,
                                 ),
                               ),
                             ],
@@ -700,6 +691,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                       _ReplyPreview(
                         preview: message.replyPreview,
                         theme: theme,
+                        isOutgoing: isOutgoing,
                         onTap: (onReplyTap != null && message.replyToId.isNotEmpty)
                             ? () => onReplyTap!(message.replyToId)
                             : null,
@@ -813,27 +805,27 @@ class _MessageBubbleState extends State<MessageBubble> {
                           const Spacer(),
                           if (message.views > 0) ...[
                             SizedBox(width: 16, height: 11,
-                              child: CustomPaint(painter: _ViewsIconPainter(color: _bottomInfoColor(isOutgoing, isDark)))),
+                              child: CustomPaint(painter: _ViewsIconPainter(color: _bottomInfoColor(isOutgoing, palette)))),
                             const SizedBox(width: 2),
                             Padding(
                               padding: const EdgeInsets.only(right: 8),
                               child: Text(_formatCount(message.views),
-                                  style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, isDark))),
+                                  style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, palette))),
                             ),
                           ],
                           if (message.forwards > 0) ...[
                             SizedBox(width: 16, height: 11,
-                              child: CustomPaint(painter: _ForwardsIconPainter(color: _bottomInfoColor(isOutgoing, isDark)))),
+                              child: CustomPaint(painter: _ForwardsIconPainter(color: _bottomInfoColor(isOutgoing, palette)))),
                             const SizedBox(width: 2),
                             Padding(
                               padding: const EdgeInsets.only(right: 8),
                               child: Text(_formatCount(message.forwards),
-                                  style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, isDark))),
+                                  style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, palette))),
                             ),
                           ],
                           ..._buildDeletedEditedMarks(
                             message: message,
-                            color: _bottomInfoColor(isOutgoing, isDark),
+                            color: _bottomInfoColor(isOutgoing, palette),
                             appState: ayuState,
                           ),
                           if (widget.isScheduledView && message.isScheduled)
@@ -841,13 +833,13 @@ class _MessageBubbleState extends State<MessageBubble> {
                               message: _scheduledTooltip(message),
                               child: Text(
                                 _formatScheduledTime(message),
-                                style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, isDark)),
+                                style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, palette)),
                               ),
                             )
                           else
                             Text(
                               _buildTimeText(message, ayuState),
-                              style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, isDark)),
+                              style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, palette)),
                             ),
                           if (isOutgoing && !widget.isScheduledView) ...[
                             const SizedBox(width: 4),
@@ -928,7 +920,7 @@ class _MessageBubbleState extends State<MessageBubble> {
       width: avatarSize,
       height: avatarSize,
       decoration: BoxDecoration(
-        color: _senderColor(message.senderId, isDark: isDark, colorId: message.senderColorId),
+        color: _senderColor(message.senderId, palette: context.palette, isDark: isDark, colorId: message.senderColorId),
         borderRadius: BorderRadius.circular(avatarR),
       ),
       alignment: Alignment.center,
@@ -982,26 +974,15 @@ class _MessageBubbleState extends State<MessageBubble> {
   /// Source: chat_style.cpp ColorIndexToPaletteIndex — {0,7,4,1,6,3,5}.
   static const _colorIndexRemap = [0, 7, 4, 1, 6, 3, 5];
 
-  /// 8-slot name-fg palette (historyPeer1..8NameFg).
-  static const _namePaletteDay = [
-    Color(0xFFc03d33), // 0 red
-    Color(0xFF4fad2d), // 1 green
-    Color(0xFFd09306), // 2 yellow
-    Color(0xFF168acd), // 3 blue (windowActiveTextFg)
-    Color(0xFF8544d6), // 4 purple
-    Color(0xFFcd4073), // 5 pink
-    Color(0xFF2996ad), // 6 sea
-    Color(0xFFce671b), // 7 orange
-  ];
-  static const _namePaletteNight = [
-    Color(0xFFfb6169), // 0 red
-    Color(0xFF85de85), // 1 green
-    Color(0xFFf3bc5c), // 2 yellow
-    Color(0xFF65bdf3), // 3 blue
-    Color(0xFFb48bf2), // 4 purple
-    Color(0xFFff5694), // 5 pink
-    Color(0xFF62d4e3), // 6 sea
-    Color(0xFFfaa357), // 7 orange
+  static List<Color> _namePaletteFromTokens(TelegramPalette p) => [
+    p.historyPeer1NameFg,
+    p.historyPeer2NameFg,
+    p.historyPeer3NameFg,
+    p.historyPeer4NameFg,
+    p.historyPeer5NameFg,
+    p.historyPeer6NameFg,
+    p.historyPeer7NameFg,
+    p.historyPeer8NameFg,
   ];
 
   /// Extended 64-entry peer color palette fetched at runtime from help.peerColors.
@@ -1024,25 +1005,21 @@ class _MessageBubbleState extends State<MessageBubble> {
   }
 
   /// Resolve sender name color using the color_id from the user's PeerColor.
-  /// For color_id 0-6 (default), uses the hardcoded 8-slot palette via remap.
+  /// For color_id 0-6 (default), uses the palette's 8-slot peer name tokens via remap.
   /// For color_id 7+ (premium/extended), uses the runtime-fetched palette.
-  static Color _senderColor(String senderId, {bool isDark = false, int colorId = -1}) {
-    // If we have an explicit color_id >= 7, check extended palette first.
+  static Color _senderColor(String senderId, {required TelegramPalette palette, bool isDark = false, int colorId = -1}) {
     if (colorId >= 7) {
       final ext = _extendedPalette[colorId];
       if (ext != null) {
         return isDark ? ext[1] : ext[0];
       }
-      // Extended color not loaded yet — fall through to default logic.
     }
 
-    // For color_id 0-6 or when extended palette isn't available:
-    // Use the standard id%7 → remap → 8-slot palette.
     final effectiveColorId = (colorId >= 0 && colorId < 7)
         ? colorId
         : ((int.tryParse(senderId) ?? senderId.hashCode.abs()).abs() % 7);
     final paletteIndex = _colorIndexRemap[effectiveColorId];
-    return isDark ? _namePaletteNight[paletteIndex] : _namePaletteDay[paletteIndex];
+    return _namePaletteFromTokens(palette)[paletteIndex];
   }
 
   static String _formatTime(int timestampMs) {
@@ -1094,11 +1071,8 @@ class _MessageBubbleState extends State<MessageBubble> {
   }
 
   /// Spec §5: bottom info timestamp/edited color per direction+theme.
-  static Color _bottomInfoColor(bool isOutgoing, bool isDark) {
-    if (isOutgoing) {
-      return isDark ? AppColors.msgOutDateFgNight : AppColors.msgOutDateFg;
-    }
-    return isDark ? AppColors.msgInDateFgNight : AppColors.msgInDateFg;
+  static Color _bottomInfoColor(bool isOutgoing, TelegramPalette palette) {
+    return isOutgoing ? palette.msgOutDateFg : palette.msgInDateFg;
   }
 
   /// §52.3: Build deleted/edited mark widgets for bottom info row.
@@ -1467,9 +1441,7 @@ class _ReactionStripState extends State<_ReactionStrip>
                         child: Icon(
                           Icons.add,
                           size: 20,
-                          color: widget.isDark
-                              ? const Color(0xFF8B9AAB)
-                              : const Color(0xFF999999),
+                          color: context.palette.windowSubTextFg,
                         ),
                       ),
                     ),
@@ -1645,15 +1617,13 @@ class _ReactionEmojiOverlayState extends State<_ReactionEmojiOverlay>
 
   @override
   Widget build(BuildContext context) {
-    final bg = widget.isDark ? const Color(0xFF2B3640) : Colors.white;
+    final ep = context.palette;
+    final bg = ep.windowBgOver;
     final shadow = widget.isDark ? Colors.black26 : Colors.black12;
-    final tabBg =
-        widget.isDark ? const Color(0xFF1E2A35) : const Color(0xFFF5F5F5);
-    final tabActive =
-        widget.isDark ? const Color(0xFF3A4E5C) : const Color(0xFFE0E0E0);
-    final searchBg =
-        widget.isDark ? const Color(0xFF1E2A35) : const Color(0xFFF0F0F0);
-    final textColor = widget.isDark ? Colors.white70 : Colors.black87;
+    final tabBg = ep.windowBg;
+    final tabActive = ep.windowBgRipple;
+    final searchBg = ep.windowBg;
+    final textColor = ep.windowFg.withValues(alpha: 0.87);
     final emojis = _filteredEmoji();
     final cols = ((_panelWidth - _gridPadding * 2) / _cellSize).floor();
 
@@ -1720,9 +1690,7 @@ class _ReactionEmojiOverlayState extends State<_ReactionEmojiOverlay>
                             const SizedBox(width: 10),
                             Icon(Icons.search,
                                 size: 18,
-                                color: widget.isDark
-                                    ? const Color(0xFF6C7883)
-                                    : const Color(0xFF999999)),
+                                color: ep.windowSubTextFg),
                             const SizedBox(width: 6),
                             Expanded(
                               child: TextField(
@@ -1733,9 +1701,7 @@ class _ReactionEmojiOverlayState extends State<_ReactionEmojiOverlay>
                                   hintText: 'Search emoji',
                                   hintStyle: TextStyle(
                                     fontSize: 13,
-                                    color: widget.isDark
-                                        ? const Color(0xFF6C7883)
-                                        : const Color(0xFF999999),
+                                    color: ep.windowSubTextFg,
                                   ),
                                   border: InputBorder.none,
                                   isDense: true,
@@ -1758,9 +1724,7 @@ class _ReactionEmojiOverlayState extends State<_ReactionEmojiOverlay>
                                       horizontal: 8),
                                   child: Icon(Icons.close,
                                       size: 16,
-                                      color: widget.isDark
-                                          ? const Color(0xFF6C7883)
-                                          : const Color(0xFF999999)),
+                                      color: ep.windowSubTextFg),
                                 ),
                               ),
                           ],
@@ -2236,7 +2200,7 @@ class _ViewPackButton extends StatelessWidget {
               padding: const EdgeInsets.all(shadowExtend),
               child: Container(
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF17212B) : Colors.white,
+                  color: context.palette.windowBg,
                   borderRadius: BorderRadius.circular(boxRadius),
                   boxShadow: [
                     BoxShadow(
@@ -2258,7 +2222,7 @@ class _ViewPackButton extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 13,
-                    color: isDark ? Colors.white70 : Colors.black87,
+                    color: context.palette.windowFg.withValues(alpha: 0.87),
                   ),
                 ),
               ),
@@ -2313,13 +2277,14 @@ class _StickerSetByIdViewerState extends State<_StickerSetByIdViewer> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final ssPalette = context.palette;
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
       minChildSize: 0.3,
       maxChildSize: 0.9,
       builder: (ctx, scrollController) => Container(
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF17212B) : Colors.white,
+          color: ssPalette.windowBg,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
         ),
         child: _loading
@@ -2405,10 +2370,9 @@ class _TopicButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isGeneral = topicId == '1';
     final color = isGeneral
-        ? (isDark ? const Color(0xFF7F91A4) : const Color(0xFF999999))
+        ? context.palette.windowSubTextFg
         : (_topicColors[topicColorId] ?? _defaultColor);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -2450,17 +2414,19 @@ class _ReplyPreview extends StatelessWidget {
   final String preview;
   final ThemeData theme;
   final VoidCallback? onTap;
+  final bool isOutgoing;
 
-  const _ReplyPreview({required this.preview, required this.theme, this.onTap});
+  const _ReplyPreview({required this.preview, required this.theme, this.onTap, this.isOutgoing = false});
 
   @override
   Widget build(BuildContext context) {
+    final rp = context.palette;
     final simpleQuotes = context.watch<AppState>().simpleQuotes;
     final barColor = simpleQuotes
         ? (theme.brightness == Brightness.dark
             ? const Color(0xFF5A6A78)
             : const Color(0xFFCBCBCB))
-        : theme.colorScheme.primary;
+        : (isOutgoing ? rp.msgOutReplyBarColor : rp.msgInReplyBarColor);
     final body = Container(
       margin: const EdgeInsets.only(bottom: 4),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -2674,9 +2640,7 @@ class _TextSpoilerWidgetState extends State<_TextSpoilerWidget>
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = widget.isDark
-        ? const Color(0xFF6D7F8F)
-        : const Color(0xFFA0ACB6);
+    final bgColor = context.palette.msgInDateFg;
 
     return GestureDetector(
       onTap: widget.revealed ? null : widget.onReveal,
@@ -3048,6 +3012,7 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
   Widget build(BuildContext context) {
     final message = widget.message;
     final theme = widget.theme;
+    final vmPalette = context.palette;
 
     final wm = context.watch<AppState>().wideMultiplier;
     final double baseMax = (wm - 1.0).abs() > 0.01
@@ -3409,9 +3374,7 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
                   child: CustomPaint(
                     painter: _VideoNoteProgressPainter(
                       progress: _vnProgress,
-                      color: theme.brightness == Brightness.dark
-                          ? AppColors.bubbleReceived
-                          : AppColors.bubbleReceivedLight,
+                      color: vmPalette.msgInBg,
                     ),
                   ),
                 ),
@@ -3466,35 +3429,35 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), // msgDateImgPadding
                     decoration: BoxDecoration(
-                      color: AppColors.msgDateImgBg,
+                      color: vmPalette.msgDateImgBg,
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         if (message.views > 0) ...[
-                          const SizedBox(width: 16, height: 11,
-                            child: CustomPaint(painter: _ViewsIconPainter(color: AppColors.historyIconFgInverted))),
+                          SizedBox(width: 16, height: 11,
+                            child: CustomPaint(painter: _ViewsIconPainter(color: vmPalette.historyIconFgInverted))),
                           const SizedBox(width: 2),
                           Padding(
                             padding: const EdgeInsets.only(right: 8),
                             child: Text(_MessageBubbleState._formatCount(message.views),
-                                style: const TextStyle(fontSize: 13, color: AppColors.historyIconFgInverted)),
+                                style: TextStyle(fontSize: 13, color: vmPalette.historyIconFgInverted)),
                           ),
                         ],
                         if (message.forwards > 0) ...[
-                          const SizedBox(width: 16, height: 11,
-                            child: CustomPaint(painter: _ForwardsIconPainter(color: AppColors.historyIconFgInverted))),
+                          SizedBox(width: 16, height: 11,
+                            child: CustomPaint(painter: _ForwardsIconPainter(color: vmPalette.historyIconFgInverted))),
                           const SizedBox(width: 2),
                           Padding(
                             padding: const EdgeInsets.only(right: 8),
                             child: Text(_MessageBubbleState._formatCount(message.forwards),
-                                style: const TextStyle(fontSize: 13, color: AppColors.historyIconFgInverted)),
+                                style: TextStyle(fontSize: 13, color: vmPalette.historyIconFgInverted)),
                           ),
                         ],
                         ..._MessageBubbleState._buildDeletedEditedMarks(
                           message: message,
-                          color: AppColors.historyIconFgInverted,
+                          color: vmPalette.historyIconFgInverted,
                           appState: context.read<AppState>(),
                         ),
                         if (widget.isScheduledView && message.isScheduled)
@@ -3502,13 +3465,13 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
                             message: _MessageBubbleState._scheduledTooltip(message),
                             child: Text(
                               _MessageBubbleState._formatScheduledTime(message),
-                              style: const TextStyle(fontSize: 13, color: AppColors.historyIconFgInverted),
+                              style: TextStyle(fontSize: 13, color: vmPalette.historyIconFgInverted),
                             ),
                           )
                         else
                           Text(
                             _MessageBubbleState._buildTimeText(message, context.read<AppState>()),
-                            style: const TextStyle(fontSize: 13, color: AppColors.historyIconFgInverted),
+                            style: TextStyle(fontSize: 13, color: vmPalette.historyIconFgInverted),
                           ),
                         if (widget.isOutgoing && !widget.isScheduledView) ...[
                           const SizedBox(width: 4),
@@ -3542,9 +3505,7 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
               if (message.mediaType == 6 && widget.isSelected)
                 Positioned.fill(
                   child: ColoredBox(
-                    color: widget.isDark
-                        ? AppColors.msgStickerOverlayNight
-                        : AppColors.msgStickerOverlay,
+                    color: vmPalette.msgStickerOverlay,
                   ),
                 ),
             ],
@@ -3960,6 +3921,7 @@ class _VoiceIndicatorState extends State<_VoiceIndicator> {
     final downloading = widget.message.mediaDownloadState == 1;
     final dlProgress = context.watch<ChatState>().getDownloadProgress(widget.message.msgId);
     final accentColor = widget.theme.colorScheme.primary;
+    final voicePalette = context.palette;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -4042,6 +4004,8 @@ class _VoiceIndicatorState extends State<_VoiceIndicator> {
                                     isOutgoing: isOut,
                                     progress: progress,
                                     hoverX: _hoverX,
+                                    playedColor: isOut ? voicePalette.msgWaveformOutActive : voicePalette.msgWaveformInActive,
+                                    unplayedColor: isOut ? voicePalette.msgWaveformOutInactive : voicePalette.msgWaveformInInactive,
                                   ),
                                 ),
                               ),
@@ -4162,21 +4126,20 @@ class _WaveformPainter extends CustomPainter {
   final bool isOutgoing;
   final double progress;
   final double? hoverX;
+  final Color playedColor;
+  final Color unplayedColor;
 
   static const double _barWidth = 2.0;
   static const double _barGap = 1.0;
   static const double _minHeight = 3.0;
   static const double _maxHeight = 17.0;
 
-  static const Color _inboxPlayed = Color(0xFF40A7E3);
-  static const Color _inboxUnplayed = Color(0xFFD4DEE6);
-  static const Color _outboxPlayed = Color(0xFF5EBD66);
-  static const Color _outboxUnplayed = Color(0xFFB3E2B4);
-
   _WaveformPainter({
     required this.samples,
     required this.isOutgoing,
     required this.progress,
+    required this.playedColor,
+    required this.unplayedColor,
     this.hoverX,
   });
 
@@ -4191,14 +4154,12 @@ class _WaveformPainter extends CustomPainter {
     final bucketSize = samples.length / barCount;
     final activeWidth = (size.width * progress).roundToDouble();
 
-    final playedPaint = Paint()
-      ..color = isOutgoing ? _outboxPlayed : _inboxPlayed;
-    final unplayedPaint = Paint()
-      ..color = isOutgoing ? _outboxUnplayed : _inboxUnplayed;
+    final playedPaint = Paint()..color = playedColor;
+    final unplayedPaint = Paint()..color = unplayedColor;
 
     final hoverWidth = hoverX?.clamp(0.0, size.width).roundToDouble();
     final Paint? hoverPaint = hoverWidth != null
-        ? (Paint()..color = (isOutgoing ? _outboxPlayed : _inboxPlayed).withValues(alpha: 0.30))
+        ? (Paint()..color = playedColor.withValues(alpha: 0.30))
         : null;
     final double hoverMin = hoverWidth != null ? math.min(activeWidth, hoverWidth) : 0;
     final double hoverMax = hoverWidth != null ? math.max(activeWidth, hoverWidth) : 0;
@@ -4247,7 +4208,9 @@ class _WaveformPainter extends CustomPainter {
       old.progress != progress ||
       old.isOutgoing != isOutgoing ||
       old.samples != samples ||
-      old.hoverX != hoverX;
+      old.hoverX != hoverX ||
+      old.playedColor != playedColor ||
+      old.unplayedColor != unplayedColor;
 }
 
 /// Audio file indicator (music, podcast, etc.).
@@ -4508,6 +4471,7 @@ class _LocationIndicatorState extends State<_LocationIndicator> {
   @override
   Widget build(BuildContext context) {
     final isDark = theme.brightness == Brightness.dark;
+    final locPalette = context.palette;
     final lat = message.geoLat;
     final lng = message.geoLong;
     final hasVenue = message.venueTitle.isNotEmpty;
@@ -4643,9 +4607,7 @@ class _LocationIndicatorState extends State<_LocationIndicator> {
                       child: CustomPaint(
                         painter: _LiveLocationRingPainter(
                           progress: _elapsedProgress(),
-                          ringColor: isDark
-                              ? const Color(0xFF6AB2F2)
-                              : const Color(0xFF40A7E3),
+                          ringColor: locPalette.windowActiveTextFg,
                         ),
                         child: Center(
                           child: Text(
@@ -4653,9 +4615,7 @@ class _LocationIndicatorState extends State<_LocationIndicator> {
                             style: TextStyle(
                               fontSize: _isUntilOff ? 14 : 10,
                               fontWeight: FontWeight.w600,
-                              color: isDark
-                                  ? const Color(0xFF6AB2F2)
-                                  : const Color(0xFF40A7E3),
+                              color: locPalette.windowActiveTextFg,
                               height: 1.0,
                             ),
                           ),
@@ -4687,9 +4647,7 @@ class _LocationIndicatorState extends State<_LocationIndicator> {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 13,
-                              color: isDark
-                                  ? const Color(0xFF8899A6)
-                                  : const Color(0xFF999999),
+                              color: locPalette.windowSubTextFg,
                             ),
                           ),
                         ],
@@ -4804,6 +4762,7 @@ class _ContactIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = theme.brightness == Brightness.dark;
+    final contactPalette = context.palette;
     final firstName = message.contactFirstName;
     final lastName = message.contactLastName;
     final fullName = [firstName, lastName].where((s) => s.isNotEmpty).join(' ');
@@ -4812,7 +4771,7 @@ class _ContactIndicator extends StatelessWidget {
 
     final accentColor = _MessageBubbleState._senderColor(
       message.contactUserId > 0 ? message.contactUserId.toString() : fullName,
-      isDark: isDark,
+      palette: contactPalette, isDark: isDark,
     );
 
     final initials = _initials(firstName, lastName);
@@ -5211,22 +5170,22 @@ class _StatusIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Spec §5: media-overlay uses inverted (white) icon colors.
+    final p = context.palette;
     final color = inverted
         ? (status == MsgStatus.sending
-            ? AppColors.historySendingInvertedIconFg
-            : AppColors.historyIconFgInverted)
+            ? p.historySendingInvertedIconFg
+            : p.historyIconFgInverted)
         : switch (status) {
             MsgStatus.sending => isOutgoing
-                ? (isDark ? AppColors.historySendingOutIconFgNight : AppColors.historySendingOutIconFg)
-                : (isDark ? AppColors.historySendingInIconFgNight : AppColors.historySendingInIconFg),
+                ? p.historySendingOutIconFg
+                : p.historySendingInIconFg,
             MsgStatus.sent || MsgStatus.delivered || MsgStatus.read => isOutgoing
-                ? (isDark ? AppColors.historyOutIconFgNight : AppColors.historyOutIconFg)
-                : (isDark ? AppColors.msgInDateFgNight : AppColors.msgInDateFg),
+                ? p.historyOutIconFg
+                : p.msgInDateFg,
             MsgStatus.failed => theme.colorScheme.error,
             _ => isOutgoing
-                ? (isDark ? AppColors.historyOutIconFgNight : AppColors.historyOutIconFg)
-                : (isDark ? AppColors.msgInDateFgNight : AppColors.msgInDateFg),
+                ? p.historyOutIconFg
+                : p.msgInDateFg,
           };
 
     return switch (status) {
@@ -7562,13 +7521,9 @@ class _PollWidgetState extends State<_PollWidget>
                         height: 20,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: isDark
-                              ? const Color(0xFF3E546A)
-                              : const Color(0xFF40A7E3),
+                          color: context.palette.dialogsUnreadBg,
                           border: Border.all(
-                            color: isDark
-                                ? const Color(0xFF17212B)
-                                : Colors.white,
+                            color: context.palette.windowBg,
                             width: 1.5,
                           ),
                         ),
@@ -7662,6 +7617,7 @@ class _PollResultRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final prp = context.palette;
     final pctValue = (percentage * animValue * 100).round();
     Color barColor;
     if (isQuiz) {
@@ -7674,7 +7630,7 @@ class _PollResultRow extends StatelessWidget {
       }
     } else {
       barColor = isChosen
-          ? const Color(0xFF40A7E3)
+          ? prp.windowBgActive
           : (isDark ? const Color(0xFF3E546A) : const Color(0xFFDEE5EB));
     }
 
@@ -7793,7 +7749,7 @@ class _PollOptionRow extends StatelessWidget {
               AnimatedOpacity(
                 opacity: isHovered ? 1.0 : 0.7,
                 duration: const Duration(milliseconds: 120),
-                child: _buildIndicator(),
+                child: _buildIndicator(context),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -7812,10 +7768,10 @@ class _PollOptionRow extends StatelessWidget {
     );
   }
 
-  Widget _buildIndicator() {
+  Widget _buildIndicator(BuildContext context) {
     const size = 18.0;
     const stroke = 2.0;
-    final accentColor = const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
     final uncheckedColor = isDark ? const Color(0xFF7E8B95) : const Color(0xFF9DA5AB);
 
     if (isMultiple) {
@@ -8573,7 +8529,7 @@ class _UrlAuthDialogState extends State<_UrlAuthDialog> {
                   height: 64,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3),
+                    color: context.palette.windowBgActive,
                   ),
                   child: Center(
                     child: Text(
@@ -8601,7 +8557,7 @@ class _UrlAuthDialogState extends State<_UrlAuthDialog> {
                     ),
                     if (botVerified) ...[
                       const SizedBox(width: 4),
-                      Icon(Icons.verified, size: 16, color: isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3)),
+                      Icon(Icons.verified, size: 16, color: context.palette.windowBgActive),
                     ],
                   ],
                 ),
