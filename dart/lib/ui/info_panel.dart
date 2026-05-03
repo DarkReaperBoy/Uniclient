@@ -6,6 +6,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
@@ -5376,15 +5377,37 @@ class _StatisticsPage extends StatefulWidget {
   State<_StatisticsPage> createState() => _StatisticsPageState();
 }
 
-class _StatisticsPageState extends State<_StatisticsPage> {
+class _StatisticsPageState extends State<_StatisticsPage>
+    with SingleTickerProviderStateMixin {
   bool _loading = true;
+  bool _showFinished = false;
   String? _error;
   int? _followerCount;
+  late final AnimationController _slideController;
+  late final Animation<double> _slideAnimation;
 
   @override
   void initState() {
     super.initState();
+    _slideController = AnimationController(
+      duration: const Duration(milliseconds: 150),
+      vsync: this,
+      value: 1.0,
+    );
+    _slideAnimation = CurvedAnimation(
+      parent: _slideController,
+      curve: Curves.easeOutCubic,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _showFinished = true);
+    });
     _loadStats();
+  }
+
+  @override
+  void dispose() {
+    _slideController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadStats() async {
@@ -5401,26 +5424,29 @@ class _StatisticsPageState extends State<_StatisticsPage> {
         );
       }
       if (mounted) {
-        setState(() {
-          _followerCount = count;
-          _loading = false;
-        });
+        await _slideController.reverse();
+        if (mounted) {
+          setState(() {
+            _followerCount = count;
+            _loading = false;
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
-        setState(() {
-          _error = e.toString();
-          _loading = false;
-        });
+        await _slideController.reverse();
+        if (mounted) {
+          setState(() {
+            _error = e.toString();
+            _loading = false;
+          });
+        }
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isChannel = widget.chat.type == ChatType.channel;
-    final title = isChannel ? 'Statistics' : 'Statistics';
-
     return Column(
       children: [
         SizedBox(
@@ -5438,7 +5464,7 @@ class _StatisticsPageState extends State<_StatisticsPage> {
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
-                    title,
+                    'Statistics',
                     style: widget.theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
@@ -5463,38 +5489,46 @@ class _StatisticsPageState extends State<_StatisticsPage> {
   }
 
   Widget _buildLoadingState() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            width: 120,
-            height: 120,
-            child: CircularProgressIndicator(
-              strokeWidth: 3,
-              color: widget.theme.colorScheme.primary,
+    return SizeTransition(
+      sizeFactor: _slideAnimation,
+      axisAlignment: -1.0,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 120,
+              height: 120,
+              child: _showFinished
+                  ? Lottie.asset(
+                      'assets/animations/stats.json',
+                      fit: BoxFit.contain,
+                      animate: true,
+                      repeat: true,
+                    )
+                  : const SizedBox.shrink(),
             ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Loading Statistics...',
-            style: widget.theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: 256,
-            child: Text(
-              'Please wait while statistics are being loaded.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
-                color: widget.theme.textTheme.bodySmall?.color,
+            const SizedBox(height: 20),
+            Text(
+              'Loading Statistics...',
+              style: widget.theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 8),
+            SizedBox(
+              width: 256,
+              child: Text(
+                'Please wait while statistics are being loaded.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: widget.theme.textTheme.bodySmall?.color,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
