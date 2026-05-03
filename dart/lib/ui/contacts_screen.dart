@@ -11,6 +11,7 @@ import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
+import '../theme/theme.dart';
 import '../utils/country_data.dart';
 import 'input_dialogs.dart';
 import 'telegram_toast.dart';
@@ -598,15 +599,7 @@ class _ContactRowState extends State<_ContactRow> {
   static const _ringStrokeRead = 1.0;
   static const _ringGap = 2.0;
 
-  static const _avatarColors = [
-    Color(0xFFE57373),
-    Color(0xFF81C784),
-    Color(0xFF64B5F6),
-    Color(0xFFFFB74D),
-    Color(0xFF9575CD),
-    Color(0xFF4DB6AC),
-    Color(0xFFF06292),
-  ];
+  static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
 
   static const _onlineColor = Color(0xFF4dc920);
   static const _statusOnlineColor = Color(0xFF4fae4e);
@@ -764,9 +757,10 @@ class _ContactRowState extends State<_ContactRow> {
   @override
   Widget build(BuildContext context) {
     final contact = widget.contact;
+    final palette = context.palette;
     final hasStories = contact.hasStories;
-    final colorIndex = contact.userId.hashCode.abs() % _avatarColors.length;
-    final avatarColor = _avatarColors[colorIndex];
+    final numId = int.tryParse(contact.userId) ?? contact.userId.hashCode.abs();
+    final avatarColor = palette.peerUserpicBg(_colorRemap[numId.abs() % 7]);
     final initials = _initials(
         contact.displayName.isNotEmpty ? contact.displayName : contact.username);
 
@@ -1845,8 +1839,9 @@ class _EditContactBoxState extends State<_EditContactBox> {
     final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFE8E8E8);
     final settingsBtnBg = isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
 
-    final colorIndex = contact.userId.hashCode.abs() % _ContactRowState._avatarColors.length;
-    final avatarColor = _ContactRowState._avatarColors[colorIndex];
+    final palette = context.palette;
+    final numId = int.tryParse(contact.userId) ?? contact.userId.hashCode.abs();
+    final avatarColor = palette.peerUserpicBg(_ContactRowState._colorRemap[numId.abs() % 7]);
     final initials = _ContactRowState._initials(
       contact.displayName.isNotEmpty ? contact.displayName : contact.username,
     );
@@ -2196,10 +2191,6 @@ class _ShareContactBoxState extends State<_ShareContactBox> {
   static const _commentPadding = EdgeInsets.all(5);
 
   static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
-  static const _userpicPalette = [
-    Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77), Color(0xFF65aadd),
-    Color(0xFFa695e7), Color(0xFFee7aae), Color(0xFF6ec9cb), Color(0xFFe8a64e),
-  ];
 
   String _query = '';
   final Set<String> _selected = {};
@@ -2281,9 +2272,9 @@ class _ShareContactBoxState extends State<_ShareContactBox> {
     return (screenWidth / 90).floor().clamp(3, 10);
   }
 
-  static Color avatarColor(String id) {
+  static Color avatarColor(String id, TelegramPalette palette) {
     final numId = int.tryParse(id) ?? id.hashCode.abs();
-    return _userpicPalette[_colorRemap[numId.abs() % 7]];
+    return palette.peerUserpicBg(_colorRemap[numId.abs() % 7]);
   }
 
   @override
@@ -2466,6 +2457,7 @@ class _ShareContactGridItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final radius = isSelected ? _imageSmallRadius : _imageRadius;
@@ -2493,7 +2485,7 @@ class _ShareContactGridItem extends StatelessWidget {
                 duration: const Duration(milliseconds: 150),
                 width: radius * 2,
                 height: radius * 2,
-                child: _buildAvatar(radius, isDark),
+                child: _buildAvatar(radius, isDark, palette),
               ),
             ),
           ),
@@ -2521,7 +2513,7 @@ class _ShareContactGridItem extends StatelessWidget {
     );
   }
 
-  Widget _buildAvatar(double radius, bool isDark) {
+  Widget _buildAvatar(double radius, bool isDark, TelegramPalette palette) {
     if (_isSavedMessages) {
       return CircleAvatar(
         radius: radius,
@@ -2536,15 +2528,15 @@ class _ShareContactGridItem extends StatelessWidget {
           width: radius * 2,
           height: radius * 2,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _fallbackAvatar(radius),
+          errorBuilder: (_, __, ___) => _fallbackAvatar(radius, palette),
         ),
       );
     }
-    return _fallbackAvatar(radius);
+    return _fallbackAvatar(radius, palette);
   }
 
-  Widget _fallbackAvatar(double radius) {
-    final color = _ShareContactBoxState.avatarColor(chat.chatId);
+  Widget _fallbackAvatar(double radius, TelegramPalette palette) {
+    final color = _ShareContactBoxState.avatarColor(chat.chatId, palette);
     final initials = chat.title.isNotEmpty ? chat.title[0].toUpperCase() : '?';
     return CircleAvatar(
       radius: radius,

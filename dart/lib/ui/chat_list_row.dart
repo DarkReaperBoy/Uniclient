@@ -983,8 +983,9 @@ class _ChatAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorIndex = chat.chatId.hashCode.abs() % 7;
-    final color = _avatarColors[colorIndex];
+    final palette = context.palette;
+    final numId = int.tryParse(chat.chatId) ?? chat.chatId.hashCode.abs();
+    final color = palette.peerUserpicBg(_colorRemap[numId.abs() % 7]);
     final initials = _initials(chat.title);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -1101,15 +1102,7 @@ class _ChatAvatar extends StatelessWidget {
     return t[0].toUpperCase();
   }
 
-  static const _avatarColors = [
-    Color(0xFFe17076), // red
-    Color(0xFF7bc862), // green
-    Color(0xFFe5ca77), // yellow
-    Color(0xFF65aadd), // blue
-    Color(0xFFa695e7), // purple
-    Color(0xFFee7aae), // pink
-    Color(0xFF6ec9cb), // cyan
-  ];
+  static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
 }
 
 /// Custom painter for stories ring around chat list avatars.

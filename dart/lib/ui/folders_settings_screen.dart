@@ -9,6 +9,7 @@ import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
+import '../theme/theme.dart';
 import 'filter_column.dart';
 import 'settings_style.dart';
 import 'telegram_toast.dart';
@@ -604,10 +605,6 @@ class _FolderRow extends StatefulWidget {
     required this.onTap,
   });
 
-  static const _userpicColors = [
-    Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77), Color(0xFF65aadd),
-    Color(0xFFa695e7), Color(0xFFee7aae), Color(0xFF6ec9cb), Color(0xFFe8a64e),
-  ];
 
   @override
   State<_FolderRow> createState() => _FolderRowState();
@@ -736,8 +733,8 @@ class _FolderRowState extends State<_FolderRow>
                         child: DecoratedBox(
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: _FolderRow._userpicColors[
-                                widget.folder.colorIndex.clamp(0, 7)],
+                            color: context.palette.peerUserpicBg(
+                                widget.folder.colorIndex.clamp(0, 7)),
                           ),
                         ),
                       ),

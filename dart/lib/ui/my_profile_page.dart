@@ -11,6 +11,7 @@ import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/auth_state.dart';
 import '../state/chat_state.dart';
+import '../theme/theme.dart';
 import 'confirm_box.dart';
 import 'input_dialogs.dart';
 import 'photo_crop_editor.dart';
@@ -471,10 +472,12 @@ class _ProfilePhotoArea extends StatelessWidget {
         ? const Color(0xFF6C7883)
         : const Color(0xFF999999);
 
+    final palette = context.palette;
     final name = account?.displayName ?? '';
     final initials = _initials(name);
-    final colorIndex = (account?.id ?? '').hashCode.abs() % 7;
-    final color = _avatarColors[colorIndex];
+    final id = account?.id ?? '';
+    final numId = int.tryParse(id) ?? id.hashCode.abs();
+    final color = palette.peerUserpicBg(_colorRemap[numId.abs() % 7]);
 
     return SizedBox(
       height: 162,
@@ -667,11 +670,7 @@ class _ProfilePhotoArea extends StatelessWidget {
     return t[0].toUpperCase();
   }
 
-  static const _avatarColors = [
-    Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77),
-    Color(0xFF65aadd), Color(0xFFa695e7), Color(0xFFee7aae),
-    Color(0xFF6ec9cb),
-  ];
+  static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
 }
 
 /// §14.5.5: Birthday row — shows formatted date or "Add", opens date picker.

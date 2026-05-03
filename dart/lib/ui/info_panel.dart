@@ -13,6 +13,7 @@ import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
+import '../theme/theme.dart';
 import 'chat_export.dart';
 import 'chat_list_row.dart' show MyNotesUserpic, SavedMessagesUserpic;
 import 'chat_view.dart' show formatChatLastSeen;
@@ -1689,7 +1690,9 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
     final statusColor = isDm && isOnline
         ? const Color(0xFF3BA55C)
         : widget.theme.textTheme.bodySmall?.color;
-    final colorIndex = widget.chat.chatId.hashCode.abs() % 7;
+    final palette = context.palette;
+    final numId = int.tryParse(widget.chat.chatId) ?? widget.chat.chatId.hashCode.abs();
+    final avatarColor = palette.peerUserpicBg(_AvatarHeader._colorRemap[numId.abs() % 7]);
     final tailPad = MediaQuery.sizeOf(context).height -
         _FlexibleCoverDelegate.minHeight;
 
@@ -1717,7 +1720,7 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
                   : statusText,
               statusColor: statusColor,
               avatarPath: widget.chat.avatarPath,
-              avatarColor: _AvatarHeader._avatarColors[colorIndex],
+              avatarColor: avatarColor,
               initials: _AvatarHeader._initials(widget.chat.title),
               theme: widget.theme,
               onClose: widget.onClose,
@@ -1941,8 +1944,9 @@ class _UserProfilePageState extends State<_UserProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    final colorIndex = widget.member.userId.hashCode.abs() % 7;
-    final color = _AvatarHeader._avatarColors[colorIndex];
+    final palette = context.palette;
+    final numId = int.tryParse(widget.member.userId) ?? widget.member.userId.hashCode.abs();
+    final color = palette.peerUserpicBg(_AvatarHeader._colorRemap[numId.abs() % 7]);
     final name = widget.member.label;
     final initials = _AvatarHeader._initials(name);
     final statusText = widget.member.isOnline
@@ -2041,10 +2045,13 @@ class _AvatarHeader extends StatelessWidget {
     this.lastSeen = (kind: '', lastSeenMs: 0),
   });
 
+  static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
+
   @override
   Widget build(BuildContext context) {
-    final colorIndex = chat.chatId.hashCode.abs() % 7;
-    final color = _avatarColors[colorIndex];
+    final palette = context.palette;
+    final numId = int.tryParse(chat.chatId) ?? chat.chatId.hashCode.abs();
+    final color = palette.peerUserpicBg(_colorRemap[numId.abs() % 7]);
     final initials = _initials(chat.title);
 
     final isDm = chat.type == ChatType.dm;
@@ -2160,11 +2167,6 @@ class _AvatarHeader extends StatelessWidget {
     return t[0].toUpperCase();
   }
 
-  static const _avatarColors = [
-    Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77),
-    Color(0xFF65aadd), Color(0xFFa695e7), Color(0xFFee7aae),
-    Color(0xFF6ec9cb),
-  ];
 }
 
 class _ChatDetails extends StatefulWidget {
@@ -6094,22 +6096,15 @@ class _TopMemberRow extends StatelessWidget {
     required this.status,
   });
 
-  static const _kAvatarColors = [
-    Color(0xFFC03D33),
-    Color(0xFF4FAD2D),
-    Color(0xFFD09306),
-    Color(0xFF168ACD),
-    Color(0xFF8544D6),
-    Color(0xFFCD4073),
-    Color(0xFF2996AD),
-  ];
+  static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     final name = member['name'] as String? ?? 'User';
     final userId = member['user_id'] as String? ?? '0';
-    final colorIdx = (int.tryParse(userId) ?? 0).abs() % _kAvatarColors.length;
-    final avatarColor = _kAvatarColors[colorIdx];
+    final numId = (int.tryParse(userId) ?? 0).abs();
+    final avatarColor = palette.peerUserpicBg(_colorRemap[numId % 7]);
     final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
 
     return Padding(
@@ -6452,9 +6447,13 @@ class _PostThumbnail extends StatelessWidget {
     );
   }
 
+  static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
+
   Widget _chatAvatar(BuildContext context) {
+    final palette = context.palette;
     final name = chat.title;
-    final color = _avatarColor(chat.chatId);
+    final numId = int.tryParse(chat.chatId) ?? chat.chatId.hashCode.abs();
+    final color = palette.peerUserpicBg(_colorRemap[numId.abs() % 7]);
     return Container(
       width: 42,
       height: 42,
@@ -6466,21 +6465,6 @@ class _PostThumbnail extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  static Color _avatarColor(String id) {
-    final colors = [
-      const Color(0xFFE17076),
-      const Color(0xFF7BC862),
-      const Color(0xFFE5CA77),
-      const Color(0xFF65AADD),
-      const Color(0xFFA695E7),
-      const Color(0xFFEE7AAE),
-      const Color(0xFF6EC9CB),
-      const Color(0xFFE17076),
-    ];
-    final hash = id.hashCode.abs();
-    return colors[hash % colors.length];
   }
 }
 
@@ -6886,9 +6870,12 @@ class _ForwardAvatar extends StatelessWidget {
 
   const _ForwardAvatar({required this.name, required this.size});
 
+  static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
+
   @override
   Widget build(BuildContext context) {
-    final color = _avatarColor(name);
+    final palette = context.palette;
+    final color = palette.peerUserpicBg(_colorRemap[name.hashCode.abs() % 7]);
     final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
     return Container(
       width: size,
@@ -6903,12 +6890,8 @@ class _ForwardAvatar extends StatelessWidget {
     );
   }
 
-  static Color _avatarColor(String name) {
-    const colors = [
-      Color(0xFFE17076), Color(0xFF7BC862), Color(0xFFE5CA77), Color(0xFF65AADD),
-      Color(0xFFA695E7), Color(0xFFEE7AAE), Color(0xFF6EC9CB), Color(0xFFE17076),
-    ];
-    return colors[name.hashCode.abs() % colors.length];
+  static Color avatarColorFromPalette(String name, TelegramPalette palette) {
+    return palette.peerUserpicBg(_colorRemap[name.hashCode.abs() % 7]);
   }
 }
 
@@ -6921,7 +6904,7 @@ class _StoryRingAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
-    final color = _ForwardAvatar._avatarColor(name);
+    final color = _ForwardAvatar.avatarColorFromPalette(name, context.palette);
     return CustomPaint(
       painter: _StoryRingPainter(),
       child: Padding(

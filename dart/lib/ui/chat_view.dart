@@ -2331,6 +2331,7 @@ class _ChatViewState extends State<ChatView>
       barrierColor: Colors.black26,
       builder: (ctx) {
         final theme = Theme.of(ctx);
+        final pal = ctx.palette;
         const avatarRadius = 36.0;
         Widget avatar;
         if (avatarB64 != null && avatarB64.isNotEmpty) {
@@ -2338,13 +2339,13 @@ class _ChatViewState extends State<ChatView>
             final bytes = base64Decode(avatarB64);
             avatar = ClipOval(
               child: Image.memory(bytes, width: avatarRadius * 2, height: avatarRadius * 2, fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _senderFallbackAvatar(senderId, senderName, avatarRadius)),
+                errorBuilder: (_, __, ___) => _senderFallbackAvatar(senderId, senderName, avatarRadius, pal)),
             );
           } catch (_) {
-            avatar = _senderFallbackAvatar(senderId, senderName, avatarRadius);
+            avatar = _senderFallbackAvatar(senderId, senderName, avatarRadius, pal);
           }
         } else {
-          avatar = _senderFallbackAvatar(senderId, senderName, avatarRadius);
+          avatar = _senderFallbackAvatar(senderId, senderName, avatarRadius, pal);
         }
 
         return Dialog(
@@ -2679,17 +2680,13 @@ class _ChatViewState extends State<ChatView>
   }
 
   static const _colorIndexRemap = [0, 7, 4, 1, 6, 3, 5];
-  static const _userpicColors = [
-    Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77), Color(0xFF65aadd),
-    Color(0xFFa695e7), Color(0xFFee7aae), Color(0xFF6ec9cb), Color(0xFFe8a64e),
-  ];
 
-  static Widget _senderFallbackAvatar(String senderId, String name, double radius) {
+  static Widget _senderFallbackAvatar(String senderId, String name, double radius, TelegramPalette palette) {
     final numId = int.tryParse(senderId) ?? senderId.hashCode.abs();
     final paletteIndex = _colorIndexRemap[numId.abs() % 7];
     return CircleAvatar(
       radius: radius,
-      backgroundColor: _userpicColors[paletteIndex],
+      backgroundColor: palette.peerUserpicBg(paletteIndex),
       child: Text(
         name.isNotEmpty ? name[0].toUpperCase() : '?',
         style: TextStyle(color: Colors.white, fontSize: radius * 0.6, fontWeight: FontWeight.w600),
@@ -5211,7 +5208,7 @@ class _ChatTopBar extends StatelessWidget {
   static String _formatLastSeen(({String kind, int lastSeenMs}) ls) =>
       formatChatLastSeen(ls);
 
-  static Widget _chatAvatar(ChatInfo chat, ThemeData theme, double radius, {SavedSublistInfo? activeSublist}) {
+  static Widget _chatAvatar(ChatInfo chat, TelegramPalette palette, double radius, {SavedSublistInfo? activeSublist}) {
     if (activeSublist != null) {
       if (activeSublist.isSelf) {
         return MyNotesUserpic(size: radius * 2);
@@ -5229,11 +5226,11 @@ class _ChatTopBar extends StatelessWidget {
           width: radius * 2,
           height: radius * 2,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _fallbackAvatar(chat, theme, radius),
+          errorBuilder: (_, __, ___) => _fallbackAvatar(chat, palette, radius),
         ),
       );
     }
-    return _fallbackAvatar(chat, theme, radius);
+    return _fallbackAvatar(chat, palette, radius);
   }
 
   static Widget _sublistAvatar(SavedSublistInfo sub, double radius) {
@@ -5587,17 +5584,13 @@ class _ChatTopBar extends StatelessWidget {
   }
 
   static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
-  static const _userpicPalette = [
-    Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77), Color(0xFF65aadd),
-    Color(0xFFa695e7), Color(0xFFee7aae), Color(0xFF6ec9cb), Color(0xFFe8a64e),
-  ];
 
-  static Widget _fallbackAvatar(ChatInfo chat, ThemeData theme, double radius) {
+  static Widget _fallbackAvatar(ChatInfo chat, TelegramPalette palette, double radius) {
     final numId = int.tryParse(chat.chatId) ?? chat.chatId.hashCode.abs();
     final paletteIndex = _colorRemap[numId.abs() % 7];
     return CircleAvatar(
       radius: radius,
-      backgroundColor: _userpicPalette[paletteIndex],
+      backgroundColor: palette.peerUserpicBg(paletteIndex),
       child: Text(
         chat.title.isNotEmpty ? chat.title[0].toUpperCase() : '?',
         style: TextStyle(color: Colors.white, fontSize: radius * 0.7, fontWeight: FontWeight.w600),
@@ -5742,7 +5735,7 @@ class _ChatTopBar extends StatelessWidget {
                     Positioned(
                       left: 2,
                       top: 5,
-                      child: _chatAvatar(chat, theme, 21, activeSublist: activeSublist),
+                      child: _chatAvatar(chat, palette, 21, activeSublist: activeSublist),
                     ),
                   ],
                 ),
@@ -6118,7 +6111,7 @@ class _ChatTopBar extends StatelessWidget {
               splashRadius: 20,
             ),
           ),
-          _chatAvatar(chat, theme, 18),
+          _chatAvatar(chat, pal, 18),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -6254,7 +6247,7 @@ class _DeletedMessagesTopBarStatefulState extends State<_DeletedMessagesTopBarSt
                 : widget.onExit,
           ),
           if (!_searching) ...[
-            _ChatTopBar._chatAvatar(widget.chat, widget.theme, 18),
+            _ChatTopBar._chatAvatar(widget.chat, context.palette, 18),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -15284,10 +15277,6 @@ class _ShareBoxState extends State<_ShareBox> {
   static const _commentPadding = EdgeInsets.all(5);
 
   static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
-  static const _userpicPalette = [
-    Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77), Color(0xFF65aadd),
-    Color(0xFFa695e7), Color(0xFFee7aae), Color(0xFF6ec9cb), Color(0xFFe8a64e),
-  ];
 
   String _query = '';
   String? _selectedFolderId;
@@ -15827,9 +15816,9 @@ class _ShareBoxState extends State<_ShareBox> {
     return (screenWidth / 90).floor().clamp(3, 10);
   }
 
-  static Color avatarColor(String id) {
+  static Color avatarColor(String id, TelegramPalette palette) {
     final numId = int.tryParse(id) ?? id.hashCode.abs();
-    return _userpicPalette[_colorRemap[numId.abs() % 7]];
+    return palette.peerUserpicBg(_colorRemap[numId.abs() % 7]);
   }
 }
 
@@ -15901,6 +15890,7 @@ class _ShareBoxItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     final radius = isSelected ? _imageSmallRadius : _imageRadius;
     final accentColor = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF40a7e3);
 
@@ -15926,7 +15916,7 @@ class _ShareBoxItem extends StatelessWidget {
                 duration: const Duration(milliseconds: 150),
                 width: radius * 2,
                 height: radius * 2,
-                child: _buildAvatar(radius),
+                child: _buildAvatar(radius, palette),
               ),
             ),
           ),
@@ -15951,7 +15941,7 @@ class _ShareBoxItem extends StatelessWidget {
     );
   }
 
-  Widget _buildAvatar(double radius) {
+  Widget _buildAvatar(double radius, TelegramPalette palette) {
     if (_isSavedMessages) {
       return CircleAvatar(
         radius: radius,
@@ -15966,15 +15956,15 @@ class _ShareBoxItem extends StatelessWidget {
           width: radius * 2,
           height: radius * 2,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _fallbackAvatar(radius),
+          errorBuilder: (_, __, ___) => _fallbackAvatar(radius, palette),
         ),
       );
     }
-    return _fallbackAvatar(radius);
+    return _fallbackAvatar(radius, palette);
   }
 
-  Widget _fallbackAvatar(double radius) {
-    final color = _ShareBoxState.avatarColor(chat.chatId);
+  Widget _fallbackAvatar(double radius, TelegramPalette palette) {
+    final color = _ShareBoxState.avatarColor(chat.chatId, palette);
     final initials = chat.title.isNotEmpty ? chat.title[0].toUpperCase() : '?';
     return CircleAvatar(
       radius: radius,
@@ -16276,13 +16266,10 @@ class _AutocompletePanel extends StatelessWidget {
   });
 
   static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
-  static const _userpicPalette = [
-    Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77), Color(0xFF65aadd),
-    Color(0xFFa695e7), Color(0xFFee7aae), Color(0xFF6ec9cb), Color(0xFFe8a64e),
-  ];
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF17212b) : Colors.white;
@@ -16306,7 +16293,7 @@ class _AutocompletePanel extends StatelessWidget {
           final m = members[index];
           final isSelected = index == selectedIndex;
           final numId = int.tryParse(m.userId) ?? m.userId.hashCode.abs();
-          final avatarColor = _userpicPalette[_colorRemap[numId.abs() % 7]];
+          final avatarColor = palette.peerUserpicBg(_colorRemap[numId.abs() % 7]);
           return MouseRegion(
             onEnter: (_) => onHover(index),
             child: GestureDetector(
@@ -16386,10 +16373,6 @@ class _CommandAutocompletePanelState extends State<_CommandAutocompletePanel>
   late final AnimationController _fadeController;
 
   static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
-  static const _userpicPalette = [
-    Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77), Color(0xFF65aadd),
-    Color(0xFFa695e7), Color(0xFFee7aae), Color(0xFF6ec9cb), Color(0xFFe8a64e),
-  ];
 
   @override
   void initState() {
@@ -16408,6 +16391,7 @@ class _CommandAutocompletePanelState extends State<_CommandAutocompletePanel>
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF17212b) : Colors.white;
@@ -16435,7 +16419,7 @@ class _CommandAutocompletePanelState extends State<_CommandAutocompletePanel>
               final cmd = widget.commands[index];
               final isSelected = index == widget.selectedIndex;
               final numId = int.tryParse(cmd.botId) ?? cmd.botId.hashCode.abs();
-              final avatarColor = _userpicPalette[_colorRemap[numId.abs() % 7]];
+              final avatarColor = palette.peerUserpicBg(_colorRemap[numId.abs() % 7]);
               return MouseRegion(
                 onEnter: (_) => widget.onHover(index),
                 child: GestureDetector(

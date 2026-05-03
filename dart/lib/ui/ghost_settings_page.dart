@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
+import '../theme/theme.dart';
 import 'ayu_toggle.dart';
 import 'settings_style.dart';
 import 'telegram_toast.dart';
@@ -654,24 +655,18 @@ class _AccountAvatar extends StatelessWidget {
         );
       }
     }
+    final palette = context.palette;
     final name = _AccountPickerButton.accountLabel(account);
     final initial = name.characters.first.toUpperCase();
-    final colors = [
-      const Color(0xFFC03D33),
-      const Color(0xFF4FAD2D),
-      const Color(0xFFD09306),
-      const Color(0xFF168ACD),
-      const Color(0xFF8544D6),
-      const Color(0xFFCD4073),
-      const Color(0xFF2996AD),
-    ];
-    final colorIndex = account.selfUserId.hashCode.abs() % colors.length;
+    const colorRemap = [0, 7, 4, 1, 6, 3, 5];
+    final numId = int.tryParse(account.selfUserId) ?? account.selfUserId.hashCode.abs();
+    final avatarColor = palette.peerUserpicBg(colorRemap[numId.abs() % 7]);
     return Container(
       width: 30,
       height: 30,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: colors[colorIndex],
+        color: avatarColor,
       ),
       child: Center(
         child: Text(

@@ -2393,19 +2393,11 @@ class _TopPeersStrip extends StatelessWidget {
   static const _itemWidth = 66.0; // avatar + horizontal spacing
   static const _stripHeight = 90.0; // avatar + name + padding
 
-  // 7 colors matching Telegram's peer color scheme.
-  static const _avatarColors = [
-    Color(0xFFe17076),
-    Color(0xFF7bc862),
-    Color(0xFFe5ca77),
-    Color(0xFF65aadd),
-    Color(0xFFa695e7),
-    Color(0xFFee7aae),
-    Color(0xFF6ec9cb),
-  ];
+  static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     // Filter to DM chats only, sort by most recent message.
     final dmChats = chats
         .where((c) => c.type == ChatType.dm && !c.isArchived)
@@ -2428,8 +2420,8 @@ class _TopPeersStrip extends StatelessWidget {
         itemCount: topPeers.length,
         itemBuilder: (context, index) {
           final chat = topPeers[index];
-          final colorIndex = chat.chatId.hashCode.abs() % 7;
-          final color = _avatarColors[colorIndex];
+          final numId = int.tryParse(chat.chatId) ?? chat.chatId.hashCode.abs();
+          final color = palette.peerUserpicBg(_colorRemap[numId.abs() % 7]);
           final initials = _initials(chat.title);
           final firstName = chat.title.split(RegExp(r'\s+')).first;
 
@@ -2791,18 +2783,11 @@ class _StoryAvatar extends StatelessWidget {
     required this.onTap,
   });
 
-  static const _avatarColors = [
-    Color(0xFFe17076),
-    Color(0xFF7bc862),
-    Color(0xFFe5ca77),
-    Color(0xFF65aadd),
-    Color(0xFFa695e7),
-    Color(0xFFee7aae),
-    Color(0xFF6ec9cb),
-  ];
+  static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     final ringOffset = ringWidth > 0 ? ringWidth * 1.5 : 0.0;
     final totalSize = size + ringOffset * 2;
 
@@ -2831,10 +2816,10 @@ class _StoryAvatar extends StatelessWidget {
                         height: size,
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) =>
-                            _fallbackAvatar(),
+                            _fallbackAvatar(palette),
                       ),
                     )
-                  : _fallbackAvatar(),
+                  : _fallbackAvatar(palette),
             ),
           ),
         ),
@@ -2842,9 +2827,9 @@ class _StoryAvatar extends StatelessWidget {
     );
   }
 
-  Widget _fallbackAvatar() {
-    final colorIndex = chat.chatId.hashCode.abs() % 7;
-    final color = _avatarColors[colorIndex];
+  Widget _fallbackAvatar(TelegramPalette palette) {
+    final numId = int.tryParse(chat.chatId) ?? chat.chatId.hashCode.abs();
+    final color = palette.peerUserpicBg(_colorRemap[numId.abs() % 7]);
     final t = chat.title.trim();
     String initials;
     if (t.isEmpty) {
@@ -2961,15 +2946,7 @@ class _RecentContactsList extends StatelessWidget {
   static const _rowHeight = 56.0;
   static const _avatarSize = 42.0;
 
-  static const _avatarColors = [
-    Color(0xFFe17076),
-    Color(0xFF7bc862),
-    Color(0xFFe5ca77),
-    Color(0xFF65aadd),
-    Color(0xFFa695e7),
-    Color(0xFFee7aae),
-    Color(0xFF6ec9cb),
-  ];
+  static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
 
   @override
   Widget build(BuildContext context) {
@@ -2995,8 +2972,8 @@ class _RecentContactsList extends StatelessWidget {
           delegate: SliverChildBuilderDelegate(
             (context, index) {
               final chat = recent[index];
-              final colorIndex = chat.chatId.hashCode.abs() % 7;
-              final color = _avatarColors[colorIndex];
+              final numId = int.tryParse(chat.chatId) ?? chat.chatId.hashCode.abs();
+              final color = palette.peerUserpicBg(_colorRemap[numId.abs() % 7]);
               final initials = _initials(chat.title);
               final isOnline = chatState.isChatOnline(chat);
               return _RecentContactRow(
@@ -3785,10 +3762,13 @@ class _ArchivedChatsRowState extends State<_ArchivedChatsRow> {
     );
   }
 
+  static const _miniColorRemap = [0, 7, 4, 1, 6, 3, 5];
+
   /// Renders a single mini circular avatar (photo or fallback initials).
   Widget _miniAvatar(ChatInfo chat, double size) {
-    final colorIndex = chat.chatId.hashCode.abs() % 7;
-    final color = _miniAvatarColors[colorIndex];
+    final palette = context.palette;
+    final numId = int.tryParse(chat.chatId) ?? chat.chatId.hashCode.abs();
+    final color = palette.peerUserpicBg(_miniColorRemap[numId.abs() % 7]);
     final initials = _miniInitials(chat.title);
 
     if (chat.avatarPath.isNotEmpty) {
@@ -3836,15 +3816,6 @@ class _ArchivedChatsRowState extends State<_ArchivedChatsRow> {
     return t.characters.first.toUpperCase();
   }
 
-  static const _miniAvatarColors = [
-    Color(0xFFe17076), // red
-    Color(0xFFeda86c), // orange
-    Color(0xFF7bc862), // green
-    Color(0xFF6ec9cb), // teal
-    Color(0xFF65aadd), // blue
-    Color(0xFFee7aae), // pink
-    Color(0xFF9b86e2), // purple
-  ];
 }
 
 /// Spec §35.5 + §35.33: Skeleton loading rows shown during initial chat sync.

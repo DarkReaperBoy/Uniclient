@@ -11,6 +11,7 @@ import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
+import '../theme/theme.dart';
 import 'confirm_box.dart';
 import 'popup_menu.dart';
 import 'settings_style.dart';
@@ -513,15 +514,7 @@ class _GroupCallRow extends StatefulWidget {
 class _GroupCallRowState extends State<_GroupCallRow> {
   bool _hovered = false;
 
-  static const _avatarColors = [
-    Color(0xFFE17076),
-    Color(0xFF7BC862),
-    Color(0xFFE5CA77),
-    Color(0xFF65AADD),
-    Color(0xFFA695E7),
-    Color(0xFFEE7AAE),
-    Color(0xFF6EC9CB),
-  ];
+  static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
 
   String _chatTypeLabel(ChatInfo chat) {
     switch (chat.type) {
@@ -541,8 +534,8 @@ class _GroupCallRowState extends State<_GroupCallRow> {
     final hoverBg =
         widget.isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
 
-    final colorIndex = chat.chatId.hashCode.abs() % 7;
-    final avatarColor = _avatarColors[colorIndex];
+    final numId = int.tryParse(chat.chatId) ?? chat.chatId.hashCode.abs();
+    final avatarColor = context.palette.peerUserpicBg(_colorRemap[numId.abs() % 7]);
     final initials = _getInitials(chat.title);
     final avatarCorner = context.watch<AppState>().avatarCorners;
     const avatarSize = 42.0;
@@ -1517,15 +1510,7 @@ class _ConfInviteRow extends StatefulWidget {
 class _ConfInviteRowState extends State<_ConfInviteRow> {
   bool _hovered = false;
 
-  static const _avatarColors = [
-    Color(0xFFE17076),
-    Color(0xFF7BC862),
-    Color(0xFFE5CA77),
-    Color(0xFF65AADD),
-    Color(0xFFA695E7),
-    Color(0xFFEE7AAE),
-    Color(0xFF6EC9CB),
-  ];
+  static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
 
   String _lastSeenLabel(ContactInfo c) {
     if (c.isOnline) return 'online';
@@ -1543,8 +1528,8 @@ class _ConfInviteRowState extends State<_ConfInviteRow> {
   @override
   Widget build(BuildContext context) {
     final c = widget.contact;
-    final colorIndex = c.userId.hashCode.abs() % 7;
-    final avatarColor = _avatarColors[colorIndex];
+    final numId = int.tryParse(c.userId) ?? c.userId.hashCode.abs();
+    final avatarColor = context.palette.peerUserpicBg(_colorRemap[numId.abs() % 7]);
     final initials = _getInitials(c.displayName);
     final statusText = _lastSeenLabel(c);
     final statusColor = c.isOnline ? widget.accentColor : widget.subtextColor;
@@ -1722,15 +1707,7 @@ class _CallHistoryRow extends StatefulWidget {
 class _CallHistoryRowState extends State<_CallHistoryRow> {
   bool _hovered = false;
 
-  static const _avatarColors = [
-    Color(0xFFE17076),
-    Color(0xFF7BC862),
-    Color(0xFFE5CA77),
-    Color(0xFF65AADD),
-    Color(0xFFA695E7),
-    Color(0xFFEE7AAE),
-    Color(0xFF6EC9CB),
-  ];
+  static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
 
   static const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -1836,8 +1813,8 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
         ? (widget.isDark ? const Color(0xFFe85050) : const Color(0xFFdd4b39))
         : (widget.isDark ? const Color(0xFF49ad55) : const Color(0xFF4dc920));
 
-    final colorIndex = group.peerId.hashCode.abs() % 7;
-    final avatarColor = _avatarColors[colorIndex];
+    final numIdG = int.tryParse(group.peerId) ?? group.peerId.hashCode.abs();
+    final avatarColor = context.palette.peerUserpicBg(_colorRemap[numIdG.abs() % 7]);
     final initials = _getInitials(group.peerName);
     final avatarCorner = context.watch<AppState>().avatarCorners;
     const avatarSize = 42.0;

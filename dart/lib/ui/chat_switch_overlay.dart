@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../models/engine_models.dart';
+import '../theme/theme.dart';
 import 'chat_list_row.dart' show SavedMessagesUserpic;
 
 const _cellWidth = 72.0;
@@ -19,15 +20,7 @@ const _panelRadius = 12.0;
 const _maxPerRow = 7;
 const _maxRows = 3;
 
-const _avatarColors = [
-  Color(0xFFe17076),
-  Color(0xFF7bc862),
-  Color(0xFFe5ca77),
-  Color(0xFF65aadd),
-  Color(0xFFa695e7),
-  Color(0xFFee7aae),
-  Color(0xFF6ec9cb),
-];
+const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
 
 class ChatSwitchOverlay extends StatefulWidget {
   final List<ChatInfo> chats;
@@ -276,7 +269,7 @@ class _ChatSwitchCell extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.start,
         children: [
           SizedBox(height: _userpicTop),
-          _buildAvatar(),
+          _buildAvatar(context.palette),
           const SizedBox(height: 4),
           Expanded(
             child: Padding(
@@ -299,7 +292,7 @@ class _ChatSwitchCell extends StatelessWidget {
     );
   }
 
-  Widget _buildAvatar() {
+  Widget _buildAvatar(TelegramPalette palette) {
     final isSaved = chat.title == 'Saved Messages' && chat.type == ChatType.dm;
 
     if (isSaved) {
@@ -321,8 +314,8 @@ class _ChatSwitchCell extends StatelessWidget {
       );
     }
 
-    final colorIndex = chat.chatId.hashCode.abs() % 7;
-    final color = _avatarColors[colorIndex];
+    final numId = int.tryParse(chat.chatId) ?? chat.chatId.hashCode.abs();
+    final color = palette.peerUserpicBg(_colorRemap[numId.abs() % 7]);
     final initials = _initials(chat.title);
 
     return Container(

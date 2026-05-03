@@ -800,28 +800,20 @@ class _ReactorAvatar extends StatelessWidget {
 
   const _ReactorAvatar({required this.name, required this.size});
 
-  static const _avatarColors = [
-    Color(0xFFE17076),
-    Color(0xFF7BC862),
-    Color(0xFFE5CA77),
-    Color(0xFF65AADD),
-    Color(0xFFA695E7),
-    Color(0xFFEE7AAE),
-    Color(0xFF6EC9CB),
-    Color(0xFFFAA774),
-  ];
+  static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     final initial = name.isNotEmpty ? name.characters.first.toUpperCase() : '?';
-    final colorIdx = name.hashCode.abs() % _avatarColors.length;
+    final color = palette.peerUserpicBg(_colorRemap[name.hashCode.abs() % 7]);
 
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: _avatarColors[colorIdx],
+        color: color,
       ),
       alignment: Alignment.center,
       child: Text(

@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import '../data/ayu_filter.dart';
 import '../state/app_state.dart';
+import '../theme/theme.dart';
 import '../state/chat_state.dart';
 import 'ayu_section_builder.dart';
 
@@ -838,7 +839,7 @@ class _ShadowBanRow extends StatelessWidget {
         child: Row(children: [
           CircleAvatar(
             radius: 23,
-            backgroundColor: _avatarColor(id),
+            backgroundColor: context.palette.peerUserpicBg(_colorRemap[id.abs() % 7]),
             child: const Text('U',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white)),
           ),
@@ -871,12 +872,7 @@ class _ShadowBanRow extends StatelessWidget {
         offset.dx + box.size.width, offset.dy + box.size.height);
   }
 
-  static const _colors = [
-    Color(0xFFC03D33), Color(0xFF4FAD2D), Color(0xFFD09306),
-    Color(0xFF168ACD), Color(0xFF8544D6), Color(0xFFCD4073), Color(0xFF2996AD),
-  ];
-
-  Color _avatarColor(int id) => _colors[id.abs() % 7];
+  static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
 }
 
 class _RegexEditBox extends StatefulWidget {
