@@ -8,6 +8,10 @@ class StatsChartData {
   final List<int> timestamps;
   final List<ChartLine> lines;
   final String? zoomToken;
+  final bool weekFormat;
+  final bool hasPercentages;
+  final double? currencyRate;
+  final String? currency;
 
   StatsChartData({
     required this.title,
@@ -15,6 +19,10 @@ class StatsChartData {
     required this.timestamps,
     required this.lines,
     this.zoomToken,
+    this.weekFormat = false,
+    this.hasPercentages = false,
+    this.currencyRate,
+    this.currency,
   });
 
   static StatsChartData? fromMap(Map<String, dynamic> map) {
@@ -54,12 +62,26 @@ class StatsChartData {
 
       if (timestamps.isEmpty || lines.isEmpty) return null;
 
+      final percentage = parsed['percentage'] as bool? ?? false;
+      bool weekFmt = false;
+      if (timestamps.length >= 2) {
+        final ms0 =
+            timestamps[0].abs() > 1e12 ? timestamps[0] : timestamps[0] * 1000;
+        final ms1 =
+            timestamps[1].abs() > 1e12 ? timestamps[1] : timestamps[1] * 1000;
+        weekFmt = (ms1 - ms0).abs() >= 6 * 24 * 3600 * 1000;
+      }
+
       return StatsChartData(
         title: title,
         chartType: chartType,
         timestamps: timestamps,
         lines: lines,
         zoomToken: map['zoom_token'] as String?,
+        weekFormat: weekFmt,
+        hasPercentages: percentage,
+        currencyRate: (parsed['rate'] as num?)?.toDouble(),
+        currency: parsed['currency'] as String?,
       );
     } catch (_) {
       return null;
@@ -98,16 +120,18 @@ const _kDotRadius = 5.0;
 const _kBottomCaptionHeight = 15.0;
 const _kBottomCaptionSkip = 6.0;
 const _kTooltipRadius = 8.0;
-const _kTooltipWidth = 160.0;
+const _kTooltipWidth = 180.0;
 
 class StatsChartWidget extends StatefulWidget {
   final StatsChartData data;
   final ThemeData theme;
+  final void Function(int index)? onZoom;
 
   const StatsChartWidget({
     super.key,
     required this.data,
     required this.theme,
+    this.onZoom,
   });
 
   @override
@@ -305,79 +329,149 @@ class _StatsChartWidgetState extends State<StatsChartWidget>
     final xPx = ((xFrac - _rangeStart) / span) * chartWidth;
 
     final dt = _toDate(widget.data.timestamps[idx]);
-    final dateStr =
-        '${_weekdays[dt.weekday - 1]}, ${_months[dt.month - 1]} ${dt.day}';
+    String dateStr;
+    if (widget.data.weekFormat) {
+      final dtEnd = dt.add(const Duration(days: 6));
+      dateStr =
+          '${dt.day} ${_months[dt.month - 1]} – ${dtEnd.day} ${_months[dtEnd.month - 1]}';
+    } else {
+      dateStr =
+          '${_weekdays[dt.weekday - 1]}, ${_months[dt.month - 1]} ${dt.day}';
+    }
 
-    final visibleLines =
-        widget.data.lines.where((l) => _lineVisible[l.id] ?? true).toList();
+    double totalAtIdx = 0;
+    if (widget.data.hasPercentages) {
+      for (final l in widget.data.lines) {
+        if (idx < l.values.length) totalAtIdx += l.values[idx];
+      }
+    }
+
+    final zoomEnabled = widget.data.zoomToken != null &&
+        widget.data.zoomToken!.isNotEmpty;
+    final hasCurrency = widget.data.currency != null &&
+        widget.data.currencyRate != null &&
+        widget.data.currencyRate! > 0;
 
     const gap = 12.0;
     var left = xPx - _kTooltipWidth - gap;
     if (left < 0) left = xPx + gap;
     if (left + _kTooltipWidth > chartWidth) left = 0;
 
-    return Positioned(
-      left: left,
-      top: 0,
-      child: IgnorePointer(
-        child: AnimatedOpacity(
-          opacity: 1.0,
-          duration: const Duration(milliseconds: 200),
-          child: Container(
-            width: _kTooltipWidth,
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 11),
-            decoration: BoxDecoration(
-              color: bgColor,
-              borderRadius: BorderRadius.circular(_kTooltipRadius),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.2),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(dateStr,
+    final allLines = widget.data.lines;
+    final content = Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 11),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(dateStr,
                     style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: fgColor)),
-                const SizedBox(height: 6),
-                for (var i = 0; i < visibleLines.length; i++) ...[
-                  if (i > 0) const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Expanded(
-                          child: Text(visibleLines[i].name,
-                              style: TextStyle(fontSize: 12, color: subColor),
-                              overflow: TextOverflow.ellipsis)),
-                      const SizedBox(width: 8),
+              ),
+              if (zoomEnabled)
+                Padding(
+                  padding: const EdgeInsets.only(left: 3),
+                  child: Icon(Icons.chevron_right, size: 14, color: subColor),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          for (var i = 0; i < allLines.length; i++) ...[
+            if (i > 0) const SizedBox(height: 4),
+            AnimatedOpacity(
+              opacity:
+                  (_lineVisible[allLines[i].id] ?? true) ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 200),
+              child: Row(
+                children: [
+                  Expanded(
+                      child: Text(allLines[i].name,
+                          style: TextStyle(fontSize: 12, color: subColor),
+                          overflow: TextOverflow.ellipsis)),
+                  const SizedBox(width: 8),
+                  if (hasCurrency) ...[
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '${_formatValue(idx < allLines[i].values.length ? allLines[i].values[idx] : 0)} ${widget.data.currency}',
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: allLines[i].color),
+                        ),
+                        Text(
+                          '≈ \$${_formatValue((idx < allLines[i].values.length ? allLines[i].values[idx] : 0) * widget.data.currencyRate!)}',
+                          style: TextStyle(fontSize: 10, color: subColor),
+                        ),
+                      ],
+                    ),
+                  ] else ...[
+                    Text(
+                      _formatValue(idx < allLines[i].values.length
+                          ? allLines[i].values[idx]
+                          : 0),
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: allLines[i].color),
+                    ),
+                    if (widget.data.hasPercentages && totalAtIdx > 0) ...[
+                      const SizedBox(width: 4),
                       Text(
-                        _formatValue(idx < visibleLines[i].values.length
-                            ? visibleLines[i].values[idx]
-                            : 0),
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: visibleLines[i].color),
+                        '${(idx < allLines[i].values.length ? allLines[i].values[idx] / totalAtIdx * 100 : 0).toStringAsFixed(0)}%',
+                        style: TextStyle(fontSize: 12, color: subColor),
                       ),
                     ],
-                  ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
+          ],
+        ],
+      ),
+    );
+
+    final shadow = BoxDecoration(
+      borderRadius: BorderRadius.circular(_kTooltipRadius),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.2),
+          blurRadius: 8,
+          offset: const Offset(0, 2),
+        ),
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.4),
+          blurRadius: 16,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    );
+
+    Widget card = DecoratedBox(
+      decoration: shadow,
+      child: Material(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(_kTooltipRadius),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: zoomEnabled ? () => widget.onZoom?.call(idx) : null,
+          borderRadius: BorderRadius.circular(_kTooltipRadius),
+          child: SizedBox(width: _kTooltipWidth, child: content),
         ),
       ),
+    );
+
+    return Positioned(
+      left: left,
+      top: 0,
+      child: zoomEnabled ? card : IgnorePointer(child: card),
     );
   }
 
