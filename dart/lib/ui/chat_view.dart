@@ -6198,6 +6198,9 @@ class _MessageList extends StatelessWidget {
 
         if (msg.isService) {
           Widget serviceWidget;
+          final serviceText = msg.isDeleted
+              ? '${msg.contentText} (${context.read<AppState>().deletedMark})'
+              : msg.contentText;
           if (msg.contentText.contains('created the group')) {
             serviceWidget = const _GroupAboutServiceMessage();
           } else if (msg.contentText.contains('created topic')) {
@@ -6207,7 +6210,7 @@ class _MessageList extends StatelessWidget {
               topicName: msg.topicName.isNotEmpty ? msg.topicName : _extractTopicTitle(msg.contentText),
             );
           } else {
-            serviceWidget = _ServiceMessage(text: msg.contentText);
+            serviceWidget = _ServiceMessage(text: serviceText);
           }
           return Column(
             key: isJumpHighlight ? highlightMsgKey : null,

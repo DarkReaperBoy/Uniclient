@@ -513,7 +513,9 @@ class _MessageBubbleState extends State<MessageBubble> {
     // Show sender avatar for incoming messages in group chats.
     final showAvatar = isGroupChat && !isOutgoing;
 
-    return MouseRegion(
+    final deletedOpacity = (ayuState.semiTransparentDeleted && message.isDeleted) ? 0.7 : 1.0;
+
+    Widget bubble = MouseRegion(
       onEnter: (_) => _onHoverEnter(),
       onExit: (_) => _onHoverExit(),
       child: Padding(
@@ -825,12 +827,11 @@ class _MessageBubbleState extends State<MessageBubble> {
                                   style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, isDark))),
                             ),
                           ],
-                          if (message.isEdited)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 4),
-                              child: Text('edited',
-                                  style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, isDark))),
-                            ),
+                          ..._buildDeletedEditedMarks(
+                            message: message,
+                            color: _bottomInfoColor(isOutgoing, isDark),
+                            appState: ayuState,
+                          ),
                           if (widget.isScheduledView && message.isScheduled)
                             TelegramTooltip(
                               message: _scheduledTooltip(message),
@@ -841,7 +842,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                             )
                           else
                             Text(
-                              _formatTime(message.timestamp),
+                              _buildTimeText(message, ayuState),
                               style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, isDark)),
                             ),
                           if (isOutgoing && !widget.isScheduledView) ...[
@@ -895,6 +896,17 @@ class _MessageBubbleState extends State<MessageBubble> {
       ),
     ),
     );
+
+    if (deletedOpacity < 1.0) {
+      bubble = AnimatedOpacity(
+        opacity: deletedOpacity,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeOutCubic,
+        child: bubble,
+      );
+    }
+
+    return bubble;
   }
 
   Widget _buildSenderAvatar(bool isDark) {
@@ -1083,6 +1095,53 @@ class _MessageBubbleState extends State<MessageBubble> {
       return isDark ? AppColors.msgOutDateFgNight : AppColors.msgOutDateFg;
     }
     return isDark ? AppColors.msgInDateFgNight : AppColors.msgInDateFg;
+  }
+
+  /// §52.3: Build deleted/edited mark widgets for bottom info row.
+  /// Mode 2 (icons): trash icon for deleted, pencil icon for edited.
+  /// Mode 1 (text): "edited" text label for edited messages.
+  /// Order: [deleted-icon] [edited-icon/text]
+  static List<Widget> _buildDeletedEditedMarks({
+    required CachedMessage message,
+    required Color color,
+    required AppState appState,
+  }) {
+    final widgets = <Widget>[];
+    if (appState.replaceMarksWithIcons) {
+      if (message.isDeleted)
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(right: 3),
+          child: Icon(Icons.delete_outline, size: 14, color: color),
+        ));
+      if (message.isEdited)
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(right: 3),
+          child: Icon(Icons.edit, size: 14, color: color),
+        ));
+    } else {
+      if (message.isDeleted)
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(right: 4),
+          child: Text(appState.deletedMark,
+              style: TextStyle(fontSize: 13, color: color)),
+        ));
+      if (message.isEdited)
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(right: 4),
+          child: Text('edited',
+              style: TextStyle(fontSize: 13, color: color)),
+        ));
+    }
+    return widgets;
+  }
+
+  /// §52.3: Build time text, prepending deletedMark in Mode 1 (text marks).
+  static String _buildTimeText(CachedMessage message, AppState appState) {
+    final time = _formatTime(message.timestamp);
+    if (!appState.replaceMarksWithIcons && message.isDeleted) {
+      return '${appState.deletedMark} $time';
+    }
+    return time;
   }
 }
 
@@ -3426,12 +3485,11 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
                                 style: const TextStyle(fontSize: 13, color: AppColors.historyIconFgInverted)),
                           ),
                         ],
-                        if (message.isEdited)
-                          const Padding(
-                            padding: EdgeInsets.only(right: 4),
-                            child: Text('edited',
-                                style: TextStyle(fontSize: 13, color: AppColors.historyIconFgInverted)),
-                          ),
+                        ..._MessageBubbleState._buildDeletedEditedMarks(
+                          message: message,
+                          color: AppColors.historyIconFgInverted,
+                          appState: context.read<AppState>(),
+                        ),
                         if (widget.isScheduledView && message.isScheduled)
                           TelegramTooltip(
                             message: _MessageBubbleState._scheduledTooltip(message),
@@ -3442,7 +3500,7 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
                           )
                         else
                           Text(
-                            _MessageBubbleState._formatTime(message.timestamp),
+                            _MessageBubbleState._buildTimeText(message, context.read<AppState>()),
                             style: const TextStyle(fontSize: 13, color: AppColors.historyIconFgInverted),
                           ),
                         if (widget.isOutgoing && !widget.isScheduledView) ...[

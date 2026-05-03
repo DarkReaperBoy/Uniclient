@@ -988,7 +988,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §52 — Anti-Recall & Message History (AyuGram)
 # Touches: dart/lib/ui/message_bubble.dart, dart/lib/ui/chat_view.dart, dart/lib/ui/settings_screen.dart, new anti_recall.dart
 
-- [ ] Deleted message visual styling — Mode 1 text marks: prepend deletedMark to date text; Mode 2 icon marks: trash/pencil/flame icons before timestamp (burnt, deleted, edited, time order); Mode 3 semi-transparent: 1.0→0.7 opacity over 500ms easeOutCubic for entire bubble; grouped: full group at 0.7 if all deleted else individual; AdminLog always 1.0; animation state transfer on view refresh — spec §52.3
 - [ ] Edit history — intercept UpdateEditMessage pre-apply; save pre-edit text to SQLite; skip local/self-authored/hide-edits/identical; "Edits history" context menu item with pencil icon (when edited + revisions exist); full-width section panel replacing chat view; BackButton with peer name+userpic; revisions as standard bubbles newest-first; paginate 20/30 — spec §52.4
 - [ ] Deleted messages viewer — "View deleted messages" chat-list right-click; MessageHistory section; search with debounced AutoSearchTimeout + SQL LIKE; topicId filter for forums; Ctrl+F shortcut; peer name+userpic in FixedBar — spec §52.5
 - [ ] SQLite storage — ayudata.db; DeletedMessage/EditedMessage/DeletedDialog/SchemaVersion tables; indexes on (userId,dialogId,topicId,messageId); skip empty-text saves; corruption recovery (rename with timestamp + recreate) — spec §52.6
