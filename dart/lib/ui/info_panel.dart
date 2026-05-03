@@ -29,7 +29,7 @@ import 'peer_short_info.dart';
 
 enum InfoWrapMode { side, narrow, layer }
 
-enum _InfoPageType { chatInfo, userProfile }
+enum _InfoPageType { chatInfo, userProfile, statistics }
 
 class _InfoNavPage {
   final _InfoPageType type;
@@ -41,6 +41,7 @@ class _InfoNavPage {
   String get title => switch (type) {
     _InfoPageType.chatInfo => '',
     _InfoPageType.userProfile => member?.label ?? 'User Info',
+    _InfoPageType.statistics => 'Statistics',
   };
 }
 
@@ -315,6 +316,14 @@ class _InfoPanelState extends State<InfoPanel> {
           title: _panelTitle(chat.type),
           isLayer: widget.wrapMode == InfoWrapMode.layer,
         );
+      case _InfoPageType.statistics:
+        return _StatisticsPage(
+          chat: chat,
+          theme: theme,
+          scrollController: _getScrollController(),
+          onClose: onClose,
+          showBackButton: true,
+        );
     }
   }
 
@@ -359,6 +368,8 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
   final String emojiStatusId;
   final String accountId;
   final List<PinnedGiftItem> pinnedGifts;
+  final bool showStatsMenu;
+  final void Function(BuildContext context)? onStatsMenuTap;
 
   static const double maxHeight = 236.0;
   static const double minHeight = 56.0;
@@ -389,6 +400,8 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
     this.emojiStatusId = '',
     this.accountId = '',
     this.pinnedGifts = const [],
+    this.showStatsMenu = false,
+    this.onStatsMenuTap,
   });
 
   @override
@@ -410,7 +423,8 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
       hasUnreadStory != old.hasUnreadStory ||
       profileBgColors != old.profileBgColors ||
       emojiStatusId != old.emojiStatusId ||
-      pinnedGifts.length != old.pinnedGifts.length;
+      pinnedGifts.length != old.pinnedGifts.length ||
+      showStatsMenu != old.showStatsMenu;
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
@@ -662,6 +676,18 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
                         ),
                       ),
                     ),
+                    if (showStatsMenu)
+                      Builder(builder: (ctx) => IconButton(
+                        icon: Icon(
+                          Icons.more_vert,
+                          size: 20,
+                          color: hasGradientBg && collapseProgress < 0.5
+                              ? Colors.white
+                              : null,
+                        ),
+                        onPressed: () => onStatsMenuTap?.call(ctx),
+                        tooltip: 'Menu',
+                      )),
                   ],
                 ),
               ),
@@ -1589,6 +1615,44 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
     return null;
   }
 
+  bool _canShowStatsMenu() {
+    final type = widget.chat.type;
+    if (type != ChatType.channel && type != ChatType.group) return false;
+    final minMembers = type == ChatType.channel ? 50 : 500;
+    return widget.chat.memberCount >= minMembers;
+  }
+
+  void _showStatsMenu(BuildContext context) async {
+    final box = context.findRenderObject() as RenderBox;
+    final pos = box.localToGlobal(Offset(box.size.width / 2, box.size.height));
+    final isChannel = widget.chat.type == ChatType.channel;
+
+    final items = <TelegramMenuItem<String>>[
+      TelegramMenuItem(
+        value: 'statistics',
+        icon: const Icon(Icons.bar_chart, size: 20),
+        label: 'Statistics',
+      ),
+      if (isChannel)
+        const TelegramMenuItem(
+          value: 'boosts',
+          icon: Icon(Icons.rocket_launch_outlined, size: 20),
+          label: 'Boosts',
+        ),
+    ];
+
+    final value = await showTelegramMenu<String>(
+      context: context,
+      position: pos,
+      items: items,
+    );
+
+    if (value == 'statistics' && context.mounted) {
+      final panelState = context.findAncestorStateOfType<_InfoPanelState>();
+      panelState?._pushPage(_InfoNavPage(type: _InfoPageType.statistics));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isTopic = widget.chat.type == ChatType.topic;
@@ -1657,6 +1721,8 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
               emojiStatusId: widget.chat.emojiStatusId,
               accountId: widget.chat.accountId,
               pinnedGifts: widget.pinnedGifts,
+              showStatsMenu: _canShowStatsMenu(),
+              onStatsMenuTap: _showStatsMenu,
             ),
           ),
           SliverList(
@@ -2334,9 +2400,21 @@ class _GroupActionsSection extends StatelessWidget {
     final attentionColor = const Color(0xFFDD4B39);
     final accentColor = theme.colorScheme.primary;
 
+    final showStats = _isSelfAdmin && chat.memberCount >= 500;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (showStats)
+          _ActionRow(
+            icon: Icons.bar_chart,
+            label: 'Statistics',
+            theme: theme,
+            onTap: () {
+              final panelState = context.findAncestorStateOfType<_InfoPanelState>();
+              panelState?._pushPage(_InfoNavPage(type: _InfoPageType.statistics));
+            },
+          ),
         if (_isSelfAdmin)
           _ActionRow(
             icon: Icons.edit,
@@ -2650,9 +2728,21 @@ class _ChannelActionsSection extends StatelessWidget {
     final chatState = context.read<ChatState>();
     final attentionColor = const Color(0xFFDD4B39);
 
+    final showStats = _isSelfAdmin && chat.memberCount >= 50;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (showStats)
+          _ActionRow(
+            icon: Icons.bar_chart,
+            label: 'Statistics',
+            theme: theme,
+            onTap: () {
+              final panelState = context.findAncestorStateOfType<_InfoPanelState>();
+              panelState?._pushPage(_InfoNavPage(type: _InfoPageType.statistics));
+            },
+          ),
         if (_isSelfAdmin)
           _ActionRow(
             icon: Icons.edit,
@@ -5262,6 +5352,262 @@ class _SavedMediaFilterSection extends StatelessWidget {
             ),
           );
         }).toList(),
+      ),
+    );
+  }
+}
+
+class _StatisticsPage extends StatefulWidget {
+  final ChatInfo chat;
+  final ThemeData theme;
+  final ScrollController scrollController;
+  final VoidCallback onClose;
+  final bool showBackButton;
+
+  const _StatisticsPage({
+    required this.chat,
+    required this.theme,
+    required this.scrollController,
+    required this.onClose,
+    required this.showBackButton,
+  });
+
+  @override
+  State<_StatisticsPage> createState() => _StatisticsPageState();
+}
+
+class _StatisticsPageState extends State<_StatisticsPage> {
+  bool _loading = true;
+  String? _error;
+  int? _followerCount;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStats();
+  }
+
+  Future<void> _loadStats() async {
+    try {
+      final engine = context.read<EngineService>();
+      final int count;
+      if (widget.chat.type == ChatType.channel) {
+        count = await engine.getBroadcastStats(
+          widget.chat.accountId, widget.chat.chatId,
+        );
+      } else {
+        count = await engine.getMegagroupStats(
+          widget.chat.accountId, widget.chat.chatId,
+        );
+      }
+      if (mounted) {
+        setState(() {
+          _followerCount = count;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isChannel = widget.chat.type == ChatType.channel;
+    final title = isChannel ? 'Statistics' : 'Statistics';
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 54,
+          child: Material(
+            color: widget.theme.colorScheme.surface,
+            child: Row(
+              children: [
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.arrow_back, size: 20),
+                  onPressed: widget.onClose,
+                  tooltip: 'Back',
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: widget.theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+            ),
+          ),
+        ),
+        Container(height: 1, color: widget.theme.dividerColor),
+        Expanded(
+          child: _loading
+              ? _buildLoadingState()
+              : _error != null
+                  ? _buildErrorState()
+                  : _buildContent(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLoadingState() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 120,
+            height: 120,
+            child: CircularProgressIndicator(
+              strokeWidth: 3,
+              color: widget.theme.colorScheme.primary,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Loading Statistics...',
+            style: widget.theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: 256,
+            child: Text(
+              'Please wait while statistics are being loaded.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                color: widget.theme.textTheme.bodySmall?.color,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.bar_chart, size: 48,
+                color: widget.theme.textTheme.bodySmall?.color),
+            const SizedBox(height: 16),
+            Text(
+              'Statistics Unavailable',
+              style: widget.theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: 256,
+              child: Text(
+                _error!.contains('BROADCAST_REQUIRED') ||
+                        _error!.contains('CHAT_ADMIN_REQUIRED')
+                    ? 'You need to be an admin to view statistics.'
+                    : 'Could not load statistics for this chat.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: widget.theme.textTheme.bodySmall?.color,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContent() {
+    final isChannel = widget.chat.type == ChatType.channel;
+    return ListView(
+      controller: widget.scrollController,
+      padding: const EdgeInsets.all(16),
+      children: [
+        if (_followerCount != null) ...[
+          _OverviewCard(
+            label: isChannel ? 'Followers' : 'Members',
+            value: _formatCount(_followerCount!),
+            theme: widget.theme,
+          ),
+          const SizedBox(height: 16),
+        ],
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 32),
+            child: Text(
+              'Detailed charts coming soon.',
+              style: TextStyle(
+                fontSize: 13,
+                color: widget.theme.textTheme.bodySmall?.color,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _formatCount(int count) {
+    if (count >= 1000000) return '${(count / 1000000).toStringAsFixed(1)}M';
+    if (count >= 1000) return '${(count / 1000).toStringAsFixed(1)}K';
+    return count.toString();
+  }
+}
+
+class _OverviewCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final ThemeData theme;
+
+  const _OverviewCard({
+    required this.label,
+    required this.value,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            value,
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              color: theme.textTheme.bodySmall?.color,
+            ),
+          ),
+        ],
       ),
     );
   }

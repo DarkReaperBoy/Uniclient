@@ -1004,7 +1004,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §55 — Channel & Group Statistics
 # Touches: dart/lib/ui/info_panel.dart (navigation entry), new statistics_panel.dart
 
-- [ ] Statistics entry points — "Statistics" in channel/group info three-dot menu (menuIconStats, gated CanGetStatistics); "Boosts" (menuIconBoosts); "Channel Earning" (menuIconEarn, gated CanViewRevenue/CanViewCreditsRevenue); navigate to Statistics section; page titles "Statistics"/"Message Statistics"/"Story Statistics" — spec §55.1
 - [ ] Loading state — centered Lottie "stats" animation (normalBoxLottieSize 120×120); "Loading Statistics..." title; subtitle centered max 256px; SlideWrap toggles off when data arrives; animation only starts after showFinished — spec §55.2
 - [ ] Channel overview (2×2 grid) — Followers / Enabled Notifications% / Views Per Post / Views Per Story; 14px statisticsOverviewValue with FormatCountToShort; 11px change indicator (green/red, +/− prefix with U+2212); 11px label windowSubTextFg; 50px row gap; 14px right col offset; story grid for story metrics — spec §55.3
 - [ ] Channel charts (12 charts) — Followers (Linear), New Followers (Linear), Notifications (Linear), Views By Hours (Linear), Views By Source (StackBar), New Followers By Source (StackBar), Languages (StackLinear), Interactions (DoubleLinear), IV Interactions (DoubleLinear), Reactions By Emotion (Bar), Story Interactions (DoubleLinear), Story Reactions (Bar); omit empty; async-load with SlideWrap reveal — spec §55.3

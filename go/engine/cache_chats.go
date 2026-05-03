@@ -1305,3 +1305,41 @@ func (e *Engine) GetCallHistory(accountID string, offsetID int, limit int) ([]Ca
 	}
 	return entries, nil
 }
+
+type BroadcastStatsGetter interface {
+	GetBroadcastStats(chatID string) (int, error)
+}
+
+type MegagroupStatsGetter interface {
+	GetMegagroupStats(chatID string) (int, error)
+}
+
+func (e *Engine) GetBroadcastStats(accountID, chatID string) (int, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return 0, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return 0, fmt.Errorf("account not connected: %s", accountID)
+	}
+	getter, ok := acc.Core.(BroadcastStatsGetter)
+	if !ok {
+		return 0, fmt.Errorf("platform does not support broadcast stats")
+	}
+	return getter.GetBroadcastStats(chatID)
+}
+
+func (e *Engine) GetMegagroupStats(accountID, chatID string) (int, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return 0, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return 0, fmt.Errorf("account not connected: %s", accountID)
+	}
+	getter, ok := acc.Core.(MegagroupStatsGetter)
+	if !ok {
+		return 0, fmt.Errorf("platform does not support megagroup stats")
+	}
+	return getter.GetMegagroupStats(chatID)
+}

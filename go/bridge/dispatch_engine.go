@@ -3574,6 +3574,34 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(map[string]interface{}{"messages": msgs})
 
+	case "GetBroadcastStatsEngine":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		count, err := e.GetBroadcastStats(params.AccountID, params.ChatID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]interface{}{"result_1": count})
+
+	case "GetMegagroupStatsEngine":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		count, err := e.GetMegagroupStats(params.AccountID, params.ChatID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]interface{}{"result_1": count})
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}
