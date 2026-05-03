@@ -999,7 +999,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §54 — AyuGram UI Customization
 # Touches: dart/lib/ui/settings_screen.dart, dart/lib/ui/chat_list_row.dart, new ayu_settings.dart
 
-- [ ] Shadow Ban — global set (not per-account); "Shadow ban"/"Unshadow ban" chat-list right-click (ghost icon when not banned, eye when banned); gate: User or Broadcast + filtersEnabled + not self; instant toggle no confirmation; silent local filtering; filter from who-reacted/reaction summaries/typing/replier strip; shadow ban list page — spec §54.16 Shadow Ban
 - [ ] ImportFiltersBox — Clipboard/URL radio buttons; URL input with clipboard auto-prefill; import from clipboard (JSON) or URL (HTTP GET); export to clipboard (JSON) or URL (POST dpaste.com + copy URL); JSON v2 format (filters array + exclusions array); success/failure toast — spec §54.16 ImportFiltersBox
 - [ ] AyuMain landing page — app logo widget (configurable icon from 12 themes); "AyuGram Desktop v{version}" boxTitle; tagline centeredBoxLabel; 6 category navigation buttons (AyuGram/Filters/General/Appearance/Chats/Other) with icons + right-arrow chevrons; 4 link buttons (Channel/Chats/Translate/Documentation) — spec §54.17
 

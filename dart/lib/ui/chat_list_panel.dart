@@ -1308,8 +1308,16 @@ class _ChatListPanelState extends State<ChatListPanel>
         chat.type == ChatType.topic;
 
     final isDm = chat.type == ChatType.dm;
+    final isChannel = chat.type == ChatType.channel;
     final ghostBlocksReads = !appState.sendReadMessages;
     final currentExclusion = appState.getReadExclusion(chat.accountId, chat.chatId);
+
+    final shadowBanId = int.tryParse(chat.chatId);
+    final canShadowBan = appState.filtersEnabled &&
+        (isDm || isChannel) &&
+        chat.title != 'Saved Messages' &&
+        shadowBanId != null;
+    final isShadowBanned = canShadowBan && appState.isShadowBanned(shadowBanId!);
 
     final viewLabel = isDm
         ? 'View Profile'
@@ -1352,6 +1360,12 @@ class _ChatListPanelState extends State<ChatListPanel>
             value: 'jump_to_beginning',
             label: 'Jump to beginning',
             icon: Icon(Icons.vertical_align_top, size: 20),
+          ),
+        if (canShadowBan)
+          TelegramMenuItem(
+            value: 'shadow_ban',
+            label: isShadowBanned ? 'Unshadow ban' : 'Shadow ban',
+            icon: Icon(isShadowBanned ? Icons.visibility : Icons.hide_source, size: 20),
           ),
         const TelegramMenuItem.separator(),
         const TelegramMenuItem(value: 'clear_history', label: 'Clear History'),
@@ -1416,6 +1430,14 @@ class _ChatListPanelState extends State<ChatListPanel>
         case 'jump_to_beginning':
           chatState.openChat(chat);
           Future.microtask(() => chatState.jumpToMessage(1));
+        case 'shadow_ban':
+          if (shadowBanId != null) {
+            if (isShadowBanned) {
+              appState.removeShadowBan(shadowBanId);
+            } else {
+              appState.addShadowBan(shadowBanId);
+            }
+          }
         case 'clear_history':
           if (context.mounted) {
             final chatState2 = context.read<ChatState>();

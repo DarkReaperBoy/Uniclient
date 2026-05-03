@@ -19000,12 +19000,22 @@ class _WhoReadPopupState extends State<_WhoReadPopup> {
         .where((id) => id.isNotEmpty)
         .toSet();
 
+    final appState = context.read<AppState>();
+    bool isHidden(String peerId) {
+      if (blockedIds.contains(peerId)) return true;
+      if (appState.filtersEnabled) {
+        final uid = int.tryParse(peerId);
+        if (uid != null && appState.isShadowBanned(uid)) return true;
+      }
+      return false;
+    }
+
     final readParticipants = readResult.participants;
     final merged = <_MergedReadEntry>[];
     final seenUserIds = <String>{};
 
     for (final r in reactors) {
-      if (blockedIds.contains(r.peerId)) continue;
+      if (isHidden(r.peerId)) continue;
       seenUserIds.add(r.peerId);
       final readMatch = readParticipants.where((p) => p.userId == r.peerId);
       final readDate = readMatch.isNotEmpty ? readMatch.first.date : 0;
@@ -19022,7 +19032,7 @@ class _WhoReadPopupState extends State<_WhoReadPopup> {
     }
 
     for (final p in readParticipants) {
-      if (blockedIds.contains(p.userId)) continue;
+      if (isHidden(p.userId)) continue;
       if (!seenUserIds.contains(p.userId)) {
         merged.add(_MergedReadEntry(
           userId: p.userId,
@@ -19033,8 +19043,8 @@ class _WhoReadPopupState extends State<_WhoReadPopup> {
       }
     }
 
-    final filteredReactorCount = reactors.where((r) => !blockedIds.contains(r.peerId)).length;
-    final filteredReadCount = readParticipants.where((p) => !blockedIds.contains(p.userId)).length;
+    final filteredReactorCount = reactors.where((r) => !isHidden(r.peerId)).length;
+    final filteredReadCount = readParticipants.where((p) => !isHidden(p.userId)).length;
 
     setState(() {
       _merged = merged;
