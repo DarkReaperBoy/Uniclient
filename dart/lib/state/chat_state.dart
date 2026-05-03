@@ -40,6 +40,11 @@ class ChatState extends ChangeNotifier {
   bool _isScheduledView = false;
   String _linkedChatId = '';
 
+  // ── Edit history view (§52.4) ──
+  bool _isEditHistoryView = false;
+  String _editHistoryMsgId = '';
+  String _editHistorySenderName = '';
+
   // ── Archive state ──
   bool _hasArchivedChats = false;
 
@@ -449,6 +454,63 @@ class ChatState extends ChangeNotifier {
     }
   }
 
+  bool get isEditHistoryView => _isEditHistoryView;
+  String get editHistoryMsgId => _editHistoryMsgId;
+  String get editHistorySenderName => _editHistorySenderName;
+
+  void openEditHistory(String msgId, String senderName) {
+    _editHistoryMsgId = msgId;
+    _editHistorySenderName = senderName;
+    _isEditHistoryView = true;
+    _messages = [];
+    _isFirstLoad = true;
+    _loadEditRevisions();
+    notifyListeners();
+  }
+
+  void closeEditHistory() {
+    _isEditHistoryView = false;
+    _editHistoryMsgId = '';
+    _editHistorySenderName = '';
+    _messages = [];
+    _isFirstLoad = true;
+    _loadMessages();
+    notifyListeners();
+  }
+
+  void _loadEditRevisions() {
+    final chat = _activeChat;
+    if (chat == null || _editHistoryMsgId.isEmpty) return;
+    try {
+      final revisions = _engine.getEditRevisions(chat.accountId, chat.chatId, _editHistoryMsgId, offset: 0, limit: 20);
+      final msgs = <CachedMessage>[];
+      for (final r in revisions) {
+        msgs.add(CachedMessage(
+          accountId: r['account_id'] as String? ?? '',
+          chatId: r['chat_id'] as String? ?? '',
+          msgId: 'rev_${r['id']}',
+          senderId: r['sender_id'] as String? ?? '',
+          senderName: r['sender_name'] as String? ?? '',
+          contentText: r['content_text'] as String? ?? '',
+          timestamp: r['timestamp'] as int? ?? 0,
+          editedAt: 0,
+          status: MsgStatus.read,
+          isOutgoing: false,
+        ));
+      }
+      if (_isEditHistoryView) {
+        _messages = msgs;
+        _hasMoreMessages = revisions.length >= 20;
+        _isFirstLoad = false;
+        notifyListeners();
+      }
+    } catch (_) {
+      _messages = [];
+      _isFirstLoad = false;
+      notifyListeners();
+    }
+  }
+
   /// All loaded folders across accounts.
   List<FolderInfo> get folders => _folders;
 
@@ -764,6 +826,9 @@ class ChatState extends ChangeNotifier {
     _connectedBotPaused = false;
     _scheduledCount = 0;
     _isScheduledView = false;
+    _isEditHistoryView = false;
+    _editHistoryMsgId = '';
+    _editHistorySenderName = '';
     _linkedChatId = '';
     _botStartToken = '';
     _loadScheduledCount(chat.accountId, chat.chatId);
@@ -1169,7 +1234,41 @@ class ChatState extends ChangeNotifier {
   void loadMoreMessages() {
     if (_loadingMessages || !_hasMoreMessages || _activeChat == null) return;
     if (_isScheduledView) return;
+    if (_isEditHistoryView) {
+      _loadMoreEditRevisions();
+      return;
+    }
     _loadMessages();
+  }
+
+  void _loadMoreEditRevisions() {
+    final chat = _activeChat;
+    if (chat == null || _editHistoryMsgId.isEmpty || _loadingMessages) return;
+    _loadingMessages = true;
+    try {
+      final revisions = _engine.getEditRevisions(
+        chat.accountId, chat.chatId, _editHistoryMsgId,
+        offset: _messages.length, limit: 30,
+      );
+      for (final r in revisions) {
+        _messages.add(CachedMessage(
+          accountId: r['account_id'] as String? ?? '',
+          chatId: r['chat_id'] as String? ?? '',
+          msgId: 'rev_${r['id']}',
+          senderId: r['sender_id'] as String? ?? '',
+          senderName: r['sender_name'] as String? ?? '',
+          contentText: r['content_text'] as String? ?? '',
+          timestamp: r['timestamp'] as int? ?? 0,
+          editedAt: 0,
+          status: MsgStatus.read,
+          isOutgoing: false,
+        ));
+      }
+      _hasMoreMessages = revisions.length >= 30;
+      notifyListeners();
+    } finally {
+      _loadingMessages = false;
+    }
   }
 
   /// Send a message in the active chat.
@@ -1786,6 +1885,7 @@ class ChatState extends ChangeNotifier {
   void _refreshMessages() {
     if (_disposed) return;
     if (_isScheduledView) return;
+    if (_isEditHistoryView) return;
     final chat = _activeChat;
     if (chat == null) return;
 
@@ -1847,7 +1947,7 @@ class ChatState extends ChangeNotifier {
     if (_disposed) return;
     final isActiveChat = _activeChat?.accountId == event.accountId &&
         _activeChat?.chatId == event.chatId;
-    if (isActiveChat && !_isScheduledView) {
+    if (isActiveChat && !_isScheduledView && !_isEditHistoryView) {
       final exists = _messages.any((m) =>
         m.msgId == event.message.msgId ||
         (event.message.localId.isNotEmpty && m.localId == event.message.localId));
@@ -1912,6 +2012,7 @@ class ChatState extends ChangeNotifier {
 
   void _handleMsgEdited(MsgEditedEvent event) {
     if (_disposed) return;
+    if (_isEditHistoryView) return;
     if (_activeChat?.accountId != event.accountId || _activeChat?.chatId != event.chatId) return;
     final idx = _messages.indexWhere((m) => m.msgId == event.msgId);
     if (idx >= 0) {

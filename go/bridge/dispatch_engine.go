@@ -3491,6 +3491,41 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			"participants": participants,
 		})
 
+	case "GetEditRevisions":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			MsgID     string `json:"msg_id"`
+			Offset    int    `json:"offset"`
+			Limit     int    `json:"limit"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if params.Limit <= 0 {
+			params.Limit = 20
+		}
+		revisions, err := e.GetEditRevisions(params.AccountID, params.ChatID, params.MsgID, params.Offset, params.Limit)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]interface{}{"revisions": revisions})
+
+	case "HasEditRevisions":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			MsgID     string `json:"msg_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		has, err := e.HasEditRevisions(params.AccountID, params.ChatID, params.MsgID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]interface{}{"has_revisions": has})
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}

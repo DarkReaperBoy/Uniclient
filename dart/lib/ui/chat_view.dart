@@ -1314,7 +1314,7 @@ class _ChatViewState extends State<ChatView>
         // Pass 2: message actions (AddMessageActions)
         const TelegramMenuItem.separator(),
         if (msg.editedAt > 0)
-          const TelegramMenuItem(value: 'edits_history', icon: Icon(Icons.history), label: 'Edits History'),
+          const TelegramMenuItem(value: 'edits_history', icon: Icon(Icons.edit_note), label: 'Edits History'),
         if (!isSavedMessages)
           const TelegramMenuItem(value: 'hide_message', icon: Icon(Icons.visibility_off), label: 'Hide Message'),
         if (isGroupOrChannel && msg.senderId.isNotEmpty)
@@ -1893,32 +1893,8 @@ class _ChatViewState extends State<ChatView>
 
   // AyuGram §9.6: Edits History — show edit timestamp info.
   void _showEditsHistory(CachedMessage msg) {
-    final editDate = DateTime.fromMillisecondsSinceEpoch(msg.editedAt);
-    final origDate = DateTime.fromMillisecondsSinceEpoch(msg.timestamp);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Edits History'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _detailRow('Original', _formatFullDate(origDate)),
-            const SizedBox(height: 8),
-            _detailRow('Last edited', _formatFullDate(editDate)),
-            if (msg.contentText.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              const Divider(),
-              const SizedBox(height: 8),
-              Text('Current text:', style: Theme.of(ctx).textTheme.labelSmall),
-              const SizedBox(height: 4),
-              Text(msg.contentText, maxLines: 8, overflow: TextOverflow.ellipsis),
-            ],
-          ],
-        ),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close'))],
-      ),
-    );
+    final chatState = context.read<ChatState>();
+    chatState.openEditHistory(msg.msgId, msg.senderName);
   }
 
   // AyuGram §9.6: Hide Message — locally remove from view.
@@ -3889,6 +3865,10 @@ class _ChatViewState extends State<ChatView>
       return KeyEventResult.handled;
     }
     final chatState = context.read<ChatState>();
+    if (chatState.isEditHistoryView) {
+      chatState.closeEditHistory();
+      return KeyEventResult.handled;
+    }
     if (chatState.isScheduledView) {
       chatState.toggleScheduledView();
       return KeyEventResult.handled;
@@ -4165,6 +4145,9 @@ class _ChatViewState extends State<ChatView>
                               : null,
                           isScheduledView: widget.isScheduledView || chatState.isScheduledView,
                           onExitScheduled: () => chatState.toggleScheduledView(),
+                          isEditHistoryView: chatState.isEditHistoryView,
+                          editHistorySenderName: chatState.editHistorySenderName,
+                          onExitEditHistory: () => chatState.closeEditHistory(),
                           activeSublist: chatState.activeSublist,
                         ),
                       ),
@@ -4577,8 +4560,11 @@ class _ChatViewState extends State<ChatView>
               },
               onClose: () => chatState.closeThemeChooser(),
             ),
+          // §52.4: No compose area in edit history view.
+          if (chatState.isEditHistoryView)
+            const SizedBox.shrink()
           // Compose area — or fallback buttons for blocked/bot/channel/spam.
-          if (chat.isBlocked)
+          else if (chat.isBlocked)
             _FallbackComposeButton(
               label: chat.isBot ? 'RESTART' : 'UNBLOCK',
               color: const Color(0xFFdf3f40),
@@ -5034,6 +5020,9 @@ class _ChatTopBar extends StatelessWidget {
   /// header instead of the normal chat header.
   final bool isScheduledView;
   final VoidCallback? onExitScheduled;
+  final bool isEditHistoryView;
+  final String editHistorySenderName;
+  final VoidCallback? onExitEditHistory;
 
   /// §31.4: Active saved sublist (when browsing Saved Messages sublists).
   final SavedSublistInfo? activeSublist;
@@ -5064,6 +5053,9 @@ class _ChatTopBar extends StatelessWidget {
     this.parentChat,
     this.isScheduledView = false,
     this.onExitScheduled,
+    this.isEditHistoryView = false,
+    this.editHistorySenderName = '',
+    this.onExitEditHistory,
     this.activeSublist,
   });
 
@@ -5510,6 +5502,10 @@ class _ChatTopBar extends StatelessWidget {
       return _buildScheduledTopBar(context, theme, isDark);
     }
 
+    if (isEditHistoryView) {
+      return _buildEditHistoryTopBar(context, theme, isDark);
+    }
+
     // Subtitle: typing, online status, member count, or last seen.
     String subtitle;
     Color? subtitleColor;
@@ -5950,6 +5946,66 @@ class _ChatTopBar extends StatelessWidget {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEditHistoryTopBar(BuildContext context, ThemeData theme, bool isDark) {
+    final topBarBg = isDark ? const Color(0xFF17212b) : Colors.white;
+    final shadowFg = isDark ? const Color(0x5604080e) : const Color(0x18000000);
+    final dialogsNameFg = isDark ? const Color(0xFFf5f5f5) : const Color(0xFF222222);
+    final subtitleFg = isDark ? const Color(0xFF98b4d3) : const Color(0xFF999999);
+
+    return Container(
+      height: 54,
+      decoration: BoxDecoration(
+        color: topBarBg,
+        border: hideDivider ? null : Border(
+          bottom: BorderSide(color: shadowFg, width: 1),
+        ),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 60,
+            height: 54,
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back, size: 20),
+              onPressed: onExitEditHistory,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              splashRadius: 20,
+            ),
+          ),
+          _chatAvatar(chat, theme, 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Edits History',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: dialogsNameFg,
+                  ),
+                ),
+                if (editHistorySenderName.isNotEmpty)
+                  Text(
+                    editHistorySenderName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 13, color: subtitleFg),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
         ],
       ),
     );

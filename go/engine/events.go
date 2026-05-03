@@ -290,12 +290,34 @@ func (e *Engine) handleNewMessage(accountID, chatID string, msg *cores.Message) 
 	})
 }
 
-// handleEditMessage updates the cached message and emits event.
+// handleEditMessage saves pre-edit text (anti-recall) then updates the cached message.
 func (e *Engine) handleEditMessage(accountID, chatID string, msg *cores.Message) {
 	now := time.Now().UnixMilli()
 	editedAt := now
 	if msg.EditedAt != nil {
 		editedAt = msg.EditedAt.UnixMilli()
+	}
+
+	// Anti-recall: save pre-edit text before applying update.
+	var oldText, oldSenderID, oldSenderName string
+	var oldRich []byte
+	var isOutgoing int
+	e.db.QueryRow(
+		`SELECT content_text, sender_id, sender_name, content_rich, is_outgoing
+		 FROM messages WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
+		accountID, chatID, msg.ID,
+	).Scan(&oldText, &oldSenderID, &oldSenderName, &oldRich, &isOutgoing)
+
+	if oldText != "" && oldText != msg.Text && isOutgoing == 0 {
+		var entitiesJSON string
+		if len(oldRich) > 0 {
+			entitiesJSON = string(oldRich)
+		}
+		e.db.Exec(
+			`INSERT INTO edited_messages (account_id, chat_id, msg_id, sender_id, sender_name, content_text, entities_json, timestamp)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			accountID, chatID, msg.ID, oldSenderID, oldSenderName, oldText, entitiesJSON, now,
+		)
 	}
 
 	rawBytes, _ := json.Marshal(msg)

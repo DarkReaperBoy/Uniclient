@@ -1605,6 +1605,30 @@ class EngineService {
     return resp.messages.map(_cachedMsgFromProto).toList();
   }
 
+  List<Map<String, dynamic>> getEditRevisions(String accountId, String chatId, String msgId, {int offset = 0, int limit = 20}) {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'msg_id': msgId,
+      'offset': offset,
+      'limit': limit,
+    }));
+    final respBytes = _callRaw('__engine', 'GetEditRevisions', Uint8List.fromList(payload));
+    final resp = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    return (resp['revisions'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+  }
+
+  bool hasEditRevisions(String accountId, String chatId, String msgId) {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'msg_id': msgId,
+    }));
+    final respBytes = _callRaw('__engine', 'HasEditRevisions', Uint8List.fromList(payload));
+    final resp = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    return resp['has_revisions'] == true;
+  }
+
   Future<String> sendMessage(String accountId, String chatId, String text, {String replyToId = '', String entities = '', bool silent = false, int scheduleDate = 0, String topicRootId = '', String webPageUrl = '', bool forceLargeMedia = false, bool forceSmallMedia = false, bool invertMedia = false, bool webPageOptional = true}) async {
     final req = epb.EngineSendMessageRequest()
       ..accountId = accountId

@@ -129,6 +129,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV26,
 	migrateV27,
 	migrateV28,
+	migrateV29,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -669,4 +670,23 @@ func migrateV28(tx *sql.Tx) error {
 		}
 	}
 	return nil
+}
+
+func migrateV29(tx *sql.Tx) error {
+	_, err := tx.Exec(`CREATE TABLE IF NOT EXISTS edited_messages (
+		id            INTEGER PRIMARY KEY AUTOINCREMENT,
+		account_id    TEXT NOT NULL,
+		chat_id       TEXT NOT NULL,
+		msg_id        TEXT NOT NULL,
+		sender_id     TEXT,
+		sender_name   TEXT,
+		content_text  TEXT NOT NULL,
+		entities_json TEXT,
+		timestamp     INTEGER NOT NULL
+	)`)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_edited_msgs ON edited_messages(account_id, chat_id, msg_id, id DESC)`)
+	return err
 }

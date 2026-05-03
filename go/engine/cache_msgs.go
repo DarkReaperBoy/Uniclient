@@ -1752,3 +1752,53 @@ func (e *Engine) SendStoryWithPhoto(accountID, text string, photoData []byte) (i
 	}
 	return sender.SendStoryWithPhoto(text, photoData)
 }
+
+type EditRevision struct {
+	ID           int64  `json:"id"`
+	AccountID    string `json:"account_id"`
+	ChatID       string `json:"chat_id"`
+	MsgID        string `json:"msg_id"`
+	SenderID     string `json:"sender_id"`
+	SenderName   string `json:"sender_name"`
+	ContentText  string `json:"content_text"`
+	EntitiesJSON string `json:"entities_json,omitempty"`
+	Timestamp    int64  `json:"timestamp"`
+}
+
+func (e *Engine) GetEditRevisions(accountID, chatID, msgID string, offset, limit int) ([]EditRevision, error) {
+	rows, err := e.db.Query(
+		`SELECT id, account_id, chat_id, msg_id, sender_id, sender_name, content_text, entities_json, timestamp
+		 FROM edited_messages
+		 WHERE account_id = ? AND chat_id = ? AND msg_id = ?
+		 ORDER BY id DESC
+		 LIMIT ? OFFSET ?`,
+		accountID, chatID, msgID, limit, offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var revisions []EditRevision
+	for rows.Next() {
+		var r EditRevision
+		var entJSON sql.NullString
+		if err := rows.Scan(&r.ID, &r.AccountID, &r.ChatID, &r.MsgID, &r.SenderID, &r.SenderName, &r.ContentText, &entJSON, &r.Timestamp); err != nil {
+			return nil, err
+		}
+		if entJSON.Valid {
+			r.EntitiesJSON = entJSON.String
+		}
+		revisions = append(revisions, r)
+	}
+	return revisions, nil
+}
+
+func (e *Engine) HasEditRevisions(accountID, chatID, msgID string) (bool, error) {
+	var count int
+	err := e.db.QueryRow(
+		`SELECT COUNT(*) FROM edited_messages WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
+		accountID, chatID, msgID,
+	).Scan(&count)
+	return count > 0, err
+}
