@@ -4797,7 +4797,10 @@ class _ChatViewState extends State<ChatView>
               isBot: chat.isBot,
               botMenuText: _botMenuText,
               emojiPanelVisible: _emojiPanelVisible,
-              onEmojiToggle: () => setState(() => _emojiPanelVisible = !_emojiPanelVisible),
+              onEmojiToggle: () {
+                if (!context.read<AppState>().showEmojiPopup) return;
+                setState(() => _emojiPanelVisible = !_emojiPanelVisible);
+              },
               onEscape: () => _handleEscape(),
               onScrollPage: (isUp) => _scrollPage(isUp),
               onScrollLine: (isUp) => _scrollLine(isUp),
@@ -12587,6 +12590,7 @@ class _ComposeAreaState extends State<_ComposeArea>
     if (_slowmodeSecondsLeft > 0) return SendButtonType.slowmode;
     if (!_hasText) {
       final appState = context.read<AppState>();
+      if (!appState.showMicrophoneButton) return SendButtonType.send;
       return appState.recordVideoMessages
           ? SendButtonType.round
           : SendButtonType.record;
@@ -13134,8 +13138,13 @@ class _ComposeAreaState extends State<_ComposeArea>
   bool _attachBotsFetched = false;
 
   Future<void> _onAttachPressed() async {
+    final appState = context.read<AppState>();
+    if (!appState.showAttachPopup) {
+      _pickFiles();
+      return;
+    }
     final engine = context.read<EngineService>();
-    final accountId = context.read<AppState>().activeAccountId;
+    final accountId = appState.activeAccountId;
 
     if (!_attachBotsFetched) {
       _cachedAttachBots = await engine.getAttachMenuBots(accountId);
@@ -13410,6 +13419,8 @@ class _ComposeAreaState extends State<_ComposeArea>
         ? widget.controller as RichTextEditingController
         : null;
 
+    final fieldPrefs = context.watch<AppState>();
+
     final composeRow = Container(
       padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 9),
       child: Row(
@@ -13424,6 +13435,7 @@ class _ComposeAreaState extends State<_ComposeArea>
                 : const Color(0xFF419fd9),
             onPressed: () => widget.onCommentsToggle?.call(),
           ),
+          if (fieldPrefs.showAttachButton)
           KeyedSubtree(
             key: _attachButtonKey,
             child: _ComposeSlotButton(
@@ -13481,6 +13493,7 @@ class _ComposeAreaState extends State<_ComposeArea>
               ],
             ),
           ),
+          if (fieldPrefs.showAutoDeleteButton)
           _TtlButton(
             ttlPeriod: widget.ttlPeriod,
             iconColor: iconFg,
@@ -13510,7 +13523,7 @@ class _ComposeAreaState extends State<_ComposeArea>
                 _openBotWebApp(context);
               },
             ),
-          if (widget.isBot && widget.chatType == ChatType.dm && widget.botMenuText.isEmpty)
+          if (fieldPrefs.showCommandsButton && widget.isBot && widget.chatType == ChatType.dm && widget.botMenuText.isEmpty)
             _BotCommandButton(
               iconColor: iconFg,
               hoverColor: iconFgOver,
@@ -13522,7 +13535,7 @@ class _ComposeAreaState extends State<_ComposeArea>
                 }
               },
             ),
-          if (!widget.isBot && widget.chatType == ChatType.dm && !widget.isSelfChat)
+          if (fieldPrefs.showGiftButton && !widget.isBot && widget.chatType == ChatType.dm && !widget.isSelfChat)
             _ComposeSlotButton(
               icon: Icons.card_giftcard,
               tooltip: 'Send a Gift',
@@ -13530,6 +13543,7 @@ class _ComposeAreaState extends State<_ComposeArea>
               hoverColor: iconFgOver,
               onPressed: () => _showGiftSheet(context),
             ),
+          if (fieldPrefs.showEmojiButton)
           _ComposeSlotButton(
             icon: Icons.emoji_emotions_outlined,
             tooltip: 'Emoji',

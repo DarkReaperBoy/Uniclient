@@ -999,7 +999,6 @@ Status key: `[ ]` not started · `[x]` done
 ## §54 — AyuGram UI Customization
 # Touches: dart/lib/ui/settings_screen.dart, dart/lib/ui/chat_list_row.dart, new ayu_settings.dart
 
-- [ ] Message Field Button Toggles — 7 compose buttons (Attach/Commands/TTL/Emoji/Voice/Gift/AI Editor); 2 popup panels (Attach popup/Emoji popup); keep functionality accessible via shortcuts when hidden — spec §54.9
 - [ ] ComposeAiBox (AI Editor) — Translate/Style/Fix tabs; preview card: original text (collapsible) + result + copy button; diff display in Fix mode (green underline inserts, strikethrough deletes); 24×24 composite AI icon (letters+stars) — spec §54.9a
 - [ ] Additional Appearance Settings — Disable Custom Backgrounds (default true); Hide Premium Statuses (default false); Monospace Font selector → FontSelectorBox; Hide Notification Counters (default false); Hide All Chats Tab (default false); Hide Notification Badge (Windows, default false); App Icon picker: 12 themes, 4-col grid, 64px icons, 4px pad, 12px radius, 200ms selection animation — spec §54.10
 - [ ] Additional Chat Settings — Show Only Added Emojis/Stickers; Hide Reactions (collapsible, 3 nested: channels/groups/private); Recent Stickers Count slider (0–200, default 100); Channel Bottom Button (Hidden/MuteUnmute/DiscussWithFallback); Quick Admin Shortcuts (default true); Message Shot (default true); Hide Side Share Button (default false); Replace Marks with Icons (default true) + custom mark sub-settings; Translucent Deleted Messages (beta badge, default false) — spec §54.11

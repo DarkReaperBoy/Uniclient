@@ -204,6 +204,16 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   int _showAddFilterInContextMenu = 0;
   bool _showMessageSeconds = false;
 
+  // §54.9: Message field button toggles (all default true).
+  bool _showAttachButton = true;
+  bool _showCommandsButton = true;
+  bool _showAutoDeleteButton = true;
+  bool _showEmojiButton = true;
+  bool _showMicrophoneButton = true;
+  bool _showGiftButton = true;
+  bool _showAttachPopup = true;
+  bool _showEmojiPopup = true;
+
   // §51.4: Spy essentials + Other section settings.
   bool _saveDeletedMessages = true;
   bool _saveMessagesHistory = true;
@@ -390,6 +400,17 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   int get showMessageDetailsInContextMenu => _showMessageDetailsInContextMenu;
   int get showAddFilterInContextMenu => _showAddFilterInContextMenu;
   bool get showMessageSeconds => _showMessageSeconds;
+
+  // §54.9: Message field button toggle getters.
+  bool get showAttachButton => _showAttachButton;
+  bool get showCommandsButton => _showCommandsButton;
+  bool get showAutoDeleteButton => _showAutoDeleteButton;
+  bool get showEmojiButton => _showEmojiButton;
+  bool get showMicrophoneButton => _showMicrophoneButton;
+  bool get showGiftButton => _showGiftButton;
+  bool get showAttachPopup => _showAttachPopup;
+  bool get showEmojiPopup => _showEmojiPopup;
+
   bool get saveDeletedMessages => _saveDeletedMessages;
   bool get saveMessagesHistory => _saveMessagesHistory;
   bool get saveForBots => _saveForBots;
@@ -919,6 +940,56 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setShowMessageSeconds(bool v) {
     if (_showMessageSeconds == v) return;
     _showMessageSeconds = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  // §54.9: Message field button toggle setters.
+  void setShowAttachButton(bool v) {
+    if (_showAttachButton == v) return;
+    _showAttachButton = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  void setShowCommandsButton(bool v) {
+    if (_showCommandsButton == v) return;
+    _showCommandsButton = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  void setShowAutoDeleteButton(bool v) {
+    if (_showAutoDeleteButton == v) return;
+    _showAutoDeleteButton = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  void setShowEmojiButton(bool v) {
+    if (_showEmojiButton == v) return;
+    _showEmojiButton = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  void setShowMicrophoneButton(bool v) {
+    if (_showMicrophoneButton == v) return;
+    _showMicrophoneButton = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  void setShowGiftButton(bool v) {
+    if (_showGiftButton == v) return;
+    _showGiftButton = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  void setShowAttachPopup(bool v) {
+    if (_showAttachPopup == v) return;
+    _showAttachPopup = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  void setShowEmojiPopup(bool v) {
+    if (_showEmojiPopup == v) return;
+    _showEmojiPopup = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -1907,6 +1978,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _showMessageDetailsInContextMenu = data['showMessageDetailsInContextMenu'] as int? ?? 2;
       _showAddFilterInContextMenu = data['showAddFilterInContextMenu'] as int? ?? 0;
       _showMessageSeconds = data['showMessageSeconds'] as bool? ?? false;
+      // §54.9: Message field button toggles.
+      _showAttachButton = data['showAttachButton'] as bool? ?? true;
+      _showCommandsButton = data['showCommandsButton'] as bool? ?? true;
+      _showAutoDeleteButton = data['showAutoDeleteButton'] as bool? ?? true;
+      _showEmojiButton = data['showEmojiButton'] as bool? ?? true;
+      _showMicrophoneButton = data['showMicrophoneButton'] as bool? ?? true;
+      _showGiftButton = data['showGiftButton'] as bool? ?? true;
+      _showAttachPopup = data['showAttachPopup'] as bool? ?? true;
+      _showEmojiPopup = data['showEmojiPopup'] as bool? ?? true;
       _saveDeletedMessages = data['saveDeletedMessages'] as bool? ?? true;
       _saveMessagesHistory = data['saveMessagesHistory'] as bool? ?? true;
       _saveForBots = data['saveForBots'] as bool? ?? false;
@@ -1997,6 +2077,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'showMessageDetailsInContextMenu': _showMessageDetailsInContextMenu,
         'showAddFilterInContextMenu': _showAddFilterInContextMenu,
         'showMessageSeconds': _showMessageSeconds,
+        'showAttachButton': _showAttachButton,
+        'showCommandsButton': _showCommandsButton,
+        'showAutoDeleteButton': _showAutoDeleteButton,
+        'showEmojiButton': _showEmojiButton,
+        'showMicrophoneButton': _showMicrophoneButton,
+        'showGiftButton': _showGiftButton,
+        'showAttachPopup': _showAttachPopup,
+        'showEmojiPopup': _showEmojiPopup,
         'saveDeletedMessages': _saveDeletedMessages,
         'saveMessagesHistory': _saveMessagesHistory,
         'saveForBots': _saveForBots,

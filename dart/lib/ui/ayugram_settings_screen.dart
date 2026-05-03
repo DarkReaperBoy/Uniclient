@@ -235,6 +235,80 @@ class _AyuGramSettingsScreenState extends State<AyuGramSettingsScreen> {
           Container(height: 1, color: dividerColor),
           const SizedBox(height: 7),
 
+          // ── Message Field Elements section (§54.9) ──
+          _SectionLabel(label: 'Message Field Elements', color: sectionLabelColor),
+          _ToggleRow(
+            label: 'Attach',
+            subtitle: 'Show paperclip button in compose area',
+            value: appState.showAttachButton,
+            onChanged: (v) => appState.setShowAttachButton(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _ToggleRow(
+            label: 'Commands',
+            subtitle: 'Show bot commands (/) button',
+            value: appState.showCommandsButton,
+            onChanged: (v) => appState.setShowCommandsButton(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _ToggleRow(
+            label: 'TTL',
+            subtitle: 'Show auto-delete timer button',
+            value: appState.showAutoDeleteButton,
+            onChanged: (v) => appState.setShowAutoDeleteButton(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _ToggleRow(
+            label: 'Emoji',
+            subtitle: 'Show emoji button in compose area',
+            value: appState.showEmojiButton,
+            onChanged: (v) => appState.setShowEmojiButton(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _ToggleRow(
+            label: 'Voice',
+            subtitle: 'Show microphone/voice button',
+            value: appState.showMicrophoneButton,
+            onChanged: (v) => appState.setShowMicrophoneButton(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _ToggleRow(
+            label: 'Gift',
+            subtitle: 'Show gift button in DMs',
+            value: appState.showGiftButton,
+            onChanged: (v) => appState.setShowGiftButton(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          Container(height: 1, color: dividerColor),
+          const SizedBox(height: 7),
+
+          // ── Message Field Popups section (§54.9) ──
+          _SectionLabel(label: 'Message Field Popups', color: sectionLabelColor),
+          _ToggleRow(
+            label: 'Attach popup',
+            subtitle: 'Show file/poll picker when pressing attach',
+            value: appState.showAttachPopup,
+            onChanged: (v) => appState.setShowAttachPopup(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _ToggleRow(
+            label: 'Emoji popup',
+            subtitle: 'Show emoji/sticker panel when pressing emoji',
+            value: appState.showEmojiPopup,
+            onChanged: (v) => appState.setShowEmojiPopup(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          Container(height: 1, color: dividerColor),
+          const SizedBox(height: 7),
+
           // ── Appearance section ──
           _SectionLabel(label: 'Appearance', color: sectionLabelColor),
           _ToggleRow(
