@@ -188,6 +188,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Map<String, GhostModeAccountSettings> _ghostModeSettings = {'0': GhostModeAccountSettings()};
   int _showViewsPanelInContextMenu = 0; // 0=visible, 1=hidden, 2=visibleWithModifier
   int _showRepeatMessageInContextMenu = 1; // 0=visible, 1=hidden, 2=visibleWithModifier (default: hidden per §53.3)
+  int _showReactionsPanelInContextMenu = 0;
+  int _showHideMessageInContextMenu = 1;
+  int _showUserMessagesInContextMenu = 2;
+  int _showMessageDetailsInContextMenu = 2;
+  int _showAddFilterInContextMenu = 0;
   bool _showMessageSeconds = false;
 
   // §51.4: Spy essentials + Other section settings.
@@ -361,6 +366,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get sendOfflinePacketAfterOnlineLocked => _ghostSettings.sendOfflinePacketAfterOnlineLocked;
   int get showViewsPanelInContextMenu => _showViewsPanelInContextMenu;
   int get showRepeatMessageInContextMenu => _showRepeatMessageInContextMenu;
+  int get showReactionsPanelInContextMenu => _showReactionsPanelInContextMenu;
+  int get showHideMessageInContextMenu => _showHideMessageInContextMenu;
+  int get showUserMessagesInContextMenu => _showUserMessagesInContextMenu;
+  int get showMessageDetailsInContextMenu => _showMessageDetailsInContextMenu;
+  int get showAddFilterInContextMenu => _showAddFilterInContextMenu;
   bool get showMessageSeconds => _showMessageSeconds;
   bool get saveDeletedMessages => _saveDeletedMessages;
   bool get saveMessagesHistory => _saveMessagesHistory;
@@ -799,6 +809,41 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setShowRepeatMessageInContextMenu(int v) {
     if (_showRepeatMessageInContextMenu == v) return;
     _showRepeatMessageInContextMenu = v.clamp(0, 2);
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setShowReactionsPanelInContextMenu(int v) {
+    if (_showReactionsPanelInContextMenu == v) return;
+    _showReactionsPanelInContextMenu = v.clamp(0, 2);
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setShowHideMessageInContextMenu(int v) {
+    if (_showHideMessageInContextMenu == v) return;
+    _showHideMessageInContextMenu = v.clamp(0, 2);
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setShowUserMessagesInContextMenu(int v) {
+    if (_showUserMessagesInContextMenu == v) return;
+    _showUserMessagesInContextMenu = v.clamp(0, 2);
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setShowMessageDetailsInContextMenu(int v) {
+    if (_showMessageDetailsInContextMenu == v) return;
+    _showMessageDetailsInContextMenu = v.clamp(0, 2);
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setShowAddFilterInContextMenu(int v) {
+    if (_showAddFilterInContextMenu == v) return;
+    _showAddFilterInContextMenu = v.clamp(0, 2);
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -1780,6 +1825,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       }
       _showViewsPanelInContextMenu = data['showViewsPanelInContextMenu'] as int? ?? 0;
       _showRepeatMessageInContextMenu = data['showRepeatMessageInContextMenu'] as int? ?? 1;
+      _showReactionsPanelInContextMenu = data['showReactionsPanelInContextMenu'] as int? ?? 0;
+      _showHideMessageInContextMenu = data['showHideMessageInContextMenu'] as int? ?? 1;
+      _showUserMessagesInContextMenu = data['showUserMessagesInContextMenu'] as int? ?? 2;
+      _showMessageDetailsInContextMenu = data['showMessageDetailsInContextMenu'] as int? ?? 2;
+      _showAddFilterInContextMenu = data['showAddFilterInContextMenu'] as int? ?? 0;
       _showMessageSeconds = data['showMessageSeconds'] as bool? ?? false;
       _saveDeletedMessages = data['saveDeletedMessages'] as bool? ?? true;
       _saveMessagesHistory = data['saveMessagesHistory'] as bool? ?? true;
@@ -1858,6 +1908,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'ghostModeSettings': _ghostModeSettings.map((k, v) => MapEntry(k, v.toJson())),
         'showViewsPanelInContextMenu': _showViewsPanelInContextMenu,
         'showRepeatMessageInContextMenu': _showRepeatMessageInContextMenu,
+        'showReactionsPanelInContextMenu': _showReactionsPanelInContextMenu,
+        'showHideMessageInContextMenu': _showHideMessageInContextMenu,
+        'showUserMessagesInContextMenu': _showUserMessagesInContextMenu,
+        'showMessageDetailsInContextMenu': _showMessageDetailsInContextMenu,
+        'showAddFilterInContextMenu': _showAddFilterInContextMenu,
         'showMessageSeconds': _showMessageSeconds,
         'saveDeletedMessages': _saveDeletedMessages,
         'saveMessagesHistory': _saveMessagesHistory,

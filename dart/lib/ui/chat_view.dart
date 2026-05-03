@@ -1317,14 +1317,15 @@ class _ChatViewState extends State<ChatView>
         const TelegramMenuItem.separator(),
         if (msg.editedAt > 0)
           const TelegramMenuItem(value: 'edits_history', icon: Icon(Icons.edit_note), label: 'Edits History'),
-        if (!isSavedMessages)
+        if (!isSavedMessages && _shouldShowHideMessage())
           const TelegramMenuItem(value: 'hide_message', icon: Icon(Icons.visibility_off), label: 'Hide Message'),
-        if (isGroupOrChannel && msg.senderId.isNotEmpty)
+        if (isGroupOrChannel && msg.senderId.isNotEmpty && _shouldShowUserMessages())
           TelegramMenuItem(value: 'user_messages', icon: const Icon(Icons.person_search), label: "${msg.senderName.split(' ').first}'s Messages"),
         if (_shouldShowRepeatMessage(msg, chat))
           const TelegramMenuItem(value: 'repeat_message', icon: Icon(Icons.repeat), label: 'Repeat Message'),
-        const TelegramMenuItem(value: 'message_details', icon: Icon(Icons.info_outline), label: 'Message Details'),
-        if (msg.reactions.isNotEmpty && _shouldShowViewsPanel())
+        if (_shouldShowMessageDetails())
+          const TelegramMenuItem(value: 'message_details', icon: Icon(Icons.info_outline), label: 'Message Details'),
+        if (msg.reactions.isNotEmpty && _shouldShowReactionsPanel())
           const TelegramMenuItem(value: 'who_reacted', icon: Icon(Icons.favorite_outline), label: 'Who Reacted'),
         if (chat != null && chat.type == ChatType.dm && msg.isOutgoing && !isSavedMessages && _shouldShowViewsPanel())
           const TelegramMenuItem(value: 'read_at', icon: Icon(Icons.done_all), label: 'Read at...'),
@@ -1389,6 +1390,8 @@ class _ChatViewState extends State<ChatView>
         const TelegramMenuItem(value: 'read_until', icon: Icon(Icons.done_all), label: 'Read Until Here'),
         if (msg.mediaUnread && msg.ttlSeconds > 0)
           const TelegramMenuItem(value: 'burn_media', icon: Icon(Icons.local_fire_department), label: 'Burn Media'),
+        if (msg.contentText.isNotEmpty && _shouldShowAddFilter())
+          const TelegramMenuItem(value: 'add_filter', icon: Icon(Icons.filter_alt_outlined), label: 'Add Filter'),
         // Pass 3: post-actions
         const TelegramMenuItem.separator(),
         if (hasStickerSet)
@@ -1487,6 +1490,8 @@ class _ChatViewState extends State<ChatView>
           _readUntilHere(chatState, msg);
         case 'burn_media':
           _burnMedia(msg);
+        case 'add_filter':
+          _addFilter(msg, selectedText);
         default:
           if (action.startsWith('copy_url:')) {
             final url = action.substring('copy_url:'.length);
@@ -2067,23 +2072,7 @@ class _ChatViewState extends State<ChatView>
     }
   }
 
-  bool _shouldShowViewsPanel() {
-    final mode = context.read<AppState>().showViewsPanelInContextMenu;
-    if (mode == 1) return false; // hidden
-    if (mode == 2) {
-      final keys = HardwareKeyboard.instance.logicalKeysPressed;
-      return keys.contains(LogicalKeyboardKey.controlLeft) ||
-          keys.contains(LogicalKeyboardKey.controlRight) ||
-          keys.contains(LogicalKeyboardKey.shiftLeft) ||
-          keys.contains(LogicalKeyboardKey.shiftRight);
-    }
-    return true; // visible (0)
-  }
-
-  bool _shouldShowRepeatMessage(CachedMessage msg, ChatInfo? chat) {
-    if (msg.isService) return false;
-    if (chat?.type == ChatType.channel) return false;
-    final mode = context.read<AppState>().showRepeatMessageInContextMenu;
+  bool _checkMenuVisibility(int mode) {
     if (mode == 1) return false;
     if (mode == 2) {
       final keys = HardwareKeyboard.instance.logicalKeysPressed;
@@ -2093,6 +2082,36 @@ class _ChatViewState extends State<ChatView>
           keys.contains(LogicalKeyboardKey.shiftRight);
     }
     return true;
+  }
+
+  bool _shouldShowViewsPanel() {
+    return _checkMenuVisibility(context.read<AppState>().showViewsPanelInContextMenu);
+  }
+
+  bool _shouldShowReactionsPanel() {
+    return _checkMenuVisibility(context.read<AppState>().showReactionsPanelInContextMenu);
+  }
+
+  bool _shouldShowHideMessage() {
+    return _checkMenuVisibility(context.read<AppState>().showHideMessageInContextMenu);
+  }
+
+  bool _shouldShowUserMessages() {
+    return _checkMenuVisibility(context.read<AppState>().showUserMessagesInContextMenu);
+  }
+
+  bool _shouldShowMessageDetails() {
+    return _checkMenuVisibility(context.read<AppState>().showMessageDetailsInContextMenu);
+  }
+
+  bool _shouldShowAddFilter() {
+    return _checkMenuVisibility(context.read<AppState>().showAddFilterInContextMenu);
+  }
+
+  bool _shouldShowRepeatMessage(CachedMessage msg, ChatInfo? chat) {
+    if (msg.isService) return false;
+    if (chat?.type == ChatType.channel) return false;
+    return _checkMenuVisibility(context.read<AppState>().showRepeatMessageInContextMenu);
   }
 
   String _readReceiptLabel(CachedMessage msg) {
@@ -2224,6 +2243,50 @@ class _ChatViewState extends State<ChatView>
     final engine = context.read<EngineService>();
     engine.readMessageContents(msg.accountId, msg.msgId);
     showTelegramToast(context, 'Media burned');
+  }
+
+  void _addFilter(CachedMessage msg, String selectedText) {
+    final text = selectedText.isNotEmpty ? selectedText : msg.contentText;
+    final escaped = RegExp.escape(text.trim());
+    final controller = TextEditingController(text: escaped);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1B2836) : Colors.white,
+        title: Text('Add Filter', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Regex pattern:', style: TextStyle(fontSize: 12, color: isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999))),
+            const SizedBox(height: 8),
+            TextField(
+              controller: controller,
+              maxLines: 3,
+              style: TextStyle(fontSize: 13, fontFamily: 'monospace', color: isDark ? Colors.white : Colors.black87),
+              decoration: InputDecoration(
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                contentPadding: const EdgeInsets.all(10),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              showTelegramToast(context, 'Filter added');
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
   }
 
   static String _formatFullDate(DateTime dt) {
