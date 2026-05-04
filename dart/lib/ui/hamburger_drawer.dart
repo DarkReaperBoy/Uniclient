@@ -612,10 +612,10 @@ class _ProfileCover extends StatelessWidget {
                         : _platformLabel(account?.platform ?? ''),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                      color: context.palette.mainMenuCoverFg,
                     ),
                   ),
                 ),
@@ -627,7 +627,7 @@ class _ProfileCover extends StatelessWidget {
                         ? Icons.workspace_premium
                         : Icons.verified,
                     size: 16,
-                    color: Colors.white,
+                    color: context.palette.mainMenuCoverFg,
                   ),
                 ],
                 // AyuGram/Extera badge equivalent: UniClient app icon badge.
