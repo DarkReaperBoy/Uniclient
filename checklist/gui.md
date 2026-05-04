@@ -4,7 +4,6 @@
 
 ## §2 — Chat List Sidebar
 
-- [ ] spec §2 "Message preview y position": spec says "x=68px, y=34px". Code uses `const SizedBox(height: 10)` (y=10 for top row) then `const SizedBox(height: 4)` between rows. This positions the preview at approximately y=10+lineHeight+4 which would be ~10+18+4=32px, not 34px. The 2px gap suggests the inter-row SizedBox should be 6px, not 4px — `chat_list_row.dart:174,247`
 - [ ] spec §2 "Online indicator": spec says "12px green dot (#4dc920) with 3px white stroke, bottom-right of avatar". The online dot is rendered inside `_ChatAvatar` widget. Need to verify size and color match — the size and exact positioning should be checked in `_ChatAvatar` — `chat_list_row.dart` (in _ChatAvatar widget)
 - [ ] spec §2 "Stories ring": spec describes unread line width 2px (full/expanded) and 1.5px (small/minified), with gradient from green (#0dcc39) to blue (#0992ef). Stories ring rendering is delegated to `_ChatAvatar` — needs verification of gradient colors and line widths — `chat_list_row.dart` (in _ChatAvatar widget)
 - [ ] spec §2 "Unread dot diameter": spec says `unreadMarkDiameter` (not explicitly stated but implied smaller than 19px slot). Code uses `width: 8, height: 8` inside a 19x19 slot. The actual TDesktop diameter isn't specified by name in the provided spec excerpt so 8px may or may not be correct — `chat_list_row.dart:1392-1393`
