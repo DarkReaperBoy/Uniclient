@@ -4,7 +4,6 @@
 
 ## §2 — Chat List Sidebar
 
-- [ ] spec §2 "Swipe text color": spec says `premiumButtonFg (white)`. Code renders white text via the label widget — matches
 - [ ] spec §2 "Sorting": spec says "Pinned chats at top (no visible separator). Below: sorted by last message time descending." Code sorts with `if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1; return b.lastMsgTime.compareTo(a.lastMsgTime)` — matches spec — correct
 - [ ] spec §2 "Horizontal folder tabs inter-label gap": spec says `strictSkip: 18px` (minimum gap between labels). Code uses `padding: const EdgeInsets.symmetric(horizontal: 9)` per tab, which creates 18px gap between adjacent labels (9px right + 9px left). This is correct — no issue
 - [ ] spec §2 "Search tabs strip": `_SearchTabsStrip` uses `Expanded` children in a `Row`, making all three tabs equal width. Spec says it's a `SettingsSlider` where labels are naturally sized with `barSnapToLabel: true`. The equal-width approach means labels don't match their text width, and the underline indicator should snap to label text width, not cell width — `chat_list_panel.dart:3355-3374`
