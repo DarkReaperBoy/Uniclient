@@ -2,7 +2,6 @@
 
 ## §1 — Window Layout & Column Structure
 
-- [ ] spec §1 "Column Shadow Separators": two-column layout draws a double separator — one `_ColumnShadow()` at line 494 plus the `ChatListPanel` container's own `border: Border(right: BorderSide(...))` at line 660-662 of `chat_list_panel.dart`, producing 2px of separator instead of 1px — `shell.dart:494`, `chat_list_panel.dart:660`
 - [ ] spec §1 "Animations": spec says `easeOutCirc` easing for column width changes with ~150-200ms. Code uses 180ms `easeOutCirc` for the `AnimatedContainer` which is correct, but the one-column section transition uses `Curves.easeOutCubic` (line 425) instead of `easeOutCirc` — `shell.dart:425`
 - [ ] spec §1 "Window Defaults": spec says default window is 800x600, min 380x480 — no minimum window size is enforced anywhere in the Flutter app. The native runner (linux) would need this constraint — `shell.dart` (missing entirely)
 - [ ] spec §1 "Hamburger drawer width": spec says 274px wide, 134px cover. The drawer is opened via `showDialog` with explicit 274px SizedBox (correct), but uses `Material(elevation: 16)` which is not spec — Telegram uses a plain panel with no material elevation/shadow. The drawer should slide in from the left edge with a scrim behind it, not float as a dialog with a drop shadow — `shell.dart:659-674`
