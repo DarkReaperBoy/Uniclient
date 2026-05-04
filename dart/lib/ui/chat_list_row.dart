@@ -115,6 +115,7 @@ class ChatListRow extends StatelessWidget {
                           chat: chat,
                           size: _avatarSize,
                           isOnline: isOnline,
+                          isActive: isActive,
                           minified: true,
                           onStoryTap: onStoryTap,
                         ),
@@ -163,6 +164,7 @@ class ChatListRow extends StatelessWidget {
                   chat: chat,
                   size: _avatarSize,
                   isOnline: isOnline,
+                  isActive: isActive,
                   onStoryTap: onStoryTap,
                 ),
                 const SizedBox(width: _contentLeft - _avatarLeft - _avatarSize),
@@ -956,6 +958,7 @@ class _ChatAvatar extends StatelessWidget {
   final ChatInfo chat;
   final double size;
   final bool isOnline;
+  final bool isActive;
   final bool minified;
   final VoidCallback? onStoryTap;
 
@@ -963,6 +966,7 @@ class _ChatAvatar extends StatelessWidget {
     required this.chat,
     required this.size,
     this.isOnline = false,
+    this.isActive = false,
     this.minified = false,
     this.onStoryTap,
   });
@@ -1021,8 +1025,6 @@ class _ChatAvatar extends StatelessWidget {
       return SizedBox(width: size, height: size, child: avatar);
     }
 
-    final bgColor = Theme.of(context).scaffoldBackgroundColor;
-
     return GestureDetector(
       onTap: _hasStories ? onStoryTap : null,
       child: SizedBox(
@@ -1062,9 +1064,16 @@ class _ChatAvatar extends StatelessWidget {
                   width: 12,
                   height: 12,
                   decoration: BoxDecoration(
-                    color: context.palette.dialogsOnlineBadgeFg,
+                    color: isActive
+                        ? palette.dialogsOnlineBadgeFgActive
+                        : palette.dialogsOnlineBadgeFg,
                     shape: BoxShape.circle,
-                    border: Border.all(color: bgColor, width: 3),
+                    border: Border.all(
+                      color: isActive
+                          ? palette.dialogsBgActive
+                          : palette.dialogsBg,
+                      width: 3,
+                    ),
                   ),
                 ),
               ),
