@@ -3346,26 +3346,25 @@ class _SearchTabsStripState extends State<_SearchTabsStrip>
           children: [
             Row(
               key: _rowKey,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 for (var i = 0; i < _SearchTabsStrip._tabs.length; i++)
-                  Expanded(
-                    child: _SearchTabItem(
-                      label: _SearchTabsStrip._tabs[i].label,
-                      labelKey: _labelKeys[i],
-                      isActive: widget.activeTab == _SearchTabsStrip._tabs[i].tab,
-                      activeFg: activeFg,
-                      inactiveFg: inactiveFg,
-                      hoverColor:
-                          widget.activeTab == _SearchTabsStrip._tabs[i].tab
-                              ? hoverActive
-                              : hoverInactive,
-                      splashColor:
-                          widget.activeTab == _SearchTabsStrip._tabs[i].tab
-                              ? splashActive
-                              : splashInactive,
-                      onTap: () =>
-                          widget.onTabChanged(_SearchTabsStrip._tabs[i].tab),
-                    ),
+                  _SearchTabItem(
+                    label: _SearchTabsStrip._tabs[i].label,
+                    labelKey: _labelKeys[i],
+                    isActive: widget.activeTab == _SearchTabsStrip._tabs[i].tab,
+                    activeFg: activeFg,
+                    inactiveFg: inactiveFg,
+                    hoverColor:
+                        widget.activeTab == _SearchTabsStrip._tabs[i].tab
+                            ? hoverActive
+                            : hoverInactive,
+                    splashColor:
+                        widget.activeTab == _SearchTabsStrip._tabs[i].tab
+                            ? splashActive
+                            : splashInactive,
+                    onTap: () =>
+                        widget.onTabChanged(_SearchTabsStrip._tabs[i].tab),
                   ),
               ],
             ),
@@ -3409,12 +3408,12 @@ class _SearchTabItem extends StatelessWidget {
       hoverColor: hoverColor,
       splashColor: splashColor,
       highlightColor: splashColor.withValues(alpha: 0.3),
-      child: SizedBox(
-        height: 33,
-        child: Padding(
-          padding: const EdgeInsets.only(top: 7), // labelTop: 7px
-          child: Align(
-            alignment: Alignment.topCenter,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 9),
+        child: SizedBox(
+          height: 33,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 7),
             child: Text(
               key: labelKey,
               label,
