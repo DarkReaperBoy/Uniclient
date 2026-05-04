@@ -4,8 +4,6 @@
 
 ## §2 — Chat List Sidebar
 
-- [ ] spec §2 "Drag-and-drop forwarding MIME": spec says `application/x-td-forward`. Code uses `ForwardDragData` class with Flutter's `Draggable<ForwardDragData>` — this is framework-level drag data, not MIME-based. Acceptable deviation for Flutter — no real issue
-
 ## §3 — Hamburger Menu
 
 - [ ] spec §3 "Profile cover bg": spec says `mainMenuCoverBg` = solid fill. Code uses `context.palette.windowBgActive` — this maps to the accent blue, which matches `mainMenuCoverBg = windowBgActive`. Correct
