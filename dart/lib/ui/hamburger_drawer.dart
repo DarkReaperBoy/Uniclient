@@ -1326,8 +1326,8 @@ class _MenuRowState extends State<_MenuRow> {
   }
 }
 
-/// Small inline toggle matching Telegram Desktop's menu item toggle.
-/// Spec §3: pill track + circle thumb, animates on toggle.
+/// Spec §3: defaultMenuToggle — itemToggleShift 11px, 150ms.
+/// Track 25×14 pill, 14px thumb ⇒ shift = 25−14 = 11px.
 class _InlineToggle extends StatelessWidget {
   final bool value;
   final ValueChanged<bool> onChanged;
@@ -1336,37 +1336,31 @@ class _InlineToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // On: mainMenuCoverBg (windowBgActive).
     final onColor = context.palette.windowBgActive;
-    // Off: windowSubTextFg.
     final offColor = context.palette.windowSubTextFg;
-
-    final thumbSize = value ? 14.0 : 10.0;
+    final thumbColor = context.palette.windowBg;
 
     return GestureDetector(
       onTap: () => onChanged(!value),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         curve: Curves.easeOutCubic,
-        width: 32,
-        height: 18,
+        width: 25,
+        height: 14,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(9),
+          borderRadius: BorderRadius.circular(7),
           color: value ? onColor : offColor,
         ),
         child: AnimatedAlign(
           duration: const Duration(milliseconds: 150),
           curve: Curves.easeOutCubic,
           alignment: value ? Alignment.centerRight : Alignment.centerLeft,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            curve: Curves.easeOutCubic,
-            width: thumbSize,
-            height: thumbSize,
-            margin: const EdgeInsets.all(2),
-            decoration: const BoxDecoration(
+          child: Container(
+            width: 14,
+            height: 14,
+            decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.white,
+              color: thumbColor,
             ),
           ),
         ),
