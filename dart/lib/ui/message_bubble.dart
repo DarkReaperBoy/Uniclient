@@ -588,7 +588,7 @@ class _MessageBubbleState extends State<MessageBubble> {
               Container(
                 padding: noBubble
                     ? EdgeInsets.zero
-                    : const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+                    : const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
                 decoration: BoxDecoration(
                   color: bubbleColor,
                   borderRadius: noBubble
