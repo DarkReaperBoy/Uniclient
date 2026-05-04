@@ -2289,7 +2289,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
     final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
     final errorColor = isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F);
 
     return AnimatedBuilder(

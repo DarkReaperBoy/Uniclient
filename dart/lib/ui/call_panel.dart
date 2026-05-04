@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import '../theme/telegram_palette.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
@@ -1520,7 +1521,7 @@ class _CallRatingDialogState extends State<CallRatingDialog> {
     final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final windowSubTextFg = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
     final borderColor = isDark ? const Color(0xFF2b3640) : const Color(0xFFD8D8DD);
 
     final showComment = _selectedRating > 0 && _selectedRating < 5;

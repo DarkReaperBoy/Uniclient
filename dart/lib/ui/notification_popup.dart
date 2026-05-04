@@ -322,7 +322,7 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
     final closeColor = palette?.menuIconFg ??
         (isDark ? const Color(0xFF8899A6) : const Color(0xFF999999));
     final accentColor = palette?.windowBgActive ??
-        (isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3));
+        (context.palette.windowBgActive);
 
     final isLeft = corner == NotificationCorner.topLeft ||
         corner == NotificationCorner.bottomLeft;
@@ -645,7 +645,7 @@ class _HiddenUserpicPlaceholder extends StatelessWidget {
       width: _photoSize,
       height: _photoSize,
       decoration: BoxDecoration(
-        color: const Color(0xFF40A7E3),
+        color: context.palette.windowBgActive,
         borderRadius: BorderRadius.circular(4),
       ),
       alignment: Alignment.center,

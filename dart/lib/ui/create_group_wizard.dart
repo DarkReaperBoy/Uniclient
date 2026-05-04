@@ -1790,7 +1790,7 @@ class _MemberChipState extends State<_MemberChip>
     // contactsBgOver: day #f1f1f1, night #2b3846
     final chipBg = widget.isDark ? const Color(0xFF2B3846) : const Color(0xFFF1F1F1);
     // activeButtonBg: day #40a7e3, night #2f6ea5
-    final chipBgActive = widget.isDark ? const Color(0xFF2F6EA5) : const Color(0xFF40A7E3);
+    final chipBgActive = context.palette.activeButtonBg;
     final textColor = widget.isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final activeTextColor = Colors.white;
     final bg = _hovering ? chipBgActive : chipBg;
@@ -2087,7 +2087,7 @@ class _PublicLinksLimitBoxState extends State<_PublicLinksLimitBox> {
                       fit: BoxFit.cover,
                     )
                   : Container(
-                      color: const Color(0xFF40A7E3),
+                      color: context.palette.windowBgActive,
                       alignment: Alignment.center,
                       child: Text(
                         channel.title.isNotEmpty ? channel.title[0].toUpperCase() : '?',
@@ -2418,7 +2418,7 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
 
   List<Widget> _buildPermissionToggles(bool isDark, Color textColor, Color subtextColor, Color accentColor) {
     final separatorColor = isDark ? const Color(0xFF0F1820) : const Color(0xFFE0E0E0);
-    final toggleActiveColor = isDark ? const Color(0xFF6AB3F3) : const Color(0xFF40A7E3);
+    final toggleActiveColor = context.palette.windowBgActive;
 
     return [
       _PermissionToggleRow(

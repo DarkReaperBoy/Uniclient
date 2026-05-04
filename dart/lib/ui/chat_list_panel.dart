@@ -2165,9 +2165,9 @@ class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
     final splashInactive =
         isDark ? const Color(0xFF24303D) : const Color(0xFFE5E5E5);
     final hoverActive =
-        isDark ? const Color(0xFF1D2A39) : const Color(0xFFE3F1FA);
+        context.palette.lightButtonBgOver;
     final splashActive =
-        isDark ? const Color(0xFF223143) : const Color(0xFFC9E4F6);
+        context.palette.lightButtonBgRipple;
 
     _syncTabKeys();
     final folders = widget.chatState.folders;
@@ -2354,7 +2354,7 @@ class _FolderTab extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 4, vertical: 1),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF40A7E3),
+                            color: context.palette.windowBgActive,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
@@ -3338,9 +3338,9 @@ class _SearchTabsStripState extends State<_SearchTabsStrip>
     final splashInactive =
         isDark ? const Color(0xFF24303D) : const Color(0xFFE5E5E5);
     final hoverActive =
-        isDark ? const Color(0xFF1D2A39) : const Color(0xFFE3F1FA);
+        context.palette.lightButtonBgOver;
     final splashActive =
-        isDark ? const Color(0xFF223143) : const Color(0xFFC9E4F6);
+        context.palette.lightButtonBgRipple;
 
     return SizedBox(
       height: 33,

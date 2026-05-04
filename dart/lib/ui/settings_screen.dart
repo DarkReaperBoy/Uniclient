@@ -129,15 +129,11 @@ class SettingsScreen extends StatelessWidget {
                 child: Row(
                   children: [
                     Icon(Icons.logout, size: 20,
-                        color: isDark
-                            ? const Color(0xFFEC3942)
-                            : const Color(0xFFD14E4E)),
+                        color: context.palette.attentionButtonFg),
                     const SizedBox(width: 12),
                     Text('Log Out',
                         style: TextStyle(
-                          color: isDark
-                              ? const Color(0xFFEC3942)
-                              : const Color(0xFFD14E4E),
+                          color: context.palette.attentionButtonFg,
                         )),
                   ],
                 ),
@@ -311,9 +307,7 @@ class SettingsScreen extends StatelessWidget {
               'English',
               style: TextStyle(
                 fontSize: 14,
-                color: isDark
-                    ? const Color(0xFF5288C1)
-                    : const Color(0xFF40A7E3),
+                color: context.palette.windowBgActive,
               ),
             ),
             onTap: () => showDialog(
@@ -379,21 +373,21 @@ class SettingsScreen extends StatelessWidget {
           // §14.8.2: Help section.
           _SettingsRow(
             icon: Icons.help_outline,
-            iconBg: const Color(0xFF40A7E3),
+            iconBg: context.palette.windowBgActive,
             label: 'Telegram FAQ',
             isDark: isDark,
             onTap: () {},
           ),
           _SettingsRow(
             icon: Icons.info_outline,
-            iconBg: const Color(0xFF40A7E3),
+            iconBg: context.palette.windowBgActive,
             label: 'Telegram Features',
             isDark: isDark,
             onTap: () {},
           ),
           _SettingsRow(
             icon: Icons.chat_outlined,
-            iconBg: const Color(0xFF40A7E3),
+            iconBg: context.palette.windowBgActive,
             label: 'Ask a Question',
             isDark: isDark,
             onTap: () => _showAskQuestionConfirm(context),
@@ -504,9 +498,7 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
     final usernameColor = isDark
         ? const Color(0xFF6C7883)
         : const Color(0xFF999999);
-    final accentColor = isDark
-        ? const Color(0xFF5288C1)
-        : const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
 
     final displayName = account?.displayName.isNotEmpty == true
         ? account!.displayName
@@ -693,9 +685,9 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
             value: 'remove',
             child: Row(
               children: [
-                Icon(Icons.delete, size: 20, color: isDark ? const Color(0xFFEC3942) : const Color(0xFFD14E4E)),
+                Icon(Icons.delete, size: 20, color: context.palette.attentionButtonFg),
                 const SizedBox(width: 12),
-                Text('Remove Photo', style: TextStyle(color: isDark ? const Color(0xFFEC3942) : const Color(0xFFD14E4E))),
+                Text('Remove Photo', style: TextStyle(color: context.palette.attentionButtonFg)),
               ],
             ),
           ),
@@ -734,7 +726,7 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
     final isDark = widget.isDark;
     final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
 
     showDialog(
       context: context,
@@ -979,15 +971,11 @@ class _InterfaceScaleSectionState extends State<_InterfaceScaleSection> {
     final textColor = isDark
         ? const Color(0xFFF5F5F5)
         : const Color(0xFF000000);
-    final accentColor = isDark
-        ? const Color(0xFF5288C1)
-        : const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
     final hoverBg = isDark
         ? const Color(0xFF232E3C)
         : const Color(0xFFF1F1F1);
-    final activeTextColor = isDark
-        ? const Color(0xFF5288C1)
-        : const Color(0xFF40A7E3);
+    final activeTextColor = context.palette.windowBgActive;
 
     return Column(
       children: [

@@ -536,9 +536,7 @@ class _ProfileCover extends StatelessWidget {
 
     // mainMenuCoverBg = windowBgActive: solid accent fill (spec §3).
     // Day: #40a7e3, Night: #5288c1.
-    final coverBg = isDark
-        ? const Color(0xFF5288C1)
-        : const Color(0xFF40A7E3);
+    final coverBg = context.palette.windowBgActive;
 
     return Container(
       height: 134,
@@ -947,9 +945,7 @@ class _AccountList extends StatelessWidget {
                       child: Icon(
                         Icons.add,
                         size: 24, // settingsIconAdd: 24x24 standard icon
-                        color: isDark
-                            ? const Color(0xFF5288C1)
-                            : const Color(0xFF40A7E3), // windowBgActive
+                        color: context.palette.windowBgActive, // windowBgActive
                       ),
                     ),
                   ),
@@ -1087,9 +1083,7 @@ class _AccountRow extends StatelessWidget {
                           borderRadius: BorderRadius.circular(
                             18.0 * (context.watch<AppState>().avatarCorners / 23.0)),
                           border: Border.all(
-                            color: theme.brightness == Brightness.dark
-                                ? const Color(0xFF5288C1)
-                                : const Color(0xFF40A7E3),
+                            color: context.palette.windowBgActive,
                             width: 2,
                           ),
                         )
@@ -1176,9 +1170,7 @@ class _AccountUnreadBadge extends StatelessWidget {
           ? const Color(0xFF3E546A)
           : const Color(0xFFBBBBBB);
     } else {
-      bgColor = isDark
-          ? const Color(0xFF5288C1)
-          : const Color(0xFF40A7E3);
+      bgColor = context.palette.windowBgActive;
     }
 
     return Container(
@@ -1337,7 +1329,7 @@ class _InlineToggle extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     // On: mainMenuCoverBg (windowBgActive).
-    final onColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final onColor = context.palette.windowBgActive;
     // Off: windowSubTextFg.
     final offColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
 
@@ -1597,9 +1589,7 @@ class _FooterSection extends StatelessWidget {
                 child: Text(
                   'github.com/DarkReaperBoy/uniclient',
                   style: TextStyle(
-                    color: isDark
-                        ? const Color(0xFF5288C1)
-                        : const Color(0xFF40A7E3),
+                    color: context.palette.windowBgActive,
                   ),
                 ),
               ),

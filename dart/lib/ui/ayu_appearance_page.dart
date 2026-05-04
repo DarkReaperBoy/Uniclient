@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/telegram_palette.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
@@ -137,9 +138,7 @@ class _AvatarCornersSection extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: isDark
-                      ? const Color(0xFF5288C1)
-                      : const Color(0xFF40A7E3),
+                  color: context.palette.windowBgActive,
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(_badgeText,

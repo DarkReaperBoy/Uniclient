@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../theme/telegram_palette.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
@@ -30,7 +31,7 @@ class AyuGramSettingsScreen extends StatelessWidget {
     final textColor = isDark ? Colors.white : Colors.black87;
 
     final iconColors = [
-      const Color(0xFF40A7E3), const Color(0xFF5288C1),
+      context.palette.windowBgActive, const Color(0xFF5288C1),
       const Color(0xFF5865F2), const Color(0xFF1DB954),
       const Color(0xFF6B72D5), const Color(0xFF808080),
       const Color(0xFFE67E22), const Color(0xFFCC3333),
@@ -139,7 +140,7 @@ class AyuGramSettingsScreen extends StatelessWidget {
           ),
           _CategoryButton(
             icon: Icons.visibility,
-            iconBg: const Color(0xFF40A7E3),
+            iconBg: context.palette.windowBgActive,
             label: 'General',
             isDark: isDark,
             onTap: () => _pushPage(context, appState, const AyuGeneralPage()),

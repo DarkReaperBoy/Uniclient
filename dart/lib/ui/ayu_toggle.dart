@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/telegram_palette.dart';
 
 class AyuToggle extends StatefulWidget {
   final bool value;
@@ -84,7 +85,7 @@ class _AyuToggleState extends State<AyuToggle>
         builder: (context, _) {
           final t = curve.transform(_controller.value);
 
-          const activeColor = Color(0xFF40A7E3);
+          final activeColor = context.palette.windowBgActive;
           final inactiveColor =
               isDark ? const Color(0xFF5A6A78) : const Color(0xFFCBCBCB);
           final trackColor = Color.lerp(inactiveColor, activeColor, t)!;

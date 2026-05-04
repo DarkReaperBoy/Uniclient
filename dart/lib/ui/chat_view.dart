@@ -9108,8 +9108,8 @@ class _SelectionBar extends StatelessWidget {
     const largeR = Radius.circular(8);
     const smallR = Radius.circular(4);
     final basePillStyle = TextButton.styleFrom(
-      backgroundColor: const Color(0xFF40A7E3), // activeButtonBg
-      foregroundColor: Colors.white, // activeButtonFg
+      backgroundColor: context.palette.activeButtonBg,
+      foregroundColor: context.palette.activeButtonFg,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
     );
@@ -9425,7 +9425,7 @@ class _GroupCallBar extends StatelessWidget {
     final textColor = isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222);
     final subtitleColor = isDark ? const Color(0xFF7E8B99) : const Color(0xFF999999);
     final accentGreen = const Color(0xFF4DC920);
-    final joinBg = const Color(0xFF40A7E3);
+    final joinBg = context.palette.windowBgActive;
 
     final participants = groupCall.participants;
     // Show up to 3 overlapping userpics.
@@ -11497,6 +11497,7 @@ class _ComposeFormattingOverlayState extends State<_ComposeFormattingOverlay>
               textSpan: textSpan,
               contentPadding: widget.contentPadding,
               isDark: isDark,
+              accent: context.palette.windowBgActive,
               maxWidth: constraints.maxWidth,
               scrollOffset: widget.scrollController.hasClients
                   ? widget.scrollController.offset
@@ -11516,6 +11517,7 @@ class _FormattingPainter extends CustomPainter {
   final TextSpan textSpan;
   final EdgeInsets contentPadding;
   final bool isDark;
+  final Color accent;
   final double maxWidth;
   final double scrollOffset;
   final double spoilerPhase;
@@ -11526,6 +11528,7 @@ class _FormattingPainter extends CustomPainter {
     required this.textSpan,
     required this.contentPadding,
     required this.isDark,
+    required this.accent,
     required this.maxWidth,
     required this.scrollOffset,
     required this.spoilerPhase,
@@ -11599,7 +11602,6 @@ class _FormattingPainter extends CustomPainter {
       bottom + vSkip,
     );
 
-    final accent = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
     canvas.drawRRect(
       RRect.fromRectAndCorners(
         Rect.fromLTRB(

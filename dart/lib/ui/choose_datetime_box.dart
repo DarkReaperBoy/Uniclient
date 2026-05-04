@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import '../theme/telegram_palette.dart';
 import 'package:flutter/services.dart';
 
 import 'confirm_box.dart';
@@ -225,7 +226,7 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
     final subtextFg =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentFg =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
     final disabledFg = subtextFg.withValues(alpha: 0.4);
 
@@ -700,13 +701,13 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
     final titleFg =
         isDark ? const Color(0xFFE0E3EA) : const Color(0xFF000000);
     final accentFg =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final fieldBg =
         isDark ? const Color(0xFF0E1621) : const Color(0xFFF0F0F0);
     final fieldBorder =
         isDark ? const Color(0xFF2B3845) : const Color(0xFFDADADA);
     final fieldBorderActive =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     const errorBorder = Color(0xFFE53935);
     final separatorFg =
         isDark ? const Color(0xFF8B95A5) : const Color(0xFF999999);
@@ -1020,7 +1021,7 @@ class _TimePickerBoxWidgetState extends State<_TimePickerBoxWidget>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textFg = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final dimFg = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final bandColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final bandColor = context.palette.windowBgActive;
     final centerY = (_drumHeight - _drumItemHeight) / 2;
 
     return TelegramBox(

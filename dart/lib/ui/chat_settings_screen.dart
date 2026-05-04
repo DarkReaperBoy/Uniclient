@@ -150,7 +150,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     final subtextColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final dividerColor =
         isDark ? const Color(0xFF101921) : const Color(0xFFE8E8E8);
 
@@ -1355,7 +1355,7 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
   Widget build(BuildContext context) {
     final bgColor = widget.isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
     final textColor = widget.isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final accentColor = widget.isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
 
     return Dialog(
       backgroundColor: bgColor,
@@ -1496,7 +1496,7 @@ class _AutoNightRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
 
     return InkWell(
       onTap: () => onChanged(!enabled),
@@ -1651,7 +1651,7 @@ class _ChooseFontBoxState extends State<_ChooseFontBox> {
     final bgColor = widget.isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
     final textColor = widget.isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subtextColor = widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor = widget.isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
     final previewBg = widget.isDark ? const Color(0xFF17212B) : const Color(0xFFF5F5F5);
 
     return Dialog(
@@ -2296,7 +2296,7 @@ class _SettingsCheckbox extends StatelessWidget {
   Widget build(BuildContext context) {
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
 
     return InkWell(
       onTap: () => onChanged(!value),
@@ -2451,19 +2451,19 @@ class _QuickActionPreview extends StatelessWidget {
     String actionLabel;
     switch (action) {
       case 'mute':
-        actionColor = const Color(0xFF40A7E3);
+        actionColor = context.palette.windowBgActive;
         actionIcon = Icons.volume_off;
         actionLabel = 'Mute';
       case 'pin':
-        actionColor = const Color(0xFF40A7E3);
+        actionColor = context.palette.windowBgActive;
         actionIcon = Icons.push_pin;
         actionLabel = 'Pin';
       case 'read':
-        actionColor = const Color(0xFF40A7E3);
+        actionColor = context.palette.windowBgActive;
         actionIcon = Icons.done_all;
         actionLabel = 'Read';
       case 'archive':
-        actionColor = const Color(0xFF40A7E3);
+        actionColor = context.palette.windowBgActive;
         actionIcon = Icons.archive;
         actionLabel = 'Archive';
       case 'delete':
@@ -2784,7 +2784,7 @@ class _StickerCheckbox extends StatelessWidget {
     final subtextColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
 
     return InkWell(
       onTap: () => onChanged(!value),
@@ -3086,7 +3086,7 @@ class _MessageCheckbox extends StatelessWidget {
     final subtextColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
 
     return InkWell(
       onTap: () => onChanged(!value),

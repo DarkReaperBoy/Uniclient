@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import '../theme/telegram_palette.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
@@ -77,7 +78,7 @@ class _NotificationsSettingsScreenState
     final subtextColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final hoverBg =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
     final sectionTitleColor =
@@ -810,6 +811,7 @@ class _NotificationMonitorWidgetState
                   hoverCorner: _hoverCorner,
                   barOpacities: _barControllers.map((c) => c.value).toList(),
                   isDark: widget.isDark,
+                  accent: context.palette.windowBgActive,
                 ),
               );
             },
@@ -825,12 +827,14 @@ class _MonitorPainter extends CustomPainter {
   final _ScreenCorner? hoverCorner;
   final List<double> barOpacities;
   final bool isDark;
+  final Color accent;
 
   _MonitorPainter({
     required this.selectedCorner,
     required this.hoverCorner,
     required this.barOpacities,
     required this.isDark,
+    required this.accent,
   });
 
   static const _screenW = 280.0;
@@ -852,7 +856,7 @@ class _MonitorPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final monitorFg = isDark ? const Color(0xFF3E546A) : const Color(0xFFBBBBBB);
     final screenBg = isDark ? const Color(0xFF0E1621) : const Color(0xFFE8E8E8);
-    final barColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final barColor = accent;
     final hoverHighlight =
         isDark ? const Color(0xFF1A2633) : const Color(0xFFD8D8D8);
 
@@ -1216,7 +1220,7 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
     final subtextColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final hoverBg =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
     final sectionTitleColor =
@@ -1382,7 +1386,7 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
     final subtextColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final hoverBg =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
@@ -1527,7 +1531,7 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
     final dialogText =
         isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final errorColor = const Color(0xFFDD4B39);
 
     showDialog<bool>(
@@ -1731,7 +1735,7 @@ class _MuteDurationPickerDialogState
     final subtextColor =
         widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor =
-        widget.isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final highlightColor =
         widget.isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
@@ -1838,7 +1842,7 @@ class _MuteDurationPickerDialogState
     final subtextColor =
         widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor =
-        widget.isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
 
     final hoursCtrl = TextEditingController(text: '0');
     final minutesCtrl = TextEditingController(text: '30');
@@ -2402,7 +2406,7 @@ class _ReactionsSubPageState extends State<_ReactionsSubPage> {
     final textColor =
         isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
 
     showDialog<_ReactionsFrom>(
       context: context,
@@ -2479,7 +2483,7 @@ class _ReactionsSubPageState extends State<_ReactionsSubPage> {
     final subtextColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final hoverBg =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
     final sectionTitleColor =
@@ -2671,9 +2675,7 @@ class _NotificationPreview extends StatelessWidget {
                         shape: BoxShape.circle,
                         color: showName
                             ? const Color(0xFF4CAF50)
-                            : isDark
-                                ? const Color(0xFF5288C1)
-                                : const Color(0xFF40A7E3),
+                            : context.palette.windowBgActive,
                       ),
                       child: Center(
                         child: showName
@@ -3098,7 +3100,7 @@ class _RingtonesBoxDialogState extends State<_RingtonesBoxDialog> {
   Color get _subtextColor =>
       widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
   Color get _accentColor =>
-      widget.isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+      context.palette.windowBgActive;
   Color get _sectionTitleColor =>
       widget.isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
   Color get _dividerColor =>

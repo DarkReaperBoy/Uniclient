@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import '../theme/telegram_palette.dart';
 
 import '../models/engine_models.dart';
 
@@ -1800,8 +1801,8 @@ class _ScreenShareChooserDialogState
 
   Widget _buildGrid() {
     if (_loading) {
-      return const Center(
-        child: CircularProgressIndicator(color: Color(0xFF40A7E3)),
+      return Center(
+        child: CircularProgressIndicator(color: context.palette.windowBgActive),
       );
     }
 
@@ -1868,7 +1869,7 @@ class _ScreenShareChooserDialogState
               value: _shareAudio,
               onChanged: (v) =>
                   setState(() => _shareAudio = v ?? false),
-              activeColor: const Color(0xFF40A7E3),
+              activeColor: context.palette.windowBgActive,
               side: const BorderSide(color: Color(0x80FFFFFF)),
             ),
           ),
@@ -1906,7 +1907,7 @@ class _ScreenShareChooserDialogState
           FilledButton(
             onPressed: _selected != null ? _confirm : null,
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF40A7E3),
+              backgroundColor: context.palette.windowBgActive,
               disabledBackgroundColor: const Color(0x40FFFFFF),
             ),
             child: const Text('Share'),
@@ -1938,7 +1939,7 @@ class _SourceTab extends StatelessWidget {
           border: Border(
             bottom: BorderSide(
               color: isActive
-                  ? const Color(0xFF40A7E3)
+                  ? context.palette.windowBgActive
                   : Colors.transparent,
               width: 2,
             ),
@@ -1948,7 +1949,7 @@ class _SourceTab extends StatelessWidget {
           label,
           style: TextStyle(
             color: isActive
-                ? const Color(0xFF40A7E3)
+                ? context.palette.windowBgActive
                 : const Color(0xAAFFFFFF),
             fontSize: 14,
             fontWeight:
@@ -1989,7 +1990,7 @@ class _ScreenSourceThumb extends StatelessWidget {
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
                 color: isSelected
-                    ? const Color(0xFF40A7E3)
+                    ? context.palette.windowBgActive
                     : const Color(0x30FFFFFF),
                 width: isSelected ? 2 : 1,
               ),
@@ -2025,7 +2026,7 @@ class _ScreenSourceThumb extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: isSelected
-                    ? const Color(0xFF40A7E3)
+                    ? context.palette.windowBgActive
                     : const Color(0xCCFFFFFF),
                 fontSize: 12,
               ),

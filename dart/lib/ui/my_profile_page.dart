@@ -1000,7 +1000,7 @@ class _EditPeerColorBoxState extends State<_EditPeerColorBox> {
   Widget build(BuildContext context) {
     final bgColor = widget.isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
     final textColor = widget.isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final accentColor = widget.isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
 
     return Dialog(
       backgroundColor: bgColor,
@@ -1133,7 +1133,7 @@ class _UploadSubButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final bgColor = context.palette.windowBgActive;
     final borderColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
     return GestureDetector(
       onTap: onTap,
@@ -1601,9 +1601,7 @@ class _SettingsUnreadBadge extends StatelessWidget {
           ? const Color(0xFF3E546A)
           : const Color(0xFFBBBBBB);
     } else {
-      bgColor = isDark
-          ? const Color(0xFF5288C1)
-          : const Color(0xFF40A7E3);
+      bgColor = context.palette.windowBgActive;
     }
     final text = count >= 1000
         ? '${(count / 1000).toStringAsFixed(count >= 10000 ? 0 : 1)}K'
@@ -1646,9 +1644,7 @@ class _AddAccountButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accentColor = isDark
-        ? const Color(0xFF5288C1)
-        : const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
 
     return Opacity(
       opacity: atPremiumLimit ? 0.4 : 1.0,

@@ -883,7 +883,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     final headerColor =
         isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final shadowColor =
         isDark ? const Color(0xFF0E1621) : const Color(0xFFE0E0E0);
 
@@ -1400,7 +1400,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     final headerColor =
         isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final shadowColor =
         isDark ? const Color(0xFF0E1621) : const Color(0xFFE0E0E0);
 
@@ -1724,13 +1724,13 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     final textColor =
         isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final activeFg =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final inactiveFg =
         isDark ? const Color(0xFF283848) : const Color(0xFFE0E0E0);
     final attentionFg =
-        isDark ? const Color(0xFFEC3942) : const Color(0xFFD14E4E);
+        context.palette.attentionButtonFg;
     final linkColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
 
     final visibleSteps = <_ExportStepInfo>[];
     if (_exportSteps.isNotEmpty) {
@@ -1898,7 +1898,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     final textColor =
         isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final activeFg =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
 
     final doneRows = [
       'Data exported successfully.',
@@ -1979,7 +1979,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   Widget _buildErrorPlaceholder(Color subtextColor) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final errorColor =
-        isDark ? const Color(0xFFEC3942) : const Color(0xFFD14E4E);
+        context.palette.attentionButtonFg;
 
     final String errorText;
     if (_errorType == _ExportErrorType.diskIo) {
@@ -2094,7 +2094,7 @@ class _CalendarBoxState extends State<_CalendarBox> {
     final subtextColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
 
     final daysInMonth = DateTime(_year, _month + 1, 0).day;
     final startWeekday = DateTime(_year, _month, 1).weekday;
@@ -2346,7 +2346,7 @@ class _ChooseTimeBoxState extends State<_ChooseTimeBox> {
     final subtextColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
 
     return Center(
       child: Material(
@@ -2499,7 +2499,7 @@ class _ChooseFormatBoxState extends State<_ChooseFormatBox> {
     final subtextColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
 
     return Center(
       child: Material(

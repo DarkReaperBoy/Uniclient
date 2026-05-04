@@ -339,7 +339,7 @@ class _GhostMasterToggle extends StatelessWidget {
             Icon(
               Icons.visibility_off,
               size: 20,
-              color: value ? const Color(0xFF40A7E3) : (isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999)),
+              color: value ? context.palette.windowBgActive : (isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999)),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -407,7 +407,7 @@ class _LockableToggleRow extends StatelessWidget {
                   child: Checkbox(
                     value: value,
                     onChanged: locked ? null : (v) => onChanged(v ?? false),
-                    activeColor: const Color(0xFF40A7E3),
+                    activeColor: context.palette.windowBgActive,
                     side: BorderSide(
                       color: isDark ? const Color(0xFF5A6A78) : const Color(0xFFCBCBCB),
                       width: 2,

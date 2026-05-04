@@ -6,6 +6,7 @@ import 'dart:math' as math;
 import 'package:crypto/crypto.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../theme/telegram_palette.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
@@ -428,7 +429,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     final subtextColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final hoverBg =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
@@ -1111,7 +1112,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222);
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
 
     final options = <int>[30, 90, 180, 365, 548, 720];
     final labels = <String>[
@@ -1778,7 +1779,7 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
           final bgColor = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
           final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
           final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-          final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+          final accentColor = context.palette.windowBgActive;
           return Dialog(
             backgroundColor: bgColor,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -1967,7 +1968,7 @@ class _EditPrivacyBoxState extends State<_EditPrivacyBox> {
     final bgColor = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
     final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFF1F1F1);
     final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
     final warningColor = isDark ? const Color(0xFFE8A63B) : const Color(0xFFC57518);
@@ -2667,7 +2668,7 @@ class _CloudPasswordStart extends StatelessWidget {
     final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -3112,7 +3113,7 @@ class _CloudPasswordInputState extends State<_CloudPasswordInput> {
     final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
     final errorColor = isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F);
 
     final title = 'Two-Step Verification';
@@ -3386,7 +3387,7 @@ class _CloudPasswordHintState extends State<_CloudPasswordHint> {
     final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
     final errorColor = isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F);
 
     return Scaffold(
@@ -3648,7 +3649,7 @@ class _CloudPasswordEmailState extends State<_CloudPasswordEmail> {
     final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
     final errorColor = isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F);
 
     return Scaffold(
@@ -4023,7 +4024,7 @@ class _CloudPasswordEmailConfirmState extends State<_CloudPasswordEmailConfirm> 
     final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
     final errorColor = isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F);
     final infoColor = isDark ? const Color(0xFF4CAF50) : const Color(0xFF388E3C);
 
@@ -4326,7 +4327,7 @@ class _CloudPasswordManageState extends State<_CloudPasswordManage> {
     final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
     final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
     final dividerColor = isDark ? const Color(0xFF232E3C) : const Color(0xFFE0E0E0);
 
@@ -4623,7 +4624,7 @@ class _GlobalTTLScreenState extends State<_GlobalTTLScreen> {
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final dividerBg = isDark ? const Color(0xFF101921) : const Color(0xFFF1F1F1);
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
     final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
     return Scaffold(
@@ -4940,7 +4941,7 @@ class _LocalPasscodeCreateState extends State<_LocalPasscodeCreate> {
     final subtextColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final errorColor =
         isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F);
 
@@ -5181,7 +5182,7 @@ class _LocalPasscodeCheckState extends State<_LocalPasscodeCheck> {
     final subtextColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final errorColor =
         isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F);
 
@@ -5435,7 +5436,7 @@ class _LocalPasscodeManageState extends State<_LocalPasscodeManage> {
     final hoverBg =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final errorColor =
         isDark ? const Color(0xFFE53935) : const Color(0xFFD32F2F);
 
@@ -5579,7 +5580,7 @@ class _AutoLockBoxState extends State<_AutoLockBox> {
     final subtextColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
 
     final labels = {
       0: 'Disabled',
@@ -5865,7 +5866,7 @@ class _MessagesPrivacyBoxState extends State<_MessagesPrivacyBox> {
     final bgColor = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
     final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFF1F1F1);
     final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
@@ -6226,7 +6227,7 @@ class _BlockedUsersScreenState extends State<_BlockedUsersScreen> {
     final bgColor = isDark ? const Color(0xFF1B2836) : const Color(0xFFFFFFFF);
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
     final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
     final accountId = appState.activeAccountId;
@@ -6362,7 +6363,7 @@ class _BlockedUsersScreenState extends State<_BlockedUsersScreen> {
     final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
     final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFE8E8E8);
     final topBarBg = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/telegram_palette.dart';
 
 import 'ayu_toggle.dart';
 
@@ -263,7 +264,7 @@ class _AyuSlider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accentColor = const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 4),
       child: Column(
@@ -278,10 +279,10 @@ class _AyuSlider extends StatelessWidget {
                         color: isDark ? Colors.white : Colors.black87)),
               ),
               Text(valueLabel,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
-                      color: Color(0xFF40A7E3))),
+                      color: context.palette.windowBgActive)),
             ],
           ),
           SliderTheme(

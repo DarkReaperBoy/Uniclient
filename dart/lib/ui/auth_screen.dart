@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import '../theme/telegram_palette.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -772,9 +773,9 @@ class _AuthScreenState extends State<AuthScreen>
                 child: SizedBox(
                   width: qrSize,
                   height: qrSize,
-                  child: const CircularProgressIndicator(
+                  child: CircularProgressIndicator(
                     strokeWidth: 1.5,
-                    valueColor: AlwaysStoppedAnimation(Color(0xFF40A7E3)),
+                    valueColor: AlwaysStoppedAnimation(context.palette.windowBgActive),
                   ),
                 ),
               ),
@@ -815,8 +816,8 @@ class _AuthScreenState extends State<AuthScreen>
                       Container(
                         width: logoSize,
                         height: logoSize,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF40A7E3),
+                        decoration: BoxDecoration(
+                          color: context.palette.windowBgActive,
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
@@ -843,11 +844,11 @@ class _AuthScreenState extends State<AuthScreen>
         const SizedBox(height: 20),
         TextButton(
           onPressed: () => authState.switchToMethod('phone'),
-          child: const Text(
+          child: Text(
             'Log in by phone number',
             style: TextStyle(
               fontSize: 14,
-              color: Color(0xFF40A7E3),
+              color: context.palette.windowBgActive,
             ),
           ),
         ),
@@ -1589,7 +1590,7 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
     final bgColor = isDark ? const Color(0xFF202B36) : const Color(0xFFEFEFEF);
     final unfocusedBorder =
         isDark ? const Color(0xFF3A4A5A) : const Color(0xFFD0D0D0);
-    final focusedBorder = const Color(0xFF40A7E3);
+    final focusedBorder = context.palette.activeLineFg;
     final errorBorder = theme.colorScheme.error;
 
     return Column(

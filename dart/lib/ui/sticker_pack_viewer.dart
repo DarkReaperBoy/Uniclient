@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import '../theme/telegram_palette.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
@@ -155,7 +156,7 @@ class _StickerPackViewerState extends State<StickerPackViewer> {
               style: TextButton.styleFrom(
                 backgroundColor: installed
                     ? (isDark ? const Color(0xFF2B5278) : const Color(0xFFE3F2FD))
-                    : const Color(0xFF40A7E3),
+                    : context.palette.windowBgActive,
                 foregroundColor: installed ? textColor : Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),

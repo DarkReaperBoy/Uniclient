@@ -158,7 +158,7 @@ class _FoldersSettingsScreenState extends State<FoldersSettingsScreen> {
 
   void _showChatListRemoveConfirmation(FolderInfo folder, int index) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
     showDialog<bool>(
       context: context,
       builder: (ctx) => _ChatlistFolderRemovalDialog(
@@ -645,9 +645,7 @@ class _FolderRowState extends State<_FolderRow>
 
   @override
   Widget build(BuildContext context) {
-    final activeButtonBg = widget.isDark
-        ? const Color(0xFF5288C1)
-        : const Color(0xFF40A7E3);
+    final activeButtonBg = context.palette.windowBgActive;
     final activeButtonBgOver = widget.isDark
         ? const Color(0xFF4B7FB0)
         : const Color(0xFF359AD5);
@@ -1035,7 +1033,7 @@ class _TagsToggleState extends State<_TagsToggle> {
   Widget build(BuildContext context) {
     final accentColor = widget.isDark
         ? const Color(0xFF6AB3F3)
-        : const Color(0xFF40A7E3);
+        : context.palette.windowBgActive;
     final lockColor = widget.isDark
         ? const Color(0xFF6C7883)
         : const Color(0xFF999999);
@@ -2852,18 +2850,18 @@ class _PeerAvatar extends StatelessWidget {
           width: 44,
           height: 44,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _fallbackAvatar(),
+          errorBuilder: (ctx, __, ___) => _fallbackAvatar(ctx),
         ),
       );
     }
-    return _fallbackAvatar();
+    return _fallbackAvatar(context);
   }
 
-  Widget _fallbackAvatar() {
+  Widget _fallbackAvatar(BuildContext context) {
     final colors = [
       const Color(0xFFE17076),
       const Color(0xFF7BC862),
-      const Color(0xFF40A7E3),
+      context.palette.windowBgActive,
       const Color(0xFFFAA74A),
       const Color(0xFF6EC9CB),
       const Color(0xFF65AADD),
@@ -3163,7 +3161,7 @@ class _IconCellState extends State<_IconCell> {
         : const Color(0xFFB1B1B1);
     final activeColor = widget.isDark
         ? const Color(0xFF6AB3F3)
-        : const Color(0xFF40A7E3);
+        : context.palette.windowBgActive;
     // dialogsBgOver
     final hoverBg = widget.isDark
         ? const Color(0xFF202B36)
@@ -3257,7 +3255,7 @@ class _TypeToggleRow extends StatelessWidget {
                   onChanged: (v) => onChanged(v ?? false),
                   activeColor: isDark
                       ? const Color(0xFF6AB3F3)
-                      : const Color(0xFF40A7E3),
+                      : context.palette.windowBgActive,
                 ),
               ],
             ),

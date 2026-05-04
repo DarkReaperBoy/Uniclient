@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import '../theme/telegram_palette.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
@@ -190,7 +191,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
     final textColor = isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222);
     final subtextColor = isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
 
     final options = [7, 30, 90, 180, 365];
     int selected = _autoTerminateDays;
@@ -435,7 +436,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     final textColor = isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222);
     final subtextColor = isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
     final iconColor = isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
 
     showDialog(
       context: context,
@@ -622,7 +623,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     final textColor = isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222);
     final subtextColor = isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
     final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFE6E6E6);
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
 
     return Scaffold(
       backgroundColor: bgColor,

@@ -2,6 +2,7 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../theme/telegram_palette.dart';
 import 'package:flutter/services.dart';
 
 import 'keyboard_shortcuts.dart';
@@ -333,7 +334,7 @@ class _ShortcutsSettingsScreenState extends State<ShortcutsSettingsScreen> {
     final subtextColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final dividerColor =
         isDark ? const Color(0xFF101921) : const Color(0xFFE8E8E8);
     final hoverBg =

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../theme/telegram_palette.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
@@ -119,7 +120,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     final subtextColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final hoverBg =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
@@ -207,7 +208,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     final iconColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final hoverBg =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
@@ -274,7 +275,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
   void _showDownloadPathDialog(BuildContext context, AppState appState, bool isDark) {
     final bgColor = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
 
     showDialog(
@@ -407,7 +408,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     final textColor =
         isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final hoverBg =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
     final multiAccount = appState.accounts.length > 1;
@@ -463,7 +464,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     final textColor =
         isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final hoverBg =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
@@ -486,7 +487,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     final textColor =
         isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final hoverBg =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
@@ -566,7 +567,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     final iconColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final hoverBg =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
@@ -616,7 +617,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     final textColor =
         isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
 
     showDialog(
       context: context,
@@ -673,7 +674,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     final iconColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final hoverBg =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
@@ -1029,7 +1030,7 @@ class _AutoDownloadBoxState extends State<_AutoDownloadBox> {
     final subtextColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final dividerColor =
         isDark ? const Color(0xFF101921) : const Color(0xFFE0E0E0);
 
@@ -1269,11 +1270,11 @@ class _LocalStorageBoxState extends State<_LocalStorageBox> {
     final subtextColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final dividerColor =
         isDark ? const Color(0xFF101921) : const Color(0xFFE0E0E0);
     final clearColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
 
     return Dialog(
       backgroundColor: bgColor,
@@ -1576,9 +1577,9 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
     final textColor =
         isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final headerColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final iconColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final overlayColor = bgColor.withAlpha(96);
@@ -1865,7 +1866,7 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
     final subtextColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final dividerColor =
         isDark ? const Color(0xFF101921) : const Color(0xFFE0E0E0);
     final hoverBg =
@@ -2132,7 +2133,7 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
     final subtextColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final hoverBg =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
@@ -2546,7 +2547,7 @@ class _EditProxyDialogState extends State<_EditProxyDialog> {
     final subtextColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final hoverBg =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
     final fieldBg = isDark ? const Color(0xFF17212B) : const Color(0xFFF5F5F5);
@@ -2805,7 +2806,7 @@ class _RecentDownloadsBox extends StatelessWidget {
     final bgColor = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
     final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFE0E0E0);
     final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
@@ -3154,7 +3155,7 @@ class _ExperimentalSettingsBoxState extends State<ExperimentalSettingsBox> {
     final subtextColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+        context.palette.windowBgActive;
     final warningColor =
         isDark ? const Color(0xFFE8A64A) : const Color(0xFFD4850C);
 

@@ -5280,7 +5280,7 @@ class _SimilarChannelRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Row(
           children: [
-            _buildAvatar(),
+            _buildAvatar(context),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -5306,7 +5306,7 @@ class _SimilarChannelRow extends StatelessWidget {
     );
   }
 
-  Widget _buildAvatar() {
+  Widget _buildAvatar(BuildContext context) {
     if (channel.avatarB64.isNotEmpty) {
       try {
         final bytes = base64Decode(channel.avatarB64);
@@ -5318,7 +5318,7 @@ class _SimilarChannelRow extends StatelessWidget {
     }
     return CircleAvatar(
       radius: 23,
-      backgroundColor: const Color(0xFF40A7E3),
+      backgroundColor: context.palette.windowBgActive,
       child: Text(
         channel.title.isNotEmpty ? channel.title[0].toUpperCase() : '?',
         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),

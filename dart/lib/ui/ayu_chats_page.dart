@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/telegram_palette.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
@@ -274,7 +275,7 @@ class _WideMultiplierSliderState extends State<_WideMultiplierSlider> {
 
   @override
   Widget build(BuildContext context) {
-    final accentColor = const Color(0xFF40A7E3);
+    final accentColor = context.palette.windowBgActive;
     final textColor = widget.isDark ? Colors.white : Colors.black87;
     final subtitleColor = widget.isDark
         ? const Color(0xFF6D7F8F)
@@ -292,10 +293,10 @@ class _WideMultiplierSliderState extends State<_WideMultiplierSlider> {
                     style: TextStyle(fontSize: 14, color: textColor)),
               ),
               Text(_localValue.toStringAsFixed(2),
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
-                      color: Color(0xFF40A7E3))),
+                      color: context.palette.windowBgActive)),
             ],
           ),
           SliderTheme(
@@ -421,19 +422,19 @@ class _BubbleRadiusSectionState extends State<_BubbleRadiusSection> {
                                 : Colors.black87)),
                   ),
                   Text('$_localValue',
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
-                          color: Color(0xFF40A7E3))),
+                          color: context.palette.windowBgActive)),
                 ],
               ),
               SliderTheme(
                 data: SliderThemeData(
-                  activeTrackColor: const Color(0xFF40A7E3),
+                  activeTrackColor: context.palette.windowBgActive,
                   inactiveTrackColor: widget.isDark
                       ? const Color(0xFF2B3C4C)
                       : const Color(0xFFD5D5D5),
-                  thumbColor: const Color(0xFF40A7E3),
+                  thumbColor: context.palette.windowBgActive,
                   overlayColor: const Color(0x2940A7E3),
                   trackHeight: 3,
                   thumbShape:
