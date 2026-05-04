@@ -3323,19 +3323,13 @@ class _SearchTabsStripState extends State<_SearchTabsStrip>
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final activeFg =
-        isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
-    final inactiveFg =
-        isDark ? const Color(0xFF8A8A8A) : const Color(0xFF999999);
-    final hoverInactive =
-        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
-    final splashInactive =
-        isDark ? const Color(0xFF24303D) : const Color(0xFFE5E5E5);
-    final hoverActive =
-        context.palette.lightButtonBgOver;
-    final splashActive =
-        context.palette.lightButtonBgRipple;
+    final p = context.palette;
+    final activeFg = p.lightButtonFg;
+    final inactiveFg = p.windowSubTextFg;
+    final hoverInactive = p.windowBgOver;
+    final splashInactive = p.windowBgRipple;
+    final hoverActive = p.lightButtonBgOver;
+    final splashActive = p.lightButtonBgRipple;
 
     return SizedBox(
       height: 33,
