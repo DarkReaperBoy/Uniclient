@@ -4,7 +4,6 @@
 
 ## §2 — Chat List Sidebar
 
-- [ ] spec §2 "Swipe label font": spec says "13px semibold". Code in `_SwipeLabel` needs verification — `chat_list_row.dart:903`
 - [ ] spec §2 "Swipe text color": spec says `premiumButtonFg (white)`. Code renders white text via the label widget — matches
 - [ ] spec §2 "Sorting": spec says "Pinned chats at top (no visible separator). Below: sorted by last message time descending." Code sorts with `if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1; return b.lastMsgTime.compareTo(a.lastMsgTime)` — matches spec — correct
 - [ ] spec §2 "Horizontal folder tabs inter-label gap": spec says `strictSkip: 18px` (minimum gap between labels). Code uses `padding: const EdgeInsets.symmetric(horizontal: 9)` per tab, which creates 18px gap between adjacent labels (9px right + 9px left). This is correct — no issue
