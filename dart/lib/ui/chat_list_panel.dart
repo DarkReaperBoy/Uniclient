@@ -3346,7 +3346,7 @@ class _SearchTabsStripState extends State<_SearchTabsStrip>
           children: [
             Row(
               key: _rowKey,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 for (var i = 0; i < _SearchTabsStrip._tabs.length; i++)
                   _SearchTabItem(
