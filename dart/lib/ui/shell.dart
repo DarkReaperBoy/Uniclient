@@ -65,7 +65,7 @@ class _UniClientShellState extends State<UniClientShell>
   static const _dialogsMax = 540.0;
   static const _dialogsCollapseThreshold = 130.0;
   static const _chatMin = 380.0;
-  static const _thirdMin = 324.0;
+  static const _thirdMin = 292.0;
   static const _thirdMax = 392.0;
   static const _filtersWidth = 72.0;
 
