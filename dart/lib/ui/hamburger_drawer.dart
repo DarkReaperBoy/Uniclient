@@ -1327,11 +1327,10 @@ class _InlineToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     // On: mainMenuCoverBg (windowBgActive).
     final onColor = context.palette.windowBgActive;
     // Off: windowSubTextFg.
-    final offColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final offColor = context.palette.windowSubTextFg;
 
     return GestureDetector(
       onTap: () => onChanged(!value),
