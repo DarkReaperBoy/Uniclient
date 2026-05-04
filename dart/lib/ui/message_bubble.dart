@@ -686,17 +686,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                           ),
                         ),
                       ),
-                    // Reply preview.
-                    if (message.replyPreview.isNotEmpty)
-                      _ReplyPreview(
-                        preview: message.replyPreview,
-                        theme: theme,
-                        isOutgoing: isOutgoing,
-                        onTap: (onReplyTap != null && message.replyToId.isNotEmpty)
-                            ? () => onReplyTap!(message.replyToId)
-                            : null,
-                      ),
-                    // Forward header.
+                    // Forward header (spec §5: before reply block).
                     if (message.forwardFrom.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 2),
@@ -708,6 +698,16 @@ class _MessageBubbleState extends State<MessageBubble> {
                             color: theme.textTheme.bodySmall?.color,
                           ),
                         ),
+                      ),
+                    // Reply preview.
+                    if (message.replyPreview.isNotEmpty)
+                      _ReplyPreview(
+                        preview: message.replyPreview,
+                        theme: theme,
+                        isOutgoing: isOutgoing,
+                        onTap: (onReplyTap != null && message.replyToId.isNotEmpty)
+                            ? () => onReplyTap!(message.replyToId)
+                            : null,
                       ),
                     // Spec §6: For captioned media (photo/video/GIF + text),
                     // media renders first, caption text below it.
