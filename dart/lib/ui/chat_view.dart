@@ -121,6 +121,7 @@ class ChatView extends StatefulWidget {
   static VoidCallback? selectAllComposeRequest;
   static VoidCallback? showLinkDialogRequest;
   static VoidCallback? showCodeLanguageDialogRequest;
+  static VoidCallback? toggleEmojiPanelRequest;
 
   /// Global hook used by Ctrl+Up / Ctrl+Down (spec §24.6 lines 2982-2983) to
   /// cycle the reply target. direction=+1 → older message (Ctrl+Up), -1 →
@@ -447,6 +448,11 @@ class _ChatViewState extends State<ChatView>
     ChatView.selectAllComposeRequest = _selectAllCompose;
     ChatView.showLinkDialogRequest = _showLinkDialogFromHarness;
     ChatView.showCodeLanguageDialogRequest = _showCodeLanguageDialogFromHarness;
+    ChatView.toggleEmojiPanelRequest = () {
+      if (context.read<AppState>().showEmojiPopup) {
+        setState(() => _emojiPanelVisible = !_emojiPanelVisible);
+      }
+    };
     ChatView.scrollPageRequest = _scrollPage;
     ChatView.showSendFilesBoxRequest = (paths) {
       _uploadFiles(context.read<ChatState>(), paths);
@@ -526,6 +532,7 @@ class _ChatViewState extends State<ChatView>
     if (ChatView.showCodeLanguageDialogRequest == _showCodeLanguageDialogFromHarness) {
       ChatView.showCodeLanguageDialogRequest = null;
     }
+    ChatView.toggleEmojiPanelRequest = null;
     if (ChatView.scrollPageRequest == _scrollPage) {
       ChatView.scrollPageRequest = null;
     }

@@ -2148,6 +2148,7 @@ class _GifTabState extends State<_GifTab> {
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
+  String? _gifBotId;
   Timer? _searchDebounce;
 
   @override
@@ -2226,8 +2227,13 @@ class _GifTabState extends State<_GifTab> {
     final engine = context.read<EngineService>();
     final activeAccount = appState.activeAccount;
     if (activeAccount == null) return;
+    if (_gifBotId == null) {
+      final resolved = await engine.resolveUsername(activeAccount.id, 'gif');
+      if (resolved == null || !mounted) return;
+      _gifBotId = resolved;
+    }
     final results = await engine.getInlineBotResults(
-      activeAccount.id, 'gif', query,
+      activeAccount.id, _gifBotId!, query,
     );
     if (results != null && mounted && _searchController.text.trim() == query) {
       setState(() {

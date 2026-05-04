@@ -1023,7 +1023,6 @@ Status key: `[ ]` not started · `[x]` done
 
 ## Bugs
 
-- [ ] GIF tab inline search broken: GetInlineBotResults passes string "gif" as bot ID but engine expects numeric ID. Error: `invalid ID "gif": strconv.ParseInt: parsing "gif": invalid syntax`. Affects both manual text search and category emoji search.
 - [ ] Chat Settings page scroll broken via flutter_interact.sh — verify if fixed by scroll delta negation fix (same root cause as info panel scroll). If still broken, investigate separately.
 - [ ] Notifications page scroll broken via flutter_interact.sh — verify if fixed by scroll delta negation fix (same root cause as info panel scroll). If still broken, investigate separately.
 - [ ] `_isSelfAdmin` in `_GroupActionsSection` (info_panel.dart) never returns true: compares `chat.accountId` (format "tele_4beb99fd") with `m.userId` (Telegram numeric ID like "123456789") — formats never match. "Edit Group" and "Topics" rows are invisible for all groups because of this. Fix: resolve account's own Telegram user ID and compare against member userId.

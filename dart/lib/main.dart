@@ -662,6 +662,9 @@ class _UniClientAppState extends State<UniClientApp>
         case 'toggleScheduled':
           chatState.toggleScheduledView();
 
+        case 'toggleEmojiPanel':
+          ChatView.toggleEmojiPanelRequest?.call();
+
         case 'testVideoToast':
           final toastType = cmd['type'] as String? ?? 'tip';
           if (toastType == 'tip') {
