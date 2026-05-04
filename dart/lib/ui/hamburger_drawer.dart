@@ -696,7 +696,7 @@ class _ProfileCover extends StatelessWidget {
         style: TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w400,
-          color: Colors.white.withValues(alpha: 0.7),
+          color: context.palette.mainMenuCoverFg.withValues(alpha: 0.7),
         ),
       );
     }
@@ -724,16 +724,16 @@ class _ProfileCover extends StatelessWidget {
           ),
         );
       },
-      child: const Text(
+      child: Text(
         'Set Emoji Status',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w400,
-          color: Colors.white,
+          color: context.palette.mainMenuCoverFg,
           decoration: TextDecoration.underline,
-          decorationColor: Color(0xB3FFFFFF), // white 70%
+          decorationColor: context.palette.mainMenuCoverFg.withValues(alpha: 0.7),
         ),
       ),
     );
