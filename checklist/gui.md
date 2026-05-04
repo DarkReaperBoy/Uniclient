@@ -2,7 +2,6 @@
 
 ## §1 — Window Layout & Column Structure
 
-- [ ] spec §1 "Window Defaults": spec says default window is 800x600, min 380x480 — no minimum window size is enforced anywhere in the Flutter app. The native runner (linux) would need this constraint — `shell.dart` (missing entirely)
 - [ ] spec §1 "Hamburger drawer width": spec says 274px wide, 134px cover. The drawer is opened via `showDialog` with explicit 274px SizedBox (correct), but uses `Material(elevation: 16)` which is not spec — Telegram uses a plain panel with no material elevation/shadow. The drawer should slide in from the left edge with a scrim behind it, not float as a dialog with a drop shadow — `shell.dart:659-674`
 - [ ] spec §1 "Dialogs collapsed mode": when collapsed (`_dialogsCollapsed = true`), dialogs width snaps to 72px hardcoded (line 473), which matches the filter sidebar width. Spec says "snaps to 0 (collapsed narrow mode showing only avatars)" — the width should be 0 in the layout (with the avatar-only column still rendered), not 72px. The 72px behavior means the collapsed column is wider than spec expects — `shell.dart:473`
 
