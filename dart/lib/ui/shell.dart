@@ -470,7 +470,7 @@ class _UniClientShellState extends State<UniClientShell>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final maxDialogs = (bodyWidth - _chatMin).clamp(_dialogsMin, _dialogsMax);
     final dialogsWidth = _dialogsCollapsed
-        ? 72.0
+        ? 0.0
         : (bodyWidth * _dialogsWidthRatio).clamp(_dialogsMin, maxDialogs);
 
     final columns = Row(
@@ -538,12 +538,14 @@ class _UniClientShellState extends State<UniClientShell>
       bool showFilters, ChatState chatState) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // Step 1: Start from preferred widths.
-    var dw = (bodyWidth * _dialogsWidthRatio).clamp(_dialogsMin, _dialogsMax);
+    // Step 1: Start from preferred widths (collapsed = 0, spec §1).
+    var dw = _dialogsCollapsed
+        ? 0.0
+        : (bodyWidth * _dialogsWidthRatio).clamp(_dialogsMin, _dialogsMax);
     var tw = _thirdColumnWidth.clamp(_thirdMin, _thirdMax);
 
     // Step 2: Shrink algorithm — if both columns + chat min don't fit.
-    if (dw + tw + _chatMin > bodyWidth) {
+    if (!_dialogsCollapsed && dw + tw + _chatMin > bodyWidth) {
       // Pin chat to 380px minimum, divide the rest proportionally.
       final available = bodyWidth - _chatMin;
       final total = dw + tw;

@@ -102,8 +102,8 @@ class ChatListRow extends StatelessWidget {
                   : (chat.isMuted ? palette.dialogsUnreadBgMuted : palette.dialogsUnreadBg);
               final badgeText = isActive ? palette.dialogsUnreadFgActive : palette.dialogsUnreadFg;
 
-              // Spec §1: Collapsed/avatar-only mode — 72px column shows only
-              // the centered avatar with compact unread overlay, no text.
+              // Spec §1: Collapsed/avatar-only mode — column width 0 (only
+              // filter sidebar visible); avatar rendering kept for narrow contexts.
               if (isNarrow) {
                 return SizedBox(
                   height: _rowHeight,
