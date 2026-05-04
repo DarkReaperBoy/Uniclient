@@ -5945,8 +5945,9 @@ class _ChatTopBar extends StatelessWidget {
                           subtitle,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontSize: 13, // dialogsTextFont = normalFont 13px
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w400,
                             color: subtitleColor,
                           ),
                         ),
