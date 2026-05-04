@@ -1058,11 +1058,11 @@ class _ChatAvatar extends StatelessWidget {
             // Online dot at bottom-right.
             if (isOnline && !_hasStories)
               Positioned(
-                right: 0,
-                bottom: 0,
+                right: -3,
+                bottom: -3,
                 child: Container(
-                  width: 12,
-                  height: 12,
+                  width: 18,
+                  height: 18,
                   decoration: BoxDecoration(
                     color: isActive
                         ? palette.dialogsOnlineBadgeFgActive
