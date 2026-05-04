@@ -6,12 +6,18 @@ Operational guide for Claude Code. **Rules and build commands only** — no find
 
 ## Ralph Unattended Mode
 
-If your prompt starts with "You are running in unattended automation mode (ralph loop)", you are in ralph mode. The following overrides apply:
+Ralph is a two-stage automation loop (`scripts/ralph.sh`). If your prompt starts with "You are running in unattended automation mode (ralph loop)", you are in ralph mode.
+
+**Stage 1 (IMPLEMENT):** Fresh session. Pick the first `- [ ]` from `checklist/gui.md`, implement it, commit with `[unverified]` prefix. Do NOT push, do NOT delete the checklist item.
+
+**Stage 2 (VERIFY):** Fresh session. Build, launch, test the implementation in both desktop+mobile modes using `scripts/flutter_audit.sh`. If PASS: delete checklist item, commit, push. If FAIL: write feedback to `/tmp/ralph_feedback.txt`, exit. A new Stage 1 session retries with the feedback.
+
+The following overrides apply to BOTH stages:
 
 - **Reading list:** Follow the ralph prompt's steps — do NOT read SPEC.md, auth/auth.md, or research/ files upfront. Only read CLAUDE.md and the specific spec section cited by your checklist item.
 - **No plan files:** The component plan file requirement (gui_component_plan_{name}.md) is waived. The checklist IS the plan.
-- **No doc sync:** Do NOT update SPEC.md or research/ files. Only update checklist/gui.md (delete completed items).
-- **No auto-continue:** After completing your one item, exit cleanly. Do NOT read todolist.md and keep working.
+- **No doc sync:** Do NOT update SPEC.md or research/ files. Only update checklist/gui.md (delete completed items — verification stage only).
+- **No auto-continue:** After completing your one item/verification, exit cleanly. Do NOT read todolist.md and keep working.
 - **No agents:** Do NOT spawn parallel agents. Stay focused on one item.
 - All other CLAUDE.md rules still apply fully.
 
@@ -95,7 +101,7 @@ When the user says "add X", follow these steps in order:
 
   ### GUI Automation Toolkit
 
-  Three tools for controlling the running Flutter app without OS-level mouse/keyboard automation:
+  Four tools for controlling the running Flutter app without OS-level mouse/keyboard automation:
 
   #### 1. `scripts/flutter_inspect.sh` — See & inspect the UI
   Flutter debug apps expose a VM Service (WebSocket JSON-RPC). This script connects to it.
@@ -156,7 +162,25 @@ When the user says "add X", follow these steps in order:
 
   **Testing workflow:** Screenshot → identify element coordinates → interact → screenshot → verify result. This is the PRIMARY way to self-test UI features. You own the entire verification pipeline — the user should not need to test anything.
 
-  #### 4. App logs — Verify engine calls
+  #### 4. `scripts/flutter_audit.sh` — Diagnose, verify, recover, find
+  Unified debugging/verification toolkit. Combines diagnostics, two-mode verification, crash recovery, and smart widget finding.
+  ```bash
+  scripts/flutter_audit.sh diagnose              # health check: process, VM, IPC, errors, screenshot
+  scripts/flutter_audit.sh diagnose quick         # skip screenshot/tree (faster)
+  scripts/flutter_audit.sh verify "feature name"  # test both desktop+mobile, check for crashes
+  scripts/flutter_audit.sh recover                # kill, clean IPC, rebuild, relaunch
+  scripts/flutter_audit.sh recover relaunch       # skip rebuild, just relaunch
+  scripts/flutter_audit.sh recover kill            # just kill + clean
+  scripts/flutter_audit.sh find text "Settings"   # find text on screen, return coordinates
+  scripts/flutter_audit.sh find text "Settings" --tap  # find and tap it
+  scripts/flutter_audit.sh find widget IconButton  # find widget type in inspector tree
+  scripts/flutter_audit.sh find near 500 300       # list text near a point
+  scripts/flutter_audit.sh find screen             # full layout dump
+  scripts/flutter_audit.sh find clickable          # list all clickable text by row
+  ```
+  **Exit codes:** diagnose: 0=healthy, 1=not running, 2=VM unreachable, 3=IPC stuck. verify: 0=pass, 1=fail. recover: 0=ready, 1=build failed, 2=app won't start.
+
+  #### 5. App logs — Verify engine calls
   ```bash
   cat /tmp/uniclient_log.txt                           # full log
   grep "ENGINE:" /tmp/uniclient_log.txt                # FFI bridge calls

@@ -6,29 +6,19 @@ Top-to-bottom execution order. Remove items when done.
 
 ## Step 1: Perfect the UI spec — ✅ COMPLETE (2026-04-19)
 
-All per-section content gaps in `research/telegram_desktop_ui.md` have been filled. See `checklist/spec_gaps.md` for full completion notes. Every section §1-§57 now has source-cited pixel-level detail.
+All per-section content gaps in `research/telegram_desktop_ui.md` have been filled. Every section §1-§57 now has source-cited pixel-level detail.
 
-## Step 2: Build the complete GUI checklist — COMPLETE (2026-04-19, restructured 2026-04-20)
+## Step 2: Build the complete GUI checklist — ✅ COMPLETE (rebuilt 2026-05-04)
 
-Original 5329-item monolithic `gui.md` has been split into 6 per-section files (~1096 consolidated items). Old file archived as `gui_old_monolithic.md`.
+Full audit of all Dart source files against spec §1-§57. All issues consolidated in `checklist/gui.md` (770 items).
 
-## Step 3: Implement everything on the checklists
+## Step 3: Implement everything on the checklist
 
-**SPLIT CHECKLIST FILES** — work through these top to bottom. Each file lists which `.dart` files it touches in a header table. **Multiple ralphs CAN run in parallel on files that touch DIFFERENT .dart files.** Do NOT run two ralphs on files that share the same .dart file.
-
-| Checklist file | Sections | Primary .dart files | Safe to parallelize with |
-|---|---|---|---|
-| `gui_layout_and_nav.md` | §1-§4 | `shell.dart`, `titlebar.dart`, `filter_column.dart`, `chat_list_panel.dart`, `chat_list_row.dart`, `hamburger_drawer.dart` | §14-§22, §23-§40, §41-§57 |
-| `gui_messages.md` | §5-§7 | `message_bubble.dart`, `chat_view.dart` | §14-§22, §23-§40 (if not touching chat_view) |
-| `gui_panels_and_overlays.md` | §8-§13 | `info_panel.dart`, `auth_screen.dart`, NEW: `emoji_panel.dart`, `call_screen.dart` | §14-§22, §23-§40, §41-§57 |
-| `gui_settings_and_dialogs.md` | §14-§22 | `settings_screen.dart`, NEW: `media_viewer.dart`, `create_group_wizard.dart` | §1-§4, §8-§13, §23-§40, §41-§57 |
-| `gui_features_23_40.md` | §23-§40 | NEW files: `contacts_screen.dart`, `calls_history.dart`, `passcode_screen.dart`, etc. | §1-§4, §8-§13, §14-§22, §41-§57 |
-| `gui_features_41_57.md` | §41-§57 | NEW files: `formatting_menu.dart`, `drag_drop_overlay.dart`, `ghost_mode.dart`, etc. | §1-§4, §8-§13, §14-§22, §23-§40 |
+All items live in `checklist/gui.md` — work through top to bottom. Ralph's two-stage loop (implement → verify) handles this automatically via `scripts/ralph.sh`.
 
 **CRITICAL WARNINGS FOR RALPH:**
 - §3 "Settings Sections" in the spec is a REFERENCE to what the Settings PAGE (§14) contains. Do NOT add settings rows to the hamburger drawer. Settings live in `settings_screen.dart`.
 - Each checklist item references a spec section (e.g., "spec §5.2"). READ that full spec section before implementing — it has all the pixel dimensions, colors, and behavior details.
-- For each item: implement it → build → self-test with `flutter_inspect.sh screenshot` + `flutter_interact.sh` → mark done.
 
 ## 2. Chat Mode — AyuGram-style UI (Telegram first)
 
