@@ -244,7 +244,7 @@ class ChatListRow extends StatelessWidget {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 6),
                       // Bottom row: preview + badges.
                       Row(
                         children: [
