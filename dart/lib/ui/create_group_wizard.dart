@@ -13,6 +13,7 @@ import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
+import '../theme/telegram_palette.dart';
 import 'photo_crop_editor.dart';
 import 'telegram_toast.dart';
 
@@ -1684,9 +1685,10 @@ class _MultiSelectBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final boxSearchBg = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
-    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final p = context.palette;
+    final boxSearchBg = p.boxSearchBg;
+    final textColor = p.boxTextFg;
+    final subtextColor = p.boxTitleAdditionalFg;
 
     return Container(
       constraints: const BoxConstraints(maxHeight: 104),

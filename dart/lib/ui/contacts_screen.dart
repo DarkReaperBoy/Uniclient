@@ -2280,8 +2280,8 @@ class _ShareContactBoxState extends State<_ShareContactBox> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final boxBg = isDark ? const Color(0xFF17212b) : Colors.white;
+    final palette = context.palette;
+    final boxBg = palette.boxBg;
     final filtered = _filteredChats;
     final size = MediaQuery.of(context).size;
     final colCount = _columnsForWidth(size.width);
@@ -2311,7 +2311,7 @@ class _ShareContactBoxState extends State<_ShareContactBox> {
             ),
             Container(
               height: 1,
-              color: isDark ? const Color(0xFF0e1621) : const Color(0x18000000),
+              color: palette.shadowFg,
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
@@ -2324,7 +2324,7 @@ class _ShareContactBoxState extends State<_ShareContactBox> {
                       'Sharing: $contactName',
                       style: TextStyle(
                         fontSize: 13,
-                        color: isDark ? const Color(0xFF8899aa) : const Color(0xFF999999),
+                        color: palette.boxTitleAdditionalFg,
                       ),
                     ),
                   ),
@@ -2335,7 +2335,7 @@ class _ShareContactBoxState extends State<_ShareContactBox> {
                       prefixIcon: const Icon(Icons.search, size: 20),
                       isDense: true,
                       filled: true,
-                      fillColor: isDark ? const Color(0xFF242f3d) : const Color(0xFFf1f1f1),
+                      fillColor: palette.windowBgOver,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(20),
                         borderSide: BorderSide.none,
@@ -2386,7 +2386,7 @@ class _ShareContactBoxState extends State<_ShareContactBox> {
                             hintText: 'Add a comment...',
                             isDense: true,
                             filled: true,
-                            fillColor: isDark ? const Color(0xFF242f3d) : const Color(0xFFf1f1f1),
+                            fillColor: palette.windowBgOver,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(18),
                               borderSide: BorderSide.none,
@@ -2400,7 +2400,7 @@ class _ShareContactBoxState extends State<_ShareContactBox> {
             ),
             Container(
               height: 1,
-              color: isDark ? const Color(0xFF0e1621) : const Color(0x18000000),
+              color: palette.shadowFg,
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),

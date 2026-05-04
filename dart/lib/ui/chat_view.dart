@@ -15342,8 +15342,9 @@ class _ShareBoxState extends State<_ShareBox> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = _isDark;
-    final boxBg = isDark ? const Color(0xFF17212b) : Colors.white;
-    final dividerColor = isDark ? const Color(0xFF0e1621) : const Color(0x18000000);
+    final palette = context.palette;
+    final boxBg = palette.boxBg;
+    final dividerColor = palette.shadowFg;
     final filtered = _filteredChats;
     final size = MediaQuery.of(context).size;
     final colCount = _columnsForWidth(size.width);

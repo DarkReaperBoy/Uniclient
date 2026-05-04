@@ -461,14 +461,11 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   }
 
   Future<bool> _showStopConfirmation() async {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final boxBg = isDark ? const Color(0xFF17212B) : Colors.white;
-    final boxTextFg =
-        isDark ? const Color(0xFFAAAAAA) : const Color(0xFF000000);
-    final attentionFg =
-        isDark ? const Color(0xFFEC3942) : const Color(0xFFD14E4E);
-    final cancelFg =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final p = PaletteProvider.of(context);
+    final boxBg = p.boxBg;
+    final boxTextFg = p.boxTextFg;
+    final attentionFg = p.attentionButtonFg;
+    final cancelFg = p.windowActiveTextFg;
 
     final result = await showDialog<bool>(
       context: context,
@@ -695,14 +692,11 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
 
   void _showExportInformBox(String text) {
     if (!mounted) return;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final boxBg = isDark ? const Color(0xFF17212B) : Colors.white;
-    final boxTextFg =
-        isDark ? const Color(0xFFAAAAAA) : const Color(0xFF000000);
-    final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
-    final closeFg =
-        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final p = PaletteProvider.of(context);
+    final boxBg = p.boxBg;
+    final boxTextFg = p.boxTextFg;
+    final accentColor = p.windowActiveTextFg;
+    final closeFg = p.boxTitleAdditionalFg;
 
     showDialog(
       context: context,

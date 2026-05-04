@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 
 import '../models/engine_models.dart' show ChatType;
 import '../state/app_state.dart';
+import '../theme/telegram_palette.dart';
 import 'popup_menu.dart';
 import 'choose_datetime_box.dart';
 import 'photo_crop_editor.dart';
@@ -1024,11 +1025,12 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final boxBg = isDark ? const Color(0xFF17212B) : Colors.white;
-    final textFg = isDark ? const Color(0xFFE0E3EA) : const Color(0xFF222222);
-    final subFg = isDark ? const Color(0xFF8B9BAA) : const Color(0xFF999999);
-    final accentFg = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
-    final dividerColor = isDark ? const Color(0xFF243441) : const Color(0xFFE0E0E0);
+    final p = context.palette;
+    final boxBg = p.boxBg;
+    final textFg = p.boxTextFg;
+    final subFg = p.boxTitleAdditionalFg;
+    final accentFg = p.windowActiveTextFg;
+    final dividerColor = p.boxDividerBg;
 
     final mediaFiles = _files.where((f) => f.isMediaType).toList();
     final gifFiles = !_sendAsDocuments
@@ -2918,11 +2920,11 @@ class _SendFilesDragOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final boxBg = isDark ? const Color(0xFF17212B) : Colors.white;
-    final shadowColor = isDark ? const Color(0x40000000) : const Color(0x26000000);
-    final restColor = isDark ? const Color(0xFF7c99b2) : const Color(0xFF999999);
-    final activeColor = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd);
+    final p = context.palette;
+    final boxBg = p.boxBg;
+    final shadowColor = p.windowShadowFg;
+    final restColor = p.windowSubTextFg;
+    final activeColor = p.windowActiveTextFg;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(3),

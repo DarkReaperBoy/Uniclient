@@ -2049,11 +2049,8 @@ class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
   }
 
   Widget _buildBox(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final boxBg = isDark ? const Color(0xFF1E2C3A) : Colors.white;
-    final textColor = isDark ? Colors.white : const Color(0xFF222222);
-    final subColor = isDark ? const Color(0xFFAAAAAA) : const Color(0xFF666666);
-    final accentColor = Theme.of(context).colorScheme.primary;
+    final p = context.palette;
+    final accentColor = p.windowActiveTextFg;
     final seconds = (_remainingMs / 1000).ceil();
 
     return Material(
@@ -2062,11 +2059,11 @@ class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
         width: _boxWidth,
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
         decoration: BoxDecoration(
-          color: boxBg,
+          color: p.boxBg,
           borderRadius: BorderRadius.circular(_boxRadius),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.15),
+              color: p.windowShadowFg,
               blurRadius: 16,
               offset: const Offset(0, 4),
             ),
@@ -2080,13 +2077,13 @@ class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: textColor,
+                color: p.boxTitleFg,
               ),
             ),
             const SizedBox(height: 6),
             Text(
               'Theme will revert in $seconds second${seconds == 1 ? '' : 's'}',
-              style: TextStyle(fontSize: 13, color: subColor),
+              style: TextStyle(fontSize: 13, color: p.boxTitleAdditionalFg),
             ),
             const SizedBox(height: 14),
             Row(
@@ -2095,7 +2092,7 @@ class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
                   child: TextButton(
                     onPressed: _revert,
                     style: TextButton.styleFrom(
-                      foregroundColor: subColor,
+                      foregroundColor: p.boxTitleAdditionalFg,
                       padding: const EdgeInsets.symmetric(vertical: 10),
                     ),
                     child: const Text('Revert'),

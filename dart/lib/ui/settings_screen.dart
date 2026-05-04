@@ -21,6 +21,7 @@ import 'notifications_settings_screen.dart';
 import 'privacy_settings_screen.dart';
 import 'settings_style.dart';
 import 'telegram_toast.dart';
+import '../theme/telegram_palette.dart';
 
 /// Settings page (§14). Opened from hamburger drawer "Settings" row.
 /// Scrollable panel with profile header at top, then settings navigation rows.

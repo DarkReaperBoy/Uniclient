@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
+import '../theme/telegram_palette.dart';
 import 'popup_menu.dart';
 import 'telegram_toast.dart';
 
@@ -115,15 +116,15 @@ class _LanguageBoxState extends State<LanguageBox> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
-    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subTextColor = isDark ? const Color(0xFF7B8D9D) : const Color(0xFF999999);
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
-    final hoverColor = isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
-    final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFE0E0E0);
-    final searchBgColor = isDark ? const Color(0xFF242F3D) : const Color(0xFFF0F0F0);
+    final p = context.palette;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = p.boxBg;
+    final textColor = p.boxTextFg;
+    final subTextColor = p.boxTitleAdditionalFg;
+    final accentColor = p.windowBgActive;
+    final hoverColor = p.windowBgOver;
+    final dividerColor = p.boxDividerBg;
+    final searchBgColor = p.boxSearchBg;
 
     final appState = context.watch<AppState>();
     final isLoggedIn = appState.activeAccountId.isNotEmpty;
@@ -379,7 +380,7 @@ class _LanguageBoxState extends State<LanguageBox> {
         style: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w600,
-          color: isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3),
+          color: context.palette.windowBgActive,
         ),
       ),
     );
@@ -628,8 +629,9 @@ class _ToggleRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
-    final subTextColor = isDark ? const Color(0xFF7B8D9D) : const Color(0xFF999999);
+    final p = context.palette;
+    final accentColor = p.windowBgActive;
+    final subTextColor = p.boxTitleAdditionalFg;
     return InkWell(
       onTap: () => onChanged(!value),
       hoverColor: hoverColor,
@@ -701,13 +703,12 @@ class _SkipLanguagesEditorState extends State<_SkipLanguagesEditor> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
-    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subTextColor = isDark ? const Color(0xFF7B8D9D) : const Color(0xFF999999);
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
-    final hoverColor = isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
+    final p = context.palette;
+    final bgColor = p.boxBg;
+    final textColor = p.boxTextFg;
+    final subTextColor = p.boxTitleAdditionalFg;
+    final accentColor = p.windowBgActive;
+    final hoverColor = p.windowBgOver;
 
     final screenHeight = MediaQuery.of(context).size.height;
     final maxDialogHeight = screenHeight - 48;

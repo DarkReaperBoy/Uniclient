@@ -153,10 +153,11 @@ class _ChatSwitchOverlayState extends State<ChatSwitchOverlay> {
     }
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final overlayColor = Colors.black.withValues(alpha: isDark ? 0.5 : 0.3);
-    final boxBg = isDark ? const Color(0xFF1E2C3A) : Colors.white;
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
-    final nameColor = isDark ? Colors.white : const Color(0xFF222222);
+    final p = context.palette;
+    final overlayColor = p.layerBg;
+    final boxBg = p.boxBg;
+    final accentColor = p.windowActiveTextFg;
+    final nameColor = p.boxTextFg;
 
     return LayoutBuilder(
       builder: (context, constraints) {

@@ -6284,7 +6284,7 @@ class _StealthModeDialogState extends State<_StealthModeDialog> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final palette = PaletteProvider.of(context);
-    final boxBg = isDark ? const Color(0xFF17212B) : Colors.white;
+    final boxBg = palette.boxBg;
     final state = _buttonState;
 
     return Center(

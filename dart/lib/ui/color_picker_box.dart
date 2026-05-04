@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../theme/telegram_palette.dart';
 import 'confirm_box.dart';
 
 const double _kPickerSize = 256;
@@ -203,13 +204,11 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final boxBg = isDark ? const Color(0xFF17212B) : Colors.white;
-    final titleFg =
-        isDark ? const Color(0xFFE0E3EA) : const Color(0xFF000000);
-    final labelFg =
-        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentFg =
-        isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
+    final p = context.palette;
+    final boxBg = p.boxBg;
+    final titleFg = p.boxTitleFg;
+    final labelFg = p.boxTitleAdditionalFg;
+    final accentFg = p.windowActiveTextFg;
 
     final sliderCount = widget.showOpacity ? 2 : 1;
     final pickerRowWidth = _kPickerSize +

@@ -212,9 +212,8 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final boxBg = isDark ? const Color(0xFF17212b) : Colors.white;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final boxBg = context.palette.boxBg;
 
     final String dialogTitle;
     if (widget.isEditing) {

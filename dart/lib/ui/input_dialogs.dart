@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 import '../utils/country_data.dart';
+import '../theme/telegram_palette.dart';
 import 'confirm_box.dart';
 import 'telegram_toast.dart';
 
@@ -40,15 +41,11 @@ class BoxInputField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor =
-        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final labelColor =
-        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final borderColor =
-        isDark ? const Color(0xFF2B3A49) : const Color(0xFFDADADA);
-    final focusBorderColor =
-        isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
+    final p = context.palette;
+    final textColor = p.boxTextFg;
+    final labelColor = p.boxTitleAdditionalFg;
+    final borderColor = p.boxDividerBg;
+    final focusBorderColor = p.activeLineFg;
 
     return TextField(
       controller: controller,
@@ -255,15 +252,11 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final goodColor =
-        isDark ? const Color(0xFF4FAE4E) : const Color(0xFF4FAE4E);
-    final errorColor =
-        isDark ? const Color(0xFFEC3942) : const Color(0xFFD14E4E);
-    final subColor =
-        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final textFg =
-        isDark ? const Color(0xFFAAAAAA) : const Color(0xFF000000);
+    final p = context.palette;
+    final goodColor = p.boxTextFgGood;
+    final errorColor = p.boxTextFgError;
+    final subColor = p.boxTitleAdditionalFg;
+    final textFg = p.boxTextFg;
 
     return TelegramBox(
       title: 'Username',
@@ -514,16 +507,12 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final errorColor = const Color(0xFFe53935);
-    final borderColor =
-        isDark ? const Color(0xFF2B3A49) : const Color(0xFFDADADA);
-    final textColor =
-        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subColor =
-        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final focusBorderColor =
-        isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
+    final p = context.palette;
+    final errorColor = p.boxTextFgError;
+    final borderColor = p.boxDividerBg;
+    final textColor = p.boxTextFg;
+    final subColor = p.boxTitleAdditionalFg;
+    final focusBorderColor = p.activeLineFg;
 
     return TelegramBox(
       title: 'Add Contact',
@@ -727,11 +716,9 @@ class _CountryPickerContentState extends State<_CountryPickerContent> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor =
-        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subColor =
-        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final p = context.palette;
+    final textColor = p.boxTextFg;
+    final subColor = p.boxTitleAdditionalFg;
     final filtered = _filtered;
 
     return TelegramBox(
@@ -954,15 +941,12 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor =
-        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subColor =
-        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor =
-        isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
-    final checkClr =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final p = context.palette;
+    final textColor = p.boxTextFg;
+    final subColor = p.boxTitleAdditionalFg;
+    final accentColor = p.windowActiveTextFg;
+    final checkClr = p.windowBgActive;
+    final chipBg = p.windowBgOver;
 
     return TelegramBox(
       title: _isEdit ? 'Edit Link' : 'Create New Link',
@@ -1007,8 +991,7 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
                     color: selected ? Colors.white : textColor,
                   ),
                   selectedColor: checkClr,
-                  backgroundColor:
-                      isDark ? const Color(0xFF2B3A49) : const Color(0xFFEEEEEE),
+                  backgroundColor: chipBg,
                   visualDensity: VisualDensity.compact,
                 );
               }).toList(),
@@ -1035,8 +1018,7 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
                     color: selected ? Colors.white : textColor,
                   ),
                   selectedColor: checkClr,
-                  backgroundColor:
-                      isDark ? const Color(0xFF2B3A49) : const Color(0xFFEEEEEE),
+                  backgroundColor: chipBg,
                   visualDensity: VisualDensity.compact,
                 );
               }).toList(),
@@ -1193,15 +1175,11 @@ class _CreatePollContentState extends State<_CreatePollContent> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor =
-        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subColor =
-        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor =
-        isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
-    final checkClr =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final p = context.palette;
+    final textColor = p.boxTextFg;
+    final subColor = p.boxTitleAdditionalFg;
+    final accentColor = p.windowActiveTextFg;
+    final checkClr = p.windowBgActive;
 
     return TelegramBox(
       title: 'Create Poll',
