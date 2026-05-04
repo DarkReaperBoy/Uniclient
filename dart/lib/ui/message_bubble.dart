@@ -612,7 +612,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Sender name + admin badge: only on first message of group (in groups, for incoming).
-                    if (!isOutgoing && message.senderName.isNotEmpty && isFirstInGroup)
+                    if (isGroupChat && !isOutgoing && message.senderName.isNotEmpty && isFirstInGroup)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 2),
                         child: _SenderNameTapTarget(
