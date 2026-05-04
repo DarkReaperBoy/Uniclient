@@ -6,7 +6,6 @@
 
 ## §3 — Hamburger Menu
 
-- [ ] spec §3 "Profile cover bg": spec says `mainMenuCoverBg` = solid fill. Code uses `context.palette.windowBgActive` — this maps to the accent blue, which matches `mainMenuCoverBg = windowBgActive`. Correct
 - [ ] spec §3 "Display name color": spec says `windowBoldFg`. Code uses hardcoded `Colors.white` (line 618). On the accent-blue cover background, white text works visually, but spec says `windowBoldFg` which is dark in day theme (#222222). Telegram Desktop's cover uses white text because `mainMenuCoverFg` overrides `windowBoldFg` on the cover — the code is using the right visual result but via the wrong token. Should use a dedicated cover text color from palette — `hamburger_drawer.dart:618`
 - [ ] spec §3 "Status line color": spec says `windowSubTextFg` via FlatLabel. Code uses `Colors.white.withValues(alpha: 0.7)` for phone text (line 699). Spec's `windowSubTextFg` on the accent cover is typically white at reduced opacity, so this is approximately correct visually — `hamburger_drawer.dart:699`
 - [ ] spec §3 "Chevron position": spec says "6x6 px chevron at `point(30px, 30px)` from top-right". Code positions it at `right: 18, top: 18` with a 24x24 hit area, placing the 6x6 chevron center at approximately right 24, top 24 (18 + 6/2 + 9/2). Spec says 30px from top-right corner, meaning the chevron should be at `right: 30, top: 30` minus half the chevron size. This is off — the chevron is positioned too close to the top-right corner — `hamburger_drawer.dart:659-660`
