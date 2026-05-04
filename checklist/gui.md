@@ -4,7 +4,6 @@
 
 ## §2 — Chat List Sidebar
 
-- [ ] spec §2 "Search tabs strip": `_SearchTabsStrip` uses `Expanded` children in a `Row`, making all three tabs equal width. Spec says it's a `SettingsSlider` where labels are naturally sized with `barSnapToLabel: true`. The equal-width approach means labels don't match their text width, and the underline indicator should snap to label text width, not cell width — `chat_list_panel.dart:3355-3374`
 - [ ] spec §2 "Top Peers strip": spec says "46px avatars" in the strip. Code uses `_avatarSize = 46.0` — matches. Spec says the strip appears "When focused". Code shows it when `_searching && _searchController.text.isEmpty` — matches. However, spec says "56px rows, 42px avatars" for Recent Contacts — need to check `_RecentContactsList` separately — `chat_list_panel.dart:2392`
 - [ ] spec §2 "Drag-and-drop forwarding MIME": spec says `application/x-td-forward`. Code uses `ForwardDragData` class with Flutter's `Draggable<ForwardDragData>` — this is framework-level drag data, not MIME-based. Acceptable deviation for Flutter — no real issue
 
