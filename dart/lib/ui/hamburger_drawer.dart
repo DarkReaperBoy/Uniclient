@@ -696,7 +696,7 @@ class _ProfileCover extends StatelessWidget {
         style: TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w400,
-          color: context.palette.mainMenuCoverFg.withValues(alpha: 0.7),
+          color: context.palette.windowSubTextFg,
         ),
       );
     }
