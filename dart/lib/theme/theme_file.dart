@@ -513,6 +513,12 @@ Map<String, Color> paletteToMap(TelegramPalette p) => {
   'tooltipBorderFg': p.tooltipBorderFg,
   'importantTooltipBg': p.importantTooltipBg,
   'overviewCheckBg': p.overviewCheckBg,
+  // §57.11 derived token synonyms
+  'dialogsChatBgOver': p.dialogsChatBgOver,
+  'topBarIconFg': p.topBarIconFg,
+  'topBarMenuFg': p.topBarMenuFg,
+  'topBarTextFg': p.topBarTextFg,
+  'profileStatusFg': p.profileStatusFg,
 };
 
 TelegramPalette paletteFromMap(Map<String, Color> m, TelegramPalette fb) =>
@@ -555,7 +561,7 @@ TelegramPalette paletteFromMap(Map<String, Color> m, TelegramPalette fb) =>
       attentionButtonBgRipple: m['attentionButtonBgRipple'] ?? fb.attentionButtonBgRipple,
       outlineButtonOutlineFg: m['outlineButtonOutlineFg'] ?? fb.outlineButtonOutlineFg,
       dialogsBg: m['dialogsBg'] ?? fb.dialogsBg,
-      dialogsBgOver: m['dialogsBgOver'] ?? fb.dialogsBgOver,
+      dialogsBgOver: m['dialogsBgOver'] ?? m['dialogsChatBgOver'] ?? fb.dialogsBgOver,
       dialogsBgActive: m['dialogsBgActive'] ?? fb.dialogsBgActive,
       dialogsRippleBg: m['dialogsRippleBg'] ?? fb.dialogsRippleBg,
       dialogsRippleBgActive: m['dialogsRippleBgActive'] ?? fb.dialogsRippleBgActive,
@@ -721,7 +727,7 @@ TelegramPalette paletteFromMap(Map<String, Color> m, TelegramPalette fb) =>
       menuBg: m['menuBg'] ?? fb.menuBg,
       menuBgOver: m['menuBgOver'] ?? fb.menuBgOver,
       menuBgRipple: m['menuBgRipple'] ?? fb.menuBgRipple,
-      menuIconFg: m['menuIconFg'] ?? fb.menuIconFg,
+      menuIconFg: m['menuIconFg'] ?? m['topBarIconFg'] ?? fb.menuIconFg,
       menuIconFgOver: m['menuIconFgOver'] ?? fb.menuIconFgOver,
       menuSeparatorFg: m['menuSeparatorFg'] ?? fb.menuSeparatorFg,
       mainMenuBg: m['mainMenuBg'] ?? fb.mainMenuBg,

@@ -493,6 +493,13 @@ class TelegramPalette {
     return hsv.value < 0.5;
   }
 
+  // ── §57.11 Derived / alias tokens ──
+  Color get dialogsChatBgOver => dialogsBgOver;
+  Color get topBarIconFg => menuIconFg;
+  Color get topBarMenuFg => windowFg;
+  Color get topBarTextFg => windowSubTextFg;
+  Color get profileStatusFg => windowSubTextFg;
+
   Color peerNameColor(int index) => switch (index % 8) {
     0 => historyPeer1NameFg,
     1 => historyPeer2NameFg,
