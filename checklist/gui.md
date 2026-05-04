@@ -2,8 +2,6 @@
 
 ## §1 — Window Layout & Column Structure
 
-- [ ] spec §1 "Column Constants": `_thirdMin` is 324px but spec says `columnMinimalWidthThird = 292px` — `shell.dart:68`
-- [ ] spec §1 "Three-column break": `_threeColumnBreak` is 932px which equals 260+380+292=932, but since `_thirdMin=324` (wrong), the actual minimum three-column width accepted by the shrink algorithm is 260+380+324=964px, meaning three-column mode kicks in 32px later than spec — `shell.dart:77,546`
 - [ ] spec §1 "Column Shadow Separators": two-column layout draws a double separator — one `_ColumnShadow()` at line 494 plus the `ChatListPanel` container's own `border: Border(right: BorderSide(...))` at line 660-662 of `chat_list_panel.dart`, producing 2px of separator instead of 1px — `shell.dart:494`, `chat_list_panel.dart:660`
 - [ ] spec §1 "Animations": spec says `easeOutCirc` easing for column width changes with ~150-200ms. Code uses 180ms `easeOutCirc` for the `AnimatedContainer` which is correct, but the one-column section transition uses `Curves.easeOutCubic` (line 425) instead of `easeOutCirc` — `shell.dart:425`
 - [ ] spec §1 "Window Defaults": spec says default window is 800x600, min 380x480 — no minimum window size is enforced anywhere in the Flutter app. The native runner (linux) would need this constraint — `shell.dart` (missing entirely)
