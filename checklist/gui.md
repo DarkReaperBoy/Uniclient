@@ -1023,7 +1023,6 @@ Status key: `[ ]` not started · `[x]` done
 
 ## Bugs
 
-- [ ] Mobile (oneColumn) selection mode: context menu "Select" action doesn't activate selection mode — no selection bar, no checkboxes appear. Works fine in desktop (twoColumn) mode. Likely a state/animation issue in oneColumn layout.
 - [ ] Info panel scroll doesn't work via flutter_interact.sh scroll events — scroll goes to chat list instead of info panel CustomScrollView. Affects both desktop (third column) and mobile (full screen) modes. The SliverPersistentHeader cover never compresses.
 - [ ] GIF tab inline search broken: GetInlineBotResults passes string "gif" as bot ID but engine expects numeric ID. Error: `invalid ID "gif": strconv.ParseInt: parsing "gif": invalid syntax`. Affects both manual text search and category emoji search.
 - [ ] Chat Settings page scroll broken via flutter_interact.sh — PointerScrollEvent dispatched at various y positions doesn't cause ListView to scroll. Scrollbar error "ScrollController has no ScrollPosition attached" in logs. ListView has `primary: true` but scroll still doesn't work via debug dispatch. Affects testing of items below viewport (quick action radios).
