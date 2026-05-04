@@ -4,7 +4,6 @@
 
 ## §2 — Chat List Sidebar
 
-- [ ] spec §2 "Chat name font": spec says "Font: semibold" — Telegram Desktop's `semiboldFont` is 13px. Code uses `fontSize: 14` for the chat name (line 193), which is 1px larger than spec — `chat_list_row.dart:193`
 - [ ] spec §2 "Chat name color": spec says "#222222 normal" for day theme. Code reads from `palette.dialogsNameFg` which should be correct if palette is right, but the fallback for empty titles uses `mutedColor` (dialogsTextFg) which matches spec — `chat_list_row.dart:195`
 - [ ] spec §2 "Message preview y position": spec says "x=68px, y=34px". Code uses `const SizedBox(height: 10)` (y=10 for top row) then `const SizedBox(height: 4)` between rows. This positions the preview at approximately y=10+lineHeight+4 which would be ~10+18+4=32px, not 34px. The 2px gap suggests the inter-row SizedBox should be 6px, not 4px — `chat_list_row.dart:174,247`
 - [ ] spec §2 "Online indicator": spec says "12px green dot (#4dc920) with 3px white stroke, bottom-right of avatar". The online dot is rendered inside `_ChatAvatar` widget. Need to verify size and color match — the size and exact positioning should be checked in `_ChatAvatar` — `chat_list_row.dart` (in _ChatAvatar widget)
