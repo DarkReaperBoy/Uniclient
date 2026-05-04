@@ -190,7 +190,7 @@ class ChatListRow extends StatelessWidget {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
-                                      fontSize: 14,
+                                      fontSize: 13,
                                       fontWeight: FontWeight.w600,
                                       color: chat.title.isEmpty ? mutedColor : nameColor,
                                     ),
