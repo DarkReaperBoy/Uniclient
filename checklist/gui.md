@@ -4,7 +4,6 @@
 
 ## §2 — Chat List Sidebar
 
-- [ ] spec §2 "Stories ring": spec describes unread line width 2px (full/expanded) and 1.5px (small/minified), with gradient from green (#0dcc39) to blue (#0992ef). Stories ring rendering is delegated to `_ChatAvatar` — needs verification of gradient colors and line widths — `chat_list_row.dart` (in _ChatAvatar widget)
 - [ ] spec §2 "Unread dot diameter": spec says `unreadMarkDiameter` (not explicitly stated but implied smaller than 19px slot). Code uses `width: 8, height: 8` inside a 19x19 slot. The actual TDesktop diameter isn't specified by name in the provided spec excerpt so 8px may or may not be correct — `chat_list_row.dart:1392-1393`
 - [ ] spec §2 "Mention/reaction/poll badges": spec says "18x18 ThreeStateIcon" for wide mode. Code renders `Icon(icon, size: 18)` which is correct for wide. For narrow, spec says "13x13 glyph inside 19x19 circle" — code does `Icon(icon, size: 13)` inside `Container(width: 19, height: 19)` with circle shape, which matches. Correct implementation — no issue
 - [ ] spec §2 "Pin icon": spec says "Shown when no unreads, right side at textTop position". Code only shows pin icon when `chat.unreadCount == 0 && !chat.isUnreadMark` (line 265). Position is in the bottom row aligned right, which roughly matches "textTop position" of the preview line. However, spec says it should be at the same vertical as the timestamp (top right), not the preview line — `chat_list_row.dart:265-267`
