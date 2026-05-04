@@ -244,11 +244,6 @@ class ChatListRow extends StatelessWidget {
                               color: isActive ? palette.dialogsTextFgActive : palette.dialogsDateFg,
                             ),
                           ),
-                          // Spec §2: pin icon at textTop position (same row as timestamp).
-                          if (chat.isPinned && chat.unreadCount == 0 && !chat.isUnreadMark) ...[
-                            const SizedBox(width: 4),
-                            Icon(Icons.push_pin, size: 14, color: mutedColor),
-                          ],
                         ],
                       ),
                       const SizedBox(height: 6),
@@ -269,6 +264,9 @@ class ChatListRow extends StatelessWidget {
                           ] else if (chat.isUnreadMark) ...[
                             const SizedBox(width: 8),
                             _UnreadDot(bgColor: badgeBg),
+                          ] else if (chat.isPinned) ...[
+                            const SizedBox(width: 8),
+                            Icon(Icons.push_pin, size: 14, color: mutedColor),
                           ],
                           // Spec §2: Mention badge — 18x18 icon (wide), 13x13 in 19x19 circle (narrow).
                           if (chat.unreadMentionCount > 0) ...[
