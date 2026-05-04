@@ -6573,14 +6573,19 @@ class _MessageList extends StatelessWidget {
               topicName: msg.topicName.isNotEmpty ? msg.topicName : _extractTopicTitle(msg.contentText),
             );
           } else {
-            serviceWidget = _ServiceMessage(text: serviceText);
+            serviceWidget = _ServiceMessage(text: serviceText, isSelected: isSelected);
           }
           return Column(
             key: isJumpHighlight ? highlightMsgKey : null,
             children: [
               if (showDate) _DateSeparator(timestamp: msg.timestamp, isScheduled: isScheduledView),
               if (showUnreadBar) _UnreadBar(count: openedUnreadCount),
-              serviceWidget,
+              PlatformGestureDetector(
+                behavior: inSelectionMode ? HitTestBehavior.opaque : HitTestBehavior.deferToChild,
+                onLongPress: () => onLongPress(msg.msgId),
+                onTap: inSelectionMode ? () => onToggleSelect(msg.msgId) : null,
+                child: serviceWidget,
+              ),
             ],
           );
         }
@@ -7098,35 +7103,79 @@ class _CalendarBoxState extends State<_CalendarBox> {
 
 class _ServiceMessage extends StatelessWidget {
   final String text;
+  final bool isSelected;
 
-  const _ServiceMessage({required this.text});
+  const _ServiceMessage({required this.text, this.isSelected = false});
+
+  static IconData? _callIcon(String text) {
+    if (text.startsWith('Video call')) return Icons.videocam;
+    if (text.startsWith('Voice call')) return Icons.phone;
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
     if (text.isEmpty) return const SizedBox.shrink();
-    final bgColor = context.palette.msgServiceBg;
+    final palette = context.palette;
+    final bgColor = isSelected ? palette.msgServiceBgSelected : palette.msgServiceBg;
+    final fgColor = palette.msgServiceFg;
+    final icon = _callIcon(text);
 
     return Padding(
-      padding: const EdgeInsets.only(top: 10, bottom: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0)
+          .copyWith(top: 10, bottom: 2),
       child: Center(
-        child: Container(
-          constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.85,
-          ),
-          padding: const EdgeInsets.fromLTRB(12, 3, 12, 4),
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Text(
-            text,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: context.palette.msgServiceFg,
-            ),
-          ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final tp = TextPainter(
+              text: TextSpan(
+                text: text,
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              maxLines: 100,
+              textDirection: TextDirection.ltr,
+            )..layout(maxWidth: constraints.maxWidth * 0.85 - 24 - (icon != null ? 20 : 0));
+            final isMultiLine = tp.computeLineMetrics().length > 1;
+
+            return Container(
+              constraints: BoxConstraints(
+                maxWidth: constraints.maxWidth * 0.85,
+              ),
+              padding: const EdgeInsets.fromLTRB(12, 3, 12, 4),
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: BorderRadius.circular(isMultiLine ? 16 : 999),
+              ),
+              child: icon != null
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(icon, size: 16, color: fgColor),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            text,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: fgColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Text(
+                      text,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: fgColor,
+                      ),
+                    ),
+            );
+          },
         ),
       ),
     );

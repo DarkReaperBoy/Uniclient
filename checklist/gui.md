@@ -277,6 +277,10 @@
 
 ### §5.7 Service Messages
 
+- [x] Service message pill: centered text, msgServiceBg bg, msgServiceFg white text, 13px semibold, msgServicePadding (12,3,12,4), msgServiceMargin (10,10,10,2), fully-rounded pill single-line / 16px radius multi-line — spec §5.7, DONE in chat_view.dart (_ServiceMessage)
+- [x] Selection mode: service messages selectable via long-press (enter selection) and tap (toggle in selection mode), msgServiceBgSelected highlight — spec §5.7, DONE in chat_view.dart (PlatformGestureDetector wrapping _ServiceMessage)
+- [x] Phone call icons: Voice call → phone icon, Video call → videocam icon inline in service pill — spec §5.7, DONE in chat_view.dart (_ServiceMessage._callIcon)
+
 ---
 
 ## §6. Media Message Types
