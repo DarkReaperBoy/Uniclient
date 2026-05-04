@@ -6,7 +6,14 @@ Operational guide for Claude Code. **Rules and build commands only** — no find
 
 ## Ralph Unattended Mode
 
-Ralph is a two-stage automation loop (`scripts/ralph.sh`). If your prompt starts with "You are running in unattended automation mode (ralph loop)", you are in ralph mode.
+Two ralph scripts exist:
+
+- **`scripts/ralph.sh`** — Two-stage implement→verify loop. Runs until `checklist/gui.md` is empty, then exits.
+- **`scripts/ralph-v2.sh`** — Fully autonomous. Same two-stage loop PLUS self-audit: when checklist is empty, re-audits the codebase against the spec (parallel Sonnet sessions + sequential journey-based visual audit), generates a new checklist, and continues fixing. Converges when 2 consecutive audit cycles find zero critical/major issues (max 5 cycles).
+
+Run: `nix develop --command bash -c "scripts/ralph-v2.sh"`
+
+If your prompt starts with "You are running in unattended automation mode (ralph loop)", you are in ralph mode.
 
 **Stage 1 (IMPLEMENT):** Fresh session. Pick the first `- [ ]` from `checklist/gui.md`, implement it, commit with `[unverified]` prefix. Do NOT push, do NOT delete the checklist item.
 
