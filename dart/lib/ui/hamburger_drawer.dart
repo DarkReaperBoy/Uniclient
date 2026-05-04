@@ -1092,20 +1092,29 @@ class _AccountRow extends StatelessWidget {
                       ? const EdgeInsets.all(2)
                       : EdgeInsets.zero,
                   child: Builder(builder: (ctx) {
-                    final aR = 13.0 * (context.watch<AppState>().avatarCorners / 23.0);
+                    final aR = 13.0 * (ctx.watch<AppState>().avatarCorners / 23.0);
+                    final hasAvatar = account.avatarPath.isNotEmpty;
                     return Container(
                       width: 26,
                       height: 26,
                       decoration: BoxDecoration(
                         color: theme.colorScheme.primary.withValues(alpha: 0.3),
                         borderRadius: BorderRadius.circular(aR),
+                        image: hasAvatar
+                            ? DecorationImage(
+                                image: FileImage(File(account.avatarPath)),
+                                fit: BoxFit.cover,
+                              )
+                            : null,
                       ),
                       alignment: Alignment.center,
-                      child: Icon(
-                        _AccountList.platformIcons[account.platform] ?? Icons.chat,
-                        size: 14,
-                        color: theme.colorScheme.primary,
-                      ),
+                      child: !hasAvatar
+                          ? Icon(
+                              _AccountList.platformIcons[account.platform] ?? Icons.chat,
+                              size: 14,
+                              color: theme.colorScheme.primary,
+                            )
+                          : null,
                     );
                   }),
                 ),
