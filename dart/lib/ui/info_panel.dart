@@ -4908,10 +4908,12 @@ class _MemberRow extends StatelessWidget {
       const Color(0xFF6ec9cb),
     ][colorIndex];
 
+    final palette = context.palette;
     final bool hasAdminTag = member.role == 'owner' || member.role == 'admin' || member.role == 'creator';
+    final bool isOwner = member.role == 'owner' || member.role == 'creator';
 
     String statusText = '';
-    Color statusColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
+    Color statusColor = palette.windowSubTextFg;
     if (member.isOnline) {
       statusText = 'online';
       statusColor = theme.colorScheme.primary;
@@ -4922,8 +4924,9 @@ class _MemberRow extends StatelessWidget {
     }
 
     final String? tagText = hasAdminTag
-        ? (member.role == 'owner' || member.role == 'creator' ? 'owner' : 'admin')
+        ? (isOwner ? 'owner' : 'admin')
         : null;
+    final Color tagColor = isOwner ? palette.profileAdminStartFg : palette.profileOtherAdminStarFg;
 
     Widget row = SizedBox(
       height: 52,
@@ -5023,7 +5026,7 @@ class _MemberRow extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.fromLTRB(5, 0, 5, 0),
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.primary.withAlpha(25),
+                      color: tagColor.withAlpha(25),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
@@ -5031,7 +5034,7 @@ class _MemberRow extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: theme.colorScheme.primary,
+                        color: tagColor,
                       ),
                     ),
                   ),

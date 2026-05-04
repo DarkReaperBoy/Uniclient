@@ -5895,7 +5895,7 @@ class _ChatTopBar extends StatelessWidget {
                             const SizedBox(width: 4),
                             Icon(Icons.verified,
                               size: 16,
-                              color: palette.windowActiveTextFg,
+                              color: palette.profileVerifiedCheckBg,
                             ),
                           ],
                           if (chat.isScam) ...[

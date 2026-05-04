@@ -837,11 +837,11 @@ class _ContactRowState extends State<_ContactRow> {
 
     final nameBadges = <InlineSpan>[];
     if (contact.isVerified) {
-      nameBadges.add(const WidgetSpan(
+      nameBadges.add(WidgetSpan(
         alignment: PlaceholderAlignment.middle,
         child: Padding(
-          padding: EdgeInsets.only(left: 4),
-          child: Icon(Icons.verified, size: 16, color: Color(0xFF40a7e3)),
+          padding: const EdgeInsets.only(left: 4),
+          child: Icon(Icons.verified, size: 16, color: palette.profileVerifiedCheckBg),
         ),
       ));
     }

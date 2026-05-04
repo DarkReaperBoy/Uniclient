@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../models/engine_models.dart';
+import '../theme/telegram_palette.dart';
 
 // ─── §36.1 Box/Dialog Infrastructure Constants ───────────────────────────────
 
@@ -141,10 +142,7 @@ class _TelegramBoxState extends State<TelegramBox> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final boxBg = isDark ? const Color(0xFF17212B) : Colors.white;
-    final titleFg =
-        isDark ? const Color(0xFFE0E3EA) : const Color(0xFF000000);
+    final p = context.palette;
     final width = widget.wide ? kBoxWideWidth : kBoxWidth;
 
     return Focus(
@@ -152,7 +150,7 @@ class _TelegramBoxState extends State<TelegramBox> {
       autofocus: true,
       onKeyEvent: _handleKey,
       child: Material(
-        color: boxBg,
+        color: p.boxBg,
         borderRadius: BorderRadius.circular(kBoxRadius),
         elevation: 4,
         clipBehavior: Clip.antiAlias,
@@ -162,7 +160,7 @@ class _TelegramBoxState extends State<TelegramBox> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (widget.title != null) _buildTitleBar(titleFg),
+              if (widget.title != null) _buildTitleBar(p.boxTitleFg),
               Flexible(
                 child: ConstrainedBox(
                   constraints:
@@ -172,7 +170,7 @@ class _TelegramBoxState extends State<TelegramBox> {
                       : widget.content,
                 ),
               ),
-              if (widget.buttons.isNotEmpty) _buildButtonRow(isDark),
+              if (widget.buttons.isNotEmpty) _buildButtonRow(p),
             ],
           ),
         ),
@@ -216,17 +214,12 @@ class _TelegramBoxState extends State<TelegramBox> {
     );
   }
 
-  Widget _buildButtonRow(bool isDark) {
-    final attnFg =
-        isDark ? const Color(0xFFEC3942) : const Color(0xFFD14E4E);
-    final accentFg =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
-
+  Widget _buildButtonRow(TelegramPalette p) {
     final left = widget.buttons.where((b) => b.isLeft).toList();
     final right = widget.buttons.where((b) => !b.isLeft).toList();
 
     Widget btn(TelegramBoxButton b) {
-      final fg = b.isDestructive ? attnFg : accentFg;
+      final fg = b.isDestructive ? p.attentionButtonFg : p.windowBgActive;
       return ConstrainedBox(
         constraints: const BoxConstraints(minWidth: 30),
         child: SizedBox(
@@ -236,7 +229,7 @@ class _TelegramBoxState extends State<TelegramBox> {
             style: TextButton.styleFrom(
               foregroundColor: fg,
               overlayColor:
-                  b.isDestructive ? attnFg.withOpacity(0.1) : null,
+                  b.isDestructive ? fg.withOpacity(0.1) : null,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               textStyle: const TextStyle(
                 fontSize: 14,
@@ -281,9 +274,7 @@ Future<void> showConfirmBox(
   return showTelegramBox<void>(
     context: context,
     builder: (ctx) {
-      final isDark = Theme.of(ctx).brightness == Brightness.dark;
-      final textFg =
-          isDark ? const Color(0xFFAAAAAA) : const Color(0xFF000000);
+      final textFg = ctx.palette.boxTextFg;
 
       void confirm() {
         Navigator.of(ctx).pop();
@@ -478,11 +469,9 @@ class _DeleteContentState extends State<_DeleteContent> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textFg =
-        isDark ? const Color(0xFFAAAAAA) : const Color(0xFF000000);
-    final checkClr =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final p = context.palette;
+    final textFg = p.boxTextFg;
+    final checkClr = p.windowBgActive;
 
     return TelegramBox(
       onConfirm: _confirm,
@@ -631,13 +620,10 @@ class _SingleChoiceContentState extends State<_SingleChoiceContent> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textFg =
-        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final accentFg =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
-    final hoverBg =
-        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+    final p = context.palette;
+    final textFg = p.boxTextFg;
+    final accentFg = p.windowBgActive;
+    final hoverBg = p.windowBgOver;
 
     return TelegramBox(
       title: widget.title,
@@ -953,16 +939,12 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor =
-        isDark ? const Color(0xFFE0E3EA) : const Color(0xFF000000);
-    final subTextColor =
-        isDark ? const Color(0xFF8B9AAD) : const Color(0xFF999999);
-    final accentColor =
-        isDark ? const Color(0xFF6AB3F3) : const Color(0xFF40A7E3);
+    final p = context.palette;
+    final textColor = p.boxTextFg;
+    final subTextColor = p.boxTitleAdditionalFg;
+    final accentColor = p.windowActiveTextFg;
     final selectedBorder = accentColor;
-    final cardBg =
-        isDark ? const Color(0xFF1E2C3A) : const Color(0xFFF0F0F0);
+    final cardBg = p.boxSearchBg;
 
     return TelegramBox(
       title: 'Choose what to share',
@@ -1150,9 +1132,9 @@ class _ReportReasonBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textFg = isDark ? const Color(0xFFE0E3EA) : const Color(0xFF000000);
-    final hoverBg = isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
+    final p = context.palette;
+    final textFg = p.boxTextFg;
+    final hoverBg = p.windowBgOver;
 
     return TelegramBox(
       title: title,
@@ -1220,8 +1202,7 @@ class _ReportDetailsBoxState extends State<_ReportDetailsBox> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textFg = isDark ? const Color(0xFFAAAAAA) : const Color(0xFF000000);
+    final textFg = context.palette.boxTextFg;
 
     return TelegramBox(
       title: 'Report',
@@ -1274,8 +1255,7 @@ Future<bool> showReportReactionBox(BuildContext context) async {
   final result = await showTelegramBox<bool>(
     context: context,
     builder: (ctx) {
-      final isDark = Theme.of(ctx).brightness == Brightness.dark;
-      final textFg = isDark ? const Color(0xFFAAAAAA) : const Color(0xFF000000);
+      final textFg = ctx.palette.boxTextFg;
 
       return TelegramBox(
         title: 'Report Reactions',

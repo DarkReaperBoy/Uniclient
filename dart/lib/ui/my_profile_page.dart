@@ -1463,9 +1463,8 @@ class _SettingsAccountRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final accentColor = isDark
-        ? const Color(0xFF5288C1)
-        : const Color(0xFF40A7E3);
+    final palette = context.palette;
+    final accentColor = palette.windowBgActive;
 
     return GestureDetector(
       onSecondaryTapUp: (details) =>
@@ -1545,7 +1544,7 @@ class _SettingsAccountRow extends StatelessWidget {
                       Icon(
                         Icons.verified,
                         size: 16,
-                        color: accentColor,
+                        color: palette.profileVerifiedCheckBg,
                       ),
                     ],
                   ],

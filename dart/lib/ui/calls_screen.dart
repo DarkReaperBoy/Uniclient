@@ -11,6 +11,7 @@ import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
+import '../theme/telegram_palette.dart';
 import '../theme/theme.dart';
 import 'confirm_box.dart';
 import 'popup_menu.dart';
@@ -171,17 +172,16 @@ class _CallsScreenState extends State<CallsScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
-            final isDark = Theme.of(ctx).brightness == Brightness.dark;
-            final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+            final p = ctx.palette;
             return AlertDialog(
-              backgroundColor: isDark ? const Color(0xFF1E2C3A) : Colors.white,
+              backgroundColor: p.boxBg,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               title: Text(
                 'Clear Call History',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: textColor,
+                  color: p.boxTitleFg,
                 ),
               ),
               content: Column(
@@ -190,7 +190,7 @@ class _CallsScreenState extends State<CallsScreen> {
                 children: [
                   Text(
                     'Are you sure you want to delete all call history?',
-                    style: TextStyle(fontSize: 14, color: textColor),
+                    style: TextStyle(fontSize: 14, color: p.boxTextFg),
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -209,7 +209,7 @@ class _CallsScreenState extends State<CallsScreen> {
                           onTap: () => setDialogState(() => revoke = !revoke),
                           child: Text(
                             'Also delete for other participants',
-                            style: TextStyle(fontSize: 14, color: textColor),
+                            style: TextStyle(fontSize: 14, color: p.boxTextFg),
                           ),
                         ),
                       ),
@@ -222,9 +222,7 @@ class _CallsScreenState extends State<CallsScreen> {
                   onPressed: () => Navigator.of(ctx).pop(),
                   child: Text(
                     'Cancel',
-                    style: TextStyle(
-                      color: isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3),
-                    ),
+                    style: TextStyle(color: p.windowBgActive),
                   ),
                 ),
                 TextButton(
@@ -242,9 +240,7 @@ class _CallsScreenState extends State<CallsScreen> {
                   },
                   child: Text(
                     'Clear',
-                    style: TextStyle(
-                      color: isDark ? const Color(0xFFe85050) : const Color(0xFFdd4b39),
-                    ),
+                    style: TextStyle(color: p.attentionButtonFg),
                   ),
                 ),
               ],
@@ -259,14 +255,15 @@ class _CallsScreenState extends State<CallsScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final p = context.palette;
 
-    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
-    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFE8E8E8);
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
-    final menuIconColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final attentionColor = isDark ? const Color(0xFFe85050) : const Color(0xFFdd4b39);
+    final bgColor = p.boxBg;
+    final textColor = p.boxTextFg;
+    final subtextColor = p.boxTitleAdditionalFg;
+    final dividerColor = p.boxDividerBg;
+    final accentColor = p.windowBgActive;
+    final menuIconColor = p.menuIconFg;
+    final attentionColor = p.attentionButtonFg;
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -289,7 +286,7 @@ class _CallsScreenState extends State<CallsScreen> {
         actions: [
           PopupMenuButton<String>(
             icon: Icon(Icons.more_vert, color: menuIconColor),
-            color: isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF),
+            color: p.boxBg,
             onSelected: (value) {
               switch (value) {
                 case 'settings':
@@ -991,13 +988,14 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
-    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
-    final dividerColor = isDark ? const Color(0xFF101921) : const Color(0xFFE8E8E8);
-    final hoverBg = isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
+    final bgColor = p.boxBg;
+    final textColor = p.boxTextFg;
+    final subtextColor = p.boxTitleAdditionalFg;
+    final accentColor = p.windowBgActive;
+    final dividerColor = p.boxDividerBg;
+    final hoverBg = p.windowBgOver;
 
     final hasSelection = _selectedIds.isNotEmpty;
     final buttonLabel = hasSelection ? 'Start Call' : 'Create Call';
@@ -1342,11 +1340,12 @@ class _ConferenceCallLinkBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
-    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final accentColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final bgColor = p.boxBg;
+    final textColor = p.boxTextFg;
+    final subtextColor = p.boxTitleAdditionalFg;
+    final accentColor = p.windowBgActive;
 
     return Dialog(
       backgroundColor: bgColor,
@@ -1971,18 +1970,14 @@ class _CallSettingsScreenState extends State<_CallSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final p = context.palette;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
-    final textColor =
-        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final subtextColor =
-        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final dividerColor =
-        isDark ? const Color(0xFF101921) : const Color(0xFFF1F1F1);
-    final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    final bgColor = p.boxBg;
+    final textColor = p.boxTextFg;
+    final subtextColor = p.boxTitleAdditionalFg;
+    final dividerColor = p.boxDividerBg;
+    final accentColor = p.windowBgActive;
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -2111,12 +2106,10 @@ class _CallSettingsScreenState extends State<_CallSettingsScreen> {
     required String current,
     required ValueChanged<String> onSelected,
   }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor =
-        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-    final accentColor =
-        isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
-    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final p = context.palette;
+    final textColor = p.boxTextFg;
+    final accentColor = p.windowBgActive;
+    final bgColor = p.boxBg;
     final devices = ['Default'];
 
     showDialog(

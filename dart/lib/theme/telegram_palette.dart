@@ -220,6 +220,7 @@ class TelegramPalette {
   final Color profileVerifiedCheckBg;
   final Color profileVerifiedCheckFg;
   final Color profileAdminStartFg;
+  final Color profileOtherAdminStarFg;
 
   // ── §57.10 Sidebar (Folders Rail) ──
   final Color sideBarBg;
@@ -454,6 +455,7 @@ class TelegramPalette {
     required this.profileVerifiedCheckBg,
     required this.profileVerifiedCheckFg,
     required this.profileAdminStartFg,
+    required this.profileOtherAdminStarFg,
     required this.sideBarBg,
     required this.sideBarBgActive,
     required this.sideBarBgRipple,
@@ -777,6 +779,7 @@ class TelegramPalette {
       profileVerifiedCheckBg: s(profileVerifiedCheckBg),
       profileVerifiedCheckFg: s(profileVerifiedCheckFg),
       profileAdminStartFg: s(profileAdminStartFg),
+      profileOtherAdminStarFg: s(profileOtherAdminStarFg),
       sideBarBg: s(sideBarBg),
       sideBarBgActive: s(sideBarBgActive),
       sideBarBgRipple: s(sideBarBgRipple),
@@ -965,6 +968,7 @@ class TelegramPalette {
       profileVerifiedCheckBg: this.profileVerifiedCheckBg,
       profileVerifiedCheckFg: this.profileVerifiedCheckFg,
       profileAdminStartFg: this.profileAdminStartFg,
+      profileOtherAdminStarFg: this.profileOtherAdminStarFg,
       sideBarBg: this.sideBarBg, sideBarBgActive: this.sideBarBgActive,
       sideBarBgRipple: this.sideBarBgRipple, sideBarTextFg: this.sideBarTextFg,
       sideBarTextFgActive: this.sideBarTextFgActive,
@@ -1119,6 +1123,7 @@ class TelegramPalette {
       profileVerifiedCheckBg: profileVerifiedCheckBg,
       profileVerifiedCheckFg: profileVerifiedCheckFg,
       profileAdminStartFg: profileAdminStartFg,
+      profileOtherAdminStarFg: profileOtherAdminStarFg,
       sideBarBg: sideBarBg, sideBarBgActive: sideBarBgActive,
       sideBarBgRipple: sideBarBgRipple,
       sideBarTextFg: sideBarTextFg, sideBarTextFgActive: sideBarTextFgActive,
@@ -1363,6 +1368,7 @@ class TelegramPalette {
     profileVerifiedCheckBg: Color(0xFF40A7E3),
     profileVerifiedCheckFg: Color(0xFFFFFFFF),
     profileAdminStartFg: Color(0xFF40A7E3),
+    profileOtherAdminStarFg: Color(0xFF999999),
 
     // Sidebar
     sideBarBg: Color(0xFF293A4C),
@@ -1627,6 +1633,7 @@ class TelegramPalette {
     profileVerifiedCheckBg: Color(0xFF5288C1),
     profileVerifiedCheckFg: Color(0xFFFFFFFF),
     profileAdminStartFg: Color(0xFF62A9E6),
+    profileOtherAdminStarFg: Color(0xFF708499),
 
     // Sidebar
     sideBarBg: Color(0xFF0E1621),
@@ -1865,6 +1872,7 @@ class TelegramPalette {
     profileVerifiedCheckBg: Color(0xFF40A7E3),
     profileVerifiedCheckFg: Color(0xFFFFFFFF),
     profileAdminStartFg: Color(0xFF40A7E3),
+    profileOtherAdminStarFg: Color(0xFF999999),
     sideBarBg: Color(0xFF293A4C),
     sideBarBgActive: Color(0xFF17212B),
     sideBarBgRipple: Color(0xFF1E2B38),
@@ -2090,6 +2098,7 @@ class TelegramPalette {
     profileVerifiedCheckBg: Color(0xFF3FC1B0),
     profileVerifiedCheckFg: Color(0xFFFFFFFF),
     profileAdminStartFg: Color(0xFF3FC1B0),
+    profileOtherAdminStarFg: Color(0xFF82868A),
     sideBarBg: Color(0xFF1E2226),
     sideBarBgActive: Color(0xFF282E33),
     sideBarBgRipple: Color(0xFF252A2F),
