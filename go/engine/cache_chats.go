@@ -247,8 +247,8 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 		                     slowmode_seconds, slowmode_next_send_date, stars_to_send, ttl_period,
 		                     emoji_status_id, story_count, has_unread_story, is_forum,
 		                     write_restriction_type, write_restriction_text,
-		                     not_joined, join_request, can_post, no_forwards, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		                     not_joined, join_request, can_post, no_forwards, access_hash, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(account_id, chat_id) DO UPDATE SET
 		     type = excluded.type,
 		     title = excluded.title,
@@ -286,6 +286,7 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 		     join_request = excluded.join_request,
 		     can_post = excluded.can_post,
 		     no_forwards = excluded.no_forwards,
+		     access_hash = CASE WHEN excluded.access_hash != 0 THEN excluded.access_hash ELSE chats.access_hash END,
 		     updated_at = excluded.updated_at`,
 		accountID, d.ID, chatType, d.Title, lastMsgID, lastMsgText,
 		lastMsgTime, lastMsgSender, lastMsgIsOutgoing, lastMsgStatus, lastMsgMediaType, lastMsgThumbB64,
@@ -296,7 +297,7 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 		d.SlowmodeSeconds, d.SlowmodeNextSendDate, d.StarsToSend, d.TtlPeriod,
 		d.EmojiStatusID, d.StoryCount, boolToInt(d.HasUnreadStory), boolToInt(d.IsForum),
 		d.WriteRestrictionType, d.WriteRestrictionText,
-		boolToInt(d.NotJoined), boolToInt(d.JoinRequest), boolToInt(d.CanPost), boolToInt(d.NoForwards), now)
+		boolToInt(d.NotJoined), boolToInt(d.JoinRequest), boolToInt(d.CanPost), boolToInt(d.NoForwards), d.AccessHash, now)
 	if err != nil {
 		return err
 	}
@@ -307,6 +308,39 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 	}
 
 	return nil
+}
+
+// loadPeerHashes reads access hashes from the chats table and returns them
+// split by peer type (channel vs user). Used to pre-populate the core's
+// in-memory peer cache at connect time so API calls succeed before GetDialogs.
+func (e *Engine) loadPeerHashes(accountID string) (channelHashes map[int64]int64, userHashes map[int64]int64) {
+	channelHashes = make(map[int64]int64)
+	userHashes = make(map[int64]int64)
+	rows, err := e.db.Query("SELECT chat_id, access_hash FROM chats WHERE account_id = ? AND access_hash != 0", accountID)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var chatID string
+		var hash int64
+		if err := rows.Scan(&chatID, &hash); err != nil {
+			continue
+		}
+		id, err := strconv.ParseInt(chatID, 10, 64)
+		if err != nil {
+			continue
+		}
+		if id < 0 {
+			absID := -id
+			if absID > 1000000000000 {
+				channelHashes[absID-1000000000000] = hash
+			}
+		} else if id > 0 {
+			userHashes[id] = hash
+		}
+	}
+	return
 }
 
 // SyncChats diffs network dialogs against cache and emits appropriate events.

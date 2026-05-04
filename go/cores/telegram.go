@@ -9737,7 +9737,11 @@ func (t *TelegramCore) withPeer(chatID string) (tg.InputPeerClass, func(), error
 		t.mu.RUnlock()
 		return nil, nil, err
 	}
-	inputPeer, _ := t.toInputPeer(peer)
+	inputPeer, err := t.toInputPeer(peer)
+	if err != nil {
+		t.mu.RUnlock()
+		return nil, nil, err
+	}
 	return inputPeer, t.mu.RUnlock, nil
 }
 
@@ -9795,7 +9799,7 @@ func (t *TelegramCore) toInputPeer(peer tg.PeerClass) (tg.InputPeerClass, error)
 	case *tg.PeerChannel:
 		hash, err := t.resolveChannelAccessHash(p.ChannelID)
 		if err != nil {
-			return &tg.InputPeerChannel{ChannelID: p.ChannelID}, nil
+			return nil, fmt.Errorf("resolve channel %d access hash: %w", p.ChannelID, err)
 		}
 		return &tg.InputPeerChannel{ChannelID: p.ChannelID, AccessHash: hash}, nil
 	default:
@@ -9864,6 +9868,21 @@ func (t *TelegramCore) getCachedChannelHash(channelID int64) (int64, bool) {
 	hash, ok := t.channelAccessHash[channelID]
 	t.peerMu.RUnlock()
 	return hash, ok
+}
+
+func (t *TelegramCore) PreloadPeerHashes(channelHashes map[int64]int64, userHashes map[int64]int64) {
+	t.peerMu.Lock()
+	defer t.peerMu.Unlock()
+	for id, hash := range channelHashes {
+		if _, exists := t.channelAccessHash[id]; !exists {
+			t.channelAccessHash[id] = hash
+		}
+	}
+	for id, hash := range userHashes {
+		if _, exists := t.userAccessHash[id]; !exists {
+			t.userAccessHash[id] = hash
+		}
+	}
 }
 
 // encodeFileExtra packs access hash and file reference for later download.
@@ -11152,6 +11171,7 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 				dialog.Title = "Saved Messages"
 			} else if user, ok := userMap[p.UserID]; ok {
 				dialog.Title = strings.TrimSpace(user.FirstName + " " + user.LastName)
+				dialog.AccessHash = user.AccessHash
 				dialog.IsVerified = user.Verified
 				dialog.IsScam = user.Scam
 				dialog.IsFake = user.Fake
@@ -11198,6 +11218,7 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 			if ch, ok := chatMap[p.ChannelID]; ok {
 				if c, ok := ch.(*tg.Channel); ok {
 					dialog.Title = c.Title
+					dialog.AccessHash = c.AccessHash
 					dialog.MemberCount = c.ParticipantsCount
 					dialog.IsVerified = c.Verified
 					dialog.IsScam = c.Scam

@@ -100,6 +100,18 @@ func (e *Engine) ConnectAccount(accountID string) error {
 	e.setConnState(accountID, ConnConnected)
 	e.emitConnState(accountID, ConnConnected, "")
 
+	// Preload persisted peer access hashes into the core's in-memory cache
+	// so API calls succeed before GetDialogs repopulates them.
+	type peerHashPreloader interface {
+		PreloadPeerHashes(channelHashes map[int64]int64, userHashes map[int64]int64)
+	}
+	if php, ok := core.(peerHashPreloader); ok {
+		ch, uh := e.loadPeerHashes(accountID)
+		if len(ch) > 0 || len(uh) > 0 {
+			php.PreloadPeerHashes(ch, uh)
+		}
+	}
+
 	// Update display name and badge flags from profile.
 	e.wg.Add(1)
 	go func() {

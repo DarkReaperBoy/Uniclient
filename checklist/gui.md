@@ -1022,5 +1022,3 @@ Status key: `[ ]` not started · `[x]` done
 ---
 
 ## Bugs
-
-- [ ] `GetScheduledCount` returns PEER_ID_INVALID for some chats (e.g. TODO channel) — Go backend constructs invalid peer for the Telegram API call. Scheduled toggle button can't show because count stays 0. Backend bug, not UI.
