@@ -4,7 +4,6 @@
 
 ## §2 — Chat List Sidebar
 
-- [ ] spec §2 "Swipe quick action icon size": spec says `dialogsQuickActionSize = 20px`. Code uses `SizedBox(width: 20, height: 20)` with Lottie animation — matches spec — correct
 - [ ] spec §2 "Swipe ripple area": spec says `dialogsQuickActionRippleSize = 80px`. Code uses `SizedBox(width: 80, height: 80)` — matches spec — correct
 - [ ] spec §2 "Swipe label font": spec says "13px semibold". Code in `_SwipeLabel` needs verification — `chat_list_row.dart:903`
 - [ ] spec §2 "Swipe text color": spec says `premiumButtonFg (white)`. Code renders white text via the label widget — matches
