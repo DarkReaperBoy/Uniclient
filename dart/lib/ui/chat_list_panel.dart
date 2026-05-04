@@ -1767,13 +1767,13 @@ class _SearchBar extends StatelessWidget {
               icon: const Icon(Icons.menu, size: 20),
               onPressed: onOpenDrawer,
               padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
             ),
             const SizedBox(width: 4),
           ],
           Expanded(
             child: SizedBox(
-              height: 36,
+              height: 35,
               child: TextField(
                 controller: controller,
                 focusNode: focusNode,
@@ -1786,7 +1786,7 @@ class _SearchBar extends StatelessWidget {
                   prefixIconConstraints: const BoxConstraints(minWidth: 36),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(18),
                     borderSide: BorderSide.none,
                   ),
                   filled: true,
@@ -1803,7 +1803,7 @@ class _SearchBar extends StatelessWidget {
               onPressed: onCancel,
               style: TextButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
-                minimumSize: const Size(0, 36),
+                minimumSize: const Size(0, 35),
               ),
               child: const Text('Cancel'),
             ),
