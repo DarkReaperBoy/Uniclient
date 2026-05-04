@@ -164,7 +164,7 @@ invoke_claude() {
   circuit_breaker_check || return 1
 
   log "Invoking Claude ($label, $model)..."
-  set +e
+  local code=0
   timeout "$SESSION_TIMEOUT" claude \
     --print \
     --dangerously-skip-permissions \
@@ -176,14 +176,13 @@ invoke_claude() {
     2>&1 \
     | tee "$iter_file.jsonl" \
     | jq -Rr --unbuffered --arg root "$PROJECT_ROOT/" "$JQ_FMT" \
-    | tee -a "$iter_file"
-  local code=${PIPESTATUS[0]}
-  set -e
+    | tee -a "$iter_file" \
+    || code=${PIPESTATUS[0]:-$?}
 
   # Log cost
   local cost
   cost=$(grep -o '"total_cost_usd":[0-9.]*' "$iter_file.jsonl" 2>/dev/null | tail -1 | grep -o '[0-9.]*' || echo "0")
-  echo "$(date '+%H:%M:%S') $label $model \$$cost" >> "$COST_LOG"
+  echo "$(date '+%H:%M:%S') $label $model \$$cost" >> "$COST_LOG" || true
 
   # Update circuit breaker
   if [[ $code -eq 0 ]]; then
@@ -440,8 +439,8 @@ Item: $CURRENT_ITEM"
       ITEM_ATTEMPTS=0
     fi
 
-    invoke_claude "$(build_impl_prompt "$IMPL_EXTRA")" "$IMPL_FILE" "IMPLEMENT"
-    IMPL_EXIT=$?
+    IMPL_EXIT=0
+    invoke_claude "$(build_impl_prompt "$IMPL_EXTRA")" "$IMPL_FILE" "IMPLEMENT" || IMPL_EXIT=$?
 
     if [[ $IMPL_EXIT -eq 2 ]]; then
       log "Rate limited. Waiting ${RATE_LIMIT_WAIT}s..."
@@ -470,8 +469,8 @@ Item: $CURRENT_ITEM"
     VERIFY_FILE="$ITER_LOG_DIR/iter_$(printf '%04d' $IMPL_ITERATION)_verify.log"
     rm -f "$FEEDBACK_FILE"
 
-    invoke_claude "$(build_verify_prompt "$CURRENT_ITEM")" "$VERIFY_FILE" "VERIFY"
-    VERIFY_EXIT=$?
+    VERIFY_EXIT=0
+    invoke_claude "$(build_verify_prompt "$CURRENT_ITEM")" "$VERIFY_FILE" "VERIFY" || VERIFY_EXIT=$?
 
     if [[ $VERIFY_EXIT -eq 2 ]]; then
       log "Rate limited during verify. Waiting..."
@@ -590,6 +589,7 @@ Item: $CURRENT_ITEM"
 
       # Partial failure: each chunk is independent (bulkhead)
       (
+        set +e
         invoke_claude "$PROMPT" "$CHUNK_FILE" "AUDIT-C${AUDIT_CYCLE}-${CHUNK_ID}" "claude-sonnet-4-6"
         exit $?
       ) &
