@@ -503,7 +503,7 @@ class _MessageBubbleState extends State<MessageBubble> {
     final topSenderSide = isFirstInGroup ? radiusLarge : radiusSmall;
     final topOtherSide = radiusLarge;
     final bottomSenderSide = radiusSmall;
-    final bottomOtherSide = isLastInGroup ? radiusLarge : radiusSmall;
+    final bottomOtherSide = radiusLarge;
 
     // Show sender avatar for incoming messages in group chats.
     final showAvatar = isGroupChat && !isOutgoing;
