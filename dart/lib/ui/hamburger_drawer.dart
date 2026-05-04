@@ -1332,22 +1332,28 @@ class _InlineToggle extends StatelessWidget {
     // Off: windowSubTextFg.
     final offColor = context.palette.windowSubTextFg;
 
+    final thumbSize = value ? 14.0 : 10.0;
+
     return GestureDetector(
       onTap: () => onChanged(!value),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        width: 36,
-        height: 20,
+        curve: Curves.easeOutCubic,
+        width: 32,
+        height: 18,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(9),
           color: value ? onColor : offColor,
         ),
         child: AnimatedAlign(
           duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOutCubic,
           alignment: value ? Alignment.centerRight : Alignment.centerLeft,
-          child: Container(
-            width: 16,
-            height: 16,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOutCubic,
+            width: thumbSize,
+            height: thumbSize,
             margin: const EdgeInsets.all(2),
             decoration: const BoxDecoration(
               shape: BoxShape.circle,
