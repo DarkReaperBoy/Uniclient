@@ -5853,16 +5853,8 @@ class _ChatTopBar extends StatelessWidget {
                         );
                       },
                     ),
-                    // Spec §4.3: "choose from user" filter button (person icon).
-                    if (chat.type == ChatType.group ||
-                        chat.type == ChatType.channel ||
-                        chat.type == ChatType.topic)
-                      _TopBarButton(
-                        icon: Icons.person_search,
-                        onPressed: () {
-                          // TODO: open user picker for "from user" filter
-                        },
-                      ),
+                    // "Choose from user" filter button omitted — user picker
+                    // not yet implemented. Re-add when available.
                   ],
                 ],
               ),
