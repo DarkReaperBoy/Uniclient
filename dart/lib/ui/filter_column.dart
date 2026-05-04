@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
+import '../theme/telegram_palette.dart';
 import 'chat_list_row.dart' show ForwardDragData;
 import 'popup_menu.dart';
 import 'telegram_tooltip.dart';
@@ -59,39 +60,6 @@ class FilterColumn extends StatefulWidget {
     if (lower.contains('work')) return Icons.work;
     return Icons.folder;
   }
-
-  // Sidebar color tokens from §57.10 — dark background even in light mode.
-  static const dayBg = Color(0xFF293A4C);
-  static const dayBgActive = Color(0xFF17212B);
-  static const dayBgRipple = Color(0xFF1E2B38);
-  static const dayTextFg = Color(0xFF8897A6);
-  static const dayTextFgActive = Color(0xFF64B9FA);
-  static const dayIconFg = Color(0xFF8393A3);
-  static const dayIconFgActive = Color(0xFF5EB5F7);
-  static const dayBadgeBg = Color(0xFF5EB5F7);
-  static const dayBadgeBgMuted = Color(0xFF8393A3);
-
-  static const nightBg = Color(0xFF0E1621);
-  static const nightBgActive = Color(0xFF25303E);
-  static const nightBgRipple = Color(0xFF1E2733);
-  static const nightTextFg = Color(0xFF768C9E);
-  static const nightTextFgActive = Color(0xFF64B9FA);
-  static const nightIconFg = Color(0xFF768C9E);
-  static const nightIconFgActive = Color(0xFF5EB5F7);
-  static const nightBadgeBg = Color(0xFF5EB5F7);
-  static const nightBadgeBgMuted = Color(0xFF768C9E);
-
-  static const badgeFg = Color(0xFFFFFFFF);
-
-  static Color bg(Brightness b) => b == Brightness.dark ? nightBg : dayBg;
-  static Color bgActive(Brightness b) => b == Brightness.dark ? nightBgActive : dayBgActive;
-  static Color bgRipple(Brightness b) => b == Brightness.dark ? nightBgRipple : dayBgRipple;
-  static Color textFg(Brightness b) => b == Brightness.dark ? nightTextFg : dayTextFg;
-  static Color textFgActive(Brightness b) => b == Brightness.dark ? nightTextFgActive : dayTextFgActive;
-  static Color iconFg(Brightness b) => b == Brightness.dark ? nightIconFg : dayIconFg;
-  static Color iconFgActive(Brightness b) => b == Brightness.dark ? nightIconFgActive : dayIconFgActive;
-  static Color badgeBg(Brightness b) => b == Brightness.dark ? nightBadgeBg : dayBadgeBg;
-  static Color badgeBgMuted(Brightness b) => b == Brightness.dark ? nightBadgeBgMuted : dayBadgeBgMuted;
 }
 
 class _FilterColumnState extends State<FilterColumn> {
@@ -344,12 +312,11 @@ class _FilterColumnState extends State<FilterColumn> {
         ? const NeverScrollableScrollPhysics()
         : const ClampingScrollPhysics();
 
-    final brightness = theme.brightness;
-    final sideBarBg = FilterColumn.bg(brightness);
+    final palette = PaletteProvider.of(context);
 
     return Container(
       width: FilterColumn.width,
-      color: sideBarBg,
+      color: palette.sideBarBg,
       child: Column(
         children: [
           // Hamburger menu button at top (windowFiltersMainMenu: minHeight 54px).
@@ -405,7 +372,7 @@ class _FilterColumnState extends State<FilterColumn> {
                       decoration: isDropTarget
                           ? BoxDecoration(
                               border: Border.all(
-                                color: FilterColumn.dayBadgeBg,
+                                color: palette.sideBarBadgeBg,
                                 width: 2,
                               ),
                             )
@@ -510,16 +477,10 @@ class _SideBarButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
-    final bgColor = isActive
-        ? FilterColumn.bgActive(brightness)
-        : FilterColumn.bg(brightness);
-    final iconColor = isActive
-        ? FilterColumn.iconFgActive(brightness)
-        : FilterColumn.iconFg(brightness);
-    final textColor = isActive
-        ? FilterColumn.textFgActive(brightness)
-        : FilterColumn.textFg(brightness);
+    final palette = PaletteProvider.of(context);
+    final bgColor = isActive ? palette.sideBarBgActive : palette.sideBarBg;
+    final iconColor = isActive ? palette.sideBarIconFgActive : palette.sideBarIconFg;
+    final textColor = isActive ? palette.sideBarTextFgActive : palette.sideBarTextFg;
 
     return TelegramTooltip(
       message: label,
@@ -527,13 +488,13 @@ class _SideBarButton extends StatelessWidget {
         color: bgColor,
         child: InkWell(
           onTap: onTap,
-          splashColor: FilterColumn.bgRipple(brightness),
-          highlightColor: FilterColumn.bgRipple(brightness),
+          splashColor: palette.sideBarBgRipple,
+          highlightColor: palette.sideBarBgRipple,
           child: SizedBox(
             width: FilterColumn.width,
             child: iconCentered
                 ? _buildCenteredIcon(iconColor)
-                : _buildFullButton(iconColor, textColor, brightness),
+                : _buildFullButton(context, iconColor, textColor),
           ),
         ),
       ),
@@ -551,7 +512,7 @@ class _SideBarButton extends StatelessWidget {
   }
 
   /// Standard folder tab: icon at top, label below, optional badge.
-  Widget _buildFullButton(Color iconColor, Color textColor, Brightness brightness) {
+  Widget _buildFullButton(BuildContext context, Color iconColor, Color textColor) {
     return CustomMultiChildLayout(
       delegate: _SideBarButtonLayout(
         minHeight: minHeight,
@@ -586,16 +547,17 @@ class _SideBarButton extends StatelessWidget {
         if (unreadCount > 0)
           LayoutId(
             id: _SideBarSlot.badge,
-            child: _buildBadge(brightness),
+            child: _buildBadge(context),
           ),
       ],
     );
   }
 
-  Widget _buildBadge(Brightness brightness) {
+  Widget _buildBadge(BuildContext context) {
+    final palette = PaletteProvider.of(context);
     final badgeColor = unreadAllMuted
-        ? FilterColumn.badgeBgMuted(brightness)
-        : FilterColumn.badgeBg(brightness);
+        ? palette.sideBarBadgeBgMuted
+        : palette.sideBarBadgeBg;
     final text = unreadCount > 999 ? '99+' : '$unreadCount';
     return Container(
       height: _badgeHeight,
@@ -605,15 +567,15 @@ class _SideBarButton extends StatelessWidget {
         color: badgeColor,
         borderRadius: BorderRadius.circular(_badgeHeight / 2),
         border: Border.all(
-          color: FilterColumn.bg(brightness),
+          color: palette.sideBarBg,
           width: _badgeStroke,
         ),
       ),
       child: Center(
         child: Text(
           text,
-          style: const TextStyle(
-            color: FilterColumn.badgeFg,
+          style: TextStyle(
+            color: palette.sideBarBadgeFg,
             fontSize: 10,
             fontWeight: FontWeight.bold,
             height: 1,
