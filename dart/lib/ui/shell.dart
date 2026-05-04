@@ -656,16 +656,32 @@ class _UniClientShellState extends State<UniClientShell>
   }
 
   void _openDrawer(BuildContext context) {
-    showDialog(
+    final height = MediaQuery.of(context).size.height;
+    showGeneralDialog(
       context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss',
       barrierColor: context.palette.layerBg,
-      builder: (_) => Align(
+      transitionDuration: const Duration(milliseconds: 200),
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final slide = Tween<Offset>(
+          begin: const Offset(-1, 0),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        ));
+        return SlideTransition(position: slide, child: child);
+      },
+      pageBuilder: (_, __, ___) => Align(
         alignment: Alignment.centerLeft,
         child: Material(
-          elevation: 16,
+          elevation: 0,
+          color: Colors.transparent,
           child: SizedBox(
-            width: 274, // Spec: hamburger drawer 274px
-            height: MediaQuery.of(context).size.height,
+            width: 274,
+            height: height,
             child: const HamburgerDrawer(),
           ),
         ),
