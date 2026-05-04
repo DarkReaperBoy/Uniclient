@@ -4,7 +4,6 @@
 
 ## §2 — Chat List Sidebar
 
-- [ ] spec §2 "Mention/reaction/poll badges": spec says "18x18 ThreeStateIcon" for wide mode. Code renders `Icon(icon, size: 18)` which is correct for wide. For narrow, spec says "13x13 glyph inside 19x19 circle" — code does `Icon(icon, size: 13)` inside `Container(width: 19, height: 19)` with circle shape, which matches. Correct implementation — no issue
 - [ ] spec §2 "Pin icon": spec says "Shown when no unreads, right side at textTop position". Code only shows pin icon when `chat.unreadCount == 0 && !chat.isUnreadMark` (line 265). Position is in the bottom row aligned right, which roughly matches "textTop position" of the preview line. However, spec says it should be at the same vertical as the timestamp (top right), not the preview line — `chat_list_row.dart:265-267`
 - [ ] spec §2 "Archived Chats row font": spec says `semiboldFont (14px semibold)`. Code uses `fontSize: 14, fontWeight: FontWeight.w600` — matches spec — correct
 - [ ] spec §2 "Archived Chats row left padding": spec says `dialogsTopBarLeftPadding: 18px`. Code uses `EdgeInsets.only(left: 18, right: 10)` — matches spec — correct
