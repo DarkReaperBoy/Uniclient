@@ -2399,13 +2399,12 @@ class _GroupActionsSection extends StatelessWidget {
   bool _isSelfAdminIn(BuildContext context) {
     if (members == null) return false;
     final appState = context.read<AppState>();
-    final selfUserId = appState.activeAccount?.selfUserId ?? '';
-    final accountId = chat.accountId;
+    final account = appState.accounts.where((a) => a.id == chat.accountId).firstOrNull;
+    final selfUserId = account?.selfUserId ?? '';
+    if (selfUserId.isEmpty) return false;
     for (final m in members!) {
       if (m.role == 'owner' || m.role == 'admin' || m.role == 'creator') {
-        if (m.userId == selfUserId ||
-            m.userId == accountId ||
-            (selfUserId.isNotEmpty && m.userId.contains(selfUserId))) {
+        if (m.userId == selfUserId) {
           return true;
         }
       }
@@ -2728,13 +2727,12 @@ class _ChannelActionsSection extends StatelessWidget {
   bool _isSelfAdminIn(BuildContext context) {
     if (members == null) return false;
     final appState = context.read<AppState>();
-    final selfUserId = appState.activeAccount?.selfUserId ?? '';
-    final accountId = chat.accountId;
+    final account = appState.accounts.where((a) => a.id == chat.accountId).firstOrNull;
+    final selfUserId = account?.selfUserId ?? '';
+    if (selfUserId.isEmpty) return false;
     for (final m in members!) {
       if (m.role == 'owner' || m.role == 'admin' || m.role == 'creator') {
-        if (m.userId == selfUserId ||
-            m.userId == accountId ||
-            (selfUserId.isNotEmpty && m.userId.contains(selfUserId))) {
+        if (m.userId == selfUserId) {
           return true;
         }
       }

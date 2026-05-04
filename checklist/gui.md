@@ -1023,5 +1023,4 @@ Status key: `[ ]` not started · `[x]` done
 
 ## Bugs
 
-- [ ] `_isSelfAdmin` in `_GroupActionsSection` (info_panel.dart) never returns true: compares `chat.accountId` (format "tele_4beb99fd") with `m.userId` (Telegram numeric ID like "123456789") — formats never match. "Edit Group" and "Topics" rows are invisible for all groups because of this. Fix: resolve account's own Telegram user ID and compare against member userId.
 - [ ] `GetScheduledCount` returns PEER_ID_INVALID for some chats (e.g. TODO channel) — Go backend constructs invalid peer for the Telegram API call. Scheduled toggle button can't show because count stays 0. Backend bug, not UI.
