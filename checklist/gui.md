@@ -2,8 +2,6 @@
 
 ## §1 — Window Layout & Column Structure
 
-- [ ] spec §1 "Dialogs collapsed mode": when collapsed (`_dialogsCollapsed = true`), dialogs width snaps to 72px hardcoded (line 473), which matches the filter sidebar width. Spec says "snaps to 0 (collapsed narrow mode showing only avatars)" — the width should be 0 in the layout (with the avatar-only column still rendered), not 72px. The 72px behavior means the collapsed column is wider than spec expects — `shell.dart:473`
-
 ## §2 — Chat List Sidebar
 
 - [ ] spec §2 "Search Bar Padding": spec says "Padding: 7px each side". Code uses `EdgeInsets.symmetric(horizontal: 7, vertical: 7)` which is correct for horizontal. However the search field height is hardcoded to 36px and the hamburger icon button has `minWidth: 36, minHeight: 36` which doesn't match any spec dimension — `chat_list_panel.dart:1774-1776`
