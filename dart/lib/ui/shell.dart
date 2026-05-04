@@ -424,7 +424,7 @@ class _UniClientShellState extends State<UniClientShell>
               : Offset(forward ? -0.3 : 0.3, 0);
           final curved = CurvedAnimation(
             parent: animation,
-            curve: Curves.easeOutCubic,
+            curve: Curves.easeOutCirc,
           );
           return SlideTransition(
             position: Tween<Offset>(begin: beginOffset, end: Offset.zero)
