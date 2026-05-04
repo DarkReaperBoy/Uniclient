@@ -982,10 +982,13 @@ class _UniClientAppState extends State<UniClientApp>
       position: Offset(x, y),
       kind: PointerDeviceKind.mouse,
     ));
+    // Negate deltas: flutter_interact.sh uses natural-scroll convention
+    // (negative dy = down) but PointerScrollEvent uses the opposite
+    // (positive dy = down / increase scroll offset).
     binding.handlePointerEvent(PointerScrollEvent(
       device: 99,
       position: Offset(x, y),
-      scrollDelta: Offset(dx, dy),
+      scrollDelta: Offset(-dx, -dy),
       kind: PointerDeviceKind.mouse,
     ));
   }
