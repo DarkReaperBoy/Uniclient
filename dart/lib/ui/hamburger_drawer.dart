@@ -656,8 +656,8 @@ class _ProfileCover extends StatelessWidget {
           // Spec §3: 6×6px chevron, 3px strokes. Only shown when 2+ accounts.
           if (accountCount >= 2)
             Positioned(
-              right: 15,
-              top: 21,
+              right: 18,
+              top: 18,
               child: GestureDetector(
                 onTap: onToggle,
                 behavior: HitTestBehavior.opaque,
