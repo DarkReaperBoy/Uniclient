@@ -655,12 +655,7 @@ class _ChatListPanelState extends State<ChatListPanel>
     }
 
     return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        border: Border(
-          right: BorderSide(color: theme.dividerColor, width: 1),
-        ),
-      ),
+      color: theme.colorScheme.surface,
       child: Column(
         children: [
           // Spec §1: Hide search bar and folder tabs in collapsed avatar-only mode.
@@ -4333,12 +4328,7 @@ class _ForumTopicListViewState extends State<_ForumTopicListView> {
       onSecondaryTapUp: (details) =>
           _showTopicListContextMenu(context, details.globalPosition, parent, engine),
       child: Container(
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          border: Border(
-            right: BorderSide(color: theme.dividerColor, width: 1),
-          ),
-        ),
+        color: theme.colorScheme.surface,
         child: Column(
           children: [
             _ForumTopicHeader(
@@ -5467,12 +5457,7 @@ class _SavedSublistsViewState extends State<_SavedSublistsView> {
     final loadingMore = chatState.savedSublistsLoadingMore;
 
     return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        border: Border(
-          right: BorderSide(color: theme.dividerColor, width: 1),
-        ),
-      ),
+      color: theme.colorScheme.surface,
       child: Column(
         children: [
           _SavedSublistsHeader(
