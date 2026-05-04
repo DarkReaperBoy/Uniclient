@@ -25,7 +25,6 @@
 - [x] Wide chat mode at 880px chat width — DONE in `shell.dart` `_wideChatThreshold`
 - [x] OneColumn horizontal slide + crossfade section transition (FromLeft/FromRight, 200ms easeOutCubic) — DONE in `shell.dart` `_buildOneColumn()`
 - [x] Layout prefs persisted/loaded (dialogsWidthRatio, thirdColumnWidth, dialogsCollapsed) — DONE in `shell.dart` `_loadLayoutPrefs/_saveLayoutPrefs`
-- [ ] DialogsColumn collapsed/avatar-only mode renders 72px of avatars, not full rows — spec §1 (currently collapses to 72px but ChatListPanel `collapsed:true` passes flag through; verify narrow avatar rendering works correctly in `chat_list_row.dart`)
 - [ ] Third column shadow `_thirdShadow` hidden when third column closes (currently always rendered when `_infoOpen`, but shadow should disappear on collapse animation end) — spec §1
 - [ ] Third column resize handle (chat→info separator) — spec §1 (partially done: resize handle exists but is placed before info panel; should be between chat and info columns)
 
