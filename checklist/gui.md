@@ -4,7 +4,6 @@
 
 ## §2 — Chat List Sidebar
 
-- [ ] spec §2 "Pin icon": spec says "Shown when no unreads, right side at textTop position". Code only shows pin icon when `chat.unreadCount == 0 && !chat.isUnreadMark` (line 265). Position is in the bottom row aligned right, which roughly matches "textTop position" of the preview line. However, spec says it should be at the same vertical as the timestamp (top right), not the preview line — `chat_list_row.dart:265-267`
 - [ ] spec §2 "Archived Chats row font": spec says `semiboldFont (14px semibold)`. Code uses `fontSize: 14, fontWeight: FontWeight.w600` — matches spec — correct
 - [ ] spec §2 "Archived Chats row left padding": spec says `dialogsTopBarLeftPadding: 18px`. Code uses `EdgeInsets.only(left: 18, right: 10)` — matches spec — correct
 - [ ] spec §2 "Swipe quick action icon size": spec says `dialogsQuickActionSize = 20px`. Code uses `SizedBox(width: 20, height: 20)` with Lottie animation — matches spec — correct
