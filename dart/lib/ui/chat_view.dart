@@ -5895,9 +5895,10 @@ class _ChatTopBar extends StatelessWidget {
                                       : (chat.title.isNotEmpty ? chat.title : chat.chatId),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.titleMedium?.copyWith(
+                              style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
+                                color: palette.windowBoldFg,
                               ),
                             ),
                           ),
@@ -5988,15 +5989,8 @@ class _ChatTopBar extends StatelessWidget {
                 ),
               ),
             ),
-          // Spec §4.3: Group call button — groups/channels when calls permitted.
-          // icon: top_bar_group_call, iconPosition (4, 12).
-          if (chat.type == ChatType.group || chat.type == ChatType.channel)
-            _TopBarButton(
-              icon: Icons.phone_in_talk,
-              onPressed: () {
-                // TODO: initiate group call via engine
-              },
-            ),
+          // Group call button omitted — engine does not yet support group calls.
+          // Re-add when bridge exposes InitiateGroupCall / JoinGroupCall.
           if (onToggleInfo != null)
             _TopBarButton(
               icon: Icons.info_outline,
