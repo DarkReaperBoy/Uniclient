@@ -5895,7 +5895,10 @@ class _ChatTopBar extends StatelessWidget {
                                       : (chat.title.isNotEmpty ? chat.title : chat.chatId),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.titleMedium,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                           if (chat.isVerified) ...[
