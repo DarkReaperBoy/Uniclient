@@ -16179,10 +16179,7 @@ class _DragOverlay extends StatelessWidget {
         return const SizedBox.shrink();
     }
 
-    return Container(
-      color: const Color(0x80000000),
-      child: Column(children: children),
-    );
+    return Column(children: children);
   }
 }
 
