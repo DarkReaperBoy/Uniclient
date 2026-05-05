@@ -6,7 +6,6 @@
 
 ## §3 — Hamburger Menu
 
-- [ ] spec §3 "Account row avatar image": spec says account rows show the user's actual avatar photo. Code renders a tinted platform icon (e.g., Telegram send icon) as a fallback but NEVER loads the real avatar even when `account.avatarPath` is available — the avatar file image loading that exists in `_ProfileCover` is missing from `_AccountRow` — `hamburger_drawer.dart:1094-1109`
 - [ ] spec §3 "Account unread badge font": spec says `mainMenuBadgeFont: 11px bold` and `mainMenuBadgeSize: 18px`. Code uses `fontSize: 11, fontWeight: FontWeight.bold` and `height: 18` — matches spec
 - [ ] spec §3 "Footer min height": spec says `mainMenuFooterHeightMin: 80px`. Code uses `BoxConstraints(minHeight: 80)` — matches spec
 - [ ] spec §3 "Footer left padding": spec says `mainMenuFooterLeft: 25px`. Code uses `EdgeInsets.only(left: 25, bottom: 17)` — matches spec
