@@ -6,7 +6,6 @@
 
 ## §3 — Hamburger Menu
 
-- [ ] spec §3 "Account unread badge font": spec says `mainMenuBadgeFont: 11px bold` and `mainMenuBadgeSize: 18px`. Code uses `fontSize: 11, fontWeight: FontWeight.bold` and `height: 18` — matches spec
 - [ ] spec §3 "Footer min height": spec says `mainMenuFooterHeightMin: 80px`. Code uses `BoxConstraints(minHeight: 80)` — matches spec
 - [ ] spec §3 "Footer left padding": spec says `mainMenuFooterLeft: 25px`. Code uses `EdgeInsets.only(left: 25, bottom: 17)` — matches spec
 - [ ] spec §3 "Footer top line font": spec says `semiboldFont (13px semibold)`. Code uses `fontSize: 13, fontWeight: FontWeight.w600` — matches spec
