@@ -6,7 +6,6 @@
 
 ## §3 — Hamburger Menu
 
-- [ ] spec §3 "Night Mode toggle colors": spec says on = `mainMenuCoverBg` (which equals `windowBgActive`), off = `windowSubTextFg`. Code uses `onColor = context.palette.windowBgActive` and `offColor = isDark ? Color(0xFF6C7883) : Color(0xFF999999)`. The off color should be `windowSubTextFg` from palette, not hardcoded — `hamburger_drawer.dart:1334`
 - [ ] spec §3 "Night Mode toggle shift": spec says `itemToggleShift: 11px`. Code uses a 36x20 toggle with 16px thumb and 2px margin. The toggle shift (distance thumb moves) is 36-16-4=16px, not 11px. The toggle dimensions don't match spec — `hamburger_drawer.dart:1339-1361`
 - [ ] spec §3 "Night Mode toggle animation duration": spec says `st::mainMenu.itemToggle.duration` (tdesktop default ~150ms). Code uses `duration: const Duration(milliseconds: 150)` — matches
 - [ ] spec §3 "Night Mode confirmation": spec says "If a theme is currently being edited, toggling shows `lng_theme_editor_cant_change_theme` and reverts". Code checks `appState.isEditingTheme` and shows a confirm box with text "You can't change the theme while editing it." — matches spec behavior
