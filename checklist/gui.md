@@ -6,7 +6,6 @@
 
 ## §3 — Hamburger Menu
 
-- [ ] spec §3 "Menu row icon position": spec says "Icon: 24x24 from ui/menu_icons.style, rendered in menuIconColor. Horizontal at 21px, vertically centered." Code places icon at `left: 21` but does not explicitly vertically center — the icon sits at the top of the row's content area. Due to `Padding(top: 11, bottom: 9)`, a 24px icon in a Row is vertically centered by default via Row's cross-axis alignment. Likely correct
 - [ ] spec §3 "Night Mode toggle colors": spec says on = `mainMenuCoverBg` (which equals `windowBgActive`), off = `windowSubTextFg`. Code uses `onColor = context.palette.windowBgActive` and `offColor = isDark ? Color(0xFF6C7883) : Color(0xFF999999)`. The off color should be `windowSubTextFg` from palette, not hardcoded — `hamburger_drawer.dart:1334`
 - [ ] spec §3 "Night Mode toggle shift": spec says `itemToggleShift: 11px`. Code uses a 36x20 toggle with 16px thumb and 2px margin. The toggle shift (distance thumb moves) is 36-16-4=16px, not 11px. The toggle dimensions don't match spec — `hamburger_drawer.dart:1339-1361`
 - [ ] spec §3 "Night Mode toggle animation duration": spec says `st::mainMenu.itemToggle.duration` (tdesktop default ~150ms). Code uses `duration: const Duration(milliseconds: 150)` — matches
