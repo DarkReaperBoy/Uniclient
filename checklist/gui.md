@@ -6,7 +6,6 @@
 
 ## §3 — Hamburger Menu
 
-- [ ] spec §3 "Night Mode toggle shift": spec says `itemToggleShift: 11px`. Code uses a 36x20 toggle with 16px thumb and 2px margin. The toggle shift (distance thumb moves) is 36-16-4=16px, not 11px. The toggle dimensions don't match spec — `hamburger_drawer.dart:1339-1361`
 - [ ] spec §3 "Night Mode toggle animation duration": spec says `st::mainMenu.itemToggle.duration` (tdesktop default ~150ms). Code uses `duration: const Duration(milliseconds: 150)` — matches
 - [ ] spec §3 "Night Mode confirmation": spec says "If a theme is currently being edited, toggling shows `lng_theme_editor_cant_change_theme` and reverts". Code checks `appState.isEditingTheme` and shows a confirm box with text "You can't change the theme while editing it." — matches spec behavior
 - [ ] spec §3 "Account row avatar": spec says "26px photo padded by 5px each side = 36x36 widget" with "2px stroke ring in windowBgActive for active". Code creates `SizedBox(width: 36, height: 36)` containing a `Container(width: 26, height: 26)` with a `Border.all(width: 2)` for active. However, the inner container only shows a platform icon placeholder, not the actual account avatar/userpic — it never loads the account's avatar image — `hamburger_drawer.dart:1094-1109`
