@@ -2440,6 +2440,12 @@ class _ReplyPreview extends StatelessWidget {
             ? const Color(0xFF5A6A78)
             : const Color(0xFFCBCBCB))
         : (isOutgoing ? rp.msgOutReplyBarColor : rp.msgInReplyBarColor);
+
+    // Format: "SenderName\nPreviewText" or just "PreviewText"
+    final nlIdx = preview.indexOf('\n');
+    final String? senderName = nlIdx >= 0 ? preview.substring(0, nlIdx) : null;
+    final String previewText = nlIdx >= 0 ? preview.substring(nlIdx + 1) : preview;
+
     final body = Container(
       margin: const EdgeInsets.only(bottom: 4),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -2449,12 +2455,31 @@ class _ReplyPreview extends StatelessWidget {
           left: BorderSide(color: barColor, width: 2),
         ),
       ),
-      child: Text(
-        preview.replaceAll(RegExp(r'\s+'), ' ').trim(),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        softWrap: false,
-        style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (senderName != null) ...[
+            Text(
+              senderName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: barColor,
+              ),
+            ),
+            const SizedBox(height: 2),
+          ],
+          Text(
+            previewText.replaceAll(RegExp(r'\s+'), ' ').trim(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            softWrap: false,
+            style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color),
+          ),
+        ],
       ),
     );
     if (onTap == null) return body;

@@ -7533,7 +7533,7 @@ class _EditBar extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Editing',
+                  'Edit message',
                   maxLines: 1,
                   style: TextStyle(
                     fontSize: 12,

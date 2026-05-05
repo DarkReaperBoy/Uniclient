@@ -184,10 +184,16 @@ func (e *Engine) SendMessage(accountID, chatID, text, replyToID string, entities
 			e.db.QueryRow(
 				"SELECT sender_name, content_text FROM messages WHERE account_id = ? AND chat_id = ? AND msg_id = ?",
 				accountID, chatID, replyToID).Scan(&sn, &ct)
-			if sn.Valid && sn.String != "" {
-				replyPreview = sn.String + ": " + ct.String
-			} else if ct.Valid {
-				replyPreview = ct.String
+			if ct.Valid && ct.String != "" {
+				preview := ct.String
+				if len(preview) > 100 {
+					preview = preview[:100]
+				}
+				if sn.Valid && sn.String != "" {
+					replyPreview = sn.String + "\n" + preview
+				} else {
+					replyPreview = preview
+				}
 			}
 		}
 		cached := e.InsertPendingMessage(accountID, chatID, localID, text, "", senderName, replyToID)

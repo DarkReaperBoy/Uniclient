@@ -346,17 +346,21 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 
 	// Auto-populate reply preview from cache if the core didn't provide one.
 	if msg.ReplyToID != "" && msg.ReplyPreview == "" {
-		var replyText sql.NullString
+		var sn, ct sql.NullString
 		e.db.QueryRow(
-			`SELECT content_text FROM messages WHERE account_id = ? AND chat_id = ? AND msg_id = ? LIMIT 1`,
+			`SELECT sender_name, content_text FROM messages WHERE account_id = ? AND chat_id = ? AND msg_id = ? LIMIT 1`,
 			accountID, chatID, msg.ReplyToID,
-		).Scan(&replyText)
-		if replyText.Valid && replyText.String != "" {
-			preview := replyText.String
+		).Scan(&sn, &ct)
+		if ct.Valid && ct.String != "" {
+			preview := ct.String
 			if len(preview) > 100 {
 				preview = preview[:100]
 			}
-			msg.ReplyPreview = preview
+			if sn.Valid && sn.String != "" {
+				msg.ReplyPreview = sn.String + "\n" + preview
+			} else {
+				msg.ReplyPreview = preview
+			}
 		}
 	}
 
@@ -857,11 +861,19 @@ func (e *Engine) FetchLiveMessages(accountID, chatID string, limit int) ([]Cache
 
 // populateReplyPreviews fills in empty ReplyPreview fields by looking up
 // replied-to messages — first in the same batch, then in the DB cache.
+// Format: "SenderName\nPreviewText" (newline separates sender from content).
 func (e *Engine) populateReplyPreviews(msgs []CachedMessage) {
+	type replyInfo struct {
+		senderName string
+		text       string
+	}
 	// Index messages in this batch by (chat_id, msg_id) for fast lookup.
-	batchIndex := make(map[string]string, len(msgs))
+	batchIndex := make(map[string]replyInfo, len(msgs))
 	for i := range msgs {
-		batchIndex[msgs[i].ChatID+"\x00"+msgs[i].MsgID] = msgs[i].ContentText
+		batchIndex[msgs[i].ChatID+"\x00"+msgs[i].MsgID] = replyInfo{
+			senderName: msgs[i].SenderName,
+			text:       msgs[i].ContentText,
+		}
 	}
 
 	for i := range msgs {
@@ -869,27 +881,36 @@ func (e *Engine) populateReplyPreviews(msgs []CachedMessage) {
 			continue
 		}
 
+		var senderName, previewText string
+
 		// Try in-batch lookup first (replies often point to nearby messages).
 		key := msgs[i].ChatID + "\x00" + msgs[i].ReplyToID
-		if text, ok := batchIndex[key]; ok && text != "" {
-			preview := text
-			if len(preview) > 100 {
-				preview = preview[:100]
-			}
-			msgs[i].ReplyPreview = preview
+		if info, ok := batchIndex[key]; ok && info.text != "" {
+			senderName = info.senderName
+			previewText = info.text
 		} else {
 			// Fall back to DB lookup.
-			var replyText sql.NullString
+			var sn, ct sql.NullString
 			e.db.QueryRow(
-				`SELECT content_text FROM messages WHERE account_id = ? AND chat_id = ? AND msg_id = ? LIMIT 1`,
+				`SELECT sender_name, content_text FROM messages WHERE account_id = ? AND chat_id = ? AND msg_id = ? LIMIT 1`,
 				msgs[i].AccountID, msgs[i].ChatID, msgs[i].ReplyToID,
-			).Scan(&replyText)
-			if replyText.Valid && replyText.String != "" {
-				preview := replyText.String
-				if len(preview) > 100 {
-					preview = preview[:100]
-				}
-				msgs[i].ReplyPreview = preview
+			).Scan(&sn, &ct)
+			if ct.Valid && ct.String != "" {
+				previewText = ct.String
+			}
+			if sn.Valid {
+				senderName = sn.String
+			}
+		}
+
+		if previewText != "" {
+			if len(previewText) > 100 {
+				previewText = previewText[:100]
+			}
+			if senderName != "" {
+				msgs[i].ReplyPreview = senderName + "\n" + previewText
+			} else {
+				msgs[i].ReplyPreview = previewText
 			}
 		}
 
