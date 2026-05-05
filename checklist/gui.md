@@ -6,7 +6,6 @@
 
 ## §3 — Hamburger Menu
 
-- [ ] spec §3 "Night Mode confirmation": spec says "If a theme is currently being edited, toggling shows `lng_theme_editor_cant_change_theme` and reverts". Code checks `appState.isEditingTheme` and shows a confirm box with text "You can't change the theme while editing it." — matches spec behavior
 - [ ] spec §3 "Account row avatar": spec says "26px photo padded by 5px each side = 36x36 widget" with "2px stroke ring in windowBgActive for active". Code creates `SizedBox(width: 36, height: 36)` containing a `Container(width: 26, height: 26)` with a `Border.all(width: 2)` for active. However, the inner container only shows a platform icon placeholder, not the actual account avatar/userpic — it never loads the account's avatar image — `hamburger_drawer.dart:1094-1109`
 - [ ] spec §3 "Account row avatar image": spec says account rows show the user's actual avatar photo. Code renders a tinted platform icon (e.g., Telegram send icon) as a fallback but NEVER loads the real avatar even when `account.avatarPath` is available — the avatar file image loading that exists in `_ProfileCover` is missing from `_AccountRow` — `hamburger_drawer.dart:1094-1109`
 - [ ] spec §3 "Account unread badge font": spec says `mainMenuBadgeFont: 11px bold` and `mainMenuBadgeSize: 18px`. Code uses `fontSize: 11, fontWeight: FontWeight.bold` and `height: 18` — matches spec
