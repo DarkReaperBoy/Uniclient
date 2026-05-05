@@ -8,7 +8,6 @@
 
 ## §4 — Chat Header / Top Bar
 
-- [ ] spec §4 "Top bar height": spec says 54px (`topBarHeight`). Code uses `height: 54` — matches
 - [ ] spec §4 "Top bar background": spec says `topBarBg` = `windowBg`. Code uses `palette.topBarBg` — correct if palette maps it
 - [ ] spec §4 "Divider": spec says 1px `PlainShadow` at `shadowFg`. Code uses `Border(bottom: BorderSide(color: shadowFg, width: 1))` — matches
 - [ ] spec §4 "Back button width": spec says 60px. Code uses `width: 60` for `_ForwardDragBackButton` — matches
