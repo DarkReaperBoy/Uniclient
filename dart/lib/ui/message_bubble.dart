@@ -4001,7 +4001,7 @@ class _VoiceIndicatorState extends State<_VoiceIndicator> {
                         width: 44,
                         height: 44,
                         decoration: BoxDecoration(
-                          color: accentColor.withValues(alpha: 0.15),
+                          color: accentColor,
                           shape: BoxShape.circle,
                         ),
                       ),
@@ -4011,13 +4011,13 @@ class _VoiceIndicatorState extends State<_VoiceIndicator> {
                           painter: _DownloadProgressPainter(
                             progress: dlProgress?.progress ?? 0,
                             strokeWidth: 2,
-                            color: accentColor,
+                            color: voicePalette.activeButtonFg,
                           ),
                         ),
                       Icon(
                         downloading ? Icons.close : (isPlaying ? Icons.pause : Icons.play_arrow),
                         size: 24,
-                        color: accentColor,
+                        color: voicePalette.activeButtonFg,
                       ),
                     ],
                   ),
