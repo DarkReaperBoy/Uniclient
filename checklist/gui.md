@@ -8,7 +8,6 @@
 
 ## §4 — Chat Header / Top Bar
 
-- [ ] spec §4 "Right-side button width": spec says 40px default with 40px circular ripple. Code's `_TopBarButton` defaults to `width: 40` with `Size(40, 40)` ripple — matches
 - [ ] spec §4 "Menu toggle width": spec says 44px override. Code uses `width: 44` for the menu toggle button — matches
 - [ ] spec §4 "Menu toggle icon position": spec says `iconPosition: point(16px, 17px)`. Code uses `iconPadding: const EdgeInsets.only(left: 8)` which shifts the icon but doesn't precisely position it at (16, 17) within the 44px button — `chat_view.dart:6016`
 - [ ] spec §4 "topBarSkip": spec says `-5px` negative pull. Code allocates `SizedBox(width: 39)` (44-5) with `OverflowBox(maxWidth: 44)` — this correctly implements the -5px pull — matches
