@@ -805,24 +805,19 @@ class _MessageBubbleState extends State<MessageBubble> {
                         children: [
                           const Spacer(),
                           if (message.views > 0) ...[
-                            SizedBox(width: 16, height: 11,
+                            SizedBox(width: 20, height: 11,
                               child: CustomPaint(painter: _ViewsIconPainter(color: _bottomInfoColor(isOutgoing, palette)))),
-                            const SizedBox(width: 2),
-                            Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: Text(_formatCount(message.views),
-                                  style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, palette))),
-                            ),
+                            const SizedBox(width: 8),
+                            Text(_formatCount(message.views),
+                                style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, palette))),
                           ],
                           if (message.forwards > 0) ...[
-                            SizedBox(width: 16, height: 11,
+                            const SizedBox(width: 8),
+                            SizedBox(width: 20, height: 11,
                               child: CustomPaint(painter: _ForwardsIconPainter(color: _bottomInfoColor(isOutgoing, palette)))),
-                            const SizedBox(width: 2),
-                            Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: Text(_formatCount(message.forwards),
-                                  style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, palette))),
-                            ),
+                            const SizedBox(width: 8),
+                            Text(_formatCount(message.forwards),
+                                style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, palette))),
                           ],
                           ..._buildDeletedEditedMarks(
                             message: message,
@@ -842,10 +837,15 @@ class _MessageBubbleState extends State<MessageBubble> {
                               _buildTimeText(message, ayuState),
                               style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, palette)),
                             ),
-                          if (isOutgoing && !widget.isScheduledView) ...[
-                            const SizedBox(width: 4),
-                            _StatusIcon(status: message.status, theme: theme, isOutgoing: true, isDark: isDark),
-                          ],
+                          if (isOutgoing && !widget.isScheduledView)
+                            SizedBox(
+                              width: 24,
+                              height: 11,
+                              child: Padding(
+                                padding: const EdgeInsets.only(left: 2),
+                                child: _StatusIcon(status: message.status, theme: theme, isOutgoing: true, isDark: isDark),
+                              ),
+                            ),
                         ],
                       ),
                     ],
@@ -3490,24 +3490,19 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         if (message.views > 0) ...[
-                          SizedBox(width: 16, height: 11,
+                          SizedBox(width: 20, height: 11,
                             child: CustomPaint(painter: _ViewsIconPainter(color: vmPalette.historyIconFgInverted))),
-                          const SizedBox(width: 2),
-                          Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: Text(_MessageBubbleState._formatCount(message.views),
-                                style: TextStyle(fontSize: 13, color: vmPalette.historyIconFgInverted)),
-                          ),
+                          const SizedBox(width: 8),
+                          Text(_MessageBubbleState._formatCount(message.views),
+                              style: TextStyle(fontSize: 13, color: vmPalette.historyIconFgInverted)),
                         ],
                         if (message.forwards > 0) ...[
-                          SizedBox(width: 16, height: 11,
+                          const SizedBox(width: 8),
+                          SizedBox(width: 20, height: 11,
                             child: CustomPaint(painter: _ForwardsIconPainter(color: vmPalette.historyIconFgInverted))),
-                          const SizedBox(width: 2),
-                          Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: Text(_MessageBubbleState._formatCount(message.forwards),
-                                style: TextStyle(fontSize: 13, color: vmPalette.historyIconFgInverted)),
-                          ),
+                          const SizedBox(width: 8),
+                          Text(_MessageBubbleState._formatCount(message.forwards),
+                              style: TextStyle(fontSize: 13, color: vmPalette.historyIconFgInverted)),
                         ],
                         ..._MessageBubbleState._buildDeletedEditedMarks(
                           message: message,
