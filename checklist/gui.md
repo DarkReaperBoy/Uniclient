@@ -6,8 +6,6 @@
 
 ## §3 — Hamburger Menu
 
-- [ ] spec §3 "Footer version tooltip": spec says "Build date: {__DATE__}" on hover. Code uses `TelegramTooltip(message: 'Build date: ...')` — matches spec
-
 ## §4 — Chat Header / Top Bar
 
 - [ ] spec §4 "Top bar height": spec says 54px (`topBarHeight`). Code uses `height: 54` — matches
