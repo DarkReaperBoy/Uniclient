@@ -13193,6 +13193,11 @@ class _ComposeAreaState extends State<_ComposeArea>
   bool _attachBotsFetched = false;
 
   Future<void> _onAttachPressed() async {
+    // Spec §7.2: Desktop opens native OS file picker directly on paperclip click.
+    if (!kIsWeb && (Platform.isLinux || Platform.isMacOS || Platform.isWindows)) {
+      _pickFiles();
+      return;
+    }
     final appState = context.read<AppState>();
     if (!appState.showAttachPopup) {
       _pickFiles();
