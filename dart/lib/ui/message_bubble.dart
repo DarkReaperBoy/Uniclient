@@ -37,6 +37,94 @@ import 'sticker_pack_viewer.dart';
 import 'payment_panel.dart';
 import 'web_app_panel.dart';
 
+/// Spec §5: bubble shape with decorative tail on the last message in a group.
+/// The tail is a curved triangular protrusion at the bottom sender-side corner:
+/// bottom-right for outgoing, bottom-left for incoming.
+class _BubbleTailBorder extends ShapeBorder {
+  final double topLeftRadius;
+  final double topRightRadius;
+  final double bottomOtherRadius;
+  final bool tailOnRight;
+
+  const _BubbleTailBorder({
+    required this.topLeftRadius,
+    required this.topRightRadius,
+    required this.bottomOtherRadius,
+    required this.tailOnRight,
+  });
+
+  static const _tailW = 8.0;
+  static const _tailDrop = 5.0;
+
+  @override
+  EdgeInsetsGeometry get dimensions => EdgeInsets.zero;
+
+  @override
+  Path getOuterPath(Rect rect, {TextDirection? textDirection}) {
+    final path = Path();
+    final l = rect.left;
+    final t = rect.top;
+    final r = rect.right;
+    final b = rect.bottom;
+
+    path.moveTo(l + topLeftRadius, t);
+    path.lineTo(r - topRightRadius, t);
+
+    if (topRightRadius > 0) {
+      path.arcToPoint(Offset(r, t + topRightRadius),
+          radius: Radius.circular(topRightRadius));
+    } else {
+      path.lineTo(r, t);
+    }
+
+    if (tailOnRight) {
+      path.lineTo(r, b);
+      path.cubicTo(r, b + 2, r + _tailW * 0.4, b + _tailDrop,
+          r + _tailW, b + _tailDrop);
+      path.cubicTo(r + _tailW * 0.5, b + _tailDrop * 0.6, r, b,
+          r - _tailW * 0.75, b);
+      path.lineTo(l + bottomOtherRadius, b);
+      if (bottomOtherRadius > 0) {
+        path.arcToPoint(Offset(l, b - bottomOtherRadius),
+            radius: Radius.circular(bottomOtherRadius));
+      } else {
+        path.lineTo(l, b);
+      }
+    } else {
+      path.lineTo(r, b - bottomOtherRadius);
+      if (bottomOtherRadius > 0) {
+        path.arcToPoint(Offset(r - bottomOtherRadius, b),
+            radius: Radius.circular(bottomOtherRadius));
+      } else {
+        path.lineTo(r, b);
+      }
+      path.lineTo(l + _tailW * 0.75, b);
+      path.cubicTo(l, b, l - _tailW * 0.5, b + _tailDrop * 0.6,
+          l - _tailW, b + _tailDrop);
+      path.cubicTo(l - _tailW * 0.4, b + _tailDrop, l, b + 2, l, b);
+    }
+
+    path.lineTo(l, t + topLeftRadius);
+    if (topLeftRadius > 0) {
+      path.arcToPoint(Offset(l + topLeftRadius, t),
+          radius: Radius.circular(topLeftRadius));
+    }
+
+    path.close();
+    return path;
+  }
+
+  @override
+  Path getInnerPath(Rect rect, {TextDirection? textDirection}) =>
+      getOuterPath(rect, textDirection: textDirection);
+
+  @override
+  void paint(Canvas canvas, Rect rect, {TextDirection? textDirection}) {}
+
+  @override
+  ShapeBorder scale(double t) => this;
+}
+
 /// Single message bubble. Spec §5: max 430px, 16/6px radius, sender colors.
 class MessageBubble extends StatefulWidget {
   final CachedMessage message;
@@ -518,7 +606,7 @@ class _MessageBubbleState extends State<MessageBubble> {
       padding: EdgeInsets.only(
         left: 16.0,
         top: isFirstInGroup ? 6.0 : 0.0,
-        right: 56.0,
+        right: inSelectionMode ? 86.0 : 56.0,
         bottom: 2.0,
       ),
       child: Column(
@@ -590,7 +678,23 @@ class _MessageBubbleState extends State<MessageBubble> {
                 padding: noBubble
                     ? EdgeInsets.zero
                     : const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-                decoration: BoxDecoration(
+                decoration: showTail && !noBubble
+                    ? ShapeDecoration(
+                        color: bubbleColor,
+                        shadows: [
+                          BoxShadow(
+                            color: shadowColor,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                        shape: _BubbleTailBorder(
+                          topLeftRadius: isOutgoing ? topOtherSide : topSenderSide,
+                          topRightRadius: isOutgoing ? topSenderSide : topOtherSide,
+                          bottomOtherRadius: bottomOtherSide,
+                          tailOnRight: isOutgoing,
+                        ),
+                      )
+                    : BoxDecoration(
                   color: bubbleColor,
                   borderRadius: noBubble
                       ? BorderRadius.zero
@@ -852,20 +956,6 @@ class _MessageBubbleState extends State<MessageBubble> {
                   ],
                 ),
               ),
-              if (showTail)
-                Positioned(
-                  bottom: 0,
-                  right: isOutgoing ? -9 : null,
-                  left: isOutgoing ? null : -9,
-                  child: CustomPaint(
-                    size: const Size(9, 20),
-                    painter: _BubbleTailPainter(
-                      color: bubbleColor,
-                      shadowColor: shadowColor,
-                      flipX: !isOutgoing,
-                    ),
-                  ),
-                ),
               if (inSelectionMode)
                 Positioned(
                   bottom: 5,
@@ -2721,46 +2811,6 @@ class _TextSpoilerWidgetState extends State<_TextSpoilerWidget>
   }
 }
 
-class _BubbleTailPainter extends CustomPainter {
-  final Color color;
-  final Color shadowColor;
-  final bool flipX;
-
-  _BubbleTailPainter({
-    required this.color,
-    required this.shadowColor,
-    this.flipX = false,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-    final path = Path();
-    if (flipX) {
-      path.moveTo(w, 0);
-      path.lineTo(w, h * 0.45);
-      path.quadraticBezierTo(w * 0.55, h * 0.85, 0, h);
-      path.quadraticBezierTo(w * 0.35, h * 0.55, w * 0.35, 0);
-      path.close();
-    } else {
-      path.moveTo(0, 0);
-      path.lineTo(0, h * 0.45);
-      path.quadraticBezierTo(w * 0.45, h * 0.85, w, h);
-      path.quadraticBezierTo(w * 0.65, h * 0.55, w * 0.65, 0);
-      path.close();
-    }
-    if (shadowColor.a > 0) {
-      canvas.drawPath(path.shift(const Offset(0, 2)), Paint()..color = shadowColor);
-    }
-    canvas.drawPath(path, Paint()..color = color);
-  }
-
-  @override
-  bool shouldRepaint(_BubbleTailPainter old) =>
-      color != old.color || shadowColor != old.shadowColor || flipX != old.flipX;
-}
-
 class _TextSpoilerSheetPainter extends CustomPainter {
   final SpoilerSpriteSheet sheet;
   final int frame;
@@ -3119,10 +3169,12 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
       displayHeight = displayHeight.clamp(100.0, maxH);
     }
 
-    // Sticker: smaller, no background. Spec §6: 224px max (static/animated).
+    // Sticker: smaller, no background.
+    // Spec §6: 224px max for static/animated, 256px for emoji (premium) stickers.
     if (message.mediaType == 6) {
-      displayWidth = displayWidth.clamp(100, 224);
-      displayHeight = displayHeight.clamp(100, 224);
+      final stickerMax = message.stickerPremium ? 256.0 : 224.0;
+      displayWidth = displayWidth.clamp(100, stickerMax);
+      displayHeight = displayHeight.clamp(100, stickerMax);
     }
 
     // §6.8: Video notes (round video) — circular, max 360px diameter.
