@@ -8,7 +8,6 @@
 
 ## §4 — Chat Header / Top Bar
 
-- [ ] spec §4 "Title font": spec says "Semibold font". Code uses `theme.textTheme.titleMedium` which is whatever the Material theme sets — it should explicitly use 13px semibold per Telegram spec, not inherit from Material theme — `chat_view.dart:5896-5899`
 - [ ] spec §4 "Subtitle font": spec says `dialogsTextFont` (13px normal). Code uses `theme.textTheme.bodySmall?.copyWith(fontSize: 13)` — the fontSize 13 matches, though it should use the Telegram palette font rather than Material theme's bodySmall — `chat_view.dart:5945-5946`
 - [ ] spec §4 "Right-side button width": spec says 40px default with 40px circular ripple. Code's `_TopBarButton` defaults to `width: 40` with `Size(40, 40)` ripple — matches
 - [ ] spec §4 "Menu toggle width": spec says 44px override. Code uses `width: 44` for the menu toggle button — matches
