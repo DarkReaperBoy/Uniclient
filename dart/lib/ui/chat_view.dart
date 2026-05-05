@@ -5858,9 +5858,7 @@ class _ChatTopBar extends StatelessWidget {
                           subtitle,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w400,
+                          style: TgTokens.normalFont.copyWith(
                             color: subtitleColor,
                           ),
                         ),
