@@ -2538,36 +2538,47 @@ class _ReplyPreview extends StatelessWidget {
 
     final body = Container(
       margin: const EdgeInsets.only(bottom: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      constraints: const BoxConstraints(minHeight: 36),
-      decoration: BoxDecoration(
-        border: Border(
-          left: BorderSide(color: barColor, width: 2),
-        ),
-      ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (senderName != null) ...[
-            Text(
-              senderName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: barColor,
-              ),
+          const SizedBox(width: 1),
+          Container(
+            width: 2,
+            height: 36,
+            decoration: BoxDecoration(
+              color: barColor,
+              borderRadius: BorderRadius.circular(1),
             ),
-            const SizedBox(height: 2),
-          ],
-          Text(
-            previewText.replaceAll(RegExp(r'\s+'), ' ').trim(),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            softWrap: false,
-            style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color),
+          ),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (senderName != null) ...[
+                  Text(
+                    senderName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: barColor,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                ],
+                Text(
+                  previewText.replaceAll(RegExp(r'\s+'), ' ').trim(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                  style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color),
+                ),
+              ],
+            ),
           ),
         ],
       ),
