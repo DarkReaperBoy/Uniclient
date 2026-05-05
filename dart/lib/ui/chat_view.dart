@@ -7525,7 +7525,7 @@ class _EditBar extends StatelessWidget {
         children: [
           Icon(Icons.edit, size: 18, color: palette.historyReplyIconFg),
           const SizedBox(width: 10),
-          Container(width: 2, height: 28, color: palette.historyReplyIconFg),
+          Container(width: 2, height: 36, color: palette.historyReplyIconFg),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
