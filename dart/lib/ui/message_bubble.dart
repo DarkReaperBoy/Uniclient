@@ -4891,12 +4891,12 @@ class _ContactIndicator extends StatelessWidget {
             child: hasUser
                 ? Row(
                     children: [
-                      _actionButton('SEND MESSAGE', accentColor),
+                      _actionButton('Send Message', accentColor),
                       Container(width: 1, color: separatorColor),
-                      _actionButton('ADD CONTACT', accentColor),
+                      _actionButton('Add Contact', accentColor),
                     ],
                   )
-                : _actionButton('VIEW DETAILS', accentColor),
+                : _actionButton('View Details', accentColor),
           ),
         ],
       ),
