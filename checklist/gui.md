@@ -6,7 +6,6 @@
 
 ## §3 — Hamburger Menu
 
-- [ ] spec §3 "Footer min height": spec says `mainMenuFooterHeightMin: 80px`. Code uses `BoxConstraints(minHeight: 80)` — matches spec
 - [ ] spec §3 "Footer left padding": spec says `mainMenuFooterLeft: 25px`. Code uses `EdgeInsets.only(left: 25, bottom: 17)` — matches spec
 - [ ] spec §3 "Footer top line font": spec says `semiboldFont (13px semibold)`. Code uses `fontSize: 13, fontWeight: FontWeight.w600` — matches spec
 - [ ] spec §3 "Footer bottom line font": spec says `defaultTextStyle (13px regular)`. Code uses `fontSize: 13, fontWeight: FontWeight.w400` — matches spec
