@@ -500,9 +500,10 @@ class _MessageBubbleState extends State<MessageBubble> {
         ? radiusLarge
         : (radiusLarge * 6 / 16).clamp(0.0, 6.0);
 
+    final showTail = isLastInGroup && !ayuState.removeTail && !noBubble;
     final topSenderSide = isFirstInGroup ? radiusLarge : radiusSmall;
     final topOtherSide = radiusLarge;
-    final bottomSenderSide = radiusSmall;
+    final bottomSenderSide = showTail ? 0.0 : radiusSmall;
     final bottomOtherSide = radiusLarge;
 
     // Show sender avatar for incoming messages in group chats.
@@ -851,8 +852,20 @@ class _MessageBubbleState extends State<MessageBubble> {
                   ],
                 ),
               ),
-              // Spec §5: selection checkbox overlaid at bottom-right of bubble,
-              // 5px above bottom edge.
+              if (showTail)
+                Positioned(
+                  bottom: 0,
+                  right: isOutgoing ? -9 : null,
+                  left: isOutgoing ? null : -9,
+                  child: CustomPaint(
+                    size: const Size(9, 20),
+                    painter: _BubbleTailPainter(
+                      color: bubbleColor,
+                      shadowColor: shadowColor,
+                      flipX: !isOutgoing,
+                    ),
+                  ),
+                ),
               if (inSelectionMode)
                 Positioned(
                   bottom: 5,
@@ -2430,6 +2443,7 @@ class _ReplyPreview extends StatelessWidget {
     final body = Container(
       margin: const EdgeInsets.only(bottom: 4),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      constraints: const BoxConstraints(minHeight: 36),
       decoration: BoxDecoration(
         border: Border(
           left: BorderSide(color: barColor, width: 2),
@@ -2680,6 +2694,46 @@ class _TextSpoilerWidgetState extends State<_TextSpoilerWidget>
       ),
     );
   }
+}
+
+class _BubbleTailPainter extends CustomPainter {
+  final Color color;
+  final Color shadowColor;
+  final bool flipX;
+
+  _BubbleTailPainter({
+    required this.color,
+    required this.shadowColor,
+    this.flipX = false,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final path = Path();
+    if (flipX) {
+      path.moveTo(w, 0);
+      path.lineTo(w, h * 0.45);
+      path.quadraticBezierTo(w * 0.55, h * 0.85, 0, h);
+      path.quadraticBezierTo(w * 0.35, h * 0.55, w * 0.35, 0);
+      path.close();
+    } else {
+      path.moveTo(0, 0);
+      path.lineTo(0, h * 0.45);
+      path.quadraticBezierTo(w * 0.45, h * 0.85, w, h);
+      path.quadraticBezierTo(w * 0.65, h * 0.55, w * 0.65, 0);
+      path.close();
+    }
+    if (shadowColor.a > 0) {
+      canvas.drawPath(path.shift(const Offset(0, 2)), Paint()..color = shadowColor);
+    }
+    canvas.drawPath(path, Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(_BubbleTailPainter old) =>
+      color != old.color || shadowColor != old.shadowColor || flipX != old.flipX;
 }
 
 class _TextSpoilerSheetPainter extends CustomPainter {
