@@ -5173,26 +5173,32 @@ class _FileIndicator extends StatelessWidget {
               ),
               const SizedBox(width: 11),
               Flexible(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
+                child: Stack(
                   children: [
-                    Text(
-                      displayName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
+                    Positioned(
+                      top: 12,
+                      left: 0,
+                      right: 0,
+                      child: Text(
+                        displayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
+                      ),
                     ),
-                    if (statusText.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        statusText,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isFailed ? theme.colorScheme.error : theme.textTheme.bodySmall?.color,
+                    if (statusText.isNotEmpty)
+                      Positioned(
+                        top: 34,
+                        left: 0,
+                        right: 0,
+                        child: Text(
+                          statusText,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isFailed ? theme.colorScheme.error : theme.textTheme.bodySmall?.color,
+                          ),
                         ),
                       ),
-                    ],
                   ],
                 ),
               ),
