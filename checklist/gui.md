@@ -8,7 +8,6 @@
 
 ## §4 — Chat Header / Top Bar
 
-- [ ] spec §4 "Divider": spec says 1px `PlainShadow` at `shadowFg`. Code uses `Border(bottom: BorderSide(color: shadowFg, width: 1))` — matches
 - [ ] spec §4 "Back button width": spec says 60px. Code uses `width: 60` for `_ForwardDragBackButton` — matches
 - [ ] spec §4 "Avatar hit-area": spec says "52x54px, photo 42px diameter, offset (2,-1)". Code uses `SizedBox(width: 52, height: 54)` with avatar `Positioned(left: 2, top: 5)` using radius 21 (42px diameter). The top offset is 5px, but spec says -1px (relative to center). Since center of 54px is 27px and 21px radius means top of circle at 6px, the -1px offset from center means `top = 27 - 21 - 1 = 5`. So top: 5 matches the spec's `(2, -1)` offset. Correct
 - [ ] spec §4 "Title font": spec says "Semibold font". Code uses `theme.textTheme.titleMedium` which is whatever the Material theme sets — it should explicitly use 13px semibold per Telegram spec, not inherit from Material theme — `chat_view.dart:5896-5899`
