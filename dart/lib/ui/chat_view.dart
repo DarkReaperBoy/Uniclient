@@ -4228,6 +4228,7 @@ class _ChatViewState extends State<ChatView>
                           isDeletedMessagesView: chatState.isDeletedMessagesView,
                           onExitDeletedMessages: () => chatState.closeDeletedMessages(),
                           onDeletedSearch: (q) => chatState.searchDeletedMessages(q),
+                          onJoinGroupCall: () => chatState.joinGroupCall(),
                           activeSublist: chatState.activeSublist,
                         ),
                       ),
@@ -5093,6 +5094,9 @@ class _ChatTopBar extends StatelessWidget {
   final VoidCallback? onExitDeletedMessages;
   final ValueChanged<String>? onDeletedSearch;
 
+  /// Spec §4.3: group call button callback — for group/channel chats.
+  final VoidCallback? onJoinGroupCall;
+
   /// §31.4: Active saved sublist (when browsing Saved Messages sublists).
   final SavedSublistInfo? activeSublist;
 
@@ -5128,6 +5132,7 @@ class _ChatTopBar extends StatelessWidget {
     this.isDeletedMessagesView = false,
     this.onExitDeletedMessages,
     this.onDeletedSearch,
+    this.onJoinGroupCall,
     this.activeSublist,
   });
 
@@ -5899,8 +5904,11 @@ class _ChatTopBar extends StatelessWidget {
                 ),
               ),
             ),
-          // Group call button omitted — engine does not yet support group calls.
-          // Re-add when bridge exposes InitiateGroupCall / JoinGroupCall.
+          if (chat.type == ChatType.group || chat.type == ChatType.channel)
+            _TopBarButton(
+              icon: Icons.phone_in_talk,
+              onPressed: onJoinGroupCall,
+            ),
           if (onToggleInfo != null)
             _TopBarButton(
               icon: Icons.info_outline,
