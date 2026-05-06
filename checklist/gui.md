@@ -28,17 +28,6 @@
 ## §12 — Calls UI
 
 ## §13 — Mobile / Web Compatibility
-
-- [ ] spec §13.1 "OneColumn < 640px, ThreeColumn >= 932px": implementation in shell.dart has _oneColumnBreak = 640.0 and three-column break; needs verification of the 932px threshold — `shell.dart:76`
-- [ ] spec §13.2 "OneColumn back button in chat top-bar": spec says back button appears in chat top-bar to return to dialog list; this should be verified end-to-end in mobile mode
-- [ ] spec §13.2 "OneColumn info panel as full-width takeover": spec says third column opens as a full-width takeover layer; InfoPanel has InfoWrapMode.narrow which achieves this — correct
-- [ ] spec §13.2 "OneColumn folder tabs horizontal strip below search": spec says folder tabs switch from vertical rail to horizontal strip; implementation needs verification
-- [ ] spec §13.3 "Dialogs avatar-only sidebar at 260px minimum": spec says sidebar stops shrinking at 260px columnMinimalWidthLeft; implementation should enforce this minimum width
-- [ ] spec §13.3 "Wide chat mode >= 880px centers bubbles": spec says adaptiveChatWideWidth = 880px centers bubbles with gutters; needs verification that bubble centering is implemented at this width
-- [ ] spec §13.4 "Touch long-press for context menus": spec says long-press instead of right-click with platform-dependent drag time ~500ms; implementation uses Flutter's default GestureDetector long-press which handles this natively — correct
-- [ ] spec §13.4 "Swipe-to-reply gesture": spec mentions swipe gestures for reply on long message; needs verification of swipe-to-reply implementation
-- [ ] spec §13.4 "Drag-to-reorder pinned chats kStartReorderThreshold = 30px": spec defines 30px vertical threshold for reorder; needs verification
-- [ ] spec §13.5 "Desktop-only features hidden on web": spec lists system tray, global hotkeys, native file picker, clipboard monitoring as desktop-only; no conditional gating found for web platform — may need web-specific guards
 # Audit: §14-§19 Settings
 
 ## §14 — Settings: General & My Account
