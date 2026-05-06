@@ -7031,3 +7031,258 @@ class _StoryRingPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
+
+class _AddMemberDialog extends StatefulWidget {
+  final String accountId;
+  final String chatId;
+  final EngineService engine;
+  final Set<String> existingMemberIds;
+
+  const _AddMemberDialog({
+    required this.accountId,
+    required this.chatId,
+    required this.engine,
+    required this.existingMemberIds,
+  });
+
+  @override
+  State<_AddMemberDialog> createState() => _AddMemberDialogState();
+}
+
+class _AddMemberDialogState extends State<_AddMemberDialog> {
+  List<ContactInfo> _contacts = [];
+  final Set<String> _selected = {};
+  final _searchCtrl = TextEditingController();
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadContacts();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadContacts() async {
+    try {
+      final contacts = await widget.engine.getContacts(widget.accountId);
+      if (!mounted) return;
+      setState(() {
+        _contacts = contacts
+            .where((c) => !c.isBot && !widget.existingMemberIds.contains(c.userId))
+            .toList();
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
+  }
+
+  List<ContactInfo> _filtered() {
+    final q = _searchCtrl.text.trim().toLowerCase();
+    if (q.isEmpty) return _contacts;
+    return _contacts.where((c) {
+      return c.displayName.toLowerCase().contains(q) ||
+          c.username.toLowerCase().contains(q) ||
+          c.phone.contains(q);
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
+    final filtered = _filtered();
+
+    return Center(
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          width: 320,
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.75,
+          ),
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(3),
+            boxShadow: const [
+              BoxShadow(color: Color(0x40000000), blurRadius: 16, offset: Offset(0, 4)),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Text(
+                  'Add Members',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textColor),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: TextField(
+                  controller: _searchCtrl,
+                  onChanged: (_) => setState(() {}),
+                  style: TextStyle(fontSize: 13, color: textColor),
+                  decoration: InputDecoration(
+                    hintText: 'Search contacts...',
+                    hintStyle: TextStyle(fontSize: 13, color: subtextColor),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: BorderSide(color: subtextColor.withValues(alpha: 0.3)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: BorderSide(color: subtextColor.withValues(alpha: 0.3)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: BorderSide(color: accentColor),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (_loading)
+                const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                )
+              else if (filtered.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    _contacts.isEmpty ? 'No contacts available' : 'No matches',
+                    style: TextStyle(fontSize: 13, color: subtextColor),
+                  ),
+                )
+              else
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: filtered.length,
+                    itemBuilder: (_, i) {
+                      final c = filtered[i];
+                      final sel = _selected.contains(c.userId);
+                      return InkWell(
+                        onTap: () => setState(() {
+                          sel ? _selected.remove(c.userId) : _selected.add(c.userId);
+                        }),
+                        child: SizedBox(
+                          height: 50,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Row(
+                              children: [
+                                _buildAvatar(c, sel, accentColor, isDark),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    c.displayName.isNotEmpty ? c.displayName : c.username,
+                                    style: TextStyle(fontSize: 13, color: textColor),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                if (sel)
+                                  Icon(Icons.check_circle, size: 20, color: accentColor),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(null),
+                      child: Text('Cancel', style: TextStyle(fontSize: 13, color: subtextColor)),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: _selected.isEmpty
+                          ? null
+                          : () => Navigator.of(context).pop(_selected.toList()),
+                      child: Text(
+                        'Add${_selected.isNotEmpty ? ' (${_selected.length})' : ''}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: _selected.isEmpty ? subtextColor : accentColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAvatar(ContactInfo c, bool selected, Color accent, bool isDark) {
+    Widget avatar;
+    if (c.avatarB64.isNotEmpty) {
+      try {
+        final bytes = base64Decode(c.avatarB64);
+        avatar = CircleAvatar(radius: 18, backgroundImage: MemoryImage(bytes));
+      } catch (_) {
+        avatar = _fallbackAvatar(c, isDark);
+      }
+    } else {
+      avatar = _fallbackAvatar(c, isDark);
+    }
+    if (!selected) return SizedBox(width: 36, height: 36, child: avatar);
+    return SizedBox(
+      width: 36,
+      height: 36,
+      child: Stack(
+        children: [
+          avatar,
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: accent.withValues(alpha: 0.8),
+              ),
+              child: const Icon(Icons.check, color: Colors.white, size: 18),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _fallbackAvatar(ContactInfo c, bool isDark) {
+    final colors = [
+      const Color(0xFFE17076), const Color(0xFF7BC862),
+      const Color(0xFF65AADD), const Color(0xFFEE7AE6),
+      const Color(0xFFE5AE49), const Color(0xFF6EC9CB),
+    ];
+    final idx = c.userId.hashCode.abs() % colors.length;
+    final initials = c.displayName.isNotEmpty
+        ? c.displayName.substring(0, 1).toUpperCase()
+        : (c.username.isNotEmpty ? c.username.substring(0, 1).toUpperCase() : '?');
+    return CircleAvatar(
+      radius: 18,
+      backgroundColor: colors[idx],
+      child: Text(initials, style: const TextStyle(color: Colors.white, fontSize: 14)),
+    );
+  }
+}
