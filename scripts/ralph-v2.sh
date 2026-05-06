@@ -159,7 +159,7 @@ JQ_FMT='
 # ─── Claude invocation with circuit breaker + timeout ────────────
 # $1=prompt $2=log_file $3=label $4=model(optional) $5=effort(optional)
 invoke_claude() {
-  local prompt="$1" iter_file="$2" label="$3" model="${4:-claude-opus-4-6}" effort="${5:-high}"
+  local prompt="$1" iter_file="$2" label="$3" model="${4:-claude-opus-4-6}" effort="${5:-max}"
 
   circuit_breaker_check || return 1
 
