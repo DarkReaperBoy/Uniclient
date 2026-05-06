@@ -10594,10 +10594,9 @@ class _ScrollToBottomFabState extends State<_ScrollToBottomFab> {
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              // §49.15: Badge positioned at y=0 (top of 52px button), centered.
               if (widget.unreadCount > 0)
                 Positioned(
-                  top: 0,
+                  top: -7,
                   left: 0,
                   right: 0,
                   child: Center(
@@ -10700,7 +10699,7 @@ class _CornerButtonState extends State<_CornerButton> {
             children: [
               if (widget.count > 0)
                 Positioned(
-                  top: 0,
+                  top: -7,
                   left: 0,
                   right: 0,
                   child: Center(
