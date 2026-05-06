@@ -263,9 +263,17 @@ STEPS:
    scripts/build_flutter.sh linux debug
    cd dart/build/linux/x64/debug/bundle && nohup ./uniclient > /tmp/uniclient_log.txt 2>&1 &
 4. Run: scripts/flutter_audit.sh verify "section verification"
-5. Test EACH item in the section — verify it works in BOTH modes:
-   - Desktop (1024x768): screenshot + interactions
-   - Mobile (400x720): screenshot + interactions
+5. Go through EVERY "- [ ]" item listed above ONE BY ONE:
+   For EACH item:
+   a. Read what the item claims (e.g. "spec says 46px, code uses 40")
+   b. Navigate to the relevant screen/widget in the app
+   c. Screenshot in DESKTOP mode (1024x768): scripts/flutter_inspect.sh screenshot /tmp/verify_desktop.png
+   d. Verify the specific claim against what you see
+   e. Screenshot in MOBILE mode (400x720): scripts/flutter_interact.sh resize mobile + screenshot
+   f. Verify it works in mobile too
+   g. Mark the item as PASS or FAIL with a specific reason
+   h. Resize back to desktop: scripts/flutter_interact.sh resize desktop
+   Do NOT skip any item. Do NOT batch-pass items without checking each one individually.
 6. Check /tmp/uniclient_log.txt for crashes
 7. Kill: pkill uniclient
 
