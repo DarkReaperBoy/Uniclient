@@ -35,28 +35,13 @@
 ## §15 — Settings: Notifications
 
 ### §15.2 Global Settings
-- [ ] spec §15.2 "Flash/bounce label varies by platform": hardcoded as "Draw attention to the window" (Linux label). Should detect Windows/macOS and show "Flash the taskbar icon" / "Bounce the Dock icon" respectively — `notifications_settings_screen.dart:250-258`
 - [ ] spec §15.2.1 "Volume slider plays notification sound preview on drag": slider updates state but does not play a sound preview while dragging — `notifications_settings_screen.dart:269-281`
 
-### §15.3 Notification Preview
-- [ ] spec §15.3 "Preview bubble on wallpaper background": the `_NotificationPreview` widget exists and renders Name/Text checkboxes, but the bubble should show on a wallpaper-themed background with `boxRadius` corners and `msgInBg` fill — implementation not verified to match exactly — `notifications_settings_screen.dart:233-247`
-
 ### §15.4 Notifications for Chats (Split-Toggle Rows)
-- [ ] spec §15.4 "Status subtitle on split rows": spec says each row should show "Click here to change" or "On/Off, N exception(s)". Implementation has no subtitle text on the split-toggle rows — `notifications_settings_screen.dart:319-367`
-- [ ] spec §15.4 "Toggle with exceptions confirmation dialog": spec says toggling when exceptions exist shows "Please note that N chat(s) are listed as exceptions and won't be affected" confirmation. No such dialog exists — `notifications_settings_screen.dart:319-367`
-
-### §15.5 Per-Type Sub-Page
-- [ ] spec §15.5.1 "Enable notifications right-click opens Mute Menu popup": `onSecondaryTap` on "Enable notifications" shows `_showMuteMenu` but the mute menu implementation may lack "Select tone" and "Mute for..." picker items — `notifications_settings_screen.dart:1262-1265`
-- [ ] spec §15.5.2 "Exception row click opens context menu with view profile + mute options": exception rows have `onRemove` and `onToggleMute` but lack a full context menu with profile viewing — `notifications_settings_screen.dart:1339-1366`
+- [ ] spec §15.4 "Toggle with exceptions confirmation dialog": dialog code exists in `_handleToggle` but `exceptionCount` is never wired from sub-pages to main screen rows (always defaults to 0), so dialog never triggers in practice — `notifications_settings_screen.dart:2324-2361`
 
 ### §15.6 Ringtones Box
-- [ ] spec §15.6 "Upload Sound button with file dialog filtered to *.mp3": ringtones box implementation exists but upload constraints (max size from server config, max duration) are not verified — `notifications_settings_screen.dart`
-- [ ] spec §15.6 "Right-click on custom tone shows Delete menu": not verified — `notifications_settings_screen.dart`
-- [ ] spec §15.6.1 "In-box volume slider hidden when No sound selected": conditional volume slider based on tone selection may not be implemented — `notifications_settings_screen.dart`
-
-### §15.7 Reactions Sub-Page
-- [ ] spec §15.7.1 "Reactions to my messages / Votes in my polls split-toggle rows": `_ReactionsSubPage` exists but spec says two split-toggle rows. Need to verify it uses split-toggle format, not plain toggles — `notifications_settings_screen.dart:286-291`
-- [ ] spec §15.7.1 "Left click when enabled opens dialog 'Notify about reactions from' with Everyone/Contacts radio": this dialog is not verified — `notifications_settings_screen.dart`
+- [ ] spec §15.6 "Upload Sound button — max duration constraint not verified": file dialog filtered to *.mp3 and size check (100KB) work correctly, but max duration (5 seconds) is not checked — `notifications_settings_screen.dart`
 
 ### §15.8-§15.10 Events / Calls / Badge
 - [ ] spec §15.10 "Badge Counter toggles do not persist to engine": all badge counter toggles use local state only (`_includeMutedChats` etc.) — not connected to engine/server settings — `notifications_settings_screen.dart:37-65`
@@ -64,9 +49,7 @@
 - [ ] spec §15.8 "Events toggles do not persist": contact joined / pinned messages toggles are local state only — `notifications_settings_screen.dart:50-51`
 
 ### §15.11 System Integration
-- [ ] spec §15.11.1 "Windows Focus mode toggle": implementation exists for Windows but uses hardcoded `value: false` and `onChanged: (_) {}` — non-functional stub — `notifications_settings_screen.dart:537-545`
-- [ ] spec §15.11.3 "Notification position monitor widget": monitor widget is well-implemented with 5 corners, hit-testing, and animated bars. However, spec says hovering spawns actual desktop sample notification windows (320x80px) — this is not implemented — `notifications_settings_screen.dart:654-974`
-- [ ] spec §15.11.4 "Notification count slider": implemented as 5-segment tab picker, which matches spec's `SettingsSlider` style — correct
+- [ ] spec §15.11.3 "Notification position monitor widget": monitor widget has 5 corners, hit-testing, and animated bars, but hovering does NOT spawn actual desktop sample notification windows (320x80px) as spec requires — `notifications_settings_screen.dart:654-974`
 
 ---
 
