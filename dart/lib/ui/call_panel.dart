@@ -220,6 +220,22 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
     // Camera toggle proceeds
   }
 
+  void _showDeviceSelectorMenu(BuildContext btnContext) {
+    final RenderBox box = btnContext.findRenderObject() as RenderBox;
+    final offset = box.localToGlobal(Offset(box.size.width / 2, 0));
+    showMenu<String>(
+      context: btnContext,
+      position: RelativeRect.fromLTRB(offset.dx - 100, offset.dy - 8, offset.dx + 100, offset.dy),
+      items: [
+        const PopupMenuItem(enabled: false, child: Text('Camera', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13))),
+        const PopupMenuItem(value: 'cam_default', child: Text('Default Camera', style: TextStyle(fontSize: 13))),
+        const PopupMenuDivider(),
+        const PopupMenuItem(enabled: false, child: Text('Microphone', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13))),
+        const PopupMenuItem(value: 'mic_default', child: Text('Default Microphone', style: TextStyle(fontSize: 13))),
+      ],
+    );
+  }
+
   void _extractDominantColors() {
     final url = widget.info.callerAvatarUrl;
     if (url.isNotEmpty) {
@@ -522,6 +538,8 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
           icon: Icons.videocam_outlined,
           label: 'Camera',
           onTap: _onCameraTap,
+          showDeviceChevron: true,
+          onDeviceChevronTap: _showDeviceSelectorMenu,
         ),
         _CallActionButton(
           icon: Icons.call_end,
@@ -795,7 +813,13 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
             colors: colors,
           ),
         ),
-        child: content,
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 150),
+          child: KeyedSubtree(
+            key: ValueKey(widget.info.state),
+            child: content,
+          ),
+        ),
       ),
     );
   }
@@ -940,12 +964,16 @@ class _CallControlButton extends StatelessWidget {
   final String label;
   final bool isActive;
   final VoidCallback? onTap;
+  final bool showDeviceChevron;
+  final void Function(BuildContext context)? onDeviceChevronTap;
 
   const _CallControlButton({
     required this.icon,
     required this.label,
     this.isActive = false,
     this.onTap,
+    this.showDeviceChevron = false,
+    this.onDeviceChevronTap,
   });
 
   @override
@@ -955,16 +983,45 @@ class _CallControlButton extends StatelessWidget {
       children: [
         GestureDetector(
           onTap: onTap,
-          child: Container(
+          child: SizedBox(
             width: 48,
             height: 48,
-            decoration: BoxDecoration(
-              color: isActive
-                  ? Colors.white.withValues(alpha: 0.3)
-                  : Colors.white.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
+            child: Stack(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: isActive
+                        ? Colors.white.withValues(alpha: 0.3)
+                        : Colors.white.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: Colors.white, size: 24),
+                ),
+                if (showDeviceChevron)
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: GestureDetector(
+                      onTap: () => onDeviceChevronTap?.call(context),
+                      child: Container(
+                        width: 16,
+                        height: 16,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.expand_more,
+                          color: Colors.white,
+                          size: 12,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
-            child: Icon(icon, color: Colors.white, size: 24),
           ),
         ),
         const SizedBox(height: 6),
@@ -1521,6 +1578,7 @@ class _CallRatingDialogState extends State<CallRatingDialog> {
     final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final windowSubTextFg = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final starSelectedColor = context.palette.lightButtonFg;
     final accentColor = context.palette.windowBgActive;
     final borderColor = isDark ? const Color(0xFF2b3640) : const Color(0xFFD8D8DD);
 
@@ -1562,7 +1620,7 @@ class _CallRatingDialogState extends State<CallRatingDialog> {
                         child: Icon(
                           isSelected ? Icons.star_rounded : Icons.star_outline_rounded,
                           size: 36,
-                          color: isSelected ? accentColor : windowSubTextFg,
+                          color: isSelected ? starSelectedColor : windowSubTextFg,
                         ),
                       ),
                     ),

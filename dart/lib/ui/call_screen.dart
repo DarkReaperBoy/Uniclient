@@ -1095,7 +1095,7 @@ class _MinimisedCallBarState extends State<MinimisedCallBar>
     }
     final m = seconds ~/ 60;
     final s = seconds % 60;
-    return '$m:${s.toString().padLeft(2, '0')}';
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
   static List<Color> _gradientColors(_CallBarState state, bool isPersonal) {
