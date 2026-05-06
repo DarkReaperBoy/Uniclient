@@ -298,6 +298,7 @@ class _ChatViewState extends State<ChatView>
   _DragZoneLayout _dragLayout = _DragZoneLayout.photoFiles;
   late final AnimationController _dragOverlayAnimCtrl;
   bool _isVoiceRecording = false;
+  bool _isEditingStarsPrice = false;
   bool _webPreviewInvert = false;
   bool _webPreviewCancelled = false;
   bool _webPreviewLoading = false;
@@ -645,7 +646,7 @@ class _ChatViewState extends State<ChatView>
       _mentionsAnimCtrl.value = 0;
       _reactionsAnimCtrl.value = 0;
       _pollVotesAnimCtrl.value = 0;
-      if (_editingMsgId != null || _replyToId != null || _isSearching || _pinnedBarDismissed || _isForwarding) {
+      if (_editingMsgId != null || _replyToId != null || _isSearching || _pinnedBarDismissed || _isForwarding || _isEditingStarsPrice) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           setState(() {
@@ -663,6 +664,7 @@ class _ChatViewState extends State<ChatView>
             _searchFromUserId = '';
             _searchFromUserName = '';
             _pinnedBarDismissed = false;
+            _isEditingStarsPrice = false;
             _hiddenMsgIds.clear();
             _activeHighlightId = null;
             _highlightQueue.clear();
@@ -4654,6 +4656,11 @@ class _ChatViewState extends State<ChatView>
                 onNextLink: _switchPreviewNext,
               );
             }),
+          if (_isEditingStarsPrice && (chat?.starsToSend ?? 0) > 0)
+            _StarsPriceEditBar(
+              starsPrice: chat!.starsToSend,
+              onCancel: () => setState(() => _isEditingStarsPrice = false),
+            ),
           if (_acQuery != null && _acQuery!.type == AutocompleteType.mention && _acFilteredMembers.isNotEmpty)
             _AutocompletePanel(
               members: _acFilteredMembers,
@@ -4781,6 +4788,10 @@ class _ChatViewState extends State<ChatView>
               slowmodeSeconds: chat.slowmodeSeconds,
               slowmodeNextSendDate: chat.slowmodeNextSendDate,
               starsToSend: chat.starsToSend,
+              isEditingStarsPrice: _isEditingStarsPrice,
+              onEditStarsPriceToggle: () {
+                setState(() => _isEditingStarsPrice = !_isEditingStarsPrice);
+              },
               onEditLast: _editLastOutgoing,
               onCycleReply: _cycleReply,
               onLinksDetected: (links) {
@@ -7663,6 +7674,67 @@ class _EditBar extends StatelessWidget {
             icon: const Icon(Icons.close, size: 18),
             onPressed: onCancel,
             tooltip: 'Cancel edit',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StarsPriceEditBar extends StatelessWidget {
+  final int starsPrice;
+  final VoidCallback onCancel;
+
+  const _StarsPriceEditBar({
+    required this.starsPrice,
+    required this.onCancel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Container(
+      height: 49,
+      decoration: BoxDecoration(
+        color: palette.historyReplyBg,
+        border: Border(
+          top: BorderSide(color: palette.shadowFg, width: 1),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Row(
+        children: [
+          Icon(Icons.star, size: 18, color: palette.historyReplyIconFg),
+          const SizedBox(width: 10),
+          Container(width: 2, height: 36, color: palette.historyReplyIconFg),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Editing message price',
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: palette.historyReplyIconFg,
+                  ),
+                ),
+                Text(
+                  '$starsPrice stars per message',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 13, color: palette.historyComposeAreaFg),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 18),
+            onPressed: onCancel,
+            tooltip: 'Cancel',
           ),
         ],
       ),
@@ -12418,6 +12490,7 @@ class _ComposeArea extends StatefulWidget {
   final int slowmodeNextSendDate;
   final int starsToSend;
   final bool isEditingStarsPrice;
+  final VoidCallback? onEditStarsPriceToggle;
   final ValueChanged<AutocompleteQuery?>? onAutocompleteQuery;
   final bool autocompleteActive;
   final VoidCallback? onAutocompleteUp;
@@ -12466,6 +12539,7 @@ class _ComposeArea extends StatefulWidget {
     this.slowmodeNextSendDate = 0,
     this.starsToSend = 0,
     this.isEditingStarsPrice = false,
+    this.onEditStarsPriceToggle,
     this.onAutocompleteQuery,
     this.autocompleteActive = false,
     this.onAutocompleteUp,
@@ -12733,7 +12807,6 @@ class _ComposeAreaState extends State<_ComposeArea>
   }
 
   SendButtonType _computeSendButtonType() {
-    if (widget.starsToSend > 0 && widget.isEditingStarsPrice) return SendButtonType.editPrice;
     if (widget.isEditing) return SendButtonType.save;
     if (widget.isInlineBot) return SendButtonType.cancel;
     if (widget.isForwarding) return SendButtonType.send;
@@ -12745,6 +12818,7 @@ class _ComposeAreaState extends State<_ComposeArea>
           ? SendButtonType.round
           : SendButtonType.record;
     }
+    if (widget.starsToSend > 0 && widget.isEditingStarsPrice) return SendButtonType.editPrice;
     if (widget.isScheduledView) return SendButtonType.schedule;
     return SendButtonType.send;
   }
@@ -13834,6 +13908,7 @@ class _ComposeAreaState extends State<_ComposeArea>
                   ? _formatSlowmode(_slowmodeSecondsLeft)
                   : null,
               starsToSend: widget.starsToSend,
+              onEditStarsPriceToggle: widget.onEditStarsPriceToggle,
               onToggleVoiceRound: () {
                 final appState = context.read<AppState>();
                 appState.recordVideoMessages = !appState.recordVideoMessages;
@@ -14648,6 +14723,7 @@ class _SendButton extends StatefulWidget {
   final String? forbiddenMessage;
   final String? slowmodeText;
   final int starsToSend;
+  final VoidCallback? onEditStarsPriceToggle;
   final bool disabled;
 
   const _SendButton({
@@ -14666,6 +14742,7 @@ class _SendButton extends StatefulWidget {
     this.forbiddenMessage,
     this.slowmodeText,
     this.starsToSend = 0,
+    this.onEditStarsPriceToggle,
     this.disabled = false,
   });
 
@@ -14839,6 +14916,8 @@ class _SendButtonState extends State<_SendButton>
         TelegramMenuItem(value: 'schedule', icon: const Icon(Icons.schedule_outlined), label: widget.isSelfChat ? 'Set Reminder' : 'Schedule Message'),
         if (widget.chatType == ChatType.dm && !widget.isSelfChat)
           const TelegramMenuItem(value: 'when_online', icon: Icon(Icons.person_outline), label: 'Send When Online'),
+        if (widget.starsToSend > 0 && widget.onEditStarsPriceToggle != null)
+          const TelegramMenuItem(value: 'edit_price', icon: Icon(Icons.star_outline), label: 'Edit Message Price'),
       ],
     ).then((value) {
       if (value == null) return;
@@ -14849,6 +14928,8 @@ class _SendButtonState extends State<_SendButton>
           _pickScheduleDate();
         case 'when_online':
           widget.onSendWhenOnline?.call();
+        case 'edit_price':
+          widget.onEditStarsPriceToggle?.call();
       }
     });
   }
@@ -14993,6 +15074,9 @@ class _SendButtonState extends State<_SendButton>
 
   @override
   Widget build(BuildContext context) {
+    if (widget.type == SendButtonType.editPrice) {
+      return const SizedBox.shrink();
+    }
     final isRecordOrRound =
         widget.type == SendButtonType.record || widget.type == SendButtonType.round;
     final isForbidden = widget.forbidden && _isForbiddable(widget.type);
