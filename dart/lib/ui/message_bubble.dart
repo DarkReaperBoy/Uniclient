@@ -7,6 +7,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderProxyBox;
 import 'package:flutter/services.dart' show Clipboard, ClipboardData, KeyDownEvent, LogicalKeyboardKey;
 
 import 'custom_emoji_cache.dart';
@@ -8217,6 +8218,37 @@ class _FireworksPainter extends CustomPainter {
   bool shouldRepaint(_FireworksPainter old) => old.progress != progress;
 }
 
+class _SquareFromHeight extends SingleChildRenderObjectWidget {
+  const _SquareFromHeight({required Widget child}) : super(child: child);
+  @override
+  _RenderSquareFromHeight createRenderObject(BuildContext context) =>
+      _RenderSquareFromHeight();
+}
+
+class _RenderSquareFromHeight extends RenderProxyBox {
+  static const _min = 48.0;
+
+  @override
+  double computeMinIntrinsicWidth(double height) =>
+      height.isFinite && height > 0 ? height : _min;
+  @override
+  double computeMaxIntrinsicWidth(double height) =>
+      computeMinIntrinsicWidth(height);
+  @override
+  double computeMinIntrinsicHeight(double width) => _min;
+  @override
+  double computeMaxIntrinsicHeight(double width) => _min;
+
+  @override
+  void performLayout() {
+    final h = constraints.maxHeight.isFinite
+        ? math.max(constraints.maxHeight, _min)
+        : _min;
+    child?.layout(BoxConstraints.tight(Size(h, h)), parentUsesSize: true);
+    size = Size(h, h);
+  }
+}
+
 // ── Web Page Preview ──
 // Spec §6.14: Two modes — Article (small thumbnail right, text wraps) and
 // Standard (full-width, media below text). Mode selected by type, not dimensions.
@@ -8380,10 +8412,9 @@ class _WebPagePreview extends StatelessWidget {
         thumbWidget = Image.memory(
           Uint8List.fromList(bytes),
           fit: BoxFit.cover,
-          width: isArticle ? 48.0 : double.infinity,
-          height: isArticle ? null : null,
+          width: double.infinity,
           errorBuilder: (_, __, ___) => SizedBox(
-            width: isArticle ? 48.0 : double.infinity,
+            width: double.infinity,
             height: isArticle ? null : 100,
             child: ColoredBox(color: isDark ? const Color(0xFF2a3a4a) : const Color(0xFFe8ecf0)),
           ),
@@ -8447,12 +8478,9 @@ class _WebPagePreview extends StatelessWidget {
                   ),
                   if (thumbWidget != null) ...[
                     const SizedBox(width: 8),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(minHeight: 48),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: SizedBox(width: 48, child: thumbWidget),
-                      ),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: _SquareFromHeight(child: thumbWidget),
                     ),
                   ],
                 ],
