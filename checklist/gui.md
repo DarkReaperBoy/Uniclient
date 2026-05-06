@@ -30,11 +30,6 @@
 ## §13 — Mobile / Web Compatibility
 # Audit: §14-§19 Settings
 
-## §14 — Settings: General & My Account
-
-### §14.5 My Account / Edit Profile
-- [ ] spec §14.5.6 "Accounts list": drag-and-drop reorder now works; Ctrl+Click detects modifier but just switches account (not open in new window); context menu missing "Open in New Window" as first item — spec §14.5.6 says context menu = (Open in New Window, Copy Phone, Activate, Mark All Read, Log Out) — `my_profile_page.dart (_AccountsSection / _SettingsAccountRow._showContextMenu)`
-
 ---
 
 ## §15 — Settings: Notifications
