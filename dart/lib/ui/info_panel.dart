@@ -12,6 +12,7 @@ import 'package:provider/provider.dart';
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
+import '../state/audio_service.dart';
 import '../state/chat_state.dart';
 import '../theme/theme.dart';
 import 'chat_export.dart';
@@ -377,6 +378,75 @@ class _ActionBtnData {
   final bool isMuted;
   const _ActionBtnData(this.icon, this.label, this.onTap,
       {this.isMute = false, this.isMuted = false});
+}
+
+class _MuteLottieIcon extends StatefulWidget {
+  final bool isMuted;
+  final double size;
+  final Color color;
+
+  const _MuteLottieIcon({
+    required this.isMuted,
+    required this.size,
+    required this.color,
+  });
+
+  @override
+  State<_MuteLottieIcon> createState() => _MuteLottieIconState();
+}
+
+class _MuteLottieIconState extends State<_MuteLottieIcon>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  String? _activeAsset;
+  bool? _prevMuted;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 250),
+    );
+  }
+
+  @override
+  void didUpdateWidget(_MuteLottieIcon old) {
+    super.didUpdateWidget(old);
+    if (old.isMuted != widget.isMuted) {
+      _activeAsset = widget.isMuted
+          ? 'assets/animations/profile_muting.json'
+          : 'assets/animations/profile_unmuting.json';
+      _prevMuted = widget.isMuted;
+      _ctrl.forward(from: 0.0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_activeAsset != null) {
+      return ColorFiltered(
+        colorFilter: ColorFilter.mode(widget.color, BlendMode.srcIn),
+        child: Lottie.asset(
+          _activeAsset!,
+          controller: _ctrl,
+          width: widget.size,
+          height: widget.size,
+        ),
+      );
+    }
+    return Icon(
+      widget.isMuted ? Icons.notifications_off : Icons.notifications,
+      size: widget.size,
+      color: widget.color,
+    );
+  }
 }
 
 class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
@@ -832,17 +902,7 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
   Widget _actionBtn(BuildContext context, _ActionBtnData data, Color bg,
       Color fg, double iconScale, double textScale, BorderRadius radius) {
     final iconWidget = data.isMute
-        ? AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeInCubic,
-            transitionBuilder: (child, animation) => FadeTransition(
-              opacity: animation,
-              child: ScaleTransition(scale: animation, child: child),
-            ),
-            child: Icon(data.icon, size: 23, color: fg,
-                key: ValueKey(data.isMuted)),
-          )
+        ? _MuteLottieIcon(isMuted: data.isMuted, size: 23, color: fg)
         : Icon(data.icon, size: 23, color: fg);
 
     final labelWidget = data.isMute
@@ -1773,6 +1833,7 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
             delegate: SliverChildListDelegate([
               const SizedBox(height: 16),
               _ChatDetails(chat: widget.chat, theme: widget.theme),
+              _MusicMiniPlayer(chatId: widget.chat.chatId, theme: widget.theme),
               const Divider(height: 24),
               _NotificationToggle(chat: widget.chat, theme: widget.theme),
               if (widget.mediaCounts.isNotEmpty) ...[
@@ -2374,6 +2435,71 @@ class _AvatarHeader extends StatelessWidget {
 
 }
 
+class _MusicMiniPlayer extends StatelessWidget {
+  final String chatId;
+  final ThemeData theme;
+
+  const _MusicMiniPlayer({required this.chatId, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    final audio = context.watch<AudioService>();
+    if (!audio.playing || audio.currentChatId != chatId) {
+      return const SizedBox.shrink();
+    }
+    final title = audio.currentTitle.isNotEmpty ? audio.currentTitle : 'Unknown Track';
+    final performer = audio.currentPerformer.isNotEmpty ? audio.currentPerformer : 'Unknown Artist';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 24, 8),
+      child: Material(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () {},
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              children: [
+                Icon(Icons.music_note, size: 20, color: theme.colorScheme.primary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        performer,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ChatDetails extends StatefulWidget {
   final ChatInfo chat;
   final ThemeData theme;
@@ -2509,6 +2635,18 @@ class _ChatDetailsState extends State<_ChatDetails> {
           theme: widget.theme,
           onTap: () => _copy(profile.bio, profile.isBot ? 'About' : 'Bio'),
           selectable: true,
+        ));
+      if (profile.businessHours.isNotEmpty)
+        children.add(_TextWithLabel(
+          value: profile.businessHours,
+          label: 'Business Hours',
+          theme: widget.theme,
+        ));
+      if (profile.businessLocation.isNotEmpty)
+        children.add(_TextWithLabel(
+          value: profile.businessLocation,
+          label: 'Location',
+          theme: widget.theme,
         ));
       if (profile.hasBirthday)
         children.add(_TextWithLabel(

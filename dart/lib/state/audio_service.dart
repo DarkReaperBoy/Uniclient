@@ -8,12 +8,18 @@ class AudioService extends ChangeNotifier {
   bool _playing = false;
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
+  String _currentChatId = '';
+  String _currentPerformer = '';
+  String _currentTitle = '';
   final List<StreamSubscription> _subs = [];
 
   String get currentMsgId => _currentMsgId;
   bool get playing => _playing;
   Duration get position => _position;
   Duration get duration => _duration;
+  String get currentChatId => _currentChatId;
+  String get currentPerformer => _currentPerformer;
+  String get currentTitle => _currentTitle;
 
   double get progress =>
       _duration.inMilliseconds > 0
@@ -23,7 +29,11 @@ class AudioService extends ChangeNotifier {
   bool isPlayingMsg(String msgId) => _currentMsgId == msgId && _playing;
   bool isActiveMsg(String msgId) => _currentMsgId == msgId;
 
-  Future<void> playVoice(String filePath, String msgId) async {
+  Future<void> playVoice(String filePath, String msgId, {
+    String chatId = '',
+    String performer = '',
+    String title = '',
+  }) async {
     if (_currentMsgId == msgId && _player != null) {
       if (_playing) {
         await _player!.pause();
@@ -38,6 +48,9 @@ class AudioService extends ChangeNotifier {
     final player = Player();
     _player = player;
     _currentMsgId = msgId;
+    _currentChatId = chatId;
+    _currentPerformer = performer;
+    _currentTitle = title;
     _position = Duration.zero;
     _duration = Duration.zero;
     _playing = false;
@@ -83,6 +96,9 @@ class AudioService extends ChangeNotifier {
     final old = _player;
     _player = null;
     _currentMsgId = '';
+    _currentChatId = '';
+    _currentPerformer = '';
+    _currentTitle = '';
     _playing = false;
     _position = Duration.zero;
     _duration = Duration.zero;
