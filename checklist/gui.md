@@ -22,31 +22,9 @@
 
 ## §8 — Info / Details Panel
 
-- [ ] spec §8.1 "Cover compression snap-scroll": spec requires 3 snap points {0, 112, 180} with easeOutQuint 260ms between resting heights; implementation uses a continuous SliverPersistentHeader that shrinks linearly without discrete snap steps or easeOutQuint easing — `info_panel.dart` `_FlexibleCoverDelegate`
-- [ ] spec §8.1 "Direction reversal mid-animation": spec says direction reversal mid-animation re-bases via _timeOffset instead of restarting; no corresponding logic in the Flutter implementation — `info_panel.dart`
-- [ ] spec §8.2 "Action-button row collapse math": spec defines action-row height = clamp(52 * (ratio - 0.5) / 0.5, 0, 52) with linear shrink past 50% mark; implementation has the ratio math but buttons simply fade via opacity rather than shrinking their height to 0 — `info_panel.dart` `_FlexibleCoverDelegate.build`
-- [ ] spec §8.2 "Per-button icon scale hold": spec says icon holds full size to 40% then scales with button via (progress - 0.4) / 0.6; no per-button icon scale logic implemented — `info_panel.dart`
-- [ ] spec §8.2 "Per-button text scale": spec says text scales with max(0.4, progress); no text scaling on action buttons — `info_panel.dart`
-- [ ] spec §8.2 "Max 3 primary + More overflow": spec says hard cap of 3 visible action buttons with overflow into a "More" popup menu, and Side wrap mode always uses More; no More button or overflow logic present — `info_panel.dart`
-- [ ] spec §8.2 "Mute toggle right-click menu": spec says right-click on mute opens duration menu (MuteMenu::SetupMuteMenu); no right-click handler on mute action button — `info_panel.dart`
-- [ ] spec §8.2 "Lottie icon mute/unmute crossfade": spec says mute toggle plays Lottie animations (profile_muting/profile_unmuting); implementation uses static Material Icons, no Lottie — `info_panel.dart`
-- [ ] spec §8.3 "No horizontal tab strip": spec confirms there is NO Photos/Videos/Files horizontal tab bar in the info panel; implementation uses vertical rows with expand/collapse toggle correctly, but the expandable grid is an in-place inline expansion rather than a full-screen sub-section push via navigation stack — `info_panel.dart` `_SharedMediaSection._toggleGrid`
-- [ ] spec §8.3 "Shared media sub-section push navigation": spec says each media type is a full-screen sub-section reached by _controller->showSection(), pushed onto WrapWidget._historyStack; implementation expands inline without pushing onto nav stack — `info_panel.dart`
-- [ ] spec §8.3 "Media type Rounds and Polls": spec lists RoundFile and Poll as separate shared media types; these are not present in the media counts rows — `info_panel.dart` `_SharedMediaSection`
-- [ ] spec §8.4 "Members search button is stub": search members button has empty onTap handler `() {}` — `info_panel.dart:4846`
-- [ ] spec §8.4 "Add member button is stub": add member button has empty onTap handler `() {}` — `info_panel.dart:4852`
-- [ ] spec §8.4 "Member row context menu": spec says PeerListController::rowContextMenu has View Profile, Send Message, Promote/Demote, Restrict, Remove, Ban, Copy Username/ID; no right-click context menu on member rows — `info_panel.dart` `_MemberRow`
-- [ ] spec §8.4 "Member row admin/creator pill tags": spec defines AdminPill with memberTagPillPadding for "owner"/"admin" badges; implementation shows role text inline but does not use a pill-shaped container with the specified padding — `info_panel.dart` `_MemberRow`
-- [ ] spec §8.4 "Stories ring on member avatars": spec says setStoriesShown(true) draws unread-stories ring around member avatars; no story ring on member row avatars — `info_panel.dart` `_MemberRow`
-- [ ] spec §8.5 "Grid columns formula": spec defines columns = max(1, floor((listWidth - 4) / 84)) with infoMediaMinGridSize=82px and infoMediaSkip=2px; implementation uses _minGridSize=82 and _skip=2 correctly — this matches (no issue)
-- [ ] spec §8.5 "Date headers in grid": spec defines 28px date section headers with semibold text at point(14, 6); implementation shows month headers but with default text style and no exact 28px height or (14,6) offset — `info_panel.dart` `_MediaGrid`
-- [ ] spec §8 "User profile common groups": spec says user profile includes "Common Groups" row; no Common Groups feature implemented for DM user profiles — `info_panel.dart` `_UserProfilePage`
-- [ ] spec §8 "In-section search field": spec describes infoMediaSearch with height 44px, padding margins(8,6,8,6) activated via _topBar->createSearchView(); no in-section search for shared media — `info_panel.dart`
-- [ ] spec §8 "State persistence / Memento": spec says Memento system saves scroll position, search query, active media tab, navigation stack; implementation saves scroll position per nav page but not search query or active media tab — `info_panel.dart` `_InfoNavPage`
-- [ ] spec §8.6 "Animated emoji-status pattern behind avatar": spec describes setupAnimatedPattern/paintAnimatedPattern for Premium status pattern; no animated pattern behind avatar for premium users — `info_panel.dart` `_FlexibleCoverDelegate`
+- [ ] spec §8.2 "Lottie icon mute/unmute crossfade": spec says mute toggle plays Lottie animations (profile_muting/profile_unmuting); implementation uses AnimatedSwitcher with Material Icons, no Lottie assets — `info_panel.dart` `_actionBtn`
 - [ ] spec §8.6 "Music mini-player hook": spec describes infoMusicButtonPadding with Performer/Title labels and quick-jump to source message; no music mini-player in info panel — `info_panel.dart`
-- [ ] spec §8.6 "Bot About + Commands rows": spec says bot profiles show Bio, help/settings/privacy as three AddActionButton bound to /command click; no bot-specific command rows — `info_panel.dart`
-- [ ] spec §8.6 "Business Hours / Location / Birthday / Personal Channel": spec lists these as DetailsFiller rows; none are present — `info_panel.dart`
+- [ ] spec §8.6 "Business Hours / Location": spec lists Business Hours and Location as DetailsFiller rows; Birthday and Personal Channel are now implemented but Business Hours and Location fields are still absent from UserProfile model and info panel — `info_panel.dart` `_ChatDetails`
 
 ## §9 — Context Menus & Actions
 
