@@ -42,7 +42,7 @@ MAX_AUDIT_CYCLES=5
 CONVERGE_THRESHOLD=2
 CIRCUIT_BREAKER_THRESHOLD=3
 CIRCUIT_BREAKER_COOLDOWN=300
-SESSION_TIMEOUT=1800
+# No session timeout — ralph runs until Claude finishes naturally
 
 # ─── Logging ─────────────────────────────────────────────────────
 LOG_DIR="$PROJECT_ROOT/logs/ralph"
@@ -202,7 +202,7 @@ invoke_claude() {
   log "└──────────────────────────────────────────────────────────"
 
   local code=0
-  timeout "$SESSION_TIMEOUT" claude \
+  claude \
     --print \
     --dangerously-skip-permissions \
     --model "$model" \
