@@ -12,6 +12,7 @@ import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../models/engine_models.dart';
+import '../state/app_state.dart';
 import '../state/auth_state.dart';
 import '../utils/country_data.dart';
 import 'photo_crop_editor.dart';
@@ -1987,9 +1988,15 @@ class _LanguagePickerDialogState extends State<_LanguagePickerDialog> {
     ('zh-hant', '繁體中文', 'Chinese (Traditional)'),
   ];
 
-  String _selected = 'en';
+  late String _selected;
   final _searchCtrl = TextEditingController();
   String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = context.read<AppState>().selectedLanguageCode;
+  }
 
   @override
   void dispose() {
@@ -2045,7 +2052,8 @@ class _LanguagePickerDialogState extends State<_LanguagePickerDialog> {
                     groupValue: _selected,
                     dense: true,
                     onChanged: (val) {
-                      setState(() => _selected = val!);
+                      context.read<AppState>().addRecentLanguage(val!);
+                      setState(() => _selected = val);
                       Navigator.of(ctx).pop();
                     },
                   );

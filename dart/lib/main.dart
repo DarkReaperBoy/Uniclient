@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 
 import 'bridge/engine_service.dart';
@@ -1846,6 +1847,20 @@ class _UniClientAppState extends State<UniClientApp>
       navigatorObservers: [ShortcutLayerObserver()],
       title: 'UniClient',
       debugShowCheckedModeBanner: false,
+      locale: appState.locale,
+      supportedLocales: const [
+        Locale('en'), Locale('ar'), Locale('de'), Locale('es'),
+        Locale('fa'), Locale('fr'), Locale('id'), Locale('it'),
+        Locale('ja'), Locale('ko'), Locale('nl'), Locale('pl'),
+        Locale('pt', 'BR'), Locale('ru'), Locale('tr'), Locale('uk'),
+        Locale('uz'), Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hans'),
+        Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
+      ],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       theme: AppTheme.fromPalette(palette),
       darkTheme: AppTheme.fromPalette(palette),
       themeMode: ThemeMode.light,

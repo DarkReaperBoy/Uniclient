@@ -1744,6 +1744,21 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   List<String> get recentLanguageCodes => List.unmodifiable(_recentLanguageCodes);
   String get selectedLanguageCode => _selectedLanguageCode;
 
+  Locale get locale {
+    final code = _selectedLanguageCode;
+    if (code.contains('-')) {
+      final parts = code.split('-');
+      final lang = parts[0];
+      final sub = parts.sublist(1).join('-');
+      if (sub.length == 2) return Locale(lang, sub.toUpperCase());
+      return Locale.fromSubtags(
+        languageCode: lang,
+        scriptCode: '${sub[0].toUpperCase()}${sub.substring(1).toLowerCase()}',
+      );
+    }
+    return Locale(code);
+  }
+
   void addRecentLanguage(String code) {
     _recentLanguageCodes.remove(code);
     _recentLanguageCodes.insert(0, code);
