@@ -25,20 +25,8 @@
 
 ## §10 — Emoji / Sticker / GIF Panels
 
-- [ ] spec §10.1 "Panel auto-hide kDelayedHideTimeoutMs = 3000ms": spec says when context menu is open inside panel, hide timeout extends to 3000ms; implementation uses a simple 300ms hide timer with no extended timeout for context menu open state — `emoji_panel.dart:19`
-- [ ] spec §10.3 "Skin-tone popup delay 500ms": spec says kColorPickerDelay = 500ms long-press timer threshold; implementation triggers skin tone popup on Flutter's default long-press (which is ~500ms) but no explicit 500ms timer — works approximately correctly
-- [ ] spec §10.3 "Skin-tone popup chrome": spec defines emojiColorsPadding = 8px inter-variant gap and emojiColorsSep = 1px separator; implementation builds a popup with _kEmojiColorsPadding = 8 and _kEmojiColorsSep = 1 — matches spec
-- [ ] spec §10.3 "Custom emoji packs with Unlock button": spec says locked packs show "Unlock" button (premium gate), free packs show "Add", collapsed sets surface 3 rows + "+N" overflow; custom emoji packs section not implemented in emoji tab — `emoji_panel.dart` `_EmojiTab`
-- [ ] spec §10.4 "Sticker pack footer scrollable strip": spec defines kVisibleIconsCount = 8 horizontally scrollable strip of pack icons with _selectionBg highlight and stickerIconMove = 400ms scroll animation; implementation has a `_StickerPackStrip` footer but needs verification of 8 visible icons and 400ms animation — `emoji_panel.dart` `_StickerTab`
-- [ ] spec §10.4 "Trending/Featured packs inline Add button": spec says featured/trending packs show inline "Add" button (stickersTrendingAdd 26px tall); implementation has featured packs with add buttons — appears correct
-- [ ] spec §10.4 "Sticker context menu Fave/Unfave, View Set, Copy Link": spec says context menu has Fave/Unfave, View Set, and for custom emoji also Copy Link; implementation shows fave option in sticker long-press menu but only in the _StickerTab, not in the compose-area sticker suggestions — `emoji_panel.dart:1544`
-- [ ] spec §10.5 "GIF masonry layout": spec says Mosaic does line-packing not true masonry (each row uniform height but varies between rows); implementation has `_GifMasonryGrid` which does row-packing — appears correct
-- [ ] spec §10.5 "GIF tab saved GIFs / inline @gif bot search": spec says default shows saved GIFs, typing query switches to @gif bot results; implementation has search with debounce that queries inline bot — correct
-- [ ] spec §10.5 "GIF context menu Save GIF / Delete GIF": implementation has both Save GIF and Delete GIF in long-press menu — correct
-- [ ] spec §10.5 "GIF category emoji shortcuts in footer": spec mentions category shortcuts as emoji tokens (cat, heart, dance, etc.); implementation has `_GifCategoryFooter` — correct
-- [ ] spec §10.6 "Inline suggestions / field autocomplete": spec describes a separate FieldAutocomplete widget for @mentions, /commands, :emoji, #hashtags anchored above compose field with 40px row height and 4.5-row max; no separate field autocomplete widget found — this feature appears missing as a dedicated panel
-- [ ] spec §10.6 "Emoji suggestions horizontal row": spec says :text trigger shows horizontally scrollable emoji suggestions with 40px cells and 8px fade padding; not found as a separate widget — `emoji_panel.dart`
-- [ ] spec §10.6 "Sticker suggestions on Unicode emoji": spec says typing a Unicode emoji shows sticker preview strip at half stickerPanSize width; not implemented — `emoji_panel.dart`
+- [ ] spec §10.4 "Sticker context menu Fave/Unfave, View Set, Copy Link": context menu only shows static "Fave" — no Unfave toggle (StickerInfoItem has no isFaved field so toggle is impossible), and no Copy Link for custom emoji packs — `emoji_panel.dart:1563`, `chat_view.dart:16983`
+- [ ] spec §10.6 "Sticker suggestions on Unicode emoji": _StickerSuggestionPanel cellSize=100px vs spec stickerPanSize/2 = 64/2 = 32px — 212% deviation (CRITICAL) — `chat_view.dart:17006`
 
 ## §11 — Authentication / Login Flow
 
