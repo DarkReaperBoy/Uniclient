@@ -8474,6 +8474,7 @@ class _ContactStatusBar extends StatelessWidget {
     final attentionButtonFg = palette.attentionButtonFg;
     final bgColor = palette.historyComposeAreaBg;
     final hoverColor = palette.historyComposeButtonBgOver;
+    final rippleColor = palette.historyComposeButtonBgRipple;
 
     if (chat.isBlocked) {
       // Blocked: single "Unblock" button, 49px height, attentionButtonFg red.
@@ -8484,6 +8485,7 @@ class _ContactStatusBar extends StatelessWidget {
           label: 'Unblock',
           color: attentionButtonFg,
           hoverColor: hoverColor,
+          rippleColor: rippleColor,
           height: 49,
           textTop: 16,
           onTap: () => chatState.unblockUser(chat.accountId, chat.chatId),
@@ -8523,6 +8525,7 @@ class _ContactStatusBar extends StatelessWidget {
               label: 'Add Contact',
               color: windowActiveTextFg,
               hoverColor: hoverColor,
+              rippleColor: rippleColor,
               height: 49,
               textTop: 16,
               onTap: () => _showAddContactDialog(context),
@@ -8534,6 +8537,7 @@ class _ContactStatusBar extends StatelessWidget {
               label: 'Block',
               color: attentionButtonFg,
               hoverColor: hoverColor,
+              rippleColor: rippleColor,
               height: 49,
               textTop: 16,
               onTap: () => chatState.blockUser(chat.accountId, chat.chatId),
@@ -8594,6 +8598,7 @@ class _ContactStatusButton extends StatefulWidget {
   final String label;
   final Color color;
   final Color hoverColor;
+  final Color rippleColor;
   final double height;
   final double textTop;
   final VoidCallback onTap;
@@ -8602,6 +8607,7 @@ class _ContactStatusButton extends StatefulWidget {
     required this.label,
     required this.color,
     required this.hoverColor,
+    required this.rippleColor,
     required this.height,
     required this.textTop,
     required this.onTap,
@@ -8613,17 +8619,28 @@ class _ContactStatusButton extends StatefulWidget {
 
 class _ContactStatusButtonState extends State<_ContactStatusButton> {
   bool _hovered = false;
+  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
+    final bgColor = _pressed
+        ? widget.rippleColor
+        : _hovered
+            ? widget.hoverColor
+            : Colors.transparent;
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
-        onTap: widget.onTap,
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) {
+          setState(() => _pressed = false);
+          widget.onTap();
+        },
+        onTapCancel: () => setState(() => _pressed = false),
         child: Container(
           height: widget.height,
-          color: _hovered ? widget.hoverColor : Colors.transparent,
+          color: bgColor,
           alignment: Alignment.topCenter,
           padding: EdgeInsets.only(top: widget.textTop),
           child: Text(
