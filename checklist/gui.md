@@ -23,11 +23,6 @@
 ## §9 — Context Menus & Actions
 
 
-## §10 — Emoji / Sticker / GIF Panels
-
-- [ ] spec §10.4 "Sticker context menu Fave/Unfave, View Set, Copy Link": context menu only shows static "Fave" — no Unfave toggle (StickerInfoItem has no isFaved field so toggle is impossible), and no Copy Link for custom emoji packs — `emoji_panel.dart:1563`, `chat_view.dart:16983`
-- [ ] spec §10.6 "Sticker suggestions on Unicode emoji": _StickerSuggestionPanel cellSize=100px vs spec stickerPanSize/2 = 64/2 = 32px — 212% deviation (CRITICAL) — `chat_view.dart:17006`
-
 ## §11 — Authentication / Login Flow
 
 - [ ] spec §11.2 "Next button Y interpolation with introNextSlide = 200px": spec says Y interpolates from introNextTop + 200px up to introNextTop driven by shownAmount; implementation uses a simple slide/fade animation from Offset(0, 200) to zero — approximately matches
