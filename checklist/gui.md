@@ -8,7 +8,6 @@
 
 ## §4 — Chat Header / Top Bar
 
-- [ ] spec §4 "topBarSkip": spec says `-5px` negative pull. Code allocates `SizedBox(width: 39)` (44-5) with `OverflowBox(maxWidth: 44)` — this correctly implements the -5px pull — matches
 - [ ] spec §4 "Button order right-to-left": spec says "Menu toggle, Info toggle, Call, Group call, Search" (right to left). Code renders left-to-right: Search, Call (DM only), GroupCall (group/channel), Info, Menu. Reading right-to-left gives: Menu, Info, GroupCall, Call, Search — matches spec order
 - [ ] spec §4 "Group call button": code uses `Icons.phone_in_talk` icon. The `onPressed` callback contains `// TODO: initiate group call via engine` — this is a placeholder/stub, the group call button does nothing — `chat_view.dart:5992-5994`
 - [ ] spec §4 "Search choose from user": spec says search mode shows a "choose from user" filter button. Code has the button but the callback is `// TODO: open user picker for "from user" filter` — stub placeholder — `chat_view.dart:5862-5864`
