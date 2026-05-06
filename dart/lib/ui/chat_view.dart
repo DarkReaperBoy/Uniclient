@@ -8476,16 +8476,16 @@ class _ContactStatusBar extends StatelessWidget {
     final hoverColor = palette.historyComposeButtonBgOver;
 
     if (chat.isBlocked) {
-      // Blocked: single "Unblock" button, 46px height, attentionButtonFg red.
+      // Blocked: single "Unblock" button, 49px height, attentionButtonFg red.
       return Container(
         color: bgColor,
-        height: 46,
+        height: 49,
         child: _ContactStatusButton(
           label: 'Unblock',
           color: attentionButtonFg,
           hoverColor: hoverColor,
-          height: 46,
-          textTop: 14,
+          height: 49,
+          textTop: 16,
           onTap: () => chatState.unblockUser(chat.accountId, chat.chatId),
         ),
       );

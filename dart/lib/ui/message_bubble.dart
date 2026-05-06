@@ -3299,6 +3299,8 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
         width: effectWidth,
         height: effectHeight,
         child: Center(
+        child: Transform.flip(
+        flipX: isPremiumSticker && !widget.isOutgoing,
         child: _clipForMediaType(
         message.mediaType,
         child: SizedBox(
@@ -3709,7 +3711,8 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
             ],
           ),
         ),
-      ),
+      ),  // _clipForMediaType
+      ),  // Transform.flip (§6.6 incoming premium sticker mirror)
       ),  // Center
       ),  // outer SizedBox (effectWidth × effectHeight)
     ),
