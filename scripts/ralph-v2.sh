@@ -131,6 +131,39 @@ circuit_breaker_record() {
   fi
 }
 
+# ─── Stream formatter for pretty terminal output ────────────────
+JQ_FMT='
+  try fromjson catch empty | . as $e |
+  if $e.type == "assistant" then
+    ($e.message.content // [])[] |
+      if .type == "text" then
+        "\n\(.text | split("\n") | map("  │ \(.)") | join("\n"))\n"
+      elif .type == "tool_use" then
+        if .name == "Read" then       "\n  📖 Read \(.input.file_path | ltrimstr($root))"
+        elif .name == "Edit" then     "\n  ✏️  Edit \(.input.file_path | ltrimstr($root))"
+        elif .name == "Write" then    "\n  📝 Write \(.input.file_path | ltrimstr($root))"
+        elif .name == "Bash" then     "\n  $ \(.input.command | gsub("\n"; " ; ") | .[:200])"
+        elif .name == "Grep" then     "\n  🔍 Grep \"\(.input.pattern // "")\" in \(.input.path // "." | ltrimstr($root))"
+        elif .name == "Glob" then     "\n  🔍 Glob \(.input.pattern // "")"
+        elif .name == "Agent" then    "\n  🤖 Agent: \(.input.description // "")"
+        else                          "\n  🔧 \(.name)"
+        end
+      else empty end
+  elif $e.type == "user" then
+    ($e.message.content // [])[] |
+      if .type == "tool_result" then
+        (.content | tostring | split("\n")) as $lines |
+        if ($lines | length) == 0 or ($lines[0] | length) == 0 then "  ✓"
+        elif ($lines[0] | test("(?i)^(error|fail|exception|fatal)")) then "  ❌ \($lines[0][:200])"
+        else "  ✓ \($lines[0][:160])"
+        end
+      else empty end
+  elif $e.type == "system" and $e.subtype == "init" then
+    "\n  ┌─────────────────────────────────────────┐\n  │ 🚀 Session \($e.session_id // "")  │\n  └─────────────────────────────────────────┘\n"
+  elif $e.type == "result" then
+    "\n  ┌─────────────────────────────────────────┐\n  │ ✅ \($e.subtype // "done") — \(($e.duration_ms // 0) / 1000)s, $\($e.total_cost_usd // 0)  │\n  └─────────────────────────────────────────┘\n"
+  else empty end'
+
 # ─── Claude invocation with circuit breaker + timeout ────────────
 # $1=prompt $2=log_file $3=label $4=model(optional) $5=effort(optional)
 invoke_claude() {
@@ -138,27 +171,45 @@ invoke_claude() {
 
   circuit_breaker_check || return 1
 
-  log "Invoking Claude ($label, $model, effort=$effort)..."
+  echo ""
+  log "┌──────────────────────────────────────────────────────────"
+  log "│ 🧠 Claude session: $label"
+  log "│ 📦 Model: $model | Effort: $effort"
+  log "│ 📄 Log: $iter_file"
+  log "└──────────────────────────────────────────────────────────"
+
   local code=0
   timeout "$SESSION_TIMEOUT" claude \
     --print \
     --dangerously-skip-permissions \
     --model "$model" \
     --effort "$effort" \
-    --output-format json \
+    --output-format stream-json \
+    --verbose \
     -p "$prompt" \
-    > "$iter_file.json" 2>&1 \
-    || code=$?
+    2>&1 \
+    | tee "$iter_file.jsonl" \
+    | jq -Rr --unbuffered --arg root "$PROJECT_ROOT/" "$JQ_FMT" \
+    | tee -a "$iter_file" \
+    || code=${PIPESTATUS[0]:-$?}
 
-  # Log cost from JSON result
-  local cost
-  cost=$(jq -r '.cost_usd // .total_cost_usd // 0' "$iter_file.json" 2>/dev/null || echo "0")
-  echo "$(date '+%H:%M:%S') $label $model \$$cost" >> "$COST_LOG" || true
+  # Log cost from stream
+  local cost duration
+  cost=$(grep -o '"total_cost_usd":[0-9.]*' "$iter_file.jsonl" 2>/dev/null | tail -1 | grep -o '[0-9.]*' || echo "0")
+  duration=$(grep -o '"duration_ms":[0-9]*' "$iter_file.jsonl" 2>/dev/null | tail -1 | grep -o '[0-9]*' || echo "0")
+  local duration_s=$(( ${duration:-0} / 1000 ))
+  echo "$(date '+%H:%M:%S') $label $model \$$cost ${duration_s}s" >> "$COST_LOG" || true
 
-  # Update circuit breaker
+  echo ""
   if [[ $code -eq 0 ]]; then
+    log "┌──────────────────────────────────────────────────────────"
+    log "│ ✅ $label COMPLETE — \$$cost, ${duration_s}s"
+    log "└──────────────────────────────────────────────────────────"
     circuit_breaker_record true
   else
+    log "┌──────────────────────────────────────────────────────────"
+    log "│ ❌ $label FAILED (exit $code) — \$$cost, ${duration_s}s"
+    log "└──────────────────────────────────────────────────────────"
     circuit_breaker_record false
   fi
 
@@ -384,8 +435,17 @@ LAST_AUDIT_FINDINGS=999999
 
 mkdir -p "$AUDIT_DATA"
 
-log "=== Ralph v2 starting (tribunal design, fully autonomous) ==="
-log "Kill with: Ctrl+C"
+echo ""
+log "╔══════════════════════════════════════════════════════════════╗"
+log "║           🤖 RALPH v2 — Fully Autonomous Loop               ║"
+log "║   Designed by 12-agent tribunal debate (7 rounds, 100k words)║"
+log "╚══════════════════════════════════════════════════════════════╝"
+log ""
+log "  Mode 1: Implement → Verify (per section)"
+log "  Mode 2: Audit codebase vs spec (when checklist empty)"
+log "  Convergence: 2 consecutive zero-finding audit cycles"
+log "  Kill: Ctrl+C"
+log ""
 
 while true; do
 
@@ -401,7 +461,11 @@ while true; do
     # ═══════════════════════════════════════════════════════════
     IMPL_ITERATION=$((IMPL_ITERATION + 1))
     update_progress "implement" "iteration $IMPL_ITERATION" "$REMAINING items left"
-    log "══ IMPLEMENT $IMPL_ITERATION ($REMAINING left, $TOTAL_COMMITS verified) ══"
+    echo ""
+    log "╔══════════════════════════════════════════════════════════════╗"
+    log "║  🔨 IMPLEMENT #$IMPL_ITERATION                                      "
+    log "║  📋 $REMAINING items remaining | ✅ $TOTAL_COMMITS verified commits  "
+    log "╚══════════════════════════════════════════════════════════════╝"
 
     # Extract the first section (## heading) that contains unchecked items
     CURRENT_SECTION=""
@@ -420,7 +484,14 @@ while true; do
     done < "$PROJECT_ROOT/checklist/gui.md"
     CURRENT_ITEMS="${CURRENT_ITEMS%$'\n'}"
     ITEM_COUNT=$(echo "$CURRENT_ITEMS" | grep -c '^- \[ \]' || echo 0)
-    log "Section: $SECTION_NAME ($ITEM_COUNT items)"
+    log ""
+    log "  📂 Section: $SECTION_NAME"
+    log "  📝 Items: $ITEM_COUNT"
+    echo "$CURRENT_ITEMS" | head -5 | while IFS= read -r item_line; do
+      log "     $item_line"
+    done
+    [[ $ITEM_COUNT -gt 5 ]] && log "     ... and $((ITEM_COUNT - 5)) more"
+    log ""
 
     pkill -x uniclient 2>/dev/null || true
     rm -f /tmp/uniclient_debug_cmd.json /tmp/uniclient_debug_out.json
@@ -470,6 +541,8 @@ Item: $CURRENT_ITEM"
     log "Impl committed: $(git -C "$PROJECT_ROOT" log -1 --oneline)"
 
     # ── STAGE 2: VERIFY ─────────────────────────────────────
+    log ""
+    log "  ⏳ Cooling down before verification (2s)..."
     pkill -x uniclient 2>/dev/null || true
     rm -f /tmp/uniclient_debug_cmd.json /tmp/uniclient_debug_out.json
     sleep 2
@@ -498,13 +571,23 @@ Item: $CURRENT_ITEM"
       TOTAL_COMMITS=$((TOTAL_COMMITS + NEW_COMMITS))
       LAST_COMMIT_HASH="$VERIFY_HASH"
       ITEM_ATTEMPTS=0
-      log "✅ VERIFIED ($NEW_COMMITS commits). Total: $TOTAL_COMMITS"
+      log ""
+      log "  ╔════════════════════════════════════════════╗"
+      log "  ║  ✅ VERIFIED & PUSHED                      ║"
+      log "  ║  $NEW_COMMITS commit(s) | Total: $TOTAL_COMMITS verified  ║"
+      log "  ╚════════════════════════════════════════════╝"
     elif [[ -f "$FEEDBACK_FILE" ]]; then
       ITEM_ATTEMPTS=$((ITEM_ATTEMPTS + 1))
-      log "❌ VERIFY FAILED (attempt $ITEM_ATTEMPTS/$MAX_IMPL_ATTEMPTS)"
+      log ""
+      log "  ╔════════════════════════════════════════════╗"
+      log "  ║  ❌ VERIFICATION FAILED                    ║"
+      log "  ║  Attempt $ITEM_ATTEMPTS / $MAX_IMPL_ATTEMPTS — feedback saved    ║"
+      log "  ╚════════════════════════════════════════════╝"
+      log "  Feedback: $(head -2 "$FEEDBACK_FILE" 2>/dev/null || echo 'none')"
     else
       ITEM_ATTEMPTS=$((ITEM_ATTEMPTS + 1))
-      log "⚠️  No push, no feedback. Attempt $ITEM_ATTEMPTS/$MAX_IMPL_ATTEMPTS"
+      log ""
+      log "  ⚠️  No push, no feedback. Attempt $ITEM_ATTEMPTS/$MAX_IMPL_ATTEMPTS"
     fi
 
     pkill -x uniclient 2>/dev/null || true
@@ -521,9 +604,12 @@ Item: $CURRENT_ITEM"
       break
     fi
 
-    log "══════════════════════════════════════════════════"
-    log "══ AUDIT CYCLE $AUDIT_CYCLE / $MAX_AUDIT_CYCLES ══"
-    log "══════════════════════════════════════════════════"
+    echo ""
+    log "╔══════════════════════════════════════════════════════════════╗"
+    log "║  🔍 AUDIT CYCLE $AUDIT_CYCLE / $MAX_AUDIT_CYCLES                                  "
+    log "║  📊 Checklist empty — re-auditing codebase against spec      "
+    log "║  🏷️  Git tag: audit-pre-cycle-${AUDIT_CYCLE}                           "
+    log "╚══════════════════════════════════════════════════════════════╝"
     update_progress "audit" "cycle $AUDIT_CYCLE" "starting"
 
     # Safety tag for rollback
@@ -625,7 +711,9 @@ Item: $CURRENT_ITEM"
       fi
     done
 
-    log "Layer 1: $SUCCESSFUL_CHUNKS/$CHUNK_ID chunks succeeded, $FAILED_CHUNKS failed (partial-failure OK)"
+    log ""
+    log "  📊 Layer 1 results: $SUCCESSFUL_CHUNKS/$CHUNK_ID succeeded, $FAILED_CHUNKS failed"
+    [[ $FAILED_CHUNKS -gt 0 ]] && log "  ⚠️  $FAILED_CHUNKS chunks failed (partial-failure — continuing with what we have)"
 
     # ── LAYER 2: Journey-based visual audit (if app builds) ──
     update_progress "audit" "cycle $AUDIT_CYCLE" "Layer 2: visual journey audit"
@@ -707,16 +795,25 @@ $(echo "$JSTEPS" | tr ';' '\n' | sed 's/^/  - /')"
     rm -f "$PROJECT_ROOT/checklist/audit_chunk_"*.md "$PROJECT_ROOT/checklist/audit_journey_"*.md
 
     FINDINGS=$(grep -c '^- \[ \]' "$PROJECT_ROOT/checklist/gui.md" 2>/dev/null || echo 0)
-    log "Audit cycle $AUDIT_CYCLE: $FINDINGS items found ($SUCCESSFUL_CHUNKS chunks, $FAILED_CHUNKS failed)"
+    echo ""
+    log "  ┌──────────────────────────────────────────────────"
+    log "  │ 📋 Audit cycle $AUDIT_CYCLE results"
+    log "  │ 🔢 Findings: $FINDINGS items"
+    log "  │ 📦 L1 chunks: $SUCCESSFUL_CHUNKS ok, $FAILED_CHUNKS failed"
+    log "  │ 🚶 L2 journeys: $JID completed"
+    log "  └──────────────────────────────────────────────────"
 
     # ── Convergence check ────────────────────────────────────
     if [[ "$FINDINGS" -eq 0 ]]; then
       CONVERGE_COUNT=$((CONVERGE_COUNT + 1))
       log "Zero findings. Convergence: $CONVERGE_COUNT/$CONVERGE_THRESHOLD"
       if [[ $CONVERGE_COUNT -ge $CONVERGE_THRESHOLD ]]; then
-        log "═══════════════════════════════════════════"
-        log "══ CONVERGED after $AUDIT_CYCLE audit cycles ══"
-        log "═══════════════════════════════════════════"
+        echo ""
+        log "╔══════════════════════════════════════════════════════════════╗"
+        log "║  🎉 CONVERGED — zero findings for $CONVERGE_THRESHOLD consecutive cycles   ║"
+        log "║  🔄 Audit cycles: $AUDIT_CYCLE                                       ║"
+        log "║  ✅ Verified commits: $TOTAL_COMMITS                                  ║"
+        log "╚══════════════════════════════════════════════════════════════╝"
         notify "Ralph v2: CONVERGED! $TOTAL_COMMITS commits, $AUDIT_CYCLE audit cycles."
         break
       fi
@@ -763,18 +860,23 @@ EOF
 done
 
 # ─── Final report ────────────────────────────────────────────────
-log "═══════════════════════════════════════════════"
-log "══ RALPH V2 COMPLETE"
-log "══ Impl iterations: $IMPL_ITERATION"
-log "══ Audit cycles: $AUDIT_CYCLE"
-log "══ Verified commits: $TOTAL_COMMITS"
+TOTAL_COST="?"
 if [[ -f "$COST_LOG" ]]; then
   TOTAL_COST=$(awk '{gsub(/\$/,"",$4); sum+=$4} END{printf "%.2f", sum}' "$COST_LOG" 2>/dev/null || echo "?")
-  log "══ Total cost: \$$TOTAL_COST"
 fi
-log "══ Known limitations:"
-log "══   - Same-model blind spot (Claude auditing Claude)"
-log "══   - Animation/timing not testable via screenshots"
-log "══   - ~10-15% of spec surface requires human judgment"
-log "═══════════════════════════════════════════════"
-notify "Ralph v2 DONE. $IMPL_ITERATION impl, $AUDIT_CYCLE audit, $TOTAL_COMMITS commits."
+
+echo ""
+log "╔══════════════════════════════════════════════════════════════╗"
+log "║                    🏁 RALPH V2 COMPLETE                      ║"
+log "╠══════════════════════════════════════════════════════════════╣"
+log "║  🔨 Implementation iterations: $IMPL_ITERATION"
+log "║  🔍 Audit cycles:              $AUDIT_CYCLE"
+log "║  ✅ Verified commits:          $TOTAL_COMMITS"
+log "║  💰 Total cost:                \$$TOTAL_COST"
+log "╠══════════════════════════════════════════════════════════════╣"
+log "║  ⚠️  Known limitations:                                      ║"
+log "║    - Same-model blind spot (Claude auditing Claude)          ║"
+log "║    - Animation/timing not testable via screenshots           ║"
+log "║    - ~10-15% of spec surface requires human judgment         ║"
+log "╚══════════════════════════════════════════════════════════════╝"
+notify "Ralph v2 DONE. $IMPL_ITERATION impl, $AUDIT_CYCLE audit, $TOTAL_COMMITS commits. \$$TOTAL_COST"
