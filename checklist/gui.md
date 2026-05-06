@@ -22,9 +22,7 @@
 
 ## §8 — Info / Details Panel
 
-- [ ] spec §8.2 "Lottie icon mute/unmute crossfade": spec says mute toggle plays Lottie animations (profile_muting/profile_unmuting); implementation uses AnimatedSwitcher with Material Icons, no Lottie assets — `info_panel.dart` `_actionBtn`
-- [ ] spec §8.6 "Music mini-player hook": spec describes infoMusicButtonPadding with Performer/Title labels and quick-jump to source message; no music mini-player in info panel — `info_panel.dart`
-- [ ] spec §8.6 "Business Hours / Location": spec lists Business Hours and Location as DetailsFiller rows; Birthday and Personal Channel are now implemented but Business Hours and Location fields are still absent from UserProfile model and info panel — `info_panel.dart` `_ChatDetails`
+- [ ] spec §8.6 "Music mini-player hook": mini-player widget present with correct padding (fromLTRB 12,8,24,8) and Performer/Title labels, but quick-jump to source message not implemented — `onTap: () {}` is a stub in `_MusicMiniPlayer`; `AudioService` also missing `currentMsgDate` field needed for `chatState.jumpToMessage` — `info_panel.dart` `_MusicMiniPlayer`
 
 ## §9 — Context Menus & Actions
 
