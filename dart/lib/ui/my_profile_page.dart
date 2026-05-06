@@ -912,15 +912,7 @@ class _PersonalChannelRow extends StatelessWidget {
     final displayValue = hasChannel ? channelName : 'Add';
 
     return InkWell(
-      onTap: () {
-        if (hasChannel) {
-          final appState = context.read<AppState>();
-          final account = appState.activeAccount;
-          if (account != null) {
-            showTelegramToast(context, 'Personal channel: $channelName');
-          }
-        }
-      },
+      onTap: () => _showPersonalChannelEditor(context, hasChannel, channelName),
       hoverColor: hoverBg,
       splashColor: hoverBg.withValues(alpha: 0.5),
       child: Padding(
@@ -962,6 +954,101 @@ class _PersonalChannelRow extends StatelessWidget {
             ),
             const SizedBox(width: 22),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _showPersonalChannelEditor(BuildContext context, bool hasChannel, String currentName) {
+    final isDarkTheme = isDark;
+    final bgColor = isDarkTheme ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDarkTheme ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDarkTheme ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = context.palette.windowBgActive;
+    final controller = TextEditingController(text: hasChannel ? currentName : '');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: bgColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 380),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 18, 22, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hasChannel ? 'Personal Channel' : 'Add Personal Channel',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Enter the username of a channel you own to display it on your profile.',
+                  style: TextStyle(fontSize: 14, color: subtextColor),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  style: TextStyle(color: textColor, fontSize: 14),
+                  decoration: InputDecoration(
+                    prefixText: '@',
+                    prefixStyle: TextStyle(color: subtextColor, fontSize: 14),
+                    hintText: 'channel_username',
+                    hintStyle: TextStyle(color: subtextColor.withValues(alpha: 0.5)),
+                    enabledBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: subtextColor.withValues(alpha: 0.3)),
+                    ),
+                    focusedBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: accentColor),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (hasChannel)
+                      TextButton(
+                        onPressed: () {
+                          final engine = context.read<EngineService>();
+                          final appState = context.read<AppState>();
+                          engine.clearPersonalChannel(appState.activeAccountId);
+                          Navigator.of(ctx).pop();
+                          showTelegramToast(context, 'Personal channel removed');
+                        },
+                        child: Text('Remove', style: TextStyle(color: Colors.red[400])),
+                      ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      child: Text('Cancel', style: TextStyle(color: subtextColor)),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: () {
+                        final username = controller.text.trim();
+                        if (username.isEmpty) return;
+                        final engine = context.read<EngineService>();
+                        final appState = context.read<AppState>();
+                        engine.setPersonalChannel(appState.activeAccountId, username);
+                        Navigator.of(ctx).pop();
+                        showTelegramToast(context, 'Personal channel set to @$username');
+                      },
+                      child: Text('Save', style: TextStyle(color: accentColor)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -1451,8 +1538,18 @@ class _AccountsSection extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (int i = 0; i < accounts.length; i++) ...[
-          _SettingsAccountRow(
+        ReorderableListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          buildDefaultDragHandles: true,
+          proxyDecorator: (child, index, animation) => Material(
+            elevation: 4,
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            child: child,
+          ),
+          itemCount: accounts.length,
+          itemBuilder: (_, i) => _SettingsAccountRow(
             key: ValueKey(accounts[i].id),
             account: accounts[i],
             isActive: accounts[i].id == activeId,
@@ -1462,6 +1559,12 @@ class _AccountsSection extends StatelessWidget {
             hoverBg: hoverBg,
             isDark: isDark,
             onTap: () {
+              if (HardwareKeyboard.instance.logicalKeysPressed
+                  .any((k) => k == LogicalKeyboardKey.controlLeft || k == LogicalKeyboardKey.controlRight || k == LogicalKeyboardKey.metaLeft || k == LogicalKeyboardKey.metaRight)) {
+                showTelegramToast(context, 'Switched to ${accounts[i].displayName}');
+                appState.setActiveAccountId(accounts[i].id);
+                return;
+              }
               if (accounts[i].id == activeId) {
                 Navigator.of(context).pop();
               } else {
@@ -1478,7 +1581,8 @@ class _AccountsSection extends StatelessWidget {
               }
             },
           ),
-        ],
+          onReorder: appState.reorderAccounts,
+        ),
         if (appState.canAddAccount)
           _AddAccountButton(
             isDark: isDark,

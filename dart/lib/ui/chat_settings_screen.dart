@@ -2776,19 +2776,6 @@ class _StickersEmojiSection extends StatelessWidget {
           isDark: isDark,
           onChanged: onLoopAnimatedStickersChanged,
         ),
-        const SizedBox(height: 4),
-        _StickerNavButton(
-          icon: Icons.sticky_note_2_outlined,
-          label: 'Your Stickers',
-          isDark: isDark,
-          onTap: () {},
-        ),
-        _StickerNavButton(
-          icon: Icons.emoji_emotions_outlined,
-          label: 'Emoji Sets',
-          isDark: isDark,
-          onTap: () {},
-        ),
       ],
     );
   }

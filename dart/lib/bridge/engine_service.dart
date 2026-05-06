@@ -2623,6 +2623,37 @@ class EngineService {
     await _callAsync('__engine', 'SetArchiveSettings', Uint8List.fromList(payload));
   }
 
+  Future<void> setEmojiStatus(String accountId, String emoji, int expiresInSeconds) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'emoji': emoji,
+      'expires_in': expiresInSeconds,
+    }));
+    await _callAsync('__engine', 'SetEmojiStatus', Uint8List.fromList(payload));
+  }
+
+  Future<void> clearEmojiStatus(String accountId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+    }));
+    await _callAsync('__engine', 'ClearEmojiStatus', Uint8List.fromList(payload));
+  }
+
+  Future<void> setPersonalChannel(String accountId, String channelUsername) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'channel_username': channelUsername,
+    }));
+    await _callAsync('__engine', 'SetPersonalChannel', Uint8List.fromList(payload));
+  }
+
+  Future<void> clearPersonalChannel(String accountId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+    }));
+    await _callAsync('__engine', 'ClearPersonalChannel', Uint8List.fromList(payload));
+  }
+
   Future<void> clearPaymentInfo(String accountId, {required bool clearCredentials, required bool clearShipping}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

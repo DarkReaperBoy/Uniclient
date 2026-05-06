@@ -612,7 +612,7 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
                         if (account?.isPremium == true) ...[
                           const SizedBox(width: 4),
                           GestureDetector(
-                            onTap: () => showTelegramToast(context, 'Emoji status'),
+                            onTap: () => _showEmojiStatusPanel(context),
                             child: Icon(Icons.workspace_premium, size: 18, color: accentColor),
                           ),
                         ],
@@ -781,6 +781,125 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
     final link = 'https://t.me/$username';
     Clipboard.setData(ClipboardData(text: link));
     showTelegramToast(context, 'Link copied: $link');
+  }
+
+  void _showEmojiStatusPanel(BuildContext context) {
+    final isDark = widget.isDark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = context.palette.windowBgActive;
+    final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+
+    const statusEmojis = [
+      '😊', '😎', '🤔', '😴', '🎮', '💻', '📚', '🎵',
+      '🏃', '✈️', '🎉', '❤️', '🔥', '⭐', '🌙', '☕',
+      '🍕', '🎬', '📱', '💤', '🏠', '💼', '🎯', '✨',
+    ];
+
+    const durations = <int, String>{
+      3600: '1 hour',
+      7200: '2 hours',
+      28800: '8 hours',
+      86400: '1 day',
+      259200: '3 days',
+      604800: '1 week',
+      0: 'No expiration',
+    };
+
+    int selectedDuration = 0;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => Dialog(
+          backgroundColor: bgColor,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 340, maxHeight: 480),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Set Emoji Status',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                      color: textColor,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Flexible(
+                    child: GridView.builder(
+                      shrinkWrap: true,
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 8,
+                        mainAxisSpacing: 4,
+                        crossAxisSpacing: 4,
+                      ),
+                      itemCount: statusEmojis.length,
+                      itemBuilder: (_, i) => InkWell(
+                        onTap: () {
+                          engine.setEmojiStatus(appState.activeAccountId, statusEmojis[i], selectedDuration);
+                          Navigator.of(ctx).pop();
+                          showTelegramToast(context, 'Status set to ${statusEmojis[i]}');
+                        },
+                        hoverColor: hoverBg,
+                        borderRadius: BorderRadius.circular(6),
+                        child: Center(
+                          child: Text(
+                            statusEmojis[i],
+                            style: const TextStyle(fontSize: 22),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text('Expires after:', style: TextStyle(fontSize: 13, color: subtextColor)),
+                  const SizedBox(height: 6),
+                  DropdownButton<int>(
+                    value: selectedDuration,
+                    isExpanded: true,
+                    dropdownColor: bgColor,
+                    style: TextStyle(fontSize: 14, color: textColor),
+                    underline: Container(height: 1, color: subtextColor.withValues(alpha: 0.3)),
+                    items: durations.entries
+                        .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
+                        .toList(),
+                    onChanged: (v) => setDialogState(() => selectedDuration = v ?? 0),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () {
+                          engine.clearEmojiStatus(appState.activeAccountId);
+                          Navigator.of(ctx).pop();
+                          showTelegramToast(context, 'Status cleared');
+                        },
+                        child: Text('Clear Status', style: TextStyle(color: subtextColor)),
+                      ),
+                      const SizedBox(width: 8),
+                      TextButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        child: Text('Cancel', style: TextStyle(color: accentColor)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _showQrDialog(BuildContext context, String username) {

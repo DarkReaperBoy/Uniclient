@@ -22,10 +22,11 @@ class AdvancedSettingsScreen extends StatefulWidget {
   State<AdvancedSettingsScreen> createState() => _AdvancedSettingsScreenState();
 }
 
-enum _UpdateState { idle, checking, latest, failed }
+enum _UpdateState { idle, checking, latest, available, failed }
 
 class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
   _UpdateState _updateState = _UpdateState.idle;
+  String _latestVersion = '';
 
   @override
   Widget build(BuildContext context) {
@@ -104,14 +105,42 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         _UpdateState.idle => 'UniClient v$_appVersion',
         _UpdateState.checking => 'Checking for updates...',
         _UpdateState.latest => 'You have the latest version installed',
+        _UpdateState.available => 'New version available: $_latestVersion',
         _UpdateState.failed => 'Update check failed',
       };
 
-  void _checkForUpdates() {
+  void _checkForUpdates() async {
     setState(() => _updateState = _UpdateState.checking);
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) setState(() => _updateState = _UpdateState.latest);
-    });
+    try {
+      final client = HttpClient();
+      final request = await client.getUrl(
+        Uri.parse('https://api.github.com/repos/DarkReaperBoy/uniclient/releases/latest'),
+      );
+      request.headers.set('Accept', 'application/vnd.github.v3+json');
+      request.headers.set('User-Agent', 'UniClient/$_appVersion');
+      final response = await request.close();
+      if (response.statusCode == 200) {
+        final body = await response.transform(utf8.decoder).join();
+        final data = json.decode(body) as Map<String, dynamic>;
+        final tagName = (data['tag_name'] as String?) ?? '';
+        final remoteVersion = tagName.startsWith('v') ? tagName.substring(1) : tagName;
+        client.close();
+        if (!mounted) return;
+        if (remoteVersion.isNotEmpty && remoteVersion != _appVersion) {
+          setState(() {
+            _latestVersion = remoteVersion;
+            _updateState = _UpdateState.available;
+          });
+        } else {
+          setState(() => _updateState = _UpdateState.latest);
+        }
+      } else {
+        client.close();
+        if (mounted) setState(() => _updateState = _UpdateState.failed);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _updateState = _UpdateState.failed);
+    }
   }
 
   List<Widget> _buildSoftwareUpdate(bool isDark) {
@@ -708,6 +737,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         _AdvancedIconButtonRow(
           icon: Icons.library_books,
           label: 'Manage Dictionaries',
+          rightLabel: _getDictionaryCountLabel(),
           textColor: textColor,
           subtextColor: subtextColor,
           iconColor: iconColor,
@@ -716,6 +746,22 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         ),
       ],
     ];
+  }
+
+  String _getDictionaryCountLabel() {
+    if (Platform.isLinux) {
+      try {
+        final dir = Directory('/usr/share/hunspell');
+        if (dir.existsSync()) {
+          final count = dir.listSync()
+              .where((f) => f.path.endsWith('.dic'))
+              .length;
+          return '$count';
+        }
+      } catch (_) {}
+      return 'System';
+    }
+    return 'System';
   }
 
   void _showManageDictionariesDialog(BuildContext context, bool isDark) {
