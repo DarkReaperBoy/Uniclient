@@ -205,32 +205,33 @@ build_impl_prompt() {
   local extra="${1:-}"
   cat <<'PROMPT_END'
 You are running in unattended automation mode (ralph loop). No human is watching.
-This is STAGE 1 (IMPLEMENTATION). Implement ONE checklist item. A separate
-verification session tests your work afterwards.
+This is STAGE 1 (IMPLEMENTATION). Implement ALL items in the first section that
+has unchecked items. A separate verification session tests your work afterwards.
 
 MANDATORY FIRST STEPS:
 1. Read CLAUDE.md (every rule is binding)
-2. Read checklist/gui.md — find the FIRST "- [ ]" item top-to-bottom
+2. Read checklist/gui.md — find the FIRST section (## heading) that contains "- [ ]" items
+3. Read ALL "- [ ]" items in that section — they typically touch the same files and spec area
 
 THEN:
-3. Read the spec section cited in the item (from research/telegram_desktop_ui.md)
-4. Read existing source files BEFORE writing code
-5. Implement completely — no stubs, no placeholders
-6. Build and basic sanity check:
+4. Read the relevant spec sections cited in the items (from research/telegram_desktop_ui.md)
+5. Read existing source files BEFORE writing code
+6. Implement ALL items in the section — no stubs, no placeholders
+7. Build and basic sanity check:
    a. ONLY rebuild Go if you changed files under go/: scripts/build_go.sh linux
       (Skip if you only changed dart/ files — saves 30-60 seconds)
    b. scripts/build_flutter.sh linux debug
    c. Launch: cd dart/build/linux/x64/debug/bundle && nohup ./uniclient > /tmp/uniclient_log.txt 2>&1 &
    d. Wait 3s, screenshot: scripts/flutter_inspect.sh screenshot /tmp/ss.png
-   e. Verify no crash, feature roughly visible
+   e. Verify no crash, features roughly visible
    f. Kill: pkill uniclient
-7. Commit: git add <files> && git commit -m "[unverified] <description>"
-8. Do NOT push. Do NOT delete checklist item.
+8. Commit: git add <files> && git commit -m "[unverified] <section name>: N items"
+9. Do NOT push. Do NOT delete checklist items.
 
 RULES:
-- ONE item per session. Commit [unverified], exit.
+- ONE SECTION per session. All items in it, one commit, then exit.
 - TELEGRAM ONLY for testing.
-- Do NOT read SPEC.md, auth/auth.md, or research/ files except the cited spec section.
+- Do NOT read SPEC.md, auth/auth.md, or research/ files except cited spec sections.
 - Do NOT refactor unrelated code or fix unrelated bugs.
 PROMPT_END
   [[ -n "$extra" ]] && echo -e "\n$extra"
@@ -247,20 +248,22 @@ build_verify_prompt() {
 
   cat <<PROMPT_END
 You are running in unattended automation mode (ralph loop). No human is watching.
-This is STAGE 2 (VERIFICATION). Test whether the implementation works.
+This is STAGE 2 (VERIFICATION). Test whether the section implementation works.
 
-ITEM: $item
+SECTION BEING VERIFIED (all items below):
+$item
+
 COMMIT: $commit_msg
 FILES: $diff_stat
 
 STEPS:
 1. Read CLAUDE.md
-2. Read the spec section cited in the item
+2. Read the spec sections cited in the items above
 3. Build & launch the app (skip Go build if only dart/ files changed):
    scripts/build_flutter.sh linux debug
    cd dart/build/linux/x64/debug/bundle && nohup ./uniclient > /tmp/uniclient_log.txt 2>&1 &
-4. Run: scripts/flutter_audit.sh verify "$(echo "$item" | head -c 80)"
-5. Test BOTH modes:
+4. Run: scripts/flutter_audit.sh verify "section verification"
+5. Test EACH item in the section — verify it works in BOTH modes:
    - Desktop (1024x768): screenshot + interactions
    - Mobile (400x720): screenshot + interactions
 6. Check /tmp/uniclient_log.txt for crashes
@@ -272,18 +275,25 @@ SEVERITY GUIDE (proportional — Weber's Law):
 - MINOR: 5-10% proportional deviation
 - COSMETIC: <5% proportional deviation (do NOT fail for cosmetic issues)
 
-IF PASS:
-  a. Delete the item from checklist/gui.md (remove the "- [ ]" line)
-  b. git add checklist/gui.md && git commit -m "Verify & close: <description>"
+IF ALL ITEMS PASS:
+  a. Delete ALL verified items from checklist/gui.md (remove their "- [ ]" lines)
+  b. git add checklist/gui.md && git commit -m "Verify & close: <section name>"
   c. git push origin main
   d. Exit.
 
-IF FAIL:
+IF SOME ITEMS FAIL:
+  a. Delete ONLY the items that PASSED from checklist/gui.md
+  b. Write failure details for failed items to /tmp/ralph_feedback.txt
+  c. git add checklist/gui.md && git commit -m "Verify & close: <section> (partial)"
+  d. git push origin main
+  e. Exit.
+
+IF ALL ITEMS FAIL:
   a. Write failure details to /tmp/ralph_feedback.txt
-  b. Do NOT modify code, push, or delete checklist item.
+  b. Do NOT modify checklist, do NOT push.
   c. Exit.
 
-Be HARSH on critical/major. Be lenient on cosmetic. A 2px error on a 300px panel is invisible.
+Be HARSH on critical/major. Be lenient on cosmetic.
 PROMPT_END
 }
 
@@ -385,8 +395,24 @@ while true; do
     update_progress "implement" "iteration $IMPL_ITERATION" "$REMAINING items left"
     log "══ IMPLEMENT $IMPL_ITERATION ($REMAINING left, $TOTAL_COMMITS verified) ══"
 
-    CURRENT_ITEM="$(grep -m1 '^- \[ \]' "$PROJECT_ROOT/checklist/gui.md" 2>/dev/null || echo "unknown")"
-    log "Item: ${CURRENT_ITEM:0:100}"
+    # Extract the first section (## heading) that contains unchecked items
+    CURRENT_SECTION=""
+    CURRENT_ITEMS=""
+    SECTION_NAME=""
+    while IFS= read -r line; do
+      if [[ "$line" =~ ^##\  ]]; then
+        if [[ -n "$CURRENT_ITEMS" ]]; then
+          break
+        fi
+        CURRENT_SECTION="$line"
+        SECTION_NAME="${line#\#\# }"
+      elif [[ "$line" =~ ^-\ \[\ \] ]] && [[ -n "$CURRENT_SECTION" ]]; then
+        CURRENT_ITEMS+="$line"$'\n'
+      fi
+    done < "$PROJECT_ROOT/checklist/gui.md"
+    CURRENT_ITEMS="${CURRENT_ITEMS%$'\n'}"
+    ITEM_COUNT=$(echo "$CURRENT_ITEMS" | grep -c '^- \[ \]' || echo 0)
+    log "Section: $SECTION_NAME ($ITEM_COUNT items)"
 
     pkill -x uniclient 2>/dev/null || true
     rm -f /tmp/uniclient_debug_cmd.json /tmp/uniclient_debug_out.json
@@ -444,7 +470,7 @@ Item: $CURRENT_ITEM"
     rm -f "$FEEDBACK_FILE"
 
     VERIFY_EXIT=0
-    invoke_claude "$(build_verify_prompt "$CURRENT_ITEM")" "$VERIFY_FILE" "VERIFY" "claude-sonnet-4-6" || VERIFY_EXIT=$?
+    invoke_claude "$(build_verify_prompt "$CURRENT_ITEMS")" "$VERIFY_FILE" "VERIFY" "claude-sonnet-4-6" || VERIFY_EXIT=$?
 
     if [[ $VERIFY_EXIT -eq 2 ]]; then
       log "Rate limited during verify. Waiting..."
