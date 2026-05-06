@@ -4826,6 +4826,25 @@ class _MembersSectionState extends State<_MembersSection> {
     super.dispose();
   }
 
+  void _showAddMemberDialog(BuildContext context) async {
+    final engine = context.read<EngineService>();
+    final existingIds = widget.members?.map((m) => m.userId).toSet() ?? {};
+    final result = await showDialog<List<String>>(
+      context: context,
+      builder: (dCtx) => _AddMemberDialog(
+        accountId: widget.accountId,
+        chatId: widget.chatId,
+        engine: engine,
+        existingMemberIds: existingIds,
+      ),
+    );
+    if (result != null && result.isNotEmpty && mounted) {
+      try {
+        await engine.addMembers(widget.accountId, widget.chatId, result);
+      } catch (_) {}
+    }
+  }
+
   List<MemberInfo> _sortedMembers() {
     final list = List<MemberInfo>.from(widget.members!);
     list.sort((a, b) {
@@ -4910,7 +4929,7 @@ class _MembersSectionState extends State<_MembersSection> {
                   icon: Icons.person_add_outlined,
                   tooltip: 'Add member',
                   color: theme.textTheme.bodyMedium?.color ?? theme.iconTheme.color!,
-                  onTap: () {},
+                  onTap: () => _showAddMemberDialog(context),
                 ),
               ],
             ),

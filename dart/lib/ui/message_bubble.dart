@@ -563,6 +563,15 @@ class _MessageBubbleState extends State<MessageBubble> {
 
     final noBubble = isStickerOnly || isIsolatedEmoji;
 
+    // Spec §5: Bottom info floats inline at end of last text line for text bubbles.
+    final useFloatingInfo = !isMediaOnlyBubble &&
+        !isIsolatedEmoji &&
+        !isStickerOnly &&
+        message.contentText.isNotEmpty &&
+        (isCaptionedMedia ||
+         (!message.hasWebPage && !message.hasGame && !message.hasInvoice &&
+          !message.hasMedia && albumItems.isEmpty));
+
     final themeOverride = ChatThemeOverride.of(context);
     final bubbleColor = noBubble
         ? Colors.transparent
@@ -598,6 +607,55 @@ class _MessageBubbleState extends State<MessageBubble> {
     final showAvatar = isGroupChat && !isOutgoing;
 
     final deletedOpacity = (ayuState.semiTransparentDeleted && message.isDeleted) ? 0.7 : 1.0;
+
+    final inlineInfoWidget = useFloatingInfo ? Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(width: 6),
+        if (message.views > 0) ...[
+          SizedBox(width: 20, height: 11,
+            child: CustomPaint(painter: _ViewsIconPainter(color: _bottomInfoColor(isOutgoing, palette)))),
+          const SizedBox(width: 8),
+          Text(_formatCount(message.views),
+              style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, palette))),
+        ],
+        if (message.forwards > 0) ...[
+          const SizedBox(width: 8),
+          SizedBox(width: 20, height: 11,
+            child: CustomPaint(painter: _ForwardsIconPainter(color: _bottomInfoColor(isOutgoing, palette)))),
+          const SizedBox(width: 8),
+          Text(_formatCount(message.forwards),
+              style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, palette))),
+        ],
+        ..._buildDeletedEditedMarks(
+          message: message,
+          color: _bottomInfoColor(isOutgoing, palette),
+          appState: ayuState,
+        ),
+        if (widget.isScheduledView && message.isScheduled)
+          TelegramTooltip(
+            message: _scheduledTooltip(message),
+            child: Text(
+              _formatScheduledTime(message),
+              style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, palette)),
+            ),
+          )
+        else
+          Text(
+            _buildTimeText(message, ayuState),
+            style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, palette)),
+          ),
+        if (isOutgoing && !widget.isScheduledView)
+          SizedBox(
+            width: 24,
+            height: 11,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 2),
+              child: _StatusIcon(status: message.status, theme: theme, isOutgoing: true, isDark: isDark),
+            ),
+          ),
+      ],
+    ) : null;
 
     Widget bubble = MouseRegion(
       onEnter: (_) => _onHoverEnter(),
@@ -831,6 +889,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                         isOutgoing: isOutgoing,
                         accountId: message.accountId,
                         onContextMenu: onContextMenu,
+                        trailingPad: useFloatingInfo && !isCaptionedMedia ? inlineInfoWidget : null,
                       ),
                     if (message.hasWebPage)
                       Padding(
@@ -887,6 +946,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                         isOutgoing: isOutgoing,
                         accountId: message.accountId,
                         onContextMenu: onContextMenu,
+                        trailingPad: useFloatingInfo ? inlineInfoWidget : null,
                       ),
                     // Reactions row — pill badges above the timestamp.
                     if (message.reactions.isNotEmpty) ...[
@@ -902,7 +962,8 @@ class _MessageBubbleState extends State<MessageBubble> {
                     // Bottom info: views + forwards + edited + time + status.
                     // Spec §5: msgInDateFg / msgOutDateFg per theme.
                     // Skipped for media-only bubbles — overlay rendered by _VisualMedia instead.
-                    if (!isMediaOnlyBubble) ...[
+                    // Skipped when floating info is used (rendered inline at end of text).
+                    if (!isMediaOnlyBubble && !useFloatingInfo) ...[
                       const SizedBox(height: 2),
                       Row(
                         mainAxisSize: MainAxisSize.min,
@@ -6411,6 +6472,7 @@ class _RichMessageText extends StatefulWidget {
   final bool isOutgoing;
   final String accountId;
   final void Function(Offset position, String selectedText)? onContextMenu;
+  final Widget? trailingPad;
 
   const _RichMessageText({
     required this.text,
@@ -6420,6 +6482,7 @@ class _RichMessageText extends StatefulWidget {
     required this.isOutgoing,
     this.accountId = '',
     this.onContextMenu,
+    this.trailingPad,
   });
 
   @override
@@ -6498,6 +6561,19 @@ class _RichMessageTextState extends State<_RichMessageText> {
     _cachedEntities = entities;
     final text = widget.text;
     if (entities.isEmpty) {
+      if (widget.trailingPad != null) {
+        return Text.rich(
+          TextSpan(children: [
+            TextSpan(text: text),
+            WidgetSpan(
+              alignment: PlaceholderAlignment.baseline,
+              baseline: TextBaseline.alphabetic,
+              child: widget.trailingPad!,
+            ),
+          ]),
+          style: widget.baseStyle,
+        );
+      }
       if (widget.onContextMenu != null) {
         return SelectableText(
           text,
@@ -6532,8 +6608,16 @@ class _RichMessageTextState extends State<_RichMessageText> {
 
     Widget result;
     if (blockquotes.isEmpty) {
-      final textSpan = TextSpan(children: _buildInlineSpans(text, 0, textLen, inlineEntities, isDark));
-      if (canBeSelectable) {
+      final spans = _buildInlineSpans(text, 0, textLen, inlineEntities, isDark);
+      if (widget.trailingPad != null) {
+        spans.add(WidgetSpan(
+          alignment: PlaceholderAlignment.baseline,
+          baseline: TextBaseline.alphabetic,
+          child: widget.trailingPad!,
+        ));
+      }
+      final textSpan = TextSpan(children: spans);
+      if (canBeSelectable && widget.trailingPad == null) {
         result = SelectableText.rich(
           textSpan,
           style: widget.baseStyle,
@@ -6594,8 +6678,27 @@ class _RichMessageTextState extends State<_RichMessageText> {
     if (cursor < textLen) {
       final after = inlineEntities.where((e) =>
         e.offset >= cursor).toList();
+      final afterSpans = _buildInlineSpans(text, cursor, textLen, after, isDark);
+      if (widget.trailingPad != null) {
+        afterSpans.add(WidgetSpan(
+          alignment: PlaceholderAlignment.baseline,
+          baseline: TextBaseline.alphabetic,
+          child: widget.trailingPad!,
+        ));
+      }
       children.add(Text.rich(
-        TextSpan(children: _buildInlineSpans(text, cursor, textLen, after, isDark)),
+        TextSpan(children: afterSpans),
+        style: widget.baseStyle,
+      ));
+    } else if (widget.trailingPad != null) {
+      children.add(Text.rich(
+        TextSpan(children: [
+          WidgetSpan(
+            alignment: PlaceholderAlignment.baseline,
+            baseline: TextBaseline.alphabetic,
+            child: widget.trailingPad!,
+          ),
+        ]),
         style: widget.baseStyle,
       ));
     }
