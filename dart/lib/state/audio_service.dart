@@ -11,6 +11,7 @@ class AudioService extends ChangeNotifier {
   String _currentChatId = '';
   String _currentPerformer = '';
   String _currentTitle = '';
+  int _currentMsgTimestamp = 0;
   final List<StreamSubscription> _subs = [];
 
   String get currentMsgId => _currentMsgId;
@@ -20,6 +21,7 @@ class AudioService extends ChangeNotifier {
   String get currentChatId => _currentChatId;
   String get currentPerformer => _currentPerformer;
   String get currentTitle => _currentTitle;
+  int get currentMsgTimestamp => _currentMsgTimestamp;
 
   double get progress =>
       _duration.inMilliseconds > 0
@@ -33,6 +35,7 @@ class AudioService extends ChangeNotifier {
     String chatId = '',
     String performer = '',
     String title = '',
+    int msgTimestamp = 0,
   }) async {
     if (_currentMsgId == msgId && _player != null) {
       if (_playing) {
@@ -51,6 +54,7 @@ class AudioService extends ChangeNotifier {
     _currentChatId = chatId;
     _currentPerformer = performer;
     _currentTitle = title;
+    _currentMsgTimestamp = msgTimestamp;
     _position = Duration.zero;
     _duration = Duration.zero;
     _playing = false;
@@ -99,6 +103,7 @@ class AudioService extends ChangeNotifier {
     _currentChatId = '';
     _currentPerformer = '';
     _currentTitle = '';
+    _currentMsgTimestamp = 0;
     _playing = false;
     _position = Duration.zero;
     _duration = Duration.zero;

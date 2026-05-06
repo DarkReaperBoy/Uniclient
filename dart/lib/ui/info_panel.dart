@@ -2456,7 +2456,12 @@ class _MusicMiniPlayer extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: () {},
+          onTap: () {
+            if (audio.currentMsgTimestamp > 0) {
+              final chatState = context.read<ChatState>();
+              chatState.jumpToMessage(audio.currentMsgTimestamp, highlightMsgId: audio.currentMsgId);
+            }
+          },
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Row(
