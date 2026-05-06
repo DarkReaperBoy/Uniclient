@@ -19,7 +19,6 @@
 ## §7 — Compose Area
 
 - [ ] spec §7.3 "Send button — EditPrice state": Spec says "editing stars-per-message" triggers EditPrice state. `_computeSendButtonType` does not check `starsToSend` — EditPrice is unreachable — `chat_view.dart:12614-12626`
-- [ ] spec §7.3 "Send button — Voice/Round Lottie": Spec says Voice<->Round transition plays a Lottie animation ("microphone rolls into camera"). Code uses a 500ms `_rollController` but renders static Material Icons (Icons.mic / Icons.videocam) — no Lottie animation — `chat_view.dart:14492,14574-14583`
 # Audit: §8-§13 Panels & Overlays
 
 ## §8 — Info / Details Panel
