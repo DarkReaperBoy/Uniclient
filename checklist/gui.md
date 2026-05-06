@@ -25,26 +25,7 @@
 
 ## §11 — Authentication / Login Flow
 
-- [ ] spec §11.2 "Next button Y interpolation with introNextSlide = 200px": spec says Y interpolates from introNextTop + 200px up to introNextTop driven by shownAmount; implementation uses a simple slide/fade animation from Offset(0, 200) to zero — approximately matches
-- [ ] spec §11.2 "Next button width = 300px, height = 42px, radius = 6px": implementation has SizedBox width=300, height=42 with borderRadius=6 — matches spec
-- [ ] spec §11.3 "QR radial spinner color #40A7E3": spec says QrActiveColor() returns #40A7E3; implementation uses palette.windowBgActive which is theme-dependent, not the fixed hex value — `auth_screen.dart:779`
-- [ ] spec §11.3 "QR token crossfade (not slide)": spec says new QR matrix crossfades over old one with no slide; implementation uses AnimatedSwitcher with default crossfade — correct
-- [ ] spec §11.3 "QR Redundancy::Quartile": implementation uses QrErrorCorrectLevel.Q — matches spec
-- [ ] spec §11.4 "Country picker popup": spec says Ui::MultiSelect search filter + scrollable rows with flag glyph + country name + +XX code; implementation has a custom _CountryPickerDialog with search and flag+name+code rows — correct
-- [ ] spec §11.5 "OTP cell geometry 40x50px, 4px border, 10px gap, 20px font": implementation has _cellWidth=40, _cellHeight=50, _borderWidth=4, _cellGap=10, _digitFontSize=20 — matches spec exactly
-- [ ] spec §11.5 "OTP digit entry animation 120ms slide up 10px": spec says digit fades in + slides up by 0.2 * 50 = 10px over 120ms; implementation has 120ms duration with Offset(0, 10) slide — matches spec
-- [ ] spec §11.5 "OTP error shake": spec says DefaultShakeCallback triggers shake; implementation has a custom shake animation — present
-- [ ] spec §11.5 "Call countdown row": spec says "Telegram will call you in X:XX" with "Calling..." state; implementation has call timer and "Calling..." text — correct
-- [ ] spec §11.5 "Didn't get the code? link": spec says link offers alternate delivery; implementation has the link but onPressed is empty `() {}` — stub action — `auth_screen.dart:1700`
-- [ ] spec §11.6 "2FA password top = 74px": spec says introPasswordTop = 74px; implementation uses fieldTop = 74.0 — matches spec
-- [ ] spec §11.6 "2FA recovery mode": spec says "Forgot password?" swaps to recovery-code mode with email pattern info; implementation has full recovery mode toggle with _isRecoveryMode — correct
-- [ ] spec §11.6 "2FA recovery no-email: reset account button": spec says if no recovery email, info box opens with "Reset account" button (7-day timer); implementation shows reset account button after dialog — correct
-- [ ] spec §11.7 "Registration avatar UserpicButton": spec says avatar tap opens system photo picker; implementation has a GestureDetector with empty onTap `() {}` — avatar picker is a stub — `auth_screen.dart:618`
-- [ ] spec §11.7 "Registration RTL name field swap": spec says RTL swaps last-name first; implementation checks Directionality and swaps controllers — correct
-- [ ] spec §11.8 "Cover gradient introCoverTopBg/BottomBg": spec says typical blue sweep #0088CC to #0066AA day; implementation uses Color(0xFF0088CC) to Color(0xFF0066AA) for day — matches spec
-- [ ] spec §11.8 "Cover slide easing easeOutCirc for cover transitions": spec says anim::easeOutCirc when hasCover; implementation uses Curves.easeOutCirc for cover transitions — matches spec
-- [ ] spec §11.8 "Title/description crossfade 200ms": spec says Ui::FlatLabel::CrossFade() over introCoverDuration = 200ms; implementation uses AnimatedSwitcher with 200ms — matches spec
-- [ ] spec §11.1 "Change Language link is stub": language dialog only shows English with no real language switching — `auth_screen.dart:1876-1891`
+- [ ] spec §11.1 "Change Language link is stub": language dialog shows 19 languages with search UI but selecting a language does NOT change the app locale — no Locale propagation, no MaterialApp rebuild — `auth_screen.dart:1876-1891`
 
 ## §12 — Calls UI
 
