@@ -17,6 +17,7 @@ const double _kPanelRadius = 8.0;
 const double _kHeightRatio = 0.55;
 const Duration _kShowDuration = Duration(milliseconds: 200);
 const Duration _kHideTimeout = Duration(milliseconds: 300);
+const Duration _kDelayedHideTimeout = Duration(milliseconds: 3000);
 
 const double _kEmojiCellSize = 40.0;
 const double _kEmojiGridPadding = 8.0;
@@ -222,6 +223,7 @@ class _EmojiTabbedPanelState extends State<EmojiTabbedPanel>
   late final CurvedAnimation _curve;
   Timer? _hideTimer;
   bool _mouseInside = false;
+  bool _contextMenuOpen = false;
   int _activeTab = 0;
   late final AnimationController _tabSlideController;
   int _prevTab = 0;
@@ -290,9 +292,17 @@ class _EmojiTabbedPanelState extends State<EmojiTabbedPanel>
     _hideTimer = null;
   }
 
+  void _onContextMenuToggle(bool open) {
+    _contextMenuOpen = open;
+    if (open) {
+      _cancelHideTimer();
+    }
+  }
+
   void _startHideTimer() {
     _cancelHideTimer();
-    _hideTimer = Timer(_kHideTimeout, () {
+    final timeout = _contextMenuOpen ? _kDelayedHideTimeout : _kHideTimeout;
+    _hideTimer = Timer(timeout, () {
       if (!_mouseInside && widget.visible) {
         widget.onHide();
       }
@@ -378,6 +388,7 @@ class _EmojiTabbedPanelState extends State<EmojiTabbedPanel>
                             slideController: _tabSlideController,
                             onEmojiSelected: widget.onEmojiSelected,
                             onCustomEmojiSelected: widget.onCustomEmojiSelected,
+                            onContextMenuToggle: _onContextMenuToggle,
                           ),
                         ),
                       ],
@@ -468,6 +479,7 @@ class _TabContent extends StatelessWidget {
   final AnimationController slideController;
   final ValueChanged<String>? onEmojiSelected;
   final void Function(int documentId, String altText)? onCustomEmojiSelected;
+  final ValueChanged<bool>? onContextMenuToggle;
 
   const _TabContent({
     required this.activeTab,
@@ -475,12 +487,13 @@ class _TabContent extends StatelessWidget {
     required this.slideController,
     this.onEmojiSelected,
     this.onCustomEmojiSelected,
+    this.onContextMenuToggle,
   });
 
   Widget _buildTabWidget(int index, Color placeholderColor) {
     if (index == 0) return _EmojiTab(onEmojiSelected: onEmojiSelected, onCustomEmojiSelected: onCustomEmojiSelected);
-    if (index == 1) return _StickerTab(onStickerSelected: onEmojiSelected);
-    return _GifTab(onGifSelected: onEmojiSelected);
+    if (index == 1) return _StickerTab(onStickerSelected: onEmojiSelected, onContextMenuToggle: onContextMenuToggle);
+    return _GifTab(onGifSelected: onEmojiSelected, onContextMenuToggle: onContextMenuToggle);
   }
 
   @override
@@ -921,6 +934,7 @@ class _EmojiTabState extends State<_EmojiTab> {
         child: _CustomPackHeader(
           title: pack.title,
           installed: pack.installed,
+          premium: pack.premium,
           isDark: isDark,
         ),
       ),
@@ -1030,11 +1044,13 @@ class _EmojiTabState extends State<_EmojiTab> {
 class _CustomPackHeader extends StatelessWidget {
   final String title;
   final bool installed;
+  final bool premium;
   final bool isDark;
 
   const _CustomPackHeader({
     required this.title,
     required this.installed,
+    required this.premium,
     required this.isDark,
   });
 
@@ -1042,6 +1058,7 @@ class _CustomPackHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final headerColor = isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999);
     final accentColor = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd);
+    final premiumColor = isDark ? const Color(0xFFa882e8) : const Color(0xFF7B5EBF);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -1066,12 +1083,12 @@ class _CustomPackHeader extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                 decoration: BoxDecoration(
-                  color: accentColor,
+                  color: premium ? premiumColor : accentColor,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Text(
-                  'Add',
-                  style: TextStyle(
+                child: Text(
+                  premium ? 'Unlock' : 'Add',
+                  style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                     color: Colors.white,
@@ -1332,8 +1349,9 @@ const Duration _kSearchDebounce = Duration(milliseconds: 400);
 
 class _StickerTab extends StatefulWidget {
   final ValueChanged<String>? onStickerSelected;
+  final ValueChanged<bool>? onContextMenuToggle;
 
-  const _StickerTab({this.onStickerSelected});
+  const _StickerTab({this.onStickerSelected, this.onContextMenuToggle});
 
   @override
   State<_StickerTab> createState() => _StickerTabState();
@@ -1509,7 +1527,7 @@ class _StickerTabState extends State<_StickerTab> {
         .clamp(0.0, _footerScrollController.position.maxScrollExtent);
     _footerScrollController.animateTo(
       targetOffset,
-      duration: const Duration(milliseconds: 200),
+      duration: const Duration(milliseconds: 400),
       curve: Curves.easeOutCubic,
     );
   }
@@ -1535,6 +1553,7 @@ class _StickerTabState extends State<_StickerTab> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final menuBg = isDark ? const Color(0xFF1e2c3a) : Colors.white;
     final textColor = isDark ? const Color(0xFFe1e3e6) : const Color(0xFF222222);
+    widget.onContextMenuToggle?.call(true);
     showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx + 1, position.dy + 1),
@@ -1545,6 +1564,7 @@ class _StickerTabState extends State<_StickerTab> {
         PopupMenuItem(value: 'view_set', child: Text('View Set', style: TextStyle(fontSize: 13, color: textColor))),
       ],
     ).then((value) {
+      widget.onContextMenuToggle?.call(false);
       if (value == 'fave') {
         final engine = context.read<EngineService>();
         final appState = context.read<AppState>();
@@ -2131,8 +2151,9 @@ const List<String> _kGifCategoryEmojis = [
 
 class _GifTab extends StatefulWidget {
   final ValueChanged<String>? onGifSelected;
+  final ValueChanged<bool>? onContextMenuToggle;
 
-  const _GifTab({this.onGifSelected});
+  const _GifTab({this.onGifSelected, this.onContextMenuToggle});
 
   @override
   State<_GifTab> createState() => _GifTabState();
@@ -2249,6 +2270,7 @@ class _GifTabState extends State<_GifTab> {
 
   void _onSavedGifContextMenu(GifInfoItem gif, Offset globalPos) async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    widget.onContextMenuToggle?.call(true);
     final result = await showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(
@@ -2266,6 +2288,7 @@ class _GifTabState extends State<_GifTab> {
         ),
       ],
     );
+    widget.onContextMenuToggle?.call(false);
     if (result == 'delete' && mounted) {
       final appState = context.read<AppState>();
       final engine = context.read<EngineService>();
@@ -2282,6 +2305,7 @@ class _GifTabState extends State<_GifTab> {
   }
 
   void _onSearchResultContextMenu(InlineBotResult result, Offset globalPos) async {
+    widget.onContextMenuToggle?.call(true);
     final menuResult = await showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(
@@ -2291,6 +2315,7 @@ class _GifTabState extends State<_GifTab> {
         const PopupMenuItem(value: 'save', child: Text('Save GIF')),
       ],
     );
+    widget.onContextMenuToggle?.call(false);
     if (menuResult == 'save' && mounted) {
       final appState = context.read<AppState>();
       final engine = context.read<EngineService>();

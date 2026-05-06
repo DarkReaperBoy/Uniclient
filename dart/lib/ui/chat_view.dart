@@ -16970,6 +16970,32 @@ class _StickerSuggestionPanel extends StatelessWidget {
     required this.onHover,
   });
 
+  void _showContextMenu(BuildContext context, Offset position, StickerInfoItem sticker) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final menuBg = isDark ? const Color(0xFF1e2c3a) : Colors.white;
+    final textColor = isDark ? const Color(0xFFe1e3e6) : const Color(0xFF222222);
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx + 1, position.dy + 1),
+      color: menuBg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      items: [
+        PopupMenuItem(value: 'fave', child: Text('Fave', style: TextStyle(fontSize: 13, color: textColor))),
+        PopupMenuItem(value: 'view_set', child: Text('View Set', style: TextStyle(fontSize: 13, color: textColor))),
+      ],
+    ).then((value) {
+      if (value == 'fave') {
+        final engine = context.read<EngineService>();
+        final appState = context.read<AppState>();
+        final acc = appState.activeAccount;
+        if (acc != null && sticker.fileId.isNotEmpty) {
+          final id = int.tryParse(sticker.fileId) ?? 0;
+          engine.faveSticker(acc.id, id);
+        }
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -17000,6 +17026,8 @@ class _StickerSuggestionPanel extends StatelessWidget {
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () => onPick(index),
+                onSecondaryTapUp: (d) => _showContextMenu(context, d.globalPosition, s),
+                onLongPressStart: (d) => _showContextMenu(context, d.globalPosition, s),
                 child: Container(
                   width: cellSize,
                   height: cellSize,
