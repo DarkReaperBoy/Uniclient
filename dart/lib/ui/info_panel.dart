@@ -4791,7 +4791,7 @@ class _MembersHeaderButton extends StatelessWidget {
   }
 }
 
-class _MembersSection extends StatelessWidget {
+class _MembersSection extends StatefulWidget {
   final List<MemberInfo>? members;
   final bool loading;
   final int memberCount;
@@ -4810,8 +4810,24 @@ class _MembersSection extends StatelessWidget {
     this.onMemberTap,
   });
 
+  @override
+  State<_MembersSection> createState() => _MembersSectionState();
+}
+
+class _MembersSectionState extends State<_MembersSection> {
+  bool _searching = false;
+  final _searchCtrl = TextEditingController();
+  final _searchFocus = FocusNode();
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    _searchFocus.dispose();
+    super.dispose();
+  }
+
   List<MemberInfo> _sortedMembers() {
-    final list = List<MemberInfo>.from(members!);
+    final list = List<MemberInfo>.from(widget.members!);
     list.sort((a, b) {
       if (a.isOnline != b.isOnline) return a.isOnline ? -1 : 1;
       return a.label.toLowerCase().compareTo(b.label.toLowerCase());
@@ -4819,8 +4835,24 @@ class _MembersSection extends StatelessWidget {
     return list;
   }
 
+  List<MemberInfo> _filteredMembers() {
+    final sorted = _sortedMembers();
+    final query = _searchCtrl.text.trim().toLowerCase();
+    if (query.isEmpty) return sorted;
+    return sorted.where((m) {
+      return m.displayName.toLowerCase().contains(query) ||
+          m.username.toLowerCase().contains(query) ||
+          m.label.toLowerCase().contains(query);
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = widget.theme;
+    final filtered = (widget.members != null && widget.members!.isNotEmpty)
+        ? _filteredMembers()
+        : <MemberInfo>[];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -4831,19 +4863,48 @@ class _MembersSection extends StatelessWidget {
             child: Row(
               children: [
                 Expanded(
-                  child: Text(
-                    memberCount > 0 ? '$memberCount Members' : 'Members',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  child: _searching
+                      ? TextField(
+                          controller: _searchCtrl,
+                          focusNode: _searchFocus,
+                          onChanged: (_) => setState(() {}),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: theme.textTheme.bodyMedium?.color,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Search members',
+                            hintStyle: TextStyle(
+                              fontSize: 14,
+                              color: theme.textTheme.bodySmall?.color,
+                            ),
+                            border: InputBorder.none,
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                          ),
+                        )
+                      : Text(
+                          widget.memberCount > 0 ? '${widget.memberCount} Members' : 'Members',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                 ),
                 _MembersHeaderButton(
-                  icon: Icons.search,
-                  tooltip: 'Search members',
+                  icon: _searching ? Icons.close : Icons.search,
+                  tooltip: _searching ? 'Close search' : 'Search members',
                   color: theme.textTheme.bodyMedium?.color ?? theme.iconTheme.color!,
-                  onTap: () {},
+                  onTap: () {
+                    setState(() {
+                      _searching = !_searching;
+                      if (_searching) {
+                        _searchFocus.requestFocus();
+                      } else {
+                        _searchCtrl.clear();
+                      }
+                    });
+                  },
                 ),
                 _MembersHeaderButton(
                   icon: Icons.person_add_outlined,
@@ -4855,24 +4916,32 @@ class _MembersSection extends StatelessWidget {
             ),
           ),
         ),
-        if (loading)
+        if (widget.loading)
           const Center(child: Padding(
             padding: EdgeInsets.all(16),
             child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
           ))
-        else if (members != null && members!.isNotEmpty)
-          ..._sortedMembers().map((m) => _MemberRow(
+        else if (widget.members != null && widget.members!.isNotEmpty)
+          ...filtered.map((m) => _MemberRow(
             member: m,
             theme: theme,
-            onTap: onMemberTap != null ? () => onMemberTap!(m) : null,
-            accountId: accountId,
-            chatId: chatId,
+            onTap: widget.onMemberTap != null ? () => widget.onMemberTap!(m) : null,
+            accountId: widget.accountId,
+            chatId: widget.chatId,
           ))
         else
           Padding(
             padding: const EdgeInsets.only(left: 18, top: 8, bottom: 8),
             child: Text(
               'No users found.',
+              style: TextStyle(fontSize: 13, color: theme.textTheme.bodySmall?.color),
+            ),
+          ),
+        if (_searching && widget.members != null && widget.members!.isNotEmpty && filtered.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(left: 18, top: 8, bottom: 8),
+            child: Text(
+              'No members match "${_searchCtrl.text}"',
               style: TextStyle(fontSize: 13, color: theme.textTheme.bodySmall?.color),
             ),
           ),
