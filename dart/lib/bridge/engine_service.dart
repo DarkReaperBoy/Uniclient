@@ -2462,6 +2462,26 @@ class EngineService {
     }
   }
 
+  Future<List<Map<String, dynamic>>> getCommonChats(String accountId, String userId, {int limit = 100}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'user_id': userId,
+      'limit': limit,
+    }));
+    try {
+      final respBytes = await _callAsync(accountId, 'GetCommonChats', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return [];
+      final data = json.decode(utf8.decode(respBytes));
+      if (data is Map && data['chats'] is List) {
+        return (data['chats'] as List).cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      Debug.error('ENGINE', 'getCommonChats failed', e);
+      return [];
+    }
+  }
+
   Future<String> getSelfBio(String accountId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

@@ -32,21 +32,26 @@ import 'peer_short_info.dart';
 
 enum InfoWrapMode { side, narrow, layer }
 
-enum _InfoPageType { chatInfo, userProfile, statistics, messageStats }
+enum _InfoPageType { chatInfo, userProfile, statistics, messageStats, sharedMedia }
 
 class _InfoNavPage {
   final _InfoPageType type;
   final MemberInfo? member;
   final Map<String, dynamic>? messagePostData;
+  final String? mediaType;
+  final String? mediaLabel;
   double scrollOffset = 0.0;
+  String searchQuery = '';
+  String activeMediaTab = '';
 
-  _InfoNavPage({required this.type, this.member, this.messagePostData});
+  _InfoNavPage({required this.type, this.member, this.messagePostData, this.mediaType, this.mediaLabel});
 
   String get title => switch (type) {
     _InfoPageType.chatInfo => '',
     _InfoPageType.userProfile => member?.label ?? 'User Info',
     _InfoPageType.statistics => 'Statistics',
     _InfoPageType.messageStats => 'Message Statistics',
+    _InfoPageType.sharedMedia => mediaLabel ?? 'Media',
   };
 }
 
@@ -342,6 +347,15 @@ class _InfoPanelState extends State<InfoPanel> {
           scrollController: _getScrollController(),
           onClose: onClose,
           postData: _currentPage.messagePostData ?? {},
+        );
+      case _InfoPageType.sharedMedia:
+        return _SharedMediaSubPage(
+          chat: chat,
+          theme: theme,
+          scrollController: _getScrollController(),
+          onClose: onClose,
+          mediaType: page.mediaType ?? 'photo',
+          title: page.title,
         );
     }
   }
@@ -645,11 +659,20 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
                 bottom: 16,
                 left: 18,
                 right: 18,
-                child: Opacity(
-                  opacity: actionProgress,
-                  child: SizedBox(
-                    height: _actionButtonSize,
-                    child: _buildActionRow(context, actionProgress),
+                child: SizedBox(
+                  height: _actionButtonSize * actionProgress,
+                  child: ClipRect(
+                    child: OverflowBox(
+                      maxHeight: _actionButtonSize,
+                      alignment: Alignment.topCenter,
+                      child: Opacity(
+                        opacity: actionProgress,
+                        child: SizedBox(
+                          height: _actionButtonSize,
+                          child: _buildActionRow(context, actionProgress),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -1760,6 +1783,14 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
                   isLayer: widget.isLayer,
                   accountId: widget.chat.accountId,
                   chatId: widget.chat.chatId,
+                  onOpenMedia: (type, label) {
+                    final panelState = context.findAncestorStateOfType<_InfoPanelState>();
+                    panelState?._pushPage(_InfoNavPage(
+                      type: _InfoPageType.sharedMedia,
+                      mediaType: type,
+                      mediaLabel: label,
+                    ));
+                  },
                 ),
               ],
               if (widget.chat.type == ChatType.group ||
@@ -1855,6 +1886,14 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
                 isLayer: widget.isLayer,
                 accountId: widget.chat.accountId,
                 chatId: widget.chat.chatId,
+                onOpenMedia: (type, label) {
+                  final panelState = context.findAncestorStateOfType<_InfoPanelState>();
+                  panelState?._pushPage(_InfoNavPage(
+                    type: _InfoPageType.sharedMedia,
+                    mediaType: type,
+                    mediaLabel: label,
+                  ));
+                },
               ),
             ],
             const Divider(height: 24),
@@ -1902,6 +1941,26 @@ class _UserProfilePage extends StatefulWidget {
 class _UserProfilePageState extends State<_UserProfilePage> {
   static const _snapPoints = [0.0, 112.0, 180.0];
   Timer? _snapTimer;
+  int _commonGroupsCount = -1;
+  bool _commonGroupsLoaded = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_commonGroupsLoaded) {
+      _commonGroupsLoaded = true;
+      _loadCommonGroups();
+    }
+  }
+
+  void _loadCommonGroups() {
+    final engine = context.read<EngineService>();
+    engine.getCommonChats(widget.chat.accountId, widget.member.userId, limit: 1).then((chats) {
+      if (mounted) setState(() => _commonGroupsCount = chats.length);
+    }).catchError((_) {
+      if (mounted) setState(() => _commonGroupsCount = 0);
+    });
+  }
 
   @override
   void dispose() {
@@ -2020,6 +2079,11 @@ class _UserProfilePageState extends State<_UserProfilePage> {
                       label: 'Role',
                       theme: widget.theme,
                     ),
+                  if (_commonGroupsCount > 0)
+                    _CommonGroupsRow(
+                      count: _commonGroupsCount,
+                      theme: widget.theme,
+                    ),
                 ],
               ),
               const SizedBox(height: 16),
@@ -2027,6 +2091,147 @@ class _UserProfilePageState extends State<_UserProfilePage> {
           ),
           SliverToBoxAdapter(child: SizedBox(height: tailPad)),
         ],
+      ),
+    );
+  }
+}
+
+class _SharedMediaSubPage extends StatefulWidget {
+  final ChatInfo chat;
+  final ThemeData theme;
+  final ScrollController scrollController;
+  final VoidCallback onClose;
+  final String mediaType;
+  final String title;
+
+  const _SharedMediaSubPage({
+    required this.chat,
+    required this.theme,
+    required this.scrollController,
+    required this.onClose,
+    required this.mediaType,
+    required this.title,
+  });
+
+  @override
+  State<_SharedMediaSubPage> createState() => _SharedMediaSubPageState();
+}
+
+class _SharedMediaSubPageState extends State<_SharedMediaSubPage> {
+  List<SharedMediaItem>? _items;
+  bool _loading = true;
+  bool _loaded = false;
+
+  static const _typeToFilter = {
+    'photo': 'image', 'video': 'video', 'stories': 'stories',
+    'gifts': 'gifts', 'file': 'file', 'audio': 'audio',
+    'voice': 'voice', 'round': 'round', 'gif': 'gif',
+    'link': 'link', 'poll': 'poll',
+  };
+  static const _gridTypes = {'photo', 'video', 'stories', 'gifts'};
+  static const _masonryTypes = {'gif'};
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_loaded) {
+      _loaded = true;
+      _loadItems();
+    }
+  }
+
+  void _loadItems() {
+    final engine = context.read<EngineService>();
+    try {
+      final items = engine.getSharedMedia(
+        widget.chat.accountId, widget.chat.chatId,
+        mediaType: _typeToFilter[widget.mediaType] ?? widget.mediaType,
+        limit: 200,
+      );
+      if (mounted) setState(() { _items = items; _loading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.theme.brightness == Brightness.dark;
+    final topBarColor = isDark ? const Color(0xFF17212b) : const Color(0xFFffffff);
+
+    return Column(
+      children: [
+        Container(
+          height: 56,
+          color: topBarColor,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back, size: 20),
+                onPressed: widget.onClose,
+                tooltip: 'Back',
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  widget.title,
+                  style: widget.theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+              : _buildContent(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildContent() {
+    if (_items == null || _items!.isEmpty) {
+      return Center(
+        child: Text(
+          'No ${widget.title.toLowerCase()} found.',
+          style: TextStyle(color: widget.theme.textTheme.bodySmall?.color),
+        ),
+      );
+    }
+    if (_gridTypes.contains(widget.mediaType)) {
+      return SingleChildScrollView(
+        controller: widget.scrollController,
+        child: _MediaGrid(
+          items: _items,
+          loading: false,
+          theme: widget.theme,
+          mediaType: widget.mediaType,
+        ),
+      );
+    }
+    if (_masonryTypes.contains(widget.mediaType)) {
+      return SingleChildScrollView(
+        controller: widget.scrollController,
+        child: _GifMasonryGrid(
+          items: _items,
+          loading: false,
+          theme: widget.theme,
+        ),
+      );
+    }
+    return SingleChildScrollView(
+      controller: widget.scrollController,
+      child: _MediaListView(
+        items: _items,
+        loading: false,
+        theme: widget.theme,
+        mediaType: widget.mediaType,
       ),
     );
   }
@@ -2184,6 +2389,7 @@ class _ChatDetailsState extends State<_ChatDetails> {
   bool _fetched = false;
   String? _fetchedFor;
   StreamSubscription<ChatInfo>? _chatUpdatedSub;
+  int _commonGroupsCount = -1;
 
   @override
   void didChangeDependencies() {
@@ -2236,11 +2442,28 @@ class _ChatDetailsState extends State<_ChatDetails> {
     engine.getUserProfile(widget.chat.accountId, widget.chat.chatId).then((p) {
       if (mounted && p != null) setState(() { _profile = p; _fetched = true; });
     });
+    _loadCommonGroups(engine);
+  }
+
+  void _loadCommonGroups(EngineService engine) {
+    engine.getCommonChats(widget.chat.accountId, widget.chat.chatId, limit: 1).then((chats) {
+      if (mounted) setState(() => _commonGroupsCount = chats.length);
+    }).catchError((_) {
+      if (mounted) setState(() => _commonGroupsCount = 0);
+    });
   }
 
   void _copy(String value, String label) {
     Clipboard.setData(ClipboardData(text: value));
     showTelegramToast(context, '$label copied to clipboard');
+  }
+
+  static String _formatBirthday(int day, int month, int year) {
+    const months = ['', 'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'];
+    final m = (month >= 1 && month <= 12) ? months[month] : '$month';
+    if (year > 0) return '$m $day, $year';
+    return '$m $day';
   }
 
   String? _formatPeerId(int mode) {
@@ -2282,11 +2505,31 @@ class _ChatDetailsState extends State<_ChatDetails> {
       if (profile.bio.isNotEmpty)
         children.add(_TextWithLabel(
           value: profile.bio,
-          label: 'Bio',
+          label: profile.isBot ? 'About' : 'Bio',
           theme: widget.theme,
-          onTap: () => _copy(profile.bio, 'Bio'),
+          onTap: () => _copy(profile.bio, profile.isBot ? 'About' : 'Bio'),
           selectable: true,
         ));
+      if (profile.hasBirthday)
+        children.add(_TextWithLabel(
+          value: _formatBirthday(profile.birthdayDay, profile.birthdayMonth, profile.birthdayYear),
+          label: 'Birthday',
+          theme: widget.theme,
+        ));
+      if (profile.personalChannelName.isNotEmpty)
+        children.add(_TextWithLabel(
+          value: profile.personalChannelName,
+          label: 'Personal Channel',
+          theme: widget.theme,
+        ));
+      if (profile.isBot) {
+        for (final cmd in ['help', 'settings', 'privacy']) {
+          children.add(_BotCommandRow(
+            command: '/$cmd',
+            theme: widget.theme,
+          ));
+        }
+      }
     }
 
     if (peerIdStr != null)
@@ -2295,6 +2538,12 @@ class _ChatDetailsState extends State<_ChatDetails> {
         label: peerIdLabel,
         theme: widget.theme,
         onTap: () => _copy(peerIdStr, 'ID'),
+      ));
+
+    if (isDm && _commonGroupsCount > 0)
+      children.add(_CommonGroupsRow(
+        count: _commonGroupsCount,
+        theme: widget.theme,
       ));
 
     if (children.isEmpty) return const SizedBox.shrink();
@@ -2352,6 +2601,63 @@ class _TextWithLabel extends StatelessWidget {
     );
     if (onTap == null) return content;
     return InkWell(onTap: onTap, child: content);
+  }
+}
+
+class _BotCommandRow extends StatelessWidget {
+  final String command;
+  final ThemeData theme;
+
+  const _BotCommandRow({required this.command, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () {
+        final chatState = context.read<ChatState>();
+        chatState.sendMessage(command);
+      },
+      child: Padding(
+        padding: const EdgeInsets.only(left: 23, top: 6, right: 20, bottom: 6),
+        child: Row(
+          children: [
+            Icon(Icons.smart_toy_outlined, size: 18, color: theme.colorScheme.primary),
+            const SizedBox(width: 12),
+            Text(
+              command,
+              style: TextStyle(fontSize: 14, color: theme.colorScheme.primary),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CommonGroupsRow extends StatelessWidget {
+  final int count;
+  final ThemeData theme;
+
+  const _CommonGroupsRow({required this.count, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 23, top: 9, right: 20, bottom: 7),
+      child: Row(
+        children: [
+          Icon(Icons.group_outlined, size: 20, color: theme.textTheme.bodySmall?.color),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              '$count group${count == 1 ? '' : 's'} in common',
+              style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
+            ),
+          ),
+          Icon(Icons.chevron_right, size: 20, color: theme.textTheme.bodySmall?.color),
+        ],
+      ),
+    );
   }
 }
 
@@ -3158,6 +3464,7 @@ class _SharedMediaSection extends StatefulWidget {
   final bool isLayer;
   final String accountId;
   final String chatId;
+  final void Function(String type, String label)? onOpenMedia;
 
   const _SharedMediaSection({
     required this.counts,
@@ -3165,6 +3472,7 @@ class _SharedMediaSection extends StatefulWidget {
     this.isLayer = false,
     required this.accountId,
     required this.chatId,
+    this.onOpenMedia,
   });
 
   @override
@@ -3193,13 +3501,15 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
     ('audio', Icons.music_note_outlined, 'Music'),
     ('link', Icons.link, 'Links'),
     ('voice', Icons.mic_outlined, 'Voice'),
+    ('round', Icons.fiber_manual_record_outlined, 'Rounds'),
     ('gif', Icons.gif_box_outlined, 'GIFs'),
+    ('poll', Icons.poll_outlined, 'Polls'),
   ];
 
   static const _gridTypes = {'photo', 'video', 'stories', 'gifts'};
   static const _masonryTypes = {'gif'};
-  static const _listTypes = {'file', 'audio', 'link', 'voice'};
-  static const _expandableTypes = {'photo', 'video', 'stories', 'gifts', 'gif', 'file', 'audio', 'link', 'voice'};
+  static const _listTypes = {'file', 'audio', 'link', 'voice', 'round', 'poll'};
+  static const _expandableTypes = {'photo', 'video', 'stories', 'gifts', 'gif', 'file', 'audio', 'link', 'voice', 'round', 'poll'};
 
   static const _subTabSets = <String, List<(String, String)>>{
     'gifts': [('all', 'All'), ('unique', 'Unique'), ('limited', 'Limited')],
@@ -3239,8 +3549,10 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
     'file': 'file',
     'audio': 'audio',
     'voice': 'voice',
+    'round': 'round',
     'gif': 'gif',
     'link': 'link',
+    'poll': 'poll',
   };
 
   void _loadGridItems(String type) {
@@ -3417,9 +3729,15 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
               iconColor: iconColor,
               accentColor: accentColor,
               theme: widget.theme,
-              expanded: _expandedGridType == type,
+              expanded: widget.onOpenMedia == null && _expandedGridType == type,
               onTap: _expandableTypes.contains(type)
-                  ? () => _toggleGrid(type)
+                  ? () {
+                      if (widget.onOpenMedia != null) {
+                        widget.onOpenMedia!(type, label);
+                      } else {
+                        _toggleGrid(type);
+                      }
+                    }
                   : null,
             ),
             if (_expandedGridType == type && type == 'stories')
@@ -5110,10 +5428,10 @@ class _MemberRow extends StatelessWidget {
                 child: Transform.translate(
                   offset: const Offset(0, -1),
                   child: Container(
-                    padding: const EdgeInsets.fromLTRB(5, 0, 5, 0),
+                    padding: const EdgeInsets.fromLTRB(5, 1, 5, 2),
                     decoration: BoxDecoration(
                       color: tagColor.withAlpha(25),
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
                       tagText,
