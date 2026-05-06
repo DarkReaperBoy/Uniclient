@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import '../theme/telegram_palette.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -11,6 +14,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../models/engine_models.dart';
 import '../state/auth_state.dart';
 import '../utils/country_data.dart';
+import 'photo_crop_editor.dart';
 import 'settings_screen.dart';
 
 /// Authentication screen. Spec §11.
@@ -44,6 +48,7 @@ class _AuthScreenState extends State<AuthScreen>
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   late CountryInfo _selectedCountry;
+  Uint8List? _signupAvatarBytes;
 
   @override
   void initState() {
@@ -126,6 +131,69 @@ class _AuthScreenState extends State<AuthScreen>
     setState(() => _showErrorBorder = false);
     authState.submitInput(text);
     _inputController.clear();
+  }
+
+  void _showDidntGetCodeDialog(AuthState authState) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return AlertDialog(
+          title: const Text("Didn't get the code?"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'If you have Telegram on another device, you should receive the code there.',
+                style: theme.textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'You can also wait for Telegram to call you and dictate the code.',
+                style: theme.textTheme.bodyMedium,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                authState.switchToMethod('phone');
+              },
+              child: const Text('Edit Phone Number'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _pickSignupAvatar() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final path = result.files.first.path;
+    if (path == null) return;
+    if (!mounted) return;
+
+    await PhotoCropEditor.open(
+      context,
+      imageFile: File(path),
+      shape: PhotoCropShape.ellipse,
+      doneLabel: 'Set Photo',
+      onDone: (croppedFile) async {
+        final bytes = await croppedFile.readAsBytes();
+        if (!mounted) return;
+        setState(() => _signupAvatarBytes = bytes);
+      },
+    );
   }
 
   bool _canGoBack(AuthStateData? data) {
@@ -615,15 +683,20 @@ class _AuthScreenState extends State<AuthScreen>
       children: [
         const SizedBox(height: 10),
         GestureDetector(
-          onTap: () {},
+          onTap: _pickSignupAvatar,
           child: CircleAvatar(
             radius: 40,
             backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.15),
-            child: Icon(
-              Icons.add_a_photo_outlined,
-              size: 32,
-              color: theme.colorScheme.primary,
-            ),
+            backgroundImage: _signupAvatarBytes != null
+                ? MemoryImage(_signupAvatarBytes!)
+                : null,
+            child: _signupAvatarBytes == null
+                ? Icon(
+                    Icons.add_a_photo_outlined,
+                    size: 32,
+                    color: theme.colorScheme.primary,
+                  )
+                : null,
           ),
         ),
         const SizedBox(height: 20),
@@ -775,7 +848,7 @@ class _AuthScreenState extends State<AuthScreen>
                   height: qrSize,
                   child: CircularProgressIndicator(
                     strokeWidth: 1.5,
-                    valueColor: AlwaysStoppedAnimation(context.palette.windowBgActive),
+                    valueColor: const AlwaysStoppedAnimation(Color(0xFF40A7E3)),
                   ),
                 ),
               ),
@@ -899,6 +972,7 @@ class _AuthScreenState extends State<AuthScreen>
               authState.submitInput(code);
             },
             timeoutSecs: data.timeoutSecs,
+            onDidntGetCode: () => _showDidntGetCodeDialog(authState),
           )
         else
           AnimatedBuilder(
@@ -1235,12 +1309,14 @@ class _OtpCodeInput extends StatefulWidget {
   final bool hasError;
   final ValueChanged<String> onComplete;
   final int timeoutSecs;
+  final VoidCallback? onDidntGetCode;
 
   const _OtpCodeInput({
     required this.digitCount,
     required this.hasError,
     required this.onComplete,
     this.timeoutSecs = 0,
+    this.onDidntGetCode,
   });
 
   @override
@@ -1697,7 +1773,7 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
         ],
         const SizedBox(height: 12),
         TextButton(
-          onPressed: () {},
+          onPressed: widget.onDidntGetCode,
           child: Text(
             "Didn't get the code?",
             style: TextStyle(
@@ -1876,16 +1952,108 @@ class _AuthBottomBarState extends State<_AuthBottomBar>
   void _showLanguageDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (ctx) => SimpleDialog(
-        title: const Text('Choose Language'),
-        children: [
-          RadioListTile<String>(
-            title: const Text('English'),
-            value: 'en',
-            groupValue: 'en',
-            onChanged: (_) => Navigator.of(ctx).pop(),
-          ),
-        ],
+      builder: (ctx) => const _LanguagePickerDialog(),
+    );
+  }
+}
+
+class _LanguagePickerDialog extends StatefulWidget {
+  const _LanguagePickerDialog();
+
+  @override
+  State<_LanguagePickerDialog> createState() => _LanguagePickerDialogState();
+}
+
+class _LanguagePickerDialogState extends State<_LanguagePickerDialog> {
+  static const _languages = [
+    ('en', 'English', 'English'),
+    ('ar', 'العربية', 'Arabic'),
+    ('de', 'Deutsch', 'German'),
+    ('es', 'Español', 'Spanish'),
+    ('fa', 'فارسی', 'Persian'),
+    ('fr', 'Français', 'French'),
+    ('id', 'Bahasa Indonesia', 'Indonesian'),
+    ('it', 'Italiano', 'Italian'),
+    ('ja', '日本語', 'Japanese'),
+    ('ko', '한국어', 'Korean'),
+    ('nl', 'Nederlands', 'Dutch'),
+    ('pl', 'Polski', 'Polish'),
+    ('pt-br', 'Português (Brasil)', 'Portuguese (Brazil)'),
+    ('ru', 'Русский', 'Russian'),
+    ('tr', 'Türkçe', 'Turkish'),
+    ('uk', 'Українська', 'Ukrainian'),
+    ('uz', 'Oʻzbekcha', 'Uzbek'),
+    ('zh-hans', '简体中文', 'Chinese (Simplified)'),
+    ('zh-hant', '繁體中文', 'Chinese (Traditional)'),
+  ];
+
+  String _selected = 'en';
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final filtered = _query.isEmpty
+        ? _languages
+        : _languages
+            .where((l) =>
+                l.$1.contains(_query) ||
+                l.$2.toLowerCase().contains(_query) ||
+                l.$3.toLowerCase().contains(_query))
+            .toList();
+
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 360, maxHeight: 480),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+              child: Text('Choose Language',
+                  style: theme.textTheme.titleLarge),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: TextField(
+                controller: _searchCtrl,
+                decoration: const InputDecoration(
+                  hintText: 'Search languages...',
+                  prefixIcon: Icon(Icons.search, size: 20),
+                  isDense: true,
+                ),
+                onChanged: (v) => setState(() => _query = v.toLowerCase()),
+              ),
+            ),
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: filtered.length,
+                itemBuilder: (ctx, i) {
+                  final (code, native, english) = filtered[i];
+                  return RadioListTile<String>(
+                    title: Text(native),
+                    subtitle: code != 'en' ? Text(english, style: theme.textTheme.bodySmall) : null,
+                    value: code,
+                    groupValue: _selected,
+                    dense: true,
+                    onChanged: (val) {
+                      setState(() => _selected = val!);
+                      Navigator.of(ctx).pop();
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
