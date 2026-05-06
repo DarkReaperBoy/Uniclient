@@ -25,8 +25,6 @@
 
 ## §11 — Authentication / Login Flow
 
-- [ ] spec §11.1 "Change Language link is stub": language dialog shows 19 languages with search UI but selecting a language does NOT change the app locale — no Locale propagation, no MaterialApp rebuild — `auth_screen.dart:1876-1891`
-
 ## §12 — Calls UI
 
 - [ ] spec §12.1 "Window default 720x540, min 380x520": implementation has defaultWidth=720, defaultHeight=540, minWidth=380, minHeight=520 — matches spec
