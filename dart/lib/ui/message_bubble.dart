@@ -4415,11 +4415,20 @@ class _WaveformPainter extends CustomPainter {
 }
 
 /// Audio file indicator (music, podcast, etc.).
-class _AudioIndicator extends StatelessWidget {
+/// Spec \u00a76: plays inline with 44px play/pause button (same as voice), shows played/total.
+class _AudioIndicator extends StatefulWidget {
   final CachedMessage message;
   final ThemeData theme;
 
   const _AudioIndicator({required this.message, required this.theme});
+
+  @override
+  State<_AudioIndicator> createState() => _AudioIndicatorState();
+}
+
+class _AudioIndicatorState extends State<_AudioIndicator> {
+  CachedMessage get message => widget.message;
+  ThemeData get theme => widget.theme;
 
   static String _formatSongName(String filename, String title, String performer) {
     if (performer.isNotEmpty && title.isNotEmpty) {
@@ -4434,19 +4443,27 @@ class _AudioIndicator extends StatelessWidget {
     return 'Unknown Track';
   }
 
-  void _onTap(BuildContext context) {
-    final state = message.mediaDownloadState;
-    if (state == 2 && message.mediaLocalPath.isNotEmpty) {
-      Process.run('xdg-open', [message.mediaLocalPath]);
+  void _onPlayPause() {
+    final audio = context.read<AudioService>();
+    if (message.mediaLocalPath.isEmpty && message.mediaDownloadState != 1) {
+      context.read<ChatState>().requestDownload(message);
       return;
     }
-    if (state == 1) {
-      context.read<EngineService>().cancelDownload(
-        message.accountId, message.chatId, message.msgId,
-      );
-      return;
-    }
-    context.read<ChatState>().requestDownload(message);
+    if (message.mediaLocalPath.isEmpty) return;
+    audio.playVoice(message.mediaLocalPath, message.msgId);
+  }
+
+  void _onDownloadCancel() {
+    context.read<EngineService>().cancelDownload(
+      message.accountId, message.chatId, message.msgId,
+    );
+  }
+
+  static String _formatDurationMs(Duration d) {
+    final totalSecs = d.inSeconds;
+    final m = totalSecs ~/ 60;
+    final s = totalSecs % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
   }
 
   @override
@@ -4460,9 +4477,16 @@ class _AudioIndicator extends StatelessWidget {
     final isDownloading = dlState == 1;
     final isFailed = dlState == 3;
     final progress = context.watch<ChatState>().getDownloadProgress(message.msgId);
+    final audio = context.watch<AudioService>();
+    final isActive = audio.isActiveMsg(message.msgId);
+    final isPlaying = audio.isPlayingMsg(message.msgId);
 
     String statusText;
-    if (isFailed) {
+    if (isActive) {
+      final played = _formatDurationMs(audio.position);
+      final total = _formatDurationMs(audio.duration);
+      statusText = '$played / $total';
+    } else if (isFailed) {
       statusText = 'Failed';
     } else if (isDownloading && progress != null && progress.bytesTotal > 0) {
       statusText = _formatDownloadProgress(progress.bytesRecv, progress.bytesTotal);
@@ -4478,7 +4502,7 @@ class _AudioIndicator extends StatelessWidget {
     }
 
     return GestureDetector(
-      onTap: () => _onTap(context),
+      onTap: isDownloading ? _onDownloadCancel : _onPlayPause,
       behavior: HitTestBehavior.opaque,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
@@ -4487,7 +4511,7 @@ class _AudioIndicator extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildIcon(hasCover, isDownloaded, isDownloading, progress?.progress ?? 0),
+              _buildIcon(hasCover, isDownloaded, isDownloading, isActive, isPlaying, progress?.progress ?? 0),
               const SizedBox(width: 11),
               Flexible(
                 child: Column(
@@ -4523,7 +4547,15 @@ class _AudioIndicator extends StatelessWidget {
     );
   }
 
-  Widget _buildIcon(bool hasCover, bool isDownloaded, bool isDownloading, double dlProgress) {
+  IconData _playPauseIcon(bool isDownloaded, bool isDownloading, bool isActive, bool isPlaying) {
+    if (isDownloading) return Icons.close;
+    if (isActive && isPlaying) return Icons.pause;
+    if (isDownloaded || isActive) return Icons.play_arrow;
+    return Icons.arrow_downward;
+  }
+
+  Widget _buildIcon(bool hasCover, bool isDownloaded, bool isDownloading, bool isActive, bool isPlaying, double dlProgress) {
+    final icon = _playPauseIcon(isDownloaded, isDownloading, isActive, isPlaying);
     if (hasCover) {
       return SizedBox(
         width: 44,
@@ -4538,7 +4570,7 @@ class _AudioIndicator extends StatelessWidget {
                 height: 44,
                 fit: BoxFit.cover,
                 gaplessPlayback: true,
-                errorBuilder: (_, __, ___) => _defaultIcon(isDownloaded, isDownloading, dlProgress),
+                errorBuilder: (_, __, ___) => _defaultIcon(icon, isDownloading, dlProgress),
               ),
             ),
             ClipOval(
@@ -4557,19 +4589,15 @@ class _AudioIndicator extends StatelessWidget {
                   color: Colors.white,
                 ),
               ),
-            Icon(
-              isDownloaded ? Icons.play_arrow : (isDownloading ? Icons.close : Icons.arrow_downward),
-              size: 22,
-              color: Colors.white,
-            ),
+            Icon(icon, size: 22, color: Colors.white),
           ],
         ),
       );
     }
-    return _defaultIcon(isDownloaded, isDownloading, dlProgress);
+    return _defaultIcon(icon, isDownloading, dlProgress);
   }
 
-  Widget _defaultIcon(bool isDownloaded, bool isDownloading, double dlProgress) {
+  Widget _defaultIcon(IconData icon, bool isDownloading, double dlProgress) {
     return SizedBox(
       width: 44,
       height: 44,
@@ -4593,11 +4621,7 @@ class _AudioIndicator extends StatelessWidget {
                 color: Colors.white,
               ),
             ),
-          Icon(
-            isDownloaded ? Icons.play_arrow : (isDownloading ? Icons.close : Icons.arrow_downward),
-            size: 22,
-            color: Colors.white,
-          ),
+          Icon(icon, size: 22, color: Colors.white),
         ],
       ),
     );
@@ -7731,10 +7755,16 @@ class _PollWidgetState extends State<_PollWidget>
           content,
           Positioned.fill(
             child: IgnorePointer(
-              child: _PollFireworks(
-                onComplete: () {
-                  if (mounted) setState(() => _showFireworks = false);
-                },
+              child: Center(
+                child: SizedBox(
+                  width: 480,
+                  height: 320,
+                  child: _PollFireworks(
+                    onComplete: () {
+                      if (mounted) setState(() => _showFireworks = false);
+                    },
+                  ),
+                ),
               ),
             ),
           ),
@@ -8056,12 +8086,13 @@ class _PollOptionRow extends StatelessWidget {
       child: isSelected
           ? Center(
               child: Container(
-                width: size - stroke * 2 - 2,
-                height: size - stroke * 2 - 2,
+                width: size - stroke * 2,
+                height: size - stroke * 2,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: accentColor,
                 ),
+                child: Icon(Icons.check, size: size - stroke * 2 - 2, color: Colors.white),
               ),
             )
           : null,
@@ -8105,7 +8136,7 @@ class _PollFireworksState extends State<_PollFireworks>
             : -0.5 - _rng.nextDouble() * 1.0,
         rotation: _rng.nextDouble() * 6.28,
         rotSpeed: (_rng.nextDouble() - 0.5) * 8,
-        size: 2.0 + _rng.nextDouble() * 3,
+        size: 4.0,
         isFall: isFall,
       );
     });
@@ -8350,10 +8381,10 @@ class _WebPagePreview extends StatelessWidget {
           Uint8List.fromList(bytes),
           fit: BoxFit.cover,
           width: isArticle ? 48.0 : double.infinity,
-          height: isArticle ? 48.0 : null,
+          height: isArticle ? null : null,
           errorBuilder: (_, __, ___) => SizedBox(
             width: isArticle ? 48.0 : double.infinity,
-            height: isArticle ? 48.0 : 100,
+            height: isArticle ? null : 100,
             child: ColoredBox(color: isDark ? const Color(0xFF2a3a4a) : const Color(0xFFe8ecf0)),
           ),
         );
@@ -8403,23 +8434,29 @@ class _WebPagePreview extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: textWidgets,
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      children: textWidgets,
+                    ),
                   ),
-                ),
-                if (thumbWidget != null) ...[
-                  const SizedBox(width: 8),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: thumbWidget,
-                  ),
+                  if (thumbWidget != null) ...[
+                    const SizedBox(width: 8),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 48),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: SizedBox(width: 48, child: thumbWidget),
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
             if (actionButton != null) actionButton,
           ],
