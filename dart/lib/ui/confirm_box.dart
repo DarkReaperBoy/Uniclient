@@ -324,6 +324,7 @@ class DeleteConfirmResult {
   final bool banUser;
   final bool reportSpam;
   final bool deleteAll;
+  final bool rememberRevoke;
 
   const DeleteConfirmResult({
     this.confirmed = false,
@@ -331,6 +332,7 @@ class DeleteConfirmResult {
     this.banUser = false,
     this.reportSpam = false,
     this.deleteAll = false,
+    this.rememberRevoke = false,
   });
 }
 
@@ -383,6 +385,7 @@ class _DeleteContent extends StatefulWidget {
 
 class _DeleteContentState extends State<_DeleteContent> {
   bool _revoke = false;
+  bool _revokeRemember = false;
   bool _banUser = false;
   bool _reportSpam = false;
   bool _deleteAll = false;
@@ -464,6 +467,7 @@ class _DeleteContentState extends State<_DeleteContent> {
       banUser: _banUser,
       reportSpam: _reportSpam,
       deleteAll: _deleteAll,
+      rememberRevoke: _revokeRemember,
     ));
   }
 
@@ -510,6 +514,14 @@ class _DeleteContentState extends State<_DeleteContent> {
             const SizedBox(height: kBoxMediumSkip),
             _checkbox(_revokeLabel!, _revoke,
                 (v) => setState(() => _revoke = v ?? false), checkClr, textFg),
+            if (_revoke) ...[
+              const SizedBox(height: kBoxLittleSkip),
+              Padding(
+                padding: const EdgeInsets.only(left: 28),
+                child: _checkbox('Remember this choice', _revokeRemember,
+                    (v) => setState(() => _revokeRemember = v ?? false), checkClr, textFg),
+              ),
+            ],
           ],
         ],
       ),

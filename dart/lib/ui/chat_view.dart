@@ -1312,9 +1312,16 @@ class _ChatViewState extends State<ChatView>
           const TelegramMenuItem(value: 'send_now', icon: Icon(Icons.send), label: 'Send now'),
         if (inSelection && allSelectedCanSendNow)
           const TelegramMenuItem(value: 'send_now_selected', icon: Icon(Icons.send), label: 'Send now selected'),
-        const TelegramMenuItem(value: 'delete', icon: Icon(Icons.delete_outline), label: 'Delete', isAttention: true),
+        TelegramMenuItem(
+          value: 'delete',
+          icon: const Icon(Icons.delete_outline),
+          label: msg.isSending && msg.hasMedia ? 'Cancel Upload' : 'Delete',
+          isAttention: true,
+        ),
         if (hasPhoto)
           const TelegramMenuItem(value: 'save_image', icon: Icon(Icons.save_alt), label: 'Save Image'),
+        if (hasPhoto)
+          const TelegramMenuItem(value: 'copy_image', icon: Icon(Icons.copy), label: 'Copy Image'),
         if (hasVideo)
           const TelegramMenuItem(value: 'save_image', icon: Icon(Icons.save_alt), label: 'Save Video'),
         if (hasFile)
@@ -1331,7 +1338,10 @@ class _ChatViewState extends State<ChatView>
           const TelegramMenuItem(value: 'stop_poll', icon: Icon(Icons.poll), label: 'Stop Poll'),
         if (!msg.isOutgoing)
           const TelegramMenuItem(value: 'report', icon: Icon(Icons.flag_outlined), label: 'Report', isAttention: true),
-        const TelegramMenuItem(value: 'select', icon: Icon(Icons.check_circle_outline), label: 'Select'),
+        if (inSelection)
+          const TelegramMenuItem(value: 'clear_selection', icon: Icon(Icons.deselect), label: 'Clear Selection'),
+        if (!inSelection)
+          const TelegramMenuItem(value: 'select', icon: Icon(Icons.check_circle_outline), label: 'Select'),
         if (canReschedule && !inSelection)
           const TelegramMenuItem(value: 'reschedule', icon: Icon(Icons.schedule_send), label: 'Reschedule'),
         if (inSelection && allSelectedCanReschedule)
@@ -1383,6 +1393,10 @@ class _ChatViewState extends State<ChatView>
           _forwardSingle(context, chatState, msgId);
         case 'select':
           _modifySelection(() => _selectedMsgIds.add(msgId));
+        case 'clear_selection':
+          _modifySelection(() => _selectedMsgIds.clear());
+        case 'copy_image':
+          _copyImageToClipboard(msg);
         case 'pin':
           chatState.pinMessage(msgId, !msg.isPinned);
         case 'edit':
@@ -1512,6 +1526,51 @@ class _ChatViewState extends State<ChatView>
     await sourceFile.copy(destPath);
     if (!mounted) return;
     showTelegramToast(context, 'Saved to ${destPath.split('/').last}');
+  }
+
+  void _copyImageToClipboard(CachedMessage msg) async {
+    if (msg.mediaLocalPath.isEmpty) return;
+    final path = msg.mediaLocalPath;
+    final file = File(path);
+    if (!await file.exists()) {
+      if (!mounted) return;
+      showTelegramToast(context, 'Image file not found');
+      return;
+    }
+    try {
+      if (Platform.isLinux) {
+        final mime = path.endsWith('.png') ? 'image/png' : 'image/jpeg';
+        final proc = await Process.start('wl-copy', ['--type', mime]);
+        proc.stdin.add(await file.readAsBytes());
+        await proc.stdin.close();
+        final exitCode = await proc.exitCode.timeout(const Duration(seconds: 3),
+          onTimeout: () => -1);
+        if (exitCode != 0) {
+          final fallback = await Process.run('xclip',
+            ['-selection', 'clipboard', '-t', mime, '-i', path]);
+          if (fallback.exitCode != 0) throw Exception('Clipboard command failed');
+        }
+      } else if (Platform.isMacOS) {
+        final esc = path.replaceAll('"', '\\"');
+        final result = await Process.run('osascript', [
+          '-e', 'set the clipboard to (read (POSIX file "$esc") as «class PNGf»)',
+        ]);
+        if (result.exitCode != 0) throw Exception('AppleScript clipboard failed');
+      } else if (Platform.isWindows) {
+        final esc = path.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+        await Process.run('powershell', [
+          '-Command',
+          'Add-Type -AssemblyName System.Windows.Forms; '
+          '[System.Windows.Forms.Clipboard]::SetImage('
+          '[System.Drawing.Image]::FromFile("$esc"))',
+        ]);
+      }
+      if (!mounted) return;
+      showTelegramToast(context, 'Image copied to clipboard');
+    } catch (e) {
+      if (!mounted) return;
+      showTelegramToast(context, 'Failed to copy image');
+    }
   }
 
   void _faveSticker(CachedMessage msg) async {
