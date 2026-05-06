@@ -8,7 +8,6 @@
 
 ## §4 — Chat Header / Top Bar
 
-- [ ] spec §4 "Menu toggle width": spec says 44px override. Code uses `width: 44` for the menu toggle button — matches
 - [ ] spec §4 "Menu toggle icon position": spec says `iconPosition: point(16px, 17px)`. Code uses `iconPadding: const EdgeInsets.only(left: 8)` which shifts the icon but doesn't precisely position it at (16, 17) within the 44px button — `chat_view.dart:6016`
 - [ ] spec §4 "topBarSkip": spec says `-5px` negative pull. Code allocates `SizedBox(width: 39)` (44-5) with `OverflowBox(maxWidth: 44)` — this correctly implements the -5px pull — matches
 - [ ] spec §4 "Button order right-to-left": spec says "Menu toggle, Info toggle, Call, Group call, Search" (right to left). Code renders left-to-right: Search, Call (DM only), GroupCall (group/channel), Info, Menu. Reading right-to-left gives: Menu, Info, GroupCall, Call, Search — matches spec order
