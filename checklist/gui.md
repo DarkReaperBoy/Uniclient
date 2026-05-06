@@ -32,48 +32,19 @@
 
 ## §14 — Settings: General & My Account
 
-### §14.1 Opening Settings / Overflow Menu
-- [ ] spec §14.1 "Log Out confirmation dialog": Log Out calls `_confirmLogOut` which works, but the confirmation dialog text uses generic wording instead of the spec's `lng_sure_logout` — `settings_screen.dart`
-
 ### §14.2 Profile Header / Cover
-- [ ] spec §14.2.3 "Copy ID context menu on username": spec says right-click on username shows "Copy ID" (AyuGram addition) and "Copy Username". Implementation only copies `t.me/username` link on tap; no right-click context menu on username at all — `settings_screen.dart:614-625`
-- [ ] spec §14.2.3 "Premium/emoji-status badge": badge is a simple `Icons.workspace_premium` icon; spec says clicking the badge opens the emoji status panel, but this is not wired — `settings_screen.dart:592-595`
-- [ ] spec §14.2.3 "Name label right-click shows Copy Full Name": no right-click context menu on the display name in the header — `settings_screen.dart:580-591`
-
-### §14.3 Navigation Buttons
-- [ ] spec §14.3 "Devices icon is menuIconUnmute (speaker)": code uses `Icons.devices` not a speaker icon — `settings_screen.dart:274`
-- [ ] spec §14.8.1 "TON Currency row": spec says TON row visible when balance > 0 with `menuIconTon`. Missing entirely from the Premium section — `settings_screen.dart:333-368`
-- [ ] spec §14.8.1 "Telegram Premium/Stars/Business/Gift onTap": all Premium and Help rows have `onTap: () {}` — no-op stubs; FAQ/Features do not open external links — `settings_screen.dart:334-393`
-- [ ] spec §14.3.1 "No inter-row dividers within group": implementation has no inter-row dividers in the group, which is correct. However, chevron arrows on the right side of nav rows are missing (spec mentions right chevron) — `settings_screen.dart:805-841`
-
-### §14.4 Interface Scale
-- [ ] spec §14.4 "Scale preview tooltip": spec says a floating preview window (`ScalePreview`) shows a miniature mockup of the sidebar. Implementation shows a simple text-only "Preview: N%" label, not a sidebar mockup — `settings_screen.dart:1093-1119`
-- [ ] spec §14.4 "Restart dialog buttons": spec says "Restart Now" / "Cancel" buttons. Implementation says "Apply" / "Cancel" — does not actually restart the app — `settings_screen.dart:1124-1139`
+- [ ] spec §14.2.3 "Premium/emoji-status badge": clicking the badge shows a toast "Emoji status" instead of opening the emoji status panel — `settings_screen.dart:615`
 
 ### §14.5 My Account / Edit Profile
-- [ ] spec §14.5.3 "Name row click opens EditNameBox": Name row tap just copies to clipboard instead of opening an edit dialog for first/last name — `my_profile_page.dart:228-235`
-- [ ] spec §14.5.3 "Phone row click copies and shows toast 500ms": Phone row tap copies but the spec says 500ms toast; implementation shows a generic toast with no specific duration — `my_profile_page.dart:237-245`
-- [ ] spec §14.5.3 "Name/Phone/Username right-click context menus": no right-click context menu handlers on the info rows; only left-tap copy — `my_profile_page.dart:228-264`
-- [ ] spec §14.5.4 "Personal Channel row": implementation exists as `_PersonalChannelRow` but clicking it does nothing (no navigation to channel editor) — `my_profile_page.dart:326-327`
-- [ ] spec §14.5.5 "Birthday footer with [Manage] link to privacy settings": "Manage" link has `onTap: () {}` — no navigation to birthday privacy settings — `my_profile_page.dart:308-320`
-- [ ] spec §14.5.6 "Accounts list": `_AccountsSection` exists but key features are missing: no Ctrl+Click to open in new window, no right-click context menu (Copy Phone, Mark All Read, Activate, Log Out), no drag-and-drop reorder — `my_profile_page.dart:349`
+- [ ] spec §14.5.4 "Personal Channel row": `_PersonalChannelRow` tapping does nothing when no channel; shows toast instead of navigating to channel editor when channel exists — `my_profile_page.dart (_PersonalChannelRow.onTap)`
+- [ ] spec §14.5.6 "Accounts list": right-click context menu now works; still missing Ctrl+Click to open in new window and drag-and-drop reorder — `my_profile_page.dart:349`
 
 ### §14.6 Chat Settings
-- [ ] spec §14.6.5 "Chat List Quick Action live Lottie preview": the quick action section exists but there is no animated Lottie icon demonstrating the chosen action — `chat_settings_screen.dart:344-351`
-- [ ] spec §14.6.6 "Your Stickers / Emoji Sets navigation buttons": the stickers/emoji section has checkboxes but is missing the "Your Stickers" and "Emoji Sets" navigation row buttons — `chat_settings_screen.dart:355-370`
-- [ ] spec §14.6.8 "Sensitive Content toggle footer text": no footer text about sensitive media in public channels below the toggle — `chat_settings_screen.dart:389-405`
-- [ ] spec §14.6.9 "Archive Settings button": the Shortcuts & Archive section exists (`_ShortcutsArchiveSection`) but the "Archive Settings" button opening `ArchiveSettingsBox` is not verified as functional — `chat_settings_screen.dart:409`
+- [ ] spec §14.6.6 "Your Stickers / Emoji Sets navigation buttons": buttons exist (`_StickerNavButton`) but both have `onTap: () {}` stub — violates ZERO PLACEHOLDER rule; wire to real screens or remove — `chat_settings_screen.dart:2780-2791`
 
 ### §14.7 Advanced Settings
-- [ ] spec §14.7.7 "Manage Dictionaries rightLabel": shows hardcoded "0" instead of actual installed dictionary count — `advanced_settings_screen.dart:704-709`
-- [ ] spec §14.7.7 "Manage Dictionaries onTap": `onTap: () {}` — stub, does nothing — `advanced_settings_screen.dart:709`
-- [ ] spec §14.7.8 "Software Update check": `_checkForUpdates` is a fake 2-second delay that always returns "latest" — no real update check — `advanced_settings_screen.dart:109-113`
-- [ ] spec §14.7.9 "Screen Reader section": `_buildScreenReader` returns empty list unconditionally — never renders even when a screen reader is detected — `advanced_settings_screen.dart:716`
-- [ ] spec §14.7.0 "Experimental Settings section": `ExperimentalSettingsBox` exists but the spec's import/export via `tdesktop-flags:` base64url clipboard strings is not verified — `advanced_settings_screen.dart:762-769`
-
-### §14.8 Premium & Help
-- [ ] spec §14.8.2 "Ask a Question confirmation dialog → support chat": the confirm dialog exists but `onConfirm: () {}` does nothing — does not open a support chat — `settings_screen.dart:446-455`
-- [ ] spec §14.8.2 "Telegram FAQ / Telegram Features": both `onTap: () {}` — should open URLs in external browser — `settings_screen.dart:374-386`
+- [ ] spec §14.7.7 "Manage Dictionaries rightLabel": no count/right-label shown on the row; spec says show installed dictionary count — `advanced_settings_screen.dart (~line 708)`
+- [ ] spec §14.7.8 "Software Update check": `_checkForUpdates` is a fake 2-second delay that always returns "latest" — should query GitHub releases API and compare versions — `advanced_settings_screen.dart:110-115`
 
 ---
 
