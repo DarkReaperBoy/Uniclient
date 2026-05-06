@@ -8,24 +8,6 @@
 
 ## §4 — Chat Header / Top Bar
 
-- [ ] spec §4 "Button order right-to-left": spec says "Menu toggle, Info toggle, Call, Group call, Search" (right to left). Code renders left-to-right: Search, Call (DM only), GroupCall (group/channel), Info, Menu. Reading right-to-left gives: Menu, Info, GroupCall, Call, Search — matches spec order
-- [ ] spec §4 "Group call button": code uses `Icons.phone_in_talk` icon. The `onPressed` callback contains `// TODO: initiate group call via engine` — this is a placeholder/stub, the group call button does nothing — `chat_view.dart:5992-5994`
-- [ ] spec §4 "Search choose from user": spec says search mode shows a "choose from user" filter button. Code has the button but the callback is `// TODO: open user picker for "from user" filter` — stub placeholder — `chat_view.dart:5862-5864`
-- [ ] spec §4 "Pinned bar height": spec says 49px (`historyReplyHeight`). Code uses `height: 49` — matches
-- [ ] spec §4 "Pinned bar thumbnail": spec says 32x32px with `ImageRoundRadius::Small` (~3px). Code uses `width: 32, height: 32` and `borderRadius: BorderRadius.circular(3)` — matches
-- [ ] spec §4 "Pinned bar accent stripe": spec says `msgReplyBarSize: size(2px, 36px)` at `msgReplyBarPos: point(1px, 0px)` with `msgReplyBarSkip: 10px`. Code uses `Container(width: 2, height: 36)` preceded by `SizedBox(width: 1)` (for the 1px offset) then `SizedBox(width: 10)` for skip — matches spec exactly
-- [ ] spec §4 "Pinned bar content animation": spec says 160ms. Code uses `AnimatedSwitcher(duration: Duration(milliseconds: 160))` — matches
-- [ ] spec §4 "Pinned bar title": spec says "Pinned Message" for single, "Previous Pinned Message" when count==2 and shown isn't last, else "Pinned Message #N". Code in `_pinnedTitle()` matches this logic — correct
-- [ ] spec §4 "Pinned bar close button": spec says 49x49 hit-area, 40px circular ripple at (4,4). Code uses `SizedBox(width: 49, height: 49)` with `Positioned(left: 4, top: 4)` containing a 40x40 `InkWell` in `ClipOval` — matches
-- [ ] spec §4 "Pinned bar background": spec says `historyPinnedBg`. Code uses `palette.historyPinnedBg` — correct if palette maps it
-- [ ] spec §4 "Selection mode animation": spec says `slideWrapDuration ~200ms, easeOutCirc`. Code uses `AnimationController(duration: Duration(milliseconds: 200))` with `CurvedAnimation(curve: Curves.easeOutCirc)` — matches exactly
-- [ ] spec §4 "Selection buttons": spec says `defaultActiveButton` (pill, blue fill, white text) with uppercased labels "FORWARD", "SEND NOW", "DELETE". Code uses uppercase labels and `activeButtonBg`/`activeButtonFg` colors — matches
-- [ ] spec §4 "Selection count": spec says count lives on buttons via `setNumbersText`, no separate "X messages selected" label. Code uses `_AnimatedCountBadge(count: count)` appended to each button — matches spec approach
-- [ ] spec §4 "Selection button gap": spec says `topBarActionSkip: 10px`. Code uses `const SizedBox(width: 10)` between buttons — matches
-- [ ] spec §4 "Selection button corner radii": spec says `large = 8px` for outer ends, small for inner. Code uses `Radius.circular(8)` for large and `Radius.circular(4)` for small — matches (4px is a reasonable "small" radius)
-- [ ] spec §4 "Cancel button": spec says `topBarClearButton` = `RoundButton(defaultLightButton)` with `width: -18px`, uppercased "CLEAR"/"CANCEL", right-aligned at 10px margin. Code uses a `TextButton` with `EdgeInsets.symmetric(horizontal: 18)` — the -18px is Telegram's way of specifying horizontal padding for auto-width, so padding=18 matches. Label should be uppercase but would need to verify the exact text — `chat_view.dart:9324`
-- [ ] spec §4 "Contact status bar height": spec says 49px. Code would need verification in `_ContactStatusBar` — `chat_view.dart:8367`
-- [ ] spec §4 "Contact status button style": spec says "height 49px, textTop 16px, font semiboldFont, hover bg historyComposeButtonBg, ripple historyComposeButtonBgOver, flat full-width FlatButton". Destructive variant uses `attentionButtonFg` (red). Implementation needs verification — `chat_view.dart:8367`
 # Audit: §5-§7 Messages & Compose
 
 ## §5 — Message List & Bubbles
