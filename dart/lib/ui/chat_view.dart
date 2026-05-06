@@ -2746,6 +2746,7 @@ class _ChatViewState extends State<ChatView>
       peerName: chat?.title ?? '',
       messageCount: count,
       canRevoke: chat?.type == ChatType.dm,
+      showModeratePanel: chat?.isAdmin == true,
     ).then((result) {
       if (!result.confirmed) return;
       for (final id in ids) {
@@ -2762,6 +2763,7 @@ class _ChatViewState extends State<ChatView>
       chatType: chat?.type ?? ChatType.dm,
       peerName: chat?.title ?? '',
       canRevoke: chat?.type == ChatType.dm && msg.isOutgoing,
+      showModeratePanel: chat?.isAdmin == true && !msg.isOutgoing,
     ).then((result) {
       if (result.confirmed) chatState.deleteMessage(msg.msgId);
     });

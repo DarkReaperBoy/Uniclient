@@ -226,6 +226,7 @@ class ChatInfo {
   final bool notJoined;
   final bool joinRequest;
   final bool canPost;
+  final bool isAdmin;
   final bool noForwards;
 
   const ChatInfo({
@@ -275,6 +276,7 @@ class ChatInfo {
     this.notJoined = false,
     this.joinRequest = false,
     this.canPost = false,
+    this.isAdmin = false,
     this.noForwards = false,
   });
 
@@ -325,6 +327,7 @@ class ChatInfo {
     notJoined: j['not_joined'] as bool? ?? false,
     joinRequest: j['join_request'] as bool? ?? false,
     canPost: j['can_post'] as bool? ?? false,
+    isAdmin: j['is_admin'] as bool? ?? false,
     noForwards: j['no_forwards'] as bool? ?? false,
   );
 

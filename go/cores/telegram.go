@@ -11197,6 +11197,9 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 						dialog.AvatarURL = "has_photo"
 					}
 					dialog.NoForwards = c.Noforwards
+					if c.Creator {
+						dialog.IsAdmin = true
+					}
 					if c.Deactivated {
 						dialog.WriteRestrictionType = 1
 						dialog.WriteRestrictionText = "Sorry, this group is not accessible."
@@ -11237,6 +11240,9 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 							dialog.WriteRestrictionType = rType
 							dialog.WriteRestrictionText = rText
 						}
+					}
+					if c.Creator || hasAdmin {
+						dialog.IsAdmin = true
 					}
 					if c.Broadcast {
 						dialog.Type = ChatTypeChannel

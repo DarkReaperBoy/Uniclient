@@ -133,6 +133,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV30,
 	migrateV31,
 	migrateV32,
+	migrateV33,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -715,4 +716,13 @@ func migrateV31(tx *sql.Tx) error {
 func migrateV32(tx *sql.Tx) error {
 	_, err := tx.Exec(`ALTER TABLE chats ADD COLUMN access_hash INTEGER NOT NULL DEFAULT 0`)
 	return err
+}
+
+func migrateV33(tx *sql.Tx) error {
+	if !columnExists(tx, "chats", "is_admin") {
+		if _, err := tx.Exec(`ALTER TABLE chats ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0`); err != nil {
+			return err
+		}
+	}
+	return nil
 }
