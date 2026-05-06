@@ -157,9 +157,9 @@ JQ_FMT='
   else empty end'
 
 # ─── Claude invocation with circuit breaker + timeout ────────────
-# $1=prompt $2=log_file $3=label $4=model(optional)
+# $1=prompt $2=log_file $3=label $4=model(optional) $5=effort(optional)
 invoke_claude() {
-  local prompt="$1" iter_file="$2" label="$3" model="${4:-claude-opus-4-6}"
+  local prompt="$1" iter_file="$2" label="$3" model="${4:-claude-opus-4-6}" effort="${5:-high}"
 
   circuit_breaker_check || return 1
 
@@ -169,7 +169,7 @@ invoke_claude() {
     --print \
     --dangerously-skip-permissions \
     --model "$model" \
-    --effort max \
+    --effort "$effort" \
     --output-format stream-json \
     --verbose \
     -p "$prompt" \
@@ -246,7 +246,8 @@ THEN:
 4. Read existing source files BEFORE writing code
 5. Implement completely — no stubs, no placeholders
 6. Build and basic sanity check:
-   a. scripts/build_go.sh linux
+   a. ONLY rebuild Go if you changed files under go/: scripts/build_go.sh linux
+      (Skip if you only changed dart/ files — saves 30-60 seconds)
    b. scripts/build_flutter.sh linux debug
    c. Launch: cd dart/build/linux/x64/debug/bundle && nohup ./uniclient > /tmp/uniclient_log.txt 2>&1 &
    d. Wait 3s, screenshot: scripts/flutter_inspect.sh screenshot /tmp/ss.png
@@ -284,7 +285,9 @@ FILES: $diff_stat
 STEPS:
 1. Read CLAUDE.md
 2. Read the spec section cited in the item
-3. Build & launch the app
+3. Build & launch the app (skip Go build if only dart/ files changed):
+   scripts/build_flutter.sh linux debug
+   cd dart/build/linux/x64/debug/bundle && nohup ./uniclient > /tmp/uniclient_log.txt 2>&1 &
 4. Run: scripts/flutter_audit.sh verify "$(echo "$item" | head -c 80)"
 5. Test BOTH modes:
    - Desktop (1024x768): screenshot + interactions
@@ -470,7 +473,7 @@ Item: $CURRENT_ITEM"
     rm -f "$FEEDBACK_FILE"
 
     VERIFY_EXIT=0
-    invoke_claude "$(build_verify_prompt "$CURRENT_ITEM")" "$VERIFY_FILE" "VERIFY" || VERIFY_EXIT=$?
+    invoke_claude "$(build_verify_prompt "$CURRENT_ITEM")" "$VERIFY_FILE" "VERIFY" "claude-sonnet-4-6" || VERIFY_EXIT=$?
 
     if [[ $VERIFY_EXIT -eq 2 ]]; then
       log "Rate limited during verify. Waiting..."
