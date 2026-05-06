@@ -97,6 +97,28 @@ trap cleanup EXIT
 # SHARED INFRASTRUCTURE
 # ═════════════════════════════════════════════════════════════════
 
+# ─── Internet connectivity check ─────────────────────────────────
+wait_for_internet() {
+  if ping -c 1 -W 2 1.1.1.1 &>/dev/null; then
+    return 0
+  fi
+  log ""
+  log "  ⚡ Internet connection lost. Waiting for reconnection..."
+  log "     Pinging 1.1.1.1 every 5 seconds..."
+  local waited=0
+  while ! ping -c 1 -W 2 1.1.1.1 &>/dev/null; do
+    sleep 5
+    waited=$((waited + 5))
+    # Print a dot every 30 seconds so the terminal doesn't look dead
+    if [[ $((waited % 30)) -eq 0 ]]; then
+      log "     Still waiting... (${waited}s offline)"
+    fi
+  done
+  log "  ✅ Internet restored after ${waited}s. Resuming."
+  log ""
+  sleep 2
+}
+
 # ─── Circuit breaker state ───────────────────────────────────────
 CB_FAILURES=0
 CB_OPEN=false
@@ -170,6 +192,7 @@ invoke_claude() {
   local prompt="$1" iter_file="$2" label="$3" model="${4:-claude-opus-4-6}" effort="${5:-max}"
 
   circuit_breaker_check || return 1
+  wait_for_internet
 
   echo ""
   log "┌──────────────────────────────────────────────────────────"
@@ -829,6 +852,7 @@ $(echo "$JSTEPS" | tr ';' '\n' | sed 's/^/  - /')"
         if git -C "$PROJECT_ROOT" rev-parse "$rollback_tag" &>/dev/null; then
           log "DIVERGENCE confirmed. Resetting to $rollback_tag."
           git -C "$PROJECT_ROOT" reset --hard "$rollback_tag"
+          wait_for_internet
           git -C "$PROJECT_ROOT" push origin main --force-with-lease 2>/dev/null || true
         else
           log "DIVERGENCE confirmed but rollback tag $rollback_tag not found."
@@ -850,8 +874,9 @@ Audit cycle $AUDIT_CYCLE: $FINDINGS items found (L1: $SUCCESSFUL_CHUNKS chunks, 
 Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
 EOF
 )" 2>/dev/null || true
+    wait_for_internet
     if ! git -C "$PROJECT_ROOT" push origin main 2>/dev/null; then
-      log "⚠️  git push failed — commits are local only. Will retry next cycle."
+      log "  ⚠️  git push failed — commits are local only. Will retry next cycle."
     fi
     LAST_COMMIT_HASH="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || echo "none")"
 
