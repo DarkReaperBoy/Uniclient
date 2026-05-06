@@ -2086,14 +2086,16 @@ class StickerInfoItem {
   final int height;
   final String mimeType;
   final String fileId;
+  bool isFaved;
 
-  const StickerInfoItem({
+  StickerInfoItem({
     this.emoji = '',
     this.thumbB64 = '',
     this.width = 0,
     this.height = 0,
     this.mimeType = '',
     this.fileId = '',
+    this.isFaved = false,
   });
 }
 

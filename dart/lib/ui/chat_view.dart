@@ -16974,13 +16974,14 @@ class _StickerSuggestionPanel extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final menuBg = isDark ? const Color(0xFF1e2c3a) : Colors.white;
     final textColor = isDark ? const Color(0xFFe1e3e6) : const Color(0xFF222222);
+    final faveLabel = sticker.isFaved ? 'Unfave' : 'Fave';
     showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx + 1, position.dy + 1),
       color: menuBg,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       items: [
-        PopupMenuItem(value: 'fave', child: Text('Fave', style: TextStyle(fontSize: 13, color: textColor))),
+        PopupMenuItem(value: 'fave', child: Text(faveLabel, style: TextStyle(fontSize: 13, color: textColor))),
         PopupMenuItem(value: 'view_set', child: Text('View Set', style: TextStyle(fontSize: 13, color: textColor))),
       ],
     ).then((value) {
@@ -16990,7 +16991,9 @@ class _StickerSuggestionPanel extends StatelessWidget {
         final acc = appState.activeAccount;
         if (acc != null && sticker.fileId.isNotEmpty) {
           final id = int.tryParse(sticker.fileId) ?? 0;
-          engine.faveSticker(acc.id, id);
+          final willUnfave = sticker.isFaved;
+          engine.faveSticker(acc.id, id, unfave: willUnfave);
+          sticker.isFaved = !willUnfave;
         }
       }
     });
@@ -17003,7 +17006,7 @@ class _StickerSuggestionPanel extends StatelessWidget {
     final bgColor = isDark ? const Color(0xFF17212b) : Colors.white;
     final hoverColor = isDark ? const Color(0xFF202b36) : const Color(0xFFf1f1f1);
     final borderColor = isDark ? const Color(0xFF101a23) : const Color(0xFFdadada);
-    const cellSize = 100.0;
+    const cellSize = 32.0;
 
     return TextFieldTapRegion(
       child: Container(
@@ -17033,9 +17036,9 @@ class _StickerSuggestionPanel extends StatelessWidget {
                   height: cellSize,
                   decoration: BoxDecoration(
                     color: isSelected ? hoverColor : null,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(4),
                   ),
-                  padding: const EdgeInsets.all(4),
+                  padding: const EdgeInsets.all(2),
                   child: s.thumbB64.isNotEmpty
                       ? Image.memory(
                           base64Decode(s.thumbB64),
@@ -17043,7 +17046,7 @@ class _StickerSuggestionPanel extends StatelessWidget {
                           gaplessPlayback: true,
                         )
                       : Center(
-                          child: Text(s.emoji, style: const TextStyle(fontSize: 40)),
+                          child: Text(s.emoji, style: const TextStyle(fontSize: 20)),
                         ),
                 ),
               ),

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
@@ -1549,10 +1550,11 @@ class _StickerTabState extends State<_StickerTab> {
     });
   }
 
-  void _showStickerContextMenu(BuildContext context, Offset position, StickerInfoItem sticker) {
+  void _showStickerContextMenu(BuildContext context, Offset position, StickerInfoItem sticker, {String? setShortName, bool isCustomEmojiSet = false}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final menuBg = isDark ? const Color(0xFF1e2c3a) : Colors.white;
     final textColor = isDark ? const Color(0xFFe1e3e6) : const Color(0xFF222222);
+    final faveLabel = sticker.isFaved ? 'Unfave' : 'Fave';
     widget.onContextMenuToggle?.call(true);
     showMenu<String>(
       context: context,
@@ -1560,8 +1562,10 @@ class _StickerTabState extends State<_StickerTab> {
       color: menuBg,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       items: [
-        PopupMenuItem(value: 'fave', child: Text('Fave', style: TextStyle(fontSize: 13, color: textColor))),
+        PopupMenuItem(value: 'fave', child: Text(faveLabel, style: TextStyle(fontSize: 13, color: textColor))),
         PopupMenuItem(value: 'view_set', child: Text('View Set', style: TextStyle(fontSize: 13, color: textColor))),
+        if (isCustomEmojiSet && setShortName != null && setShortName.isNotEmpty)
+          PopupMenuItem(value: 'copy_link', child: Text('Copy Link', style: TextStyle(fontSize: 13, color: textColor))),
       ],
     ).then((value) {
       widget.onContextMenuToggle?.call(false);
@@ -1571,8 +1575,13 @@ class _StickerTabState extends State<_StickerTab> {
         final acc = appState.activeAccount;
         if (acc != null && sticker.fileId.isNotEmpty) {
           final id = int.tryParse(sticker.fileId) ?? 0;
-          engine.faveSticker(acc.id, id);
+          final willUnfave = sticker.isFaved;
+          engine.faveSticker(acc.id, id, unfave: willUnfave);
+          setState(() { sticker.isFaved = !willUnfave; });
         }
+      } else if (value == 'copy_link' && setShortName != null) {
+        final prefix = isCustomEmojiSet ? 'addemoji' : 'addstickers';
+        Clipboard.setData(ClipboardData(text: 'https://t.me/$prefix/$setShortName'));
       }
     });
   }
@@ -1723,6 +1732,7 @@ class _StickerTabState extends State<_StickerTab> {
             colCount: colCount,
             cellSize: cellSize,
             isDark: isDark,
+            setShortName: pack.shortName,
           ));
           sectionIdx++;
         }
@@ -1743,6 +1753,8 @@ class _StickerTabState extends State<_StickerTab> {
     required int colCount,
     required double cellSize,
     required bool isDark,
+    String? setShortName,
+    bool isCustomEmojiSet = false,
   }) {
     final headerColor = isDark ? const Color(0xFF8899a6) : const Color(0xFF666666);
     final rows = <Widget>[];
@@ -1760,7 +1772,7 @@ class _StickerTabState extends State<_StickerTab> {
                 onTap: () {
                   widget.onStickerSelected?.call(s.emoji.isNotEmpty ? s.emoji : s.fileId);
                 },
-                onContextMenu: (pos) => _showStickerContextMenu(context, pos, s),
+                onContextMenu: (pos) => _showStickerContextMenu(context, pos, s, setShortName: setShortName, isCustomEmojiSet: isCustomEmojiSet),
               ),
             ),
           if (rowStickers.length < colCount)
