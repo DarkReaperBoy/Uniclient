@@ -32,19 +32,8 @@
 
 ## §14 — Settings: General & My Account
 
-### §14.2 Profile Header / Cover
-- [ ] spec §14.2.3 "Premium/emoji-status badge": clicking the badge shows a toast "Emoji status" instead of opening the emoji status panel — `settings_screen.dart:615`
-
 ### §14.5 My Account / Edit Profile
-- [ ] spec §14.5.4 "Personal Channel row": `_PersonalChannelRow` tapping does nothing when no channel; shows toast instead of navigating to channel editor when channel exists — `my_profile_page.dart (_PersonalChannelRow.onTap)`
-- [ ] spec §14.5.6 "Accounts list": right-click context menu now works; still missing Ctrl+Click to open in new window and drag-and-drop reorder — `my_profile_page.dart:349`
-
-### §14.6 Chat Settings
-- [ ] spec §14.6.6 "Your Stickers / Emoji Sets navigation buttons": buttons exist (`_StickerNavButton`) but both have `onTap: () {}` stub — violates ZERO PLACEHOLDER rule; wire to real screens or remove — `chat_settings_screen.dart:2780-2791`
-
-### §14.7 Advanced Settings
-- [ ] spec §14.7.7 "Manage Dictionaries rightLabel": no count/right-label shown on the row; spec says show installed dictionary count — `advanced_settings_screen.dart (~line 708)`
-- [ ] spec §14.7.8 "Software Update check": `_checkForUpdates` is a fake 2-second delay that always returns "latest" — should query GitHub releases API and compare versions — `advanced_settings_screen.dart:110-115`
+- [ ] spec §14.5.6 "Accounts list": drag-and-drop reorder now works; Ctrl+Click detects modifier but just switches account (not open in new window); context menu missing "Open in New Window" as first item — spec §14.5.6 says context menu = (Open in New Window, Copy Phone, Activate, Mark All Read, Log Out) — `my_profile_page.dart (_AccountsSection / _SettingsAccountRow._showContextMenu)`
 
 ---
 
