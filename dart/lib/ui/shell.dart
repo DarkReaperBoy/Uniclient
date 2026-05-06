@@ -510,13 +510,19 @@ class _UniClientShellState extends State<UniClientShell>
           },
         ),
         Expanded(
-          child: chatState.activeChat != null
-              ? ChatView(
-                  showBackButton: false,
-                  onToggleInfo: _toggleInfo,
-                  isInfoOpen: _infoOpen,
-                )
-              : _EmptyChatPlaceholder(),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final wideChat = constraints.maxWidth >= _wideChatThreshold;
+              return chatState.activeChat != null
+                  ? ChatView(
+                      showBackButton: false,
+                      onToggleInfo: _toggleInfo,
+                      isInfoOpen: _infoOpen,
+                      wideChatMode: wideChat,
+                    )
+                  : _EmptyChatPlaceholder();
+            },
+          ),
         ),
       ],
     );

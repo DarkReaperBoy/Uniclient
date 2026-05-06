@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../theme/telegram_palette.dart';
 import 'package:flutter/services.dart';
@@ -43,9 +44,9 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
       _buildSoftwareUpdateTop(isDark),        // 1. Update (non-auto only)
       _buildDataAndStorage(isDark, appState),   // 2. Data and Storage
       _buildAutoMediaDownload(isDark),         // 3. Automatic Media Download
-      _buildWindowTitle(isDark, appState),     // 4. Window Title
-      _buildWindowCloseBehavior(isDark),       // 5. Window Close (Linux only)
-      _buildSystemIntegration(isDark, appState), // 6. System Integration
+      if (kIsWeb) const <Widget>[] else _buildWindowTitle(isDark, appState),     // 4. Window Title (desktop-only)
+      if (kIsWeb) const <Widget>[] else _buildWindowCloseBehavior(isDark),       // 5. Window Close (Linux only)
+      if (kIsWeb) const <Widget>[] else _buildSystemIntegration(isDark, appState), // 6. System Integration (desktop-only, §13.5)
       _buildPerformance(isDark),               // 7. Performance
       _buildSpellchecker(isDark),              // 8. Spellchecker
       _buildScreenReader(isDark),              // 9. Screen Reader

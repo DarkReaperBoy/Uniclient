@@ -4162,6 +4162,18 @@ class _ChatViewState extends State<ChatView>
     );
   }
 
+  // Spec §13.3: Wide chat mode (>= 880px) centers message content with gutters.
+  static const _wideChatMaxWidth = 720.0;
+  Widget _wideChatCenter(Widget child) {
+    if (!widget.wideChatMode) return child;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: _wideChatMaxWidth),
+        child: child,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -4466,7 +4478,7 @@ class _ChatViewState extends State<ChatView>
                 onPointerUp: (_) {
                   if (_autoScrollActive) _stopAutoScroll();
                 },
-                child: Stack(
+                child: _wideChatCenter(Stack(
               children: [
                 // §23.10: 200ms slide+fade when entering/exiting scheduled section.
                 AnimatedBuilder(
@@ -4670,7 +4682,7 @@ class _ChatViewState extends State<ChatView>
                     ),
                   ),
               ],
-            ),
+            )),
           ),),),
           // Edit bar (takes precedence over reply/forward bar).
           if (_editingMsgId != null)
@@ -6895,15 +6907,18 @@ class _MessageList extends StatelessWidget {
           children: [
             if (showDate) _DateSeparator(timestamp: msg.timestamp, isScheduled: isScheduledView),
             if (showUnreadBar) _UnreadBar(count: openedUnreadCount),
-            PlatformGestureDetector(
-              behavior: inSelectionMode ? HitTestBehavior.opaque : HitTestBehavior.deferToChild,
-              onLongPress: () => onLongPress(msg.msgId),
-              onTap: inSelectionMode ? () => onToggleSelect(msg.msgId) : null,
-              child: AnimatedPadding(
-                duration: const Duration(milliseconds: 160),
-                curve: Curves.easeInOut,
-                padding: EdgeInsets.only(right: inSelectionMode ? 30.0 : 0.0),
-                child: rowContent,
+            _SwipeToReplyRow(
+              onReply: !inSelectionMode ? () => onReply(msg.msgId) : null,
+              child: PlatformGestureDetector(
+                behavior: inSelectionMode ? HitTestBehavior.opaque : HitTestBehavior.deferToChild,
+                onLongPress: () => onLongPress(msg.msgId),
+                onTap: inSelectionMode ? () => onToggleSelect(msg.msgId) : null,
+                child: AnimatedPadding(
+                  duration: const Duration(milliseconds: 160),
+                  curve: Curves.easeInOut,
+                  padding: EdgeInsets.only(right: inSelectionMode ? 30.0 : 0.0),
+                  child: rowContent,
+                ),
               ),
             ),
           ],
@@ -6972,6 +6987,120 @@ class _MessageList extends StatelessWidget {
     final d1 = DateTime.fromMillisecondsSinceEpoch(ts1);
     final d2 = DateTime.fromMillisecondsSinceEpoch(ts2);
     return d1.year != d2.year || d1.month != d2.month || d1.day != d2.day;
+  }
+}
+
+/// Spec §13.4: Swipe-to-reply gesture on message rows.
+/// Swipe right to reveal a reply icon; exceeding threshold triggers onReply.
+class _SwipeToReplyRow extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onReply;
+
+  const _SwipeToReplyRow({required this.child, this.onReply});
+
+  static const _threshold = 50.0;
+  static const _maxOffset = 80.0;
+
+  @override
+  State<_SwipeToReplyRow> createState() => _SwipeToReplyRowState();
+}
+
+class _SwipeToReplyRowState extends State<_SwipeToReplyRow>
+    with SingleTickerProviderStateMixin {
+  double _offset = 0.0;
+  late AnimationController _resetCtrl;
+  double _resetFrom = 0.0;
+  bool _triggered = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _resetCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    )..addListener(() {
+        setState(() {
+          _offset = _resetFrom * (1.0 - _resetCtrl.value);
+        });
+      });
+  }
+
+  @override
+  void dispose() {
+    _resetCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onDragUpdate(DragUpdateDetails details) {
+    setState(() {
+      final dx = _offset >= _SwipeToReplyRow._threshold
+          ? details.delta.dx * 0.3
+          : details.delta.dx;
+      _offset = (_offset + dx).clamp(0.0, _SwipeToReplyRow._maxOffset);
+      if (_offset >= _SwipeToReplyRow._threshold && !_triggered) {
+        _triggered = true;
+        HapticFeedback.lightImpact();
+      }
+    });
+  }
+
+  void _onDragEnd(DragEndDetails _) {
+    if (_triggered) widget.onReply?.call();
+    _resetFrom = _offset;
+    _triggered = false;
+    _resetCtrl.forward(from: 0);
+  }
+
+  void _onDragCancel() {
+    _resetFrom = _offset;
+    _triggered = false;
+    _resetCtrl.forward(from: 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.onReply == null) return widget.child;
+    if (_offset == 0.0 && !_resetCtrl.isAnimating) {
+      return GestureDetector(
+        onHorizontalDragUpdate: _onDragUpdate,
+        onHorizontalDragEnd: _onDragEnd,
+        onHorizontalDragCancel: _onDragCancel,
+        child: widget.child,
+      );
+    }
+    final progress = (_offset / _SwipeToReplyRow._threshold).clamp(0.0, 1.0);
+    return GestureDetector(
+      onHorizontalDragUpdate: _onDragUpdate,
+      onHorizontalDragEnd: _onDragEnd,
+      onHorizontalDragCancel: _onDragCancel,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            left: 8,
+            top: 0,
+            bottom: 0,
+            child: Opacity(
+              opacity: progress,
+              child: Transform.scale(
+                scale: 0.5 + 0.5 * progress,
+                child: Center(
+                  child: Icon(
+                    Icons.reply,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 24,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Transform.translate(
+            offset: Offset(_offset, 0),
+            child: widget.child,
+          ),
+        ],
+      ),
+    );
   }
 }
 
