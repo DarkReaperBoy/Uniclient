@@ -27,39 +27,6 @@
 
 ## §12 — Calls UI
 
-- [ ] spec §12.1 "Window default 720x540, min 380x520": implementation has defaultWidth=720, defaultHeight=540, minWidth=380, minHeight=520 — matches spec
-- [ ] spec §12.1 "Incoming state: 160px userpic, 21px semibold name": implementation builds 160px userpic and 21px w600 name — matches spec
-- [ ] spec §12.1 "Active button-row order: Screencast, Camera, Hangup, Mute, Add People": implementation has Screencast, Camera, End Call (hangup), Mute, Add People — matches spec
-- [ ] spec §12.1 "Remote pills for muted/low-battery": implementation has _RemoteStatusPill for both muted mic and low battery — correct
-- [ ] spec §12.1 "Controls auto-hide 5000ms fullscreen, 2000ms mouse-leave": implementation has _kHideControlsFullscreen=5000ms, _kHideControlsMouseLeave=2000ms — matches spec
-- [ ] spec §12.1 "Button row crossfade 150ms on state change": implementation has AnimatedSwitcher with 200ms on button state changes, spec says 150ms — duration mismatch — `call_panel.dart`
-- [ ] spec §12.2 "Signal bars 4 bars, 2px wide, heights 4/6/8/10, 2px skip, 1px radius": call_panel.dart _SignalBarsPainter has barWidth=2, heights [4,6,8,10] derived from formula, skip=2, radius=1 — matches spec
-- [ ] spec §12.2 "Signal bar inactive opacity 0.5": implementation uses Color(0x80FFFFFF) which is ~0.5 opacity — matches spec
-- [ ] spec §12.2 "Signal bars snap (no interpolation)": implementation repaints on quality change without animation — matches spec
-- [ ] spec §12.3 "Encryption fingerprint 4 emoji, 10 carousel, 50ms stagger, 100ms per hop, 1200ms total": implementation has _kEmojiCount=4, _kCarouselCount=10, _kStartTimeShiftMs=50, _kCarouselOneMs=100, _kTotalMs=1200 — matches spec exactly
-- [ ] spec §12.3 "Fingerprint tooltip delay 1000ms": spec says kTooltipShowTimeoutMs = 1000ms hover delay; implementation uses TelegramTooltip which may not have 1000ms delay — `call_panel.dart:1110`
-- [ ] spec §12.3 "Fingerprint pill container radius=height/2": implementation uses borderRadius: BorderRadius.circular(999) which achieves pill shape — correct
-- [ ] spec §12.4 "Self-view VideoBubble 160x110, snap-to-corners, 12px inset, 120ms easeOutCirc": implementation has _width=160, _height=110, _inset=12, _snapDuration=120ms with easeOutCirc — matches spec exactly
-- [ ] spec §12.4 "Self-view mirror ON by default, OFF during screen-share": implementation passes mirror: !widget.info.isScreenSharing — correct
-- [ ] spec §12.4 "Outgoing preview min 360x120, max 1620x540, scale formula": implementation has _minSize=(360,120), _maxSize=(1620,540) with correct interpolation formula — matches spec
-- [ ] spec §12.4 "Camera button device-selector menu via corner chevron": spec says tiny corner chevron opens device-selector menu for camera/mic switch; no device selector menu implemented — `call_panel.dart`
-- [ ] spec §12.5 "Group call wide mode threshold 600px": implementation has wideModeThreshold=600.0 — matches spec
-- [ ] spec §12.5 "Group call narrow minimum 380px": implementation has minWidth=380.0 — matches spec
-- [ ] spec §12.6 "Speaker blob dual system: minor 6 vertices scale 0.545, major 8 vertices scale 0.605": implementation has _minorVertices=6, _majorVertices=8, _minorScale=0.545, _majorScale=0.605 — matches spec exactly
-- [ ] spec §12.6 "Speaker blob min/max radius 27/29px, levelDuration 215ms": implementation has _minRadius=27, _maxRadius=29, _levelDuration=215ms — matches spec
-- [ ] spec §12.6 "Userpic scale 0.8 to 1.0 with level": implementation has _userpicMinScale=0.8 with scale = 0.8 + 0.2 * level — matches spec
-- [ ] spec §12.7 "Big mute button 36x36 icon in 42px circle, green/gray/purple states": implementation has _circleSize=42, _iconSize=36, green=#4DC920, gray=#808B94, purple=#7B5EBF — matches spec
-- [ ] spec §12.7 "Big mute button blob ring with 215ms level envelope": implementation uses a blob ring with matching pulse period — approximately correct
-- [ ] spec §12.8 "Minimised top bar height 38px": implementation has MinimisedCallBar.height = 38.0 — matches spec
-- [ ] spec §12.8 "Minimised bar userpic strip 28px with 8px overlap": implementation has _UserpicStrip with _size=28.0 and _overlap=8.0 — matches spec
-- [ ] spec §12.8 "Minimised bar gradient state machine with force-muted 3-stop purple": implementation has 3-stop purple gradient for forceMuted — matches spec
-- [ ] spec §12.8 "Gradient transition animation": implementation has _gradientAnim with 150ms easeInOut gradient interpolation — approximately correct
-- [ ] spec §12.8 "Minimised bar duration timer mm:ss": implementation formats as m:ss (no zero-padding on minutes for short durations) while spec implies mm:ss; also handles hours — minor format difference
-- [ ] spec §12.9 "Screen-share chooser dual-tab Windows/Full Screen, 235x165 thumbs": implementation has tabs and _kThumbW=235, _kThumbH=165 — matches spec
-- [ ] spec §12.9 "Share audio checkbox gated by PipeWire on Linux": implementation checks for PipeWire process and shows checkbox conditionally — correct
-- [ ] spec §12.10 "Rating dialog 5 stars, comment max height 135px": implementation has 5 stars at 36x36, comment maxHeight=135 — matches spec
-- [ ] spec §12.10 "Rating star unselected color windowSubTextFg, selected lightButtonFg": implementation uses windowSubTextFg for unselected and palette.windowBgActive for selected; spec says selected should be lightButtonFg — possible color mismatch — `call_panel.dart:1565`
-
 ## §13 — Mobile / Web Compatibility
 
 - [ ] spec §13.1 "OneColumn < 640px, ThreeColumn >= 932px": implementation in shell.dart has _oneColumnBreak = 640.0 and three-column break; needs verification of the 932px threshold — `shell.dart:76`
