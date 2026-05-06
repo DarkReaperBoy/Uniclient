@@ -22,7 +22,6 @@
 
 ## §9 — Context Menus & Actions
 
-- [ ] spec §9.5 "Delete confirmation moderate panel": spec defines checkboxes for Ban User, Report Spam, Delete All from User with live "(N)" count suffix; confirm_box.dart has the checkboxes gated by showModeratePanel=true but chat_view.dart:_showDeleteMessageConfirm never passes showModeratePanel:true — ChatInfo has no isAdmin field; fix: add isAdmin to ChatInfo and pass showModeratePanel: chat.isAdmin && !msg.isOutgoing — `chat_view.dart` `confirm_box.dart`
 
 ## §10 — Emoji / Sticker / GIF Panels
 
