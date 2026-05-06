@@ -12,20 +12,6 @@
 
 ## §5 — Message List & Bubbles
 
-- [ ] spec §5 "Bubble shape / Tail": Spec says last message in group should have a decorative triangle Tail on the bottom sender-side corner. Code uses `radiusSmall` (6px) for `bottomSenderSide` regardless of `isLastInGroup` — there is no Tail path at all, only circular radii. The visual distinction between last-in-group and mid-group on the sender side is absent — `message_bubble.dart:505-506`
-- [ ] spec §5 "Bubble padding": Spec says internal padding 11px horizontal, 8px vertical. Code uses `EdgeInsets.symmetric(horizontal: 11, vertical: 6)` — vertical is 6px instead of 8px — `message_bubble.dart:591`
-- [ ] spec §5 "Consecutive Grouping / Bottom corners": Spec says bottom-other-side should always be Large (16px) when NOT attached-to-next. Code sets `bottomOtherSide = isLastInGroup ? radiusLarge : radiusSmall` — mid-group messages get `radiusSmall` on both bottom corners, whereas spec says only the sender-side should be Small, the other side should remain Large — `message_bubble.dart:506`
-- [ ] spec §5 "Sender name hidden in DMs": Spec says sender name hidden "in DMs" for incoming messages. Code condition `!isOutgoing && message.senderName.isNotEmpty && isFirstInGroup` has no `isGroupChat` guard, so incoming DM messages will incorrectly show sender names — `message_bubble.dart:615`
-- [ ] spec §5 "Forward header ordering": Spec §5.4 content order is: sender name, topic, via bot, **forward header**, reply block, text. Code renders reply preview (line 690) BEFORE forward header (line 700), reversing the spec order — `message_bubble.dart:690-711`
-- [ ] spec §5 "Reply block height": Spec says reply left bar is 2px wide and 36px tall. Code renders `Border(left: BorderSide(width: 2))` with no explicit 36px height constraint — the bar stretches to content height — `message_bubble.dart:2434-2436`
-- [ ] spec §5 "Reply block two-line content": Spec says reply block shows reply sender name + preview text as two separate styled lines with 10px gap. Code shows only a single-line preview text (`maxLines: 1`), missing the reply sender name as a separate element — `message_bubble.dart:2438-2443`
-- [ ] spec §5 "Bottom info spacing": Spec says `historyViewsSpace: 8px` before views/replies, `historyViewsWidth: 20px` per icon, `historySendStateSpace: 24px` before edited/time group. Code uses `SizedBox(width: 2)` between icon and count, and `SizedBox(width: 4)` before status icon — none match spec spacing — `message_bubble.dart:809,845`
-- [ ] spec §5 "Bottom info floating": Spec says for text bubbles, bottom info floats at bottom-right of the last line of text content. Code puts the info Row on its own line inside a Column with a `Spacer()` pushing it right — occupies a full row instead of floating inline — `message_bubble.dart:802-805`
-- [ ] spec §5 "Scroll-to-bottom FAB animation": Spec says 150ms slide-in animation with linear easing. Code shows/hides the FAB without any entry/exit slide or fade transition — `chat_view.dart:10477-10479`
-- [ ] spec §5 "Scroll-to-bottom show threshold": Spec says FAB appears after scrolling `historyToDownShownAfter = 480px` from bottom. No 480px threshold check found in the FAB visibility logic — `chat_view.dart`
-- [ ] spec §5 "Stacked corner buttons gap": Spec says Jump-down, Mentions, Reactions, PollVotes stack with `historyUnreadThingsSkip = 4px` gap. No 4px spacing constant visible between stacked `_CornerButton` widgets — `chat_view.dart:10549-10644`
-- [ ] spec §5 "Unread-count badge offset": Spec says badge drawn 4px above button top (stroke=4 arg to PaintUnreadBadge). Code positions badge at `top: 0` of the 52x62 SizedBox — at the very top, not 4px above the disc at y=15 — `chat_view.dart:10486-10488`
-- [ ] spec §5 "Selection mode bubble offset": Spec says `msgSelectionOffset = 30px` shifts bubbles leftward when in selection mode. Code does not apply any horizontal offset to bubbles when `inSelectionMode` is true — bubbles stay in place — `message_bubble.dart:856-864`
 
 ## §6 — Media Message Types
 
