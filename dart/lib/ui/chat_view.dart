@@ -4921,9 +4921,9 @@ class _TopBarButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onPressed;
   final double width;
-  /// Optional padding inside the 40×40 ripple circle to offset the icon
-  /// from center. Used by menu toggle to place icon at spec position (16, 17).
-  final EdgeInsetsGeometry? iconPadding;
+  /// Spec iconPosition (top-left of 20px icon within button bounds).
+  /// Default when null: centered at ((width-20)/2, 17).
+  final Offset? iconPosition;
   /// Spec §4.3: active state uses `windowActiveTextFg` (blue) instead of
   /// `menuIconFg`. Used by the info toggle when the info panel is open.
   final bool isActive;
@@ -4932,7 +4932,7 @@ class _TopBarButton extends StatelessWidget {
     required this.icon,
     this.onPressed,
     this.width = 40,
-    this.iconPadding,
+    this.iconPosition,
     this.isActive = false,
   });
 
@@ -4947,6 +4947,13 @@ class _TopBarButton extends StatelessWidget {
     final restColor = isActive ? windowActiveTextFg : menuIconFg;
     final hoverColor = isActive ? windowActiveTextFg : menuIconFgOver;
 
+    EdgeInsetsGeometry effectivePadding = EdgeInsets.zero;
+    if (iconPosition != null) {
+      final defaultX = (width - 20) / 2;
+      final shiftX = iconPosition!.dx - defaultX;
+      if (shiftX != 0) effectivePadding = EdgeInsets.only(left: shiftX * 2);
+    }
+
     Widget btn = SizedBox(
       width: width,
       height: 54,
@@ -4954,7 +4961,7 @@ class _TopBarButton extends StatelessWidget {
         child: IconButton(
           icon: Icon(icon, size: 20),
           onPressed: onPressed,
-          padding: iconPadding ?? EdgeInsets.zero,
+          padding: effectivePadding,
           constraints: const BoxConstraints(),
           style: ButtonStyle(
             fixedSize: const WidgetStatePropertyAll(Size(40, 40)),
@@ -5929,7 +5936,7 @@ class _ChatTopBar extends StatelessWidget {
                   key: moreVertKey,
                   icon: Icons.more_vert,
                   width: 44,
-                  iconPadding: const EdgeInsets.only(left: 8),
+                  iconPosition: const Offset(16, 17),
                   onPressed: () => _showTopBarMenu(btnCtx, chat, onToggleInfo: onToggleInfo),
                 ),
               ),
@@ -5994,7 +6001,7 @@ class _ChatTopBar extends StatelessWidget {
                 builder: (btnCtx) => _TopBarButton(
                   icon: Icons.more_vert,
                   width: 44,
-                  iconPadding: const EdgeInsets.only(left: 8),
+                  iconPosition: const Offset(16, 17),
                   onPressed: () => _showScheduledMenu(btnCtx, chat),
                 ),
               ),
