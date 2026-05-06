@@ -18,7 +18,6 @@
 
 ## §7 — Compose Area
 
-- [ ] spec §7.3 "Send button — EditPrice state": Spec says "editing stars-per-message" triggers EditPrice state. `_computeSendButtonType` does not check `starsToSend` — EditPrice is unreachable — `chat_view.dart:12614-12626`
 # Audit: §8-§13 Panels & Overlays
 
 ## §8 — Info / Details Panel
