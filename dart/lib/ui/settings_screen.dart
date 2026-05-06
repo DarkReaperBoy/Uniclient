@@ -271,7 +271,7 @@ class SettingsScreen extends StatelessWidget {
             },
           ),
           _SettingsRow(
-            icon: Icons.devices,
+            icon: Icons.volume_up,
             iconBg: const Color(0xFFFFA726),
             label: 'Devices',
             isDark: isDark,
@@ -335,7 +335,7 @@ class SettingsScreen extends StatelessWidget {
             icon: Icons.workspace_premium,
             label: 'Telegram Premium',
             isDark: isDark,
-            onTap: () {},
+            onTap: () => Process.run('xdg-open', ['https://t.me/premium']),
           ),
           _PremiumRow(
             icon: Icons.star_border,
@@ -350,21 +350,36 @@ class SettingsScreen extends StatelessWidget {
                     : const Color(0xFF999999),
               ),
             ),
-            onTap: () {},
+            onTap: () => Process.run('xdg-open', ['https://t.me/stars']),
+          ),
+          _PremiumRow(
+            icon: Icons.currency_bitcoin,
+            label: 'TON Currency',
+            isDark: isDark,
+            trailing: Text(
+              '0',
+              style: TextStyle(
+                fontSize: 14,
+                color: isDark
+                    ? const Color(0xFF6C7883)
+                    : const Color(0xFF999999),
+              ),
+            ),
+            onTap: () => Process.run('xdg-open', ['https://t.me/tonhub']),
           ),
           _SettingsRow(
             icon: Icons.diamond_outlined,
             iconBg: const Color(0xFF3A3A5C),
             label: 'Telegram Business',
             isDark: isDark,
-            onTap: () {},
+            onTap: () => Process.run('xdg-open', ['https://t.me/business']),
           ),
           _PremiumRow(
             icon: Icons.card_giftcard,
             label: 'Send a Gift',
             isDark: isDark,
             showNewBadge: true,
-            onTap: () {},
+            onTap: () => Process.run('xdg-open', ['https://t.me/gifts']),
           ),
           // §14.8: skip+divider+skip before Help section.
           const SizedBox(height: 7),
@@ -376,14 +391,14 @@ class SettingsScreen extends StatelessWidget {
             iconBg: context.palette.windowBgActive,
             label: 'Telegram FAQ',
             isDark: isDark,
-            onTap: () {},
+            onTap: () => Process.run('xdg-open', ['https://telegram.org/faq']),
           ),
           _SettingsRow(
             icon: Icons.info_outline,
             iconBg: context.palette.windowBgActive,
             label: 'Telegram Features',
             isDark: isDark,
-            onTap: () {},
+            onTap: () => Process.run('xdg-open', ['https://telegram.org/blog']),
           ),
           _SettingsRow(
             icon: Icons.chat_outlined,
@@ -450,7 +465,9 @@ class SettingsScreen extends StatelessWidget {
       text: 'You can ask a question in the Telegram support community. They are volunteers and may take some time to respond.\n\nPlease take a look at the Telegram FAQ first: it has important troubleshooting tips and answers to most questions.',
       confirmText: 'Ask a Volunteer',
       cancelText: 'Cancel',
-      onConfirm: () {},
+      onConfirm: () {
+        Process.run('xdg-open', ['tg://support']);
+      },
     );
   }
 
@@ -458,7 +475,7 @@ class SettingsScreen extends StatelessWidget {
       BuildContext context, AppState appState, AccountInfo? account) {
     showConfirmBox(
       context,
-      text: 'Are you sure you want to log out?',
+      text: 'Are you sure you want to log out?\n\nNote: this will end all your Secret Chats.',
       confirmText: 'Log Out',
       isDestructive: true,
       onConfirm: () {
@@ -575,25 +592,32 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
                 children: [
                   // Name at top:4 (spec settingsNameTop=12 minus settingsPhotoTop=8 = 4).
                   const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          displayName,
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w600,
-                            color: nameColor,
+                  GestureDetector(
+                    onSecondaryTapUp: (details) =>
+                        _showCopyMenu(context, details.globalPosition, displayName, 'Copy Full Name'),
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            displayName,
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w600,
+                              color: nameColor,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                      if (account?.isPremium == true) ...[
-                        const SizedBox(width: 4),
-                        Icon(Icons.workspace_premium, size: 18, color: accentColor),
+                        if (account?.isPremium == true) ...[
+                          const SizedBox(width: 4),
+                          GestureDetector(
+                            onTap: () => showTelegramToast(context, 'Emoji status'),
+                            child: Icon(Icons.workspace_premium, size: 18, color: accentColor),
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                   // Phone at settingsPhoneTop(37) - settingsNameTop(12) - lineHeight ≈ 5px gap.
                   if (phone.isNotEmpty) ...[
@@ -613,6 +637,10 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
                   const SizedBox(height: 1),
                   GestureDetector(
                     onTap: () => _onUsernameTap(context, username),
+                    onSecondaryTapUp: hasUsername
+                        ? (details) => _showUsernameContextMenu(
+                            context, details.globalPosition, username, account)
+                        : null,
                     child: Text(
                       hasUsername ? '@$username' : 'Add',
                       style: TextStyle(
@@ -710,6 +738,39 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
           value: 'copy',
           child: Text(label, style: TextStyle(color: textColor)),
           onTap: () => Clipboard.setData(ClipboardData(text: text)),
+        ),
+      ],
+    );
+  }
+
+  void _showUsernameContextMenu(
+      BuildContext context, Offset position, String username, AccountInfo? account) {
+    final isDark = widget.isDark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx, position.dy),
+      color: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      items: [
+        PopupMenuItem(
+          value: 'copy_id',
+          child: Text('Copy ID', style: TextStyle(color: textColor)),
+          onTap: () {
+            final id = account?.id ?? '';
+            Clipboard.setData(ClipboardData(text: id));
+            showTelegramToast(context, 'ID copied');
+          },
+        ),
+        PopupMenuItem(
+          value: 'copy_username',
+          child: Text('Copy Username', style: TextStyle(color: textColor)),
+          onTap: () {
+            Clipboard.setData(ClipboardData(text: '@$username'));
+            showTelegramToast(context, 'Username copied');
+          },
         ),
       ],
     );
@@ -833,7 +894,9 @@ class _SettingsRow extends StatelessWidget {
               ),
             ),
             if (trailing != null) trailing!,
-            const SizedBox(width: 22),
+            Icon(Icons.chevron_right, size: 20, color: isDark
+                ? const Color(0xFF6C7883) : const Color(0xFFBBBBBB)),
+            const SizedBox(width: 3),
           ],
         ),
       ),
@@ -1094,7 +1157,8 @@ class _InterfaceScaleSectionState extends State<_InterfaceScaleSection> {
           Padding(
             padding: const EdgeInsets.fromLTRB(60, 0, 22, 8),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              width: 180 * (_scalePercent / 100),
+              padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
                 color: isDark
                     ? const Color(0xFF2B3A4A)
@@ -1102,18 +1166,66 @@ class _InterfaceScaleSectionState extends State<_InterfaceScaleSection> {
                 borderRadius: BorderRadius.circular(8),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
+                    color: Colors.black.withValues(alpha: 0.15),
+                    blurRadius: 6,
+                    offset: const Offset(0, 3),
                   ),
                 ],
               ),
-              child: Text(
-                'Preview: ${_scalePercent.round()}%',
-                style: TextStyle(
-                  fontSize: 12 * (_scalePercent / 100),
-                  color: textColor,
-                ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '${_scalePercent.round()}%',
+                    style: TextStyle(
+                      fontSize: 10 * (_scalePercent / 100),
+                      fontWeight: FontWeight.w600,
+                      color: accentColor,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  for (int i = 0; i < 3; i++)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 1.5),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 16 * (_scalePercent / 100),
+                            height: 16 * (_scalePercent / 100),
+                            decoration: BoxDecoration(
+                              color: [accentColor, Colors.orange, Colors.green][i],
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  height: 4 * (_scalePercent / 100),
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    color: textColor.withValues(alpha: 0.5),
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                                SizedBox(height: 2 * (_scalePercent / 100)),
+                                Container(
+                                  height: 3 * (_scalePercent / 100),
+                                  width: 60 * (_scalePercent / 100),
+                                  decoration: BoxDecoration(
+                                    color: textColor.withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
@@ -1124,13 +1236,14 @@ class _InterfaceScaleSectionState extends State<_InterfaceScaleSection> {
   void _showRestartDialog(double newScale) {
     showConfirmBox(
       context,
-      text: 'Some settings will be applied after restarting.',
+      text: 'Some settings will be applied after restarting the application.',
       title: 'Restart Required',
-      confirmText: 'Apply',
+      confirmText: 'Restart Now',
       cancelText: 'Cancel',
       onConfirm: () {
         setState(() => _committedScale = newScale);
         widget.appState.setUiScalePercent(newScale);
+        exit(0);
       },
       onCancel: () {
         setState(() => _scalePercent = _committedScale);

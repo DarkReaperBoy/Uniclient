@@ -634,7 +634,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Restart required',
+                  'Restart now?',
                   style: TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w600,
@@ -652,7 +652,13 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
                   children: [
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(),
-                      child: Text('OK',
+                      child: Text('Cancel',
+                          style: TextStyle(color: accentColor, fontSize: 14)),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: () => exit(0),
+                      child: Text('Restart',
                           style: TextStyle(color: accentColor, fontSize: 14)),
                     ),
                   ],
@@ -702,19 +708,89 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         _AdvancedIconButtonRow(
           icon: Icons.library_books,
           label: 'Manage Dictionaries',
-          rightLabel: '0',
           textColor: textColor,
           subtextColor: subtextColor,
           iconColor: iconColor,
           hoverBg: hoverBg,
-          onTap: () {},
+          onTap: () => _showManageDictionariesDialog(context, isDark),
         ),
       ],
     ];
   }
 
-  // §14.7.9: Screen reader mode toggle (shown only when reader detected).
-  List<Widget> _buildScreenReader(bool isDark) => const [];
+  void _showManageDictionariesDialog(BuildContext context, bool isDark) {
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = context.palette.windowBgActive;
+
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: bgColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 380),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 18, 22, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Manage Dictionaries',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Spellchecker dictionaries are provided by the system. '
+                  'Install language packs through your operating system settings.',
+                  style: TextStyle(fontSize: 14, color: subtextColor),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text('Close',
+                          style: TextStyle(color: accentColor, fontSize: 14)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildScreenReader(bool isDark) {
+    final appState = context.read<AppState>();
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentColor = context.palette.windowBgActive;
+    final hoverBg =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    return [
+      _AdvancedToggleRow(
+        label: 'Optimize for screen readers',
+        value: appState.screenReaderOptimized,
+        onChanged: (v) => appState.setScreenReaderOptimized(v),
+        textColor: textColor,
+        accentColor: accentColor,
+        hoverBg: hoverBg,
+      ),
+    ];
+  }
 
   // §14.7.8 bottom: shown only when auto-updating.
   List<Widget> _buildSoftwareUpdateBottom(bool isDark) {

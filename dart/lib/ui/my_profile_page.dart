@@ -17,6 +17,7 @@ import 'input_dialogs.dart';
 import 'photo_crop_editor.dart';
 import 'telegram_toast.dart';
 import 'popup_menu.dart';
+import 'privacy_settings_screen.dart';
 import 'settings_style.dart';
 
 /// "My Profile" / "Edit Profile" page (§14.5).
@@ -231,7 +232,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
             value: account?.displayName ?? '',
             isDark: isDark,
             copyMenuLabel: 'Copy Full Name',
-            onTap: () => _copyToClipboard(context, account?.displayName ?? '', 'Full name'),
+            onTap: () => _showEditNameBox(context, account),
           ),
           _rowDivider(isDark),
           _ProfileInfoRow(
@@ -241,7 +242,13 @@ class _MyProfilePageState extends State<MyProfilePage> {
             value: account?.phone ?? '',
             isDark: isDark,
             copyMenuLabel: 'Copy Phone Number',
-            onTap: () => _copyToClipboard(context, account?.phone ?? '', 'Phone number'),
+            onTap: () {
+              final phone = account?.phone ?? '';
+              if (phone.isEmpty) return;
+              Clipboard.setData(ClipboardData(text: phone));
+              showTelegramToast(context, 'Phone number copied',
+                  duration: const Duration(milliseconds: 500));
+            },
           ),
           _rowDivider(isDark),
           _ProfileInfoRow(
@@ -306,7 +313,16 @@ class _MyProfilePageState extends State<MyProfilePage> {
                     alignment: PlaceholderAlignment.baseline,
                     baseline: TextBaseline.alphabetic,
                     child: GestureDetector(
-                      onTap: () {},
+                      onTap: () {
+                        Navigator.of(context).push(
+                          settingsPageRoute(
+                            ChangeNotifierProvider.value(
+                              value: appState,
+                              child: const PrivacySettingsScreen(),
+                            ),
+                          ),
+                        );
+                      },
                       child: Text(
                         'Manage',
                         style: TextStyle(
@@ -348,6 +364,107 @@ class _MyProfilePageState extends State<MyProfilePage> {
           Container(height: 8, color: dividerColor),
           _AccountsSection(isDark: isDark),
         ],
+      ),
+    );
+  }
+
+  void _showEditNameBox(BuildContext context, AccountInfo? account) {
+    if (account == null) return;
+    final names = account.displayName.split(RegExp(r'\s+'));
+    final firstCtrl = TextEditingController(text: names.isNotEmpty ? names[0] : '');
+    final lastCtrl = TextEditingController(text: names.length > 1 ? names.sublist(1).join(' ') : '');
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentColor = context.palette.windowBgActive;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: bgColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 364),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Edit Your Name',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: firstCtrl,
+                  autofocus: true,
+                  style: TextStyle(color: textColor),
+                  decoration: InputDecoration(
+                    labelText: 'First Name',
+                    labelStyle: TextStyle(color: textColor.withValues(alpha: 0.5)),
+                    enabledBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: textColor.withValues(alpha: 0.2)),
+                    ),
+                    focusedBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: accentColor),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: lastCtrl,
+                  style: TextStyle(color: textColor),
+                  decoration: InputDecoration(
+                    labelText: 'Last Name (optional)',
+                    labelStyle: TextStyle(color: textColor.withValues(alpha: 0.5)),
+                    enabledBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: textColor.withValues(alpha: 0.2)),
+                    ),
+                    focusedBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: accentColor),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      child: Text('Cancel', style: TextStyle(color: accentColor)),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: () async {
+                        final first = firstCtrl.text.trim();
+                        if (first.isEmpty) return;
+                        final last = lastCtrl.text.trim();
+                        Navigator.of(ctx).pop();
+                        try {
+                          final engine = context.read<EngineService>();
+                          await engine.updateProfile(account.id, first, last);
+                          if (mounted) {
+                            showTelegramToast(context, 'Name updated');
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            showTelegramToast(context, 'Failed to update name: $e');
+                          }
+                        }
+                      },
+                      child: Text('Save', style: TextStyle(color: accentColor)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -795,12 +912,15 @@ class _PersonalChannelRow extends StatelessWidget {
     final displayValue = hasChannel ? channelName : 'Add';
 
     return InkWell(
-      onTap: hasChannel
-          ? () {
-              Clipboard.setData(ClipboardData(text: channelName));
-              showTelegramToast(context, 'Channel name copied');
-            }
-          : null,
+      onTap: () {
+        if (hasChannel) {
+          final appState = context.read<AppState>();
+          final account = appState.activeAccount;
+          if (account != null) {
+            showTelegramToast(context, 'Personal channel: $channelName');
+          }
+        }
+      },
       hoverColor: hoverBg,
       splashColor: hoverBg.withValues(alpha: 0.5),
       child: Padding(

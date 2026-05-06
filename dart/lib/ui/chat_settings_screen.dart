@@ -2428,7 +2428,7 @@ class _ChatListQuickActionSection extends StatelessWidget {
   }
 }
 
-class _QuickActionPreview extends StatelessWidget {
+class _QuickActionPreview extends StatefulWidget {
   final String action;
   final bool isDark;
   final Color accentColor;
@@ -2438,6 +2438,33 @@ class _QuickActionPreview extends StatelessWidget {
     required this.isDark,
     required this.accentColor,
   });
+
+  @override
+  State<_QuickActionPreview> createState() => _QuickActionPreviewState();
+}
+
+class _QuickActionPreviewState extends State<_QuickActionPreview>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _animCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _animCtrl.dispose();
+    super.dispose();
+  }
+
+  String get action => widget.action;
+  bool get isDark => widget.isDark;
+  Color get accentColor => widget.accentColor;
 
   @override
   Widget build(BuildContext context) {
@@ -2508,7 +2535,14 @@ class _QuickActionPreview extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(actionIcon, size: 22, color: Colors.white),
+                    AnimatedBuilder(
+                      animation: _animCtrl,
+                      builder: (_, child) => Transform.scale(
+                        scale: 1.0 + _animCtrl.value * 0.15,
+                        child: child,
+                      ),
+                      child: Icon(actionIcon, size: 22, color: Colors.white),
+                    ),
                     const SizedBox(height: 2),
                     Text(
                       actionLabel,

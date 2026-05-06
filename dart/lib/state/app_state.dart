@@ -128,6 +128,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _openGlDisabled = false;
   bool _spellcheckerEnabled = true;
   bool _spellcheckerAutoDownload = true;
+  bool _screenReaderOptimized = false;
   bool _autoUpdateEnabled = true;
   bool _installBetaVersions = false;
   int _downloadPathMode = 0; // 0=default, 1=temp, 2=custom
@@ -366,6 +367,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get openGlDisabled => _openGlDisabled;
   bool get spellcheckerEnabled => _spellcheckerEnabled;
   bool get spellcheckerAutoDownload => _spellcheckerAutoDownload;
+  bool get screenReaderOptimized => _screenReaderOptimized;
   bool get autoUpdateEnabled => _autoUpdateEnabled;
   bool get installBetaVersions => _installBetaVersions;
   int get downloadPathMode => _downloadPathMode;
@@ -1507,6 +1509,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setSpellcheckerAutoDownload(bool v) {
     if (_spellcheckerAutoDownload == v) return;
     _spellcheckerAutoDownload = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setScreenReaderOptimized(bool v) {
+    if (_screenReaderOptimized == v) return;
+    _screenReaderOptimized = v;
     notifyListeners();
     _saveWindowPrefs();
   }

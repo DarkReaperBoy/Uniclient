@@ -2552,6 +2552,16 @@ class EngineService {
     }
   }
 
+  Future<void> updateProfile(String accountId, String firstName, String lastName) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'first_name': firstName,
+      'last_name': lastName,
+      'about': '',
+    }));
+    await _callAsync('__engine', 'UpdateProfile', Uint8List.fromList(payload));
+  }
+
   Future<void> updateNameColor(String accountId, int colorId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
