@@ -15,17 +15,6 @@
 
 ## §6 — Media Message Types
 
-- [ ] spec §6 "Emoji sticker max size": Spec says emoji stickers max 256px (vs 224px for static/animated). Code clamps all stickers uniformly to 224px max regardless of emoji sticker type — `message_bubble.dart:3044-3047`
-- [ ] spec §6 "Premium sticker mirroring": Spec §6.6 says incoming (left-aligned) premium stickers are mirrored horizontally, outgoing are not. No mirroring logic exists in `_VisualMedia` — premium stickers render without any horizontal flip — `message_bubble.dart:3056-3061`
-- [ ] spec §6 "Voice play button fill": Spec says play button is a solid accent-colored 44px circle. Code renders `accentColor.withValues(alpha: 0.15)` — a 15% tint instead of solid fill — `message_bubble.dart:3950-3951`
-- [ ] spec §6 "File document vertical layout": Spec says filename at 12px from top, status at 34px from top (fixed offsets). Code vertically centers both via `MainAxisAlignment.center` — positions drift depending on content height — `message_bubble.dart:5064-5066,5120-5121`
-- [ ] spec §6 "Audio inline playback": Spec says audio/music plays inside the bubble with "played/total" duration during playback (same 44px play/pause button as voice). Code opens audio files externally with `xdg-open` instead of playing inline — `message_bubble.dart:4236-4249`
-- [ ] spec §6 "Poll single-select checked indicator": Spec says when checked, center gets `historyPollChoiceRight` check icon in `activeButtonFg` inside a filled circle — "no raw check dot, an icon is used." Code renders a filled inner circle dot without a check icon — `message_bubble.dart:7806-7818`
-- [ ] spec §6 "Poll fireworks canvas size": Spec says fixed 480x320px logical canvas. Code uses the widget's layout size (Positioned.fill on parent) instead of a fixed canvas — `message_bubble.dart:7911`
-- [ ] spec §6 "Poll fireworks particle size": Spec says particles are 2px on the short side (`_smallSide`). Code uses `2.0 + random * 3` giving 2-5px base, with `height = size * 0.5` making short side 1-2.5px — not a fixed 2px — `message_bubble.dart:7859,7929`
-- [ ] spec §6 "Location venue text maxLines": Spec says venue title 2 lines max, description 3 lines max. Code shows venue info without explicit `maxLines` constraints — `message_bubble.dart:4591-4645`
-- [ ] spec §6 "Contact action button casing": Spec says "Send Message" / "Add Contact" / "View Details" (title case). Code uses "SEND MESSAGE" / "ADD CONTACT" / "VIEW DETAILS" (all caps) — `message_bubble.dart:4840-4846`
-- [ ] spec §6 "Web page Article thumbnail sizing": Spec says article-mode thumbnail width is `ArticleThumbWidth(photo, articleMinHeight)` clamped to line-height. Code uses a hardcoded 48x48 square — `message_bubble.dart:8103-8104`
 
 ## §7 — Compose Area
 
