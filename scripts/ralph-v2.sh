@@ -131,31 +131,6 @@ circuit_breaker_record() {
   fi
 }
 
-# ─── jq stream formatter ────────────────────────────────────────
-JQ_FMT='
-  try fromjson catch empty | . as $e |
-  if $e.type == "assistant" then
-    ($e.message.content // [])[] |
-      if .type == "text" then "\n\(.text | split("\n") | map("│ \(.)") | join("\n"))\n"
-      elif .type == "tool_use" then
-        if .name == "Read" then "\n📖 \(.input.file_path | ltrimstr($root))"
-        elif .name == "Edit" then "\n✏️  \(.input.file_path | ltrimstr($root))"
-        elif .name == "Write" then "\n📝 \(.input.file_path | ltrimstr($root))"
-        elif .name == "Bash" then "\n$ \(.input.command | gsub("\n"; " ; ") | .[:200])"
-        else "\n🔧 \(.name)" end
-      else empty end
-  elif $e.type == "user" then
-    ($e.message.content // [])[] |
-      if .type == "tool_result" then
-        (.content | tostring | split("\n")) as $lines |
-        if ($lines | length) == 0 or ($lines[0] | length) == 0 then "  ✓"
-        elif ($lines[0] | test("(?i)^(error|fail|exception|fatal)")) then "  ❌ \($lines[0][:200])"
-        else "  ✓ \($lines[0][:160])" end
-      else empty end
-  elif $e.type == "system" and $e.subtype == "init" then "\n🚀 \($e.session_id // "")\n"
-  elif $e.type == "result" then "\n✅ \($e.subtype // "done") — \(($e.duration_ms // 0) / 1000)s, $\($e.total_cost_usd // 0)\n"
-  else empty end'
-
 # ─── Claude invocation with circuit breaker + timeout ────────────
 # $1=prompt $2=log_file $3=label $4=model(optional) $5=effort(optional)
 invoke_claude() {
@@ -163,25 +138,21 @@ invoke_claude() {
 
   circuit_breaker_check || return 1
 
-  log "Invoking Claude ($label, $model)..."
+  log "Invoking Claude ($label, $model, effort=$effort)..."
   local code=0
   timeout "$SESSION_TIMEOUT" claude \
     --print \
     --dangerously-skip-permissions \
     --model "$model" \
     --effort "$effort" \
-    --output-format stream-json \
-    --verbose \
+    --output-format json \
     -p "$prompt" \
-    2>&1 \
-    | tee "$iter_file.jsonl" \
-    | jq -Rr --unbuffered --arg root "$PROJECT_ROOT/" "$JQ_FMT" \
-    | tee -a "$iter_file" \
-    || code=${PIPESTATUS[0]:-$?}
+    > "$iter_file.json" 2>&1 \
+    || code=$?
 
-  # Log cost
+  # Log cost from JSON result
   local cost
-  cost=$(grep -o '"total_cost_usd":[0-9.]*' "$iter_file.jsonl" 2>/dev/null | tail -1 | grep -o '[0-9.]*' || echo "0")
+  cost=$(jq -r '.cost_usd // .total_cost_usd // 0' "$iter_file.json" 2>/dev/null || echo "0")
   echo "$(date '+%H:%M:%S') $label $model \$$cost" >> "$COST_LOG" || true
 
   # Update circuit breaker
@@ -567,7 +538,7 @@ Item: $CURRENT_ITEM"
     rm -f "$PROJECT_ROOT/checklist/audit_chunk_"*.md "$PROJECT_ROOT/checklist/audit_journey_"*.md
 
     # Run extraction in parallel batches
-    BATCH_SIZE=4
+    BATCH_SIZE=6
     PIDS=()
     CHUNK_ID=0
     SUCCESSFUL_CHUNKS=0
