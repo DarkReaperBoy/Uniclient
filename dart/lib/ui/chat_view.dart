@@ -4769,6 +4769,8 @@ class _ChatViewState extends State<ChatView>
               },
               isEditing: _editingMsgId != null,
               isForwarding: _isForwarding,
+              isInlineBot: _inlineBotUsername != null,
+              isScheduledView: chatState.isScheduledView,
               chatType: chat.type,
               isSelfChat: chat.title == 'Saved Messages' && chat.type == ChatType.dm,
               voiceRestricted: chat.voiceRestricted || _dmVoiceForbidden,
@@ -12396,6 +12398,8 @@ class _ComposeArea extends StatefulWidget {
   final ValueChanged<String> onDraftChanged;
   final bool isEditing;
   final bool isForwarding;
+  final bool isInlineBot;
+  final bool isScheduledView;
   final ChatType chatType;
   final bool isSelfChat;
   /// Called when Up is pressed with empty field + no edit/reply active.
@@ -12446,6 +12450,8 @@ class _ComposeArea extends StatefulWidget {
     required this.onDraftChanged,
     this.isEditing = false,
     this.isForwarding = false,
+    this.isInlineBot = false,
+    this.isScheduledView = false,
     this.chatType = ChatType.dm,
     this.isSelfChat = false,
     this.onEditLast,
@@ -12726,6 +12732,7 @@ class _ComposeAreaState extends State<_ComposeArea>
 
   SendButtonType _computeSendButtonType() {
     if (widget.isEditing) return SendButtonType.save;
+    if (widget.isInlineBot) return SendButtonType.cancel;
     if (widget.isForwarding) return SendButtonType.send;
     if (_slowmodeSecondsLeft > 0) return SendButtonType.slowmode;
     if (!_hasText) {
@@ -12735,6 +12742,7 @@ class _ComposeAreaState extends State<_ComposeArea>
           ? SendButtonType.round
           : SendButtonType.record;
     }
+    if (widget.isScheduledView) return SendButtonType.schedule;
     return SendButtonType.send;
   }
 
@@ -13312,6 +13320,67 @@ class _ComposeAreaState extends State<_ComposeArea>
     }
   }
 
+  Future<void> _pickPhotosVideos() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        allowMultiple: true,
+        type: FileType.media,
+      );
+      if (result == null || result.files.isEmpty) return;
+      final paths = result.files
+          .where((f) => f.path != null)
+          .map((f) => f.path!)
+          .toList();
+      if (paths.isNotEmpty) {
+        widget.onFilesSelected?.call(paths);
+      }
+    } catch (e) {
+      debugPrint('ATTACH: media pick error=$e');
+    }
+  }
+
+  Future<void> _showContactPicker() async {
+    final phoneCtrl = TextEditingController();
+    final firstCtrl = TextEditingController();
+    final lastCtrl = TextEditingController();
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Share Contact'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: firstCtrl, decoration: const InputDecoration(labelText: 'First name')),
+            TextField(controller: lastCtrl, decoration: const InputDecoration(labelText: 'Last name')),
+            TextField(controller: phoneCtrl, decoration: const InputDecoration(labelText: 'Phone number'), keyboardType: TextInputType.phone),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () {
+              if (phoneCtrl.text.trim().isEmpty || firstCtrl.text.trim().isEmpty) return;
+              Navigator.pop(ctx, true);
+            },
+            child: const Text('Send'),
+          ),
+        ],
+      ),
+    );
+    if (result != true || !mounted) return;
+    final chatState = context.read<ChatState>();
+    final chat = chatState.activeChat;
+    if (chat == null) return;
+    final engine = context.read<EngineService>();
+    await engine.sendContact(
+      chat.accountId,
+      chat.chatId,
+      phoneCtrl.text.trim(),
+      firstCtrl.text.trim(),
+      lastCtrl.text.trim(),
+    );
+  }
+
   List<AttachMenuBotInfo>? _cachedAttachBots;
   bool _attachBotsFetched = false;
 
@@ -13348,8 +13417,10 @@ class _ComposeAreaState extends State<_ComposeArea>
       context: context,
       position: buttonPos,
       items: [
+        TelegramMenuItem<int>(value: -3, label: 'Photo or Video', icon: Icon(Icons.photo_outlined, size: 20)),
         TelegramMenuItem<int>(value: -1, label: 'File', icon: Icon(Icons.insert_drive_file_outlined, size: 20)),
         TelegramMenuItem<int>(value: -2, label: 'Poll', icon: Icon(Icons.poll_outlined, size: 20)),
+        TelegramMenuItem<int>(value: -4, label: 'Contact', icon: Icon(Icons.person_outlined, size: 20)),
         if (bots != null)
           ...bots.asMap().entries.map((e) => TelegramMenuItem<int>(
             value: e.key,
@@ -13359,10 +13430,14 @@ class _ComposeAreaState extends State<_ComposeArea>
     );
 
     if (selected == null) return;
-    if (selected == -1) {
+    if (selected == -3) {
+      _pickPhotosVideos();
+    } else if (selected == -1) {
       _pickFiles();
     } else if (selected == -2) {
       _showCreatePollBox();
+    } else if (selected == -4) {
+      _showContactPicker();
     } else if (bots != null && selected >= 0 && selected < bots.length) {
       final bot = bots[selected];
       final chatState = context.read<ChatState>();
