@@ -1236,7 +1236,7 @@ func (e *Engine) StartCall(accountID, chatID string, video bool) (string, error)
 	return cs.ID, nil
 }
 
-// JoinGroupCall joins the active group call in a chat.
+// JoinGroupCall joins the active group call in a chat, or creates one if none exists.
 func (e *Engine) JoinGroupCall(accountID, chatID string) (string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -1247,7 +1247,17 @@ func (e *Engine) JoinGroupCall(accountID, chatID string) (string, error) {
 	}
 	cs, err := acc.Core.JoinGroupCall(chatID)
 	if err != nil {
-		return "", err
+		type groupCallCreator interface {
+			CreateGroupCall(chatID string, title string) (*cores.CallSession, error)
+		}
+		if creator, ok := acc.Core.(groupCallCreator); ok {
+			cs, err = creator.CreateGroupCall(chatID, "")
+			if err != nil {
+				return "", fmt.Errorf("create group call: %w", err)
+			}
+		} else {
+			return "", err
+		}
 	}
 	return cs.ID, nil
 }

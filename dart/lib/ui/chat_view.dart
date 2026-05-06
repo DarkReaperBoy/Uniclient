@@ -44,6 +44,7 @@ import 'confirm_box.dart';
 import 'input_dialogs.dart';
 import 'peer_short_info.dart';
 import 'call_panel.dart';
+import 'call_screen.dart' show showGroupCallPanel;
 import 'chat_export.dart';
 import 'forum_topic_icon.dart';
 import 'edit_forum_topic_box.dart';
@@ -4280,7 +4281,22 @@ class _ChatViewState extends State<ChatView>
                           isDeletedMessagesView: chatState.isDeletedMessagesView,
                           onExitDeletedMessages: () => chatState.closeDeletedMessages(),
                           onDeletedSearch: (q) => chatState.searchDeletedMessages(q),
-                          onJoinGroupCall: () => chatState.joinGroupCall(),
+                          onJoinGroupCall: () async {
+                            final permOk = await requestCallPermissions(context);
+                            if (!permOk || !context.mounted) return;
+                            final callId = await chatState.joinGroupCall();
+                            if (!context.mounted) return;
+                            showGroupCallPanel(
+                              context,
+                              chatState.activeGroupCall ?? GroupCallInfo(
+                                callId: callId ?? '',
+                                chatId: chat.chatId,
+                                title: chat.title,
+                                active: true,
+                              ),
+                              chatTitle: chat.title,
+                            );
+                          },
                           activeSublist: chatState.activeSublist,
                         ),
                       ),

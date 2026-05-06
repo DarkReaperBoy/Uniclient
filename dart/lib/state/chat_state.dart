@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
+import '../utils/debug.dart';
 import '../notifications/notification_types.dart';
 import '../state/app_state.dart';
 import '../state/ayu_forward.dart';
@@ -1928,14 +1929,16 @@ class ChatState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Join the active group call in the current chat.
-  Future<void> joinGroupCall() async {
+  /// Start or join the group call in the current chat.
+  /// Returns the call ID on success, or null on failure.
+  Future<String?> joinGroupCall() async {
     final chat = _activeChat;
-    if (chat == null || _activeGroupCall == null) return;
+    if (chat == null) return null;
     try {
-      await _engine.joinGroupCall(chat.accountId, chat.chatId);
+      return await _engine.joinGroupCall(chat.accountId, chat.chatId);
     } catch (e) {
-      // TODO: show error to user
+      Debug.error('CHAT', 'joinGroupCall failed', e);
+      return null;
     }
   }
 
