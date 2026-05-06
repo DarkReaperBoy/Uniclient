@@ -22,24 +22,7 @@
 
 ## §9 — Context Menus & Actions
 
-- [ ] spec §9 "Voice Timecode action": spec item 2 in message context menu is "Voice Timecode (on playing voice messages)"; not present in context menu — `chat_view.dart:1302+`
-- [ ] spec §9 "Go to Message action": spec item 5 "Go to Message (in pinned/preview context)"; not present as a context menu item (exists separately in pinned bar) — `chat_view.dart`
-- [ ] spec §9 "View Replies / View Topic / View Thread": spec item 6; not present in context menu — `chat_view.dart`
-- [ ] spec §9 "Send Now grouped": spec says Send Now applies to all items with same groupedId; implementation handles grouped send-now correctly — no issue
-- [ ] spec §9 "Copy Image action": spec item 13 "Save/Copy Image (photos)" includes copy-to-clipboard of image; only "Save Image" is present, no "Copy Image" — `chat_view.dart:1376`
-- [ ] spec §9 "Attached Stickers / Open GIF / Sticker Pack Info": spec item 14; only "View Sticker Pack" exists for stickers, no "Attached Stickers" or "Open GIF" or "Save GIF" in message context menu — `chat_view.dart`
-- [ ] spec §9 "Favorite/Unfavorite Sticker": spec item 15; not in message context menu — `chat_view.dart`
-- [ ] spec §9 "Show in Folder/Finder": spec item 16 for local files; not present — `chat_view.dart`
-- [ ] spec §9 "Clear Selection action": spec item 21 says "Select / Clear Selection"; Select is present but Clear Selection is missing from context menu — `chat_view.dart:1393`
-- [ ] spec §9 "Cancel Upload for uploading messages": spec says Delete shows as "Cancel Upload" for uploading messages; no Cancel Upload variant — `chat_view.dart`
-- [ ] spec §9 "Poll-specific items": spec mentions "Translate Poll, Retract Vote, Stop Poll, per-option submenu"; only Translate Poll present, no Retract Vote or Stop Poll — `chat_view.dart`
-- [ ] spec §9.2 "Attention style: red icon + normal text": spec says default attention items have red icon but normal-colored text (text stays windowFg); implementation makes entire text red when `isAttention && !hasIcon`, which is correct for the no-icon case, but the icon-present case also makes text red depending on fullAttention flag — review needed for accuracy — `popup_menu.dart:599`
-- [ ] spec §9.3 "Reaction strip on message hover": spec describes a horizontal strip of recent reactions appearing on hover with expand chevron to full panel; no reaction hover strip exists (reactions only appear as existing reaction counters below messages) — `message_bubble.dart`
-- [ ] spec §9.3 "Reaction hover pop 1.24x scale": spec says per-icon hover pop to 1.24x over 200ms; no hover scale on reaction items — `message_bubble.dart`
-- [ ] spec §9.3 "Floating corner reaction button": spec defines reactionCornerSize 36x32 pill with 300ms hover delay; no floating corner reaction button on message hover — `message_bubble.dart`
-- [ ] spec §9.4 "Forward dialog 3-dot menu": spec defines a 3-dot menu with Forward options (Show sender's name, Show caption checkmarks), Separator, Schedule, Send-as silent/without-sound/whenOnline; implementation has a _ForwardSendOptions but should be verified for completeness — `chat_view.dart` `_ShareBox`
-- [ ] spec §9.5 "Delete confirmation moderate panel": spec defines checkboxes for Ban User, Report Spam, Delete All from User with live "(N)" count suffix; implementation has basic delete confirmation but no moderate panel with ban/report/deleteAll checkboxes — `confirm_box.dart`
-- [ ] spec §9.5 "Delete for everyone checkbox with remember preference": spec says revoke preference is remembered via settings; basic delete-for-everyone checkbox exists but no "Remember" nested checkbox — `confirm_box.dart`
+- [ ] spec §9.5 "Delete confirmation moderate panel": spec defines checkboxes for Ban User, Report Spam, Delete All from User with live "(N)" count suffix; confirm_box.dart has the checkboxes gated by showModeratePanel=true but chat_view.dart:_showDeleteMessageConfirm never passes showModeratePanel:true — ChatInfo has no isAdmin field; fix: add isAdmin to ChatInfo and pass showModeratePanel: chat.isAdmin && !msg.isOutgoing — `chat_view.dart` `confirm_box.dart`
 
 ## §10 — Emoji / Sticker / GIF Panels
 
