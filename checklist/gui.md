@@ -18,18 +18,8 @@
 
 ## §7 — Compose Area
 
-- [ ] spec §7.2 "Attachment button behavior": Spec says desktop does NOT show a popup — paperclip opens native OS file picker directly (attach-bots menu is separate, hover-triggered). Code opens a `showTelegramMenu` popup with "File" and "Poll" entries, deviating from spec — `chat_view.dart:13229-13241`
-- [ ] spec §7.2 "Missing attach options": Spec says Location and Contact are accessible in Telegram Desktop (via bot keyboard or other means). Code's attach menu only offers File + Poll + bots — Location and Contact are entirely absent — `chat_view.dart:13233-13234`
-- [ ] spec §7.3 "Send button — Cancel state": Spec says `_isInlineBot` triggers Cancel state. `_computeSendButtonType` does not check for inline bot mode — Cancel state is unreachable — `chat_view.dart:12614-12626`
-- [ ] spec §7.3 "Send button — Schedule state": Spec says when `_mode != Normal` (e.g. scheduled messages view), button becomes Schedule instead of Send. Code always returns `SendButtonType.send` when text is present — `chat_view.dart:12625`
 - [ ] spec §7.3 "Send button — EditPrice state": Spec says "editing stars-per-message" triggers EditPrice state. `_computeSendButtonType` does not check `starsToSend` — EditPrice is unreachable — `chat_view.dart:12614-12626`
 - [ ] spec §7.3 "Send button — Voice/Round Lottie": Spec says Voice<->Round transition plays a Lottie animation ("microphone rolls into camera"). Code uses a 500ms `_rollController` but renders static Material Icons (Icons.mic / Icons.videocam) — no Lottie animation — `chat_view.dart:14492,14574-14583`
-- [ ] spec §7.3 "Send button — stars-to-send pill": Spec says button widens to a pill with star-count + icon, 28px height, `SendButton.stars` style. No pill-rendering logic exists in `_SendButton` — `chat_view.dart:14454`
-- [ ] spec §7.4 "Voice record blob radii": Spec says three concentric blobs — Main (23-37px), Major (43-50px), Minor (40-47px). Code's `_BlobPainter` animates a generic 0-1 value without explicit radii matching these three layers — `chat_view.dart:14933-15007`
-- [ ] spec §7 "Edit bar label text": Spec says "Edit message" label. Code shows "Editing" — `chat_view.dart:7546`
-- [ ] spec §7 "Edit bar accent bar height": Spec says 36px (same as reply bar). Code uses `Container(width: 2, height: 28)` — 28px instead of 36px — `chat_view.dart:7538`
-- [ ] spec §7.6 "Drag overlay dimming layer": Spec says overlay is rounded cards with `boxBg`/`boxRoundShadow` — no full-screen color wash. Code wraps everything in `Container(color: Color(0x80000000))` adding a 50% black overlay not present in spec — `chat_view.dart:16187-16188`
-- [ ] spec §7 "Date separator sticky": Spec says date separators scroll with messages — NOT sticky. Code adds a `_StickyDateHeader` overlay at the top of the viewport, which is not in the original Telegram Desktop spec — `chat_view.dart:6830-6894`
 # Audit: §8-§13 Panels & Overlays
 
 ## §8 — Info / Details Panel
