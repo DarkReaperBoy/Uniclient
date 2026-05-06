@@ -268,6 +268,10 @@ class _ChatViewState extends State<ChatView>
   int _searchResultIndex = -1;
   /// Currently active search query (for highlight in message list).
   String _activeSearchQuery = '';
+  /// Spec §4.3: "choose from user" filter — restrict search results to
+  /// messages from a specific sender.
+  String _searchFromUserId = '';
+  String _searchFromUserName = '';
   final Set<String> _hiddenMsgIds = {};
   List<String> _forwardingMsgIds = [];
   bool _forwardHideSender = false;
@@ -655,6 +659,8 @@ class _ChatViewState extends State<ChatView>
             _searchResultIds = [];
             _searchResultIndex = -1;
             _activeSearchQuery = '';
+            _searchFromUserId = '';
+            _searchFromUserName = '';
             _pinnedBarDismissed = false;
             _hiddenMsgIds.clear();
             _activeHighlightId = null;
@@ -3818,12 +3824,14 @@ class _ChatViewState extends State<ChatView>
   /// Spec §4.3: execute in-chat search — filter current chat messages matching
   /// the query text. Results are ordered newest-first (matching the reversed
   /// ListView). Navigating results jumps the message list to each match.
+  String _lastSearchFromUserId = '';
   void _onSearchQueryChanged() {
     if (!mounted) return;
     final query = _searchController.text.trim().toLowerCase();
-    // Avoid redundant updates if query hasn't actually changed.
-    if (query == _activeSearchQuery) return;
-    if (query.isEmpty) {
+    final fromChanged = _searchFromUserId != _lastSearchFromUserId;
+    if (query == _activeSearchQuery && !fromChanged) return;
+    _lastSearchFromUserId = _searchFromUserId;
+    if (query.isEmpty && _searchFromUserId.isEmpty) {
       setState(() {
         _searchResultIds = [];
         _searchResultIndex = -1;
@@ -3834,9 +3842,13 @@ class _ChatViewState extends State<ChatView>
     final chatState = context.read<ChatState>();
     final matches = <String>[];
     for (final msg in chatState.messages) {
-      if (msg.contentText.toLowerCase().contains(query)) {
-        matches.add(msg.msgId);
+      if (_searchFromUserId.isNotEmpty && msg.senderId != _searchFromUserId) {
+        continue;
       }
+      if (query.isNotEmpty && !msg.contentText.toLowerCase().contains(query)) {
+        continue;
+      }
+      matches.add(msg.msgId);
     }
     setState(() {
       _activeSearchQuery = query;
@@ -3863,6 +3875,33 @@ class _ChatViewState extends State<ChatView>
         _searchResultIds.length;
     setState(() => _searchResultIndex = prev);
     _jumpToSearchResult(context.read<ChatState>(), prev);
+  }
+
+  /// Spec §4.3: open a member picker dialog for "choose from user" filter.
+  void _showFromUserPicker(BuildContext context, ChatState chatState) async {
+    final chat = chatState.activeChat;
+    if (chat == null) return;
+    final engine = context.read<EngineService>();
+    List<MemberInfo> members;
+    try {
+      members = await engine.getChatMembers(chat.accountId, chat.chatId, limit: 200);
+    } catch (_) {
+      members = [];
+    }
+    if (!mounted || members.isEmpty) return;
+    final selected = await showDialog<MemberInfo>(
+      context: context,
+      builder: (dCtx) => _FromUserPickerDialog(members: members),
+    );
+    if (selected != null && mounted) {
+      setState(() {
+        _searchFromUserId = selected.userId;
+        _searchFromUserName = selected.displayName.isNotEmpty
+            ? selected.displayName
+            : selected.username;
+      });
+      _onSearchQueryChanged();
+    }
   }
 
   /// Scroll the message list so the search result at [index] is visible.
@@ -3918,6 +3957,8 @@ class _ChatViewState extends State<ChatView>
         _searchResultIds = [];
         _searchResultIndex = -1;
         _activeSearchQuery = '';
+        _searchFromUserId = '';
+        _searchFromUserName = '';
       });
       return KeyEventResult.handled;
     }
@@ -4206,12 +4247,23 @@ class _ChatViewState extends State<ChatView>
                                 _searchResultIds = [];
                                 _searchResultIndex = -1;
                                 _activeSearchQuery = '';
+                                _searchFromUserId = '';
+                                _searchFromUserName = '';
                               }
                             });
                           },
                           onSearchPrev: _searchPrev,
                           onSearchNext: _searchNext,
                           onSearchChanged: (_) => _onSearchQueryChanged(),
+                          searchFromUserName: _searchFromUserName,
+                          onChooseFromUser: () => _showFromUserPicker(context, chatState),
+                          onClearFromUser: () {
+                            setState(() {
+                              _searchFromUserId = '';
+                              _searchFromUserName = '';
+                            });
+                            _onSearchQueryChanged();
+                          },
                           activeTopic: chat.type == ChatType.topic
                               ? chatState.forumTopics
                                   .cast<ForumTopic?>()
@@ -4990,6 +5042,158 @@ class _TopBarButton extends StatelessWidget {
   }
 }
 
+/// Spec §4.3: chip showing the selected "from user" filter with a clear button.
+class _FromUserChip extends StatelessWidget {
+  final String userName;
+  final VoidCallback? onClear;
+  const _FromUserChip({required this.userName, this.onClear});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Container(
+      height: 28,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.only(left: 8, right: 2),
+      decoration: BoxDecoration(
+        color: palette.windowActiveTextFg.withAlpha(30),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.person, size: 14, color: palette.windowActiveTextFg),
+          const SizedBox(width: 4),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 80),
+            child: Text(
+              userName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                color: palette.windowActiveTextFg,
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 20,
+            height: 20,
+            child: IconButton(
+              icon: Icon(Icons.close, size: 12, color: palette.windowActiveTextFg),
+              onPressed: onClear,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              splashRadius: 10,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Spec §4.3: dialog for picking a user to filter search results.
+class _FromUserPickerDialog extends StatefulWidget {
+  final List<MemberInfo> members;
+  const _FromUserPickerDialog({required this.members});
+
+  @override
+  State<_FromUserPickerDialog> createState() => _FromUserPickerDialogState();
+}
+
+class _FromUserPickerDialogState extends State<_FromUserPickerDialog> {
+  final _filterController = TextEditingController();
+  List<MemberInfo> _filtered = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _filtered = widget.members;
+    _filterController.addListener(_onFilter);
+  }
+
+  @override
+  void dispose() {
+    _filterController.dispose();
+    super.dispose();
+  }
+
+  void _onFilter() {
+    final q = _filterController.text.trim().toLowerCase();
+    setState(() {
+      if (q.isEmpty) {
+        _filtered = widget.members;
+      } else {
+        _filtered = widget.members.where((m) {
+          return m.displayName.toLowerCase().contains(q) ||
+              m.username.toLowerCase().contains(q);
+        }).toList();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 320, maxHeight: 400),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: TextField(
+                controller: _filterController,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Search members...',
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                  isDense: true,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ),
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: _filtered.length,
+                itemBuilder: (ctx, i) {
+                  final m = _filtered[i];
+                  final name = m.displayName.isNotEmpty ? m.displayName : m.username;
+                  return ListTile(
+                    dense: true,
+                    leading: CircleAvatar(
+                      radius: 16,
+                      backgroundColor: palette.windowActiveTextFg.withAlpha(40),
+                      child: Text(
+                        name.isNotEmpty ? name[0].toUpperCase() : '?',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: palette.windowActiveTextFg,
+                        ),
+                      ),
+                    ),
+                    title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    subtitle: m.username.isNotEmpty
+                        ? Text('@${m.username}', maxLines: 1, overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 12, color: palette.menuIconFg))
+                        : null,
+                    onTap: () => Navigator.of(ctx).pop(m),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// §48.11: Back button wrapped in DragTarget — hovering a forward drag
 /// over it for 1s (`ChoosePeerByDragTimeout`) navigates back to the dialog list.
 class _ForwardDragBackButton extends StatefulWidget {
@@ -5101,6 +5305,13 @@ class _ChatTopBar extends StatelessWidget {
   final VoidCallback? onExitDeletedMessages;
   final ValueChanged<String>? onDeletedSearch;
 
+  /// Spec §4.3: "choose from user" filter — name of the selected sender.
+  final String searchFromUserName;
+  /// Spec §4.3: callback to open the user picker for "from user" filter.
+  final VoidCallback? onChooseFromUser;
+  /// Spec §4.3: callback to clear the "from user" filter.
+  final VoidCallback? onClearFromUser;
+
   /// Spec §4.3: group call button callback — for group/channel chats.
   final VoidCallback? onJoinGroupCall;
 
@@ -5129,6 +5340,9 @@ class _ChatTopBar extends StatelessWidget {
     this.onSearchPrev,
     this.onSearchNext,
     this.onSearchChanged,
+    this.searchFromUserName = '',
+    this.onChooseFromUser,
+    this.onClearFromUser,
     this.activeTopic,
     this.parentChat,
     this.isScheduledView = false,
@@ -5785,8 +5999,18 @@ class _ChatTopBar extends StatelessWidget {
                         );
                       },
                     ),
-                    // "Choose from user" filter button omitted — user picker
-                    // not yet implemented. Re-add when available.
+                    // Spec §4.3: "choose from user" filter button.
+                    if (chat.type == ChatType.group || chat.type == ChatType.channel || chat.type == ChatType.topic)
+                      if (searchFromUserName.isEmpty)
+                        _TopBarButton(
+                          icon: Icons.person_search,
+                          onPressed: onChooseFromUser,
+                        )
+                      else
+                        _FromUserChip(
+                          userName: searchFromUserName,
+                          onClear: onClearFromUser,
+                        ),
                   ],
                 ],
               ),
