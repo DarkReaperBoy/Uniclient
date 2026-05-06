@@ -12417,6 +12417,7 @@ class _ComposeArea extends StatefulWidget {
   final int slowmodeSeconds;
   final int slowmodeNextSendDate;
   final int starsToSend;
+  final bool isEditingStarsPrice;
   final ValueChanged<AutocompleteQuery?>? onAutocompleteQuery;
   final bool autocompleteActive;
   final VoidCallback? onAutocompleteUp;
@@ -12464,6 +12465,7 @@ class _ComposeArea extends StatefulWidget {
     this.slowmodeSeconds = 0,
     this.slowmodeNextSendDate = 0,
     this.starsToSend = 0,
+    this.isEditingStarsPrice = false,
     this.onAutocompleteQuery,
     this.autocompleteActive = false,
     this.onAutocompleteUp,
@@ -12731,6 +12733,7 @@ class _ComposeAreaState extends State<_ComposeArea>
   }
 
   SendButtonType _computeSendButtonType() {
+    if (widget.starsToSend > 0 && widget.isEditingStarsPrice) return SendButtonType.editPrice;
     if (widget.isEditing) return SendButtonType.save;
     if (widget.isInlineBot) return SendButtonType.cancel;
     if (widget.isForwarding) return SendButtonType.send;
@@ -14906,24 +14909,24 @@ class _SendButtonState extends State<_SendButton>
   }
 
   Widget _buildRollTransition() {
-    return AnimatedBuilder(
-      animation: _rollController,
-      builder: (context, _) {
-        final t = _rollController.value;
-        final angle = t * math.pi;
-        final showNew = t >= 0.5;
-        final type = showNew ? widget.type : _prevType!;
-        return Center(
-          child: Transform(
-            alignment: Alignment.center,
-            transform: Matrix4.rotationZ(angle),
-            child: Opacity(
-              opacity: showNew ? ((t - 0.5) * 2.0) : (1.0 - t * 2.0).clamp(0.3, 1.0),
-              child: _iconWidget(type),
-            ),
+    final isReverse = _prevType == SendButtonType.round;
+    final Animation<double> anim = isReverse
+        ? ReverseAnimation(_rollController)
+        : _rollController;
+    final color = _colorFor(widget.type);
+    return Center(
+      child: ColorFiltered(
+        colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+        child: SizedBox(
+          width: 22,
+          height: 22,
+          child: lottie.Lottie.asset(
+            'assets/animations/voice_to_round.json',
+            controller: anim,
+            fit: BoxFit.contain,
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
