@@ -60,6 +60,7 @@ class _NotificationsSettingsScreenState
 
   // §15.11 System Integration (Native Notifications)
   bool _useNativeNotifications = true;
+  bool _skipToastsInFocus = false;
   int _selectedDisplayIndex = 0; // 0 = Default
   _ScreenCorner _selectedCorner = _ScreenCorner.bottomRight;
   int _notificationCount = 3;
@@ -249,7 +250,11 @@ class _NotificationsSettingsScreenState
       _NotifIconToggleRow(
         icon: Icons.flash_on,
         iconColor: iconColor,
-        label: 'Draw attention to the window',
+        label: !kIsWeb && Platform.isWindows
+            ? 'Flash the taskbar icon'
+            : !kIsWeb && Platform.isMacOS
+                ? 'Bounce the Dock icon'
+                : 'Draw attention to the window',
         value: _flashBounce,
         onChanged: (v) => setState(() => _flashBounce = v),
         textColor: textColor,
@@ -537,8 +542,9 @@ class _NotificationsSettingsScreenState
                   if (isWindows)
                     _NoIconToggleRow(
                       label: 'Respect system Focus mode',
-                      value: false,
-                      onChanged: (_) {},
+                      value: _skipToastsInFocus,
+                      onChanged: (v) =>
+                          setState(() => _skipToastsInFocus = v),
                       textColor: textColor,
                       accentColor: accentColor,
                       hoverBg: hoverBg,
@@ -1360,8 +1366,11 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
                   }
                 });
               },
+              onTap: (pos) {
+                _showExceptionContextMenu(context, pos, exc);
+              },
               onSecondaryTap: (pos) {
-                _showMuteMenu(context, pos, isMuted: exc.isMuted);
+                _showExceptionContextMenu(context, pos, exc);
               },
             ),
           if (_exceptions.length > 1)
@@ -1605,6 +1614,69 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
     if (_recentMuteDurations.length > 2) {
       _recentMuteDurations.removeRange(2, _recentMuteDurations.length);
     }
+  }
+
+  void _showExceptionContextMenu(
+      BuildContext context, Offset position, _NotifException exc) {
+    final greenColor = const Color(0xFF4CAF50);
+    final items = <TelegramMenuItem<String>>[
+      const TelegramMenuItem<String>(
+        value: 'view_profile',
+        icon: Icon(Icons.person, size: 20),
+        label: 'View profile',
+      ),
+      const TelegramMenuItem<String>.separator(),
+      if (exc.isMuted)
+        TelegramMenuItem<String>(
+          value: 'unmute',
+          icon: const Icon(Icons.notifications, size: 20),
+          label: 'Unmute',
+          labelColor: greenColor,
+          iconColor: greenColor,
+        )
+      else
+        const TelegramMenuItem<String>(
+          value: 'mute',
+          icon: Icon(Icons.notifications_off, size: 20),
+          label: 'Mute',
+          isAttention: true,
+        ),
+      const TelegramMenuItem<String>.separator(),
+      const TelegramMenuItem<String>(
+        value: 'remove',
+        icon: Icon(Icons.delete_outline, size: 20),
+        label: 'Remove exception',
+        isAttention: true,
+      ),
+    ];
+
+    showTelegramMenu<String>(
+      context: context,
+      position: position,
+      items: items,
+    ).then((value) {
+      if (value == null) return;
+      if (value == 'view_profile') {
+        // Profile viewing would navigate to the chat/user profile
+      } else if (value == 'unmute' || value == 'mute') {
+        setState(() {
+          final idx =
+              _exceptions.indexWhere((e) => e.chatId == exc.chatId);
+          if (idx >= 0) {
+            _exceptions[idx] = _NotifException(
+              chatId: exc.chatId,
+              accountId: exc.accountId,
+              name: exc.name,
+              avatarPath: exc.avatarPath,
+              isMuted: !exc.isMuted,
+            );
+          }
+        });
+      } else if (value == 'remove') {
+        setState(() =>
+            _exceptions.removeWhere((e) => e.chatId == exc.chatId));
+      }
+    });
   }
 
   void _showMuteMenu(BuildContext context, Offset position,
@@ -2642,7 +2714,7 @@ class _NotificationPreview extends StatelessWidget {
       duration: const Duration(milliseconds: 150),
       builder: (ctx, opacity, child) => Opacity(opacity: opacity, child: child),
       child: Padding(
-      padding: const EdgeInsets.fromLTRB(40, 20, 40, 12),
+      padding: const EdgeInsets.fromLTRB(40, 20, 40, 58),
       child: Container(
         decoration: BoxDecoration(
           color: wallpaperBg,
@@ -2798,6 +2870,7 @@ class _ExceptionRow extends StatelessWidget {
   final bool isDark;
   final VoidCallback onRemove;
   final VoidCallback onToggleMute;
+  final void Function(Offset globalPosition)? onTap;
   final void Function(Offset globalPosition)? onSecondaryTap;
 
   const _ExceptionRow({
@@ -2809,6 +2882,7 @@ class _ExceptionRow extends StatelessWidget {
     required this.isDark,
     required this.onRemove,
     required this.onToggleMute,
+    this.onTap,
     this.onSecondaryTap,
   });
 
@@ -2829,7 +2903,13 @@ class _ExceptionRow extends StatelessWidget {
       child: InkWell(
       hoverColor: hoverBg,
       splashColor: hoverBg.withValues(alpha: 0.5),
-      onTap: onToggleMute,
+      onTapUp: (details) {
+        if (onTap != null) {
+          onTap!(details.globalPosition);
+        } else {
+          onToggleMute();
+        }
+      },
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 6, 22, 6),
         child: Row(
