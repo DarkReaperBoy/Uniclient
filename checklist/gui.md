@@ -20,10 +20,6 @@
 
 # Audit: §8-§13 Panels & Overlays
 
-## §8 — Info / Details Panel
-
-- [ ] spec §8.6 "Music mini-player hook": mini-player widget present with correct padding (fromLTRB 12,8,24,8) and Performer/Title labels, but quick-jump to source message not implemented — `onTap: () {}` is a stub in `_MusicMiniPlayer`; `AudioService` also missing `currentMsgDate` field needed for `chatState.jumpToMessage` — `info_panel.dart` `_MusicMiniPlayer`
-
 ## §9 — Context Menus & Actions
 
 - [ ] spec §9 "Voice Timecode action": spec item 2 in message context menu is "Voice Timecode (on playing voice messages)"; not present in context menu — `chat_view.dart:1302+`
