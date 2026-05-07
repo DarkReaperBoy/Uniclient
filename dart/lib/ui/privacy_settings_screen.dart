@@ -78,6 +78,16 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     _fetchTopPeers();
     _pollTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       _fetchPasswordState();
+      _fetchGlobalTTL();
+      _loadPasscodeState();
+      _fetchPasskeys();
+      _fetchBlockedCount();
+      _fetchSessionsCount();
+      _fetchAllPrivacy();
+      _fetchMessagesPrivacy();
+      _fetchArchiveSettings();
+      _fetchAccountTTL();
+      _fetchTopPeers();
     });
   }
 
@@ -304,6 +314,112 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     if (_passkeys.isEmpty) return 'Off';
     if (_passkeys.length == 1) return _passkeys[0]['name'] as String? ?? 'On';
     return '${_passkeys.length}';
+  }
+
+  void _openPasskeysManagement() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = context.palette.windowBgActive;
+
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bgColor,
+        title: Text(
+          'Passkeys',
+          style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600),
+        ),
+        contentPadding: const EdgeInsets.fromLTRB(0, 12, 0, 0),
+        content: SizedBox(
+          width: 320,
+          child: _passkeys.isEmpty
+              ? Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+                  child: Text(
+                    'You have no passkeys configured. Passkeys can be added through Telegram web or desktop apps.',
+                    style: TextStyle(fontSize: 13, color: subtextColor, height: 1.4),
+                  ),
+                )
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ..._passkeys.map((pk) {
+                      final name = pk['name'] as String? ?? 'Passkey';
+                      final createdAt = pk['created_at'] as int? ?? 0;
+                      final pkId = pk['id'] as String? ?? '';
+                      String dateStr = '';
+                      if (createdAt > 0) {
+                        final dt = DateTime.fromMillisecondsSinceEpoch(createdAt * 1000);
+                        dateStr = '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+                      }
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        child: Row(
+                          children: [
+                            Icon(Icons.key, size: 20, color: subtextColor),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(name, style: TextStyle(fontSize: 14, color: textColor, fontWeight: FontWeight.w600)),
+                                  if (dateStr.isNotEmpty)
+                                    Text('Added $dateStr', style: TextStyle(fontSize: 12, color: subtextColor)),
+                                ],
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () async {
+                                final confirm = await showDialog<bool>(
+                                  context: ctx,
+                                  builder: (c) => AlertDialog(
+                                    backgroundColor: bgColor,
+                                    title: Text('Remove Passkey', style: TextStyle(color: textColor)),
+                                    content: Text('Remove "$name"?', style: TextStyle(color: subtextColor)),
+                                    actions: [
+                                      TextButton(onPressed: () => Navigator.of(c).pop(false), child: const Text('Cancel')),
+                                      TextButton(
+                                        onPressed: () => Navigator.of(c).pop(true),
+                                        child: const Text('Remove', style: TextStyle(color: Colors.red)),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (confirm == true && accountId.isNotEmpty) {
+                                  try {
+                                    await engine.removePasskey(accountId, pkId);
+                                    _fetchPasskeys();
+                                    if (ctx.mounted) Navigator.of(ctx).pop();
+                                  } catch (e) {
+                                    if (ctx.mounted) {
+                                      showTelegramToast(ctx, 'Failed to remove passkey: $e');
+                                    }
+                                  }
+                                }
+                              },
+                              child: Text('Remove', style: TextStyle(color: Colors.red, fontSize: 13)),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                    const SizedBox(height: 8),
+                  ],
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('Close', style: TextStyle(color: accentColor)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _openPasscodeLock() {
@@ -555,7 +671,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                 textColor: textColor,
                 subtextColor: subtextColor,
                 hoverBg: hoverBg,
-                onTap: () {},
+                onTap: _openPasskeysManagement,
               )
             : const SizedBox.shrink(),
       ),

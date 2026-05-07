@@ -3370,6 +3370,19 @@ class EngineService {
     }
   }
 
+  Future<void> removePasskey(String accountId, String passkeyId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'passkey_id': passkeyId,
+    }));
+    try {
+      await _callAsync('__engine', 'RemovePasskey', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'removePasskey failed', e);
+      rethrow;
+    }
+  }
+
   // ── Blocked Users ──
 
   Future<int> getBlockedUsersCount(String accountId) async {
