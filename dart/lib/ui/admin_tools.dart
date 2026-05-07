@@ -8,6 +8,8 @@ import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+
 import '../theme/telegram_palette.dart';
 import 'create_group_wizard.dart' show showEditPeerTypeBox;
 import 'telegram_toast.dart';
@@ -3744,6 +3746,10 @@ class _InviteLinksBoxState extends State<_InviteLinksBox> {
           Icon(Icons.share, size: 20, color: palette.windowFg), const SizedBox(width: 12),
           const Text('Share Link'),
         ])),
+        PopupMenuItem(value: 'qr', child: Row(children: [
+          Icon(Icons.qr_code, size: 20, color: palette.windowFg), const SizedBox(width: 12),
+          const Text('QR Code'),
+        ])),
         if (!link.revoked) ...[
           PopupMenuItem(value: 'edit', child: Row(children: [
             Icon(Icons.edit, size: 20, color: palette.windowFg), const SizedBox(width: 12),
@@ -3769,6 +3775,8 @@ class _InviteLinksBoxState extends State<_InviteLinksBox> {
         case 'share':
           Clipboard.setData(ClipboardData(text: link.link));
           showTelegramToast(context, 'Link copied to clipboard');
+        case 'qr':
+          _showQrCodeDialog(link.link);
         case 'edit':
           _editLink(link);
         case 'revoke':
@@ -3777,6 +3785,13 @@ class _InviteLinksBoxState extends State<_InviteLinksBox> {
           _deleteLink(link);
       }
     });
+  }
+
+  void _showQrCodeDialog(String link) {
+    showDialog(
+      context: context,
+      builder: (ctx) => _InviteLinkQrDialog(link: link),
+    );
   }
 
   @override
@@ -3882,6 +3897,10 @@ class _InviteLinksBoxState extends State<_InviteLinksBox> {
                   Clipboard.setData(ClipboardData(text: link.link));
                   showTelegramToast(context, 'Link copied to clipboard');
                 },
+              ),
+              IconButton(
+                icon: Icon(Icons.qr_code, size: 20, color: palette.windowBgActive),
+                onPressed: () => _showQrCodeDialog(link.link),
               ),
             ],
           ),
@@ -4002,6 +4021,75 @@ class _InviteLinksBoxState extends State<_InviteLinksBox> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── QR Code Dialog (§26.6.5) ──
+
+class _InviteLinkQrDialog extends StatelessWidget {
+  final String link;
+  const _InviteLinkQrDialog({required this.link});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = PaletteProvider.of(context);
+    final displayUrl = link.replaceFirst(RegExp(r'^https?://'), '');
+    const boxWidth = 320.0;
+    const padding = 22.0;
+    final qrSize = boxWidth - padding * 2;
+    return Dialog(
+      backgroundColor: palette.boxBg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: SizedBox(
+        width: boxWidth,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 16, 8, 0),
+              child: Row(
+                children: [
+                  Expanded(child: Text('QR Code', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: palette.windowFg))),
+                  IconButton(icon: Icon(Icons.close, color: palette.windowSubTextFg, size: 20), onPressed: () => Navigator.pop(context)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            QrImageView(
+              data: link,
+              version: QrVersions.auto,
+              size: qrSize,
+              backgroundColor: Colors.white,
+              eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: Colors.black),
+              dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.square, color: Colors.black),
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 22),
+              child: Text(displayUrl, style: TextStyle(fontSize: 13, color: palette.windowSubTextFg), textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis),
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 22),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  TextButton.icon(
+                    icon: Icon(Icons.copy, size: 18, color: palette.windowBgActive),
+                    label: Text('Copy', style: TextStyle(color: palette.windowBgActive)),
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: link));
+                      showTelegramToast(context, 'Link copied');
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
       ),
     );
   }
