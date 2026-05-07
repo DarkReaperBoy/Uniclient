@@ -101,6 +101,18 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
   static const _appVersion =
       String.fromEnvironment('APP_VERSION', defaultValue: '0.1.0');
 
+  String _connectionTypeLabel() {
+    return 'Using TCP';
+  }
+
+  static const _angleBackendLabels = [
+    'Auto',
+    'Direct3D 11',
+    'Direct3D 9',
+    'Direct3D 11 on 12',
+    'OpenGL (ANGLE disabled)',
+  ];
+
   String get _stateLabel => switch (_updateState) {
         _UpdateState.idle => 'UniClient v$_appVersion',
         _UpdateState.checking => 'Checking for updates...',
@@ -219,6 +231,28 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
           ),
         ),
       ),
+      if (_updateState == _UpdateState.available)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 4, 22, 8),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => exit(0),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: accentColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+              ),
+              child: const Text(
+                'Update UniClient',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+        ),
     ];
   }
 
@@ -246,7 +280,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
       _AdvancedIconButtonRow(
         icon: Icons.settings_ethernet,
         label: 'Connection type',
-        rightLabel: 'Using TCP',
+        rightLabel: _connectionTypeLabel(),
         textColor: textColor,
         subtextColor: subtextColor,
         iconColor: iconColor,
@@ -475,15 +509,6 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         accentColor: accentColor,
         hoverBg: hoverBg,
       ),
-      if (Platform.isLinux)
-        _AdvancedToggleRow(
-          label: 'Use system window frame',
-          value: appState.nativeWindowFrame,
-          onChanged: (v) => appState.setNativeWindowFrame(v),
-          textColor: textColor,
-          accentColor: accentColor,
-          hoverBg: hoverBg,
-        ),
     ];
   }
 
@@ -512,16 +537,30 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     ];
   }
 
-  // §14.7.5: Tray/taskbar icons, monochrome, launch at startup, start minimized.
+  // §14.7.5: Tray/taskbar icons, monochrome, launch at startup, start minimized, native frame.
   List<Widget> _buildSystemIntegration(bool isDark, AppState appState) {
     final textColor =
         isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor =
         context.palette.windowBgActive;
     final hoverBg =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
+    final hasPasscode = appState.hasLocalPasscode;
+    final startMinimizedDisabled = hasPasscode;
+
     return [
+      if (Platform.isLinux)
+        _AdvancedToggleRow(
+          label: 'Use system window frame',
+          value: appState.nativeWindowFrame,
+          onChanged: (v) => appState.setNativeWindowFrame(v),
+          textColor: textColor,
+          accentColor: accentColor,
+          hoverBg: hoverBg,
+        ),
       _AdvancedCheckboxRow(
         label: 'Show tray icon',
         value: appState.showTrayIcon,
@@ -574,16 +613,69 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         curve: Curves.easeOutCubic,
         alignment: Alignment.topCenter,
         child: appState.launchAtStartup
-            ? _AdvancedCheckboxRow(
-                label: 'Start minimized',
-                value: appState.startMinimized,
-                onChanged: (v) => appState.setStartMinimized(v),
-                textColor: textColor,
-                accentColor: accentColor,
-                hoverBg: hoverBg,
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _AdvancedCheckboxRow(
+                    label: 'Start minimized',
+                    value: startMinimizedDisabled ? false : appState.startMinimized,
+                    onChanged: startMinimizedDisabled
+                        ? (_) {}
+                        : (v) => appState.setStartMinimized(v),
+                    textColor: startMinimizedDisabled
+                        ? textColor.withValues(alpha: 0.5)
+                        : textColor,
+                    accentColor: accentColor,
+                    hoverBg: hoverBg,
+                  ),
+                  if (startMinimizedDisabled)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(58, 0, 22, 4),
+                      child: Text(
+                        'Disabled when a local passcode is set.',
+                        style: TextStyle(fontSize: 12, color: subtextColor),
+                      ),
+                    ),
+                ],
               )
             : const SizedBox.shrink(),
       ),
+      if (Platform.isWindows)
+        _AdvancedCheckboxRow(
+          label: 'Add to "Send to" menu',
+          value: appState.addToSendToMenu,
+          onChanged: (v) => appState.setAddToSendToMenu(v),
+          textColor: textColor,
+          accentColor: accentColor,
+          hoverBg: hoverBg,
+        ),
+      if (Platform.isMacOS) ...[
+        _AdvancedCheckboxRow(
+          label: 'Warn before quitting by keyboard shortcut',
+          value: appState.warnBeforeQuit,
+          onChanged: (v) => appState.setWarnBeforeQuit(v),
+          textColor: textColor,
+          accentColor: accentColor,
+          hoverBg: hoverBg,
+        ),
+        _AdvancedCheckboxRow(
+          label: 'Use system text replacements',
+          value: appState.systemTextReplacements,
+          onChanged: (v) => appState.setSystemTextReplacements(v),
+          textColor: textColor,
+          accentColor: accentColor,
+          hoverBg: hoverBg,
+        ),
+        _AdvancedCheckboxRow(
+          label: 'Round dock icon',
+          value: appState.roundDockIcon,
+          onChanged: (v) => appState.setRoundDockIcon(v),
+          textColor: textColor,
+          accentColor: accentColor,
+          hoverBg: hoverBg,
+        ),
+      ],
     ];
   }
 
@@ -625,14 +717,23 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         accentColor: accentColor,
         hoverBg: hoverBg,
       ),
-      if (!Platform.isMacOS)
+      if (Platform.isWindows)
+        _AdvancedIconButtonRow(
+          icon: Icons.display_settings,
+          label: 'ANGLE graphics backend',
+          rightLabel: _angleBackendLabels[appState.angleBackendIndex.clamp(0, 4)],
+          textColor: textColor,
+          subtextColor: subtextColor,
+          iconColor: iconColor,
+          hoverBg: hoverBg,
+          onTap: () => _showAngleBackendDialog(context, appState, isDark),
+        ),
+      if (!Platform.isMacOS && !Platform.isWindows)
         _AdvancedToggleRow(
-          label: Platform.isWindows
-              ? 'Use ANGLE graphics backend'
-              : 'Disable OpenGL',
-          value: appState.openGlDisabled,
+          label: 'Enable OpenGL',
+          value: !appState.openGlDisabled,
           onChanged: (v) {
-            appState.setOpenGlDisabled(v);
+            appState.setOpenGlDisabled(!v);
             _showRestartDialog(context, isDark);
           },
           textColor: textColor,
@@ -697,6 +798,114 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  void _showAngleBackendDialog(BuildContext context, AppState appState, bool isDark) {
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : const Color(0xFFFFFFFF);
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final accentColor =
+        context.palette.windowBgActive;
+    final hoverBg =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        var selected = appState.angleBackendIndex;
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => Dialog(
+            backgroundColor: bgColor,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 320),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(0, 18, 0, 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(22, 0, 22, 12),
+                      child: Text(
+                        'ANGLE graphics backend',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w600,
+                          color: textColor,
+                        ),
+                      ),
+                    ),
+                    for (var i = 0; i < _angleBackendLabels.length; i++)
+                      InkWell(
+                        onTap: () => setDialogState(() => selected = i),
+                        hoverColor: hoverBg,
+                        child: Padding(
+                          padding: SettingsStyle.sendTypePadding,
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: Radio<int>(
+                                  value: i,
+                                  groupValue: selected,
+                                  onChanged: (v) =>
+                                      setDialogState(() => selected = v!),
+                                  activeColor: accentColor,
+                                  materialTapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Text(
+                                  _angleBackendLabels[i],
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: textColor,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 8),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(22, 0, 22, 0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.of(ctx).pop(),
+                            child: Text('Cancel',
+                                style: TextStyle(color: accentColor, fontSize: 14)),
+                          ),
+                          const SizedBox(width: 8),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.of(ctx).pop();
+                              if (selected != appState.angleBackendIndex) {
+                                appState.setAngleBackendIndex(selected);
+                                _showRestartDialog(context, isDark);
+                              }
+                            },
+                            child: Text('Save',
+                                style: TextStyle(color: accentColor, fontSize: 14)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -1978,6 +2187,34 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
   bool _proxyForCalls = false;
   final List<_ProxyEntry> _proxies = [];
   int _selectedIndex = -1;
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _handleKeyEvent(KeyEvent event) {
+    if (event is! KeyDownEvent) return;
+    final ctrl = HardwareKeyboard.instance.isControlPressed;
+    if (!ctrl) return;
+    if (event.logicalKey == LogicalKeyboardKey.keyC) {
+      _copyAllProxies();
+    } else if (event.logicalKey == LogicalKeyboardKey.keyV) {
+      _importFromClipboard();
+    }
+  }
+
+  void _copyAllProxies() {
+    if (_proxies.isEmpty) return;
+    final urls =
+        _proxies.where((p) => !p.deleted).map(_proxyToUrl).join('\n');
+    if (urls.isNotEmpty) {
+      Clipboard.setData(ClipboardData(text: urls));
+      showTelegramToast(context, 'Proxy URLs copied to clipboard');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2002,7 +2239,11 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
         _selectedIndex < _proxies.length &&
         _proxies[_selectedIndex].supportsCalls;
 
-    return Dialog(
+    return KeyboardListener(
+      focusNode: _focusNode,
+      autofocus: true,
+      onKeyEvent: _handleKeyEvent,
+      child: Dialog(
       backgroundColor: bgColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       child: ConstrainedBox(
@@ -2211,6 +2452,7 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
           ],
         ),
       ),
+    ),
     );
   }
 

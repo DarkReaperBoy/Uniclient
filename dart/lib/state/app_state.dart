@@ -126,6 +126,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _startMinimized = false;
   bool _hardwareAccelVideo = true;
   bool _openGlDisabled = false;
+  int _angleBackendIndex = 0; // 0=Auto, 1=D3D11, 2=D3D9, 3=D3D11on12, 4=Disabled
+  bool _addToSendToMenu = false; // Windows only
+  bool _warnBeforeQuit = false; // macOS only
+  bool _systemTextReplacements = false; // macOS only
+  bool _roundDockIcon = false; // macOS only
   bool _spellcheckerEnabled = true;
   bool _spellcheckerAutoDownload = true;
   bool _screenReaderOptimized = false;
@@ -375,6 +380,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get startMinimized => _startMinimized;
   bool get hardwareAccelVideo => _hardwareAccelVideo;
   bool get openGlDisabled => _openGlDisabled;
+  int get angleBackendIndex => _angleBackendIndex;
+  bool get addToSendToMenu => _addToSendToMenu;
+  bool get warnBeforeQuit => _warnBeforeQuit;
+  bool get systemTextReplacements => _systemTextReplacements;
+  bool get roundDockIcon => _roundDockIcon;
   bool get spellcheckerEnabled => _spellcheckerEnabled;
   bool get spellcheckerAutoDownload => _spellcheckerAutoDownload;
   bool get screenReaderOptimized => _screenReaderOptimized;
@@ -1566,6 +1576,41 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _saveWindowPrefs();
   }
 
+  void setAngleBackendIndex(int v) {
+    if (_angleBackendIndex == v) return;
+    _angleBackendIndex = v.clamp(0, 4);
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setAddToSendToMenu(bool v) {
+    if (_addToSendToMenu == v) return;
+    _addToSendToMenu = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setWarnBeforeQuit(bool v) {
+    if (_warnBeforeQuit == v) return;
+    _warnBeforeQuit = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setSystemTextReplacements(bool v) {
+    if (_systemTextReplacements == v) return;
+    _systemTextReplacements = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setRoundDockIcon(bool v) {
+    if (_roundDockIcon == v) return;
+    _roundDockIcon = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
   void setSpellcheckerEnabled(bool v) {
     if (_spellcheckerEnabled == v) return;
     _spellcheckerEnabled = v;
@@ -2423,6 +2468,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _startMinimized = data['startMinimized'] as bool? ?? false;
       _hardwareAccelVideo = data['hardwareAccelVideo'] as bool? ?? true;
       _openGlDisabled = data['openGlDisabled'] as bool? ?? false;
+      _angleBackendIndex = data['angleBackendIndex'] as int? ?? 0;
+      _addToSendToMenu = data['addToSendToMenu'] as bool? ?? false;
+      _warnBeforeQuit = data['warnBeforeQuit'] as bool? ?? false;
+      _systemTextReplacements = data['systemTextReplacements'] as bool? ?? false;
+      _roundDockIcon = data['roundDockIcon'] as bool? ?? false;
       _spellcheckerEnabled = data['spellcheckerEnabled'] as bool? ?? true;
       _spellcheckerAutoDownload = data['spellcheckerAutoDownload'] as bool? ?? true;
       _autoUpdateEnabled = data['autoUpdateEnabled'] as bool? ?? true;
@@ -2616,6 +2666,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'startMinimized': _startMinimized,
         'hardwareAccelVideo': _hardwareAccelVideo,
         'openGlDisabled': _openGlDisabled,
+        'angleBackendIndex': _angleBackendIndex,
+        'addToSendToMenu': _addToSendToMenu,
+        'warnBeforeQuit': _warnBeforeQuit,
+        'systemTextReplacements': _systemTextReplacements,
+        'roundDockIcon': _roundDockIcon,
         'spellcheckerEnabled': _spellcheckerEnabled,
         'spellcheckerAutoDownload': _spellcheckerAutoDownload,
         'autoUpdateEnabled': _autoUpdateEnabled,
