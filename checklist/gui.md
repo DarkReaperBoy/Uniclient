@@ -48,8 +48,6 @@
 
 ## §22 — Forum Topics UI
 
-- [ ] spec §22.5 "Create/Edit Topic Dialog": icon selector panel should use `EmojiListWidget` in `Mode::TopicIcon` with server emoji set and Premium gating for non-default custom emojis — implementation uses 24 hardcoded Unicode emojis, no server emoji set, no Premium gating; selecting an emoji from "Topic Icons" does not update the icon button preview (shows colored ForumTopicIcon with letter instead of the selected emoji) — `edit_forum_topic_box.dart`
-- [ ] spec §22.5 "Edit Topic": fly animation crashes with `Infinity or NaN toInt` Flutter error when triggered; `SingleTickerProviderStateMixin but multiple tickers were created` error; `AnimationController.dispose() called more than once` error; fly animation also only triggers on color icon selection, not on emoji selection as spec requires — `edit_forum_topic_box.dart`
 
 ## §23 — Scheduled Messages
 
