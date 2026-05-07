@@ -36,41 +36,6 @@
 
 ---
 
-## §18 — Settings: Folders
-
-### §18.1 Page Structure
-- [ ] spec §18.1 "Show tags toggle (Premium feature)": need to verify `_ShowTagsToggle` or equivalent exists on the folders page — `folders_settings_screen.dart`
-- [ ] spec §18.1 "View subsection (vertical/horizontal tab radio)": need to verify the Tab View section with radio buttons exists — `folders_settings_screen.dart`
-
-### §18.2 Animated Header
-- [ ] spec §18.2 "Lottie animation 'filters' 74x74px": need to verify the animated header uses Lottie. The file imports `package:lottie/lottie.dart` which is promising — `folders_settings_screen.dart:5`
-
-### §18.3 Existing Folders List
-- [ ] spec §18.3 "FilterRowButton 52px height with icon, title, status, color dot, remove/restore": implementation has folder row buttons. Need to verify exact metrics and color dot animation — `folders_settings_screen.dart:99-182`
-- [ ] spec §18.3 "Remove flow confirmation for chatlist folders": `_showChatListRemoveConfirmation` exists with `_ChatlistFolderRemovalDialog` — `folders_settings_screen.dart:159-176`
-
-### §18.4 Create New Folder
-- [ ] spec §18.4 "Folder limit check": `_onCreateFolder` checks against `_folderLimitFree` (10) and `_folderLimitPremium` (20) — correct — `folders_settings_screen.dart:193-216`
-
-### §18.5 Recommended Folders
-- [ ] spec §18.5 "SlideWrap visible when suggestions > 0 AND count < limit": recommended folders section exists with `_addRecommendedFolder` — `folders_settings_screen.dart:218-244`
-
-### §18.6 Edit Filter Box
-- [ ] spec §18.6 "Box width 364px, closeByOutsideClick = false": `_EditFilterBox` is created with `barrierDismissible: false`. Width constraint needs verification — `folders_settings_screen.dart:248-251`
-- [ ] spec §18.6.1 "Folder name max 12 characters with counter": need to verify max length enforcement — `folders_settings_screen.dart`
-- [ ] spec §18.6.1 "Emoji button and Icon selector toggle inside name field": need to verify these UI elements exist in the edit box — `folders_settings_screen.dart`
-- [ ] spec §18.6.4 "Tag Color section (Premium) with 8 color buttons": need to verify this section exists — `folders_settings_screen.dart`
-- [ ] spec §18.6.5 "Shareable Link section with Create/Add Link": need to verify invite link management exists — `folders_settings_screen.dart`
-
-### §18.8 Filter Icon Picker
-- [ ] spec §18.8 "30 folder icons in 6x5 grid": `_kFilterIconOrder` has exactly 30 icons in correct order, and `_kFilterIcons` maps them to Material icons. The picker panel itself needs to verify the 44x42px cell size and popup behavior — `folders_settings_screen.dart:17-56`
-
-### §18.11 Folder Tags Toggle
-- [ ] spec §18.11 "Show Folder Tags toggle (Premium)": need to verify this toggle exists on the folders page and triggers tag animations on folder rows — `folders_settings_screen.dart`
-
-### §18.12 Tab View Section
-- [ ] spec §18.12 "Side panel / Top bar radio buttons": need to verify these exist and are gated by `enoughSpaceForFilters()` (452px threshold) — `folders_settings_screen.dart`
-
 ---
 
 ## §19 — Settings: Sessions, Power Saving & Language
