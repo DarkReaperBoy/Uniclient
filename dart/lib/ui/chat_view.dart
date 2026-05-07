@@ -11052,7 +11052,7 @@ class _CornerButtonState extends State<_CornerButton> {
 
 // ── Rich text editing controller (spec §7 / §41.4) ──
 
-enum FormatType { bold, italic, underline, strike, code, spoiler, blockquote, link, customEmoji }
+enum FormatType { bold, italic, underline, strike, code, spoiler, blockquote, link, customEmoji, date }
 
 class ComposeEntity {
   int offset;
@@ -11062,8 +11062,9 @@ class ComposeEntity {
   final String? language;
   final int? documentId;
   final String? altText;
+  final int? timestamp;
 
-  ComposeEntity({required this.offset, required this.length, required this.type, this.url, this.language, this.documentId, this.altText});
+  ComposeEntity({required this.offset, required this.length, required this.type, this.url, this.language, this.documentId, this.altText, this.timestamp});
 
   Map<String, dynamic> toJson() {
     final typeStr = switch (type) {
@@ -11076,11 +11077,13 @@ class ComposeEntity {
       FormatType.blockquote => 'blockquote',
       FormatType.link => 'text_url',
       FormatType.customEmoji => 'custom_emoji',
+      FormatType.date => 'custom_date',
     };
     final m = <String, dynamic>{'type': typeStr, 'offset': offset, 'length': length};
     if (url != null && url!.isNotEmpty) m['url'] = url!;
     if (language != null && language!.isNotEmpty) m['language'] = language!;
     if (documentId != null && documentId != 0) m['document_id'] = documentId!;
+    if (timestamp != null) m['timestamp'] = timestamp!;
     return m;
   }
 }
@@ -11300,13 +11303,26 @@ class RichTextEditingController extends TextEditingController {
   void insertDateTimestamp(DateTime date) {
     final ts = date.millisecondsSinceEpoch ~/ 1000;
     final formatted = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-    final insert = formatted;
     final sel = selection;
     final pos = sel.isValid ? sel.baseOffset : text.length;
-    final before = text.substring(0, pos);
-    final after = text.substring(pos);
-    text = '$before$insert$after';
-    selection = TextSelection.collapsed(offset: pos + insert.length);
+    final before = _prevText.substring(0, pos < _prevText.length ? pos : _prevText.length);
+    final after = pos <= _prevText.length ? _prevText.substring(pos) : '';
+    _prevText = '$before$formatted$after';
+    for (final e in entities) {
+      if (e.offset >= pos) {
+        e.offset += formatted.length;
+      } else if (e.offset + e.length > pos) {
+        e.length += formatted.length;
+      }
+    }
+    entities.add(ComposeEntity(
+      offset: pos,
+      length: formatted.length,
+      type: FormatType.date,
+      timestamp: ts,
+    ));
+    super.text = _prevText;
+    selection = TextSelection.collapsed(offset: pos + formatted.length);
   }
 
   void insertCustomEmoji(int documentId, String altText) {
@@ -11451,7 +11467,8 @@ class RichTextEditingController extends TextEditingController {
         adjustedExisting.add(ComposeEntity(
           offset: newStart, length: newLen, type: e.type,
           url: e.url, language: e.language,
-          documentId: e.documentId, altText: e.altText));
+          documentId: e.documentId, altText: e.altText,
+          timestamp: e.timestamp));
       }
     }
 
@@ -11563,6 +11580,9 @@ class RichTextEditingController extends TextEditingController {
         }
         if (active.contains(FormatType.link)) {
           decorations.add(TextDecoration.underline);
+          if (!hasCode) merged = merged.copyWith(color: linkFg);
+        }
+        if (active.contains(FormatType.date)) {
           if (!hasCode) merged = merged.copyWith(color: linkFg);
         }
         if (decorations.isNotEmpty) {
@@ -13514,14 +13534,13 @@ class _ComposeAreaState extends State<_ComposeArea>
   }
 
   void _showDatePicker(RichTextEditingController ctrl) {
-    final now = DateTime.now();
-    showDatePicker(
-      context: context,
-      initialDate: now,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
+    showCalendarBox(
+      context,
+      initialDate: DateTime.now(),
+      minDate: DateTime(1970),
+      maxDate: DateTime(2036, 12, 31),
     ).then((date) {
-      if (date == null) return;
+      if (date == null || !mounted) return;
       ctrl.insertDateTimestamp(date);
     });
   }
