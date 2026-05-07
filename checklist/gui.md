@@ -51,10 +51,7 @@
 
 ## §24 — Keyboard Shortcuts
 
-## §25 — Theming & Color System
 
-- [ ] spec §25.1 "Palette Architecture": ~370 named tokens in `.tdesktop-theme` files with reference resolution — `paletteToMap()` in `theme_file.dart` exports ~190 tokens, significantly fewer than spec's 369 (Day Blue) — `theme_file.dart`
-- [ ] spec §25.2 "Complete Color Token Reference": spec lists 369 Day Blue and 467 Night tokens — `TelegramPalette` class (not fully read due to size) maps ~190 named fields — missing approximately 180 tokens — `telegram_palette.dart`, `theme_file.dart`
 # Audit: &sect;26-&sect;36 Admin, Export, Contacts, Calls, States
 
 ## &sect;26 -- Admin Tools
