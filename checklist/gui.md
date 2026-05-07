@@ -45,22 +45,10 @@
 
 ## §20 — Media Viewer / Lightbox
 
-- [ ] spec §20.1 "Window Modes": no windowed/maximized mode persistence — `_MediaViewerMode` enum exists but geometry is not saved to or loaded from settings — `media_viewer.dart`
-- [ ] spec §20.6 "Navigation Controls": side navigation areas are present but spec requires 90px hover width with `mediaview/next` icon and 36px circle hover indicator — implementation uses simple left/right icon buttons without the 36px hover circle — `media_viewer.dart`
-- [ ] spec §20.7 "Footer / Header Area": footer shows "Photo N of M" counter and sender name but missing the bullet separator, date + DC number, and clickable-to-navigate-to-message behavior on the date — `media_viewer.dart`
-- [ ] spec §20.8.1 "More-Menu Contents": overflow menu is minimal — missing items: Cancel download, Show in Folder, Copy Image/Copy Frame, Attached Stickers, Share at Time, Delete, Save As, Show All Photos/Files, Set as Userpic, Report Userpic, View Statistics, Stealth Mode — `media_viewer.dart`
-- [ ] spec §20.8 "Bottom-Right Toolbar": missing Draw (photo editor) button and OCR/recognize button — only More, Rotate, Save are present — `media_viewer.dart`
-- [ ] spec §20.10 "Video Playback Controls": missing quality selector menu (360/720/1080 switch), chapter dividers on progress bar, and time-remaining display with minus prefix — `media_viewer.dart`
-- [ ] spec §20.11 "Video Player Behavior": speed control range is present but missing the in-app speed selection menu UI per §20.10 settings button — `media_viewer.dart`
-- [ ] spec §20.13 "PiP": PiP is implemented but missing edge-snap rules on drag release — `ClampToEdges()` algorithm with `pipBorderSnapArea=16px` threshold and `3*pipBorderSkip=60px` inner margin is not implemented; PiP snaps to corners instead of edges — `media_viewer.dart`
-- [ ] spec §20.13 "PiP Z-order": PiP widget renders inside the app widget tree using `Positioned` overlay, not as a separate always-on-top OS window with `WindowStaysOnTopHint` — platform limitation but behavior diverges from spec — `media_viewer.dart`
-- [ ] spec §20.14 "Gallery / Group Thumbs Strip": thumb strip is implemented with correct dimensions but missing the centered layout model — spec says current thumb is centered at `-_fullWidth/2` with neighbours animating in/out; code uses a simpler horizontal list — `media_viewer.dart`
-- [ ] spec §20.16.1 "Structured Context Menu": right-click context menu exists but only has Show in Chat, Forward, Save, and Copy — missing: Cancel Download, Show in Folder, Attached Stickers, Share at Time, Delete, Show All Photos/Files, Set as Userpic, Report, Stealth Mode items — `media_viewer.dart`
-- [ ] spec §20.17 "Stories Viewer Integration": stories viewer scaffold exists (`_kStoriesMaxWidth`, `_kStoriesMaxHeight` constants) but missing sibling story preview thumbnails and collapsed-caption "Show more" toggle — `media_viewer.dart`
-- [ ] spec §20.18 "Keyboard Shortcuts": `J`/`L` seek keys (±10s) and `,`/`.` frame-step keys (§24.9) are missing from `_handleKey` — `media_viewer.dart`
-- [ ] spec §20.18 "Keyboard Shortcuts": `K` key for play/pause toggle is missing from `_handleKey` — `media_viewer.dart`
-- [ ] spec §20.19.1 "Open/Close Geometry Animation": missing thumbnail-to-lightbox geometry interpolation on open — viewer opens with a simple route push, not an animated rect transition from the source thumbnail — `media_viewer.dart`
-- [ ] spec §20.15 "Save/Download Toast": toast animation timings are correct (200ms in, 2s hold, 2.5s out) but missing the "Downloads" clickable link text — only `xdg-open` on tap of the whole toast — `media_viewer.dart`
+- [ ] spec §20.8.1 "More-Menu Contents": `_buildMediaMenuItems()` still missing: Cancel download, Attached Stickers, Set as Userpic, Report Userpic, View Statistics, Stealth Mode — Show in Folder, Copy Image/Frame, Forward, Share at Time, Delete, Save As, Show All Photos were added — `media_viewer.dart`
+- [ ] spec §20.8 "Bottom-Right Toolbar": OCR/recognize button still missing from `_buildToolbar()` — Draw button was added (`Icons.edit`, `_isPhoto && hasContent`) — `media_viewer.dart`
+- [ ] spec §20.10 "Video Playback Controls": chapter dividers (2×10px marks on progress bar) still missing from `_SliderPainter` — quality selector and time-remaining with minus prefix were added — `media_viewer.dart`
+- [ ] spec §20.16.1 "Structured Context Menu": right-click `_buildMediaMenuItems()` still missing: Cancel Download, Attached Stickers, Set as Userpic, Report, Stealth Mode — Show in Folder, Copy, Share at Time, Delete, Save As, Show All Photos were added — `media_viewer.dart`
 
 ## §21 — Create Group / Channel Wizard
 
