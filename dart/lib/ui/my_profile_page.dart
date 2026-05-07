@@ -732,7 +732,7 @@ class _ProfilePhotoArea extends StatelessWidget {
       context,
       imageFile: File(path),
       shape: PhotoCropShape.ellipse,
-      doneLabel: 'Set Photo',
+      purpose: PhotoEditorPurpose.setPhoto,
       onDone: (croppedFile) async {
         await engine.uploadProfilePhoto(accountId, croppedFile.path);
         if (context.mounted) {

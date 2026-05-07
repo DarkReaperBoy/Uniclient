@@ -33,6 +33,9 @@ const Color _kIconFgActive = Color(0xFF6AB2F2);
 const Color _kIconFgInactive = Color(0x4DFFFFFF);
 
 const Duration _kTransitionDuration = Duration(milliseconds: 200);
+const Duration _kBgCrossFadeDuration = Duration(milliseconds: 200);
+const Duration _kBgDebouncefast = Duration(milliseconds: 200);
+const Duration _kBgDebounceFull = Duration(milliseconds: 1000);
 
 const int _kProfilePhotoSize = 640;
 const double _kExtremeRatioLimit = 10.0;
@@ -57,6 +60,18 @@ enum PhotoCropShape { ellipse, roundedRect, rect }
 enum _EditorMode { transform, paint }
 
 enum _IconState { idle, active, inactive }
+
+enum PhotoEditorPurpose {
+  setPhoto,
+  suggest,
+  edit;
+
+  String get doneLabel => switch (this) {
+    setPhoto => 'Set Photo',
+    suggest => 'Suggest',
+    edit => 'Done',
+  };
+}
 
 enum _CropAspect {
   original, square, ratio3x2, ratio16x9, ratio9x16, free;
@@ -84,7 +99,7 @@ class PhotoCropEditor extends StatefulWidget {
   final File imageFile;
   final PhotoCropShape shape;
   final String? aboutText;
-  final String doneLabel;
+  final PhotoEditorPurpose purpose;
   final Future<void> Function(File croppedFile)? onDone;
 
   static bool Function(String keyCombo)? _activeKeyHandler;
@@ -92,12 +107,14 @@ class PhotoCropEditor extends StatefulWidget {
   static bool handleKey(String keyCombo) =>
       _activeKeyHandler?.call(keyCombo) ?? false;
 
+  String get doneLabel => purpose.doneLabel;
+
   const PhotoCropEditor({
     super.key,
     required this.imageFile,
     this.shape = PhotoCropShape.ellipse,
     this.aboutText,
-    this.doneLabel = 'Set Photo',
+    this.purpose = PhotoEditorPurpose.setPhoto,
     this.onDone,
   });
 
@@ -106,7 +123,7 @@ class PhotoCropEditor extends StatefulWidget {
     required File imageFile,
     PhotoCropShape shape = PhotoCropShape.ellipse,
     String? aboutText,
-    String doneLabel = 'Set Photo',
+    PhotoEditorPurpose purpose = PhotoEditorPurpose.setPhoto,
     Future<void> Function(File croppedFile)? onDone,
   }) {
     return Navigator.of(context).push(
@@ -129,7 +146,7 @@ class PhotoCropEditor extends StatefulWidget {
               imageFile: imageFile,
               shape: shape,
               aboutText: aboutText,
-              doneLabel: doneLabel,
+              purpose: purpose,
               onDone: onDone,
             ),
           );
@@ -487,23 +504,82 @@ class _PhotoCropEditorState extends State<PhotoCropEditor> {
   }
 }
 
-class _BlurredBackground extends StatelessWidget {
+class _BlurredBackground extends StatefulWidget {
   final Color dimColor;
 
   const _BlurredBackground({required this.dimColor});
 
   @override
+  State<_BlurredBackground> createState() => _BlurredBackgroundState();
+}
+
+class _BlurredBackgroundState extends State<_BlurredBackground>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _fadeCtrl;
+  Size _lastSize = Size.zero;
+  Timer? _debounceTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeCtrl = AnimationController(
+      vsync: this,
+      duration: _kBgCrossFadeDuration,
+      value: 0.0,
+    );
+    _fadeCtrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _debounceTimer?.cancel();
+    _fadeCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onSizeChanged(Size newSize) {
+    if (_lastSize == Size.zero) {
+      _lastSize = newSize;
+      return;
+    }
+    if (newSize == _lastSize) return;
+    _lastSize = newSize;
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(_kBgDebouncefast, () {
+      if (!mounted) return;
+      _fadeCtrl.value = 0.6;
+      _fadeCtrl.forward();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Positioned.fill(
-      child: BackdropFilter(
-        filter: ui.ImageFilter.blur(
-          sigmaX: _kBlurSigma,
-          sigmaY: _kBlurSigma,
-        ),
-        child: ColoredBox(
-          color: dimColor,
-          child: const SizedBox.expand(),
-        ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final size = Size(constraints.maxWidth, constraints.maxHeight);
+          WidgetsBinding.instance
+              .addPostFrameCallback((_) => _onSizeChanged(size));
+          return AnimatedBuilder(
+            animation: _fadeCtrl,
+            builder: (context, child) {
+              return Opacity(
+                opacity: _fadeCtrl.value,
+                child: child,
+              );
+            },
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(
+                sigmaX: _kBlurSigma,
+                sigmaY: _kBlurSigma,
+              ),
+              child: ColoredBox(
+                color: widget.dimColor,
+                child: const SizedBox.expand(),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -1098,7 +1174,7 @@ class _ControlBar extends StatelessWidget {
           tooltip: 'Flip',
         ),
         _BarIconButton(
-          icon: Icons.rotate_right,
+          icon: Icons.rotate_90_degrees_ccw_outlined,
           state: _IconState.idle,
           onPressed: onRotate,
           tooltip: 'Rotate',

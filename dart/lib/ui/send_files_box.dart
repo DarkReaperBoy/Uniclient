@@ -1799,7 +1799,7 @@ class _AlbumPreviewState extends State<_AlbumPreview>
       context,
       imageFile: File(file.path),
       shape: PhotoCropShape.rect,
-      doneLabel: 'Done',
+      purpose: PhotoEditorPurpose.edit,
     );
   }
 

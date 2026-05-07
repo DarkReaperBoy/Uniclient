@@ -209,7 +209,7 @@ class _WizardDialogState extends State<_WizardDialog>
       context,
       imageFile: File(path),
       shape: PhotoCropShape.ellipse,
-      doneLabel: 'Set Photo',
+      purpose: PhotoEditorPurpose.setPhoto,
       onDone: (croppedFile) async {
         final bytes = await croppedFile.readAsBytes();
         if (!mounted) return;
