@@ -45,10 +45,6 @@
 
 ## §20 — Media Viewer / Lightbox
 
-- [ ] spec §20.8.1 "More-Menu Contents": `_buildMediaMenuItems()` still missing: Cancel download, Attached Stickers, Set as Userpic, Report Userpic, View Statistics, Stealth Mode — Show in Folder, Copy Image/Frame, Forward, Share at Time, Delete, Save As, Show All Photos were added — `media_viewer.dart`
-- [ ] spec §20.8 "Bottom-Right Toolbar": OCR/recognize button still missing from `_buildToolbar()` — Draw button was added (`Icons.edit`, `_isPhoto && hasContent`) — `media_viewer.dart`
-- [ ] spec §20.10 "Video Playback Controls": chapter dividers (2×10px marks on progress bar) still missing from `_SliderPainter` — quality selector and time-remaining with minus prefix were added — `media_viewer.dart`
-- [ ] spec §20.16.1 "Structured Context Menu": right-click `_buildMediaMenuItems()` still missing: Cancel Download, Attached Stickers, Set as Userpic, Report, Stealth Mode — Show in Folder, Copy, Share at Time, Delete, Save As, Show All Photos were added — `media_viewer.dart`
 
 ## §21 — Create Group / Channel Wizard
 
