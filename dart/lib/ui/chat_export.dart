@@ -163,16 +163,96 @@ class ExportTarget {
 }
 
 void showExportPanel(BuildContext context, ExportTarget target) {
-  showGeneralDialog(
-    context: context,
-    barrierDismissible: false,
-    barrierColor: Colors.transparent,
-    pageBuilder: (ctx, anim, secondAnim) => _ExportPanelDialog(target: target),
-    transitionDuration: const Duration(milliseconds: 200),
-    transitionBuilder: (ctx, anim, secondAnim, child) {
-      return FadeTransition(opacity: anim, child: child);
-    },
-  );
+  _ExportPanelController.show(context, target);
+}
+
+class _ExportPanelController {
+  static OverlayEntry? _entry;
+
+  static void show(BuildContext context, ExportTarget target) {
+    close();
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (_) => _FloatingExportPanel(
+        target: target,
+        onClose: close,
+      ),
+    );
+    _entry = entry;
+    Overlay.of(context).insert(entry);
+  }
+
+  static void close() {
+    _entry?.remove();
+    _entry = null;
+  }
+}
+
+class _FloatingExportPanel extends StatefulWidget {
+  final ExportTarget target;
+  final VoidCallback onClose;
+
+  const _FloatingExportPanel({required this.target, required this.onClose});
+
+  @override
+  State<_FloatingExportPanel> createState() => _FloatingExportPanelState();
+}
+
+class _FloatingExportPanelState extends State<_FloatingExportPanel>
+    with SingleTickerProviderStateMixin {
+  Offset? _position;
+  late AnimationController _fadeAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _fadeAnim.dispose();
+    super.dispose();
+  }
+
+  void _handleClose() {
+    _fadeAnim.reverse().then((_) {
+      widget.onClose();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final panelH = widget.target.mode != ExportMode.full
+        ? 540.0
+        : _exportPanelHeight;
+    _position ??= Offset(
+      (size.width - _exportPanelWidth) / 2,
+      (size.height - panelH) / 2,
+    );
+    return FadeTransition(
+      opacity: _fadeAnim,
+      child: Stack(
+        children: [
+          Positioned(
+            left: _position!.dx,
+            top: _position!.dy,
+            child: _ExportPanelDialog(
+              target: widget.target,
+              onClose: _handleClose,
+              onTitleDrag: (delta) {
+                setState(() => _position = _position! + delta);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 void showExportSuggestBox(BuildContext context, {VoidCallback? onStart}) {
@@ -185,8 +265,14 @@ void showExportSuggestBox(BuildContext context, {VoidCallback? onStart}) {
 
 class _ExportPanelDialog extends StatefulWidget {
   final ExportTarget target;
+  final VoidCallback? onClose;
+  final void Function(Offset)? onTitleDrag;
 
-  const _ExportPanelDialog({required this.target});
+  const _ExportPanelDialog({
+    required this.target,
+    this.onClose,
+    this.onTitleDrag,
+  });
 
   @override
   State<_ExportPanelDialog> createState() => _ExportPanelDialogState();
@@ -485,6 +571,14 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     }
   }
 
+  void _closePanel() {
+    if (widget.onClose != null) {
+      widget.onClose!();
+    } else {
+      Navigator.of(context).pop();
+    }
+  }
+
   Future<void> _handleClose() async {
     if (_phase == ExportPhase.processing) {
       final confirmed = await _showStopConfirmation();
@@ -492,10 +586,10 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
         _exportTimer?.cancel();
         _skipFileTimer?.cancel();
         context.read<ChatState>().stopExportBar();
-        Navigator.of(context).pop();
+        _closePanel();
       }
     } else {
-      Navigator.of(context).pop();
+      _closePanel();
     }
   }
 
@@ -823,40 +917,31 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     final borderColor =
         isDark ? const Color(0xFF0E1621) : const Color(0xFFE0E0E0);
 
-    return PopScope(
-      canPop: _phase != ExportPhase.processing,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _handleClose();
-      },
-      child: Center(
-        child: Material(
-          color: Colors.transparent,
-          child: Container(
-            width: _exportPanelWidth,
-            height: _isPerChat ? 540.0 : _exportPanelHeight,
-            decoration: BoxDecoration(
-              color: bgColor,
-              borderRadius: BorderRadius.circular(_boxRadius),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.3),
-                  blurRadius: 20,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        width: _exportPanelWidth,
+        height: _isPerChat ? 540.0 : _exportPanelHeight,
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(_boxRadius),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.3),
+              blurRadius: 20,
+              offset: const Offset(0, 4),
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(_boxRadius),
-              child: Column(
-                children: [
-                  _buildTitleBar(
-                      titleColor, subtextColor, borderColor),
-                  Expanded(
-                    child: _buildContent(subtextColor),
-                  ),
-                ],
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(_boxRadius),
+          child: Column(
+            children: [
+              _buildTitleBar(titleColor, subtextColor, borderColor),
+              Expanded(
+                child: _buildContent(subtextColor),
               ),
-            ),
+            ],
           ),
         ),
       ),
@@ -865,37 +950,42 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
 
   Widget _buildTitleBar(
       Color titleColor, Color subtextColor, Color borderColor) {
-    return Container(
-      height: _titleBarHeight,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: borderColor, width: 1),
+    return GestureDetector(
+      onPanUpdate: widget.onTitleDrag != null
+          ? (details) => widget.onTitleDrag!(details.delta)
+          : null,
+      child: Container(
+        height: _titleBarHeight,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: borderColor, width: 1),
+          ),
         ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              _title,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: titleColor,
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                _title,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: titleColor,
+                ),
               ),
             ),
-          ),
-          IconButton(
-            icon: Icon(Icons.close, size: 20, color: subtextColor),
-            onPressed: _handleClose,
-            splashRadius: 16,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(
-              minWidth: 32,
-              minHeight: 32,
+            IconButton(
+              icon: Icon(Icons.close, size: 20, color: subtextColor),
+              onPressed: _handleClose,
+              splashRadius: 16,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(
+                minWidth: 32,
+                minHeight: 32,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1408,7 +1498,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: _closePanel,
             style: TextButton.styleFrom(
               foregroundColor: subtextColor,
               padding:
@@ -2008,7 +2098,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
             child: ElevatedButton(
               onPressed: () {
                 _openExportFolder();
-                Navigator.of(context).pop();
+                _closePanel();
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: activeFg,
@@ -2215,15 +2305,16 @@ class _CalendarBoxState extends State<_CalendarBox> {
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 child: Row(
                   children: _weekDays
-                      .map((d) => SizedBox(
-                            width: 42,
-                            height: 30,
-                            child: Center(
-                              child: Text(d,
-                                  style: TextStyle(
-                                      fontSize: 12,
-                                      color: subtextColor,
-                                      fontWeight: FontWeight.w500)),
+                      .map((d) => Expanded(
+                            child: SizedBox(
+                              height: 30,
+                              child: Center(
+                                child: Text(d,
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        color: subtextColor,
+                                        fontWeight: FontWeight.w500)),
+                              ),
                             ),
                           ))
                       .toList(),
@@ -2269,7 +2360,6 @@ class _CalendarBoxState extends State<_CalendarBox> {
 
   Widget _buildDayGrid(int offset, int daysInMonth, Color textColor,
       Color subtextColor, Color accentColor) {
-    const cellWidth = 42.0;
     const cellHeight = 38.0;
     const selectedSize = 32.0;
 
@@ -2281,7 +2371,7 @@ class _CalendarBoxState extends State<_CalendarBox> {
       for (var col = 0; col < 7; col++) {
         final cellIndex = row * 7 + col;
         if (cellIndex < offset || day > daysInMonth) {
-          cells.add(SizedBox(width: cellWidth, height: cellHeight));
+          cells.add(Expanded(child: SizedBox(height: cellHeight)));
         } else {
           final thisDay = day;
           final date = DateTime(_year, _month, thisDay);
@@ -2298,40 +2388,41 @@ class _CalendarBoxState extends State<_CalendarBox> {
               now.day == thisDay;
 
           cells.add(
-            GestureDetector(
-              onTap: isDisabled
-                  ? null
-                  : () {
-                      Navigator.of(context)
-                          .pop(_CalendarResult(date: date));
-                    },
-              child: SizedBox(
-                width: cellWidth,
-                height: cellHeight,
-                child: Center(
-                  child: Container(
-                    width: selectedSize,
-                    height: selectedSize,
-                    decoration: isSelected
-                        ? BoxDecoration(
-                            shape: BoxShape.circle, color: accentColor)
-                        : isToday
-                            ? BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                    color: accentColor, width: 1),
-                              )
-                            : null,
-                    alignment: Alignment.center,
-                    child: Text(
-                      '$thisDay',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: isSelected
-                            ? Colors.white
-                            : isDisabled
-                                ? subtextColor.withValues(alpha: 0.4)
-                                : textColor,
+            Expanded(
+              child: GestureDetector(
+                onTap: isDisabled
+                    ? null
+                    : () {
+                        Navigator.of(context)
+                            .pop(_CalendarResult(date: date));
+                      },
+                child: SizedBox(
+                  height: cellHeight,
+                  child: Center(
+                    child: Container(
+                      width: selectedSize,
+                      height: selectedSize,
+                      decoration: isSelected
+                          ? BoxDecoration(
+                              shape: BoxShape.circle, color: accentColor)
+                          : isToday
+                              ? BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                      color: accentColor, width: 1),
+                                )
+                              : null,
+                      alignment: Alignment.center,
+                      child: Text(
+                        '$thisDay',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isSelected
+                              ? Colors.white
+                              : isDisabled
+                                  ? subtextColor.withValues(alpha: 0.4)
+                                  : textColor,
+                        ),
                       ),
                     ),
                   ),
