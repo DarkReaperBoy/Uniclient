@@ -67,20 +67,6 @@
 ## &sect;31 -- Saved Messages
 
 ## &sect;32 -- Stories
-- [ ] spec &sect;32.1 "Stories Bar (Chat List)": no horizontal stories strip above chat list with collapsed (35px height, 21px avatar) and expanded (77px height, 42px avatar) states, gradient ring for unread (#0dcc39 to #0992ef), or expansion trigger at 0.72 overscroll ratio found.
-- [ ] spec &sect;32.2 "Story Viewer Overlay": no full-screen story viewer with 540x960px max content, 8px corner radius, sibling previews, segmented progress bar (2px height, 4px gap), or navigation (tap left/right third) found.
-- [ ] spec &sect;32.3 "Story Header": no story header overlay with 28px avatar, name at (50,0), date at (50,17), privacy badges, or timestamp display found.
-- [ ] spec &sect;32.4 "Story Reactions": no reaction panel (210px width), like button (42x42), or suggested reaction bubbles found.
-- [ ] spec &sect;32.5 "Story Reply Compose": no story reply compose bar with #2c333d background, 21px corner radius, or storiesComposeWhiteText (#ffffff) found.
-- [ ] spec &sect;32.9 "Story Views List": no "Who Viewed" popup with stacked avatars (24px, 9px shift, 4px stroke) or 240x320px menu found.
-- [ ] spec &sect;32.10 "Stealth Mode": no stealth mode dialog with logo, 42px button, cooldown countdown, or toast notifications found.
-- [ ] spec &sect;32.15 "Story Creation Editor": `story_editor.dart` implements the editor but has notable gaps:
-- [ ] spec &sect;32.15.3 "Video Trim Slider": no video trim slider with 12 thumbnail frames, draggable handles, or duration constraints (1s-60s) found -- `story_editor.dart` only supports image files via FilePicker.
-- [ ] spec &sect;32.15.4 "Sticker Picker": no sticker panel integration via StickersPanelController/TabbedPanel with emoji/stickers/custom emoji tabs found -- `story_editor.dart` has no sticker insertion.
-- [ ] spec &sect;32.15.5 "Text Tool": text tool exists in `story_editor.dart` with alignment cycling, background styles (none/filled/outlined/shadowed), font picker, and color picker. However, only 4 fonts are offered (Regular/Typewriter/Serif/Handwriting) vs spec's 7. No font-size slider (spec requires vertical brush-size-style control mapped to 14-72pt) exists -- font size is hardcoded to 32.
-- [ ] spec &sect;32.15.8 "Privacy Selector": privacy dialog exists in `story_editor.dart` but uses a generic AlertDialog with RadioListTile instead of the spec's chip-row with 32px height / 16px radius pills above the caption bar.
-- [ ] spec &sect;32.15.9 "Duration Picker": duration picker exists as a PopupMenu with 6h/12h/24h/48h options but lacks the premium gate (lock icon on 48h for non-premium users) specified in the spec.
-- [ ] spec &sect;32.15.10 "Save to Profile / Allow Sharing Toggles": toggles exist in `story_editor.dart` with correct switch visual (36x20px pill, #4DB8FF active). "Allow Sharing" correctly hidden for Close Friends. However, subtitle text ("Story will stay on your profile after it expires" / "Let viewers share your story as a link") is missing.
 
 ## &sect;33 -- Contacts Screen
 - [ ] spec &sect;33.1 "Sort toggle button": `contacts_screen.dart` uses Icons.access_time / Icons.sort_by_alpha as Material icons -- spec requires specific `contactsSortOnlineIcon` / default icon, and a 48x54px hit area with 42px ripple circle at (1px, 6px). The current implementation is close but not pixel-exact.
