@@ -284,6 +284,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   final ScrollController _scrollController = ScrollController();
   bool _showTopShadow = false;
   bool _showBottomShadow = false;
+  bool _captionDialogOpen = false;
 
   @override
   void initState() {
@@ -400,7 +401,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       return KeyEventResult.handled;
     }
 
-    if (event.logicalKey == LogicalKeyboardKey.escape) {
+    if (event.logicalKey == LogicalKeyboardKey.escape && !_captionDialogOpen) {
       _closePreservingCaption();
       return KeyEventResult.handled;
     }
@@ -423,7 +424,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     final ctrl = HardwareKeyboard.instance.isControlPressed;
     final shift = HardwareKeyboard.instance.isShiftPressed;
 
-    if (event.logicalKey == LogicalKeyboardKey.escape) {
+    if (event.logicalKey == LogicalKeyboardKey.escape && !_captionDialogOpen) {
       _closePreservingCaption();
       return KeyEventResult.handled;
     }
@@ -497,6 +498,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   }
 
   Future<void> _showEditCaptionDialog(int fileIndex) async {
+    _captionDialogOpen = true;
     final current = _perFileCaptions[fileIndex] ?? '';
     final controller = TextEditingController(text: current);
     final result = await showDialog<String>(
@@ -525,6 +527,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
         ],
       ),
     );
+    _captionDialogOpen = false;
     controller.dispose();
     if (result == null) return;
     setState(() {
