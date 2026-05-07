@@ -36,38 +36,8 @@
 
 ## §16 — Settings: Privacy & Security
 
-### §16.1 Navigation / Build Order
-- [ ] spec §16.1 "60-second polling timer": implementation has `Timer.periodic(const Duration(seconds: 60))` for password state only — other privacy data is not polled — `privacy_settings_screen.dart:79-81`
-
-### §16.2 Security Section
-- [ ] spec §16.2.1 "Two-Step Verification flow": full flow implemented (check/set/manage password, recovery email confirm, password reset). Well done — `privacy_settings_screen.dart:375-414`
-- [ ] spec §16.2.2 "Auto-Delete Messages (Global TTL)": `_GlobalTTLScreen` exists with radio buttons and custom period. Implementation looks complete — `privacy_settings_screen.dart:364-373`
-- [ ] spec §16.2.3 "Passcode Lock": full create/check/manage flow with auto-lock timer implemented — `privacy_settings_screen.dart:309-349`
-- [ ] spec §16.2.4 "Passkeys": passkey fetching exists but the UI row may lack full management (add/remove passkeys) — `privacy_settings_screen.dart:153-166`
-- [ ] spec §16.2.6 "Blocked Users": shows count in right-label but clicking likely navigates to a blocked users screen that may lack the empty state Lottie animation and "Block User" button — `privacy_settings_screen.dart:169-178`
-
-### §16.3 Privacy Section
-- [ ] spec §16.3 "Privacy settings right-label with exception counts": implemented correctly with `_privacyLabel` showing "Everyone (+3, -2)" format — `privacy_settings_screen.dart:273-301`
-- [ ] spec §16.3.1-16.3.12 "Individual privacy EditPrivacyBox dialogs": need full verification that each opens with correct options (Everyone/Contacts/Close Friends/Nobody) and exception lists. The generic privacy row system exists but specific per-key behaviors (Phone Number's sub-section for "Who can find me", Last Seen's "Hide Read Time" toggle, Profile Photo's "Set Public Photo", etc.) are likely missing — `privacy_settings_screen.dart`
-- [ ] spec §16.3.4 "Forwarded Messages live preview bubble": spec says a rendered chat-view slice showing a forwarded message. This is likely not implemented — `privacy_settings_screen.dart`
-- [ ] spec §16.3.5 "Calls P2P sub-section": spec says a nested Peer-to-Peer privacy button below the Calls privacy row. Likely missing — `privacy_settings_screen.dart`
-- [ ] spec §16.3.7 "Messages from Non-Contacts charge-stars slider": messages privacy fetching exists with `_messagesPrivacyOption` and `_messagesChargeStars`. The star slider UI may exist but commission/USD info display is likely incomplete — `privacy_settings_screen.dart:210-222`
-- [ ] spec §16.3.9 "Gifts auto-save toggles (5 types + Show Icon)": gifts privacy with its 6 specialized toggles is likely not implemented — `privacy_settings_screen.dart`
-
-### §16.4 Archive and Mute
-- [ ] spec §16.4 "Archive and Mute toggle": fetched via engine and toggle exists — looks implemented — `privacy_settings_screen.dart:224-238`
-
-### §16.5 Bots and Websites
-- [ ] spec §16.5 "Clear Payment and Shipping Info button": `_buildBotsAndWebsitesSection` exists. Need to verify `ClearPaymentInfoBox` with two checkboxes and attention-styled Clear button — `privacy_settings_screen.dart:443`
-
 ### §16.6 File Confirmations
-- [ ] spec §16.6 "File extensions multi-line input and IP toggle": `_buildConfirmationExtensionsSection` exists — `privacy_settings_screen.dart:444`
-
-### §16.7 Suggest Frequent Contacts
-- [ ] spec §16.7 "Top Peers toggle": fetched and togglable — `privacy_settings_screen.dart:251-263`
-
-### §16.8 Self-Destruction
-- [ ] spec §16.8 "Account auto-delete SelfDestructionBox": fetched via `getAccountTTL`. Need to verify the dialog has correct radio options (1/3/6/12/18/24 months) — `privacy_settings_screen.dart:240-249`
+- [ ] spec §16.6 "File extensions multi-line input and IP toggle": `_buildConfirmationExtensionsSection` exists but the "Show IP in WebRTC calls" toggle is completely missing — only "No-Warning Extensions" button is present; spec requires both the multi-line extension input AND the IP toggle — `privacy_settings_screen.dart:1018-1050`
 
 ---
 
