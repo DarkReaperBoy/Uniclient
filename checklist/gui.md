@@ -70,9 +70,6 @@
 
 ## &sect;33 -- Contacts Screen
 
-## &sect;34 -- Calls History
-- [ ] spec &sect;34.14 "Call Settings Section": call settings screen exists with Output/Input/Call Devices/Camera/Other sections, device selectors, level meter (44 lines, 3px width, 5px spacing, 18px height -- matches spec). Missing: live camera preview (shows placeholder instead).
-
 ## &sect;35 -- Empty, Error & Loading States
 - [ ] spec &sect;35.1 "Empty Chat List": no Lottie `no_chats.tgs` animation at 120x120px, no "You have no conversations yet" text in dialogEmptyButtonLabel style (semibold), no "New Message" action button at bottom found in `app_state.dart`.
 - [ ] spec &sect;35.5 "Chat List Loading": no skeleton row loading animation with 60px name bar width, 100px status bar width, or glare sweep (1000ms slide + 1000ms pause) found. Loading shows CircularProgressIndicator instead of skeleton placeholders.
