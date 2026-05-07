@@ -89,14 +89,6 @@
 
 ## §43 — Read Receipts Detail
 
-- [ ] spec §43.1 "Trigger": spec says read receipts are accessed via right-click context menu "Seen by N" item; code has a `who_read` context menu item in chat_view.dart — implementation exists
-- [ ] spec §43.3 "1:1 private chat WhenReadAction": spec says private chats show "Read at HH:mm" with double-check icon instead of user list; code integrates read participants into the ReactionsDetailPanel Read tab but does not have a separate single-line WhenRead action for 1:1 chats — `reactions_detail.dart`
-- [ ] spec §43.4.1 "Row geometry Mode A (context menu submenu)": spec defines 40px rows with 30px avatar for context menu; code only implements Mode B (58px rows, 46px avatar) — no Mode A submenu exists — `reactions_detail.dart`
-- [ ] spec §43.5 "Loading state": spec says summary shows "Loading..." while unknown; code shows a `CircularProgressIndicator` while loading which is functionally equivalent — `reactions_detail.dart:313-316`
-- [ ] spec §43.8 "Time formatting": spec says timestamps formatted as "Today, HH:mm" / "Yesterday, HH:mm" / "Mon DD, HH:mm"; code implements `_formatReadDateLocal` with matching logic — verified OK in `reactions_detail.dart:777-795`
-- [ ] spec §43.10.3 "WhenRead line for private chats": spec defines `whenReadPadding`, `whenReadIconPosition`, `whenReadSkip` for the private-chat read-time row; code does not implement this separate private-chat read-time row — `reactions_detail.dart`
-- [ ] spec §43.12 "Privacy states (MyHidden/HisHidden)": spec says privacy states show "Read time hidden" with a clickable "Show" pill button; code does not handle `WhoReadState::MyHidden` or `HisHidden` states — `reactions_detail.dart`
-
 ## §44 — Spoiler Animation
 
 - [ ] spec §44.1 "Text spoiler rendering": spec says text behind spoiler is drawn at `opacity = 1 - spoilerOpacity` for cross-fade; `SpoilerTilePainter` draws particle overlay at `opacity = 1 - revealProgress` and the text below is expected to be drawn separately by the caller — particle overlay is correct, but the text cross-fade depends on the message_bubble integration
