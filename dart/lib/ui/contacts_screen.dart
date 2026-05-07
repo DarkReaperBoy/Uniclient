@@ -13,6 +13,7 @@ import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/theme.dart';
 import '../utils/country_data.dart';
+import 'confirm_box.dart';
 import 'input_dialogs.dart';
 import 'telegram_toast.dart';
 
@@ -61,6 +62,9 @@ class _ContactsBoxState extends State<_ContactsBox> {
   List<ContactInfo>? _globalResults;
 
   static const _autoSearchTimeout = Duration(milliseconds: 800);
+  static const _sortByOnlineThrottle = Duration(milliseconds: 3000);
+  Timer? _sortThrottleTimer;
+  List<ContactInfo>? _sortedCache;
 
   @override
   void initState() {
@@ -73,6 +77,7 @@ class _ContactsBoxState extends State<_ContactsBox> {
   @override
   void dispose() {
     _globalSearchTimer?.cancel();
+    _sortThrottleTimer?.cancel();
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     _searchFocusNode.dispose();
@@ -200,13 +205,25 @@ class _ContactsBoxState extends State<_ContactsBox> {
     return all.where((c) => _matchesContact(c, query)).toList();
   }
 
+  int _onlineSortKey(ContactInfo c) {
+    final nowSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    if (c.isOnline) return nowSec + 1;
+    if (c.lastSeenTs > 0) {
+      final onlineTill = c.lastSeenTs;
+      final clamped = onlineTill < nowSec + 1 ? onlineTill : nowSec + 1;
+      return clamped + 1;
+    }
+    return 0;
+  }
+
   List<ContactInfo> _sortedContacts(List<ContactInfo> list) {
     final sorted = List<ContactInfo>.from(list);
     switch (_sortMode) {
       case _SortMode.online:
         sorted.sort((a, b) {
-          if (a.isOnline && !b.isOnline) return -1;
-          if (!a.isOnline && b.isOnline) return 1;
+          final ka = _onlineSortKey(a);
+          final kb = _onlineSortKey(b);
+          if (ka != kb) return kb.compareTo(ka);
           return a.label.toLowerCase().compareTo(b.label.toLowerCase());
         });
       case _SortMode.alphabetical:
@@ -214,6 +231,14 @@ class _ContactsBoxState extends State<_ContactsBox> {
             (a, b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
     }
     return sorted;
+  }
+
+  void _throttledRefresh() {
+    if (_sortMode != _SortMode.online) return;
+    if (_sortThrottleTimer?.isActive == true) return;
+    _sortThrottleTimer = Timer(_sortByOnlineThrottle, () {
+      if (mounted) setState(() {});
+    });
   }
 
   List<ContactInfo> get _filteredContacts {
@@ -343,9 +368,14 @@ class _ContactsBoxState extends State<_ContactsBox> {
             Divider(height: 1, color: dividerColor),
             Flexible(
               child: _loading
-                  ? const SizedBox(
+                  ? SizedBox(
                       height: 200,
-                      child: Center(child: CircularProgressIndicator()),
+                      child: Center(
+                        child: Text(
+                          'Loading...',
+                          style: TextStyle(fontSize: 13, color: subtextColor),
+                        ),
+                      ),
                     )
                   : _error.isNotEmpty
                       ? SizedBox(
@@ -532,25 +562,32 @@ class _SortToggleState extends State<_SortToggle> {
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
         onTap: widget.onToggle,
-        child: Container(
+        child: SizedBox(
           width: 48,
           height: 54,
-          alignment: Alignment.center,
-          child: Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: _hovered ? hoverColor : Colors.transparent,
-            ),
-            alignment: Alignment.center,
-            child: Icon(
-              widget.mode == _SortMode.online
-                  ? Icons.access_time
-                  : Icons.sort_by_alpha,
-              size: 22,
-              color: iconColor,
-            ),
+          child: Stack(
+            children: [
+              Positioned(
+                left: 1,
+                top: 6,
+                child: Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _hovered ? hoverColor : Colors.transparent,
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(
+                    widget.mode == _SortMode.online
+                        ? Icons.access_time
+                        : Icons.sort_by_alpha,
+                    size: 22,
+                    color: iconColor,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -587,13 +624,20 @@ class _ContactRowState extends State<_ContactRow> {
   bool _hovered = false;
 
   static const _rowHeight = 56.0;
+  static const _rowHeightStory = 52.0;
   static const _avatarSize = 42.0;
   static const _avatarLeft = 16.0;
   static const _avatarTop = 7.0;
+  static const _avatarLeftStory = 18.0;
+  static const _avatarTopStory = 5.0;
   static const _nameLeft = 74.0;
   static const _nameTop = 9.0;
+  static const _nameLeftStory = 70.0;
+  static const _nameTopStory = 7.0;
   static const _statusLeft = 74.0;
   static const _statusTop = 30.0;
+  static const _statusLeftStory = 70.0;
+  static const _statusTopStory = 27.0;
   static const _rightPad = 16.0;
   static const _ringStrokeUnread = 2.0;
   static const _ringStrokeRead = 1.0;
@@ -656,45 +700,69 @@ class _ContactRowState extends State<_ContactRow> {
     final contact = widget.contact;
     final appState = context.read<AppState>();
     final engine = context.read<EngineService>();
+    final iconColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF222222);
+    final errorColor = const Color(0xFFe53935);
+    final isContact = !contact.displayName.startsWith('@');
     showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx + 1, position.dy + 1),
       items: [
-        PopupMenuItem(value: 'edit', child: Row(children: [
-          Icon(Icons.edit, size: 20, color: isDark ? const Color(0xFFF5F5F5) : const Color(0xFF222222)),
-          const SizedBox(width: 12),
-          const Text('Edit Contact'),
-        ])),
-        PopupMenuItem(value: 'share', child: Row(children: [
-          Icon(Icons.person_add, size: 20, color: isDark ? const Color(0xFFF5F5F5) : const Color(0xFF222222)),
-          const SizedBox(width: 12),
-          const Text('Share Contact'),
-        ])),
-        PopupMenuItem(value: 'delete', child: Row(children: [
-          Icon(Icons.delete, size: 20, color: Theme.of(context).colorScheme.error),
-          const SizedBox(width: 12),
-          Text('Delete Contact', style: TextStyle(color: Theme.of(context).colorScheme.error)),
-        ])),
+        if (!isContact)
+          PopupMenuItem(value: 'add', child: Row(children: [
+            Icon(Icons.person_add_alt_1, size: 20, color: iconColor),
+            const SizedBox(width: 12),
+            const Text('Add Contact'),
+          ])),
+        if (isContact)
+          PopupMenuItem(value: 'edit', child: Row(children: [
+            Icon(Icons.edit_outlined, size: 20, color: iconColor),
+            const SizedBox(width: 12),
+            const Text('Edit Contact'),
+          ])),
+        if (isContact)
+          PopupMenuItem(value: 'share', child: Row(children: [
+            Icon(Icons.person_add_alt_1, size: 20, color: iconColor),
+            const SizedBox(width: 12),
+            const Text('Share Contact'),
+          ])),
+        if (isContact)
+          PopupMenuItem(value: 'delete', child: Row(children: [
+            Icon(Icons.delete_outline, size: 20, color: errorColor),
+            const SizedBox(width: 12),
+            Text('Delete Contact', style: TextStyle(color: errorColor)),
+          ])),
         if (!contact.isBot)
           PopupMenuItem(value: 'block', child: Row(children: [
-            Icon(Icons.block, size: 20, color: Theme.of(context).colorScheme.error),
+            Icon(Icons.block, size: 20, color: errorColor),
             const SizedBox(width: 12),
-            Text('Block User', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            Text('Block User', style: TextStyle(color: errorColor)),
           ])),
       ],
     ).then((value) {
       if (value == null || !mounted) return;
       switch (value) {
+        case 'add':
+          showAddContactBox(context);
         case 'edit':
           _editContact(contact, appState, engine);
+        case 'share':
+          _shareContact(contact, appState, engine);
         case 'delete':
           _deleteContact(contact, appState, engine);
         case 'block':
           _blockUser(contact, appState, engine);
-        default:
-          break;
       }
     });
+  }
+
+  void _shareContact(ContactInfo contact, AppState appState, EngineService engine) {
+    showShareContactBox(
+      context,
+      contactPhone: contact.phone,
+      contactFirstName: contact.displayName.split(' ').first,
+      contactLastName: contact.displayName.split(' ').skip(1).join(' '),
+      contactUserId: contact.userId,
+    );
   }
 
   void _editContact(ContactInfo contact, AppState appState, EngineService engine) {
@@ -711,47 +779,31 @@ class _ContactRowState extends State<_ContactRow> {
   void _deleteContact(ContactInfo contact, AppState appState, EngineService engine) {
     final account = appState.activeAccount;
     if (account == null) return;
-    showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Contact'),
-        content: Text('Delete ${contact.label} from your contacts?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Delete', style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
-          ),
-        ],
-      ),
-    ).then((confirmed) {
-      if (confirmed == true) {
+    showConfirmBox(
+      context,
+      text: 'Delete ${contact.label} from your contacts?',
+      title: 'Delete Contact',
+      confirmText: 'Delete',
+      isDestructive: true,
+      onConfirm: () {
         engine.deleteContact(account.id, contact.userId);
-      }
-    });
+      },
+    );
   }
 
   void _blockUser(ContactInfo contact, AppState appState, EngineService engine) {
     final account = appState.activeAccount;
     if (account == null) return;
-    showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Block User'),
-        content: Text('Block ${contact.label}?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Block', style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
-          ),
-        ],
-      ),
-    ).then((confirmed) {
-      if (confirmed == true) {
+    showConfirmBox(
+      context,
+      text: 'Block ${contact.label}?',
+      title: 'Block User',
+      confirmText: 'Block',
+      isDestructive: true,
+      onConfirm: () {
         engine.blockUser(account.id, contact.userId);
-      }
-    });
+      },
+    );
   }
 
   @override
@@ -766,8 +818,15 @@ class _ContactRowState extends State<_ContactRow> {
 
     final ringStroke = contact.hasUnreadStory ? _ringStrokeUnread : _ringStrokeRead;
     final ringOuterSize = hasStories ? _avatarSize + (ringStroke + _ringGap) * 2 : _avatarSize;
-    final avatarOffsetX = hasStories ? _avatarLeft - (ringOuterSize - _avatarSize) / 2 : _avatarLeft;
-    final avatarOffsetY = hasStories ? _avatarTop - (ringOuterSize - _avatarSize) / 2 : _avatarTop;
+    final baseAvatarLeft = hasStories ? _avatarLeftStory : _avatarLeft;
+    final baseAvatarTop = hasStories ? _avatarTopStory : _avatarTop;
+    final avatarOffsetX = hasStories ? baseAvatarLeft - (ringOuterSize - _avatarSize) / 2 : baseAvatarLeft;
+    final avatarOffsetY = hasStories ? baseAvatarTop - (ringOuterSize - _avatarSize) / 2 : baseAvatarTop;
+    final rowHeight = hasStories ? _rowHeightStory : _rowHeight;
+    final nameLeft = hasStories ? _nameLeftStory : _nameLeft;
+    final nameTop = hasStories ? _nameTopStory : _nameTop;
+    final statusLeft = hasStories ? _statusLeftStory : _statusLeft;
+    final statusTop = hasStories ? _statusTopStory : _statusTop;
 
     Widget avatarWidget = contact.avatarB64.isNotEmpty
         ? ClipOval(
@@ -899,7 +958,7 @@ class _ContactRowState extends State<_ContactRow> {
           child: Ink(
             color: _hovered ? widget.hoverBg : Colors.transparent,
             child: SizedBox(
-              height: _rowHeight,
+              height: rowHeight,
               child: Stack(
                 children: [
                   Positioned(
@@ -908,8 +967,8 @@ class _ContactRowState extends State<_ContactRow> {
                     child: avatarArea,
                   ),
                   Positioned(
-                    left: _nameLeft,
-                    top: _nameTop,
+                    left: nameLeft,
+                    top: nameTop,
                     right: _rightPad,
                     child: RichText(
                       maxLines: 1,
@@ -926,8 +985,8 @@ class _ContactRowState extends State<_ContactRow> {
                     ),
                   ),
                   Positioned(
-                    left: _statusLeft,
-                    top: _statusTop,
+                    left: statusLeft,
+                    top: statusTop,
                     right: _rightPad,
                     child: Text(
                       statusText,
@@ -1159,34 +1218,48 @@ class _AddContactBoxState extends State<_AddContactBox> {
               ),
             ),
             const SizedBox(height: 2),
-            // First name field
-            Padding(
-              padding: const EdgeInsets.fromLTRB(49, 0, 14, 0),
-              child: _InputField(
-                controller: _firstNameCtrl,
-                focusNode: _firstNameFocus,
-                label: 'First name',
-                textColor: textColor,
-                labelColor: labelColor,
-                borderColor: borderColor,
-                focusBorderColor: focusBorderColor,
-                onSubmitted: (_) => _lastNameFocus.requestFocus(),
-              ),
-            ),
-            const SizedBox(height: 9),
-            // Last name field
-            Padding(
-              padding: const EdgeInsets.fromLTRB(49, 0, 14, 0),
-              child: _InputField(
-                controller: _lastNameCtrl,
-                focusNode: _lastNameFocus,
-                label: 'Last name',
-                textColor: textColor,
-                labelColor: labelColor,
-                borderColor: borderColor,
-                focusBorderColor: focusBorderColor,
-                onSubmitted: (_) => _phoneFocus.requestFocus(),
-              ),
+            // First name + last name fields with icon at contactIconPosition (-5, 23)
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(49, 0, 14, 0),
+                      child: _InputField(
+                        controller: _firstNameCtrl,
+                        focusNode: _firstNameFocus,
+                        label: 'First name',
+                        textColor: textColor,
+                        labelColor: labelColor,
+                        borderColor: borderColor,
+                        focusBorderColor: focusBorderColor,
+                        onSubmitted: (_) => _lastNameFocus.requestFocus(),
+                      ),
+                    ),
+                    const SizedBox(height: 9),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(49, 0, 14, 0),
+                      child: _InputField(
+                        controller: _lastNameCtrl,
+                        focusNode: _lastNameFocus,
+                        label: 'Last name',
+                        textColor: textColor,
+                        labelColor: labelColor,
+                        borderColor: borderColor,
+                        focusBorderColor: focusBorderColor,
+                        onSubmitted: (_) => _phoneFocus.requestFocus(),
+                      ),
+                    ),
+                  ],
+                ),
+                Positioned(
+                  left: 49 + (-5),
+                  top: 23,
+                  child: Icon(Icons.person, size: 24, color: labelColor),
+                ),
+              ],
             ),
             const SizedBox(height: 30),
             // Phone number with country code
@@ -1400,11 +1473,14 @@ class _CountrySelectBoxState extends State<_CountrySelectBox> {
   String _query = '';
   int _selectedIndex = 0;
   late final ScrollController _scrollCtrl;
+  late final FocusNode _keyboardFocus;
+  static const _itemHeight = 36.0;
 
   @override
   void initState() {
     super.initState();
     _scrollCtrl = ScrollController();
+    _keyboardFocus = FocusNode();
     final idx = countries.indexWhere((c) => c.iso == widget.selected.iso);
     if (idx >= 0) _selectedIndex = idx;
   }
@@ -1413,7 +1489,55 @@ class _CountrySelectBoxState extends State<_CountrySelectBox> {
   void dispose() {
     _searchCtrl.dispose();
     _scrollCtrl.dispose();
+    _keyboardFocus.dispose();
     super.dispose();
+  }
+
+  void _handleKeyEvent(KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return;
+    final filtered = _filtered;
+    if (filtered.isEmpty) return;
+
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.arrowDown) {
+      setState(() {
+        _selectedIndex = (_selectedIndex + 1).clamp(0, filtered.length - 1);
+      });
+      _ensureVisible(_selectedIndex);
+    } else if (key == LogicalKeyboardKey.arrowUp) {
+      setState(() {
+        _selectedIndex = (_selectedIndex - 1).clamp(0, filtered.length - 1);
+      });
+      _ensureVisible(_selectedIndex);
+    } else if (key == LogicalKeyboardKey.pageDown) {
+      final pageItems = ((_scrollCtrl.position.viewportDimension) / _itemHeight).floor();
+      setState(() {
+        _selectedIndex = (_selectedIndex + pageItems).clamp(0, filtered.length - 1);
+      });
+      _ensureVisible(_selectedIndex);
+    } else if (key == LogicalKeyboardKey.pageUp) {
+      final pageItems = ((_scrollCtrl.position.viewportDimension) / _itemHeight).floor();
+      setState(() {
+        _selectedIndex = (_selectedIndex - pageItems).clamp(0, filtered.length - 1);
+      });
+      _ensureVisible(_selectedIndex);
+    } else if (key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.numpadEnter) {
+      if (_selectedIndex >= 0 && _selectedIndex < filtered.length) {
+        widget.onSelect(filtered[_selectedIndex]);
+      }
+    }
+  }
+
+  void _ensureVisible(int index) {
+    if (!_scrollCtrl.hasClients) return;
+    final targetOffset = index * _itemHeight;
+    final viewport = _scrollCtrl.position.viewportDimension;
+    final current = _scrollCtrl.offset;
+    if (targetOffset < current) {
+      _scrollCtrl.jumpTo(targetOffset);
+    } else if (targetOffset + _itemHeight > current + viewport) {
+      _scrollCtrl.jumpTo(targetOffset + _itemHeight - viewport);
+    }
   }
 
   List<CountryInfo> get _filtered {
@@ -1445,99 +1569,106 @@ class _CountrySelectBoxState extends State<_CountrySelectBox> {
     final buttonColor = isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
     final filtered = _filtered;
 
-    return Dialog(
-      backgroundColor: bgColor,
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 320, maxHeight: 500),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              height: 54,
-              child: Row(
-                children: [
-                  const SizedBox(width: 24),
-                  Text(
-                    'Choose a country',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-              child: SizedBox(
-                height: 36,
-                child: TextField(
-                  controller: _searchCtrl,
-                  autofocus: true,
-                  style: TextStyle(fontSize: 13, color: textColor),
-                  decoration: InputDecoration(
-                    hintText: 'Search',
-                    hintStyle: TextStyle(fontSize: 13, color: subtextColor),
-                    prefixIcon: Icon(Icons.search, size: 18, color: subtextColor),
-                    filled: true,
-                    fillColor: searchBg,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide.none),
-                  ),
-                  onChanged: (v) {
-                    setState(() {
-                      _query = v.toLowerCase().trim();
-                      _selectedIndex = 0;
-                    });
-                  },
+    return KeyboardListener(
+      focusNode: _keyboardFocus,
+      autofocus: false,
+      onKeyEvent: _handleKeyEvent,
+      child: Dialog(
+        backgroundColor: bgColor,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 320, maxHeight: 500),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: 54,
+                child: Row(
+                  children: [
+                    const SizedBox(width: 24),
+                    Text(
+                      'Choose a country',
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
+                    ),
+                  ],
                 ),
               ),
-            ),
-            Divider(height: 1, color: dividerColor),
-            Flexible(
-              child: filtered.isEmpty
-                  ? SizedBox(
-                      height: 100,
-                      child: Center(
-                        child: Text('No countries found', style: TextStyle(fontSize: 14, color: subtextColor)),
-                      ),
-                    )
-                  : ListView.builder(
-                      controller: _scrollCtrl,
-                      shrinkWrap: true,
-                      itemCount: filtered.length,
-                      itemExtent: 36,
-                      itemBuilder: (ctx, i) {
-                        final c = filtered[i];
-                        return _CountryRow(
-                          country: c,
-                          textColor: textColor,
-                          codeColor: subtextColor,
-                          hoverBg: hoverBg,
-                          onTap: () => widget.onSelect(c),
-                        );
-                      },
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                child: SizedBox(
+                  height: 36,
+                  child: TextField(
+                    controller: _searchCtrl,
+                    autofocus: true,
+                    style: TextStyle(fontSize: 13, color: textColor),
+                    decoration: InputDecoration(
+                      hintText: 'Search',
+                      hintStyle: TextStyle(fontSize: 13, color: subtextColor),
+                      prefixIcon: Icon(Icons.search, size: 18, color: subtextColor),
+                      filled: true,
+                      fillColor: searchBg,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide.none),
                     ),
-            ),
-            Divider(height: 1, color: dividerColor),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: TextButton.styleFrom(
-                      foregroundColor: buttonColor,
-                      textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    ),
-                    child: const Text('Cancel'),
+                    onChanged: (v) {
+                      setState(() {
+                        _query = v.toLowerCase().trim();
+                        _selectedIndex = 0;
+                      });
+                    },
                   ),
-                ],
+                ),
               ),
-            ),
-          ],
+              Divider(height: 1, color: dividerColor),
+              Flexible(
+                child: filtered.isEmpty
+                    ? SizedBox(
+                        height: 100,
+                        child: Center(
+                          child: Text('No countries found', style: TextStyle(fontSize: 14, color: subtextColor)),
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: _scrollCtrl,
+                        shrinkWrap: true,
+                        itemCount: filtered.length,
+                        itemExtent: _itemHeight,
+                        itemBuilder: (ctx, i) {
+                          final c = filtered[i];
+                          return _CountryRow(
+                            country: c,
+                            textColor: textColor,
+                            codeColor: subtextColor,
+                            hoverBg: hoverBg,
+                            isKeyboardSelected: i == _selectedIndex,
+                            selectedBg: isDark ? const Color(0xFF2B3A49) : const Color(0xFFE3E3E3),
+                            onTap: () => widget.onSelect(c),
+                          );
+                        },
+                      ),
+              ),
+              Divider(height: 1, color: dividerColor),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: TextButton.styleFrom(
+                        foregroundColor: buttonColor,
+                        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      ),
+                      child: const Text('Cancel'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1549,6 +1680,8 @@ class _CountryRow extends StatefulWidget {
   final Color textColor;
   final Color codeColor;
   final Color hoverBg;
+  final bool isKeyboardSelected;
+  final Color selectedBg;
   final VoidCallback onTap;
 
   const _CountryRow({
@@ -1556,6 +1689,8 @@ class _CountryRow extends StatefulWidget {
     required this.textColor,
     required this.codeColor,
     required this.hoverBg,
+    this.isKeyboardSelected = false,
+    this.selectedBg = Colors.transparent,
     required this.onTap,
   });
 
@@ -1577,7 +1712,7 @@ class _CountryRowState extends State<_CountryRow> {
         child: Container(
           height: 36,
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          color: _hovered ? widget.hoverBg : Colors.transparent,
+          color: _hovered ? widget.hoverBg : (widget.isKeyboardSelected ? widget.selectedBg : Colors.transparent),
           child: Row(
             children: [
               Expanded(
@@ -1683,10 +1818,13 @@ class _EditContactBox extends StatefulWidget {
 class _EditContactBoxState extends State<_EditContactBox> {
   late final TextEditingController _firstNameCtrl;
   late final TextEditingController _lastNameCtrl;
+  late final TextEditingController _notesCtrl;
   late final FocusNode _firstNameFocus;
   late final FocusNode _lastNameFocus;
+  late final FocusNode _notesFocus;
   bool _saving = false;
   String? _error;
+  static const _notesMaxLength = 70;
 
   String get _liveName {
     final first = _firstNameCtrl.text.trim();
@@ -1701,8 +1839,10 @@ class _EditContactBoxState extends State<_EditContactBox> {
     final parts = _splitName(widget.contact.displayName);
     _firstNameCtrl = TextEditingController(text: parts.$1);
     _lastNameCtrl = TextEditingController(text: parts.$2);
+    _notesCtrl = TextEditingController();
     _firstNameFocus = FocusNode();
     _lastNameFocus = FocusNode();
+    _notesFocus = FocusNode();
     _firstNameCtrl.addListener(_onNameChanged);
     _lastNameCtrl.addListener(_onNameChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1726,8 +1866,10 @@ class _EditContactBoxState extends State<_EditContactBox> {
     _lastNameCtrl.removeListener(_onNameChanged);
     _firstNameCtrl.dispose();
     _lastNameCtrl.dispose();
+    _notesCtrl.dispose();
     _firstNameFocus.dispose();
     _lastNameFocus.dispose();
+    _notesFocus.dispose();
     super.dispose();
   }
 
@@ -1765,63 +1907,17 @@ class _EditContactBoxState extends State<_EditContactBox> {
     final engine = widget.engine;
     final account = widget.appState.activeAccount;
     if (account == null) return;
-    showDialog<bool>(
-      context: context,
-      builder: (ctx) {
-        final isDark = Theme.of(ctx).brightness == Brightness.dark;
-        final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
-        final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
-        final buttonColor = isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
-        return Dialog(
-          backgroundColor: bgColor,
-          surfaceTintColor: Colors.transparent,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 320),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Delete Contact',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Are you sure you want to delete ${contact.label} from your contacts?',
-                    style: TextStyle(fontSize: 14, color: textColor),
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        style: TextButton.styleFrom(foregroundColor: buttonColor),
-                        child: const Text('Cancel'),
-                      ),
-                      const SizedBox(width: 8),
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx, true),
-                        style: TextButton.styleFrom(foregroundColor: const Color(0xFFe53935)),
-                        child: const Text('Delete'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    ).then((confirmed) {
-      if (confirmed == true) {
-        engine.deleteContact(account!.id, contact.userId);
+    showConfirmBox(
+      context,
+      text: 'Are you sure you want to delete ${contact.label} from your contacts?',
+      title: 'Delete Contact',
+      confirmText: 'Delete',
+      isDestructive: true,
+      onConfirm: () {
+        engine.deleteContact(account.id, contact.userId);
         if (mounted) Navigator.of(context).pop(true);
-      }
-    });
+      },
+    );
   }
 
   @override
@@ -1959,8 +2055,38 @@ class _EditContactBoxState extends State<_EditContactBox> {
                 onSubmitted: (_) => _save(),
               ),
             ),
+            // Notes field
+            Padding(
+              padding: const EdgeInsets.fromLTRB(19, 0, 19, 10),
+              child: TextField(
+                controller: _notesCtrl,
+                focusNode: _notesFocus,
+                maxLines: 3,
+                minLines: 1,
+                maxLength: _notesMaxLength,
+                style: TextStyle(fontSize: 15, color: isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000)),
+                decoration: InputDecoration(
+                  labelText: 'Notes',
+                  labelStyle: TextStyle(fontSize: 14, color: subtextColor),
+                  floatingLabelStyle: TextStyle(fontSize: 12, color: focusBorderColor),
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                  enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: borderColor)),
+                  focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: focusBorderColor, width: 2)),
+                  counterStyle: TextStyle(fontSize: 11, color: subtextColor),
+                ),
+              ),
+            ),
             // Photo management buttons
             Divider(height: 1, color: dividerColor),
+            _SettingsButtonRow(
+              icon: Icons.card_giftcard,
+              label: 'Suggest photo',
+              iconColor: buttonColor,
+              textColor: textColor,
+              hoverBg: settingsBtnBg,
+              onTap: () {},
+            ),
             _SettingsButtonRow(
               icon: Icons.add_a_photo_outlined,
               label: 'Set personal photo',
