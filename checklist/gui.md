@@ -39,34 +39,7 @@
 ## §17 — Settings: Data, Storage & Advanced
 
 ### §17.2 Data and Storage
-- [ ] spec §17.2.1 "Connection type right-label": hardcoded "Using TCP" — should dynamically reflect actual connection state (proxy info, etc.) — `advanced_settings_screen.dart:219`
-- [ ] spec §17.2.1 "ProxiesBox": `_ProxiesBox` exists as a dialog. Need to verify it has IPv6 checkbox, proxy list, edit dialog, and keyboard shortcuts (Ctrl+C/V) — `advanced_settings_screen.dart:225-228`
-- [ ] spec §17.2.3 "LocalStorageBox": `_LocalStorageBox` exists. Need to verify sliders (total cache 18 positions, media cache 18 positions, time limit 16 positions) and per-tag clear buttons — `advanced_settings_screen.dart:247-250`
-- [ ] spec §17.2.4 "Recent Downloads": `_RecentDownloadsBox` exists but may be a stub — `advanced_settings_screen.dart:258-261`
-
-### §17.3 Automatic Media Download
-- [ ] spec §17.3 "AutoDownloadBox": `_AutoDownloadBox` exists per source type. Need to verify Photos/Files toggles + size limit slider (10MB default) and Video messages/Videos/GIFs + size limit (50MB default) — `advanced_settings_screen.dart:398-403`
-
-### §17.4 Window Title
-- [ ] spec §17.4 "Native Frame toggle lives in System Integration, not Window Title": implementation puts the native frame toggle in `_buildWindowTitle` method. Per spec §17.6 it should be in System Integration — `advanced_settings_screen.dart:448-456`
-
-### §17.6 System Integration
-- [ ] spec §17.6.3 "Start minimized forced off when passcode set": implementation shows/hides based on `launchAtStartup` but does not check for local passcode and show explanatory label — `advanced_settings_screen.dart:542-556`
-- [ ] spec §17.6 "Add to Send To menu (Windows only)": missing entirely — `advanced_settings_screen.dart:486-558`
-- [ ] spec §17.6 "macOS-specific items (Warn before quit, System text replacements, Round dock icon)": missing entirely — `advanced_settings_screen.dart:486-558`
-
-### §17.7 Performance
-- [ ] spec §17.7.3 "ANGLE Backend (Windows)": implementation shows a simple toggle instead of spec's `SingleChoiceBox` with 5 options (Auto/D3D11/D3D9/D3D11on12/Disabled) — `advanced_settings_screen.dart:598-611`
-- [ ] spec §17.7.4 "OpenGL toggle restart dialog": shows restart dialog but spec says "Restart now?" with Restart/Cancel buttons and actual `Core::Restart()` call. Implementation shows an OK-only info dialog — `advanced_settings_screen.dart:615-665`
-
-### §17.8 Spellchecker
-- [ ] spec §17.8 "Auto-download dictionaries toggle visibility": spec says visible only when custom spellchecker ON. Implementation checks `spellcheckerEnabled` which is correct — `advanced_settings_screen.dart:692-711`
-
-### §17.10 Software Update
-- [ ] spec §17.10 "Install ready overlay with accent-colored update button": no "Update Telegram" / "Install Now" button when update is ready — the fake update check always returns "latest" — `advanced_settings_screen.dart:109-113`
-
-### §17.11 Export & Experimental
-- [ ] spec §17.11 "Experimental Settings": `ExperimentalSettingsBox` exists with toggle rows and import/export. Need to verify import/export uses `tdesktop-flags:` prefix — `advanced_settings_screen.dart:762-769`
+- [ ] spec §17.2.1 "Connection type right-label": hardcoded "Using TCP" — should dynamically reflect actual connection state (proxy info, etc.) — `advanced_settings_screen.dart:104-106`. Proxy mode stored in `_ProxiesBoxState` (widget-local) is not exposed to AppState; `_connectionTypeLabel()` always returns `'Using TCP'` regardless of proxy configuration.
 
 ---
 
