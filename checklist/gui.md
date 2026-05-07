@@ -49,10 +49,6 @@
 ## §22 — Forum Topics UI
 
 
-## §23 — Scheduled Messages
-
-- [ ] spec §23.7 "Sent-to-Scheduled Toast": when scheduling from normal compose, should auto-navigate to scheduled section — `_sendMessage()` at `chat_view.dart:3709` shows a "Message scheduled" toast but does NOT call `chatState.toggleScheduledView()` — auto-navigation is missing — `chat_view.dart`
-
 ## §24 — Keyboard Shortcuts
 
 - [ ] spec §24.2 "Shortcut Customization JSON": `shortcuts-default.json` and `shortcuts-custom.json` in config dir — implemented correctly with write/load logic — `keyboard_shortcuts.dart` (OK)
