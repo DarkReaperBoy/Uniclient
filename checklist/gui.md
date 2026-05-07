@@ -55,7 +55,6 @@
 # Audit: &sect;26-&sect;36 Admin, Export, Contacts, Calls, States
 
 ## &sect;26 -- Admin Tools
-- [ ] spec &sect;26.6 "Invite Links Management": InviteLinksBox is implemented with permanent link display, "Create a New Link" button, active/revoked link sections, color-coded progress arcs, link context menu, single link info box, and create/edit link form — but QR code option is missing from the link context menu (spec §26.6.3 requires Copy/Share/QR/Edit/Revoke/Delete) and the QR code dialog (spec §26.6.5) is not implemented at all. No `qr` / `Qr` / `QR` references exist anywhere in admin_tools.dart.
 
 ## &sect;27 -- Passcode Lock Screen
 - [ ] spec &sect;27.1 "Settings Entry Point": no "Local passcode" row in Privacy & Security settings with On/Off label and menuIconLock icon found anywhere in the codebase.
