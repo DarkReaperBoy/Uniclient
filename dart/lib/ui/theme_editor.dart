@@ -29,6 +29,7 @@ class ThemeEditorScreen extends StatefulWidget {
 class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
   late Map<String, Color> _colorMap;
   late TelegramPalette _currentPalette;
+  Map<String, String> _referenceChain = {};
   final _searchController = TextEditingController();
   String _filter = '';
   int _focusedIndex = -1;
@@ -107,6 +108,7 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
     setState(() {
       _currentPalette = parsed.palette;
       _colorMap = paletteToMap(_currentPalette);
+      _referenceChain = parsed.referenceChain;
       _editingIndex = null;
     });
     widget.onPaletteChanged(_currentPalette);
@@ -334,6 +336,7 @@ class _ThemeEditorScreenState extends State<ThemeEditorScreen> {
                   return _PaletteEntryRow(
                     token: entry.key,
                     color: entry.value,
+                    referenceName: _referenceChain[entry.key],
                     backgroundColor: rowBg,
                     textColor: isEditing ? _currentPalette.dialogsNameFgActive : textColor,
                     subtextColor: isEditing ? _currentPalette.dialogsTextFgActive : subtextColor,
@@ -368,6 +371,7 @@ class _PaletteEntryRow extends StatefulWidget {
   final Color subtextColor;
   final Color hoverColor;
   final Color accentColor;
+  final String? referenceName;
   final bool isEditing;
   final VoidCallback onTap;
   final void Function(Color) onColorChanged;
@@ -385,6 +389,7 @@ class _PaletteEntryRow extends StatefulWidget {
     required this.onColorChanged,
     required this.onEditDone,
     required this.accentColor,
+    this.referenceName,
   });
 
   @override
@@ -537,6 +542,19 @@ class _PaletteEntryRowState extends State<_PaletteEntryRow> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
+                          if (widget.referenceName != null) ...[
+                            const SizedBox(height: 1),
+                            Text(
+                              '= ${widget.referenceName}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: widget.subtextColor.withAlpha(180),
+                                fontFamily: 'monospace',
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                           const SizedBox(height: 2),
                           Text(
                             _colorToHexString(widget.color),

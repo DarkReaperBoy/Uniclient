@@ -263,12 +263,10 @@ class ChatWallpaper extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         bg,
-        Opacity(
+        _PatternOverlay(
+          patternBytes: wallpaper.patternBytes!,
+          intensity: intensity,
           opacity: opacity,
-          child: _PatternOverlay(
-            patternBytes: wallpaper.patternBytes!,
-            useDestinationIn: intensity < 0,
-          ),
         ),
       ],
     );
@@ -371,7 +369,7 @@ class _MultiGradientPainter extends CustomPainter {
 
     final realRotation = (baseRotation * 2) % 720;
     final phase = (realRotation ~/ 360).isOdd;
-    final t = phase ? 1.0 - progress : progress;
+    final t = phase ? 1.0 - progress * 0.5 : 0.5 + progress * 0.5;
     final angle = (realRotation % 360 + t * 360) * math.pi / 180.0;
 
     final cx = size.width / 2;
@@ -455,42 +453,68 @@ class _TiledPainter extends CustomPainter {
 
 class _PatternOverlay extends StatelessWidget {
   final Uint8List patternBytes;
-  final bool useDestinationIn;
+  final int intensity;
+  final double opacity;
 
   const _PatternOverlay({
     required this.patternBytes,
-    required this.useDestinationIn,
+    required this.intensity,
+    required this.opacity,
   });
 
   @override
   Widget build(BuildContext context) {
-    if (useDestinationIn) {
-      return ColorFiltered(
-        colorFilter: const ColorFilter.mode(Colors.white, BlendMode.dstIn),
-        child: Image.memory(
-          patternBytes,
-          fit: BoxFit.cover,
-          width: double.infinity,
-          height: double.infinity,
-          gaplessPlayback: true,
+    final patternImage = Image.memory(
+      patternBytes,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+      gaplessPlayback: true,
+    );
+
+    if (intensity >= 0) {
+      return Opacity(
+        opacity: opacity,
+        child: ShaderMask(
+          blendMode: BlendMode.softLight,
+          shaderCallback: (bounds) => const LinearGradient(
+            colors: [Colors.white, Colors.white],
+          ).createShader(bounds),
+          child: patternImage,
         ),
       );
     }
 
-    return ShaderMask(
-      blendMode: BlendMode.softLight,
-      shaderCallback: (bounds) => const LinearGradient(
-        colors: [Colors.white, Colors.white],
-      ).createShader(bounds),
-      child: Image.memory(
-        patternBytes,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        gaplessPlayback: true,
+    // §25.8.4 / §25.17.4: negative intensity uses DestinationIn + SourceOver black fill
+    return CustomPaint(
+      foregroundPainter: _NegativePatternPainter(
+        darkenOpacity: intensity > -100 ? 1.0 + (intensity / 100.0) : 0.0,
+      ),
+      child: ColorFiltered(
+        colorFilter: const ColorFilter.mode(Colors.white, BlendMode.dstIn),
+        child: patternImage,
       ),
     );
   }
+}
+
+class _NegativePatternPainter extends CustomPainter {
+  final double darkenOpacity;
+  _NegativePatternPainter({required this.darkenOpacity});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (darkenOpacity > 0.0) {
+      canvas.drawRect(
+        Offset.zero & size,
+        Paint()..color = Color.fromRGBO(0, 0, 0, darkenOpacity),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_NegativePatternPainter old) =>
+      old.darkenOpacity != darkenOpacity;
 }
 
 Color computeAverageColor(Uint8List imageBytes) {

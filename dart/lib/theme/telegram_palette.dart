@@ -254,6 +254,34 @@ class TelegramPalette {
   final Color settingsIconBg4;
   final Color settingsIconBg5;
   final Color settingsIconBg6;
+  final Color settingsIconBg8;
+  final Color settingsIconBgArchive;
+
+  // ── §25.2.5 Peer Name Selected (colorize-excluded) ──
+  final Color historyPeer1NameFgSelected;
+  final Color historyPeer2NameFgSelected;
+  final Color historyPeer3NameFgSelected;
+  final Color historyPeer4NameFgSelected;
+  final Color historyPeer5NameFgSelected;
+  final Color historyPeer6NameFgSelected;
+  final Color historyPeer7NameFgSelected;
+  final Color historyPeer8NameFgSelected;
+
+  // ── Media Viewer File Corners (colorize-excluded) ──
+  final Color mediaviewFileRedCornerFg;
+  final Color mediaviewFileYellowCornerFg;
+  final Color mediaviewFileGreenCornerFg;
+  final Color mediaviewFileBlueCornerFg;
+
+  // ── Premium Gradients (colorize-excluded) ──
+  final Color premiumButtonBg1;
+  final Color premiumButtonBg2;
+  final Color premiumButtonBg3;
+  final Color premiumIconBg1;
+  final Color premiumIconBg2;
+
+  // ── Call Icon (colorize-excluded) ──
+  final Color callIconFg;
 
   // ── Tooltips ──
   final Color tooltipBg;
@@ -481,6 +509,26 @@ class TelegramPalette {
     required this.settingsIconBg4,
     required this.settingsIconBg5,
     required this.settingsIconBg6,
+    required this.settingsIconBg8,
+    required this.settingsIconBgArchive,
+    required this.historyPeer1NameFgSelected,
+    required this.historyPeer2NameFgSelected,
+    required this.historyPeer3NameFgSelected,
+    required this.historyPeer4NameFgSelected,
+    required this.historyPeer5NameFgSelected,
+    required this.historyPeer6NameFgSelected,
+    required this.historyPeer7NameFgSelected,
+    required this.historyPeer8NameFgSelected,
+    required this.mediaviewFileRedCornerFg,
+    required this.mediaviewFileYellowCornerFg,
+    required this.mediaviewFileGreenCornerFg,
+    required this.mediaviewFileBlueCornerFg,
+    required this.premiumButtonBg1,
+    required this.premiumButtonBg2,
+    required this.premiumButtonBg3,
+    required this.premiumIconBg1,
+    required this.premiumIconBg2,
+    required this.callIconFg,
     required this.tooltipBg,
     required this.tooltipFg,
     required this.tooltipBorderFg,
@@ -567,7 +615,34 @@ class TelegramPalette {
     _ => dayAccents,
   };
 
-  // ── §25.4.3 HSV Colorizer ──
+  // ── §25.17.2 Colorize exclusion list — 63 tokens that never change with accent ──
+  static const kColorizeIgnoredKeys = <String>{
+    'boxTextFgGood', 'boxTextFgError',
+    'callIconFg',
+    'historyPeer1NameFg', 'historyPeer1NameFgSelected', 'historyPeer1UserpicBg',
+    'historyPeer2NameFg', 'historyPeer2NameFgSelected', 'historyPeer2UserpicBg',
+    'historyPeer3NameFg', 'historyPeer3NameFgSelected', 'historyPeer3UserpicBg',
+    'historyPeer4NameFg', 'historyPeer4NameFgSelected', 'historyPeer4UserpicBg',
+    'historyPeer5NameFg', 'historyPeer5NameFgSelected', 'historyPeer5UserpicBg',
+    'historyPeer6NameFg', 'historyPeer6NameFgSelected', 'historyPeer6UserpicBg',
+    'historyPeer7NameFg', 'historyPeer7NameFgSelected', 'historyPeer7UserpicBg',
+    'historyPeer8NameFg', 'historyPeer8NameFgSelected', 'historyPeer8UserpicBg',
+    'historyPeer1UserpicBg2', 'historyPeer2UserpicBg2', 'historyPeer3UserpicBg2',
+    'historyPeer4UserpicBg2', 'historyPeer5UserpicBg2', 'historyPeer6UserpicBg2',
+    'historyPeer7UserpicBg2', 'historyPeer8UserpicBg2',
+    'msgFile1Bg', 'msgFile1BgDark', 'msgFile1BgOver', 'msgFile1BgSelected',
+    'msgFile2Bg', 'msgFile2BgDark', 'msgFile2BgOver', 'msgFile2BgSelected',
+    'msgFile3Bg', 'msgFile3BgDark', 'msgFile3BgOver', 'msgFile3BgSelected',
+    'msgFile4Bg', 'msgFile4BgDark', 'msgFile4BgOver', 'msgFile4BgSelected',
+    'mediaviewFileRedCornerFg', 'mediaviewFileYellowCornerFg',
+    'mediaviewFileGreenCornerFg', 'mediaviewFileBlueCornerFg',
+    'settingsIconBg1', 'settingsIconBg2', 'settingsIconBg3', 'settingsIconBg4',
+    'settingsIconBg5', 'settingsIconBg6', 'settingsIconBg8', 'settingsIconBgArchive',
+    'premiumButtonBg1', 'premiumButtonBg2', 'premiumButtonBg3',
+    'premiumIconBg1', 'premiumIconBg2',
+  };
+
+  // ── §25.4.3 HSL Colorizer (spec §25.4.3 + §25.17.1) ──
   TelegramPalette colorize(Color newAccent) {
     final origAccent = windowBgActive;
     if (colorEq(origAccent, newAccent)) return this;
@@ -579,17 +654,25 @@ class TelegramPalette {
         ? nHsv.saturation / oHsv.saturation
         : 1.0;
     final dark = isDark;
+    final double lMin = dark ? 64.0 / 255.0 : 0.0;
+    final double lMax = dark ? 1.0 : 160.0 / 255.0;
+    const double hueThreshold = 15.0;
 
     Color s(Color c) {
       if (c.a < 0.004) return c;
       final h = HSVColor.fromColor(c);
       if (h.saturation < 0.01) return c;
+      var hueDelta = (h.hue - oHsv.hue).abs();
+      if (hueDelta > 180) hueDelta = 360 - hueDelta;
+      if (hueDelta > hueThreshold) return c;
       var hue = (h.hue + hDiff) % 360;
       if (hue < 0) hue += 360;
       final sat = (h.saturation * sRatio).clamp(0.0, 1.0);
-      var val = h.value;
-      if (!dark) val = val.clamp(0.251, 0.627);
-      return HSVColor.fromAHSV(h.alpha, hue, sat, val).toColor();
+      final shifted = HSVColor.fromAHSV(h.alpha, hue, sat, h.value).toColor();
+      final hsl = HSLColor.fromColor(shifted);
+      final clampedL = hsl.lightness.clamp(lMin, lMax);
+      if ((clampedL - hsl.lightness).abs() < 0.001) return shifted;
+      return HSLColor.fromAHSL(hsl.alpha, hsl.hue, hsl.saturation, clampedL).toColor();
     }
 
     final p = TelegramPalette(
@@ -813,6 +896,26 @@ class TelegramPalette {
       settingsIconBg4: settingsIconBg4,
       settingsIconBg5: settingsIconBg5,
       settingsIconBg6: settingsIconBg6,
+      settingsIconBg8: settingsIconBg8,
+      settingsIconBgArchive: settingsIconBgArchive,
+      historyPeer1NameFgSelected: historyPeer1NameFgSelected,
+      historyPeer2NameFgSelected: historyPeer2NameFgSelected,
+      historyPeer3NameFgSelected: historyPeer3NameFgSelected,
+      historyPeer4NameFgSelected: historyPeer4NameFgSelected,
+      historyPeer5NameFgSelected: historyPeer5NameFgSelected,
+      historyPeer6NameFgSelected: historyPeer6NameFgSelected,
+      historyPeer7NameFgSelected: historyPeer7NameFgSelected,
+      historyPeer8NameFgSelected: historyPeer8NameFgSelected,
+      mediaviewFileRedCornerFg: mediaviewFileRedCornerFg,
+      mediaviewFileYellowCornerFg: mediaviewFileYellowCornerFg,
+      mediaviewFileGreenCornerFg: mediaviewFileGreenCornerFg,
+      mediaviewFileBlueCornerFg: mediaviewFileBlueCornerFg,
+      premiumButtonBg1: premiumButtonBg1,
+      premiumButtonBg2: premiumButtonBg2,
+      premiumButtonBg3: premiumButtonBg3,
+      premiumIconBg1: premiumIconBg1,
+      premiumIconBg2: premiumIconBg2,
+      callIconFg: callIconFg,
       tooltipBg: s(tooltipBg),
       tooltipFg: s(tooltipFg),
       tooltipBorderFg: s(tooltipBorderFg),
@@ -990,6 +1093,26 @@ class TelegramPalette {
       settingsIconBg1: this.settingsIconBg1, settingsIconBg2: this.settingsIconBg2,
       settingsIconBg3: this.settingsIconBg3, settingsIconBg4: this.settingsIconBg4,
       settingsIconBg5: this.settingsIconBg5, settingsIconBg6: this.settingsIconBg6,
+      settingsIconBg8: this.settingsIconBg8,
+      settingsIconBgArchive: this.settingsIconBgArchive,
+      historyPeer1NameFgSelected: this.historyPeer1NameFgSelected,
+      historyPeer2NameFgSelected: this.historyPeer2NameFgSelected,
+      historyPeer3NameFgSelected: this.historyPeer3NameFgSelected,
+      historyPeer4NameFgSelected: this.historyPeer4NameFgSelected,
+      historyPeer5NameFgSelected: this.historyPeer5NameFgSelected,
+      historyPeer6NameFgSelected: this.historyPeer6NameFgSelected,
+      historyPeer7NameFgSelected: this.historyPeer7NameFgSelected,
+      historyPeer8NameFgSelected: this.historyPeer8NameFgSelected,
+      mediaviewFileRedCornerFg: this.mediaviewFileRedCornerFg,
+      mediaviewFileYellowCornerFg: this.mediaviewFileYellowCornerFg,
+      mediaviewFileGreenCornerFg: this.mediaviewFileGreenCornerFg,
+      mediaviewFileBlueCornerFg: this.mediaviewFileBlueCornerFg,
+      premiumButtonBg1: this.premiumButtonBg1,
+      premiumButtonBg2: this.premiumButtonBg2,
+      premiumButtonBg3: this.premiumButtonBg3,
+      premiumIconBg1: this.premiumIconBg1,
+      premiumIconBg2: this.premiumIconBg2,
+      callIconFg: this.callIconFg,
       tooltipBg: this.tooltipBg, tooltipFg: this.tooltipFg,
       tooltipBorderFg: this.tooltipBorderFg, importantTooltipBg: this.importantTooltipBg,
       overviewCheckBg: this.overviewCheckBg,
@@ -1145,6 +1268,26 @@ class TelegramPalette {
       settingsIconBg1: settingsIconBg1, settingsIconBg2: settingsIconBg2,
       settingsIconBg3: settingsIconBg3, settingsIconBg4: settingsIconBg4,
       settingsIconBg5: settingsIconBg5, settingsIconBg6: settingsIconBg6,
+      settingsIconBg8: settingsIconBg8,
+      settingsIconBgArchive: settingsIconBgArchive,
+      historyPeer1NameFgSelected: historyPeer1NameFgSelected,
+      historyPeer2NameFgSelected: historyPeer2NameFgSelected,
+      historyPeer3NameFgSelected: historyPeer3NameFgSelected,
+      historyPeer4NameFgSelected: historyPeer4NameFgSelected,
+      historyPeer5NameFgSelected: historyPeer5NameFgSelected,
+      historyPeer6NameFgSelected: historyPeer6NameFgSelected,
+      historyPeer7NameFgSelected: historyPeer7NameFgSelected,
+      historyPeer8NameFgSelected: historyPeer8NameFgSelected,
+      mediaviewFileRedCornerFg: mediaviewFileRedCornerFg,
+      mediaviewFileYellowCornerFg: mediaviewFileYellowCornerFg,
+      mediaviewFileGreenCornerFg: mediaviewFileGreenCornerFg,
+      mediaviewFileBlueCornerFg: mediaviewFileBlueCornerFg,
+      premiumButtonBg1: premiumButtonBg1,
+      premiumButtonBg2: premiumButtonBg2,
+      premiumButtonBg3: premiumButtonBg3,
+      premiumIconBg1: premiumIconBg1,
+      premiumIconBg2: premiumIconBg2,
+      callIconFg: callIconFg,
       tooltipBg: tooltipBg, tooltipFg: tooltipFg,
       tooltipBorderFg: tooltipBorderFg, importantTooltipBg: importantTooltipBg,
       overviewCheckBg: overviewCheckBg,
@@ -1409,6 +1552,26 @@ class TelegramPalette {
     settingsIconBg4: Color(0xFFFAAD38),
     settingsIconBg5: Color(0xFF9A7BDF),
     settingsIconBg6: Color(0xFF5ABDD6),
+    settingsIconBg8: Color(0xFFED8526),
+    settingsIconBgArchive: Color(0xFFFFC535),
+    historyPeer1NameFgSelected: Color(0xFFC03D33),
+    historyPeer2NameFgSelected: Color(0xFF4FAD2D),
+    historyPeer3NameFgSelected: Color(0xFFD09306),
+    historyPeer4NameFgSelected: Color(0xFF168ACD),
+    historyPeer5NameFgSelected: Color(0xFF8544D6),
+    historyPeer6NameFgSelected: Color(0xFFCD4073),
+    historyPeer7NameFgSelected: Color(0xFF2996AD),
+    historyPeer8NameFgSelected: Color(0xFFCE671B),
+    mediaviewFileRedCornerFg: Color(0xFFD45050),
+    mediaviewFileYellowCornerFg: Color(0xFFE8A63E),
+    mediaviewFileGreenCornerFg: Color(0xFF64C05E),
+    mediaviewFileBlueCornerFg: Color(0xFF5BBFDE),
+    premiumButtonBg1: Color(0xFF6B93FF),
+    premiumButtonBg2: Color(0xFF976FFF),
+    premiumButtonBg3: Color(0xFFE46ACE),
+    premiumIconBg1: Color(0xFF6B93FF),
+    premiumIconBg2: Color(0xFF976FFF),
+    callIconFg: Color(0xFFFFFFFF),
 
     // Tooltips
     tooltipBg: Color(0xFFEAEEF3),
@@ -1674,6 +1837,26 @@ class TelegramPalette {
     settingsIconBg4: Color(0xFFFAAD38),
     settingsIconBg5: Color(0xFF9A7BDF),
     settingsIconBg6: Color(0xFF5ABDD6),
+    settingsIconBg8: Color(0xFFED8526),
+    settingsIconBgArchive: Color(0xFFFFC535),
+    historyPeer1NameFgSelected: Color(0xFFFB6169),
+    historyPeer2NameFgSelected: Color(0xFF85DE85),
+    historyPeer3NameFgSelected: Color(0xFFF3BC5C),
+    historyPeer4NameFgSelected: Color(0xFF65BDF3),
+    historyPeer5NameFgSelected: Color(0xFFB48BF2),
+    historyPeer6NameFgSelected: Color(0xFFFF5694),
+    historyPeer7NameFgSelected: Color(0xFF62D4E3),
+    historyPeer8NameFgSelected: Color(0xFFFAA357),
+    mediaviewFileRedCornerFg: Color(0xFFD45050),
+    mediaviewFileYellowCornerFg: Color(0xFFE8A63E),
+    mediaviewFileGreenCornerFg: Color(0xFF64C05E),
+    mediaviewFileBlueCornerFg: Color(0xFF5BBFDE),
+    premiumButtonBg1: Color(0xFF6B93FF),
+    premiumButtonBg2: Color(0xFF976FFF),
+    premiumButtonBg3: Color(0xFFE46ACE),
+    premiumIconBg1: Color(0xFF6B93FF),
+    premiumIconBg2: Color(0xFF976FFF),
+    callIconFg: Color(0xFFFFFFFF),
 
     // Tooltips
     tooltipBg: Color(0xFF1F2936),
@@ -1905,6 +2088,26 @@ class TelegramPalette {
     settingsIconBg4: Color(0xFFFAAD38),
     settingsIconBg5: Color(0xFF9A7BDF),
     settingsIconBg6: Color(0xFF5ABDD6),
+    settingsIconBg8: Color(0xFFED8526),
+    settingsIconBgArchive: Color(0xFFFFC535),
+    historyPeer1NameFgSelected: Color(0xFFC03D33),
+    historyPeer2NameFgSelected: Color(0xFF4FAD2D),
+    historyPeer3NameFgSelected: Color(0xFFD09306),
+    historyPeer4NameFgSelected: Color(0xFF168ACD),
+    historyPeer5NameFgSelected: Color(0xFF8544D6),
+    historyPeer6NameFgSelected: Color(0xFFCD4073),
+    historyPeer7NameFgSelected: Color(0xFF2996AD),
+    historyPeer8NameFgSelected: Color(0xFFCE671B),
+    mediaviewFileRedCornerFg: Color(0xFFD45050),
+    mediaviewFileYellowCornerFg: Color(0xFFE8A63E),
+    mediaviewFileGreenCornerFg: Color(0xFF64C05E),
+    mediaviewFileBlueCornerFg: Color(0xFF5BBFDE),
+    premiumButtonBg1: Color(0xFF6B93FF),
+    premiumButtonBg2: Color(0xFF976FFF),
+    premiumButtonBg3: Color(0xFFE46ACE),
+    premiumIconBg1: Color(0xFF6B93FF),
+    premiumIconBg2: Color(0xFF976FFF),
+    callIconFg: Color(0xFFFFFFFF),
     tooltipBg: Color(0xFFEAEEF3),
     tooltipFg: Color(0xFF9A9FA3),
     tooltipBorderFg: Color(0xFFD3D5DA),
@@ -2131,6 +2334,26 @@ class TelegramPalette {
     settingsIconBg4: Color(0xFFFAAD38),
     settingsIconBg5: Color(0xFF9A7BDF),
     settingsIconBg6: Color(0xFF5ABDD6),
+    settingsIconBg8: Color(0xFFED8526),
+    settingsIconBgArchive: Color(0xFFFFC535),
+    historyPeer1NameFgSelected: Color(0xFFFB6169),
+    historyPeer2NameFgSelected: Color(0xFF85DE85),
+    historyPeer3NameFgSelected: Color(0xFFF3BC5C),
+    historyPeer4NameFgSelected: Color(0xFF65BDF3),
+    historyPeer5NameFgSelected: Color(0xFFB48BF2),
+    historyPeer6NameFgSelected: Color(0xFFFF5694),
+    historyPeer7NameFgSelected: Color(0xFF62D4E3),
+    historyPeer8NameFgSelected: Color(0xFFFAA357),
+    mediaviewFileRedCornerFg: Color(0xFFD45050),
+    mediaviewFileYellowCornerFg: Color(0xFFE8A63E),
+    mediaviewFileGreenCornerFg: Color(0xFF64C05E),
+    mediaviewFileBlueCornerFg: Color(0xFF5BBFDE),
+    premiumButtonBg1: Color(0xFF6B93FF),
+    premiumButtonBg2: Color(0xFF976FFF),
+    premiumButtonBg3: Color(0xFFE46ACE),
+    premiumIconBg1: Color(0xFF6B93FF),
+    premiumIconBg2: Color(0xFF976FFF),
+    callIconFg: Color(0xFFFFFFFF),
     tooltipBg: Color(0xFF1F2936),
     tooltipFg: Color(0xFFB0B6BD),
     tooltipBorderFg: Color(0xFF354050),

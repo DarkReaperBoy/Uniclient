@@ -13,12 +13,14 @@ class ThemeFileData {
   final Uint8List? backgroundImage;
   final bool backgroundTiled;
   final CloudThemeMeta? cloudMeta;
+  final Map<String, String> referenceChain;
 
   const ThemeFileData({
     required this.palette,
     this.backgroundImage,
     this.backgroundTiled = false,
     this.cloudMeta,
+    this.referenceChain = const {},
   });
 }
 
@@ -43,13 +45,18 @@ ThemeFileData? parseThemeFile(
   if (text.length > _maxPaletteFileSize) return null;
   final result = parsePaletteText(text, fallback: fallback);
   if (result == null) return null;
-  return ThemeFileData(palette: result.palette, cloudMeta: result.cloudMeta);
+  return ThemeFileData(palette: result.palette, cloudMeta: result.cloudMeta, referenceChain: result.referenceChain);
 }
 
 class PaletteParseResult {
   final TelegramPalette palette;
   final CloudThemeMeta? cloudMeta;
-  const PaletteParseResult({required this.palette, this.cloudMeta});
+  final Map<String, String> referenceChain;
+  const PaletteParseResult({
+    required this.palette,
+    this.cloudMeta,
+    this.referenceChain = const {},
+  });
 }
 
 PaletteParseResult? parsePaletteText(
@@ -110,6 +117,7 @@ PaletteParseResult? parsePaletteText(
   }
 
   final resolved = <String, Color>{};
+  final references = <String, String>{};
   for (final entry in parsed.entries) {
     if (entry.value is Color) {
       resolved[entry.key] = entry.value;
@@ -118,6 +126,7 @@ PaletteParseResult? parsePaletteText(
   for (final entry in parsed.entries) {
     if (entry.value is String) {
       final ref = entry.value as String;
+      references[entry.key] = ref;
       if (resolved.containsKey(ref)) {
         resolved[entry.key] = resolved[ref]!;
       } else if (fallbackMap.containsKey(ref)) {
@@ -129,7 +138,11 @@ PaletteParseResult? parsePaletteText(
   final merged = Map<String, Color>.from(fallbackMap)..addAll(resolved);
   final palette = paletteFromMap(merged, fallback);
 
-  return PaletteParseResult(palette: palette, cloudMeta: cloudMeta);
+  return PaletteParseResult(
+    palette: palette,
+    cloudMeta: cloudMeta,
+    referenceChain: references,
+  );
 }
 
 Uint8List exportThemeFile(ThemeFileData data) {
@@ -233,6 +246,7 @@ ThemeFileData? _parseZipTheme(Uint8List bytes, TelegramPalette fallback) {
     backgroundImage: bgBytes,
     backgroundTiled: tiled,
     cloudMeta: result.cloudMeta,
+    referenceChain: result.referenceChain,
   );
 }
 
@@ -508,6 +522,26 @@ Map<String, Color> paletteToMap(TelegramPalette p) => {
   'settingsIconBg4': p.settingsIconBg4,
   'settingsIconBg5': p.settingsIconBg5,
   'settingsIconBg6': p.settingsIconBg6,
+  'settingsIconBg8': p.settingsIconBg8,
+  'settingsIconBgArchive': p.settingsIconBgArchive,
+  'historyPeer1NameFgSelected': p.historyPeer1NameFgSelected,
+  'historyPeer2NameFgSelected': p.historyPeer2NameFgSelected,
+  'historyPeer3NameFgSelected': p.historyPeer3NameFgSelected,
+  'historyPeer4NameFgSelected': p.historyPeer4NameFgSelected,
+  'historyPeer5NameFgSelected': p.historyPeer5NameFgSelected,
+  'historyPeer6NameFgSelected': p.historyPeer6NameFgSelected,
+  'historyPeer7NameFgSelected': p.historyPeer7NameFgSelected,
+  'historyPeer8NameFgSelected': p.historyPeer8NameFgSelected,
+  'mediaviewFileRedCornerFg': p.mediaviewFileRedCornerFg,
+  'mediaviewFileYellowCornerFg': p.mediaviewFileYellowCornerFg,
+  'mediaviewFileGreenCornerFg': p.mediaviewFileGreenCornerFg,
+  'mediaviewFileBlueCornerFg': p.mediaviewFileBlueCornerFg,
+  'premiumButtonBg1': p.premiumButtonBg1,
+  'premiumButtonBg2': p.premiumButtonBg2,
+  'premiumButtonBg3': p.premiumButtonBg3,
+  'premiumIconBg1': p.premiumIconBg1,
+  'premiumIconBg2': p.premiumIconBg2,
+  'callIconFg': p.callIconFg,
   'tooltipBg': p.tooltipBg,
   'tooltipFg': p.tooltipFg,
   'tooltipBorderFg': p.tooltipBorderFg,
@@ -739,6 +773,26 @@ TelegramPalette paletteFromMap(Map<String, Color> m, TelegramPalette fb) =>
       settingsIconBg4: m['settingsIconBg4'] ?? fb.settingsIconBg4,
       settingsIconBg5: m['settingsIconBg5'] ?? fb.settingsIconBg5,
       settingsIconBg6: m['settingsIconBg6'] ?? fb.settingsIconBg6,
+      settingsIconBg8: m['settingsIconBg8'] ?? fb.settingsIconBg8,
+      settingsIconBgArchive: m['settingsIconBgArchive'] ?? fb.settingsIconBgArchive,
+      historyPeer1NameFgSelected: m['historyPeer1NameFgSelected'] ?? fb.historyPeer1NameFgSelected,
+      historyPeer2NameFgSelected: m['historyPeer2NameFgSelected'] ?? fb.historyPeer2NameFgSelected,
+      historyPeer3NameFgSelected: m['historyPeer3NameFgSelected'] ?? fb.historyPeer3NameFgSelected,
+      historyPeer4NameFgSelected: m['historyPeer4NameFgSelected'] ?? fb.historyPeer4NameFgSelected,
+      historyPeer5NameFgSelected: m['historyPeer5NameFgSelected'] ?? fb.historyPeer5NameFgSelected,
+      historyPeer6NameFgSelected: m['historyPeer6NameFgSelected'] ?? fb.historyPeer6NameFgSelected,
+      historyPeer7NameFgSelected: m['historyPeer7NameFgSelected'] ?? fb.historyPeer7NameFgSelected,
+      historyPeer8NameFgSelected: m['historyPeer8NameFgSelected'] ?? fb.historyPeer8NameFgSelected,
+      mediaviewFileRedCornerFg: m['mediaviewFileRedCornerFg'] ?? fb.mediaviewFileRedCornerFg,
+      mediaviewFileYellowCornerFg: m['mediaviewFileYellowCornerFg'] ?? fb.mediaviewFileYellowCornerFg,
+      mediaviewFileGreenCornerFg: m['mediaviewFileGreenCornerFg'] ?? fb.mediaviewFileGreenCornerFg,
+      mediaviewFileBlueCornerFg: m['mediaviewFileBlueCornerFg'] ?? fb.mediaviewFileBlueCornerFg,
+      premiumButtonBg1: m['premiumButtonBg1'] ?? fb.premiumButtonBg1,
+      premiumButtonBg2: m['premiumButtonBg2'] ?? fb.premiumButtonBg2,
+      premiumButtonBg3: m['premiumButtonBg3'] ?? fb.premiumButtonBg3,
+      premiumIconBg1: m['premiumIconBg1'] ?? fb.premiumIconBg1,
+      premiumIconBg2: m['premiumIconBg2'] ?? fb.premiumIconBg2,
+      callIconFg: m['callIconFg'] ?? fb.callIconFg,
       tooltipBg: m['tooltipBg'] ?? fb.tooltipBg,
       tooltipFg: m['tooltipFg'] ?? fb.tooltipFg,
       tooltipBorderFg: m['tooltipBorderFg'] ?? fb.tooltipBorderFg,
