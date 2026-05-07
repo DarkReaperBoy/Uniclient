@@ -65,14 +65,7 @@
 ## &sect;30 -- Bot Interactions
 
 ## &sect;31 -- Saved Messages
-- [ ] spec &sect;31.1 "Saved Messages Chat Entry": `chat_state.dart` does not treat Saved Messages as a special peer with a dedicated bookmark icon (EmptyUserpic::PaintSavedMessages with blue gradient #5caffa to #408acf and vector bookmark shape). Chat list may use a generic avatar instead.
-- [ ] spec &sect;31.2 "Saved Messages Sub-Peers (Sublists)": no sublist-based browsing mode where forwarded messages are grouped by source peer found in `chat_state.dart`.
-- [ ] spec &sect;31.3 "Sublist Navigation & Info Panel": no SublistsWidget with dynamic chat count, media filter section (8 media-type buttons), or sublist row rendering found.
-- [ ] spec &sect;31.4 "My Notes": no "My Notes" sublist with dedicated notepad icon (dialogsMyNotesUserpic = "dialogs/avatar_notes") found.
-- [ ] spec &sect;31.6 "Reaction Tags System": no tag-based categorization with MyTagInfo struct, tag operations (increment/decrement/rename), or SearchTags bar widget found.
-- [ ] spec &sect;31.7 "Tag-Based Search & Filtering": no SavedMessagesTagBar (SearchTags) with 18px-tall chips in price-tag shape, click-to-filter, right-click tag rename menu, or tag query encoding (#tag-custom:, #tag-emoji:) found.
-- [ ] spec &sect;31.8 "Forward-to-Saved Flow": no self-forwards tagger with post-forward tag suggestion toast (3s auto-dismiss) found.
-- [ ] spec &sect;31.9 "Subsection Tabs": no horizontal/vertical subsection tabs for saved messages with 36px strip height, 64px toggle button, dynamic tab width formula, or scroll-to-active logic found.
+- [ ] spec &sect;31.7 "Tag-Based Search & Filtering": _SearchTagsStrip widget with price-tag chips exists and visually correct, but clicking a tag does NOT filter messages — `selectedReactionTagIds` in ChatState is never consumed by `_filterMessages()` in chat_view.dart or any message reload. Tag query encoding (#tag-custom:, #tag-emoji:) also missing. CRITICAL: the bar is decorative only.
 
 ## &sect;32 -- Stories
 - [ ] spec &sect;32.1 "Stories Bar (Chat List)": no horizontal stories strip above chat list with collapsed (35px height, 21px avatar) and expanded (77px height, 42px avatar) states, gradient ring for unread (#0dcc39 to #0992ef), or expansion trigger at 0.72 overscroll ratio found.
