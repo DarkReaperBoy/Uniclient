@@ -9278,7 +9278,7 @@ class _InlineButtonState extends State<_InlineButton>
                         widget.button.text,
                         style: TextStyle(
                           fontSize: 13,
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.w600,
                           color: cs.text,
                         ),
                         maxLines: 1,
