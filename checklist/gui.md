@@ -65,7 +65,6 @@
 ## &sect;30 -- Bot Interactions
 
 ## &sect;31 -- Saved Messages
-- [ ] spec &sect;31.7 "Tag-Based Search & Filtering": _SearchTagsStrip widget with price-tag chips exists and visually correct, but clicking a tag does NOT filter messages — `selectedReactionTagIds` in ChatState is never consumed by `_filterMessages()` in chat_view.dart or any message reload. Tag query encoding (#tag-custom:, #tag-emoji:) also missing. CRITICAL: the bar is decorative only.
 
 ## &sect;32 -- Stories
 - [ ] spec &sect;32.1 "Stories Bar (Chat List)": no horizontal stories strip above chat list with collapsed (35px height, 21px avatar) and expanded (77px height, 42px avatar) states, gradient ring for unread (#0dcc39 to #0992ef), or expansion trigger at 0.72 overscroll ratio found.
