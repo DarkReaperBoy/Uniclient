@@ -41,11 +41,6 @@
 ---
 
 ## Cross-Cutting Issues
-
-- [ ] **All notification settings are local-only state**: almost every toggle in `notifications_settings_screen.dart` uses local `bool` fields (`_desktopNotify`, `_flashBounce`, `_allowSound`, etc.) that reset on screen rebuild. None persist to engine or local storage — `notifications_settings_screen.dart:36-65`
-- [ ] **Chat Settings toggles are local-only state**: `_largeEmoji`, `_replaceEmojis`, `_suggestEmoji`, etc. are local state, not persisted to engine — `chat_settings_screen.dart:40-52`
-- [ ] **Premium/Help rows are no-op stubs**: Telegram Premium, Telegram Stars, Telegram Business, Send a Gift, Telegram FAQ, Telegram Features all have `onTap: () {}` — `settings_screen.dart:334-393`
-- [ ] **Missing Keyboard Shortcuts screen navigation from Chat Settings**: `shortcuts_settings_screen.dart` exists with full shortcut definitions but its accessibility from Chat Settings needs verification — `shortcuts_settings_screen.dart`
 # Audit: §20-§25 Media Viewer, Groups, Forum, Scheduled, Shortcuts, Theming
 
 ## §20 — Media Viewer / Lightbox
