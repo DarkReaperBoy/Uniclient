@@ -4447,14 +4447,18 @@ class _ForumTopicListViewState extends State<_ForumTopicListView> {
       final topicId = await engine.createForumTopic(
         parent.accountId, parent.chatId, result.title, result.colorId, result.iconEmojiId,
       );
-      await chatState.refreshForumTopics();
       if (topicId > 0) {
-        final newTopic = chatState.forumTopics.cast<ForumTopic?>().firstWhere(
-          (t) => t!.id == topicId.toString(),
-          orElse: () => null,
+        final provisional = ForumTopic(
+          id: topicId.toString(),
+          title: result.title,
+          colorId: result.colorId,
+          iconEmojiId: result.iconEmojiId,
+          parentId: parent.chatId,
+          creationDate: DateTime.now().millisecondsSinceEpoch ~/ 1000,
         );
-        if (newTopic != null) chatState.openTopic(newTopic);
+        chatState.openTopic(provisional);
       }
+      chatState.refreshForumTopics();
     } catch (e) {
       if (ctx.mounted) {
         showTelegramToast(ctx, 'Failed to create topic: $e');
@@ -4606,16 +4610,18 @@ class _ForumTopicHeaderState extends State<_ForumTopicHeader>
       final topicId = await widget.engine.createForumTopic(
         widget.accountId, widget.chatId, result.title, result.colorId, result.iconEmojiId,
       );
-      await widget.chatState.refreshForumTopics();
       if (topicId > 0) {
-        final newTopic = widget.chatState.forumTopics.cast<ForumTopic?>().firstWhere(
-          (t) => t!.id == topicId.toString(),
-          orElse: () => null,
+        final provisional = ForumTopic(
+          id: topicId.toString(),
+          title: result.title,
+          colorId: result.colorId,
+          iconEmojiId: result.iconEmojiId,
+          parentId: widget.chatId,
+          creationDate: DateTime.now().millisecondsSinceEpoch ~/ 1000,
         );
-        if (newTopic != null) {
-          widget.chatState.openTopic(newTopic);
-        }
+        widget.chatState.openTopic(provisional);
       }
+      widget.chatState.refreshForumTopics();
     } catch (e) {
       if (ctx.mounted) {
         showTelegramToast(ctx, 'Failed to create topic: $e');
@@ -4867,6 +4873,11 @@ class _ForumTopicRowState extends State<_ForumTopicRow>
           icon: Icon(Icons.info_outline, size: 20),
           label: 'View Info',
         ),
+        const TelegramMenuItem(
+          value: 'mute',
+          icon: Icon(Icons.notifications_off_outlined, size: 20),
+          label: 'Mute',
+        ),
         TelegramMenuItem(
           value: 'mark_read',
           icon: Icon(hasUnread ? Icons.done_all : Icons.markunread, size: 20),
@@ -4890,6 +4901,11 @@ class _ForumTopicRowState extends State<_ForumTopicRow>
             icon: Icon(topic.isHidden ? Icons.visibility : Icons.visibility_off, size: 20),
             label: topic.isHidden ? 'Show Topic' : 'Hide Topic',
           ),
+        const TelegramMenuItem(
+          value: 'add_to_folder',
+          icon: Icon(Icons.folder_outlined, size: 20),
+          label: 'Add to Folder',
+        ),
         const TelegramMenuItem.separator(),
         const TelegramMenuItem(
           value: 'clear_history',
@@ -4922,6 +4938,8 @@ class _ForumTopicRowState extends State<_ForumTopicRow>
         if (hasUnread) {
           widget.chatState.markChatRead(widget.accountId, topic.id);
         }
+      case 'mute':
+        _showMuteSubmenu(ctx, position);
       case 'edit':
         _showEditTopicDialog(ctx);
       case 'toggle_closed':
@@ -4940,6 +4958,8 @@ class _ForumTopicRowState extends State<_ForumTopicRow>
             showTelegramToast(ctx, 'Failed: $e');
           }
         }
+      case 'add_to_folder':
+        _showAddToFolderMenu(ctx, position);
       case 'clear_history':
         final r = await showDeleteConfirmBox(
           ctx,
@@ -4998,6 +5018,63 @@ class _ForumTopicRowState extends State<_ForumTopicRow>
       if (ctx.mounted) {
         showTelegramToast(ctx, 'Failed to edit topic: $e');
       }
+    }
+  }
+
+  void _showMuteSubmenu(BuildContext ctx, Offset position) async {
+    final value = await showTelegramMenu<int>(
+      context: ctx,
+      position: position,
+      items: const [
+        TelegramMenuItem(value: 3600, icon: Icon(Icons.timer_outlined, size: 20), label: 'For 1 hour'),
+        TelegramMenuItem(value: 28800, icon: Icon(Icons.timer_outlined, size: 20), label: 'For 8 hours'),
+        TelegramMenuItem(value: 172800, icon: Icon(Icons.timer_outlined, size: 20), label: 'For 2 days'),
+        TelegramMenuItem(value: -1, icon: Icon(Icons.notifications_off, size: 20), label: 'Until manually unmuted'),
+      ],
+    );
+    if (value == null || !ctx.mounted) return;
+    widget.chatState.muteChat(widget.accountId, widget.topic.id, true, durationSeconds: value < 0 ? 0 : value);
+  }
+
+  void _showAddToFolderMenu(BuildContext ctx, Offset position) async {
+    final chatState = widget.chatState;
+    final folders = chatState.folders;
+    if (folders.isEmpty) {
+      showTelegramToast(ctx, 'No folders configured');
+      return;
+    }
+    final value = await showTelegramMenu<String>(
+      context: ctx,
+      position: position,
+      items: [
+        for (final folder in folders)
+          TelegramMenuItem(
+            value: folder.id,
+            icon: Icon(
+              folder.chatIds.contains(widget.chatId) ? Icons.check : Icons.folder_outlined,
+              size: 20,
+            ),
+            label: folder.name,
+          ),
+      ],
+    );
+    if (value == null || !ctx.mounted) return;
+    final folder = folders.firstWhere((f) => f.id == value);
+    final chatIds = List<String>.from(folder.chatIds);
+    if (chatIds.contains(widget.chatId)) {
+      chatIds.remove(widget.chatId);
+    } else {
+      chatIds.add(widget.chatId);
+    }
+    try {
+      await chatState.editFolder(widget.accountId, folder.id, folder.name, chatIds,
+        contacts: folder.contacts, nonContacts: folder.nonContacts,
+        groups: folder.groups, channels: folder.channels, bots: folder.bots,
+        excludeMuted: folder.excludeMuted, excludeRead: folder.excludeRead,
+        excludeArchived: folder.excludeArchived, excludeChatIds: folder.excludeChatIds,
+      );
+    } catch (e) {
+      if (ctx.mounted) showTelegramToast(ctx, 'Failed: $e');
     }
   }
 

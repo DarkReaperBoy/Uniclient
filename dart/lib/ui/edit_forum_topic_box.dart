@@ -160,9 +160,9 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
     );
 
     final posAnim = Tween<Offset>(begin: startCenter, end: endCenter)
-        .animate(CurvedAnimation(parent: _flyController!, curve: Curves.easeInOut));
+        .animate(CurvedAnimation(parent: _flyController!, curve: Curves.easeOutCirc));
     final scaleAnim = Tween<double>(begin: 1.0, end: _iconButtonSize / _gridIconSize)
-        .animate(CurvedAnimation(parent: _flyController!, curve: Curves.easeInOut));
+        .animate(CurvedAnimation(parent: _flyController!, curve: Curves.easeOutCirc));
 
     _flyOverlay?.remove();
     _flyOverlay = OverlayEntry(builder: (ctx) {
@@ -386,24 +386,36 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
   }
 
   Widget _buildIconSelectorPanel(bool isDark) {
-    final letter = extractTopicLetter(_titleController.text);
-    final availableWidth = _boxWidth - _gridPadding * 2;
-    final columns = (availableWidth / _gridCellSize).floor().clamp(1, 8);
-
     return SingleChildScrollView(
       padding: EdgeInsets.all(_gridPadding),
-      child: Wrap(
-        spacing: 2,
-        runSpacing: 2,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (final colorId in _topicColorIds)
-            _buildGridCell(colorId, letter, isDark),
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 6),
+            child: Text(
+              'Default Icons',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: isDark ? const Color(0xFF7f91a4) : const Color(0xFF999999),
+              ),
+            ),
+          ),
+          Wrap(
+            spacing: 2,
+            runSpacing: 2,
+            children: [
+              for (final colorId in _topicColorIds)
+                _buildGridCell(colorId, isDark),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildGridCell(int colorId, String letter, bool isDark) {
+  Widget _buildGridCell(int colorId, bool isDark) {
     final isSelected = _iconEmojiId == 0 && _colorId == colorId;
     return Builder(
       builder: (cellContext) => GestureDetector(

@@ -1630,6 +1630,49 @@ class _TopicInfoMenuButton extends StatelessWidget {
   }
 }
 
+class _TopicLinkRow extends StatelessWidget {
+  final ChatInfo chat;
+  final ForumTopic topic;
+  final ThemeData theme;
+
+  const _TopicLinkRow({
+    required this.chat,
+    required this.topic,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Icon(Icons.link, color: theme.colorScheme.primary),
+      title: const Text('Topic Link', style: TextStyle(fontSize: 14)),
+      dense: true,
+      onTap: () => _copyTopicLink(context),
+    );
+  }
+
+  void _copyTopicLink(BuildContext context) async {
+    final engine = context.read<EngineService>();
+    final parentChatId = topic.parentId.isNotEmpty
+        ? topic.parentId
+        : chat.parentId;
+    try {
+      final username = await engine.getChatUsername(chat.accountId, parentChatId);
+      if (username.isNotEmpty && context.mounted) {
+        final link = 'https://t.me/$username/${topic.id}';
+        Clipboard.setData(ClipboardData(text: link));
+        showTelegramToast(context, 'Topic link copied');
+      } else if (context.mounted) {
+        showTelegramToast(context, 'This group has no public link');
+      }
+    } catch (_) {
+      if (context.mounted) {
+        showTelegramToast(context, 'Could not get topic link');
+      }
+    }
+  }
+}
+
 class _ChatInfoPage extends StatefulWidget {
   final ChatInfo chat;
   final ChatState chatState;
@@ -1939,6 +1982,11 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
           delegate: SliverChildListDelegate([
             const SizedBox(height: 16),
             _NotificationToggle(chat: widget.chat, theme: widget.theme),
+            _TopicLinkRow(
+              chat: widget.chat,
+              topic: topic,
+              theme: widget.theme,
+            ),
             if (widget.mediaCounts.isNotEmpty) ...[
               const Divider(height: 24),
               _SharedMediaSection(

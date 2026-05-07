@@ -1726,16 +1726,19 @@ class ForumChatListRow extends StatelessWidget {
   });
 
   static const _rowHeight = 80.0;
+  static const _rowHeightWithTags = 96.0;
   static const _avatarSize = 46.0;
   static const _avatarLeft = 10.0;
   static const _contentLeft = 68.0;
   static const _paddingRight = 10.0;
   static const _topicsHeight = 21.0;
   static const _topicsSkip = 8.0;
+  static const _topicsSkipBig = 14.0;
 
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
+    final effectiveHeight = _rowHeight;
 
     final nameColor = isActive ? palette.dialogsNameFgActive : palette.dialogsNameFg;
     final mutedColor = isActive ? palette.dialogsTextFgActive : palette.dialogsTextFg;
@@ -1757,7 +1760,7 @@ class ForumChatListRow extends StatelessWidget {
           child: InkWell(
             onTap: onTap,
             child: SizedBox(
-              height: _rowHeight,
+              height: effectiveHeight,
               child: Center(
                 child: _ChatAvatar(
                   chat: chat,
@@ -1772,6 +1775,8 @@ class ForumChatListRow extends StatelessWidget {
         ),
       );
     }
+
+    final unreadFrontTopic = _findUnreadFrontTopic();
 
     return Container(
       color: rowBg,
@@ -1789,7 +1794,7 @@ class ForumChatListRow extends StatelessWidget {
               ? palette.dialogsRippleBgActive
               : palette.dialogsRippleBg,
           child: SizedBox(
-            height: _rowHeight,
+            height: effectiveHeight,
             child: Padding(
               padding: const EdgeInsets.only(left: _avatarLeft, right: _paddingRight),
               child: Row(
@@ -1845,6 +1850,11 @@ class ForumChatListRow extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: _topicsSkip - 4),
+                        if (unreadFrontTopic != null)
+                          _TopicJumpBubble(
+                            topic: unreadFrontTopic,
+                            isActive: isActive,
+                          ),
                       ],
                     ),
                   ),
@@ -1855,6 +1865,13 @@ class ForumChatListRow extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  ForumTopic? _findUnreadFrontTopic() {
+    for (final t in recentTopics) {
+      if (t.unreadCount > 0) return t;
+    }
+    return null;
   }
 
   static String _formatTime(int timestampMs) {
@@ -1942,6 +1959,52 @@ class _TopicsPreview extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
         );
       },
+    );
+  }
+}
+
+/// §22.4: Topic jump bubble — rounded bubble with arrow for unread front topic.
+class _TopicJumpBubble extends StatelessWidget {
+  final ForumTopic topic;
+  final bool isActive;
+
+  const _TopicJumpBubble({required this.topic, required this.isActive});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final bg = isActive
+        ? palette.dialogsUnreadBgActive
+        : palette.dialogsUnreadBg;
+    final fg = isActive
+        ? palette.dialogsUnreadFgActive
+        : palette.dialogsUnreadFg;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 3, 8, 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(11),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.arrow_forward, size: 12, color: fg),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              topic.isGeneral ? '# ${topic.title}' : topic.title,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: fg,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -275,7 +275,7 @@ class _BubbleIconPainter extends CustomPainter {
           [palette.strokeTop, palette.strokeBottom],
         )
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.84210526 * s,
+        ..strokeWidth = 2.94736842 * s,
     );
 
     canvas.drawPath(
