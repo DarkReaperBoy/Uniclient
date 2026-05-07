@@ -63,16 +63,7 @@
 ## &sect;29 -- Chat Export
 
 ## &sect;30 -- Bot Interactions
-- [ ] spec &sect;30.1 "Bot Command Button & Menu Button": no historyBotCommandStart (44x46px) slash button or historyBotMenuButton (RoundButton, 30px height, max 160px label) found in any compose area widget.
-- [ ] spec &sect;30.2 "Command Autocomplete Dropdown": no /command autocomplete dropdown with 40px row height, 33px bot userpic, case-insensitive filtering found.
-- [ ] spec &sect;30.3 "Inline Bot Results Panel": no @botname inline results panel with 345px width, mosaic grid layout, photo/GIF/sticker/video/article result types found.
-- [ ] spec &sect;30.4 "Reply Keyboard (Bot Keyboard Below Compose)": no full-width reply keyboard with botKbButton style (10px margin, 38px height), tiny variant (4px margin, 25px height), color variants (Normal/Primary/Danger/Success), or show/hide toggle found.
-- [ ] spec &sect;30.5 "Inline Keyboard (Buttons Under Messages)": no inline keyboard rendering below message bubbles with msgBotKbButton style (2px margin, 36px height), 20+ button types (Default/Url/Callback/Buy/WebView/CopyText etc.), hover animation, or loading spinner found.
-- [ ] spec &sect;30.6 "Web Apps / Mini Apps": `web_app_panel.dart` exists but needs audit against spec's SeparatePanel (384x694px default), header bar (bot name + custom emoji + verified badge), bottom bar (@username), main/secondary buttons (40px height), progress indicator (3px stroke), and theme integration. File was not fully read.
-- [ ] spec &sect;30.7 "Bot Start Screen": no bot start screen with EmptyPainter, GenerateManagedBotImage (280x140px), chatIntroWidth=224px sticker area, or historyComposeButton "START"/"RESTART" button (46px height) found.
-- [ ] spec &sect;30.8 "Game Messages": no game card rendering with webPageTitleStyle, "GAME" badge (msgDateFont, semi-transparent background), or "Play" button (36px height, historyPageButtonLine=1px separator) found.
-- [ ] spec &sect;30.9 "Login URL Buttons": no Auth confirmation dialog with bot userpic, account switcher, device/location details, checkbox options, or match code display found.
-- [ ] spec &sect;30.10 "Bot Payments": `payment_panel.dart` exists but needs audit against spec's paymentsPanelSize=392x600px, invoice cover (80x80 thumbnail), prices section, tips buttons (28px height), shipping form, and submit button. File was not fully read.
+- [ ] spec &sect;30.3 "Inline Bot Results Panel": `_InlineBotResultsPanel` uses `Positioned(left:0, right:0)` making it full-width. Spec requires fixed 345px width (`emojiPanWidth`). On desktop this produces ~74% over-width vs spec (MAJOR). Fix: wrap with `Align(alignment: Alignment.centerRight)` + `ConstrainedBox(maxWidth: 345)` or position like the emoji panel.
 
 ## &sect;31 -- Saved Messages
 - [ ] spec &sect;31.1 "Saved Messages Chat Entry": `chat_state.dart` does not treat Saved Messages as a special peer with a dedicated bookmark icon (EmptyUserpic::PaintSavedMessages with blue gradient #5caffa to #408acf and vector bookmark shape). Chat list may use a generic avatar instead.
