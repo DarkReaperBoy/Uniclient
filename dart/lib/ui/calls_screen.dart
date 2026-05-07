@@ -2200,10 +2200,6 @@ class _CallSettingsScreenState extends State<_CallSettingsScreen> {
               onSelected: (d) => setState(() => _cameraDevice = d),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
-            child: _CameraPreviewPlaceholder(isDark: isDark),
-          ),
           Divider(height: 1, color: dividerColor, indent: 60),
           _CallSettingsSectionHeader(label: 'Other', color: accentColor),
           _CallSettingsToggleRow(
@@ -2618,43 +2614,6 @@ class _LevelMeterPainter extends CustomPainter {
   @override
   bool shouldRepaint(_LevelMeterPainter oldDelegate) =>
       level != oldDelegate.level;
-}
-
-class _CameraPreviewPlaceholder extends StatelessWidget {
-  final bool isDark;
-
-  const _CameraPreviewPlaceholder({required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    final bgColor =
-        isDark ? const Color(0xFF0E1621) : const Color(0xFFF0F0F0);
-    final iconColor =
-        isDark ? const Color(0xFF3B4654) : const Color(0xFFBBBBBB);
-    final textColor =
-        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-
-    return AspectRatio(
-      aspectRatio: 640 / 480,
-      child: Container(
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.videocam_off, size: 48, color: iconColor),
-            const SizedBox(height: 8),
-            Text(
-              'Camera not available on this platform',
-              style: TextStyle(fontSize: 13, color: textColor),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 // ---------------------------------------------------------------------------
