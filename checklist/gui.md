@@ -71,19 +71,9 @@
 ## &sect;33 -- Contacts Screen
 
 ## &sect;34 -- Calls History
-- [ ] spec &sect;34.2 "Box Structure": `calls_screen.dart` uses Scaffold (full page) rather than spec's GenericBox (modal dialog). The spec requires a box with title "Calls", Close button, and three-dot menu -- the implementation uses an AppBar with back arrow instead.
-- [ ] spec &sect;34.3 "Active Group Calls Section": active group calls section exists with AnimatedSize SlideWrap, channel type label, and join button. Section title "Active Group Calls" matches spec. Missing: `peerListSingleRow` style override.
-- [ ] spec &sect;34.5 "Call Row Design": row dimensions match spec (56px height, 42px avatar at (16,7), name at semibold 13px). Grouping logic correctly groups same peer/date/type calls. Missing: name position should be (74, 9) per spec but code uses a Row layout rather than absolute positioning.
-- [ ] spec &sect;34.6 "Call Direction & Type Indicators": direction arrows use Icons.call_made / Icons.call_received with green (answered) / red (missed) colors. Transform.translate offset (-2, 1) matches spec's `callArrowPosition`. Arrow-to-text skip is SizedBox(width:4) matching spec's `callArrowSkip=4px`.
-- [ ] spec &sect;34.7 "Redial Button": redial button exists with voice (Icons.call) and video (Icons.videocam) variants. Size is SizedBox(width:40, height:56) matching spec's 40x56px. Missing: ripple animation with 40px area at (0,8).
-- [ ] spec &sect;34.8 "Status Text Format": timestamp formatting matches spec -- today shows bare time, yesterday shows "yesterday at HH:MM", older shows "Mon DD at HH:MM". Grouped calls show "(N) timestamp" format.
-- [ ] spec &sect;34.9 "Context Menu": context menu has "Delete" and "Show in Chat" -- matches spec. Uses custom `showTelegramMenu` with icon colors. Missing: specific icon tokens (menuIconDelete, menuIconShowInChat).
-- [ ] spec &sect;34.11 "Clear Call History Dialog": clear dialog exists with "Also delete for other participants" checkbox, Clear/Cancel buttons. Matches spec's structure. Uses `AlertDialog` instead of `GenericBox`.
-- [ ] spec &sect;34.12 "Create Call Button": create call button exists with accent-colored circle icon, "Create Call" label, and description text showing participant limit. Highlight animation exists. Missing: `inviteViaLinkButton` style, FloatingIcon at `inviteViaLinkIconPosition`.
 - [ ] spec &sect;34.13 "Rate Call Dialog": no rate call dialog with 5-star rating row (36x36 stars), optional comment field (200 char limit, 135px max height), or Send/Cancel buttons found.
 - [ ] spec &sect;34.14 "Call Settings Section": call settings screen exists with Output/Input/Call Devices/Camera/Other sections, device selectors, level meter (44 lines, 3px width, 5px spacing, 18px height -- matches spec). Missing: live camera preview (shows placeholder instead).
 - [ ] spec &sect;34.15 "Active Call Top Bar": no 38px colored top bar with mute toggle (41x38px), duration label, signal bars, info label, or hangup button found. No gradient background animation for group calls (green/blue/purple states).
-- [ ] spec &sect;34.17 "Create Conference Call Box": `_CreateCallBox` exists with participant picker, invite-via-link button, prioritized contacts section, and conference size limit (200) with overflow toast. Matches spec structure. Missing: `createCallListItem` style override (52px height, 40px avatar at (12,6), name at (63,7)), video/audio element buttons use correct 36x52px size.
 
 ## &sect;35 -- Empty, Error & Loading States
 - [ ] spec &sect;35.1 "Empty Chat List": no Lottie `no_chats.tgs` animation at 120x120px, no "You have no conversations yet" text in dialogEmptyButtonLabel style (semibold), no "New Message" action button at bottom found in `app_state.dart`.
