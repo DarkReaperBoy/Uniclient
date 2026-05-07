@@ -1058,6 +1058,12 @@ class ReadParticipantInfo {
   });
 }
 
+class ReadDateResult {
+  final int date;
+  final ReadPrivacyState privacyState;
+  const ReadDateResult({this.date = 0, this.privacyState = ReadPrivacyState.none});
+}
+
 // ── Reactor info (who reacted with what emoji) ──
 class ReactorInfo {
   final String emoji;

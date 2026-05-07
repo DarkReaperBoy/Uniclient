@@ -2028,56 +2028,35 @@ class _ChatViewState extends State<ChatView>
     }
   }
 
-  // AyuGram §9.6: Message Details — submenu with metadata (views, shares, ID, dates, media info).
-  void _showReadAt(CachedMessage msg) async {
+  void _showReadAt(CachedMessage msg) {
     final engine = context.read<EngineService>();
-    final date = await engine.getOutboxReadDate(msg.accountId, msg.chatId, msg.msgId);
-    if (!mounted) return;
-    if (date > 0) {
-      final dt = DateTime.fromMillisecondsSinceEpoch(date * 1000);
-      final hh = dt.hour.toString().padLeft(2, '0');
-      final mm = dt.minute.toString().padLeft(2, '0');
-      final ss = dt.second.toString().padLeft(2, '0');
-      final showSec = context.read<AppState>().showMessageSeconds;
-      final timeStr = showSec ? '$hh:$mm:$ss' : '$hh:$mm';
-      final palette = PaletteProvider.of(context);
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: palette.windowBg,
-          title: Text('Read at $timeStr', style: TextStyle(color: palette.windowFg)),
-          content: Text(
-            _formatFullDate(dt),
-            style: TextStyle(color: palette.windowSubTextFg, fontSize: 14),
+    final palette = PaletteProvider.of(context);
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'ReadAt',
+      barrierColor: Colors.black26,
+      transitionDuration: const Duration(milliseconds: 150),
+      transitionBuilder: (ctx, anim, _, child) {
+        return FadeTransition(
+          opacity: anim,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.95, end: 1.0)
+                .animate(CurvedAnimation(parent: anim, curve: Curves.easeOutQuint)),
+            child: child,
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('OK'),
-            ),
-          ],
+        );
+      },
+      pageBuilder: (ctx, animation, __) => Center(
+        child: _WhenReadPopup(
+          engine: engine,
+          accountId: msg.accountId,
+          chatId: msg.chatId,
+          msgId: msg.msgId,
+          palette: palette,
         ),
-      );
-    } else {
-      final palette = PaletteProvider.of(context);
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: palette.windowBg,
-          title: Text('Not yet read', style: TextStyle(color: palette.windowFg)),
-          content: Text(
-            'The recipient has not read this message yet, or read time is hidden.',
-            style: TextStyle(color: palette.windowSubTextFg, fontSize: 14),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-    }
+      ),
+    );
   }
 
   bool _checkMenuVisibility(int mode) {
@@ -20192,6 +20171,163 @@ class _WhoReadAvatar extends StatelessWidget {
           color: Colors.white,
           fontSize: size * 0.45,
           fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+// ── §43.3/§43.10.3: WhenRead Popup for 1:1 private chats ──
+
+class _WhenReadPopup extends StatefulWidget {
+  final EngineService engine;
+  final String accountId;
+  final String chatId;
+  final String msgId;
+  final TelegramPalette palette;
+
+  const _WhenReadPopup({
+    required this.engine,
+    required this.accountId,
+    required this.chatId,
+    required this.msgId,
+    required this.palette,
+  });
+
+  @override
+  State<_WhenReadPopup> createState() => _WhenReadPopupState();
+}
+
+class _WhenReadPopupState extends State<_WhenReadPopup> {
+  ReadDateResult? _result;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch() async {
+    try {
+      final result = await widget.engine.getOutboxReadDate(
+        widget.accountId, widget.chatId, widget.msgId,
+      );
+      if (mounted) setState(() => _result = result);
+    } catch (_) {
+      if (mounted) setState(() => _result = const ReadDateResult());
+    }
+  }
+
+  void _onShowTap() {
+    Navigator.of(context).pop();
+    final palette = widget.palette;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: palette.windowBg,
+        title: Text('Read Time', style: TextStyle(color: palette.windowFg, fontWeight: FontWeight.w600)),
+        content: Text(
+          'To see when others read your messages, disable hiding your own read time in Privacy settings.',
+          style: TextStyle(color: palette.windowSubTextFg),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = widget.palette;
+    final isLoading = _result == null;
+
+    String text;
+    bool showPill = false;
+
+    if (isLoading) {
+      text = 'Loading...';
+    } else {
+      switch (_result!.privacyState) {
+        case ReadPrivacyState.myHidden:
+          text = 'Read time hidden';
+          showPill = true;
+        case ReadPrivacyState.hisHidden:
+          text = 'Read time hidden';
+        case ReadPrivacyState.tooOld:
+          text = 'Message too old';
+        case ReadPrivacyState.none:
+          if (_result!.date > 0) {
+            final showSec = context.read<AppState>().showMessageSeconds;
+            text = _formatReadDate(_result!.date, showSeconds: showSec);
+          } else {
+            text = 'Not yet read';
+          }
+      }
+    }
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 320),
+      child: Material(
+        elevation: 8,
+        color: palette.windowBg,
+        borderRadius: BorderRadius.circular(8),
+        clipBehavior: Clip.antiAlias,
+        child: SizedBox(
+          height: 30,
+          child: Stack(
+            children: [
+              Positioned(
+                left: 15,
+                top: 7,
+                child: Icon(Icons.done_all, size: 18, color: palette.windowFg),
+              ),
+              Positioned(
+                left: 44,
+                top: 9,
+                right: showPill ? 80 : 17,
+                child: Text(
+                  text,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: palette.windowFg,
+                  ),
+                ),
+              ),
+              if (showPill)
+                Positioned(
+                  right: 17,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: GestureDetector(
+                      onTap: _onShowTap,
+                      child: Container(
+                        padding: const EdgeInsets.fromLTRB(6, 0, 6, 2),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          color: palette.windowBgActive,
+                        ),
+                        child: Text(
+                          'Show',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: palette.windowActiveTextFg,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );

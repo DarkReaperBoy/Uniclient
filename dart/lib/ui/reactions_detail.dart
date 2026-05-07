@@ -86,6 +86,7 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
   String _nextOffset = '';
   final ScrollController _scrollController = ScrollController();
   Set<String> _blockedIds = {};
+  ReadPrivacyState _privacyState = ReadPrivacyState.none;
 
   @override
   void initState() {
@@ -154,6 +155,7 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
         if (mounted) {
           setState(() {
             _readParticipants = result.participants;
+            _privacyState = result.privacyState;
             _loading = false;
           });
         }
@@ -313,12 +315,17 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
             ),
           Divider(height: 1, color: palette.windowFg.withValues(alpha: 0.08)),
           if (_loading)
-            const Padding(
-              padding: EdgeInsets.all(32),
-              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            Padding(
+              padding: const EdgeInsets.all(32),
+              child: Center(
+                child: Text(
+                  'Loading...',
+                  style: TextStyle(fontSize: 13, color: palette.windowSubTextFg),
+                ),
+              ),
             )
           else if (_isReadTab)
-            _filteredReadParticipants.isEmpty
+            _filteredReadParticipants.isEmpty && _privacyState == ReadPrivacyState.none
               ? Padding(
                   padding: const EdgeInsets.all(32),
                   child: Text(
@@ -327,31 +334,44 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
                   ),
                 )
               : Flexible(
-                  child: ListView.builder(
-                    controller: _scrollController,
-                    shrinkWrap: true,
-                    padding: EdgeInsets.zero,
-                    itemCount: _filteredReadParticipants.length,
-                    itemBuilder: (ctx, i) {
-                      final p = _filteredReadParticipants[i];
-                      return _ReadParticipantRow(
-                        participant: p,
-                        palette: palette,
-                        onTap: () {
-                          if (p.userId.isEmpty) return;
-                          Navigator.of(context).pop();
-                          final member = MemberInfo(userId: p.userId, displayName: p.name);
-                          if (InfoPanel.pushUserProfileRequest != null) {
-                            InfoPanel.pushUserProfileRequest!(member);
-                          } else {
-                            UniClientShell.toggleInfoRequest?.call();
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              InfoPanel.pushUserProfileRequest?.call(member);
-                            });
-                          }
-                        },
-                      );
-                    },
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_filteredReadParticipants.isNotEmpty)
+                        Flexible(
+                          child: ListView.builder(
+                            controller: _scrollController,
+                            shrinkWrap: true,
+                            padding: EdgeInsets.zero,
+                            itemCount: _filteredReadParticipants.length,
+                            itemBuilder: (ctx, i) {
+                              final p = _filteredReadParticipants[i];
+                              return _ReadParticipantRow(
+                                participant: p,
+                                palette: palette,
+                                onTap: () {
+                                  if (p.userId.isEmpty) return;
+                                  Navigator.of(context).pop();
+                                  final member = MemberInfo(userId: p.userId, displayName: p.name);
+                                  if (InfoPanel.pushUserProfileRequest != null) {
+                                    InfoPanel.pushUserProfileRequest!(member);
+                                  } else {
+                                    UniClientShell.toggleInfoRequest?.call();
+                                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                                      InfoPanel.pushUserProfileRequest?.call(member);
+                                    });
+                                  }
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                      if (_privacyState != ReadPrivacyState.none)
+                        _ReadPrivacyNotice(
+                          privacyState: _privacyState,
+                          palette: palette,
+                        ),
+                    ],
                   ),
                 )
           else if (_filteredReactors.isEmpty)
@@ -826,6 +846,112 @@ class _ReactorAvatar extends StatelessWidget {
           fontSize: size * 0.42,
           fontWeight: FontWeight.w500,
         ),
+      ),
+    );
+  }
+}
+
+class _ReadPrivacyNotice extends StatelessWidget {
+  final ReadPrivacyState privacyState;
+  final TelegramPalette palette;
+
+  const _ReadPrivacyNotice({
+    required this.privacyState,
+    required this.palette,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (privacyState == ReadPrivacyState.none) return const SizedBox.shrink();
+
+    final String label;
+    final bool showButton;
+    switch (privacyState) {
+      case ReadPrivacyState.myHidden:
+        label = 'Read time hidden';
+        showButton = true;
+      case ReadPrivacyState.hisHidden:
+        label = 'Read time hidden';
+        showButton = false;
+      case ReadPrivacyState.tooOld:
+        label = 'Message too old';
+        showButton = false;
+      case ReadPrivacyState.none:
+        return const SizedBox.shrink();
+    }
+
+    return SizedBox(
+      height: 19,
+      child: Stack(
+        children: [
+          Positioned(
+            left: 8,
+            top: (19 - 14) / 2,
+            child: Icon(Icons.done_all, size: 14, color: palette.windowSubTextFg),
+          ),
+          Positioned(
+            left: 34,
+            top: 3,
+            right: showButton ? 70 : 17,
+            bottom: 4,
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: 12,
+                color: palette.windowSubTextFg,
+              ),
+            ),
+          ),
+          if (showButton)
+            Positioned(
+              right: 17,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: GestureDetector(
+                  onTap: () {
+                    showDialog(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        backgroundColor: palette.windowBg,
+                        title: Text(
+                          'Read Time',
+                          style: TextStyle(color: palette.windowFg, fontWeight: FontWeight.w600),
+                        ),
+                        content: Text(
+                          'To see when others read your messages, disable hiding your own read time in Privacy settings.',
+                          style: TextStyle(color: palette.windowSubTextFg),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(ctx).pop(),
+                            child: const Text('OK'),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(6, 0, 6, 2),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      color: palette.windowBgActive,
+                    ),
+                    child: Text(
+                      'Show',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: palette.windowActiveTextFg,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

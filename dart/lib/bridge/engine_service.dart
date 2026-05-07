@@ -2251,7 +2251,7 @@ class EngineService {
     }
   }
 
-  Future<int> getOutboxReadDate(String accountId, String chatId, String msgId) async {
+  Future<ReadDateResult> getOutboxReadDate(String accountId, String chatId, String msgId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'chat_id': chatId,
@@ -2259,12 +2259,20 @@ class EngineService {
     }));
     try {
       final respBytes = await _callAsync('__engine', 'GetOutboxReadDate', Uint8List.fromList(payload));
-      if (respBytes.isEmpty) return 0;
+      if (respBytes.isEmpty) return const ReadDateResult();
       final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
-      return (data['date'] as num?)?.toInt() ?? 0;
+      final date = (data['date'] as num?)?.toInt() ?? 0;
+      final privacyStr = data['privacy_state'] as String? ?? '';
+      final privacyState = switch (privacyStr) {
+        'my_hidden' => ReadPrivacyState.myHidden,
+        'his_hidden' => ReadPrivacyState.hisHidden,
+        'too_old' => ReadPrivacyState.tooOld,
+        _ => ReadPrivacyState.none,
+      };
+      return ReadDateResult(date: date, privacyState: privacyState);
     } catch (e) {
       Debug.error('ENGINE', 'getOutboxReadDate failed', e);
-      return 0;
+      return const ReadDateResult();
     }
   }
 
