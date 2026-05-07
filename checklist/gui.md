@@ -82,8 +82,6 @@
 
 ## §40 — Send Files Dialog
 
-- [ ] BUG §40.6 "Edit caption crash": pressing Escape on the outer `_SendFilesBoxDialog` while the inner `_showEditCaptionDialog` AlertDialog is open causes the outer dialog to close via `_onDialogKey`, leading to `TextEditingController` use-after-dispose and Flutter framework assertion failure (`_dependents.isEmpty`). Fix: guard `_onDialogKey` escape handler so it does not fire while a sub-dialog is open, or use a flag `_captionDialogOpen` to suppress outer escape handling. — `send_files_box.dart:421-444`
-
 ## §41 — Message Formatting Toolbar
 
 - [ ] spec §41.1 "No floating toolbar": spec says there is NO floating toolbar on text selection, only right-click context menu + keyboard shortcuts; code implements `_ComposeFormattingOverlay` which appears to be a context-menu-based approach — `chat_view.dart:11423`
