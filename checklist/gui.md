@@ -75,22 +75,6 @@
 ## &sect;36 -- Common Dialog & Modal Patterns
 # Audit: §37-§49 Popups, Formatting & Interactions
 
-## §37 — Desktop Notifications
-
-- [ ] spec §37.3.3 "Corner Selection": notification_popup.dart implements all 5 corners correctly, but `_recalcPositions` does not apply RTL layout swap (left/right should swap in RTL locales per spec) — `notification_popup.dart`
-- [ ] spec §37.3.4 "Title text font": spec says title uses `semiboldFont` (13px semibold), code uses `fontSize: 13, fontWeight: FontWeight.w600` which is correct weight but spec says the font token is `st::semiboldFont` — font size is correct but not verified against AyuGram's exact 13px semibold Open Sans — `notification_popup.dart:514`
-- [ ] spec §37.3.4 "Message text": spec says message text drawn with `dialogsTextFont` up to 2 lines with right-edge fade-out mask (`notifyFadeRight`); code uses `TextOverflow.ellipsis` instead of a fade-out gradient — `notification_popup.dart:528-530`
-- [ ] spec §37.3.4a "Reply field width": spec says reply field width = `notifyWidth - notifySendReply.width - 2*borderWidth` = 282px; code uses `Expanded` in a Row which should produce a similar result but the exact pixel math is not enforced — `notification_popup.dart:731-763`
-- [ ] spec §37.3.4a "Reply field text margins": spec says text margins are 8/8/8/6 px; code uses `contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8)` missing the asymmetric 6px bottom — `notification_popup.dart:757`
-- [ ] spec §37.3.5 "Shift animation": spec says notifications animate their vertical shift over 150ms when added/removed; code sets `currentY = shift` instantly in `_recalcPositions` with no animation — `notification_popup.dart:288-290`
-- [ ] spec §37.3.5 "Input polling": spec says when `WaitForInputForCustom` is true and no user input has occurred, auto-dismiss is deferred with 300ms polling; code does not implement input-detection polling at all — `notification_popup.dart`
-- [ ] spec §37.3.6 "Ctrl+click": spec says Ctrl+click on notification body opens chat in a separate window; code has no Ctrl modifier detection on tap — `notification_popup.dart:219-223`
-- [ ] spec §37.3.7 "Queue overflow eviction": spec says oldest non-reply, non-hover notification is evicted when at capacity and queue is non-empty; `DefaultManager` simply queues the item without evicting any shown notification — `notification_manager_default.dart:60-65`
-- [ ] spec §37.3.7 "Hide All button appears with 2+ or queue non-empty": code checks `_active.length >= 2 || _queue.isNotEmpty` in `showHideAll` which is correct, but the popup overlay checks `_popups.length >= 2` only and does not check the queue — `notification_popup.dart:383`
-- [ ] spec §37.4.1 "Title composition: monoforum sublist": spec defines monoforum sublist title pattern `SublistPeerShortName (ChatName)`; the `composeNotificationContent` function does not handle monoforum sublists — `notification_types.dart:226-245`
-- [ ] spec §37.4.3 "Album text": spec says albums display as `lng_in_dlg_album` ("Album"); code correctly produces "Album" in `_flushGroupedBuffer` — verified OK
-- [ ] spec §37.12.1 "Hidden userpic placeholder": spec says the placeholder is a square app logo at 62x62px; code shows a square container with a single letter 'U' as placeholder instead of the app logo — `notification_popup.dart:639-662`
-- [ ] spec §37.13 "Userpic caching size": spec says native userpic cache is 64px PNG; code resizes to 64x64 correctly — verified OK in `notification_manager_native.dart:59`
 
 ## §38 — User Profile Popup
 
