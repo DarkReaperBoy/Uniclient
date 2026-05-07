@@ -69,7 +69,6 @@
 ## &sect;32 -- Stories
 
 ## &sect;33 -- Contacts Screen
-- [ ] spec &sect;33.5 "Country Code Picker": `_CountrySelectBox` from `contacts_screen.dart` is now correctly wired (replaces dead-code `_CountryPickerContent`). Empty state ✓, 36px rows ✓, text-only rows (no flag emoji) ✓. BROKEN: keyboard navigation does not work — pressing ↑/↓ does not move the selection (TextField consumes arrow keys before they reach the KeyboardListener), and Enter does not select the highlighted country. Fix: replace `KeyboardListener(focusNode: _keyboardFocus, autofocus: false, ...)` with a `Focus(onKeyEvent: ...)` wrapping the search TextField itself, intercepting ↑/↓/Enter before TextField handles them and returning `KeyEventResult.handled` for those keys.
 
 ## &sect;34 -- Calls History
 - [ ] spec &sect;34.2 "Box Structure": `calls_screen.dart` uses Scaffold (full page) rather than spec's GenericBox (modal dialog). The spec requires a box with title "Calls", Close button, and three-dot menu -- the implementation uses an AppBar with back arrow instead.

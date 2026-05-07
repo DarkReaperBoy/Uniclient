@@ -1505,19 +1505,22 @@ class _CountrySelectBoxState extends State<_CountrySelectBox> {
     _scrollCtrl = ScrollController();
     final idx = countries.indexWhere((c) => c.iso == widget.selected.iso);
     if (idx >= 0) _selectedIndex = idx;
+    HardwareKeyboard.instance.addHandler(_hardwareKeyHandler);
   }
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_hardwareKeyHandler);
     _searchCtrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
   }
 
-  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return KeyEventResult.ignored;
+  bool _hardwareKeyHandler(KeyEvent event) {
+    if (!mounted) return false;
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return false;
     final filtered = _filtered;
-    if (filtered.isEmpty) return KeyEventResult.ignored;
+    if (filtered.isEmpty) return false;
 
     final key = event.logicalKey;
     if (key == LogicalKeyboardKey.arrowDown) {
@@ -1525,34 +1528,36 @@ class _CountrySelectBoxState extends State<_CountrySelectBox> {
         _selectedIndex = (_selectedIndex + 1).clamp(0, filtered.length - 1);
       });
       _ensureVisible(_selectedIndex);
-      return KeyEventResult.handled;
+      return true;
     } else if (key == LogicalKeyboardKey.arrowUp) {
       setState(() {
         _selectedIndex = (_selectedIndex - 1).clamp(0, filtered.length - 1);
       });
       _ensureVisible(_selectedIndex);
-      return KeyEventResult.handled;
+      return true;
     } else if (key == LogicalKeyboardKey.pageDown) {
-      final pageItems = ((_scrollCtrl.position.viewportDimension) / _itemHeight).floor();
+      if (!_scrollCtrl.hasClients) return false;
+      final pageItems = (_scrollCtrl.position.viewportDimension / _itemHeight).floor();
       setState(() {
         _selectedIndex = (_selectedIndex + pageItems).clamp(0, filtered.length - 1);
       });
       _ensureVisible(_selectedIndex);
-      return KeyEventResult.handled;
+      return true;
     } else if (key == LogicalKeyboardKey.pageUp) {
-      final pageItems = ((_scrollCtrl.position.viewportDimension) / _itemHeight).floor();
+      if (!_scrollCtrl.hasClients) return false;
+      final pageItems = (_scrollCtrl.position.viewportDimension / _itemHeight).floor();
       setState(() {
         _selectedIndex = (_selectedIndex - pageItems).clamp(0, filtered.length - 1);
       });
       _ensureVisible(_selectedIndex);
-      return KeyEventResult.handled;
+      return true;
     } else if (key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.numpadEnter) {
       if (_selectedIndex >= 0 && _selectedIndex < filtered.length) {
         widget.onSelect(filtered[_selectedIndex]);
       }
-      return KeyEventResult.handled;
+      return true;
     }
-    return KeyEventResult.ignored;
+    return false;
   }
 
   void _ensureVisible(int index) {
@@ -1622,28 +1627,25 @@ class _CountrySelectBoxState extends State<_CountrySelectBox> {
                 padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
                 child: SizedBox(
                   height: 36,
-                  child: Focus(
-                    onKeyEvent: _handleKeyEvent,
-                    child: TextField(
-                      controller: _searchCtrl,
-                      autofocus: true,
-                      style: TextStyle(fontSize: 13, color: textColor),
-                      decoration: InputDecoration(
-                        hintText: 'Search',
-                        hintStyle: TextStyle(fontSize: 13, color: subtextColor),
-                        prefixIcon: Icon(Icons.search, size: 18, color: subtextColor),
-                        filled: true,
-                        fillColor: searchBg,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide.none),
-                      ),
-                      onChanged: (v) {
-                        setState(() {
-                          _query = v.toLowerCase().trim();
-                          _selectedIndex = 0;
-                        });
-                      },
+                  child: TextField(
+                    controller: _searchCtrl,
+                    autofocus: true,
+                    style: TextStyle(fontSize: 13, color: textColor),
+                    decoration: InputDecoration(
+                      hintText: 'Search',
+                      hintStyle: TextStyle(fontSize: 13, color: subtextColor),
+                      prefixIcon: Icon(Icons.search, size: 18, color: subtextColor),
+                      filled: true,
+                      fillColor: searchBg,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide.none),
                     ),
+                    onChanged: (v) {
+                      setState(() {
+                        _query = v.toLowerCase().trim();
+                        _selectedIndex = 0;
+                      });
+                    },
                   ),
                 ),
               ),
