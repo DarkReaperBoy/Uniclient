@@ -63,7 +63,6 @@
 ## &sect;29 -- Chat Export
 
 ## &sect;30 -- Bot Interactions
-- [ ] spec &sect;30.3 "Inline Bot Results Panel": `_InlineBotResultsPanel` uses `Positioned(left:0, right:0)` making it full-width. Spec requires fixed 345px width (`emojiPanWidth`). On desktop this produces ~74% over-width vs spec (MAJOR). Fix: wrap with `Align(alignment: Alignment.centerRight)` + `ConstrainedBox(maxWidth: 345)` or position like the emoji panel.
 
 ## &sect;31 -- Saved Messages
 - [ ] spec &sect;31.1 "Saved Messages Chat Entry": `chat_state.dart` does not treat Saved Messages as a special peer with a dedicated bookmark icon (EmptyUserpic::PaintSavedMessages with blue gradient #5caffa to #408acf and vector bookmark shape). Chat list may use a generic avatar instead.
