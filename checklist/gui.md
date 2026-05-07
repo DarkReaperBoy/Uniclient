@@ -48,18 +48,10 @@
 
 ## §22 — Forum Topics UI
 
-- [ ] spec §22.3 "Forum Topic List Layout": topic row height should be 54px with photoSize 20px, nameLeft 39px, textLeft 39px — `_ForumTopicListView` exists in `chat_list_panel.dart` but topic row styling dimensions are not verified against these exact tokens — `chat_list_panel.dart`
-- [ ] spec §22.4 "Forum Group in Main Chat List": forum groups should use expanded row height of 80px (96px with tags) with `TopicsView` rendering up to 8 recent topic names horizontally — not implemented; forum groups render as standard 62px dialog rows — `chat_list_panel.dart`
-- [ ] spec §22.4 "Topic Jump Bubble": unread front topic should show a rounded bubble (radius 11px, padding 8/3/8/3px) with arrow icon for direct navigation — not implemented — `chat_list_panel.dart`
 - [ ] spec §22.5 "Create/Edit Topic Dialog": icon selector panel should use `EmojiListWidget` in `Mode::TopicIcon` with server emoji set and Premium gating for non-default custom emojis — implementation shows only the 6 predefined color icons in a simple grid, no custom emoji selector — `edit_forum_topic_box.dart`
 - [ ] spec §22.5 "Edit Topic": fly animation should use `EmojiFlyAnimation` from selector to icon button — a basic overlay fly animation is implemented but uses simple position/scale tween instead of the full `EmojiFlyAnimation` pattern — `edit_forum_topic_box.dart`
 - [ ] spec §22.5 "Create Topic": should reserve local ID via `forum->reserveCreatingId()` and navigate to topic immediately — not connected to the engine's topic creation flow — `edit_forum_topic_box.dart`
-- [ ] spec §22.6 "Topic Header Bar": standard `info_top_bar` with back button, title with icon prefix, optional subtitle at 54px height — topic header rendering in chat view exists but not verified for icon prefix positioning — `chat_list_panel.dart`
-- [ ] spec §22.7 "Topic Info Panel": third column showing cover (77px height, icon 36x36px at (22,18)), notifications toggle, shared media, members list, topic link — topic info panel section not found as a dedicated widget — `info_panel.dart`
 - [ ] spec §22.8 "Topic Context Menus": specific topic row right-click should show New Window, Pin/Unpin, View Info, Mute submenu, Mark Read/Unread, Close/Reopen, Add to Folder, Clear History, Delete Topic — topic list context menu exists (`_showTopicListContextMenu`) but likely missing several items (New Window, Add to Folder, Close/Reopen) — `chat_list_panel.dart`
-- [ ] spec §22.9 "General Topic": title should be prefixed with "# " in rich text — not implemented in topic rendering — `forum_topic_icon.dart`
-- [ ] spec §22.10 "View as Messages/Topics toggle": saves preference and switches between flat messages and topic list — toggle exists in the context menu but the "View as Messages" flat mode is not a distinct rendering — `chat_list_panel.dart`
-- [ ] spec §22.2.1 "Topic Icon SVG": stroke width should be `2.94736842px` scaled — code uses `2.84210526 * s` which differs from spec value (2.95 vs 2.84) — `forum_topic_icon.dart`
 
 ## §23 — Scheduled Messages
 
