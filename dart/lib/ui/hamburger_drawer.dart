@@ -244,11 +244,7 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                       label: 'Calls',
                       onTap: () {
                         Navigator.of(context).pop();
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const CallsScreen(),
-                          ),
-                        );
+                        showCallsBox(context);
                       },
                     ),
                     // §3.3: Saved Messages row (§54.8: gated).

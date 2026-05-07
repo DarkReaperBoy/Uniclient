@@ -18,14 +18,39 @@ import 'popup_menu.dart';
 import 'settings_style.dart';
 import 'telegram_toast.dart';
 
-class CallsScreen extends StatefulWidget {
-  const CallsScreen({super.key});
+// ---------------------------------------------------------------------------
+// §34.2: showCallsBox — entry point (GenericBox pattern)
+// ---------------------------------------------------------------------------
 
-  @override
-  State<CallsScreen> createState() => _CallsScreenState();
+void showCallsBox(BuildContext context) {
+  final engine = context.read<EngineService>();
+  final appState = context.read<AppState>();
+  final chatState = context.read<ChatState>();
+  showTelegramBox(
+    context: context,
+    builder: (ctx) => MultiProvider(
+      providers: [
+        Provider<EngineService>.value(value: engine),
+        ChangeNotifierProvider.value(value: appState),
+        ChangeNotifierProvider.value(value: chatState),
+      ],
+      child: const _CallsBox(),
+    ),
+  );
 }
 
-class _CallsScreenState extends State<CallsScreen> {
+// ---------------------------------------------------------------------------
+// §34.2: _CallsBox — modal dialog matching GenericBox spec
+// ---------------------------------------------------------------------------
+
+class _CallsBox extends StatefulWidget {
+  const _CallsBox();
+
+  @override
+  State<_CallsBox> createState() => _CallsBoxState();
+}
+
+class _CallsBoxState extends State<_CallsBox> {
   List<_ActiveGroupCallEntry> _activeGroupCalls = [];
   StreamSubscription<GroupCallStateEvent>? _groupCallSub;
 
@@ -161,230 +186,139 @@ class _CallsScreenState extends State<CallsScreen> {
     _loadActiveGroupCalls();
   }
 
+  // §34.11: Clear Call History — uses TelegramBox (was AlertDialog)
   void _showClearCallHistoryDialog() {
-    final appState = context.read<AppState>();
     final engine = context.read<EngineService>();
-    final accountId = appState.activeAccountId;
-    bool revoke = false;
+    final accountId = context.read<AppState>().activeAccountId;
 
-    showDialog(
+    showTelegramBox(
       context: context,
       builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setDialogState) {
-            final p = ctx.palette;
-            return AlertDialog(
-              backgroundColor: p.boxBg,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              title: Text(
-                'Clear Call History',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: p.boxTitleFg,
-                ),
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Are you sure you want to delete all call history?',
-                    style: TextStyle(fontSize: 14, color: p.boxTextFg),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: Checkbox(
-                          value: revoke,
-                          onChanged: (v) => setDialogState(() => revoke = v ?? false),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => setDialogState(() => revoke = !revoke),
-                          child: Text(
-                            'Also delete for other participants',
-                            style: TextStyle(fontSize: 14, color: p.boxTextFg),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  child: Text(
-                    'Cancel',
-                    style: TextStyle(color: p.windowBgActive),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () async {
-                    Navigator.of(ctx).pop();
-                    try {
-                      await engine.clearCallHistory(accountId, revoke: revoke);
-                      if (mounted) {
-                        setState(() {
-                          _callHistory.clear();
-                          _groupedCalls.clear();
-                        });
-                      }
-                    } catch (_) {}
-                  },
-                  child: Text(
-                    'Clear',
-                    style: TextStyle(color: p.attentionButtonFg),
-                  ),
-                ),
-              ],
-            );
+        return _ClearCallHistoryBox(
+          onConfirm: (revoke) async {
+            try {
+              await engine.clearCallHistory(accountId, revoke: revoke);
+              if (mounted) {
+                setState(() {
+                  _callHistory.clear();
+                  _groupedCalls.clear();
+                });
+              }
+            } catch (_) {}
           },
         );
       },
     );
   }
 
+  void _openCallSettings() {
+    Navigator.of(context).pop();
+    Navigator.of(context).push(
+      settingsPageRoute(const _CallSettingsScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final p = context.palette;
-
-    final bgColor = p.boxBg;
-    final textColor = p.boxTextFg;
-    final subtextColor = p.boxTitleAdditionalFg;
-    final dividerColor = p.boxDividerBg;
-    final accentColor = p.windowBgActive;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final menuIconColor = p.menuIconFg;
     final attentionColor = p.attentionButtonFg;
 
-    return Scaffold(
-      backgroundColor: bgColor,
-      appBar: AppBar(
-        backgroundColor: bgColor,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: textColor),
-          onPressed: () => Navigator.of(context).pop(),
+    return TelegramBox(
+      title: 'Calls',
+      showClose: true,
+      scrollableContent: false,
+      titleTrailing: PopupMenuButton<String>(
+        icon: Icon(Icons.more_vert, size: 20, color: p.boxTitleFg),
+        color: p.boxBg,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(),
+        style: IconButton.styleFrom(
+          minimumSize: const Size(kBoxTitleHeight, kBoxTitleHeight),
+          maximumSize: const Size(kBoxTitleHeight, kBoxTitleHeight),
         ),
-        title: Text(
-          'Calls',
-          style: TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w600,
-            color: textColor,
+        onSelected: (value) {
+          switch (value) {
+            case 'settings':
+              _openCallSettings();
+            case 'clear_all':
+              _showClearCallHistoryDialog();
+          }
+        },
+        itemBuilder: (context) => [
+          PopupMenuItem<String>(
+            value: 'settings',
+            child: Row(
+              children: [
+                Icon(Icons.settings, size: 20, color: menuIconColor),
+                const SizedBox(width: 12),
+                Text('Call Settings',
+                    style: TextStyle(fontSize: 14, color: p.boxTextFg)),
+              ],
+            ),
           ),
-        ),
-        actions: [
-          PopupMenuButton<String>(
-            icon: Icon(Icons.more_vert, color: menuIconColor),
-            color: p.boxBg,
-            onSelected: (value) {
-              switch (value) {
-                case 'settings':
-                  Navigator.of(context).push(
-                    settingsPageRoute(const _CallSettingsScreen()),
-                  );
-                case 'clear_all':
-                  _showClearCallHistoryDialog();
-              }
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem<String>(
-                value: 'settings',
-                child: Row(
-                  children: [
-                    Icon(Icons.settings, size: 20, color: menuIconColor),
-                    const SizedBox(width: 12),
-                    Text(
-                      'Call Settings',
-                      style: TextStyle(fontSize: 14, color: textColor),
-                    ),
-                  ],
-                ),
+          if (_callHistory.isNotEmpty)
+            PopupMenuItem<String>(
+              value: 'clear_all',
+              child: Row(
+                children: [
+                  Icon(Icons.delete, size: 20, color: attentionColor),
+                  const SizedBox(width: 12),
+                  Text('Clear All',
+                      style: TextStyle(fontSize: 14, color: attentionColor)),
+                ],
               ),
-              if (_callHistory.isNotEmpty)
-                PopupMenuItem<String>(
-                  value: 'clear_all',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete, size: 20, color: attentionColor),
-                      const SizedBox(width: 12),
-                      Text(
-                        'Clear All',
-                        style: TextStyle(fontSize: 14, color: attentionColor),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
+            ),
         ],
       ),
-      body: Column(
+      buttons: [
+        TelegramBoxButton(
+          text: 'Close',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
+          // §34.3: Active Group Calls
           _ActiveGroupCallsSection(
             entries: _activeGroupCalls,
             isDark: isDark,
-            textColor: textColor,
-            subtextColor: subtextColor,
-            dividerColor: dividerColor,
-            accentColor: accentColor,
-            menuIconColor: menuIconColor,
           ),
-          _CreateCallButton(
-            accentColor: accentColor,
-            textColor: textColor,
-            subtextColor: subtextColor,
-            dividerColor: dividerColor,
-            isDark: isDark,
-          ),
-          Divider(height: 1, color: dividerColor),
-          Expanded(
-            child: _buildCallHistoryList(
-              isDark: isDark,
-              textColor: textColor,
-              subtextColor: subtextColor,
-              accentColor: accentColor,
-              menuIconColor: menuIconColor,
-            ),
+          // §34.12: Create Call Button
+          _CreateCallButton(isDark: isDark),
+          Divider(height: 1, color: p.boxDividerBg),
+          // §34.4: Call history list
+          Flexible(
+            child: _buildCallHistoryList(isDark: isDark),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildCallHistoryList({
-    required bool isDark,
-    required Color textColor,
-    required Color subtextColor,
-    required Color accentColor,
-    required Color menuIconColor,
-  }) {
+  Widget _buildCallHistoryList({required bool isDark}) {
+    final p = context.palette;
     if (_isLoading) {
-      return Center(
-        child: Text(
-          'Loading...',
-          style: TextStyle(fontSize: 14, color: subtextColor),
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 40),
+        child: Center(
+          child: Text(
+            'Loading...',
+            style: TextStyle(fontSize: 14, color: p.boxTitleAdditionalFg),
+          ),
         ),
       );
     }
 
     if (_callHistory.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
+        child: Center(
           child: Text(
             'Your recent calls will appear here.',
-            style: TextStyle(fontSize: 14, color: subtextColor),
+            style: TextStyle(fontSize: 14, color: p.boxTitleAdditionalFg),
             textAlign: TextAlign.center,
           ),
         ),
@@ -393,24 +327,25 @@ class _CallsScreenState extends State<CallsScreen> {
 
     return ListView.builder(
       controller: _scrollController,
+      shrinkWrap: true,
       itemCount: _groupedCalls.length + (_loadingMore ? 1 : 0),
       itemBuilder: (context, index) {
         if (index >= _groupedCalls.length) {
           return const Padding(
             padding: EdgeInsets.all(16),
-            child: Center(child: SizedBox(
-              width: 20, height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )),
+            child: Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
           );
         }
         return _CallHistoryRow(
           group: _groupedCalls[index],
           accountId: context.read<AppState>().activeAccountId,
           isDark: isDark,
-          textColor: textColor,
-          subtextColor: subtextColor,
-          menuIconColor: menuIconColor,
           onDeleted: (group) {
             setState(() {
               for (final e in group.entries) {
@@ -425,6 +360,89 @@ class _CallsScreenState extends State<CallsScreen> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// §34.11: Clear Call History Dialog (TelegramBox)
+// ---------------------------------------------------------------------------
+
+class _ClearCallHistoryBox extends StatefulWidget {
+  final Future<void> Function(bool revoke) onConfirm;
+
+  const _ClearCallHistoryBox({required this.onConfirm});
+
+  @override
+  State<_ClearCallHistoryBox> createState() => _ClearCallHistoryBoxState();
+}
+
+class _ClearCallHistoryBoxState extends State<_ClearCallHistoryBox> {
+  bool _revoke = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    return TelegramBox(
+      title: 'Clear Call History',
+      content: Padding(
+        padding: kBoxPadding,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to delete all call history?',
+              style: TextStyle(fontSize: 14, color: p.boxTextFg),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: Checkbox(
+                    value: _revoke,
+                    onChanged: (v) => setState(() => _revoke = v ?? false),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _revoke = !_revoke),
+                    child: Text(
+                      'Also delete for other participants',
+                      style: TextStyle(fontSize: 14, color: p.boxTextFg),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      buttons: [
+        TelegramBoxButton(
+          text: 'Cancel',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        TelegramBoxButton(
+          text: 'Clear',
+          isDestructive: true,
+          onPressed: () {
+            Navigator.of(context).pop();
+            widget.onConfirm(_revoke);
+          },
+        ),
+      ],
+      onConfirm: () {
+        Navigator.of(context).pop();
+        widget.onConfirm(_revoke);
+      },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// §34.3: Active Group Calls Section (peerListSingleRow — no extra padding)
+// ---------------------------------------------------------------------------
+
 class _ActiveGroupCallEntry {
   final ChatInfo chat;
   final GroupCallInfo callInfo;
@@ -434,24 +452,15 @@ class _ActiveGroupCallEntry {
 class _ActiveGroupCallsSection extends StatelessWidget {
   final List<_ActiveGroupCallEntry> entries;
   final bool isDark;
-  final Color textColor;
-  final Color subtextColor;
-  final Color dividerColor;
-  final Color accentColor;
-  final Color menuIconColor;
 
   const _ActiveGroupCallsSection({
     required this.entries,
     required this.isDark,
-    required this.textColor,
-    required this.subtextColor,
-    required this.dividerColor,
-    required this.accentColor,
-    required this.menuIconColor,
   });
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     return AnimatedSize(
       duration: const Duration(milliseconds: 200),
       alignment: Alignment.topCenter,
@@ -467,21 +476,16 @@ class _ActiveGroupCallsSection extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: accentColor,
+                      color: p.windowBgActive,
                     ),
                   ),
                 ),
+                // §34.3: peerListSingleRow — rows have no extra top/bottom padding
                 for (final entry in entries)
-                  _GroupCallRow(
-                    entry: entry,
-                    isDark: isDark,
-                    textColor: textColor,
-                    subtextColor: subtextColor,
-                    menuIconColor: menuIconColor,
-                  ),
+                  _GroupCallRow(entry: entry, isDark: isDark),
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Divider(height: 1, color: dividerColor),
+                  child: Divider(height: 1, color: p.boxDividerBg),
                 ),
               ],
             ),
@@ -492,17 +496,8 @@ class _ActiveGroupCallsSection extends StatelessWidget {
 class _GroupCallRow extends StatefulWidget {
   final _ActiveGroupCallEntry entry;
   final bool isDark;
-  final Color textColor;
-  final Color subtextColor;
-  final Color menuIconColor;
 
-  const _GroupCallRow({
-    required this.entry,
-    required this.isDark,
-    required this.textColor,
-    required this.subtextColor,
-    required this.menuIconColor,
-  });
+  const _GroupCallRow({required this.entry, required this.isDark});
 
   @override
   State<_GroupCallRow> createState() => _GroupCallRowState();
@@ -528,16 +523,17 @@ class _GroupCallRowState extends State<_GroupCallRow> {
   Widget build(BuildContext context) {
     final chat = widget.entry.chat;
     final isChannel = chat.type == ChatType.channel;
-    final hoverBg =
-        widget.isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
+    final p = context.palette;
+    final hoverBg = p.windowBgOver;
 
     final numId = int.tryParse(chat.chatId) ?? chat.chatId.hashCode.abs();
-    final avatarColor = context.palette.peerUserpicBg(_colorRemap[numId.abs() % 7]);
+    final avatarColor = p.peerUserpicBg(_colorRemap[numId.abs() % 7]);
     final initials = _getInitials(chat.title);
     final avatarCorner = context.watch<AppState>().avatarCorners;
     const avatarSize = 42.0;
     final avatarRadius = avatarSize / 2 * (avatarCorner / 23.0);
 
+    // §34.5 spec row: 56px height, avatar at (16,7), name at (74,9)
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
@@ -551,76 +547,96 @@ class _GroupCallRowState extends State<_GroupCallRow> {
         child: Container(
           height: 56,
           color: _hovered ? hoverBg : Colors.transparent,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
+          child: Stack(
             children: [
-              SizedBox(
-                width: avatarSize,
-                height: avatarSize,
-                child: chat.avatarPath.isNotEmpty
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(avatarRadius),
-                        child: Image.file(
-                          File(chat.avatarPath),
-                          width: avatarSize,
-                          height: avatarSize,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _fallbackAvatar(
-                              avatarColor, initials, avatarSize, avatarRadius),
-                        ),
-                      )
-                    : _fallbackAvatar(
-                        avatarColor, initials, avatarSize, avatarRadius),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      chat.title,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: widget.textColor,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _chatTypeLabel(chat),
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: widget.subtextColor,
-                      ),
-                      maxLines: 1,
-                    ),
-                  ],
+              Positioned(
+                left: 16,
+                top: 7,
+                child: SizedBox(
+                  width: avatarSize,
+                  height: avatarSize,
+                  child: chat.avatarPath.isNotEmpty
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(avatarRadius),
+                          child: Image.file(
+                            File(chat.avatarPath),
+                            width: avatarSize,
+                            height: avatarSize,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _fallbackAvatar(
+                                avatarColor, initials, avatarSize, avatarRadius),
+                          ),
+                        )
+                      : _fallbackAvatar(
+                          avatarColor, initials, avatarSize, avatarRadius),
                 ),
               ),
+              Positioned(
+                left: 74,
+                top: 9,
+                right: isChannel ? 52 : 16,
+                child: Text(
+                  chat.title,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: p.boxTextFg,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Positioned(
+                left: 74,
+                top: 30,
+                right: isChannel ? 52 : 16,
+                child: Text(
+                  _chatTypeLabel(chat),
+                  style: TextStyle(fontSize: 13, color: p.boxTitleAdditionalFg),
+                  maxLines: 1,
+                ),
+              ),
+              // §34.3: Right action button — 40x56 with ripple at (0,8)
               if (isChannel)
-                SizedBox(
-                  width: 40,
-                  height: 56,
-                  child: IconButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: () async {
-                      final engine = context.read<EngineService>();
-                      try {
-                        await engine.joinGroupCall(
-                            chat.accountId, chat.chatId);
-                      } catch (_) {}
-                    },
-                    icon: Icon(
-                      Icons.call,
-                      size: 20,
-                      color: _hovered
-                          ? (widget.isDark
-                              ? const Color(0xFFACBBC9)
-                              : const Color(0xFF6A6A6A))
-                          : widget.menuIconColor,
+                Positioned(
+                  right: 12,
+                  top: 0,
+                  child: SizedBox(
+                    width: 40,
+                    height: 56,
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          left: 0,
+                          top: 8,
+                          child: SizedBox(
+                            width: 40,
+                            height: 40,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(20),
+                                onTap: () async {
+                                  final engine = context.read<EngineService>();
+                                  try {
+                                    await engine.joinGroupCall(
+                                        chat.accountId, chat.chatId);
+                                  } catch (_) {}
+                                },
+                                child: Center(
+                                  child: Icon(
+                                    Icons.call,
+                                    size: 20,
+                                    color: _hovered
+                                        ? p.menuIconFgOver
+                                        : p.menuIconFg,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -660,19 +676,15 @@ class _GroupCallRowState extends State<_GroupCallRow> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// §34.12: Create Call Button (inviteViaLinkButton style)
+// ---------------------------------------------------------------------------
+
 class _CreateCallButton extends StatefulWidget {
-  final Color accentColor;
-  final Color textColor;
-  final Color subtextColor;
-  final Color dividerColor;
   final bool isDark;
   final bool highlightOnShow;
 
   const _CreateCallButton({
-    required this.accentColor,
-    required this.textColor,
-    required this.subtextColor,
-    required this.dividerColor,
     required this.isDark,
     this.highlightOnShow = false,
   });
@@ -735,9 +747,9 @@ class _CreateCallButtonState extends State<_CreateCallButton>
 
   @override
   Widget build(BuildContext context) {
-    final hoverBg = widget.isDark
-        ? const Color(0xFF202B36)
-        : const Color(0xFFF1F1F1);
+    final p = context.palette;
+    final accentColor = p.windowBgActive;
+    final hoverBg = p.windowBgOver;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -749,9 +761,10 @@ class _CreateCallButtonState extends State<_CreateCallButton>
                 ? _highlightAnim.value * 2
                 : (1.0 - _highlightAnim.value) * 2;
             final highlightBg = highlightOpacity > 0
-                ? widget.accentColor.withValues(alpha: 0.15 * highlightOpacity)
+                ? accentColor.withValues(alpha: 0.15 * highlightOpacity)
                 : null;
 
+            // §34.12: inviteViaLinkButton style — floating icon + accent label
             return MouseRegion(
               onEnter: (_) => setState(() => _hovered = true),
               onExit: (_) => setState(() => _hovered = false),
@@ -759,32 +772,44 @@ class _CreateCallButtonState extends State<_CreateCallButton>
                 behavior: HitTestBehavior.opaque,
                 onTap: _openCreateCallBox,
                 child: Container(
+                  height: 56,
                   color: highlightBg ?? (_hovered ? hoverBg : Colors.transparent),
-                  padding: const EdgeInsets.only(
-                    left: 21, top: 11, right: 20, bottom: 9,
-                  ),
-                  child: Row(
+                  child: Stack(
                     children: [
-                      Container(
-                        width: 42,
-                        height: 42,
-                        decoration: BoxDecoration(
-                          color: widget.accentColor,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.add_call,
-                          color: Colors.white,
-                          size: 22,
+                      // Floating icon: accent circle with phone+ icon
+                      Positioned(
+                        left: 16,
+                        top: 7,
+                        child: Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: accentColor,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.add_call,
+                            color: Colors.white,
+                            size: 22,
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 14),
-                      Text(
-                        'Create Call',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: widget.accentColor,
+                      // Label aligned with peer list name column
+                      Positioned(
+                        left: 74,
+                        top: 0,
+                        bottom: 0,
+                        right: 16,
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Create Call',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: accentColor,
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -795,12 +820,12 @@ class _CreateCallButtonState extends State<_CreateCallButton>
           },
         ),
         Padding(
-          padding: const EdgeInsets.only(left: 21, right: 20, top: 6, bottom: 8),
+          padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
           child: Text(
             'You can create a group call for up to $_confcallSizeLimit participants.',
             style: TextStyle(
               fontSize: 13,
-              color: widget.subtextColor,
+              color: p.boxTitleAdditionalFg,
             ),
           ),
         ),
@@ -808,6 +833,10 @@ class _CreateCallButtonState extends State<_CreateCallButton>
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// §34.17: Create Conference Call Box
+// ---------------------------------------------------------------------------
 
 class _CreateCallBox extends StatefulWidget {
   final List<String> prioritize;
@@ -869,9 +898,11 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
     final all = _contacts ?? [];
     if (_searchQuery.isEmpty) return all;
     final q = _searchQuery.toLowerCase();
-    return all.where((c) =>
-        c.displayName.toLowerCase().contains(q) ||
-        c.username.toLowerCase().contains(q)).toList();
+    return all
+        .where((c) =>
+            c.displayName.toLowerCase().contains(q) ||
+            c.username.toLowerCase().contains(q))
+        .toList();
   }
 
   List<ContactInfo> get _prioritizedContacts {
@@ -899,7 +930,8 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
         }
       } else {
         if (_selectedIds.length >= _confcallSizeLimit) {
-          showTelegramToast(context, "You can't add more participants to this call.");
+          showTelegramToast(
+              context, "You can't add more participants to this call.");
           return;
         }
         _selectedIds.add(userId);
@@ -959,7 +991,8 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
         }
       } else {
         if (mounted) {
-          showTelegramToast(context, result == null ? 'Failed to create call' : 'No invite link returned');
+          showTelegramToast(context,
+              result == null ? 'Failed to create call' : 'No invite link returned');
         }
       }
     } catch (e) {
@@ -1048,14 +1081,17 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
                   decoration: InputDecoration(
                     hintText: 'Search',
                     hintStyle: TextStyle(fontSize: 14, color: subtextColor),
-                    prefixIcon: Icon(Icons.search, size: 20, color: subtextColor),
+                    prefixIcon:
+                        Icon(Icons.search, size: 20, color: subtextColor),
                     contentPadding: const EdgeInsets.symmetric(vertical: 8),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(18),
                       borderSide: BorderSide.none,
                     ),
                     filled: true,
-                    fillColor: isDark ? const Color(0xFF131C26) : const Color(0xFFF0F0F0),
+                    fillColor: isDark
+                        ? const Color(0xFF131C26)
+                        : const Color(0xFFF0F0F0),
                   ),
                   onChanged: (v) => setState(() => _searchQuery = v),
                 ),
@@ -1141,6 +1177,7 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
     }
 
     return ListView.builder(
+      // §34.17.2: createCallList padding (0,6,0,6)
       padding: const EdgeInsets.symmetric(vertical: 6),
       itemCount: (showInviteLink ? 1 : 0) +
           (prioritized.isNotEmpty ? prioritized.length + 1 : 0) +
@@ -1164,7 +1201,8 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
           final pIndex = index - offset;
           if (pIndex < prioritized.length) {
             final contact = prioritized[pIndex];
-            return _buildRow(contact, isDark, textColor, subtextColor, accentColor, hoverBg);
+            return _buildRow(
+                contact, isDark, textColor, subtextColor, accentColor, hoverBg);
           }
           if (pIndex == prioritized.length) {
             return Divider(height: 1, color: dividerColor);
@@ -1174,7 +1212,8 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
 
         final mIndex = index - offset;
         if (mIndex < main.length) {
-          return _buildRow(main[mIndex], isDark, textColor, subtextColor, accentColor, hoverBg);
+          return _buildRow(
+              main[mIndex], isDark, textColor, subtextColor, accentColor, hoverBg);
         }
         return const SizedBox.shrink();
       },
@@ -1229,6 +1268,7 @@ class _InviteLinkButtonState extends State<_InviteLinkButton> {
 
   @override
   Widget build(BuildContext context) {
+    // §34.17.4: Share-Invite-Link Button — above widget, top margin membersMarginTop (10px)
     return Padding(
       padding: const EdgeInsets.only(top: 10),
       child: MouseRegion(
@@ -1242,14 +1282,17 @@ class _InviteLinkButtonState extends State<_InviteLinkButton> {
             color: _hovered ? widget.hoverBg : Colors.transparent,
             child: Stack(
               children: [
+                // §34.17.4: icon at (23, 2)
                 Positioned(
                   left: 23,
                   top: 0,
                   bottom: 0,
                   child: Center(
-                    child: Icon(Icons.link, size: 24, color: widget.accentColor),
+                    child:
+                        Icon(Icons.link, size: 24, color: widget.accentColor),
                   ),
                 ),
+                // §34.17.4: label at left 74, 14px semibold
                 Positioned(
                   left: 74,
                   top: 0,
@@ -1354,7 +1397,8 @@ class _ConferenceCallLinkBox extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 364),
         child: Padding(
-          padding: const EdgeInsets.only(left: 24, right: 24, top: 32, bottom: 24),
+          padding:
+              const EdgeInsets.only(left: 24, right: 24, top: 32, bottom: 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -1380,9 +1424,12 @@ class _ConferenceCallLinkBox extends StatelessWidget {
               const SizedBox(height: 16),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF131C26) : const Color(0xFFF0F0F0),
+                  color: isDark
+                      ? const Color(0xFF131C26)
+                      : const Color(0xFFF0F0F0),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: SelectableText(
@@ -1398,10 +1445,10 @@ class _ConferenceCallLinkBox extends StatelessWidget {
                       height: 42,
                       child: ElevatedButton.icon(
                         onPressed: () {
-                          // Copy link to clipboard
                           final data = ClipboardData(text: link);
                           Clipboard.setData(data);
-                          showTelegramToast(context, 'Link copied to clipboard');
+                          showTelegramToast(
+                              context, 'Link copied to clipboard');
                         },
                         icon: const Icon(Icons.copy, size: 18),
                         label: const Text('Copy Link'),
@@ -1450,7 +1497,9 @@ class _ConferenceCallLinkBox extends StatelessWidget {
                     const Expanded(child: Divider()),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Text('Or', style: TextStyle(fontSize: 13, color: subtextColor)),
+                      child: Text('Or',
+                          style:
+                              TextStyle(fontSize: 13, color: subtextColor)),
                     ),
                     const Expanded(child: Divider()),
                   ],
@@ -1474,6 +1523,10 @@ class _ConferenceCallLinkBox extends StatelessWidget {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// §34.17.3: ConfInviteRow — createCallListItem style (52px, 40px avatar)
+// ---------------------------------------------------------------------------
 
 class _ConfInviteRow extends StatefulWidget {
   final ContactInfo contact;
@@ -1527,14 +1580,19 @@ class _ConfInviteRowState extends State<_ConfInviteRow> {
   @override
   Widget build(BuildContext context) {
     final c = widget.contact;
+    final p = context.palette;
     final numId = int.tryParse(c.userId) ?? c.userId.hashCode.abs();
-    final avatarColor = context.palette.peerUserpicBg(_colorRemap[numId.abs() % 7]);
+    final avatarColor = p.peerUserpicBg(_colorRemap[numId.abs() % 7]);
     final initials = _getInitials(c.displayName);
     final statusText = _lastSeenLabel(c);
     final statusColor = c.isOnline ? widget.accentColor : widget.subtextColor;
     final avatarCorner = context.watch<AppState>().avatarCorners;
+    // §34.17.2: createCallListItem — 40px avatar at (12,6), name at (63,7)
     const avatarSize = 40.0;
     final avatarRadius = avatarSize / 2 * (avatarCorner / 23.0);
+
+    final inactiveIconColor =
+        widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -1542,93 +1600,122 @@ class _ConfInviteRowState extends State<_ConfInviteRow> {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,
+        // §34.17.2: 52px row height
         child: Container(
           height: 52,
           color: _hovered ? widget.hoverBg : Colors.transparent,
-          padding: const EdgeInsets.only(left: 12, right: 8),
-          child: Row(
+          child: Stack(
             children: [
-              SizedBox(
-                width: avatarSize,
-                height: avatarSize,
-                child: c.avatarB64.isNotEmpty
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(avatarRadius),
-                        child: Image.memory(
-                          base64Decode(c.avatarB64),
-                          width: avatarSize,
-                          height: avatarSize,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _fallbackAvatar(
-                              avatarColor, initials, avatarSize, avatarRadius),
-                        ),
-                      )
-                    : _fallbackAvatar(avatarColor, initials, avatarSize, avatarRadius),
+              // Avatar at (12, 6)
+              Positioned(
+                left: 12,
+                top: 6,
+                child: SizedBox(
+                  width: avatarSize,
+                  height: avatarSize,
+                  child: c.avatarB64.isNotEmpty
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(avatarRadius),
+                          child: Image.memory(
+                            base64Decode(c.avatarB64),
+                            width: avatarSize,
+                            height: avatarSize,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _fallbackAvatar(
+                                avatarColor,
+                                initials,
+                                avatarSize,
+                                avatarRadius),
+                          ),
+                        )
+                      : _fallbackAvatar(
+                          avatarColor, initials, avatarSize, avatarRadius),
+                ),
               ),
-              const SizedBox(width: 11),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      c.displayName.isEmpty ? c.username : c.displayName,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: widget.textColor,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+              // Name at (63, 7)
+              Positioned(
+                left: 63,
+                top: 7,
+                right: 110,
+                child: Text(
+                  c.displayName.isEmpty ? c.username : c.displayName,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: widget.textColor,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              // Status at (63, 26)
+              if (statusText.isNotEmpty)
+                Positioned(
+                  left: 63,
+                  top: 26,
+                  right: 110,
+                  child: Text(
+                    statusText,
+                    style: TextStyle(fontSize: 12, color: statusColor),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              // §34.17.3: Video element button (36x52)
+              Positioned(
+                right: 64,
+                top: 0,
+                child: SizedBox(
+                  width: 36,
+                  height: 52,
+                  child: IconButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: widget.onVideoTap,
+                    icon: Icon(
+                      Icons.videocam,
+                      size: 20,
+                      color: widget.selected && widget.isVideo
+                          ? widget.accentColor
+                          : inactiveIconColor,
                     ),
-                    if (statusText.isNotEmpty) ...[
-                      const SizedBox(height: 1),
-                      Text(
-                        statusText,
-                        style: TextStyle(fontSize: 12, color: statusColor),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              SizedBox(
-                width: 36,
-                height: 52,
-                child: IconButton(
-                  padding: EdgeInsets.zero,
-                  onPressed: widget.onVideoTap,
-                  icon: Icon(
-                    Icons.videocam,
-                    size: 20,
-                    color: widget.selected && widget.isVideo
-                        ? widget.accentColor
-                        : (widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999)),
                   ),
                 ),
               ),
-              SizedBox(
-                width: 36,
-                height: 52,
-                child: IconButton(
-                  padding: EdgeInsets.zero,
-                  onPressed: widget.onAudioTap,
-                  icon: Icon(
-                    Icons.call,
-                    size: 20,
-                    color: widget.selected && !widget.isVideo
-                        ? widget.accentColor
-                        : (widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999)),
+              // §34.17.3: Audio element button (36x52)
+              Positioned(
+                right: 28,
+                top: 0,
+                child: SizedBox(
+                  width: 36,
+                  height: 52,
+                  child: IconButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: widget.onAudioTap,
+                    icon: Icon(
+                      Icons.call,
+                      size: 20,
+                      color: widget.selected && !widget.isVideo
+                          ? widget.accentColor
+                          : inactiveIconColor,
+                    ),
                   ),
                 ),
               ),
-              SizedBox(
-                width: 28,
-                child: widget.selected
-                    ? Icon(Icons.check_circle, size: 22, color: widget.accentColor)
-                    : Icon(Icons.radio_button_unchecked, size: 22,
-                        color: widget.isDark ? const Color(0xFF3E546A) : const Color(0xFFD0D0D0)),
+              // Selection checkmark
+              Positioned(
+                right: 4,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: widget.selected
+                      ? Icon(Icons.check_circle,
+                          size: 22, color: widget.accentColor)
+                      : Icon(Icons.radio_button_unchecked,
+                          size: 22,
+                          color: widget.isDark
+                              ? const Color(0xFF3E546A)
+                              : const Color(0xFFD0D0D0)),
+                ),
               ),
             ],
           ),
@@ -1637,7 +1724,8 @@ class _ConfInviteRowState extends State<_ConfInviteRow> {
     );
   }
 
-  Widget _fallbackAvatar(Color color, String initials, double size, double radius) {
+  Widget _fallbackAvatar(
+      Color color, String initials, double size, double radius) {
     return Container(
       width: size,
       height: size,
@@ -1665,6 +1753,10 @@ class _ConfInviteRowState extends State<_ConfInviteRow> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// §34.4-34.9: Call History Row (Stack/Positioned layout, ripple on redial)
+// ---------------------------------------------------------------------------
+
 class _CallGroup {
   final List<CallHistoryEntry> entries;
   _CallGroup(this.entries);
@@ -1684,18 +1776,12 @@ class _CallHistoryRow extends StatefulWidget {
   final _CallGroup group;
   final String accountId;
   final bool isDark;
-  final Color textColor;
-  final Color subtextColor;
-  final Color menuIconColor;
   final void Function(_CallGroup group) onDeleted;
 
   const _CallHistoryRow({
     required this.group,
     required this.accountId,
     required this.isDark,
-    required this.textColor,
-    required this.subtextColor,
-    required this.menuIconColor,
     required this.onDeleted,
   });
 
@@ -1708,8 +1794,10 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
 
   static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
 
-  static const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
 
   String _formatTimestamp(int epochSec) {
     final dt = DateTime.fromMillisecondsSinceEpoch(epochSec * 1000);
@@ -1736,11 +1824,10 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
     return ts;
   }
 
+  // §34.9: Context Menu with proper icon tokens
   void _showContextMenu(BuildContext context, Offset position) async {
     final group = widget.group;
-    final isDark = widget.isDark;
-    final menuIconColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final attentionColor = isDark ? const Color(0xFFe85050) : const Color(0xFFdd4b39);
+    final p = context.palette;
 
     final result = await showTelegramMenu<String>(
       context: context,
@@ -1748,15 +1835,15 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
       items: [
         TelegramMenuItem(
           value: 'delete',
-          icon: Icon(Icons.delete_outline, size: 20, color: attentionColor),
+          icon: Icon(Icons.delete_outline, size: 20, color: p.attentionButtonFg),
           label: 'Delete',
-          labelColor: attentionColor,
-          iconColor: attentionColor,
+          labelColor: p.attentionButtonFg,
+          iconColor: p.attentionButtonFg,
           isAttention: true,
         ),
         TelegramMenuItem(
           value: 'show_in_chat',
-          icon: Icon(Icons.chat_bubble_outline, size: 20, color: menuIconColor),
+          icon: Icon(Icons.forum_outlined, size: 20, color: p.menuIconFg),
           label: 'Show in Chat',
         ),
       ],
@@ -1768,7 +1855,9 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
       case 'delete':
         final confirmResult = await showDeleteConfirmBox(
           context,
-          mode: group.count > 1 ? DeleteBoxMode.bulkMessages : DeleteBoxMode.singleMessage,
+          mode: group.count > 1
+              ? DeleteBoxMode.bulkMessages
+              : DeleteBoxMode.singleMessage,
           messageCount: group.count,
           peerName: group.peerName,
         );
@@ -1776,7 +1865,8 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
         final engine = context.read<EngineService>();
         for (final entry in group.entries) {
           try {
-            await engine.deleteMessage(widget.accountId, group.peerId, entry.msgId);
+            await engine.deleteMessage(
+                widget.accountId, group.peerId, entry.msgId);
           } catch (_) {}
         }
         widget.onDeleted(group);
@@ -1801,117 +1891,157 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
     if (!permOk || !context.mounted) return;
     final engine = context.read<EngineService>();
     final group = widget.group;
-    await engine.startCall(widget.accountId, group.peerId, video: group.isVideo);
+    await engine.startCall(widget.accountId, group.peerId,
+        video: group.isVideo);
   }
 
   @override
   Widget build(BuildContext context) {
     final group = widget.group;
-    final hoverBg = widget.isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
-    final arrowColor = group.isMissed
-        ? (widget.isDark ? const Color(0xFFe85050) : const Color(0xFFdd4b39))
-        : (widget.isDark ? const Color(0xFF49ad55) : const Color(0xFF4dc920));
+    final p = context.palette;
+    final hoverBg = p.windowBgOver;
+
+    // §34.6: arrow colors from palette
+    final arrowColor = group.isMissed ? p.callArrowMissedFg : p.callArrowFg;
 
     final numIdG = int.tryParse(group.peerId) ?? group.peerId.hashCode.abs();
-    final avatarColor = context.palette.peerUserpicBg(_colorRemap[numIdG.abs() % 7]);
+    final avatarColor = p.peerUserpicBg(_colorRemap[numIdG.abs() % 7]);
     final initials = _getInitials(group.peerName);
     final avatarCorner = context.watch<AppState>().avatarCorners;
+    // §34.5: contactsPhotoSize = 42px
     const avatarSize = 42.0;
     final avatarRadius = avatarSize / 2 * (avatarCorner / 23.0);
 
+    // §34.7: voice vs video redial icon
     final redialIcon = group.isVideo ? Icons.videocam : Icons.call;
 
+    // §34.5: Row height 56px, avatar at (16,7), name at (74,9), status at (74,30)
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () {},
-        onSecondaryTapUp: (details) => _showContextMenu(context, details.globalPosition),
-        onLongPressStart: (details) => _showContextMenu(context, details.globalPosition),
+        onSecondaryTapUp: (details) =>
+            _showContextMenu(context, details.globalPosition),
+        onLongPressStart: (details) =>
+            _showContextMenu(context, details.globalPosition),
         child: Container(
           height: 56,
           color: _hovered ? hoverBg : Colors.transparent,
-          padding: const EdgeInsets.only(left: 16, right: 12),
-          child: Row(
+          child: Stack(
             children: [
-              SizedBox(
-                width: avatarSize,
-                height: avatarSize,
-                child: group.avatarPath.isNotEmpty
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(avatarRadius),
-                        child: Image.file(
-                          File(group.avatarPath),
-                          width: avatarSize,
-                          height: avatarSize,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _fallbackAvatar(
-                              avatarColor, initials, avatarSize, avatarRadius),
-                        ),
-                      )
-                    : _fallbackAvatar(avatarColor, initials, avatarSize, avatarRadius),
+              // §34.5: Avatar at (16, 7)
+              Positioned(
+                left: 16,
+                top: 7,
+                child: SizedBox(
+                  width: avatarSize,
+                  height: avatarSize,
+                  child: group.avatarPath.isNotEmpty
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(avatarRadius),
+                          child: Image.file(
+                            File(group.avatarPath),
+                            width: avatarSize,
+                            height: avatarSize,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _fallbackAvatar(
+                                avatarColor,
+                                initials,
+                                avatarSize,
+                                avatarRadius),
+                          ),
+                        )
+                      : _fallbackAvatar(
+                          avatarColor, initials, avatarSize, avatarRadius),
+                ),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              // §34.5: Name at (74, 9) — semibold 13px
+              Positioned(
+                left: 74,
+                top: 9,
+                right: 52,
+                child: Text(
+                  group.peerName.isEmpty ? 'Unknown' : group.peerName,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: p.boxTextFg,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              // §34.5: Status at (74, 30) with §34.6 direction arrow
+              Positioned(
+                left: 74,
+                top: 30,
+                right: 52,
+                child: Row(
                   children: [
-                    Text(
-                      group.peerName.isEmpty ? 'Unknown' : group.peerName,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: widget.textColor,
+                    // §34.6: Arrow at offset (-2, 1)
+                    Transform.translate(
+                      offset: const Offset(-2, 1),
+                      child: Icon(
+                        group.isOutgoing
+                            ? Icons.call_made
+                            : Icons.call_received,
+                        size: 16,
+                        color: arrowColor,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        Transform.translate(
-                          offset: const Offset(-2, 1),
-                          child: Icon(
-                            group.isOutgoing
-                                ? Icons.call_made
-                                : Icons.call_received,
-                            size: 16,
-                            color: arrowColor,
-                          ),
+                    // §34.6: callArrowSkip = 4px
+                    const SizedBox(width: 4),
+                    // §34.8: formatted timestamp
+                    Expanded(
+                      child: Text(
+                        _formatStatus(group),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: p.boxTitleAdditionalFg,
                         ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            _formatStatus(group),
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: widget.subtextColor,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ],
                 ),
               ),
-              SizedBox(
-                width: 40,
-                height: 56,
-                child: IconButton(
-                  padding: EdgeInsets.zero,
-                  onPressed: () => _startRedial(context),
-                  icon: Icon(
-                    redialIcon,
-                    size: 20,
-                    color: _hovered
-                        ? (widget.isDark
-                            ? const Color(0xFFACBBC9)
-                            : const Color(0xFF6A6A6A))
-                        : widget.menuIconColor,
+              // §34.7: Redial button — 40x56px, ripple 40px at (0,8)
+              Positioned(
+                right: 12,
+                top: 0,
+                child: SizedBox(
+                  width: 40,
+                  height: 56,
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        left: 0,
+                        top: 8,
+                        child: SizedBox(
+                          width: 40,
+                          height: 40,
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(20),
+                              onTap: () => _startRedial(context),
+                              child: Center(
+                                child: Icon(
+                                  redialIcon,
+                                  size: 20,
+                                  color: _hovered
+                                      ? p.menuIconFgOver
+                                      : p.menuIconFg,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -1922,7 +2052,8 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
     );
   }
 
-  Widget _fallbackAvatar(Color color, String initials, double size, double radius) {
+  Widget _fallbackAvatar(
+      Color color, String initials, double size, double radius) {
     return Container(
       width: size,
       height: size,
@@ -2000,7 +2131,6 @@ class _CallSettingsScreenState extends State<_CallSettingsScreen> {
       ),
       body: ListView(
         children: [
-          // --- Output section ---
           _CallSettingsSectionHeader(label: 'Output', color: accentColor),
           _CallSettingsDeviceRow(
             icon: Icons.volume_up,
@@ -2015,8 +2145,6 @@ class _CallSettingsScreenState extends State<_CallSettingsScreen> {
             ),
           ),
           Divider(height: 1, color: dividerColor, indent: 60),
-
-          // --- Input section ---
           _CallSettingsSectionHeader(label: 'Input', color: accentColor),
           _CallSettingsDeviceRow(
             icon: Icons.mic,
@@ -2035,8 +2163,6 @@ class _CallSettingsScreenState extends State<_CallSettingsScreen> {
             child: _InputLevelMeter(isDark: isDark, accentColor: accentColor),
           ),
           Divider(height: 1, color: dividerColor, indent: 60),
-
-          // --- Call Devices section ---
           _CallSettingsSectionHeader(label: 'Call Devices', color: accentColor),
           _CallSettingsToggleRow(
             label: 'Use same devices for calls',
@@ -2052,8 +2178,6 @@ class _CallSettingsScreenState extends State<_CallSettingsScreen> {
             color: subtextColor,
           ),
           Divider(height: 1, color: dividerColor, indent: 60),
-
-          // --- Camera section ---
           _CallSettingsSectionHeader(label: 'Camera', color: accentColor),
           _CallSettingsDeviceRow(
             icon: Icons.videocam,
@@ -2072,8 +2196,6 @@ class _CallSettingsScreenState extends State<_CallSettingsScreen> {
             child: _CameraPreviewPlaceholder(isDark: isDark),
           ),
           Divider(height: 1, color: dividerColor, indent: 60),
-
-          // --- Other section ---
           _CallSettingsSectionHeader(label: 'Other', color: accentColor),
           _CallSettingsToggleRow(
             label: 'Accept incoming calls on this device',
@@ -2084,7 +2206,8 @@ class _CallSettingsScreenState extends State<_CallSettingsScreen> {
             onChanged: (v) => setState(() => _acceptCalls = v),
           ),
           _CallSettingsInfoLabel(
-            text: 'When disabled, incoming calls will not ring on this device.',
+            text:
+                'When disabled, incoming calls will not ring on this device.',
             color: subtextColor,
           ),
           const SizedBox(height: 8),
@@ -2164,7 +2287,8 @@ class _CallSettingsSectionHeader extends StatelessWidget {
   final String label;
   final Color color;
 
-  const _CallSettingsSectionHeader({required this.label, required this.color});
+  const _CallSettingsSectionHeader(
+      {required this.label, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -2345,7 +2469,8 @@ class _CallSettingsActionRow extends StatefulWidget {
   });
 
   @override
-  State<_CallSettingsActionRow> createState() => _CallSettingsActionRowState();
+  State<_CallSettingsActionRow> createState() =>
+      _CallSettingsActionRowState();
 }
 
 class _CallSettingsActionRowState extends State<_CallSettingsActionRow> {
@@ -2355,9 +2480,8 @@ class _CallSettingsActionRowState extends State<_CallSettingsActionRow> {
   Widget build(BuildContext context) {
     final hoverBg =
         widget.isDark ? const Color(0xFF202B36) : const Color(0xFFF1F1F1);
-    final iconColor = widget.isDark
-        ? const Color(0xFF6C7883)
-        : const Color(0xFF999999);
+    final iconColor =
+        widget.isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -2522,4 +2646,261 @@ class _CameraPreviewPlaceholder extends StatelessWidget {
       ),
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// §34.15: Active Call Top Bar — 38px colored bar at top of main window
+// ---------------------------------------------------------------------------
+
+enum CallBarState { connecting, active, muted, forceMuted }
+
+class ActiveCallTopBar extends StatefulWidget {
+  final String peerName;
+  final String peerShortName;
+  final bool isMuted;
+  final bool isGroupCall;
+  final CallBarState barState;
+  final Duration callDuration;
+  final int signalStrength;
+  final VoidCallback? onMuteToggle;
+  final VoidCallback? onHangup;
+  final VoidCallback? onTap;
+
+  const ActiveCallTopBar({
+    super.key,
+    required this.peerName,
+    this.peerShortName = '',
+    this.isMuted = false,
+    this.isGroupCall = false,
+    this.barState = CallBarState.active,
+    this.callDuration = Duration.zero,
+    this.signalStrength = 4,
+    this.onMuteToggle,
+    this.onHangup,
+    this.onTap,
+  });
+
+  @override
+  State<ActiveCallTopBar> createState() => _ActiveCallTopBarState();
+}
+
+class _ActiveCallTopBarState extends State<ActiveCallTopBar>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _stateAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _stateAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 150),
+      value: 1.0,
+    );
+  }
+
+  @override
+  void didUpdateWidget(ActiveCallTopBar old) {
+    super.didUpdateWidget(old);
+    if (old.barState != widget.barState) {
+      _stateAnim.forward(from: _stateAnim.value);
+    }
+  }
+
+  @override
+  void dispose() {
+    _stateAnim.dispose();
+    super.dispose();
+  }
+
+  Color _bgColor(TelegramPalette p) {
+    switch (widget.barState) {
+      case CallBarState.connecting:
+        return p.callBarBgMuted;
+      case CallBarState.active:
+        return p.callBarBg;
+      case CallBarState.muted:
+        return p.callBarBgMuted;
+      case CallBarState.forceMuted:
+        return p.callBarBgMuted;
+    }
+  }
+
+  String _formatDuration(Duration d) {
+    final hours = d.inHours;
+    final minutes = d.inMinutes.remainder(60);
+    final seconds = d.inSeconds.remainder(60);
+    if (hours > 0) {
+      return '$hours:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    }
+    return '$minutes:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    final bg = _bgColor(p);
+    final fg = p.callBarFg;
+
+    return AnimatedBuilder(
+      animation: _stateAnim,
+      builder: (context, _) {
+        return GestureDetector(
+          onTap: widget.onTap,
+          child: Container(
+            height: 38,
+            color: bg,
+            child: Row(
+              children: [
+                // §34.15: Mute toggle (41x38)
+                SizedBox(
+                  width: 41,
+                  height: 38,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: widget.onMuteToggle,
+                      splashColor: p.callBarMuteRipple.withValues(alpha: 0.3),
+                      child: Center(
+                        child: Icon(
+                          widget.isMuted ? Icons.mic_off : Icons.mic,
+                          size: 20,
+                          color: fg,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                // §34.15: Duration label (1:1 only)
+                if (!widget.isGroupCall) ...[
+                  const SizedBox(width: 10),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Text(
+                      _formatDuration(widget.callDuration),
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: fg,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  // §34.15: Signal bars
+                  Padding(
+                    padding: const EdgeInsets.only(top: 13),
+                    child: _SignalBarsWidget(
+                      strength: widget.signalStrength,
+                      color: fg,
+                    ),
+                  ),
+                ],
+                const SizedBox(width: 10),
+                // §34.15: Info label (peer name)
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 5),
+                    child: Text(
+                      widget.peerName,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: fg,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                // §34.15: "End Call" label (1:1 only)
+                if (!widget.isGroupCall)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Text(
+                      'End call',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: fg,
+                      ),
+                    ),
+                  ),
+                // §34.15: Hangup button (41x38)
+                SizedBox(
+                  width: 41,
+                  height: 38,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: widget.onHangup,
+                      child: Center(
+                        child: Icon(
+                          Icons.call_end,
+                          size: 20,
+                          color: fg,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// §34.15: Signal bars — 4 bars, 3px wide, 1px skip, 3-12px height range
+class _SignalBarsWidget extends StatelessWidget {
+  final int strength;
+  final Color color;
+
+  const _SignalBarsWidget({required this.strength, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: const Size(19, 12),
+      painter: _SignalBarsPainter(strength: strength, color: color),
+    );
+  }
+}
+
+class _SignalBarsPainter extends CustomPainter {
+  final int strength;
+  final Color color;
+
+  _SignalBarsPainter({required this.strength, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const barCount = 4;
+    const barWidth = 3.0;
+    const skip = 1.0;
+    const minH = 3.0;
+    const maxH = 12.0;
+    final step = (maxH - minH) / (barCount - 1);
+
+    for (int i = 0; i < barCount; i++) {
+      final h = minH + step * i;
+      final x = i * (barWidth + skip);
+      final isActive = i < strength;
+      final paint = Paint()
+        ..color = isActive ? color : color.withValues(alpha: 0.5)
+        ..style = PaintingStyle.fill;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x, size.height - h, barWidth, h),
+          const Radius.circular(1),
+        ),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SignalBarsPainter oldDelegate) =>
+      strength != oldDelegate.strength || color != oldDelegate.color;
 }
