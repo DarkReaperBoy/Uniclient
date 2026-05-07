@@ -74,6 +74,7 @@ class _PopupState {
 class NotificationPopupOverlay extends StatefulWidget {
   final DefaultManager manager;
   final void Function(String accountId, String chatId) onTap;
+  final void Function(String accountId, String chatId)? onCtrlTap;
   final void Function(String accountId, String chatId, String text)?
       onReplySend;
   final NotificationSettings settings;
@@ -83,6 +84,7 @@ class NotificationPopupOverlay extends StatefulWidget {
     super.key,
     required this.manager,
     required this.onTap,
+    this.onCtrlTap,
     this.onReplySend,
     this.settings = const NotificationSettings(),
     this.isPasscodeLocked = false,
@@ -97,6 +99,7 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
     with TickerProviderStateMixin {
   final List<_PopupState> _popups = [];
   bool _showHideAll = false;
+  bool _hasReceivedInput = false;
 
   @override
   void initState() {
@@ -104,6 +107,13 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
     widget.manager.onShow = _onShow;
     widget.manager.onDismiss = _onDismissExternal;
     widget.manager.onHideAllChanged = _updateHideAllVisibility;
+    widget.manager.isStickyCheck = _isPopupSticky;
+  }
+
+  bool _isPopupSticky(String id) {
+    final popup = _popups.where((p) => p.id == id).firstOrNull;
+    if (popup == null) return false;
+    return popup.hovered || popup.replyOpen;
   }
 
   @override
@@ -113,11 +123,13 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
       widget.manager.onShow = _onShow;
       widget.manager.onDismiss = _onDismissExternal;
       widget.manager.onHideAllChanged = _updateHideAllVisibility;
+      widget.manager.isStickyCheck = _isPopupSticky;
     }
   }
 
   void _onShow(DefaultNotificationItem item) {
     final popup = _PopupState(id: item.id, item: item);
+    _hasReceivedInput = false;
     setState(() {
       _popups.add(popup);
       _recalcPositions();
@@ -129,7 +141,31 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
     });
   }
 
+  void _onUserInput() {
+    if (!_hasReceivedInput) {
+      _hasReceivedInput = true;
+    }
+  }
+
   void _startHideCountdown(_PopupState popup) {
+    popup.hideWaitTimer?.cancel();
+    if (!_hasReceivedInput) {
+      popup.hideWaitTimer = Timer.periodic(
+        const Duration(milliseconds: 300),
+        (timer) {
+          if (!mounted) { timer.cancel(); return; }
+          if (_hasReceivedInput) {
+            timer.cancel();
+            _scheduleHideAfterWait(popup);
+          }
+        },
+      );
+    } else {
+      _scheduleHideAfterWait(popup);
+    }
+  }
+
+  void _scheduleHideAfterWait(_PopupState popup) {
     popup.hideWaitTimer?.cancel();
     popup.hideWaitTimer = Timer(_waitBeforeHide, () {
       if (!mounted || popup.hovered || popup.replyOpen) return;
@@ -217,7 +253,16 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
   }
 
   void _onTapNotification(_PopupState popup) {
-    widget.onTap(popup.item.data.accountId, popup.item.data.chatId);
+    final ctrlHeld =
+        HardwareKeyboard.instance.logicalKeysPressed.contains(
+            LogicalKeyboardKey.controlLeft) ||
+        HardwareKeyboard.instance.logicalKeysPressed.contains(
+            LogicalKeyboardKey.controlRight);
+    if (ctrlHeld && widget.onCtrlTap != null) {
+      widget.onCtrlTap!(popup.item.data.accountId, popup.item.data.chatId);
+    } else {
+      widget.onTap(popup.item.data.accountId, popup.item.data.chatId);
+    }
     widget.manager.clearForChat(
         popup.item.data.accountId, popup.item.data.chatId);
   }
@@ -280,14 +325,13 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
         corner == NotificationCorner.bottomRight;
 
     double shift = _notifyDeltaY;
-    if (_showHideAll && _popups.length >= 2) {
+    if (_showHideAll && (_popups.length >= 2 || widget.manager.hasQueue)) {
       shift += _hideAllHeight + _notifyDeltaY;
     }
 
     final ordered = isBottom ? _popups.reversed.toList() : _popups.toList();
     for (final p in ordered) {
       p.targetY = shift;
-      p.currentY = shift;
       shift += p.totalHeight + _notifyDeltaY;
     }
   }
@@ -324,8 +368,10 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
     final accentColor = palette?.windowBgActive ??
         (context.palette.windowBgActive);
 
-    final isLeft = corner == NotificationCorner.topLeft ||
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
+    final isLeftCorner = corner == NotificationCorner.topLeft ||
         corner == NotificationCorner.bottomLeft;
+    final isLeft = isLeftCorner != isRtl;
     final isBottom = corner == NotificationCorner.bottomLeft ||
         corner == NotificationCorner.bottomRight;
 
@@ -343,9 +389,9 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
     for (final popup in _popups) {
       final double yPos;
       if (isBottom) {
-        yPos = size.height - popup.currentY - popup.totalHeight;
+        yPos = size.height - popup.targetY - popup.totalHeight;
       } else {
-        yPos = popup.currentY;
+        yPos = popup.targetY;
       }
 
       final hideReply = shouldHideReplyButton(
@@ -380,7 +426,7 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
       );
     }
 
-    if (_showHideAll && _popups.length >= 2) {
+    if (_showHideAll && (_popups.length >= 2 || widget.manager.hasQueue)) {
       final hideAllY = isBottom
           ? size.height - _notifyDeltaY - _hideAllHeight
           : _notifyDeltaY +
@@ -415,7 +461,12 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
       );
     }
 
-    return Stack(children: children);
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) => _onUserInput(),
+      onPointerHover: (_) => _onUserInput(),
+      child: Stack(children: children),
+    );
   }
 }
 
@@ -459,7 +510,8 @@ class _NotificationPopupWidget extends StatelessWidget {
     final hideDuration =
         popup.hiding ? _slowHideDuration : _fadeInDuration;
 
-    return Positioned(
+    return AnimatedPositioned(
+      duration: _shiftDuration,
       left: x,
       top: y,
       child: MouseRegion(
@@ -524,10 +576,25 @@ class _NotificationPopupWidget extends StatelessWidget {
                           top: _textTop + _itemTopOffset + 13,
                           right: 8,
                           bottom: 4,
-                          child: Text.rich(
-                            _buildBodySpan(data, titleColor, bodyColor),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                          child: ShaderMask(
+                            shaderCallback: (Rect bounds) {
+                              return const LinearGradient(
+                                begin: Alignment.centerLeft,
+                                end: Alignment.centerRight,
+                                colors: [
+                                  Colors.white,
+                                  Colors.white,
+                                  Colors.transparent,
+                                ],
+                                stops: [0.0, 0.85, 1.0],
+                              ).createShader(bounds);
+                            },
+                            blendMode: BlendMode.dstIn,
+                            child: Text.rich(
+                              _buildBodySpan(data, titleColor, bodyColor),
+                              maxLines: 2,
+                              overflow: TextOverflow.clip,
+                            ),
                           ),
                         ),
                         Positioned(
@@ -641,20 +708,29 @@ class _HiddenUserpicPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: _photoSize,
-      height: _photoSize,
-      decoration: BoxDecoration(
-        color: context.palette.windowBgActive,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      alignment: Alignment.center,
-      child: const Text(
-        'U',
-        style: TextStyle(
-          fontSize: 28,
-          fontWeight: FontWeight.w700,
-          color: Colors.white,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: Image.asset(
+        'assets/icon/icon_64.png',
+        width: _photoSize,
+        height: _photoSize,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(
+          width: _photoSize,
+          height: _photoSize,
+          decoration: BoxDecoration(
+            color: context.palette.windowBgActive,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          alignment: Alignment.center,
+          child: const Text(
+            'U',
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
         ),
       ),
     );
@@ -754,7 +830,7 @@ class _ReplyField extends StatelessWidget {
                     hintStyle: TextStyle(fontSize: 13, color: bodyColor.withValues(alpha: 0.5)),
                     border: InputBorder.none,
                     contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                        const EdgeInsets.fromLTRB(8, 8, 8, 6),
                     isDense: true,
                   ),
                   onSubmitted: (_) => onSend(),

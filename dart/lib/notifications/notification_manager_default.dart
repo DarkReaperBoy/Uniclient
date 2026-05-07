@@ -37,6 +37,7 @@ class DefaultManager extends NotificationManager {
   NotificationDisplayCallback? onShow;
   NotificationDismissCallback? onDismiss;
   VoidCallbackNoArgs? onHideAllChanged;
+  bool Function(String id)? isStickyCheck;
 
   List<DefaultNotificationItem> get activeNotifications =>
       List.unmodifiable(_active);
@@ -59,12 +60,26 @@ class DefaultManager extends NotificationManager {
     );
 
     if (_active.length >= _maxVisible) {
-      _queue.addLast(item);
-      onHideAllChanged?.call();
+      final evictable = _findEvictableItem();
+      if (evictable != null) {
+        dismiss(evictable.id);
+        _displayItem(item);
+      } else {
+        _queue.addLast(item);
+        onHideAllChanged?.call();
+      }
       return;
     }
 
     _displayItem(item);
+  }
+
+  DefaultNotificationItem? _findEvictableItem() {
+    for (final item in _active) {
+      if (isStickyCheck != null && isStickyCheck!(item.id)) continue;
+      return item;
+    }
+    return null;
   }
 
   void _displayItem(DefaultNotificationItem item) {

@@ -55,6 +55,8 @@ class NotificationData {
   final bool slowmodeActive;
   final bool requiresStars;
   final bool spoilerLoginCode;
+  final bool isMonoforumSublist;
+  final String sublistPeerName;
 
   const NotificationData({
     required this.accountId,
@@ -100,6 +102,8 @@ class NotificationData {
     this.slowmodeActive = false,
     this.requiresStars = false,
     this.spoilerLoginCode = false,
+    this.isMonoforumSublist = false,
+    this.sublistPeerName = '',
   });
 
   NotificationData copyWith({
@@ -146,6 +150,8 @@ class NotificationData {
     bool? slowmodeActive,
     bool? requiresStars,
     bool? spoilerLoginCode,
+    bool? isMonoforumSublist,
+    String? sublistPeerName,
   }) {
     return NotificationData(
       accountId: accountId ?? this.accountId,
@@ -191,6 +197,8 @@ class NotificationData {
       slowmodeActive: slowmodeActive ?? this.slowmodeActive,
       requiresStars: requiresStars ?? this.requiresStars,
       spoilerLoginCode: spoilerLoginCode ?? this.spoilerLoginCode,
+      isMonoforumSublist: isMonoforumSublist ?? this.isMonoforumSublist,
+      sublistPeerName: sublistPeerName ?? this.sublistPeerName,
     );
   }
 }
@@ -228,6 +236,8 @@ String _composeTitle(NotificationData data, NotificationSettings settings) {
   String title;
   if (data.isScheduled && data.isOutgoing) {
     title = 'Reminder';
+  } else if (data.isMonoforumSublist && data.sublistPeerName.isNotEmpty) {
+    title = '${data.sublistPeerName} (${data.chatTitle})';
   } else if (data.isForumTopic && data.topicTitle.isNotEmpty) {
     title = '${data.topicTitle} (${data.chatTitle})';
   } else {
