@@ -71,9 +71,7 @@
 ## &sect;33 -- Contacts Screen
 
 ## &sect;34 -- Calls History
-- [ ] spec &sect;34.13 "Rate Call Dialog": no rate call dialog with 5-star rating row (36x36 stars), optional comment field (200 char limit, 135px max height), or Send/Cancel buttons found.
 - [ ] spec &sect;34.14 "Call Settings Section": call settings screen exists with Output/Input/Call Devices/Camera/Other sections, device selectors, level meter (44 lines, 3px width, 5px spacing, 18px height -- matches spec). Missing: live camera preview (shows placeholder instead).
-- [ ] spec &sect;34.15 "Active Call Top Bar": no 38px colored top bar with mute toggle (41x38px), duration label, signal bars, info label, or hangup button found. No gradient background animation for group calls (green/blue/purple states).
 
 ## &sect;35 -- Empty, Error & Loading States
 - [ ] spec &sect;35.1 "Empty Chat List": no Lottie `no_chats.tgs` animation at 120x120px, no "You have no conversations yet" text in dialogEmptyButtonLabel style (semibold), no "New Message" action button at bottom found in `app_state.dart`.
