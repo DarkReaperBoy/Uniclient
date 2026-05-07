@@ -32,25 +32,6 @@
 
 ---
 
-## §15 — Settings: Notifications
-
-### §15.2 Global Settings
-- [ ] spec §15.2.1 "Volume slider plays notification sound preview on drag": slider updates state but does not play a sound preview while dragging — `notifications_settings_screen.dart:269-281`
-
-### §15.4 Notifications for Chats (Split-Toggle Rows)
-- [ ] spec §15.4 "Toggle with exceptions confirmation dialog": dialog code exists in `_handleToggle` but `exceptionCount` is never wired from sub-pages to main screen rows (always defaults to 0), so dialog never triggers in practice — `notifications_settings_screen.dart:2324-2361`
-
-### §15.6 Ringtones Box
-- [ ] spec §15.6 "Upload Sound button — max duration constraint not verified": file dialog filtered to *.mp3 and size check (100KB) work correctly, but max duration (5 seconds) is not checked — `notifications_settings_screen.dart`
-
-### §15.8-§15.10 Events / Calls / Badge
-- [ ] spec §15.10 "Badge Counter toggles do not persist to engine": all badge counter toggles use local state only (`_includeMutedChats` etc.) — not connected to engine/server settings — `notifications_settings_screen.dart:37-65`
-- [ ] spec §15.9 "Accept calls controls callsDisabledHere server-side flag": toggle is local state only, not connected to engine — `notifications_settings_screen.dart:54`
-- [ ] spec §15.8 "Events toggles do not persist": contact joined / pinned messages toggles are local state only — `notifications_settings_screen.dart:50-51`
-
-### §15.11 System Integration
-- [ ] spec §15.11.3 "Notification position monitor widget": monitor widget has 5 corners, hit-testing, and animated bars, but hovering does NOT spawn actual desktop sample notification windows (320x80px) as spec requires — `notifications_settings_screen.dart:654-974`
-
 ---
 
 ## §16 — Settings: Privacy & Security
