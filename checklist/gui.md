@@ -61,13 +61,7 @@
 ## &sect;28 -- Two-Factor Authentication Setup
 
 ## &sect;29 -- Chat Export
-- [ ] spec &sect;29.2 "Export Panel Window": panel is implemented as a Dialog (showDialog) rather than a SeparatePanel (standalone frameless window). The spec requires a 364x480px standalone panel with onAllSpaces=true -- `chat_export.dart` line 165 uses showDialog instead.
-- [ ] spec &sect;29.5.3 "Skip File Link": skip file link appears after 5 seconds but uses AnimatedOpacity fade -- spec says it should fade in with anim::type::normal. Implementation matches intent but skip link position is inline rather than between progress rows and about label as spec requires.
-- [ ] spec &sect;29.5.5 "Cancel/Stop Button": stop button uses ElevatedButton with 4px border radius -- spec requires attentionBoxButton style (200x44px, 15px semibold font, text at 12px from top). Button radius should match spec's pill/round style.
-- [ ] spec &sect;29.7.2 "Done Button": "Show My Data" button uses 4px radius -- spec requires defaultActiveButton style (200x44px). Button does not actually open the file manager via File::ShowInFolder(path) -- it just closes the dialog.
-- [ ] spec &sect;29.9 "In-App Export Top Bar": `ExportTopBar` exists in `chat_export.dart` but uses a 1px progress bar at bottom instead of a `mediaPlayerPlayback` style FilledSlider. Top bar background should use `mediaPlayerBg` token, not `windowBg`.
-- [ ] spec &sect;29.3.5 "Output Format Section": location label uses hardcoded "Downloads/TelegramExport" -- spec requires a clickable link that opens FileDialog::GetFolder native folder picker. No actual folder picker integration exists.
-- [ ] spec &sect;29.4.2 "Calendar Box": calendar uses 320px width and custom grid -- spec requires `exportCalendarSizes` with 42x38 cells, 32px inner circle, 14px side padding. Current cell sizes are derived from `(320-28)/7` which is approximately 41.7px wide but cell height is 38px (matches spec).
+- [ ] spec &sect;29.4.2 "Calendar Box": calendar dialog renders BEHIND the floating OverlayEntry export panel — completely invisible and inaccessible. Root cause: `showDialog` called from within an OverlayEntry's widget context inserts a navigator route that sits below the OverlayEntry in z-order. Fix: call `showDialog` using the root Navigator context (e.g. `Navigator.of(context, rootNavigator: true)`) or show the calendar as a nested OverlayEntry on top of the panel. Confirmed by: _CalendarBox found in widget tree AND dismisses with Escape, but is never visible in screenshots.
 
 ## &sect;30 -- Bot Interactions
 - [ ] spec &sect;30.1 "Bot Command Button & Menu Button": no historyBotCommandStart (44x46px) slash button or historyBotMenuButton (RoundButton, 30px height, max 160px label) found in any compose area widget.
