@@ -474,11 +474,9 @@ class _AuthScreenState extends State<AuthScreen>
     required String label,
     TextInputType? keyboardType,
   }) {
-    final errorBorder = _showErrorBorder
-        ? OutlineInputBorder(
-            borderSide: BorderSide(color: theme.colorScheme.error, width: 2),
-          )
-        : null;
+    final subtextColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
+    final accentColor = theme.colorScheme.primary;
+    final errorColor = theme.colorScheme.error;
     return AnimatedBuilder(
       animation: _shakeController,
       builder: (context, child) {
@@ -503,10 +501,12 @@ class _AuthScreenState extends State<AuthScreen>
             decoration: InputDecoration(
               labelText: label,
               counterText: '',
-              contentPadding: const EdgeInsets.fromLTRB(12, 3, 6, 27),
-              border: const OutlineInputBorder(),
-              enabledBorder: errorBorder,
-              focusedBorder: errorBorder,
+              enabledBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: _showErrorBorder ? errorColor : subtextColor),
+              ),
+              focusedBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: _showErrorBorder ? errorColor : accentColor, width: 2),
+              ),
             ),
           ),
         ),
@@ -543,20 +543,15 @@ class _AuthScreenState extends State<AuthScreen>
             top: 34,
             left: 0,
             right: 0,
-            child: Center(
-              child: SizedBox(
-                width: 300,
-                child: Text(
-                  _isRecoveryMode
-                      ? 'Recovery code sent to ${data.sentTo.isNotEmpty ? data.sentTo : "your email"}.'
-                      : 'You have Two-Step Verification enabled, so your account is protected with an additional password.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.textTheme.bodySmall?.color,
-                    height: 20 / 14,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
+            child: Text(
+              _isRecoveryMode
+                  ? 'Recovery code sent to ${data.sentTo.isNotEmpty ? data.sentTo : "your email"}.'
+                  : 'You have Two-Step Verification enabled, so your account is protected with an additional password.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.textTheme.bodySmall?.color,
+                height: 20 / 14,
               ),
+              textAlign: TextAlign.center,
             ),
           ),
           Positioned(
