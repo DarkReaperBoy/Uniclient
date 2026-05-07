@@ -51,21 +51,6 @@
 
 ## §24 — Keyboard Shortcuts
 
-- [ ] spec §24.2 "Shortcut Customization JSON": `shortcuts-default.json` and `shortcuts-custom.json` in config dir — implemented correctly with write/load logic — `keyboard_shortcuts.dart` (OK)
-- [ ] spec §24.2 "Settings UI": full graphical shortcut editor with recording mode, conflict detection (strikethrough in red), "Reset to defaults" button — `ShortcutsSettingsScreen` exists with recording mode, conflict detection, and reset functionality — `shortcuts_settings_screen.dart` (OK)
-- [ ] spec §24.4 "Application / Window": Ctrl+W, Ctrl+F4, Ctrl+L, Ctrl+M, Ctrl+Q — all present in `_defaultBindings` — `keyboard_shortcuts.dart` (OK)
-- [ ] spec §24.4 "Chat Navigation": Ctrl+Tab, Ctrl+PgDn, Alt+Down, Ctrl+PgUp, Alt+Up, Ctrl+Alt+Home, Ctrl+Alt+End — all present — `keyboard_shortcuts.dart` (OK)
-- [ ] spec §24.4 "Pinned Chats": Ctrl+1 through Ctrl+8 — present — `keyboard_shortcuts.dart` (OK)
-- [ ] spec §24.4 "Account Switching": commands exist but unbound by default — commands are defined but no default bindings (matches spec) — `keyboard_shortcuts.dart` (OK)
-- [ ] spec §24.4 "Folder Navigation": Ctrl+1 through Ctrl+8 for folders, Ctrl+Shift+Down/Up for next/prev folder — present — `keyboard_shortcuts.dart` (OK)
-- [ ] spec §24.5 "Ctrl+Tab Chat Switcher": overlay with 72x104px cells, grid layout, Q to remove entry — `chatSwitchOverlay` command dispatches to `UniClientShell.showChatSwitchRequest` but the actual overlay widget dimensions (72x104 cells, margins 16px, padding 12px) are not verified here — `keyboard_shortcuts.dart`
-- [ ] spec §24.8 "Text Formatting Shortcuts": Ctrl+B/I/U, Ctrl+Shift+X/M/./P/N, Ctrl+K, Ctrl+Shift+D — all 10 formatting shortcuts present in `_defaultBindings` — `keyboard_shortcuts.dart` (OK)
-- [ ] spec §24.9 "Media Viewer Shortcuts": `J` (seek -10s), `L` (seek +10s), `K` (play/pause), `.` (frame step forward), `,` (frame step backward) are all missing from the media viewer's `_handleKey` — `media_viewer.dart`
-- [ ] spec §24.9 "Media Viewer Shortcuts": `Ctrl+S` save-as and `Ctrl+C` copy-media shortcuts in the viewer are missing from `_handleKey` — `media_viewer.dart`
-- [ ] spec §24.6 "Compose Box Key Handling": `Ctrl+O` to open file picker — `openFilePicker` command is defined with `chatRequired` scope but no default key binding for Ctrl+O is in `_defaultBindings` — `keyboard_shortcuts.dart`
-- [ ] spec §24.10 "Support Mode Shortcuts": F5, Ctrl+Delete, Ctrl+Insert, Ctrl+Shift+X, Ctrl+Shift+C — all present in `_defaultBindings` — `keyboard_shortcuts.dart` (OK)
-- [ ] spec §24.3 "Platform Modifier Mapping": macOS Cmd/Ctrl swap — implemented with `_isMac ? hwMeta : hwCtrl` logic — `keyboard_shortcuts.dart` (OK)
-
 ## §25 — Theming & Color System
 
 - [ ] spec §25.1 "Palette Architecture": ~370 named tokens in `.tdesktop-theme` files with reference resolution — `paletteToMap()` in `theme_file.dart` exports ~190 tokens, significantly fewer than spec's 369 (Day Blue) — `theme_file.dart`
