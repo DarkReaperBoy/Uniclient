@@ -36,13 +36,6 @@
 
 ---
 
-## §17 — Settings: Data, Storage & Advanced
-
-### §17.2 Data and Storage
-- [ ] spec §17.2.1 "Connection type right-label": hardcoded "Using TCP" — should dynamically reflect actual connection state (proxy info, etc.) — `advanced_settings_screen.dart:104-106`. Proxy mode stored in `_ProxiesBoxState` (widget-local) is not exposed to AppState; `_connectionTypeLabel()` always returns `'Using TCP'` regardless of proxy configuration.
-
----
-
 ## §18 — Settings: Folders
 
 ### §18.1 Page Structure
