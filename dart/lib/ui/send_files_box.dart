@@ -795,7 +795,10 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   bool get _hasCompressedStickers =>
       _files.any((f) => f.isSticker);
 
-  bool get _hasGroupOption => _files.length >= 2 && _hasMediaFiles;
+  bool get _hasGroupOption {
+    if (_sendAsDocuments) return _files.length >= 2;
+    return _files.where((f) => f.isMediaType).length >= 2;
+  }
 
   List<String> get _resultPaths => _files.map((f) => f.path).toList();
 
@@ -2595,24 +2598,21 @@ class _HdBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const text = 'HD';
-    const fontSize = 11.0;
-    const hPadding = 2.0;
-    const strokeWidth = 1.0;
-    const style = TextStyle(
-      fontSize: fontSize,
-      fontWeight: FontWeight.w600,
-      color: Color(0xFFFFFFFF),
-      height: 1.2,
-    );
-
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: hPadding + strokeWidth),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
       decoration: BoxDecoration(
         color: const Color(0x80000000),
-        borderRadius: BorderRadius.circular((fontSize * 1.2 + strokeWidth * 2) / 3),
+        borderRadius: BorderRadius.circular(999),
       ),
-      child: const Text(text, style: style),
+      child: const Text(
+        'HD',
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: Color(0xFFFFFFFF),
+          height: 1.2,
+        ),
+      ),
     );
   }
 }
