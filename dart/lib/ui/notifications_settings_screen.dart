@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
@@ -6,6 +8,7 @@ import 'package:flutter/material.dart';
 import '../theme/telegram_palette.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:file_picker/file_picker.dart';
+import 'package:media_kit/media_kit.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
@@ -27,10 +30,27 @@ class _NotificationsSettingsScreenState
     extends State<NotificationsSettingsScreen> {
   final _scrollController = ScrollController();
 
+  Player? _previewPlayer;
+  Timer? _previewDebounce;
+
   @override
   void dispose() {
+    _previewDebounce?.cancel();
+    _previewPlayer?.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _playVolumePreview(int volume) {
+    _previewDebounce?.cancel();
+    _previewDebounce = Timer(const Duration(milliseconds: 80), () async {
+      final path =
+          '${Directory.systemTemp.path}/uniclient_msg_incoming.wav';
+      if (!File(path).existsSync()) return;
+      _previewPlayer ??= Player();
+      await _previewPlayer!.setVolume(volume.clamp(0, 100).toDouble());
+      await _previewPlayer!.open(Media(path));
+    });
   }
 
   bool _allAccountsNotify = true;
@@ -46,17 +66,10 @@ class _NotificationsSettingsScreenState
   bool _channelsNotify = true;
   bool _reactionsNotify = true;
 
-  // §15.8 Events
-  bool _contactJoinedTelegram = true;
-  bool _pinnedMessages = true;
-
-  // §15.9 Calls
-  bool _acceptCallsOnDevice = true;
-
-  // §15.10 Badge Counter
-  bool _includeMutedChats = true;
-  bool _includeMutedInFolders = true;
-  bool _countUnreadMessages = true;
+  // §15.4: Exception counts per notification type (updated when returning from sub-pages)
+  int _privateExceptionCount = 0;
+  int _groupExceptionCount = 0;
+  int _channelExceptionCount = 0;
 
   // §15.11 System Integration (Native Notifications)
   bool _useNativeNotifications = true;
@@ -278,7 +291,10 @@ class _NotificationsSettingsScreenState
         child: _allowSound
             ? _VolumeSliderSection(
                 volume: _volume,
-                onChanged: (v) => setState(() => _volume = v),
+                onChanged: (v) {
+                  setState(() => _volume = v);
+                  _playVolumePreview(v);
+                },
                 accentColor: accentColor,
                 isDark: isDark,
               )
@@ -287,18 +303,32 @@ class _NotificationsSettingsScreenState
     ];
   }
 
-  void _openTypeSubPage(BuildContext context, _NotifType type) {
+  void _openTypeSubPage(BuildContext context, _NotifType type) async {
     if (type == _NotifType.reactions) {
       Navigator.of(context).push(
         settingsPageRoute(const _ReactionsSubPage()),
       );
       return;
     }
-    Navigator.of(context).push(
+    final exceptionCount = await Navigator.of(context).push<int>(
       settingsPageRoute(
         _NotificationTypeSubPage(type: type),
       ),
     );
+    if (exceptionCount != null && mounted) {
+      setState(() {
+        switch (type) {
+          case _NotifType.privateChats:
+            _privateExceptionCount = exceptionCount;
+          case _NotifType.groups:
+            _groupExceptionCount = exceptionCount;
+          case _NotifType.channels:
+            _channelExceptionCount = exceptionCount;
+          case _NotifType.reactions:
+            break;
+        }
+      });
+    }
   }
 
   List<Widget> _buildNotificationsForChats(
@@ -332,6 +362,7 @@ class _NotificationsSettingsScreenState
         accentColor: accentColor,
         hoverBg: hoverBg,
         isDark: isDark,
+        exceptionCount: _privateExceptionCount,
       ),
       _SplitToggleRow(
         icon: Icons.group,
@@ -344,6 +375,7 @@ class _NotificationsSettingsScreenState
         accentColor: accentColor,
         hoverBg: hoverBg,
         isDark: isDark,
+        exceptionCount: _groupExceptionCount,
       ),
       _SplitToggleRow(
         icon: Icons.campaign,
@@ -356,6 +388,7 @@ class _NotificationsSettingsScreenState
         accentColor: accentColor,
         hoverBg: hoverBg,
         isDark: isDark,
+        exceptionCount: _channelExceptionCount,
       ),
       _SplitToggleRow(
         icon: Icons.add_reaction_outlined,
@@ -397,8 +430,10 @@ class _NotificationsSettingsScreenState
         icon: Icons.person_add,
         iconColor: iconColor,
         label: 'Contact joined Telegram',
-        value: _contactJoinedTelegram,
-        onChanged: (v) => setState(() => _contactJoinedTelegram = v),
+        value: context.read<AppState>().notifContactJoinedTelegram,
+        onChanged: (v) {
+          context.read<AppState>().setNotifContactJoinedTelegram(v);
+        },
         textColor: textColor,
         accentColor: accentColor,
         hoverBg: hoverBg,
@@ -407,8 +442,10 @@ class _NotificationsSettingsScreenState
         icon: Icons.push_pin,
         iconColor: iconColor,
         label: 'Pinned messages',
-        value: _pinnedMessages,
-        onChanged: (v) => setState(() => _pinnedMessages = v),
+        value: context.read<AppState>().notifPinnedMessages,
+        onChanged: (v) {
+          context.read<AppState>().setNotifPinnedMessages(v);
+        },
         textColor: textColor,
         accentColor: accentColor,
         hoverBg: hoverBg,
@@ -441,8 +478,10 @@ class _NotificationsSettingsScreenState
         icon: Icons.call,
         iconColor: iconColor,
         label: 'Accept calls on this device',
-        value: _acceptCallsOnDevice,
-        onChanged: (v) => setState(() => _acceptCallsOnDevice = v),
+        value: context.read<AppState>().notifAcceptCallsOnDevice,
+        onChanged: (v) {
+          context.read<AppState>().setNotifAcceptCallsOnDevice(v);
+        },
         textColor: textColor,
         accentColor: accentColor,
         hoverBg: hoverBg,
@@ -472,8 +511,10 @@ class _NotificationsSettingsScreenState
       ),
       _NoIconToggleRow(
         label: 'Include muted chats in unread count',
-        value: _includeMutedChats,
-        onChanged: (v) => setState(() => _includeMutedChats = v),
+        value: context.read<AppState>().notifIncludeMutedChats,
+        onChanged: (v) {
+          context.read<AppState>().setNotifIncludeMutedChats(v);
+        },
         textColor: textColor,
         accentColor: accentColor,
         hoverBg: hoverBg,
@@ -481,16 +522,20 @@ class _NotificationsSettingsScreenState
       if (hasFolders)
         _NoIconToggleRow(
           label: 'Include muted chats in folder counters',
-          value: _includeMutedInFolders,
-          onChanged: (v) => setState(() => _includeMutedInFolders = v),
+          value: context.read<AppState>().notifIncludeMutedInFolders,
+          onChanged: (v) {
+            context.read<AppState>().setNotifIncludeMutedInFolders(v);
+          },
           textColor: textColor,
           accentColor: accentColor,
           hoverBg: hoverBg,
         ),
       _NoIconToggleRow(
         label: 'Count unread messages',
-        value: _countUnreadMessages,
-        onChanged: (v) => setState(() => _countUnreadMessages = v),
+        value: context.read<AppState>().notifCountUnreadMessages,
+        onChanged: (v) {
+          context.read<AppState>().setNotifCountUnreadMessages(v);
+        },
         textColor: textColor,
         accentColor: accentColor,
         hoverBg: hoverBg,
@@ -681,6 +726,7 @@ class _NotificationMonitorWidgetState
   _ScreenCorner? _pressCorner;
   late List<AnimationController> _barControllers;
   int _oldCount = 0;
+  final List<OverlayEntry> _sampleOverlays = [];
 
   static const _screenW = 280.0;
   static const _screenH = 160.0;
@@ -697,6 +743,11 @@ class _NotificationMonitorWidgetState
   static const _bezelRadius = 8.0;
   static const _standW = 60.0;
   static const _standH = 10.0;
+
+  static const _sampleW = 320.0;
+  static const _sampleH = 80.0;
+  static const _sampleDeltaX = 6.0;
+  static const _sampleDeltaY = 7.0;
 
   @override
   void initState() {
@@ -729,10 +780,60 @@ class _NotificationMonitorWidgetState
 
   @override
   void dispose() {
+    _hideSampleNotifications();
     for (final c in _barControllers) {
       c.dispose();
     }
     super.dispose();
+  }
+
+  void _showSampleNotifications(_ScreenCorner corner) {
+    _hideSampleNotifications();
+    final overlay = Overlay.of(context, rootOverlay: true);
+    final windowSize = MediaQuery.sizeOf(context);
+    final count = widget.barCount;
+
+    for (var i = 0; i < count; i++) {
+      final entry = OverlayEntry(builder: (ctx) {
+        final isTop = _isTopCorner(corner);
+        final isLeft = _isLeftCorner(corner);
+        final isCenter = corner == _ScreenCorner.topCenter;
+
+        double top;
+        double left;
+        final slotOffset = (_sampleH + _sampleDeltaY) * i;
+
+        if (isTop) {
+          top = _sampleDeltaY + slotOffset;
+        } else {
+          top = windowSize.height - _sampleDeltaY - _sampleH - slotOffset;
+        }
+        if (isCenter) {
+          left = (windowSize.width - _sampleW) / 2;
+        } else if (isLeft) {
+          left = _sampleDeltaX;
+        } else {
+          left = windowSize.width - _sampleDeltaX - _sampleW;
+        }
+
+        return Positioned(
+          top: top,
+          left: left,
+          child: IgnorePointer(
+            child: _SampleNotificationCard(isDark: widget.isDark),
+          ),
+        );
+      });
+      _sampleOverlays.add(entry);
+      overlay.insert(entry);
+    }
+  }
+
+  void _hideSampleNotifications() {
+    for (final entry in _sampleOverlays) {
+      entry.remove();
+    }
+    _sampleOverlays.clear();
   }
 
   _ScreenCorner? _hitTest(Offset pos, Rect screenRect) {
@@ -775,11 +876,17 @@ class _NotificationMonitorWidgetState
           final corner = _hitTest(e.localPosition, screenRect);
           if (corner != _hoverCorner) {
             setState(() => _hoverCorner = corner);
+            if (corner != null) {
+              _showSampleNotifications(corner);
+            } else {
+              _hideSampleNotifications();
+            }
           }
         },
         onExit: (_) {
           if (_hoverCorner != null) {
             setState(() => _hoverCorner = null);
+            _hideSampleNotifications();
           }
         },
         child: GestureDetector(
@@ -822,6 +929,69 @@ class _NotificationMonitorWidgetState
               );
             },
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SampleNotificationCard extends StatelessWidget {
+  final bool isDark;
+  const _SampleNotificationCard({required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = isDark ? const Color(0xFF1B2836) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final borderColor = isDark ? const Color(0xFF3E546A) : const Color(0xFFD4DEE6);
+    final accentColor = context.palette.windowBgActive;
+
+    return Material(
+      elevation: 8,
+      borderRadius: BorderRadius.circular(8),
+      color: Colors.transparent,
+      child: Container(
+        width: 320,
+        height: 80,
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: borderColor, width: 1),
+        ),
+        padding: const EdgeInsets.all(9),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: accentColor,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.message, color: Colors.white, size: 24),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text('Uniclient',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: textColor)),
+                  const SizedBox(height: 3),
+                  Text('You have a new message',
+                      style: TextStyle(fontSize: 12, color: subtextColor),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis),
+                ],
+              ),
+            ),
+            Icon(Icons.close, size: 16, color: subtextColor),
+          ],
         ),
       ),
     );
@@ -1234,7 +1404,12 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
     final iconColor =
         isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) Navigator.of(context).pop(_exceptions.length);
+      },
+      child: Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
         backgroundColor: bgColor,
@@ -1242,7 +1417,7 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
         scrolledUnderElevation: 0,
         leading: IconButton(
           icon: Icon(Icons.arrow_back, color: textColor),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => Navigator.of(context).pop(_exceptions.length),
         ),
         title: Text(
           widget.type.title,
@@ -1382,6 +1557,7 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
           const SizedBox(height: 32),
         ],
       ),
+    ),
     );
   }
 
@@ -3199,6 +3375,38 @@ class _RingtonesBoxDialogState extends State<_RingtonesBoxDialog> {
     return '${seconds ~/ 60}m ${seconds % 60}s';
   }
 
+  int? _estimateMp3DurationSec(Uint8List data) {
+    // Parse MP3 frame header to estimate duration from bitrate + file size.
+    // Scans for the first valid MPEG frame sync (0xFF 0xE0 mask).
+    for (var i = 0; i < data.length - 4; i++) {
+      if (data[i] != 0xFF || (data[i + 1] & 0xE0) != 0xE0) continue;
+      final b = data[i + 1];
+      final c = data[i + 2];
+      final version = (b >> 3) & 0x03; // 0=2.5, 2=2, 3=1
+      final layer = (b >> 1) & 0x03; // 1=III, 2=II, 3=I
+      final bitrateIdx = (c >> 4) & 0x0F;
+      if (bitrateIdx == 0 || bitrateIdx == 15) continue;
+      if (version == 1 || layer == 0) continue;
+
+      const v1l3 = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320];
+      const v1l2 = [0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384];
+      const v2l3 = [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160];
+
+      int kbps;
+      if (version == 3 && layer == 1) {
+        kbps = v1l3[bitrateIdx]; // MPEG1 Layer III
+      } else if (version == 3 && layer == 2) {
+        kbps = v1l2[bitrateIdx]; // MPEG1 Layer II
+      } else {
+        kbps = v2l3[bitrateIdx]; // MPEG2/2.5 Layer III
+      }
+      if (kbps == 0) continue;
+
+      return (data.length * 8) ~/ (kbps * 1000);
+    }
+    return null;
+  }
+
   void _onUploadSound() async {
     if (_tones.length >= _kMaxTones) {
       if (!mounted) return;
@@ -3221,6 +3429,18 @@ class _RingtonesBoxDialogState extends State<_RingtonesBoxDialog> {
       showTelegramToast(context, 'The file is too large (${_formatSize(bytes)}). '
           'Maximum allowed size is ${_formatSize(_kMaxSizeBytes)}.');
       return;
+    }
+
+    final fileData = file.bytes;
+    if (fileData != null) {
+      final durationSec = _estimateMp3DurationSec(fileData);
+      if (durationSec != null && durationSec > _kMaxDurationSec) {
+        if (!mounted) return;
+        showTelegramToast(context,
+            'The audio file is too long (${_formatDuration(durationSec)}). '
+            'Maximum allowed duration is ${_formatDuration(_kMaxDurationSec)}.');
+        return;
+      }
     }
 
     final name = (file.name.endsWith('.mp3')

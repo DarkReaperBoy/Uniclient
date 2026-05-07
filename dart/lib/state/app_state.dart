@@ -173,6 +173,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _hideNotificationCounters = false;
   bool _hideAllChatsFolder = false;
   bool _hideNotificationBadge = false;
+
+  // §15.8-§15.10 Notification settings persistence
+  bool _notifContactJoinedTelegram = true;
+  bool _notifPinnedMessages = true;
+  bool _notifAcceptCallsOnDevice = true;
+  bool _notifIncludeMutedChats = true;
+  bool _notifIncludeMutedInFolders = true;
+  bool _notifCountUnreadMessages = true;
   String _appIcon = '';
   bool _simpleQuotes = false;
   bool _semiTransparentDeleted = false;
@@ -387,6 +395,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get hideNotificationCounters => _hideNotificationCounters;
   bool get hideAllChatsFolder => _hideAllChatsFolder;
   bool get hideNotificationBadge => _hideNotificationBadge;
+  bool get notifContactJoinedTelegram => _notifContactJoinedTelegram;
+  bool get notifPinnedMessages => _notifPinnedMessages;
+  bool get notifAcceptCallsOnDevice => _notifAcceptCallsOnDevice;
+  bool get notifIncludeMutedChats => _notifIncludeMutedChats;
+  bool get notifIncludeMutedInFolders => _notifIncludeMutedInFolders;
+  bool get notifCountUnreadMessages => _notifCountUnreadMessages;
   String get appIcon => _appIcon;
   bool get simpleQuotes => _simpleQuotes;
   bool get semiTransparentDeleted => _semiTransparentDeleted;
@@ -589,6 +603,48 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setHideNotificationBadge(bool v) {
     if (_hideNotificationBadge == v) return;
     _hideNotificationBadge = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setNotifContactJoinedTelegram(bool v) {
+    if (_notifContactJoinedTelegram == v) return;
+    _notifContactJoinedTelegram = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setNotifPinnedMessages(bool v) {
+    if (_notifPinnedMessages == v) return;
+    _notifPinnedMessages = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setNotifAcceptCallsOnDevice(bool v) {
+    if (_notifAcceptCallsOnDevice == v) return;
+    _notifAcceptCallsOnDevice = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setNotifIncludeMutedChats(bool v) {
+    if (_notifIncludeMutedChats == v) return;
+    _notifIncludeMutedChats = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setNotifIncludeMutedInFolders(bool v) {
+    if (_notifIncludeMutedInFolders == v) return;
+    _notifIncludeMutedInFolders = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setNotifCountUnreadMessages(bool v) {
+    if (_notifCountUnreadMessages == v) return;
+    _notifCountUnreadMessages = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -2398,6 +2454,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _hideNotificationCounters = data['hideNotificationCounters'] as bool? ?? false;
       _hideAllChatsFolder = data['hideAllChatsFolder'] as bool? ?? false;
       _hideNotificationBadge = data['hideNotificationBadge'] as bool? ?? false;
+      _notifContactJoinedTelegram = data['notifContactJoinedTelegram'] as bool? ?? true;
+      _notifPinnedMessages = data['notifPinnedMessages'] as bool? ?? true;
+      _notifAcceptCallsOnDevice = data['notifAcceptCallsOnDevice'] as bool? ?? true;
+      _notifIncludeMutedChats = data['notifIncludeMutedChats'] as bool? ?? true;
+      _notifIncludeMutedInFolders = data['notifIncludeMutedInFolders'] as bool? ?? true;
+      _notifCountUnreadMessages = data['notifCountUnreadMessages'] as bool? ?? true;
       _appIcon = data['appIcon'] as String? ?? '';
       _simpleQuotes = data['simpleQuotes'] as bool? ?? false;
       _semiTransparentDeleted = data['semiTransparentDeleted'] as bool? ?? false;
@@ -2569,6 +2631,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'hideNotificationCounters': _hideNotificationCounters,
         'hideAllChatsFolder': _hideAllChatsFolder,
         'hideNotificationBadge': _hideNotificationBadge,
+        'notifContactJoinedTelegram': _notifContactJoinedTelegram,
+        'notifPinnedMessages': _notifPinnedMessages,
+        'notifAcceptCallsOnDevice': _notifAcceptCallsOnDevice,
+        'notifIncludeMutedChats': _notifIncludeMutedChats,
+        'notifIncludeMutedInFolders': _notifIncludeMutedInFolders,
+        'notifCountUnreadMessages': _notifCountUnreadMessages,
         'appIcon': _appIcon,
         'simpleQuotes': _simpleQuotes,
         'semiTransparentDeleted': _semiTransparentDeleted,
