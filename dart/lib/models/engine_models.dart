@@ -1601,6 +1601,8 @@ class UserProfile {
   final bool contactRequirePremium;
   final String businessHours;
   final String businessLocation;
+  final String notes;
+  final String videoAvatarPath;
 
   const UserProfile({
     required this.userId,
@@ -1621,6 +1623,8 @@ class UserProfile {
     this.contactRequirePremium = false,
     this.businessHours = '',
     this.businessLocation = '',
+    this.notes = '',
+    this.videoAvatarPath = '',
   });
 
   bool get hasBirthday => birthdayDay > 0 && birthdayMonth > 0;
@@ -1644,6 +1648,8 @@ class UserProfile {
     contactRequirePremium: j['contact_require_premium'] as bool? ?? false,
     businessHours: j['business_hours'] as String? ?? '',
     businessLocation: j['business_location'] as String? ?? '',
+    notes: j['notes'] as String? ?? '',
+    videoAvatarPath: j['video_avatar_path'] as String? ?? '',
   );
 }
 

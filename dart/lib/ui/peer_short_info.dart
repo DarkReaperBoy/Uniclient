@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
@@ -115,6 +117,8 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
   double _scrollOffset = 0;
   final FocusNode _focusNode = FocusNode();
   bool _showRadialLoader = false;
+  Player? _videoPlayer;
+  VideoController? _videoController;
 
   @override
   void initState() {
@@ -131,9 +135,26 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
 
   @override
   void dispose() {
+    _disposeVideoPlayer();
     _scrollController.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  void _disposeVideoPlayer() {
+    _videoPlayer?.dispose();
+    _videoPlayer = null;
+    _videoController = null;
+  }
+
+  void _initVideoIfAvailable() {
+    if (_profile?.videoAvatarPath.isNotEmpty == true) {
+      final player = Player();
+      _videoPlayer = player;
+      _videoController = VideoController(player);
+      player.setPlaylistMode(PlaylistMode.loop);
+      player.open(Media(_profile!.videoAvatarPath));
+    }
   }
 
   void _onScroll() {
@@ -163,6 +184,7 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
           _loadingProfile = false;
           _showRadialLoader = false;
         });
+        _initVideoIfAvailable();
       }
     } catch (_) {
       if (mounted) {
@@ -183,6 +205,10 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
   }
 
   void _showContextMenu(BuildContext context, Offset position) {
+    final chatState = context.read<ChatState>();
+    final isAlreadyOpen = chatState.activeChat?.chatId == widget.peerId &&
+        chatState.activeChat?.accountId == widget.accountId;
+    if (isAlreadyOpen) return;
     showTelegramMenu<String>(
       context: context,
       position: position,
@@ -196,7 +222,6 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
     ).then((value) {
       if (value == 'new_window' && mounted) {
         Navigator.of(context).pop();
-        final chatState = context.read<ChatState>();
         final chat = chatState.chats
             .where((c) =>
                 c.chatId == widget.peerId &&
@@ -322,31 +347,52 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
 
   Widget _buildCoverBackground(bool isDark) {
     final hasAvatar = widget.avatarPath.isNotEmpty;
+
+    Widget staticImage;
     if (hasAvatar) {
-      return Image.file(
+      staticImage = Image.file(
         File(widget.avatarPath),
         fit: BoxFit.cover,
         width: _kCoverSize,
         height: _kCoverSize,
         errorBuilder: (_, __, ___) => Container(color: Colors.black),
       );
-    }
-    final displayName = _profile?.displayName.isNotEmpty == true
-        ? _profile!.displayName
-        : widget.peerName;
-    return Container(
-      color: Colors.black,
-      child: Center(
-        child: Text(
-          _initials(displayName),
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 80,
-            fontWeight: FontWeight.w300,
+    } else {
+      final displayName = _profile?.displayName.isNotEmpty == true
+          ? _profile!.displayName
+          : widget.peerName;
+      staticImage = Container(
+        color: Colors.black,
+        child: Center(
+          child: Text(
+            _initials(displayName),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 80,
+              fontWeight: FontWeight.w300,
+            ),
           ),
         ),
-      ),
-    );
+      );
+    }
+
+    if (_videoController != null) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          staticImage,
+          Video(
+            controller: _videoController!,
+            width: _kCoverSize,
+            height: _kCoverSize,
+            fit: BoxFit.cover,
+            controls: NoVideoControls,
+          ),
+        ],
+      );
+    }
+
+    return staticImage;
   }
 
   Widget _buildCoverOverlay(ThemeData theme, bool isDark) {
@@ -600,6 +646,16 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
           valueColor: valueColor,
         ));
       }
+
+      if (p.notes.isNotEmpty) {
+        rows.add(_infoRow(
+          label: 'Notes',
+          value: p.notes,
+          labelColor: labelColor,
+          valueColor: valueColor,
+          multiLine: true,
+        ));
+      }
     } else {
       if (p.username.isNotEmpty) {
         rows.add(_infoRow(
@@ -646,6 +702,8 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
     String? copyText,
     String? copyLabel,
   }) {
+    final displayValue =
+        multiLine ? value : value.replaceAll(' ', ' ');
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         _kInfoPaddingH,
@@ -665,7 +723,7 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
           ),
           const SizedBox(height: 2),
           SelectableText(
-            value,
+            displayValue,
             maxLines: multiLine ? null : 1,
             style: TextStyle(
               color: valueColor,
