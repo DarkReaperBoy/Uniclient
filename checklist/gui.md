@@ -87,20 +87,6 @@
 
 ## §42 — Reactions Detail Popup
 
-- [ ] spec §42.2 "Context menu popup (Mode A)": spec defines a context-menu popup with user submenu triggered by right-clicking a reaction button; code implements a full modal panel (Mode B) via `ReactionsDetailPanel.show()` but lacks the inline context-menu Mode A — `reactions_detail.dart:34-70`
-- [ ] spec §42.3 "Title text": spec says title adapts: "Seen by N" / "Listened by N" / "Reactions"; code builds title as "Reactions . N" which does not include seen/listened variants — `reactions_detail.dart:276-280`
-- [ ] spec §42.4.2 "Pill geometry": spec says pill height is 32px, corner radius is 16px (fully rounded); code uses `height: 32` and `BorderRadius.circular(16)` — verified OK
-- [ ] spec §42.4.3 "Container padding": spec says container outer padding is `margins(12,10,12,10)`; code uses `EdgeInsets.fromLTRB(12, 10, 12, 10)` — verified OK
-- [ ] spec §42.4.3 "Inter-tab gap": spec says horizontal and vertical gaps are 8px; code uses `Wrap(spacing: 8, runSpacing: 8)` — verified OK
-- [ ] spec §42.4.4 "Selection transition duration": spec says 150ms; code uses `AnimationController(duration: Duration(milliseconds: 150))` — verified OK
-- [ ] spec §42.4.5 "Ripple animation": spec says each tab supports ripple; code uses `InkWell` with `borderRadius` which provides Material ripple — verified OK
-- [ ] spec §42.5.1 "Row geometry Mode B": spec says row height 58px, avatar 46px at (18,6), name at (79,11); code matches exactly — verified OK in `reactions_detail.dart:658-701`
-- [ ] spec §42.5.2 "Right-action emoji right margin": spec says right margin 27px from row right edge; code uses `right: 27` — verified OK
-- [ ] spec §42.5.3 "Date line in Mode A context menu": spec says per-user date line only in Mode A; code does not implement Mode A at all, so no date lines in the context menu — `reactions_detail.dart`
-- [ ] spec §42.6 "Pagination": spec says first page 20, subsequent 100; code uses `_kPerPageFirst = 20` and `_kPerPageMore = 100` — verified OK
-- [ ] spec §42.12 "Panel width": spec says desired width 392px with minimum layer margin 48px; code uses `maxWidth: 392` — verified OK
-- [ ] spec §42.16 "Blocked user filtering": code implements blocked user filtering via `_blockedIds` set — verified OK
-
 ## §43 — Read Receipts Detail
 
 - [ ] spec §43.1 "Trigger": spec says read receipts are accessed via right-click context menu "Seen by N" item; code has a `who_read` context menu item in chat_view.dart — implementation exists
