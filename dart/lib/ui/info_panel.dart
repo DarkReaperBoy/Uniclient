@@ -4380,33 +4380,40 @@ class _MediaEmptyState extends StatelessWidget {
     final icon = _iconForType(mediaType);
     final text = isSearch ? _searchEmptyText(mediaType) : _emptyText(mediaType);
     const iconSize = 48.0;
-    const totalHeight = _iconTop + _labelTop + 60.0;
+    const minHeight = _iconTop + _labelTop + _labelSkip;
 
-    return SizedBox(
-      height: totalHeight,
-      child: Stack(
-        children: [
-          Positioned(
-            left: 0,
-            right: 0,
-            top: totalHeight - _iconTop,
-            child: Center(child: Icon(icon, size: iconSize, color: emptyFg)),
-          ),
-          Positioned(
-            left: _labelSkip,
-            right: _labelSkip,
-            top: totalHeight - _labelTop,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minWidth: _minLabelWidth),
-              child: Text(
-                text,
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: emptyFg),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final height = math.max(constraints.maxHeight, minHeight);
+        final iconCenterY = height / 3;
+
+        return SizedBox(
+          height: height,
+          child: Stack(
+            children: [
+              Positioned(
+                left: 0,
+                right: 0,
+                top: iconCenterY - iconSize / 2,
+                child: Center(child: Icon(icon, size: iconSize, color: emptyFg)),
               ),
-            ),
+              Positioned(
+                left: _labelSkip,
+                right: _labelSkip,
+                top: height - _labelTop,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: _minLabelWidth),
+                  child: Text(
+                    text,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 13, color: emptyFg),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 

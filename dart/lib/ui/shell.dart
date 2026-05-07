@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/auth_state.dart';
@@ -920,6 +921,8 @@ class _NoAccountsScreen extends StatelessWidget {
 /// Shows spinner after 1000ms delay when not connected. Text "Connecting..."
 /// on hover (or always for disconnected/unstable). Hidden when connected.
 /// 150ms fade animation on show/hide, pill width animates with text.
+/// After kMinimalWaitingStateDuration (4s) in disconnected state, shows
+/// "Reconnect in N s..." countdown with "Try now" retry link.
 class _ConnectionStateWidget extends StatefulWidget {
   final String accountId;
   const _ConnectionStateWidget({required this.accountId});
@@ -932,11 +935,17 @@ class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
     with SingleTickerProviderStateMixin {
   static const _showDelay = Duration(milliseconds: 1000);
   static const _animDuration = Duration(milliseconds: 150);
+  static const _minWaitDuration = Duration(milliseconds: 4000);
+  static const _reconnectInterval = 30;
 
   late final AnimationController _fadeAnim;
   Timer? _showTimer;
+  Timer? _waitTimer;
+  Timer? _countdownTimer;
   bool _shouldShow = false;
   bool _isHovered = false;
+  bool _isWaiting = false;
+  int _reconnectCountdown = 0;
   ConnState? _lastState;
 
   @override
@@ -948,12 +957,48 @@ class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
   @override
   void dispose() {
     _showTimer?.cancel();
+    _waitTimer?.cancel();
+    _countdownTimer?.cancel();
     _fadeAnim.dispose();
     super.dispose();
   }
 
+  void _startWaitCountdown() {
+    _isWaiting = true;
+    _reconnectCountdown = _reconnectInterval;
+    _countdownTimer?.cancel();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() {
+        _reconnectCountdown--;
+        if (_reconnectCountdown <= 0) {
+          _tryReconnect();
+        }
+      });
+    });
+  }
+
+  void _cancelWait() {
+    _waitTimer?.cancel();
+    _waitTimer = null;
+    _countdownTimer?.cancel();
+    _countdownTimer = null;
+    _isWaiting = false;
+    _reconnectCountdown = 0;
+  }
+
+  void _tryReconnect() {
+    _cancelWait();
+    try {
+      final engine = context.read<EngineService>();
+      engine.connectAccount(widget.accountId);
+    } catch (_) {}
+    setState(() {});
+  }
+
   void _syncVisibility(ConnState state) {
     if (state == _lastState) return;
+    final oldState = _lastState;
     _lastState = state;
     final wantVisible = state != ConnState.connected;
 
@@ -967,10 +1012,24 @@ class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
     } else if (!wantVisible) {
       _showTimer?.cancel();
       _showTimer = null;
+      _cancelWait();
       if (_shouldShow) {
         _shouldShow = false;
         _fadeAnim.reverse();
       }
+    }
+
+    if (state == ConnState.disconnected && oldState != ConnState.disconnected) {
+      _cancelWait();
+      _waitTimer = Timer(_minWaitDuration, () {
+        _waitTimer = null;
+        if (!mounted) return;
+        if (_lastState == ConnState.disconnected) {
+          setState(() => _startWaitCountdown());
+        }
+      });
+    } else if (state != ConnState.disconnected) {
+      _cancelWait();
     }
   }
 
@@ -998,9 +1057,16 @@ class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
   }
 
   Widget _buildPill(ConnState state, TelegramPalette p) {
-    final showText = _isHovered ||
+    final showText = _isHovered || _isWaiting ||
         state == ConnState.disconnected ||
         state == ConnState.unstable;
+
+    final String text;
+    if (_isWaiting && _reconnectCountdown > 0) {
+      text = 'Reconnect in $_reconnectCountdown s...';
+    } else {
+      text = 'Connecting...';
+    }
 
     return AnimatedContainer(
       duration: _animDuration,
@@ -1033,9 +1099,24 @@ class _ConnectionStateWidgetState extends State<_ConnectionStateWidget>
           if (showText) ...[
             const SizedBox(width: 8),
             Text(
-              'Connecting...',
+              text,
               style: TextStyle(fontSize: 13, color: p.menuIconFg),
             ),
+            if (_isWaiting) ...[
+              Padding(
+                padding: const EdgeInsets.only(left: 6),
+                child: GestureDetector(
+                  onTap: _tryReconnect,
+                  child: Text(
+                    'Try now',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: p.windowBgActive,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ],
         ],
       ),
