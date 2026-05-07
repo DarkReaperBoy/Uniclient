@@ -24,6 +24,33 @@ const List<int> _topicColorIds = [
   0xFB6F5F,
 ];
 
+const List<String> _topicEmojiIcons = [
+  '\u{1F4AC}', // 💬
+  '\u{1F4E2}', // 📢
+  '\u{1F4DD}', // 📝
+  '\u{1F4CA}', // 📊
+  '\u{1F4C1}', // 📁
+  '\u{1F4CC}', // 📌
+  '\u{1F4A1}', // 💡
+  '\u{2B50}',  // ⭐
+  '\u{2753}',  // ❓
+  '\u{2757}',  // ❗
+  '\u{1F514}', // 🔔
+  '\u{1F3AF}', // 🎯
+  '\u{1F3C6}', // 🏆
+  '\u{1F512}', // 🔒
+  '\u{2699}',  // ⚙
+  '\u{1F4E3}', // 📣
+  '\u{1F4D6}', // 📖
+  '\u{1F517}', // 🔗
+  '\u{1F4F7}', // 📷
+  '\u{1F3B5}', // 🎵
+  '\u{1F3AE}', // 🎮
+  '\u{1F4B0}', // 💰
+  '\u{2764}',  // ❤
+  '\u{1F680}', // 🚀
+];
+
 Future<EditForumTopicResult?> showEditForumTopicBox(
   BuildContext context, {
   String? existingTitle,
@@ -160,9 +187,9 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
     );
 
     final posAnim = Tween<Offset>(begin: startCenter, end: endCenter)
-        .animate(CurvedAnimation(parent: _flyController!, curve: Curves.easeOutCirc));
+        .animate(CurvedAnimation(parent: _flyController!, curve: Curves.easeInOutCubic));
     final scaleAnim = Tween<double>(begin: 1.0, end: _iconButtonSize / _gridIconSize)
-        .animate(CurvedAnimation(parent: _flyController!, curve: Curves.easeOutCirc));
+        .animate(CurvedAnimation(parent: _flyController!, curve: Curves.easeInOutCubic));
 
     _flyOverlay?.remove();
     _flyOverlay = OverlayEntry(builder: (ctx) {
@@ -302,11 +329,22 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
                           size: _iconButtonSize,
                           iconContext: GeneralIconContext.profile,
                         )
-                      : ForumTopicIcon(
-                          colorId: _colorId,
-                          title: _titleController.text,
-                          size: _iconButtonSize,
-                        ),
+                      : _iconEmojiId != 0
+                          ? SizedBox(
+                              width: _iconButtonSize,
+                              height: _iconButtonSize,
+                              child: Center(
+                                child: Text(
+                                  String.fromCharCode(_iconEmojiId),
+                                  style: const TextStyle(fontSize: 20),
+                                ),
+                              ),
+                            )
+                          : ForumTopicIcon(
+                              colorId: _colorId,
+                              title: _titleController.text,
+                              size: _iconButtonSize,
+                            ),
                 ),
               ),
             ),
@@ -385,7 +423,20 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
     );
   }
 
+  void _selectEmoji(String emoji) {
+    final codePoint = emoji.runes.first;
+    setState(() {
+      _iconEmojiId = codePoint;
+    });
+  }
+
   Widget _buildIconSelectorPanel(bool isDark) {
+    final sectionLabelStyle = TextStyle(
+      fontSize: 12,
+      fontWeight: FontWeight.w600,
+      color: isDark ? const Color(0xFF7f91a4) : const Color(0xFF999999),
+    );
+
     return SingleChildScrollView(
       padding: EdgeInsets.all(_gridPadding),
       child: Column(
@@ -393,14 +444,7 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
         children: [
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 6),
-            child: Text(
-              'Default Icons',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: isDark ? const Color(0xFF7f91a4) : const Color(0xFF999999),
-              ),
-            ),
+            child: Text('Default Icons', style: sectionLabelStyle),
           ),
           Wrap(
             spacing: 2,
@@ -410,7 +454,49 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
                 _buildGridCell(colorId, isDark),
             ],
           ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 6),
+            child: Text('Topic Icons', style: sectionLabelStyle),
+          ),
+          Wrap(
+            spacing: 2,
+            runSpacing: 2,
+            children: [
+              for (final emoji in _topicEmojiIcons)
+                _buildEmojiGridCell(emoji, isDark),
+            ],
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildEmojiGridCell(String emoji, bool isDark) {
+    final codePoint = emoji.runes.first;
+    final isSelected = _iconEmojiId == codePoint;
+    return GestureDetector(
+      onTap: () => _selectEmoji(emoji),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Container(
+          width: _gridCellSize,
+          height: _gridCellSize,
+          decoration: isSelected
+              ? BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  color: isDark
+                      ? const Color(0xFF2b5278)
+                      : const Color(0xFFE3F2FD),
+                )
+              : null,
+          child: Center(
+            child: Text(
+              emoji,
+              style: const TextStyle(fontSize: 22),
+            ),
+          ),
+        ),
       ),
     );
   }

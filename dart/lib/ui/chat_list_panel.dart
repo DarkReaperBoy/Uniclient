@@ -4443,23 +4443,41 @@ class _ForumTopicListViewState extends State<_ForumTopicListView> {
     final chatState = widget.chatState;
     final result = await showEditForumTopicBox(ctx);
     if (result == null) return;
+
+    final localId = -(DateTime.now().millisecondsSinceEpoch % 1000000);
+    final provisional = ForumTopic(
+      id: localId.toString(),
+      title: result.title,
+      colorId: result.colorId,
+      iconEmojiId: result.iconEmojiId,
+      parentId: parent.chatId,
+      creationDate: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      isMy: true,
+    );
+    chatState.openTopic(provisional);
+
     try {
       final topicId = await engine.createForumTopic(
         parent.accountId, parent.chatId, result.title, result.colorId, result.iconEmojiId,
       );
       if (topicId > 0) {
-        final provisional = ForumTopic(
+        final real = ForumTopic(
           id: topicId.toString(),
           title: result.title,
           colorId: result.colorId,
           iconEmojiId: result.iconEmojiId,
           parentId: parent.chatId,
           creationDate: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+          isMy: true,
+          canEdit: true,
+          canDelete: true,
+          canToggleClosed: true,
         );
-        chatState.openTopic(provisional);
+        chatState.openTopic(real);
       }
       chatState.refreshForumTopics();
     } catch (e) {
+      chatState.closeForum();
       if (ctx.mounted) {
         showTelegramToast(ctx, 'Failed to create topic: $e');
       }
@@ -4606,23 +4624,41 @@ class _ForumTopicHeaderState extends State<_ForumTopicHeader>
   void _showCreateTopicDialog(BuildContext ctx) async {
     final result = await showEditForumTopicBox(ctx);
     if (result == null) return;
+
+    final localId = -(DateTime.now().millisecondsSinceEpoch % 1000000);
+    final provisional = ForumTopic(
+      id: localId.toString(),
+      title: result.title,
+      colorId: result.colorId,
+      iconEmojiId: result.iconEmojiId,
+      parentId: widget.chatId,
+      creationDate: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      isMy: true,
+    );
+    widget.chatState.openTopic(provisional);
+
     try {
       final topicId = await widget.engine.createForumTopic(
         widget.accountId, widget.chatId, result.title, result.colorId, result.iconEmojiId,
       );
       if (topicId > 0) {
-        final provisional = ForumTopic(
+        final real = ForumTopic(
           id: topicId.toString(),
           title: result.title,
           colorId: result.colorId,
           iconEmojiId: result.iconEmojiId,
           parentId: widget.chatId,
           creationDate: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+          isMy: true,
+          canEdit: true,
+          canDelete: true,
+          canToggleClosed: true,
         );
-        widget.chatState.openTopic(provisional);
+        widget.chatState.openTopic(real);
       }
       widget.chatState.refreshForumTopics();
     } catch (e) {
+      widget.chatState.closeForum();
       if (ctx.mounted) {
         showTelegramToast(ctx, 'Failed to create topic: $e');
       }
@@ -4862,6 +4898,11 @@ class _ForumTopicRowState extends State<_ForumTopicRow>
       context: ctx,
       position: position,
       items: [
+        const TelegramMenuItem(
+          value: 'new_window',
+          icon: Icon(Icons.open_in_new, size: 20),
+          label: 'New Window',
+        ),
         if (topic.canTogglePinned)
           TelegramMenuItem(
             value: 'pin',
@@ -4923,6 +4964,8 @@ class _ForumTopicRowState extends State<_ForumTopicRow>
     );
     if (value == null || !ctx.mounted) return;
     switch (value) {
+      case 'new_window':
+        showTelegramToast(ctx, 'Multi-window is not yet supported');
       case 'pin':
         try {
           await widget.chatState.pinForumTopic(widget.accountId, widget.chatId, topicId, !topic.isPinned);
