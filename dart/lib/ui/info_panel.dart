@@ -1939,7 +1939,17 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
               if (widget.chat.type == ChatType.dm &&
                   widget.chat.title == 'Saved Messages') ...[
                 const Divider(height: 24),
-                _SavedMediaFilterSection(theme: widget.theme),
+                _SavedMediaFilterSection(
+                  theme: widget.theme,
+                  onOpenMedia: (type, label) {
+                    final panelState = context.findAncestorStateOfType<_InfoPanelState>();
+                    panelState?._pushPage(_InfoNavPage(
+                      type: _InfoPageType.sharedMedia,
+                      mediaType: type,
+                      mediaLabel: label,
+                    ));
+                  },
+                ),
               ],
               const SizedBox(height: 16),
             ]),
@@ -5931,17 +5941,19 @@ class _SimilarChannelRow extends StatelessWidget {
 
 class _SavedMediaFilterSection extends StatelessWidget {
   final ThemeData theme;
-  const _SavedMediaFilterSection({required this.theme});
+  final void Function(String type, String label)? onOpenMedia;
 
-  static const _filters = <(IconData, String)>[
-    (Icons.photo_outlined, 'Photo'),
-    (Icons.videocam_outlined, 'Video'),
-    (Icons.insert_drive_file_outlined, 'File'),
-    (Icons.music_note_outlined, 'Music'),
-    (Icons.link_outlined, 'Link'),
-    (Icons.poll_outlined, 'Poll'),
-    (Icons.mic_outlined, 'Voice'),
-    (Icons.gif_box_outlined, 'GIF'),
+  const _SavedMediaFilterSection({required this.theme, this.onOpenMedia});
+
+  static const _filters = <(IconData, String, String)>[
+    (Icons.photo_outlined, 'Photo', 'photo'),
+    (Icons.videocam_outlined, 'Video', 'video'),
+    (Icons.insert_drive_file_outlined, 'File', 'file'),
+    (Icons.music_note_outlined, 'Music', 'audio'),
+    (Icons.link_outlined, 'Link', 'link'),
+    (Icons.poll_outlined, 'Poll', 'poll'),
+    (Icons.mic_outlined, 'Voice', 'voice'),
+    (Icons.gif_box_outlined, 'GIF', 'gif'),
   ];
 
   @override
@@ -5952,7 +5964,7 @@ class _SavedMediaFilterSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: _filters.map((f) {
           return InkWell(
-            onTap: () {},
+            onTap: () => onOpenMedia?.call(f.$3, f.$2),
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 10),
               child: Row(

@@ -5841,6 +5841,22 @@ class _SavedSublistRowState extends State<_SavedSublistRow> {
         child: MyNotesUserpic(size: 46),
       );
     }
+    if (sub.avatarPath.isNotEmpty) {
+      final file = File(sub.avatarPath);
+      return ClipOval(
+        child: SizedBox(
+          width: 46,
+          height: 46,
+          child: Image.file(file, width: 46, height: 46, fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _initialsAvatar(sub),
+          ),
+        ),
+      );
+    }
+    return _initialsAvatar(sub);
+  }
+
+  Widget _initialsAvatar(SavedSublistInfo sub) {
     final initials = _getInitials(sub.peerName);
     final color = _peerColor(sub.peerId);
     return Container(
