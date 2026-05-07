@@ -55,20 +55,7 @@
 # Audit: &sect;26-&sect;36 Admin, Export, Contacts, Calls, States
 
 ## &sect;26 -- Admin Tools
-- [ ] spec &sect;26.1 "Group/Channel Edit Screen": entire EditPeerInfoBox UI (photo+title+description block, settings buttons, admin control buttons, sticker set, delete button, dialog chrome) is implemented as a single flat panel in `admin_tools.dart` but the file is too large to fully read (45828 tokens). Partial coverage only -- need line-by-line verification of all 26.1 subsections.
-- [ ] spec &sect;26.2 "Permissions Management": no permission editor with toggle-style buttons (allowed=blue, restricted=red), collapsible media group with "(5/7)" count badge, or dependency-rule enforcement found in `admin_tools.dart` -- `admin_tools.dart` was too large to fully read but grep for "permission" keywords is needed to confirm presence/absence.
-- [ ] spec &sect;26.2.2 "Exceptions List": no "Add Exception" button or per-user custom restriction rows found.
-- [ ] spec &sect;26.2.3 "Slowmode Slider": no discrete 8-position slowmode slider (Off/5s/10s/30s/1m/5m/15m/1h) found.
-- [ ] spec &sect;26.2.4 "Boosts Unrestrict Slider": no 5-position boosts slider found.
-- [ ] spec &sect;26.2.5 "Charge Stars (Paid Messages)": no paid-message stars configuration found.
-- [ ] spec &sect;26.3 "Individual Member Restrict/Ban Dialog": no EditRestrictedBox with cover widget (60x60 photo, permission toggles, duration picker with Forever/1Day/1Week/Custom, custom rank field) found.
-- [ ] spec &sect;26.4 "Admin Appointment Dialog": no EditAdminBox with "Add as Admin" checkbox, admin rights toggles (3 sections for groups, 4 for channels), custom title/rank field, transfer ownership button, dismiss admin button, or promoted-by info found.
-- [ ] spec &sect;26.5 "Admin Log / Recent Actions": no admin log viewer with chronological event rendering, search, filter dialog (19 filter flags), or empty state ("No events found") found.
-- [ ] spec &sect;26.6 "Invite Links Management": no InviteLinksBox with permanent link display, "Create a New Link" button, active/revoked link sections, color-coded progress arcs, link context menu (Copy/Share/QR/Edit/Revoke/Delete), single link info box, QR code dialog, or create/edit link form found.
-- [ ] spec &sect;26.7 "Member List with Role Tabs": no EditParticipantsBox with five role views (Members/Admins/Restricted/Kicked/Profile), search, pagination (16 first page / 200 subsequent), row rendering (56px height, 42px avatar), or context menu (View Profile/Promote/Restrict/Remove) found.
-- [ ] spec &sect;26.8 "Banned Users List": no banned users list with unban action, "Add to Banned" button found.
-- [ ] spec &sect;26.9 "Slow Mode Settings": no slowmode send-button countdown (m:ss text replacing send icon) found.
-- [ ] spec &sect;26.10 "Anti-Spam Settings": no anti-spam toggle with member-count threshold found.
+- [ ] spec &sect;26.6 "Invite Links Management": InviteLinksBox is implemented with permanent link display, "Create a New Link" button, active/revoked link sections, color-coded progress arcs, link context menu, single link info box, and create/edit link form — but QR code option is missing from the link context menu (spec §26.6.3 requires Copy/Share/QR/Edit/Revoke/Delete) and the QR code dialog (spec §26.6.5) is not implemented at all. No `qr` / `Qr` / `QR` references exist anywhere in admin_tools.dart.
 
 ## &sect;27 -- Passcode Lock Screen
 - [ ] spec &sect;27.1 "Settings Entry Point": no "Local passcode" row in Privacy & Security settings with On/Off label and menuIconLock icon found anywhere in the codebase.
