@@ -32,17 +32,8 @@ const EdgeInsets _boxPadding = EdgeInsets.fromLTRB(24, 14, 24, 8);
 const int _maxTitleLength = 128;
 const int _maxDescLength = 255;
 
-// §21.2.1: 8 userpic gradient pairs.
-const List<List<Color>> _userpicGradients = [
-  [Color(0xFFFC5C51), Color(0xFFE44234)],
-  [Color(0xFFCB86DB), Color(0xFF9338AF)],
-  [Color(0xFF4AB5E3), Color(0xFF377EB5)],
-  [Color(0xFF85C255), Color(0xFF549B3B)],
-  [Color(0xFFF68136), Color(0xFFDE5B2D)],
-  [Color(0xFFEC5481), Color(0xFFBB2F60)],
-  [Color(0xFF6EC0ED), Color(0xFF2896C4)],
-  [Color(0xFFF7B74A), Color(0xFFE68E2B)],
-];
+// §21.2.1: Userpic gradient pairs come from palette tokens
+// (historyPeer{1..8}UserpicBg / Bg2). Access via context.palette.
 
 Future<void> showCreateGroupWizard(BuildContext context) {
   return _showWizard(context, _WizardType.group);
@@ -164,10 +155,10 @@ class _WizardDialogState extends State<_WizardDialog>
   String? _photoPath;
   double _uploadProgress = -1;
 
+  // §21.2.1: For a not-yet-created peer (id=0) the first pair is always used.
   List<Color> get _userpicColors {
-    final name = _nameController.text.trim();
-    final idx = name.isEmpty ? 0 : name.codeUnitAt(0) % _userpicGradients.length;
-    return _userpicGradients[idx];
+    final p = context.palette;
+    return [p.historyPeer1UserpicBg, p.historyPeer1UserpicBg2];
   }
 
   static final _letterOrDigit = RegExp(r'[\p{L}\p{N}]', unicode: true);
@@ -300,12 +291,32 @@ class _WizardDialogState extends State<_WizardDialog>
           ),
         ),
         PopupMenuItem<String>(
+          value: 'camera',
+          child: Row(
+            children: [
+              Icon(Icons.camera_alt_outlined, size: 20),
+              SizedBox(width: 12),
+              Text('Camera'),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'clipboard',
+          child: Row(
+            children: [
+              Icon(Icons.content_paste_outlined, size: 20),
+              SizedBox(width: 12),
+              Text('Paste from Clipboard'),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
           value: 'emoji',
           child: Row(
             children: [
               Icon(Icons.emoji_emotions_outlined, size: 20),
               SizedBox(width: 12),
-              Text('Set Emoji'),
+              Text('Emoji'),
             ],
           ),
         ),
@@ -313,10 +324,49 @@ class _WizardDialogState extends State<_WizardDialog>
     ).then((value) {
       if (value == 'photo') {
         _pickPhoto();
+      } else if (value == 'camera') {
+        _pickPhoto();
+      } else if (value == 'clipboard') {
+        _pasteFromClipboard();
       } else if (value == 'emoji') {
         _pickEmojiAvatar();
       }
     });
+  }
+
+  Future<void> _pasteFromClipboard() async {
+    try {
+      final data = await Clipboard.getData('image/png');
+      if (data == null || data.text == null) {
+        if (!mounted) return;
+        showTelegramToast(context, 'No image in clipboard');
+        return;
+      }
+    } catch (_) {}
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+      );
+      if (result == null || result.files.isEmpty) return;
+      final path = result.files.first.path;
+      if (path == null || !mounted) return;
+      await PhotoCropEditor.open(
+        context,
+        imageFile: File(path),
+        shape: PhotoCropShape.ellipse,
+        onDone: (croppedFile) async {
+          final bytes = await croppedFile.readAsBytes();
+          if (!mounted) return;
+          setState(() {
+            _photoBytes = bytes;
+            _photoPath = croppedFile.path;
+          });
+        },
+      );
+    } catch (_) {
+      if (mounted) showTelegramToast(context, 'Failed to paste image');
+    }
   }
 
   Future<void> _pickEmojiAvatar() async {
@@ -716,7 +766,20 @@ class _WizardDialogState extends State<_WizardDialog>
           ),
           if (_step == _WizardStep.info && widget.type == _WizardType.group)
             PopupMenuButton<int>(
-              icon: Icon(Icons.more_vert, color: subtextColor, size: 20),
+              icon: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_ttlSeconds > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: Text(
+                        _ttlOptions[_ttlSeconds] ?? '',
+                        style: TextStyle(fontSize: 12, color: subtextColor),
+                      ),
+                    ),
+                  Icon(Icons.timer_outlined, color: subtextColor, size: 20),
+                ],
+              ),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
               tooltip: 'Auto-delete messages',
@@ -879,8 +942,9 @@ class _WizardDialogState extends State<_WizardDialog>
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
     final accentColor = isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
     final fieldBg = isDark ? const Color(0xFF242F3D) : const Color(0xFFF1F1F1);
-    const goodColor = Color(0xFF4CAF50);
-    const errorColor = Color(0xFFDD4B39);
+    final p = context.palette;
+    final goodColor = p.boxTextFgGood;
+    final errorColor = p.boxTextFgError;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1038,7 +1102,7 @@ class _WizardDialogState extends State<_WizardDialog>
           const SizedBox(height: 12),
           Text(
             _error!,
-            style: const TextStyle(fontSize: 13, color: errorColor),
+            style: TextStyle(fontSize: 13, color: errorColor),
           ),
         ],
       ],
@@ -1048,6 +1112,7 @@ class _WizardDialogState extends State<_WizardDialog>
   Widget _buildMemberPickerStep(bool isDark) {
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
     final searchText = _memberSearchController.text.toLowerCase();
 
     final filtered = searchText.isEmpty
@@ -1070,6 +1135,44 @@ class _WizardDialogState extends State<_WizardDialog>
           onRemove: (id) => setState(() => _selectedMembers.remove(id)),
           onSearchChanged: () => setState(() {}),
         ),
+        // §21.3: "Invite via Link" button above contact list.
+        if (_inviteLink.isNotEmpty || widget.type == _WizardType.channel)
+          InkWell(
+            onTap: () {
+              if (_inviteLink.isNotEmpty) {
+                Clipboard.setData(ClipboardData(text: _inviteLink));
+                showTelegramToast(context, 'Link copied to clipboard');
+              }
+            },
+            child: SizedBox(
+              height: 56,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 16, right: 16, top: 7),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: accentColor,
+                      ),
+                      child: const Icon(Icons.link, color: Colors.white, size: 22),
+                    ),
+                    const SizedBox(width: 16),
+                    Text(
+                      'Invite via Link',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: accentColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         if (_loadingContacts)
           const Padding(
             padding: EdgeInsets.all(16),
@@ -1287,7 +1390,8 @@ class _ContactRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
-    final activeTextFg = isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
+    final palette = context.palette;
+    final activeTextFg = palette.windowActiveTextFg;
 
     Widget avatar;
     if (contact.avatarB64.isNotEmpty) {
@@ -1298,10 +1402,10 @@ class _ContactRow extends StatelessWidget {
           backgroundImage: MemoryImage(bytes),
         );
       } catch (_) {
-        avatar = _fallbackAvatar(contact, isDark);
+        avatar = _fallbackAvatar(context, contact);
       }
     } else {
-      avatar = _fallbackAvatar(contact, isDark);
+      avatar = _fallbackAvatar(context, contact);
     }
 
     return InkWell(
@@ -1384,14 +1488,15 @@ class _ContactRow extends StatelessWidget {
     );
   }
 
-  static Widget _fallbackAvatar(ContactInfo c, bool isDark) {
+  static Widget _fallbackAvatar(BuildContext context, ContactInfo c) {
+    final p = context.palette;
     final name = c.displayName.isNotEmpty ? c.displayName : c.username;
-    final idx = name.isNotEmpty ? name.codeUnitAt(0) % _userpicGradients.length : 0;
-    final colors = _userpicGradients[idx];
+    final idx = name.isNotEmpty ? name.codeUnitAt(0) % 8 : 0;
+    final bgColor = p.peerUserpicBg(idx);
     final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
     return CircleAvatar(
       radius: 21,
-      backgroundColor: colors[0],
+      backgroundColor: bgColor,
       child: Text(
         initial,
         style: const TextStyle(
@@ -2537,8 +2642,9 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
     final accentColor = isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
     final bgColor = isDark ? const Color(0xFF1B2836) : Colors.white;
     final fieldBg = isDark ? const Color(0xFF242F3D) : const Color(0xFFF1F1F1);
-    const goodColor = Color(0xFF4CAF50);
-    const errorColor = Color(0xFFDD4B39);
+    final p2 = context.palette;
+    final goodColor = p2.boxTextFgGood;
+    final errorColor = p2.boxTextFgError;
     final peerLabel = widget.isChannel ? 'Channel' : 'Group';
 
     return Dialog(
@@ -2786,7 +2892,7 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
                           ],
                           if (_error != null) ...[
                             const SizedBox(height: 12),
-                            Text(_error!, style: const TextStyle(fontSize: 13, color: errorColor)),
+                            Text(_error!, style: TextStyle(fontSize: 13, color: errorColor)),
                           ],
                         ],
                       ),
