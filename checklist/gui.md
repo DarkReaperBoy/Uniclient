@@ -59,12 +59,6 @@
 ## &sect;27 -- Passcode Lock Screen
 
 ## &sect;28 -- Two-Factor Authentication Setup
-- [ ] spec &sect;28.1 "Entry Point": no "Two-Step Verification" button in Privacy & Security with dynamic On/Off/Loading label found.
-- [ ] spec &sect;28.2 "Step Architecture": no 2FA wizard step system with StepData model, common header (Lottie 100x100, subtitle, description), common input fields (256px PasswordInput), error labels, done buttons, or link buttons found.
-- [ ] spec &sect;28.3 "Flow 1 -- Create New Password": no Start screen, Create Password screen (interactive lock Lottie), Password Hint screen, Recovery Email screen, or Email Confirmation screen found.
-- [ ] spec &sect;28.4 "Flow 2 -- Check Password & Manage": no check password screen with hint display, "Forgot password?" link (3-state machine: Recover/CancelReset/Reset), countdown timer, or Manage screen with Change Password/Change Email/Disable Password buttons found.
-- [ ] spec &sect;28.7 "Password Recovery": no recovery flow with email code entry, "Can't access email?" option, or timed reset countdown found.
-- [ ] spec &sect;28.8 "Login-Time 2FA Entry": no PasswordCheckWidget for login flow with 380px content width, introPassword style, or recovery mode found.
 
 ## &sect;29 -- Chat Export
 - [ ] spec &sect;29.2 "Export Panel Window": panel is implemented as a Dialog (showDialog) rather than a SeparatePanel (standalone frameless window). The spec requires a 364x480px standalone panel with onAllSpaces=true -- `chat_export.dart` line 165 uses showDialog instead.
