@@ -82,15 +82,7 @@
 
 ## §40 — Send Files Dialog
 
-- [ ] spec §40.2 "Album preview drag-to-reorder": the `send_files_box.dart` file exists (30435 tokens, could not read fully), but based on the spec, album drag-to-reorder requires shrink animation at 150ms and layout transition at 200ms; needs verification that these animations exist — `send_files_box.dart`
-- [ ] spec §40.3 "Group files checkbox": spec says a "Group files" checkbox should be visible when 2+ compatible files are present; needs verification in send_files_box.dart — `send_files_box.dart`
-- [ ] spec §40.3 "Send as documents checkbox": spec says an inverted checkbox controls whether images are sent as documents; needs verification — `send_files_box.dart`
-- [ ] spec §40.4 "HD badge": spec says a rounded "HD" pill overlay appears on preview when high-quality is enabled; needs verification — `send_files_box.dart`
-- [ ] spec §40.5 "Per-file spoiler toggle": spec says right-click context menu on individual thumbs shows "Spoiler effect" toggle; needs verification — `send_files_box.dart`
-- [ ] spec §40.6 "Caption field character limit": spec says `kMaxMessageLength = 4096` with a `CharactersLimitLabel`; needs verification — `send_files_box.dart`
-- [ ] spec §40.6 "Per-file captions": spec says each file block can have its own caption when sending as documents; needs verification — `send_files_box.dart`
-- [ ] spec §40.9 "Ctrl+O shortcut": spec says Ctrl+O opens the add-file dialog; needs verification — `send_files_box.dart`
-- [ ] spec §40.10 "Send menu": spec says right-click on send button opens a menu with silent send, schedule, spoiler toggle, caption position, photo quality; needs verification — `send_files_box.dart`
+- [ ] BUG §40.6 "Edit caption crash": pressing Escape on the outer `_SendFilesBoxDialog` while the inner `_showEditCaptionDialog` AlertDialog is open causes the outer dialog to close via `_onDialogKey`, leading to `TextEditingController` use-after-dispose and Flutter framework assertion failure (`_dependents.isEmpty`). Fix: guard `_onDialogKey` escape handler so it does not fire while a sub-dialog is open, or use a flag `_captionDialogOpen` to suppress outer escape handling. — `send_files_box.dart:421-444`
 
 ## §41 — Message Formatting Toolbar
 
