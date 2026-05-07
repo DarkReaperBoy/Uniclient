@@ -1532,6 +1532,7 @@ class _TopicInfoMenuButton extends StatelessWidget {
           existingIconEmojiId: topic.iconEmojiId,
           isGeneral: topic.isGeneral,
           isEditing: true,
+          isPremium: context.read<AppState>().activeAccount?.isPremium ?? false,
         );
         if (result == null || !context.mounted) return;
         try {

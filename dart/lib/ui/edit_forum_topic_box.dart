@@ -24,7 +24,9 @@ const List<int> _topicColorIds = [
   0xFB6F5F,
 ];
 
-const List<String> _topicEmojiIcons = [
+/// Default topic icon emoji set (inputStickerSetEmojiDefaultTopicIcons).
+/// These are free for all users — no Premium required.
+const List<String> _defaultTopicEmojiIcons = [
   '\u{1F4AC}', // 💬
   '\u{1F4E2}', // 📢
   '\u{1F4DD}', // 📝
@@ -51,6 +53,11 @@ const List<String> _topicEmojiIcons = [
   '\u{1F680}', // 🚀
 ];
 
+/// Codepoints of default topic icons — selection of these is free.
+final Set<int> _defaultTopicEmojiCodepoints = {
+  for (final e in _defaultTopicEmojiIcons) e.runes.first,
+};
+
 Future<EditForumTopicResult?> showEditForumTopicBox(
   BuildContext context, {
   String? existingTitle,
@@ -59,6 +66,8 @@ Future<EditForumTopicResult?> showEditForumTopicBox(
   bool isGeneral = false,
   bool isBot = false,
   bool isEditing = false,
+  bool isPremium = false,
+  List<String>? serverEmojiIcons,
 }) {
   return showDialog<EditForumTopicResult>(
     context: context,
@@ -70,6 +79,8 @@ Future<EditForumTopicResult?> showEditForumTopicBox(
       isGeneral: isGeneral,
       isBot: isBot,
       isEditing: isEditing,
+      isPremium: isPremium,
+      serverEmojiIcons: serverEmojiIcons,
     ),
   );
 }
@@ -93,6 +104,8 @@ class _EditForumTopicDialog extends StatefulWidget {
   final bool isGeneral;
   final bool isBot;
   final bool isEditing;
+  final bool isPremium;
+  final List<String>? serverEmojiIcons;
 
   const _EditForumTopicDialog({
     this.existingTitle,
@@ -101,6 +114,8 @@ class _EditForumTopicDialog extends StatefulWidget {
     this.isGeneral = false,
     this.isBot = false,
     this.isEditing = false,
+    this.isPremium = false,
+    this.serverEmojiIcons,
   });
 
   @override
@@ -108,11 +123,13 @@ class _EditForumTopicDialog extends StatefulWidget {
 }
 
 class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final TextEditingController _titleController;
   late int _colorId;
   late int _iconEmojiId;
+  String? _selectedEmojiStr;
   late List<int> _remainingColors;
+  late List<String> _emojiIcons;
   bool _titleError = false;
 
   final GlobalKey _iconButtonKey = GlobalKey();
@@ -125,6 +142,10 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
     _titleController = TextEditingController(text: widget.existingTitle ?? '');
     _colorId = widget.existingColorId ?? _topicColorIds[0];
     _iconEmojiId = widget.existingIconEmojiId ?? 0;
+    _emojiIcons = widget.serverEmojiIcons ?? _defaultTopicEmojiIcons;
+    if (_iconEmojiId != 0) {
+      _selectedEmojiStr = String.fromCharCode(_iconEmojiId);
+    }
     _remainingColors = List.of(_topicColorIds)..remove(_colorId);
     _titleController.addListener(_onTitleChanged);
   }
@@ -134,7 +155,10 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
     _titleController.removeListener(_onTitleChanged);
     _titleController.dispose();
     _flyOverlay?.remove();
+    _flyOverlay = null;
+    _flyController?.stop();
     _flyController?.dispose();
+    _flyController = null;
     super.dispose();
   }
 
@@ -162,24 +186,33 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
     setState(() {
       _colorId = colorId;
       _iconEmojiId = 0;
+      _selectedEmojiStr = null;
       _remainingColors = List.of(_topicColorIds)..remove(_colorId);
     });
   }
 
-  void _startFlyAnimation(BuildContext gridCellContext, int colorId) {
+  void _startFlyAnimation(BuildContext gridCellContext, String emoji) {
     final buttonBox = _iconButtonKey.currentContext?.findRenderObject() as RenderBox?;
     final cellBox = gridCellContext.findRenderObject() as RenderBox?;
     if (buttonBox == null || cellBox == null) return;
+    if (!buttonBox.hasSize || !cellBox.hasSize) return;
 
-    final overlay = Overlay.of(context);
     final cellPos = cellBox.localToGlobal(Offset.zero);
     final buttonPos = buttonBox.localToGlobal(Offset.zero);
+
+    if (cellPos.dx.isNaN || cellPos.dy.isNaN || cellPos.dx.isInfinite || cellPos.dy.isInfinite) return;
+    if (buttonPos.dx.isNaN || buttonPos.dy.isNaN || buttonPos.dx.isInfinite || buttonPos.dy.isInfinite) return;
+
+    final overlay = Overlay.of(context);
     final cellSize = cellBox.size;
     final buttonSize = buttonBox.size;
 
     final startCenter = cellPos + Offset(cellSize.width / 2, cellSize.height / 2);
     final endCenter = buttonPos + Offset(buttonSize.width / 2, buttonSize.height / 2);
 
+    _flyOverlay?.remove();
+    _flyOverlay = null;
+    _flyController?.stop();
     _flyController?.dispose();
     _flyController = AnimationController(
       duration: const Duration(milliseconds: 200),
@@ -191,7 +224,6 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
     final scaleAnim = Tween<double>(begin: 1.0, end: _iconButtonSize / _gridIconSize)
         .animate(CurvedAnimation(parent: _flyController!, curve: Curves.easeInOutCubic));
 
-    _flyOverlay?.remove();
     _flyOverlay = OverlayEntry(builder: (ctx) {
       return AnimatedBuilder(
         animation: _flyController!,
@@ -199,16 +231,23 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
           final pos = posAnim.value;
           final scale = scaleAnim.value;
           final iconSize = _gridIconSize * scale;
+          final left = pos.dx - iconSize / 2;
+          final top = pos.dy - iconSize / 2;
+          if (left.isNaN || top.isNaN || left.isInfinite || top.isInfinite) {
+            return const SizedBox.shrink();
+          }
           return Positioned(
-            left: pos.dx - iconSize / 2,
-            top: pos.dy - iconSize / 2,
+            left: left,
+            top: top,
             child: IgnorePointer(
               child: Opacity(
                 opacity: 1.0 - _flyController!.value * 0.3,
-                child: ForumTopicIcon(
-                  colorId: colorId,
-                  title: _titleController.text,
-                  size: iconSize,
+                child: SizedBox(
+                  width: iconSize,
+                  height: iconSize,
+                  child: Center(
+                    child: Text(emoji, style: TextStyle(fontSize: iconSize * 0.85)),
+                  ),
                 ),
               ),
             ),
@@ -219,8 +258,10 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
     overlay.insert(_flyOverlay!);
 
     _flyController!.forward().then((_) {
-      _flyOverlay?.remove();
-      _flyOverlay = null;
+      if (mounted) {
+        _flyOverlay?.remove();
+        _flyOverlay = null;
+      }
     });
   }
 
@@ -329,13 +370,13 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
                           size: _iconButtonSize,
                           iconContext: GeneralIconContext.profile,
                         )
-                      : _iconEmojiId != 0
+                      : (_iconEmojiId != 0 && _selectedEmojiStr != null)
                           ? SizedBox(
                               width: _iconButtonSize,
                               height: _iconButtonSize,
                               child: Center(
                                 child: Text(
-                                  String.fromCharCode(_iconEmojiId),
+                                  _selectedEmojiStr!,
                                   style: const TextStyle(fontSize: 20),
                                 ),
                               ),
@@ -423,10 +464,21 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
     );
   }
 
-  void _selectEmoji(String emoji) {
+  void _selectEmoji(BuildContext cellContext, String emoji) {
     final codePoint = emoji.runes.first;
+    if (!_defaultTopicEmojiCodepoints.contains(codePoint) && !widget.isPremium) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This icon requires Telegram Premium'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    _startFlyAnimation(cellContext, emoji);
     setState(() {
       _iconEmojiId = codePoint;
+      _selectedEmojiStr = emoji;
     });
   }
 
@@ -463,7 +515,7 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
             spacing: 2,
             runSpacing: 2,
             children: [
-              for (final emoji in _topicEmojiIcons)
+              for (final emoji in _emojiIcons)
                 _buildEmojiGridCell(emoji, isDark),
             ],
           ),
@@ -475,8 +527,46 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
   Widget _buildEmojiGridCell(String emoji, bool isDark) {
     final codePoint = emoji.runes.first;
     final isSelected = _iconEmojiId == codePoint;
+    final isFree = _defaultTopicEmojiCodepoints.contains(codePoint);
+    return Builder(
+      builder: (cellContext) => GestureDetector(
+        onTap: () => _selectEmoji(cellContext, emoji),
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: Container(
+            width: _gridCellSize,
+            height: _gridCellSize,
+            decoration: isSelected
+                ? BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    color: isDark
+                        ? const Color(0xFF2b5278)
+                        : const Color(0xFFE3F2FD),
+                  )
+                : null,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Text(emoji, style: const TextStyle(fontSize: 22)),
+                if (!isFree && !widget.isPremium)
+                  Positioned(
+                    right: 2,
+                    bottom: 2,
+                    child: Icon(Icons.lock, size: 10,
+                      color: isDark ? const Color(0xFF7f91a4) : const Color(0xFF999999)),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGridCell(int colorId, bool isDark) {
+    final isSelected = _iconEmojiId == 0 && _colorId == colorId;
     return GestureDetector(
-      onTap: () => _selectEmoji(emoji),
+      onTap: () => _selectColorFromGrid(colorId),
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: Container(
@@ -491,43 +581,10 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
                 )
               : null,
           child: Center(
-            child: Text(
-              emoji,
-              style: const TextStyle(fontSize: 22),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGridCell(int colorId, bool isDark) {
-    final isSelected = _iconEmojiId == 0 && _colorId == colorId;
-    return Builder(
-      builder: (cellContext) => GestureDetector(
-        onTap: () {
-          _startFlyAnimation(cellContext, colorId);
-          _selectColorFromGrid(colorId);
-        },
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: Container(
-            width: _gridCellSize,
-            height: _gridCellSize,
-            decoration: isSelected
-                ? BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    color: isDark
-                        ? const Color(0xFF2b5278)
-                        : const Color(0xFFE3F2FD),
-                  )
-                : null,
-            child: Center(
-              child: ForumTopicIcon(
-                colorId: colorId,
-                title: _titleController.text,
-                size: _gridIconSize,
-              ),
+            child: ForumTopicIcon(
+              colorId: colorId,
+              title: _titleController.text,
+              size: _gridIconSize,
             ),
           ),
         ),
