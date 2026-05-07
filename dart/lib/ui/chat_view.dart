@@ -12254,6 +12254,105 @@ class _FormattingPainter extends CustomPainter {
   }
 }
 
+class _CodeHeaderTapLayer extends StatelessWidget {
+  final RichTextEditingController controller;
+  final ScrollController scrollController;
+  final TextStyle textStyle;
+  final EdgeInsets contentPadding;
+  final void Function(ComposeEntity entity) onLanguageTap;
+
+  const _CodeHeaderTapLayer({
+    required this.controller,
+    required this.scrollController,
+    required this.textStyle,
+    required this.contentPadding,
+    required this.onLanguageTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final codeEntities = controller.entities
+        .where((e) => e.type == FormatType.code &&
+            e.language != null && e.language!.isNotEmpty)
+        .toList();
+    if (codeEntities.isEmpty) return const SizedBox.shrink();
+
+    return LayoutBuilder(builder: (context, constraints) {
+      final textSpan = controller.buildTextSpan(
+        context: context,
+        style: textStyle,
+        withComposing: false,
+      );
+      final plainText = textSpan.toPlainText();
+      if (plainText.isEmpty) return const SizedBox.shrink();
+
+      final tp = TextPainter(
+        text: textSpan,
+        textDirection: TextDirection.ltr,
+        maxLines: null,
+      );
+      final textAreaWidth = constraints.maxWidth - contentPadding.horizontal;
+      if (textAreaWidth <= 0) {
+        tp.dispose();
+        return const SizedBox.shrink();
+      }
+      tp.layout(maxWidth: textAreaWidth);
+
+      final scrollOff = scrollController.hasClients
+          ? scrollController.offset
+          : 0.0;
+
+      final children = <Widget>[];
+      for (final entity in codeEntities) {
+        final start = entity.offset.clamp(0, plainText.length);
+        final end = (entity.offset + entity.length).clamp(0, plainText.length);
+        if (end <= start) continue;
+
+        final boxes = tp.getBoxesForSelection(
+          TextSelection(baseOffset: start, extentOffset: end),
+          boxHeightStyle: ui.BoxHeightStyle.max,
+          boxWidthStyle: ui.BoxWidthStyle.max,
+        );
+        if (boxes.isEmpty) continue;
+
+        double top = double.infinity;
+        for (final box in boxes) {
+          if (box.top < top) top = box.top;
+        }
+
+        const vSkip = 4.0;
+        const headerHeight = 20.0;
+        const outlineWidth = 3.0;
+
+        final headerTop = contentPadding.top + top - vSkip - headerHeight - scrollOff;
+        final headerLeft = contentPadding.left + outlineWidth;
+        final headerWidth = textAreaWidth - outlineWidth;
+
+        if (headerTop + headerHeight < 0 || headerTop > constraints.maxHeight) continue;
+
+        children.add(Positioned(
+          left: headerLeft,
+          top: headerTop,
+          width: headerWidth,
+          height: headerHeight,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => onLanguageTap(entity),
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: const SizedBox.expand(),
+            ),
+          ),
+        ));
+      }
+
+      tp.dispose();
+      if (children.isEmpty) return const SizedBox.shrink();
+      return Stack(children: children);
+    });
+  }
+}
+
 const _kEmoticons = <String, String>{
   '>:-(': '😠',
   '>:-)': '😈',
@@ -13541,7 +13640,10 @@ class _ComposeAreaState extends State<_ComposeArea>
       maxDate: DateTime(2036, 12, 31),
     ).then((date) {
       if (date == null || !mounted) return;
-      ctrl.insertDateTimestamp(date);
+      showChooseDateTimeBox(context, initialDate: date).then((result) {
+        if (result == null || !mounted) return;
+        ctrl.insertDateTimestamp(result.dateTime);
+      });
     });
   }
 
@@ -14028,13 +14130,32 @@ class _ComposeAreaState extends State<_ComposeArea>
                     e.type == FormatType.code ||
                     e.type == FormatType.spoiler))
                   Positioned.fill(
-                    child: IgnorePointer(
-                      child: _ComposeFormattingOverlay(
-                        controller: richCtrl,
-                        scrollController: _scrollController,
-                        textStyle: theme.textTheme.bodyMedium ?? const TextStyle(),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-                      ),
+                    child: Stack(
+                      children: [
+                        IgnorePointer(
+                          child: _ComposeFormattingOverlay(
+                            controller: richCtrl,
+                            scrollController: _scrollController,
+                            textStyle: theme.textTheme.bodyMedium ?? const TextStyle(),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+                          ),
+                        ),
+                        _CodeHeaderTapLayer(
+                          controller: richCtrl,
+                          scrollController: _scrollController,
+                          textStyle: theme.textTheme.bodyMedium ?? const TextStyle(),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+                          onLanguageTap: (entity) {
+                            richCtrl.selection = TextSelection(
+                              baseOffset: entity.offset,
+                              extentOffset: entity.offset + entity.length,
+                            );
+                            _showCodeLanguageBox(context, entity.language ?? '', (language) {
+                              richCtrl.setCodeLanguage(language);
+                            });
+                          },
+                        ),
+                      ],
                     ),
                   ),
                 if (_charRemaining <= 100)
