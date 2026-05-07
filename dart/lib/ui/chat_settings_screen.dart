@@ -37,16 +37,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   int _activeCloudThemeId = 0;
   bool _tileBackground = true;
   bool _adaptiveLayout = true;
-  bool _largeEmoji = true;
-  bool _replaceEmojis = true;
-  bool _suggestEmoji = true;
-  bool _suggestAnimatedEmoji = true;
-  bool _suggestStickersByEmoji = true;
-  bool _loopAnimatedStickers = true;
   String get _sendBy => context.read<AppState>().sendBy;
-  String _doubleClickAction = 'reply';
-  bool _showReplyButton = true;
-  bool _showReactionButton = true;
   bool _sensitiveEnabled = false;
   bool _sensitiveCanChange = false;
   bool _sensitiveLoaded = false;
@@ -355,18 +346,18 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
           _StickersEmojiSection(
             isDark: isDark,
             accentColor: currentAccent,
-            largeEmoji: _largeEmoji,
-            replaceEmojis: _replaceEmojis,
-            suggestEmoji: _suggestEmoji,
-            suggestAnimatedEmoji: _suggestAnimatedEmoji,
-            suggestStickersByEmoji: _suggestStickersByEmoji,
-            loopAnimatedStickers: _loopAnimatedStickers,
-            onLargeEmojiChanged: (v) => setState(() => _largeEmoji = v),
-            onReplaceEmojisChanged: (v) => setState(() => _replaceEmojis = v),
-            onSuggestEmojiChanged: (v) => setState(() => _suggestEmoji = v),
-            onSuggestAnimatedEmojiChanged: (v) => setState(() => _suggestAnimatedEmoji = v),
-            onSuggestStickersByEmojiChanged: (v) => setState(() => _suggestStickersByEmoji = v),
-            onLoopAnimatedStickersChanged: (v) => setState(() => _loopAnimatedStickers = v),
+            largeEmoji: appState.chatLargeEmoji,
+            replaceEmojis: appState.chatReplaceEmojis,
+            suggestEmoji: appState.chatSuggestEmoji,
+            suggestAnimatedEmoji: appState.chatSuggestAnimatedEmoji,
+            suggestStickersByEmoji: appState.chatSuggestStickersByEmoji,
+            loopAnimatedStickers: appState.chatLoopAnimatedStickers,
+            onLargeEmojiChanged: (v) => appState.chatLargeEmoji = v,
+            onReplaceEmojisChanged: (v) => appState.chatReplaceEmojis = v,
+            onSuggestEmojiChanged: (v) => appState.chatSuggestEmoji = v,
+            onSuggestAnimatedEmojiChanged: (v) => appState.chatSuggestAnimatedEmoji = v,
+            onSuggestStickersByEmojiChanged: (v) => appState.chatSuggestStickersByEmoji = v,
+            onLoopAnimatedStickersChanged: (v) => appState.chatLoopAnimatedStickers = v,
           ),
           const SizedBox(height: 7),
           Container(height: 1, color: dividerColor),
@@ -375,16 +366,15 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             isDark: isDark,
             accentColor: currentAccent,
             sendBy: _sendBy,
-            doubleClickAction: _doubleClickAction,
-            showReplyButton: _showReplyButton,
-            showReactionButton: _showReactionButton,
+            doubleClickAction: appState.chatDoubleClickAction,
+            showReplyButton: appState.chatShowReplyButton,
+            showReactionButton: appState.chatShowReactionButton,
             onSendByChanged: (v) {
-              context.read<AppState>().sendBy = v;
-              setState(() {});
+              appState.sendBy = v;
             },
-            onDoubleClickActionChanged: (v) => setState(() => _doubleClickAction = v),
-            onShowReplyButtonChanged: (v) => setState(() => _showReplyButton = v),
-            onShowReactionButtonChanged: (v) => setState(() => _showReactionButton = v),
+            onDoubleClickActionChanged: (v) => appState.chatDoubleClickAction = v,
+            onShowReplyButtonChanged: (v) => appState.chatShowReplyButton = v,
+            onShowReactionButtonChanged: (v) => appState.chatShowReactionButton = v,
           ),
           if (_sensitiveLoaded && _sensitiveCanChange) ...[
             const SizedBox(height: 7),

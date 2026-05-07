@@ -54,29 +54,11 @@ class _NotificationsSettingsScreenState
   }
 
   bool _allAccountsNotify = true;
-  bool _desktopNotify = true;
-  bool _flashBounce = true;
-  bool _allowSound = true;
-  int _volume = 100;
-  bool _previewName = true;
-  bool _previewText = true;
-
-  bool _privateChatsNotify = true;
-  bool _groupsNotify = true;
-  bool _channelsNotify = true;
-  bool _reactionsNotify = true;
 
   // §15.4: Exception counts per notification type (updated when returning from sub-pages)
   int _privateExceptionCount = 0;
   int _groupExceptionCount = 0;
   int _channelExceptionCount = 0;
-
-  // §15.11 System Integration (Native Notifications)
-  bool _useNativeNotifications = true;
-  bool _skipToastsInFocus = false;
-  int _selectedDisplayIndex = 0; // 0 = Default
-  _ScreenCorner _selectedCorner = _ScreenCorner.bottomRight;
-  int _notificationCount = 3;
 
   @override
   Widget build(BuildContext context) {
@@ -103,9 +85,9 @@ class _NotificationsSettingsScreenState
     final sections = <List<Widget>>[
       _buildMultiAccountSection(appState, isDark, sectionTitleColor, textColor,
           subtextColor, accentColor, hoverBg),
-      _buildGlobalSettings(isDark, sectionTitleColor, textColor, subtextColor,
+      _buildGlobalSettings(appState, isDark, sectionTitleColor, textColor, subtextColor,
           accentColor, hoverBg),
-      _buildNotificationsForChats(isDark, sectionTitleColor, textColor,
+      _buildNotificationsForChats(appState, isDark, sectionTitleColor, textColor,
           subtextColor, accentColor, hoverBg),
       _buildEventsSection(isDark, sectionTitleColor, textColor, accentColor,
           hoverBg),
@@ -113,7 +95,7 @@ class _NotificationsSettingsScreenState
           hoverBg),
       _buildBadgeCounterSection(isDark, sectionTitleColor, textColor,
           accentColor, hoverBg, chatState.hasFolders),
-      _buildSystemIntegrationSection(isDark, sectionTitleColor, textColor,
+      _buildSystemIntegrationSection(appState, isDark, sectionTitleColor, textColor,
           subtextColor, accentColor, hoverBg),
     ];
 
@@ -209,6 +191,7 @@ class _NotificationsSettingsScreenState
 
   /// §15.2: Desktop notifications, flash/bounce, allow sound toggles.
   List<Widget> _buildGlobalSettings(
+    AppState appState,
     bool isDark,
     Color sectionTitleColor,
     Color textColor,
@@ -234,8 +217,8 @@ class _NotificationsSettingsScreenState
         icon: Icons.notifications,
         iconColor: iconColor,
         label: 'Desktop notifications',
-        value: _desktopNotify,
-        onChanged: (v) => setState(() => _desktopNotify = v),
+        value: appState.notifDesktopNotify,
+        onChanged: (v) => appState.notifDesktopNotify = v,
         textColor: textColor,
         accentColor: accentColor,
         hoverBg: hoverBg,
@@ -244,18 +227,18 @@ class _NotificationsSettingsScreenState
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
         alignment: Alignment.topCenter,
-        child: _desktopNotify
+        child: appState.notifDesktopNotify
             ? _NotificationPreview(
-                showName: _previewName,
-                showText: _previewText,
-                onNameChanged: (v) => setState(() {
-                  _previewName = v;
-                  if (!v) _previewText = false;
-                }),
-                onTextChanged: (v) => setState(() {
-                  _previewText = v;
-                  if (v) _previewName = true;
-                }),
+                showName: appState.notifPreviewName,
+                showText: appState.notifPreviewText,
+                onNameChanged: (v) {
+                  appState.notifPreviewName = v;
+                  if (!v) appState.notifPreviewText = false;
+                },
+                onTextChanged: (v) {
+                  appState.notifPreviewText = v;
+                  if (v) appState.notifPreviewName = true;
+                },
                 isDark: isDark,
               )
             : const SizedBox(width: double.infinity, height: 0),
@@ -268,8 +251,8 @@ class _NotificationsSettingsScreenState
             : !kIsWeb && Platform.isMacOS
                 ? 'Bounce the Dock icon'
                 : 'Draw attention to the window',
-        value: _flashBounce,
-        onChanged: (v) => setState(() => _flashBounce = v),
+        value: appState.notifFlashBounce,
+        onChanged: (v) => appState.notifFlashBounce = v,
         textColor: textColor,
         accentColor: accentColor,
         hoverBg: hoverBg,
@@ -278,8 +261,8 @@ class _NotificationsSettingsScreenState
         icon: Icons.volume_up,
         iconColor: iconColor,
         label: 'Allow sound',
-        value: _allowSound,
-        onChanged: (v) => setState(() => _allowSound = v),
+        value: appState.notifAllowSound,
+        onChanged: (v) => appState.notifAllowSound = v,
         textColor: textColor,
         accentColor: accentColor,
         hoverBg: hoverBg,
@@ -288,11 +271,11 @@ class _NotificationsSettingsScreenState
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
         alignment: Alignment.topCenter,
-        child: _allowSound
+        child: appState.notifAllowSound
             ? _VolumeSliderSection(
-                volume: _volume,
+                volume: appState.notifVolume,
                 onChanged: (v) {
-                  setState(() => _volume = v);
+                  appState.notifVolume = v;
                   _playVolumePreview(v);
                 },
                 accentColor: accentColor,
@@ -332,6 +315,7 @@ class _NotificationsSettingsScreenState
   }
 
   List<Widget> _buildNotificationsForChats(
+    AppState appState,
     bool isDark,
     Color sectionTitleColor,
     Color textColor,
@@ -354,8 +338,8 @@ class _NotificationsSettingsScreenState
       _SplitToggleRow(
         icon: Icons.person,
         label: 'Private chats',
-        value: _privateChatsNotify,
-        onToggle: (v) => setState(() => _privateChatsNotify = v),
+        value: appState.notifPrivateChats,
+        onToggle: (v) => appState.notifPrivateChats = v,
         onTap: () => _openTypeSubPage(context, _NotifType.privateChats),
         textColor: textColor,
         subtextColor: subtextColor,
@@ -367,8 +351,8 @@ class _NotificationsSettingsScreenState
       _SplitToggleRow(
         icon: Icons.group,
         label: 'Groups',
-        value: _groupsNotify,
-        onToggle: (v) => setState(() => _groupsNotify = v),
+        value: appState.notifGroups,
+        onToggle: (v) => appState.notifGroups = v,
         onTap: () => _openTypeSubPage(context, _NotifType.groups),
         textColor: textColor,
         subtextColor: subtextColor,
@@ -380,8 +364,8 @@ class _NotificationsSettingsScreenState
       _SplitToggleRow(
         icon: Icons.campaign,
         label: 'Channels',
-        value: _channelsNotify,
-        onToggle: (v) => setState(() => _channelsNotify = v),
+        value: appState.notifChannels,
+        onToggle: (v) => appState.notifChannels = v,
         onTap: () => _openTypeSubPage(context, _NotifType.channels),
         textColor: textColor,
         subtextColor: subtextColor,
@@ -393,8 +377,8 @@ class _NotificationsSettingsScreenState
       _SplitToggleRow(
         icon: Icons.add_reaction_outlined,
         label: 'Reactions',
-        value: _reactionsNotify,
-        onToggle: (v) => setState(() => _reactionsNotify = v),
+        value: appState.notifReactions,
+        onToggle: (v) => appState.notifReactions = v,
         onTap: () => _openTypeSubPage(context, _NotifType.reactions),
         textColor: textColor,
         subtextColor: subtextColor,
@@ -545,6 +529,7 @@ class _NotificationsSettingsScreenState
 
   /// §15.11 System Integration (Native Notifications)
   List<Widget> _buildSystemIntegrationSection(
+    AppState appState,
     bool isDark,
     Color sectionTitleColor,
     Color textColor,
@@ -570,8 +555,8 @@ class _NotificationsSettingsScreenState
       ),
       _NoIconToggleRow(
         label: 'Use native notifications',
-        value: _useNativeNotifications,
-        onChanged: (v) => setState(() => _useNativeNotifications = v),
+        value: appState.notifUseNative,
+        onChanged: (v) => appState.notifUseNative = v,
         textColor: textColor,
         accentColor: accentColor,
         hoverBg: hoverBg,
@@ -580,16 +565,15 @@ class _NotificationsSettingsScreenState
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
         alignment: Alignment.topCenter,
-        child: !_useNativeNotifications
+        child: !appState.notifUseNative
             ? Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (isWindows)
                     _NoIconToggleRow(
                       label: 'Respect system Focus mode',
-                      value: _skipToastsInFocus,
-                      onChanged: (v) =>
-                          setState(() => _skipToastsInFocus = v),
+                      value: appState.notifSkipToastsInFocus,
+                      onChanged: (v) => appState.notifSkipToastsInFocus = v,
                       textColor: textColor,
                       accentColor: accentColor,
                       hoverBg: hoverBg,
@@ -617,9 +601,8 @@ class _NotificationsSettingsScreenState
                     _DisplayRadioRow(
                       label: 'Default',
                       value: 0,
-                      groupValue: _selectedDisplayIndex,
-                      onChanged: (v) =>
-                          setState(() => _selectedDisplayIndex = v ?? 0),
+                      groupValue: appState.notifDisplayIndex,
+                      onChanged: (v) => appState.notifDisplayIndex = v ?? 0,
                       textColor: textColor,
                       accentColor: accentColor,
                       hoverBg: hoverBg,
@@ -629,9 +612,8 @@ class _NotificationsSettingsScreenState
                         label:
                             'Display ${i + 1} (${displays[i].size.width.toInt()}\u00D7${displays[i].size.height.toInt()})',
                         value: i + 1,
-                        groupValue: _selectedDisplayIndex,
-                        onChanged: (v) =>
-                            setState(() => _selectedDisplayIndex = v ?? 0),
+                        groupValue: appState.notifDisplayIndex,
+                        onChanged: (v) => appState.notifDisplayIndex = v ?? 0,
                         textColor: textColor,
                         accentColor: accentColor,
                         hoverBg: hoverBg,
@@ -658,11 +640,11 @@ class _NotificationsSettingsScreenState
                   ),
                   const SizedBox(height: 7),
                   _NotificationMonitorWidget(
-                    selectedCorner: _selectedCorner,
-                    barCount: _notificationCount,
+                    selectedCorner: _ScreenCorner.values[appState.notifCorner.clamp(0, 4)],
+                    barCount: appState.notifCount,
                     isDark: isDark,
                     onCornerChanged: (corner) =>
-                        setState(() => _selectedCorner = corner),
+                        appState.notifCorner = corner.index,
                   ),
                   const SizedBox(height: 14),
                   Padding(
@@ -678,11 +660,10 @@ class _NotificationsSettingsScreenState
                   ),
                   const SizedBox(height: 4),
                   _NotificationCountSlider(
-                    count: _notificationCount,
+                    count: appState.notifCount,
                     isDark: isDark,
                     accentColor: accentColor,
-                    onChanged: (count) =>
-                        setState(() => _notificationCount = count),
+                    onChanged: (count) => appState.notifCount = count,
                   ),
                 ],
               )

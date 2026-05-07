@@ -181,13 +181,39 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _hideAllChatsFolder = false;
   bool _hideNotificationBadge = false;
 
-  // §15.8-§15.10 Notification settings persistence
+  // §15: Notification settings persistence
+  bool _notifDesktopNotify = true;
+  bool _notifFlashBounce = true;
+  bool _notifAllowSound = true;
+  int _notifVolume = 100;
+  bool _notifPreviewName = true;
+  bool _notifPreviewText = true;
+  bool _notifPrivateChats = true;
+  bool _notifGroups = true;
+  bool _notifChannels = true;
+  bool _notifReactions = true;
+  bool _notifUseNative = true;
+  bool _notifSkipToastsInFocus = false;
+  int _notifDisplayIndex = 0;
+  int _notifCorner = 4; // 0=topLeft,1=topCenter,2=topRight,3=bottomLeft,4=bottomRight
+  int _notifCount = 3;
   bool _notifContactJoinedTelegram = true;
   bool _notifPinnedMessages = true;
   bool _notifAcceptCallsOnDevice = true;
   bool _notifIncludeMutedChats = true;
   bool _notifIncludeMutedInFolders = true;
   bool _notifCountUnreadMessages = true;
+
+  // §14.6: Chat appearance settings persistence
+  bool _chatLargeEmoji = true;
+  bool _chatReplaceEmojis = true;
+  bool _chatSuggestEmoji = true;
+  bool _chatSuggestAnimatedEmoji = true;
+  bool _chatSuggestStickersByEmoji = true;
+  bool _chatLoopAnimatedStickers = true;
+  String _chatDoubleClickAction = 'reply';
+  bool _chatShowReplyButton = true;
+  bool _chatShowReactionButton = true;
   String _appIcon = '';
   bool _simpleQuotes = false;
   bool _semiTransparentDeleted = false;
@@ -1816,6 +1842,58 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  // §15: Notification settings getters/setters
+  bool get notifDesktopNotify => _notifDesktopNotify;
+  set notifDesktopNotify(bool v) { if (_notifDesktopNotify != v) { _notifDesktopNotify = v; _saveWindowPrefs(); notifyListeners(); } }
+  bool get notifFlashBounce => _notifFlashBounce;
+  set notifFlashBounce(bool v) { if (_notifFlashBounce != v) { _notifFlashBounce = v; _saveWindowPrefs(); notifyListeners(); } }
+  bool get notifAllowSound => _notifAllowSound;
+  set notifAllowSound(bool v) { if (_notifAllowSound != v) { _notifAllowSound = v; _saveWindowPrefs(); notifyListeners(); } }
+  int get notifVolume => _notifVolume;
+  set notifVolume(int v) { if (_notifVolume != v) { _notifVolume = v; _saveWindowPrefs(); notifyListeners(); } }
+  bool get notifPreviewName => _notifPreviewName;
+  set notifPreviewName(bool v) { if (_notifPreviewName != v) { _notifPreviewName = v; _saveWindowPrefs(); notifyListeners(); } }
+  bool get notifPreviewText => _notifPreviewText;
+  set notifPreviewText(bool v) { if (_notifPreviewText != v) { _notifPreviewText = v; _saveWindowPrefs(); notifyListeners(); } }
+  bool get notifPrivateChats => _notifPrivateChats;
+  set notifPrivateChats(bool v) { if (_notifPrivateChats != v) { _notifPrivateChats = v; _saveWindowPrefs(); notifyListeners(); } }
+  bool get notifGroups => _notifGroups;
+  set notifGroups(bool v) { if (_notifGroups != v) { _notifGroups = v; _saveWindowPrefs(); notifyListeners(); } }
+  bool get notifChannels => _notifChannels;
+  set notifChannels(bool v) { if (_notifChannels != v) { _notifChannels = v; _saveWindowPrefs(); notifyListeners(); } }
+  bool get notifReactions => _notifReactions;
+  set notifReactions(bool v) { if (_notifReactions != v) { _notifReactions = v; _saveWindowPrefs(); notifyListeners(); } }
+  bool get notifUseNative => _notifUseNative;
+  set notifUseNative(bool v) { if (_notifUseNative != v) { _notifUseNative = v; _saveWindowPrefs(); notifyListeners(); } }
+  bool get notifSkipToastsInFocus => _notifSkipToastsInFocus;
+  set notifSkipToastsInFocus(bool v) { if (_notifSkipToastsInFocus != v) { _notifSkipToastsInFocus = v; _saveWindowPrefs(); notifyListeners(); } }
+  int get notifDisplayIndex => _notifDisplayIndex;
+  set notifDisplayIndex(int v) { if (_notifDisplayIndex != v) { _notifDisplayIndex = v; _saveWindowPrefs(); notifyListeners(); } }
+  int get notifCorner => _notifCorner;
+  set notifCorner(int v) { if (_notifCorner != v) { _notifCorner = v; _saveWindowPrefs(); notifyListeners(); } }
+  int get notifCount => _notifCount;
+  set notifCount(int v) { if (_notifCount != v) { _notifCount = v; _saveWindowPrefs(); notifyListeners(); } }
+
+  // §14.6: Chat appearance settings getters/setters
+  bool get chatLargeEmoji => _chatLargeEmoji;
+  set chatLargeEmoji(bool v) { if (_chatLargeEmoji != v) { _chatLargeEmoji = v; _saveWindowPrefs(); notifyListeners(); } }
+  bool get chatReplaceEmojis => _chatReplaceEmojis;
+  set chatReplaceEmojis(bool v) { if (_chatReplaceEmojis != v) { _chatReplaceEmojis = v; _saveWindowPrefs(); notifyListeners(); } }
+  bool get chatSuggestEmoji => _chatSuggestEmoji;
+  set chatSuggestEmoji(bool v) { if (_chatSuggestEmoji != v) { _chatSuggestEmoji = v; _saveWindowPrefs(); notifyListeners(); } }
+  bool get chatSuggestAnimatedEmoji => _chatSuggestAnimatedEmoji;
+  set chatSuggestAnimatedEmoji(bool v) { if (_chatSuggestAnimatedEmoji != v) { _chatSuggestAnimatedEmoji = v; _saveWindowPrefs(); notifyListeners(); } }
+  bool get chatSuggestStickersByEmoji => _chatSuggestStickersByEmoji;
+  set chatSuggestStickersByEmoji(bool v) { if (_chatSuggestStickersByEmoji != v) { _chatSuggestStickersByEmoji = v; _saveWindowPrefs(); notifyListeners(); } }
+  bool get chatLoopAnimatedStickers => _chatLoopAnimatedStickers;
+  set chatLoopAnimatedStickers(bool v) { if (_chatLoopAnimatedStickers != v) { _chatLoopAnimatedStickers = v; _saveWindowPrefs(); notifyListeners(); } }
+  String get chatDoubleClickAction => _chatDoubleClickAction;
+  set chatDoubleClickAction(String v) { if (_chatDoubleClickAction != v) { _chatDoubleClickAction = v; _saveWindowPrefs(); notifyListeners(); } }
+  bool get chatShowReplyButton => _chatShowReplyButton;
+  set chatShowReplyButton(bool v) { if (_chatShowReplyButton != v) { _chatShowReplyButton = v; _saveWindowPrefs(); notifyListeners(); } }
+  bool get chatShowReactionButton => _chatShowReactionButton;
+  set chatShowReactionButton(bool v) { if (_chatShowReactionButton != v) { _chatShowReactionButton = v; _saveWindowPrefs(); notifyListeners(); } }
+
   bool get recordVideoMessages => _recordVideoMessages;
   set recordVideoMessages(bool value) {
     if (_recordVideoMessages != value) {
@@ -2529,12 +2607,36 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _hideNotificationCounters = data['hideNotificationCounters'] as bool? ?? false;
       _hideAllChatsFolder = data['hideAllChatsFolder'] as bool? ?? false;
       _hideNotificationBadge = data['hideNotificationBadge'] as bool? ?? false;
+      _notifDesktopNotify = data['notifDesktopNotify'] as bool? ?? true;
+      _notifFlashBounce = data['notifFlashBounce'] as bool? ?? true;
+      _notifAllowSound = data['notifAllowSound'] as bool? ?? true;
+      _notifVolume = data['notifVolume'] as int? ?? 100;
+      _notifPreviewName = data['notifPreviewName'] as bool? ?? true;
+      _notifPreviewText = data['notifPreviewText'] as bool? ?? true;
+      _notifPrivateChats = data['notifPrivateChats'] as bool? ?? true;
+      _notifGroups = data['notifGroups'] as bool? ?? true;
+      _notifChannels = data['notifChannels'] as bool? ?? true;
+      _notifReactions = data['notifReactions'] as bool? ?? true;
+      _notifUseNative = data['notifUseNative'] as bool? ?? true;
+      _notifSkipToastsInFocus = data['notifSkipToastsInFocus'] as bool? ?? false;
+      _notifDisplayIndex = data['notifDisplayIndex'] as int? ?? 0;
+      _notifCorner = data['notifCorner'] as int? ?? 4;
+      _notifCount = data['notifCount'] as int? ?? 3;
       _notifContactJoinedTelegram = data['notifContactJoinedTelegram'] as bool? ?? true;
       _notifPinnedMessages = data['notifPinnedMessages'] as bool? ?? true;
       _notifAcceptCallsOnDevice = data['notifAcceptCallsOnDevice'] as bool? ?? true;
       _notifIncludeMutedChats = data['notifIncludeMutedChats'] as bool? ?? true;
       _notifIncludeMutedInFolders = data['notifIncludeMutedInFolders'] as bool? ?? true;
       _notifCountUnreadMessages = data['notifCountUnreadMessages'] as bool? ?? true;
+      _chatLargeEmoji = data['chatLargeEmoji'] as bool? ?? true;
+      _chatReplaceEmojis = data['chatReplaceEmojis'] as bool? ?? true;
+      _chatSuggestEmoji = data['chatSuggestEmoji'] as bool? ?? true;
+      _chatSuggestAnimatedEmoji = data['chatSuggestAnimatedEmoji'] as bool? ?? true;
+      _chatSuggestStickersByEmoji = data['chatSuggestStickersByEmoji'] as bool? ?? true;
+      _chatLoopAnimatedStickers = data['chatLoopAnimatedStickers'] as bool? ?? true;
+      _chatDoubleClickAction = data['chatDoubleClickAction'] as String? ?? 'reply';
+      _chatShowReplyButton = data['chatShowReplyButton'] as bool? ?? true;
+      _chatShowReactionButton = data['chatShowReactionButton'] as bool? ?? true;
       _appIcon = data['appIcon'] as String? ?? '';
       _simpleQuotes = data['simpleQuotes'] as bool? ?? false;
       _semiTransparentDeleted = data['semiTransparentDeleted'] as bool? ?? false;
@@ -2714,12 +2816,36 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'hideNotificationCounters': _hideNotificationCounters,
         'hideAllChatsFolder': _hideAllChatsFolder,
         'hideNotificationBadge': _hideNotificationBadge,
+        'notifDesktopNotify': _notifDesktopNotify,
+        'notifFlashBounce': _notifFlashBounce,
+        'notifAllowSound': _notifAllowSound,
+        'notifVolume': _notifVolume,
+        'notifPreviewName': _notifPreviewName,
+        'notifPreviewText': _notifPreviewText,
+        'notifPrivateChats': _notifPrivateChats,
+        'notifGroups': _notifGroups,
+        'notifChannels': _notifChannels,
+        'notifReactions': _notifReactions,
+        'notifUseNative': _notifUseNative,
+        'notifSkipToastsInFocus': _notifSkipToastsInFocus,
+        'notifDisplayIndex': _notifDisplayIndex,
+        'notifCorner': _notifCorner,
+        'notifCount': _notifCount,
         'notifContactJoinedTelegram': _notifContactJoinedTelegram,
         'notifPinnedMessages': _notifPinnedMessages,
         'notifAcceptCallsOnDevice': _notifAcceptCallsOnDevice,
         'notifIncludeMutedChats': _notifIncludeMutedChats,
         'notifIncludeMutedInFolders': _notifIncludeMutedInFolders,
         'notifCountUnreadMessages': _notifCountUnreadMessages,
+        'chatLargeEmoji': _chatLargeEmoji,
+        'chatReplaceEmojis': _chatReplaceEmojis,
+        'chatSuggestEmoji': _chatSuggestEmoji,
+        'chatSuggestAnimatedEmoji': _chatSuggestAnimatedEmoji,
+        'chatSuggestStickersByEmoji': _chatSuggestStickersByEmoji,
+        'chatLoopAnimatedStickers': _chatLoopAnimatedStickers,
+        'chatDoubleClickAction': _chatDoubleClickAction,
+        'chatShowReplyButton': _chatShowReplyButton,
+        'chatShowReactionButton': _chatShowReactionButton,
         'appIcon': _appIcon,
         'simpleQuotes': _simpleQuotes,
         'semiTransparentDeleted': _semiTransparentDeleted,
