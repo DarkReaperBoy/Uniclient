@@ -46,10 +46,6 @@
 ## §20 — Media Viewer / Lightbox
 
 
-## §21 — Create Group / Channel Wizard
-
-- [ ] spec §21.3 "Invite via Link button": should appear above contact list if `canHaveInviteLink()` — missing from GROUP member picker step (channel flow correctly shows it, but group member picker does not show the button because `_inviteLink` is empty before group creation and `widget.type == _WizardType.group`) — `create_group_wizard.dart`
-
 ## §22 — Forum Topics UI
 
 - [ ] spec §22.3 "Forum Topic List Layout": topic row height should be 54px with photoSize 20px, nameLeft 39px, textLeft 39px — `_ForumTopicListView` exists in `chat_list_panel.dart` but topic row styling dimensions are not verified against these exact tokens — `chat_list_panel.dart`
