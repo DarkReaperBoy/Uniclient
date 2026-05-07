@@ -34,11 +34,6 @@
 
 ---
 
-## §16 — Settings: Privacy & Security
-
-### §16.6 File Confirmations
-- [ ] spec §16.6 "File extensions multi-line input and IP toggle": `_buildConfirmationExtensionsSection` exists but the "Show IP in WebRTC calls" toggle is completely missing — only "No-Warning Extensions" button is present; spec requires both the multi-line extension input AND the IP toggle — `privacy_settings_screen.dart:1018-1050`
-
 ---
 
 ## §17 — Settings: Data, Storage & Advanced
