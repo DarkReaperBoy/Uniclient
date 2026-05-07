@@ -48,17 +48,7 @@
 
 ## §21 — Create Group / Channel Wizard
 
-- [ ] spec §21.2.1 "Default userpic origin": userpic gradient pair index selection uses `name.codeUnitAt(0) % 8` but spec says for a not-yet-created peer (id=0) the first pair is always used — code selects based on text input character, not peer ID — `create_group_wizard.dart`
-- [ ] spec §21.2.1 "Default userpic origin": userpic gradient is top-to-bottom but spec uses 8 specific pairs `{historyPeer1UserpicBg, historyPeer1UserpicBg2}...{historyPeer8}` — code defines custom colors that don't match the palette tokens (e.g. first pair is `#FC5C51`/`#E44234` vs spec's `#FF845E`/`#D45246`) — `create_group_wizard.dart`
-- [ ] spec §21.2.1 "Initials fallback": initials extraction handles up to 2 letters (first + after space/hyphen) — code has this logic but also handles `afterHyphen` as level 1 fallback, which matches spec — however the font size of `(size * 13) / 33 = 28px at 72px` is not verified in code — `create_group_wizard.dart`
-- [ ] spec §21.2 "Photo picker": clicking userpic should open a `PopupMenu` with File / Camera / Clipboard paste / Emoji builder options — code only opens file picker directly, missing Camera, Clipboard paste, and Emoji builder options — `create_group_wizard.dart`
-- [ ] spec §21.2 "TTL menu": group creation should have a top-bar menu for "Auto-delete messages" with current TTL value — TTL is implemented in the wizard state but the UI for selecting TTL is minimal (popup menu), missing the spec's top-bar integration — `create_group_wizard.dart`
-- [ ] spec §21.3 "Member Picker": MultiSelect chips bar should have max height 104px, chips at 32px height with 128px max width, delete cross with 150ms animation — member picker exists but chip styling does not enforce these exact dimensions — `create_group_wizard.dart`
-- [ ] spec §21.3 "Member Picker": avatar acts as checkbox with round check overlay and `windowActiveTextFg` tint — code uses a different visual (simple checkmark icon overlay) rather than the spec's avatar-tint approach — `create_group_wizard.dart`
-- [ ] spec §21.3 "Invite via Link button": should appear above contact list if `canHaveInviteLink()` — missing from member picker step — `create_group_wizard.dart`
-- [ ] spec §21.4.1 "Username validation": debounce timeout should be 200ms per `kUsernameCheckTimeout` — implementation has debounce but the actual API call uses `channels.CheckUsername` which is correct; however the green "available" label uses `boxTextFgGood` styling but without the exact `tr::lng_create_channel_link_available` format — `create_group_wizard.dart`
-- [ ] spec §21.4.2 "PublicLinksLimitBox": when `CHANNELS_ADMIN_PUBLIC_TOO_MUCH` error occurs, should show a Premium limit box with revoke list — code only shows a text error message "Too many public channels", no revoke-list UI — `create_group_wizard.dart`
-- [ ] spec §21.6 "Channel flow": after channel creation, should proceed to SetupChannelBox (public/private + username) then to MemberPicker — `CreateChannelScreen` is a flat single-step form that creates the channel and navigates away, missing the multi-step SetupChannelBox and MemberPicker steps — `create_channel_screen.dart`
+- [ ] spec §21.3 "Invite via Link button": should appear above contact list if `canHaveInviteLink()` — missing from GROUP member picker step (channel flow correctly shows it, but group member picker does not show the button because `_inviteLink` is empty before group creation and `widget.type == _WizardType.group`) — `create_group_wizard.dart`
 
 ## §22 — Forum Topics UI
 
