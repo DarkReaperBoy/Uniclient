@@ -502,7 +502,19 @@ class _ContactsBoxState extends State<_ContactsBox> {
   }
 
   void _showAddContactBox(BuildContext context) {
-    showAddContactBox(context).then((added) {
+    showDialog<bool>(
+      context: context,
+      builder: (ctx) => ChangeNotifierProvider.value(
+        value: context.read<AppState>(),
+        child: Provider<EngineService>.value(
+          value: context.read<EngineService>(),
+          child: _AddContactBox(
+            appState: context.read<AppState>(),
+            engine: context.read<EngineService>(),
+          ),
+        ),
+      ),
+    ).then((added) {
       if (added == true && mounted) {
         _loadContacts();
       }
@@ -742,7 +754,19 @@ class _ContactRowState extends State<_ContactRow> {
       if (value == null || !mounted) return;
       switch (value) {
         case 'add':
-          showAddContactBox(context);
+          showDialog<bool>(
+            context: context,
+            builder: (ctx) => ChangeNotifierProvider.value(
+              value: context.read<AppState>(),
+              child: Provider<EngineService>.value(
+                value: context.read<EngineService>(),
+                child: _AddContactBox(
+                  appState: context.read<AppState>(),
+                  engine: context.read<EngineService>(),
+                ),
+              ),
+            ),
+          );
         case 'edit':
           _editContact(contact, appState, engine);
         case 'share':
