@@ -734,6 +734,8 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
   bool _saving = false;
   bool _mediaExpanded = false;
   int _slowmodeIndex = 0;
+  int _boostsUnrestrict = 0;
+  int _chargeStars = 0;
   String? _error;
 
   late AnimationController _expandCtrl;
@@ -741,6 +743,9 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
 
   static const _slowmodeValues = [0, 5, 10, 30, 60, 300, 900, 3600];
   static const _slowmodeLabels = ['Off', '5s', '10s', '30s', '1m', '5m', '15m', '1h'];
+  static const _boostsValues = [0, 1, 2, 3, 4, 5];
+  static const _boostsLabels = ['Off', '1', '2', '3', '4', '5'];
+  static const _kDefaultChargeStars = 10;
 
   late final _PermFlag _sendPlain;
   late final List<_PermFlag> _mediaFlags;
@@ -796,6 +801,9 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
         final secs = rights['slowmode_seconds'] as int? ?? 0;
         _slowmodeIndex = _slowmodeValues.indexOf(secs);
         if (_slowmodeIndex < 0) _slowmodeIndex = 0;
+        final boosts = rights['boosts_unrestrict'] as int? ?? 0;
+        _boostsUnrestrict = boosts.clamp(0, 5);
+        _chargeStars = (rights['charge_stars'] as int?) ?? 0;
         _loading = false;
       });
     } catch (e) {
@@ -813,6 +821,8 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
         rights[f.key] = f.banned;
       }
       rights['slowmode_seconds'] = _slowmodeValues[_slowmodeIndex];
+      rights['boosts_unrestrict'] = _boostsUnrestrict;
+      rights['charge_stars'] = _chargeStars;
       await engine.setDefaultBannedRights(widget.accountId, widget.chatId, rights);
       if (_slowmodeValues[_slowmodeIndex] != 0) {
         await engine.setSlowMode(widget.accountId, widget.chatId, _slowmodeValues[_slowmodeIndex]);
@@ -900,6 +910,27 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
                         style: TextStyle(fontSize: 12, color: subTextColor),
                       ),
                     ),
+                    Divider(height: 1, color: dividerColor),
+                    const SizedBox(height: 12),
+                    _buildSectionHeader('Boosts to Unrestrict', headerColor),
+                    const SizedBox(height: 4),
+                    _buildBoostsSlider(accentColor, textColor, subTextColor),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(22, 4, 22, 12),
+                      child: Text(
+                        _boostsUnrestrict == 0
+                            ? 'No boosts required to bypass restrictions.'
+                            : 'Users with $_boostsUnrestrict or more boosts can bypass restrictions.',
+                        style: TextStyle(fontSize: 12, color: subTextColor),
+                      ),
+                    ),
+                    if (widget.isChannel) ...[
+                      Divider(height: 1, color: dividerColor),
+                      const SizedBox(height: 12),
+                      _buildSectionHeader('Charge Stars', headerColor),
+                      const SizedBox(height: 4),
+                      _buildChargeStarsSection(accentColor, textColor, subTextColor),
+                    ],
                     Divider(height: 1, color: dividerColor),
                     const SizedBox(height: 12),
                     _buildAddExceptionButton(accentColor, textColor),
@@ -1150,10 +1181,144 @@ class _EditPeerPermissionsBoxState extends State<_EditPeerPermissionsBox>
     );
   }
 
+  Widget _buildBoostsSlider(Color accentColor, Color textColor, Color subTextColor) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 22),
+      child: Column(
+        children: [
+          SliderTheme(
+            data: SliderThemeData(
+              activeTrackColor: accentColor,
+              inactiveTrackColor: accentColor.withValues(alpha: 0.3),
+              thumbColor: accentColor,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7.5),
+              trackHeight: 3,
+            ),
+            child: Slider(
+              value: _boostsUnrestrict.toDouble(),
+              min: 0,
+              max: 5,
+              divisions: 5,
+              onChanged: (v) => setState(() => _boostsUnrestrict = v.round()),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                for (int i = 0; i < _boostsLabels.length; i++)
+                  Text(
+                    _boostsLabels[i],
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: i == _boostsUnrestrict ? textColor : subTextColor,
+                      fontWeight: i == _boostsUnrestrict ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChargeStarsSection(Color accentColor, Color textColor, Color subTextColor) {
+    return Column(
+      children: [
+        InkWell(
+          onTap: () {
+            if (_chargeStars == 0) {
+              setState(() => _chargeStars = _kDefaultChargeStars);
+            } else {
+              setState(() => _chargeStars = 0);
+            }
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Charge Stars for Messages',
+                    style: TextStyle(fontSize: 14, color: textColor),
+                  ),
+                ),
+                const SizedBox(width: 20),
+                SizedBox(
+                  height: 24,
+                  child: Switch(
+                    value: _chargeStars > 0,
+                    onChanged: (val) => setState(() =>
+                      _chargeStars = val ? _kDefaultChargeStars : 0),
+                    activeColor: accentColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_chargeStars > 0)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 4, 22, 8),
+            child: Row(
+              children: [
+                Icon(Icons.star, size: 18, color: const Color(0xFFFFB800)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SizedBox(
+                    height: 36,
+                    child: TextField(
+                      controller: TextEditingController(text: '$_chargeStars'),
+                      keyboardType: TextInputType.number,
+                      style: TextStyle(fontSize: 14, color: textColor),
+                      decoration: InputDecoration(
+                        hintText: 'Stars per message',
+                        hintStyle: TextStyle(color: subTextColor),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: accentColor),
+                        ),
+                      ),
+                      onChanged: (v) {
+                        final parsed = int.tryParse(v);
+                        if (parsed != null && parsed >= 0) {
+                          _chargeStars = parsed;
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
+          child: Text(
+            _chargeStars > 0
+                ? 'Non-admin members must pay $_chargeStars stars to send a message.'
+                : 'Enable to charge stars for messages in this channel.',
+            style: TextStyle(fontSize: 12, color: subTextColor),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildAddExceptionButton(Color accentColor, Color textColor) {
     return InkWell(
       onTap: () {
-        showTelegramToast(context, 'Exception list coming soon');
+        Navigator.pop(context);
+        showMemberListScreen(
+          context,
+          accountId: widget.accountId,
+          chatId: widget.chatId,
+          isChannel: widget.isChannel,
+          initialTab: _MemberTab.restricted,
+        );
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
@@ -1279,6 +1444,7 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
   String? _error;
   _BanDuration _duration = _BanDuration.forever;
   DateTime? _customDate;
+  late final TextEditingController _rankCtrl;
 
   late AnimationController _expandCtrl;
   late Animation<double> _expandAnim;
@@ -1296,6 +1462,7 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
   @override
   void initState() {
     super.initState();
+    _rankCtrl = TextEditingController(text: widget.member.customRank);
     _expandCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 150),
@@ -1324,6 +1491,7 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
 
   @override
   void dispose() {
+    _rankCtrl.dispose();
     _expandCtrl.dispose();
     super.dispose();
   }
@@ -1481,6 +1649,9 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
                     _buildSectionHeader('Banned until', headerColor),
                     const SizedBox(height: 4),
                     _buildDurationPicker(accentColor, textColor, subTextColor),
+                    Divider(height: 1, color: dividerColor),
+                    const SizedBox(height: 8),
+                    _buildRankField(textColor, subTextColor),
                     const SizedBox(height: 12),
                   ],
                 ),
@@ -1790,6 +1961,25 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
               child: Text(label, style: TextStyle(fontSize: 14, color: textColor)),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRankField(Color textColor, Color subTextColor) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 0, 22, 0),
+      child: TextField(
+        controller: _rankCtrl,
+        maxLength: 16,
+        style: TextStyle(fontSize: 14, color: textColor),
+        decoration: InputDecoration(
+          labelText: 'Custom Title',
+          hintText: 'e.g. Restricted',
+          hintStyle: TextStyle(color: subTextColor),
+          counterText: '',
+          isDense: true,
+          border: const UnderlineInputBorder(),
         ),
       ),
     );
@@ -4428,12 +4618,35 @@ class _MemberTabBody extends StatelessWidget {
     required this.isDark,
   });
 
+  bool get _showAddButton =>
+      tab == _MemberTab.kicked ||
+      tab == _MemberTab.restricted ||
+      tab == _MemberTab.admins;
+
+  String get _addButtonLabel => switch (tab) {
+    _MemberTab.kicked => 'Add to Banned',
+    _MemberTab.restricted => 'Add Exception',
+    _MemberTab.admins => 'Add Admin',
+    _ => 'Add Member',
+  };
+
+  IconData get _addButtonIcon => switch (tab) {
+    _MemberTab.kicked => Icons.person_off_outlined,
+    _MemberTab.restricted => Icons.person_add_outlined,
+    _MemberTab.admins => Icons.admin_panel_settings_outlined,
+    _ => Icons.person_add_outlined,
+  };
+
   @override
   Widget build(BuildContext context) {
     if (loading && members.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (members.isEmpty) {
+
+    final hasAdd = _showAddButton;
+    final emptyContent = members.isEmpty && !hasAdd;
+
+    if (emptyContent) {
       return Center(
         child: Text(
           tab == _MemberTab.kicked
@@ -4446,6 +4659,8 @@ class _MemberTabBody extends StatelessWidget {
       );
     }
 
+    final addOffset = hasAdd ? 1 : 0;
+
     return NotificationListener<ScrollNotification>(
       onNotification: (notif) {
         if (notif is ScrollEndNotification &&
@@ -4457,15 +4672,19 @@ class _MemberTabBody extends StatelessWidget {
         return false;
       },
       child: ListView.builder(
-        itemCount: members.length + (loading ? 1 : 0),
+        itemCount: members.length + addOffset + (loading ? 1 : 0),
         itemBuilder: (ctx, i) {
-          if (i >= members.length) {
+          if (hasAdd && i == 0) {
+            return _buildAddButton(ctx);
+          }
+          final memberIdx = i - addOffset;
+          if (memberIdx >= members.length) {
             return const Padding(
               padding: EdgeInsets.all(16),
               child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
             );
           }
-          final m = members[i];
+          final m = members[memberIdx];
           return _MemberRow(
             member: m,
             tab: tab,
@@ -4479,6 +4698,38 @@ class _MemberTabBody extends StatelessWidget {
             onRefresh: onRefresh,
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildAddButton(BuildContext ctx) {
+    return InkWell(
+      onTap: () {
+        showTelegramToast(ctx, 'Select a user to ${tab == _MemberTab.kicked ? "ban" : tab == _MemberTab.admins ? "promote" : "restrict"}');
+      },
+      child: SizedBox(
+        height: 56,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 21,
+                backgroundColor: accentColor,
+                child: Icon(_addButtonIcon, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                _addButtonLabel,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: accentColor,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
