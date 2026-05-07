@@ -78,16 +78,6 @@
 
 ## §38 — User Profile Popup
 
-- [ ] spec §38.1 "Triggers": spec says PeerShortInfoBox triggers from Ctrl+Click on "View Profile" context menu item; the `showPeerShortInfoBox` function exists but there is no evidence of Ctrl modifier detection at the call site — `peer_short_info.dart:38`
-- [ ] spec §38.2 "Phone field": the info rows show phone for DM users correctly, but spec says single-line fields use `setDoubleClickSelectsParagraph(true)` for easy selection; code uses `SelectableText` which does not configure this — `peer_short_info.dart:667-698`
-- [ ] spec §38.2 "Notes field": spec says a "Notes" row with personal notes should appear; code does not implement a Notes info row — `peer_short_info.dart:526-637`
-- [ ] spec §38.2 "Video profile photos": spec says if the current profile photo has a video version it auto-plays in a loop; code shows only static images, no video playback — `peer_short_info.dart:323-349`
-- [ ] spec §38.3 "Scrolling parallax": spec says cover image scrolls with parallax and name/status labels fade based on scroll; code implements parallax via `_kParallaxFactor = 0.3` and label fade via `_labelOpacity` — verified implemented, but the parallax factor is custom (spec does not define a specific factor)
-- [ ] spec §38.5 "Scroll bar": spec says scroll bar is 8px wide, 3px inset, 150ms show animation, 1000ms hide delay; code uses `RawScrollbar` with matching `_kScrollBarWidth=8`, `_kScrollBarInset=3`, `_kScrollShowDuration=150ms`, `_kScrollHideDelay=1000ms` — verified OK
-- [ ] spec §38.9 "Right-click context menu": spec says right-click shows "Open in New Window" menu item only if peer is not already open in a separate window; code always shows the menu item without checking if already open — `peer_short_info.dart:185-208`
-- [ ] spec §38.11 "Premium effects": spec says the ShortInfoBox does NOT display verified/scam/fake badges or emoji status next to name; code renders plain text name which is correct — verified OK
-- [ ] spec §38.12 "Keyboard navigation": spec says no keyboard shortcuts to navigate profile photos; code has no keyboard photo navigation — verified OK
-
 ## §39 — Photo & Avatar Cropping Dialog
 
 - [ ] spec §39.2 "Full-window layer": spec says the editor is a full-window layer that cannot be closed by clicking outside; code uses `barrierDismissible: false` which is correct — verified OK
