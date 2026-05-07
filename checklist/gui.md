@@ -71,14 +71,6 @@
 ## &sect;33 -- Contacts Screen
 
 ## &sect;35 -- Empty, Error & Loading States
-- [ ] spec &sect;35.1 "Empty Chat List": no Lottie `no_chats.tgs` animation at 120x120px, no "You have no conversations yet" text in dialogEmptyButtonLabel style (semibold), no "New Message" action button at bottom found in `app_state.dart`.
-- [ ] spec &sect;35.5 "Chat List Loading": no skeleton row loading animation with 60px name bar width, 100px status bar width, or glare sweep (1000ms slide + 1000ms pause) found. Loading shows CircularProgressIndicator instead of skeleton placeholders.
-- [ ] spec &sect;35.6 "No Chat Selected": service-message bubble "Select a chat to start messaging" may exist in the shell but not verified in `app_state.dart`. Needs check in shell.dart or equivalent.
-- [ ] spec &sect;35.7 "Empty Search Results": no Lottie `noresults.tgs` at 100x100px, no bold "No Results" title, no "There were no results for..." body text, no "Search in All Messages" link found.
-- [ ] spec &sect;35.10 "Empty Shared Media Tabs": no per-type icons (infoEmptyPhoto/Video/Audio/File/Voice/Link) at 1/3 height position, no "No photos/videos/files here yet" labels at 40px from bottom found.
-- [ ] spec &sect;35.22 "Connection State Widget": no "Connecting..." pill with 20x20px radial spinner, 150ms fade animation, bottom-left anchoring, or proxy icon found. No "Reconnect in N s..." countdown with "Try now" retry link.
-- [ ] spec &sect;35.33 "Skeleton Animation": no skeleton animation system with kSlideDuration=1000ms, kWaitDuration=1000ms, kBaseAlpha=0.5, kGradientAlpha=0.2 constants for FlatLabel loading placeholders found.
-- [ ] spec &sect;35.24 "File Download States": no radial progress indicator (InfiniteRadialAnimation) with msgFileRadialLine=3px stroke for file downloads, no "Ready"/"Downloading"/"Loaded"/"Failed" status text transitions found.
 
 ## &sect;36 -- Common Dialog & Modal Patterns
 - [ ] spec &sect;36.1 "Box/Dialog Infrastructure": `confirm_box.dart` implements TelegramBox with correct dimensions (320/364px width, 8px radius, 48px title height at 24/13 position, 200ms animation). Box animation uses easeOutCirc for dim + linear opacity -- matches spec. Enter key triggers confirm -- matches spec. Missing: boxMaxListHeight=492px is implemented correctly. Missing: close X button uses `box_button_close` icon token -- implementation uses Icons.close.
