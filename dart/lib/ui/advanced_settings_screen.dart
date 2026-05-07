@@ -1904,7 +1904,8 @@ class _PowerSavingBoxState extends State<PowerSavingBox> {
   }
 
   void _showForceDisabledToast() {
-    showTelegramToast(context, 'Turn off your device\'s power saving mode to change these settings');
+    showTelegramToast(context, 'Turn off your device\'s power saving mode to change these settings',
+        duration: const Duration(milliseconds: 3000));
   }
 
   @override

@@ -268,9 +268,12 @@ class _LanguageBoxState extends State<LanguageBox> {
               )
             else
               Flexible(
-                child: _buildLanguageList(
-                  isDark, textColor, subTextColor, accentColor,
-                  hoverColor, dividerColor,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 492),
+                  child: _buildLanguageList(
+                    isDark, textColor, subTextColor, accentColor,
+                    hoverColor, dividerColor,
+                  ),
                 ),
               ),
           ],

@@ -669,7 +669,8 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                   _buildOtherSessionsList(textColor, subtextColor, dividerColor, accentColor),
                 if (_otherSessions.isEmpty && _incompleteSessions.isEmpty)
                   _buildEmptyPlaceholder(subtextColor),
-                _buildAutoTerminateButton(textColor, subtextColor, dividerColor, accentColor),
+                if (_otherSessions.isNotEmpty)
+                  _buildAutoTerminateButton(textColor, subtextColor, dividerColor, accentColor),
               ],
             ),
     );
