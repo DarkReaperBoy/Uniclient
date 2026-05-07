@@ -80,16 +80,6 @@
 
 ## §39 — Photo & Avatar Cropping Dialog
 
-- [ ] spec §39.2 "Full-window layer": spec says the editor is a full-window layer that cannot be closed by clicking outside; code uses `barrierDismissible: false` which is correct — verified OK
-- [ ] spec §39.2 "Blurred background": spec says background is a downscaled-4x, 24px Gaussian blurred, dimmed screenshot; code uses `BackdropFilter` with `sigmaX/Y: 24` which is a real-time blur rather than the pre-rendered screenshot approach — acceptable Flutter adaptation, but missing the cross-fade animation between old/new backgrounds on resize — `photo_crop_editor.dart:490-510`
-- [ ] spec §39.4 "Crop overlay": crop shape rendering (ellipse, roundedRect, rect) with fade overlay, border, corner indicators, and 3x3 grid all implemented correctly — verified OK
-- [ ] spec §39.5 "No zoom controls": spec explicitly states no zoom controls exist; code has none — verified OK
-- [ ] spec §39.7 "Rotation": spec says rotate button uses `photo_editor/rotate-flip_horizontal` icon; code uses `Icons.rotate_right` Material icon instead of the specific AyuGram icon — `photo_crop_editor.dart:1100`
-- [ ] spec §39.7 "Flip icon change": spec says flip button icon changes to active-colored variant when flipped; code correctly switches between `_IconState.active` and `_IconState.idle` for the flip button — verified OK
-- [ ] spec §39.9 "Emoji Builder cycle timer": spec says suggested stickers rotate with 1500ms cycle; code uses `_kSuggestedCycleDuration = 1500ms` — verified OK
-- [ ] spec §39.11 "Done button label": spec says for profile photos the confirm button reads "Set Photo", for suggestions "Suggest", for general editing "Done"; code accepts a custom `doneLabel` parameter defaulting to "Set Photo" — partially OK, but no automatic label switching based on context
-- [ ] spec §39.14 "Grid overlay fade": spec says grid fades in instantly when drag starts, fades out over 200ms when drag ends; code sets `_gridController.value = 1.0` instantly on pointer down and calls `_gridController.reverse()` on pointer up — verified OK
-
 ## §40 — Send Files Dialog
 
 - [ ] spec §40.2 "Album preview drag-to-reorder": the `send_files_box.dart` file exists (30435 tokens, could not read fully), but based on the spec, album drag-to-reorder requires shrink animation at 150ms and layout transition at 200ms; needs verification that these animations exist — `send_files_box.dart`
