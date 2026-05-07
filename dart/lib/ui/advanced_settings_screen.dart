@@ -101,8 +101,14 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
   static const _appVersion =
       String.fromEnvironment('APP_VERSION', defaultValue: '0.1.0');
 
-  String _connectionTypeLabel() {
-    return 'Using TCP';
+  String _connectionTypeLabel(AppState appState) {
+    return switch (appState.proxyMode) {
+      1 => 'Using system proxy',
+      2 => appState.selectedProxyType.isNotEmpty
+          ? 'Proxy: ${appState.selectedProxyType}'
+          : 'Connected via proxy',
+      _ => 'Using TCP',
+    };
   }
 
   static const _angleBackendLabels = [
@@ -280,7 +286,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
       _AdvancedIconButtonRow(
         icon: Icons.settings_ethernet,
         label: 'Connection type',
-        rightLabel: _connectionTypeLabel(),
+        rightLabel: _connectionTypeLabel(appState),
         textColor: textColor,
         subtextColor: subtextColor,
         iconColor: iconColor,
@@ -2190,6 +2196,23 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
   final FocusNode _focusNode = FocusNode();
 
   @override
+  void initState() {
+    super.initState();
+    final appState = context.read<AppState>();
+    _mode = _ProxyMode.values[appState.proxyMode.clamp(0, 2)];
+  }
+
+  void _syncToAppState() {
+    final appState = context.read<AppState>();
+    final proxyType = (_mode == _ProxyMode.custom &&
+            _selectedIndex >= 0 &&
+            _selectedIndex < _proxies.length)
+        ? _proxies[_selectedIndex].typeLabel
+        : '';
+    appState.setProxyMode(_mode.index, proxyType);
+  }
+
+  @override
   void dispose() {
     _focusNode.dispose();
     super.dispose();
@@ -2456,10 +2479,15 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
     );
   }
 
+  void _setMode(_ProxyMode mode) {
+    setState(() => _mode = mode);
+    _syncToAppState();
+  }
+
   Widget _proxyRadio(String label, _ProxyMode mode, Color textColor,
       Color accentColor, Color hoverBg) {
     return InkWell(
-      onTap: () => setState(() => _mode = mode),
+      onTap: () => _setMode(mode),
       hoverColor: hoverBg,
       child: Padding(
         padding: SettingsStyle.sendTypePadding,
@@ -2471,7 +2499,7 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
               child: Radio<_ProxyMode>(
                 value: mode,
                 groupValue: _mode,
-                onChanged: (v) => setState(() => _mode = v!),
+                onChanged: (v) => _setMode(v!),
                 activeColor: accentColor,
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 visualDensity: VisualDensity.compact,
@@ -2527,6 +2555,7 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
             _selectedIndex = index;
             _mode = _ProxyMode.custom;
           });
+          _syncToAppState();
         },
         hoverColor: hoverBg,
         child: Padding(
@@ -2542,10 +2571,13 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
                       _mode == _ProxyMode.custom ? _selectedIndex : -1,
                   onChanged: proxy.deleted
                       ? null
-                      : (v) => setState(() {
+                      : (v) {
+                          setState(() {
                             _selectedIndex = v!;
                             _mode = _ProxyMode.custom;
-                          }),
+                          });
+                          _syncToAppState();
+                        },
                   activeColor: accentColor,
                   materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   visualDensity: VisualDensity.compact,
@@ -2736,6 +2768,7 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
         _selectedIndex = _proxies.length - 1;
         _mode = _ProxyMode.custom;
       });
+      _syncToAppState();
     }
   }
 
@@ -2767,6 +2800,7 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
         _selectedIndex = _proxies.length - 1;
         _mode = _ProxyMode.custom;
       });
+      _syncToAppState();
       showTelegramToast(context, 'Imported $added proxy(ies)');
     } else if (mounted) {
       showTelegramToast(context, 'No valid proxy URLs found');
@@ -2811,6 +2845,7 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
                 _selectedIndex = -1;
                 if (_mode == _ProxyMode.custom) _mode = _ProxyMode.disabled;
               });
+              _syncToAppState();
             },
             child: Text('Delete',
                 style: TextStyle(color: Theme.of(context).colorScheme.error)),

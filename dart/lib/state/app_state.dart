@@ -139,6 +139,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   int _downloadPathMode = 0; // 0=default, 1=temp, 2=custom
   String _customDownloadPath = '';
   bool _askDownloadPath = false;
+  int _proxyMode = 0; // 0=disabled, 1=system, 2=custom
+  String _selectedProxyType = ''; // e.g. 'SOCKS5', 'HTTP', 'MTPROTO'
   List<Map<String, dynamic>> _recentDownloads = [];
   Map<String, bool> _experimentalFlags = {};
   bool _editingTheme = false;
@@ -393,6 +395,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   int get downloadPathMode => _downloadPathMode;
   String get customDownloadPath => _customDownloadPath;
   bool get askDownloadPath => _askDownloadPath;
+  int get proxyMode => _proxyMode;
+  String get selectedProxyType => _selectedProxyType;
   List<Map<String, dynamic>> get recentDownloads => List.unmodifiable(_recentDownloads);
 
   // §25.15 AyuGram getters
@@ -1661,6 +1665,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _saveWindowPrefs();
   }
 
+  void setProxyMode(int mode, [String proxyType = '']) {
+    if (_proxyMode == mode && _selectedProxyType == proxyType) return;
+    _proxyMode = mode;
+    _selectedProxyType = proxyType;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
   void addRecentDownload(String fileName, String filePath, int sizeBytes) {
     _recentDownloads.insert(0, {
       'name': fileName,
@@ -2480,6 +2492,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _downloadPathMode = data['downloadPathMode'] as int? ?? 0;
       _customDownloadPath = data['customDownloadPath'] as String? ?? '';
       _askDownloadPath = data['askDownloadPath'] as bool? ?? false;
+      _proxyMode = data['proxyMode'] as int? ?? 0;
+      _selectedProxyType = data['selectedProxyType'] as String? ?? '';
       final dl = data['recentDownloads'] as List<dynamic>?;
       if (dl != null) _recentDownloads = dl.cast<Map<String, dynamic>>();
       final expFlags = data['experimentalFlags'] as Map<String, dynamic>?;
@@ -2678,6 +2692,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'downloadPathMode': _downloadPathMode,
         'customDownloadPath': _customDownloadPath,
         'askDownloadPath': _askDownloadPath,
+        'proxyMode': _proxyMode,
+        'selectedProxyType': _selectedProxyType,
         'recentDownloads': _recentDownloads,
         'showTranslateButton': _showTranslateButton,
         'translateEntireChats': _translateEntireChats,
