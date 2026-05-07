@@ -931,6 +931,8 @@ class ShortcutSystem {
     const KeyBinding(
         LogicalKeyboardKey.keyJ, ShortcutCommand.showContacts,
         control: true),
+    const KeyBinding(LogicalKeyboardKey.keyO, ShortcutCommand.openFilePicker,
+        control: true),
     if (_isDesktop)
       const KeyBinding(LogicalKeyboardKey.f5, ShortcutCommand.supportReloadTemplates),
     if (_isDesktop)
