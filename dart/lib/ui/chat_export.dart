@@ -1832,6 +1832,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   }) {
     return showDialog<_CalendarResult>(
       context: context,
+      useRootNavigator: true,
       builder: (ctx) => _CalendarBox(
         initialDate: initialDate,
         minDate: minDate,
@@ -1844,6 +1845,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   Future<int?> _showChooseTimeBox(int currentSeconds) {
     return showDialog<int>(
       context: context,
+      useRootNavigator: true,
       builder: (ctx) => _ChooseTimeBox(initialSeconds: currentSeconds),
     );
   }
@@ -1851,6 +1853,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   Future<_ExportFormat?> _showChooseFormatBox() {
     return showDialog<_ExportFormat>(
       context: context,
+      useRootNavigator: true,
       builder: (ctx) => _ChooseFormatBox(current: _format),
     );
   }
