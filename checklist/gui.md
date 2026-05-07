@@ -51,20 +51,7 @@
 
 ## §23 — Scheduled Messages
 
-- [ ] spec §23.3 "Scheduled Messages Toggle Button": clock icon in compose area appears when chat has scheduled messages — `_ScheduledToggleButton` exists in `chat_view.dart` but its visual matches (two-layer icon with `input_scheduled` and `input_scheduled_dot` in `attentionButtonFg`) are not verified — `chat_view.dart`
-- [ ] spec §23.4 "Scheduled Messages Section (ScheduledWidget)": a full `SectionWidget` that replaces the main chat column with scheduled messages list, title bar, selection mode (Send Now/Delete), and compose controls — no `ScheduledWidget` or `ScheduledSection` class exists; the scheduled messages view is not implemented as a section — `chat_view.dart`
-- [ ] spec §23.4 "Scheduled Section Top Bar": should display "Reminders" for self-chat or "Scheduled messages" for other chats, with selection mode showing Send Now + Delete buttons — missing entirely — no file
-- [ ] spec §23.4 "Empty state": should show `EmptyListBubbleWidget` with service-style bubble containing "No scheduled messages" text — not implemented — no file
-- [ ] spec §23.5 "Message Rendering": scheduled messages should show delivery time in bottom-info, repeat period prefix, and silent indicator (U+1F515) in tooltip — not implemented — no file
-- [ ] spec §23.6 "Context Menu Actions": right-click on scheduled message should show Send Now, Reschedule, Edit, Delete — not implemented — no file
-- [ ] spec §23.6 "Send Now Confirmation": should open `ShowSendNowMessagesBox` with "Send this message now?" text — not implemented — no file
-- [ ] spec §23.7 "Sent-to-Scheduled Toast": when scheduling from normal compose, should auto-navigate to scheduled section — not implemented — no file
-- [ ] spec §23.8 "Video Processing Flow": processing tip toast and published notification toast — not implemented — no file
-- [ ] spec §23.2 "ChooseDateTimeBox": date field mouse wheel scroll should increment/decrement by one day — implemented in `_scrollDate()` via `PointerScrollEvent` — `choose_datetime_box.dart` (OK)
-- [ ] spec §23.2 "Send when online": only shown for `ScheduledToUser` type — implemented with `isScheduledToUser` parameter and "Send when online" popup menu — `choose_datetime_box.dart` (OK)
-- [ ] spec §23.2 "Repeat Period": repeat dropdown uses `defaultPopupMenu` style (no icons, plain text) — code uses `showMenu<int>()` which produces Material-style menu, not matching the Telegram `defaultPopupMenu` appearance — `choose_datetime_box.dart`
-- [ ] spec §23.2 "Silent shortcut": holding Ctrl when confirming should schedule silently — implemented with `HardwareKeyboard.instance.isControlPressed` check — `choose_datetime_box.dart` (OK)
-- [ ] spec §23.9 "Forum Topic Support": `ScheduledWidget` should support forum topics with `Context::ScheduledTopic` — not implemented since ScheduledWidget does not exist — no file
+- [ ] spec §23.7 "Sent-to-Scheduled Toast": when scheduling from normal compose, should auto-navigate to scheduled section — `_sendMessage()` at `chat_view.dart:3709` shows a "Message scheduled" toast but does NOT call `chatState.toggleScheduledView()` — auto-navigation is missing — `chat_view.dart`
 
 ## §24 — Keyboard Shortcuts
 
