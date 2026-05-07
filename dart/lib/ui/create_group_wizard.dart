@@ -1136,7 +1136,7 @@ class _WizardDialogState extends State<_WizardDialog>
           onSearchChanged: () => setState(() {}),
         ),
         // §21.3: "Invite via Link" button above contact list.
-        if (_inviteLink.isNotEmpty || widget.type == _WizardType.channel)
+        if (_inviteLink.isNotEmpty || widget.type == _WizardType.channel || widget.type == _WizardType.group)
           InkWell(
             onTap: () {
               if (_inviteLink.isNotEmpty) {
