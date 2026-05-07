@@ -3708,6 +3708,9 @@ class _ChatViewState extends State<ChatView>
     });
     if (scheduleDate > 0) {
       showTelegramToast(context, 'Message scheduled');
+      if (!chatState.isScheduledView) {
+        chatState.toggleScheduledView();
+      }
     } else {
       _scrollToBottom();
     }
