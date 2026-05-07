@@ -1824,38 +1824,68 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     );
   }
 
+  Future<T?> _showAbovePanel<T>(Widget Function(void Function(T?) onResult) builder) {
+    final completer = Completer<T?>();
+    final panelEntry = _ExportPanelController._entry;
+    late OverlayEntry barrierEntry;
+    late OverlayEntry contentEntry;
+
+    void close(T? result) {
+      contentEntry.remove();
+      barrierEntry.remove();
+      if (!completer.isCompleted) completer.complete(result);
+    }
+
+    barrierEntry = OverlayEntry(
+      builder: (_) => GestureDetector(
+        onTap: () => close(null),
+        behavior: HitTestBehavior.opaque,
+        child: const SizedBox.expand(),
+      ),
+    );
+
+    contentEntry = OverlayEntry(
+      builder: (_) => builder(close),
+    );
+
+    final overlay = Overlay.of(context);
+    if (panelEntry != null) {
+      overlay.insert(barrierEntry, above: panelEntry);
+    } else {
+      overlay.insert(barrierEntry);
+    }
+    overlay.insert(contentEntry, above: barrierEntry);
+
+    return completer.future;
+  }
+
   Future<_CalendarResult?> _showCalendarBox({
     DateTime? initialDate,
     required DateTime minDate,
     required DateTime maxDate,
     String? resetLabel,
   }) {
-    return showDialog<_CalendarResult>(
-      context: context,
-      useRootNavigator: true,
-      builder: (ctx) => _CalendarBox(
-        initialDate: initialDate,
-        minDate: minDate,
-        maxDate: maxDate,
-        resetLabel: resetLabel,
-      ),
-    );
+    return _showAbovePanel<_CalendarResult>((onResult) => _CalendarBox(
+      initialDate: initialDate,
+      minDate: minDate,
+      maxDate: maxDate,
+      resetLabel: resetLabel,
+      onResult: onResult,
+    ));
   }
 
   Future<int?> _showChooseTimeBox(int currentSeconds) {
-    return showDialog<int>(
-      context: context,
-      useRootNavigator: true,
-      builder: (ctx) => _ChooseTimeBox(initialSeconds: currentSeconds),
-    );
+    return _showAbovePanel<int>((onResult) => _ChooseTimeBox(
+      initialSeconds: currentSeconds,
+      onResult: onResult,
+    ));
   }
 
   Future<_ExportFormat?> _showChooseFormatBox() {
-    return showDialog<_ExportFormat>(
-      context: context,
-      useRootNavigator: true,
-      builder: (ctx) => _ChooseFormatBox(current: _format),
-    );
+    return _showAbovePanel<_ExportFormat>((onResult) => _ChooseFormatBox(
+      current: _format,
+      onResult: onResult,
+    ));
   }
 
   Widget _buildProcessingPlaceholder(Color subtextColor) {
@@ -2170,12 +2200,14 @@ class _CalendarBox extends StatefulWidget {
   final DateTime minDate;
   final DateTime maxDate;
   final String? resetLabel;
+  final void Function(_CalendarResult?) onResult;
 
   const _CalendarBox({
     this.initialDate,
     required this.minDate,
     required this.maxDate,
     this.resetLabel,
+    required this.onResult,
   });
 
   @override
@@ -2334,8 +2366,7 @@ class _CalendarBoxState extends State<_CalendarBox> {
                   children: [
                     if (widget.resetLabel != null)
                       TextButton(
-                        onPressed: () => Navigator.of(context)
-                            .pop(const _CalendarResult(isReset: true)),
+                        onPressed: () => widget.onResult(const _CalendarResult(isReset: true)),
                         style: TextButton.styleFrom(
                           foregroundColor: accentColor,
                           textStyle: const TextStyle(fontSize: 13),
@@ -2344,7 +2375,7 @@ class _CalendarBoxState extends State<_CalendarBox> {
                       ),
                     const Spacer(),
                     TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
+                      onPressed: () => widget.onResult(null),
                       style: TextButton.styleFrom(
                         foregroundColor: subtextColor,
                         textStyle: const TextStyle(fontSize: 13),
@@ -2396,8 +2427,7 @@ class _CalendarBoxState extends State<_CalendarBox> {
                 onTap: isDisabled
                     ? null
                     : () {
-                        Navigator.of(context)
-                            .pop(_CalendarResult(date: date));
+                        widget.onResult(_CalendarResult(date: date));
                       },
                 child: SizedBox(
                   height: cellHeight,
@@ -2445,7 +2475,8 @@ class _CalendarBoxState extends State<_CalendarBox> {
 
 class _ChooseTimeBox extends StatefulWidget {
   final int initialSeconds;
-  const _ChooseTimeBox({required this.initialSeconds});
+  final void Function(int?) onResult;
+  const _ChooseTimeBox({required this.initialSeconds, required this.onResult});
 
   @override
   State<_ChooseTimeBox> createState() => _ChooseTimeBoxState();
@@ -2591,7 +2622,7 @@ class _ChooseTimeBoxState extends State<_ChooseTimeBox> {
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
+                      onPressed: () => widget.onResult(null),
                       style: TextButton.styleFrom(
                         foregroundColor: subtextColor,
                         textStyle: const TextStyle(
@@ -2601,8 +2632,7 @@ class _ChooseTimeBoxState extends State<_ChooseTimeBox> {
                     ),
                     const SizedBox(width: 4),
                     TextButton(
-                      onPressed: () =>
-                          Navigator.of(context).pop(_currentSeconds),
+                      onPressed: () => widget.onResult(_currentSeconds),
                       style: TextButton.styleFrom(
                         foregroundColor: accentColor,
                         textStyle: const TextStyle(
@@ -2623,7 +2653,8 @@ class _ChooseTimeBoxState extends State<_ChooseTimeBox> {
 
 class _ChooseFormatBox extends StatefulWidget {
   final _ExportFormat current;
-  const _ChooseFormatBox({required this.current});
+  final void Function(_ExportFormat?) onResult;
+  const _ChooseFormatBox({required this.current, required this.onResult});
 
   @override
   State<_ChooseFormatBox> createState() => _ChooseFormatBoxState();
@@ -2692,7 +2723,7 @@ class _ChooseFormatBoxState extends State<_ChooseFormatBox> {
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
+                      onPressed: () => widget.onResult(null),
                       style: TextButton.styleFrom(
                         foregroundColor: subtextColor,
                         textStyle: const TextStyle(
@@ -2702,8 +2733,7 @@ class _ChooseFormatBoxState extends State<_ChooseFormatBox> {
                     ),
                     const SizedBox(width: 4),
                     TextButton(
-                      onPressed: () =>
-                          Navigator.of(context).pop(_selected),
+                      onPressed: () => widget.onResult(_selected),
                       style: TextButton.styleFrom(
                         foregroundColor: accentColor,
                         textStyle: const TextStyle(
