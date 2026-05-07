@@ -4640,10 +4640,11 @@ class _ChatViewState extends State<ChatView>
                 ),
                 if (_inlineBotResults != null && _inlineBotResults!.results.isNotEmpty)
                   Positioned(
-                    left: 0,
                     right: 0,
                     bottom: 0,
-                    child: _InlineBotResultsPanel(
+                    child: SizedBox(
+                      width: 345,
+                      child: _InlineBotResultsPanel(
                       results: _inlineBotResults!,
                       gallery: _inlineBotResults!.gallery,
                       onPick: _pickInlineResult,
@@ -4659,6 +4660,7 @@ class _ChatViewState extends State<ChatView>
                           }
                         }
                       } : null,
+                    ),
                     ),
                   ),
                 // §31.8: Tag suggestion toast after forward-to-saved
