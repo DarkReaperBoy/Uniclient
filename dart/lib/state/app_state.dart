@@ -238,6 +238,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _confirmGifs = false;
   bool _confirmVoiceMessages = false;
 
+  bool _showIpInWebRtcCalls = true;
+
   // §54.11: Additional chat settings.
   bool _showOnlyAddedEmojisAndStickers = false;
   bool _showChannelReactions = true;
@@ -488,6 +490,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get confirmStickers => _confirmStickers;
   bool get confirmGifs => _confirmGifs;
   bool get confirmVoiceMessages => _confirmVoiceMessages;
+
+  bool get showIpInWebRtcCalls => _showIpInWebRtcCalls;
 
   // §54.9: Message field button toggle getters.
   bool get showAttachButton => _showAttachButton;
@@ -1109,6 +1113,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _confirmStickers = false;
     _confirmGifs = false;
     _confirmVoiceMessages = false;
+    _showIpInWebRtcCalls = true;
     _showAttachButton = true;
     _showCommandsButton = true;
     _showAutoDeleteButton = true;
@@ -1331,6 +1336,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setConfirmVoiceMessages(bool v) {
     if (_confirmVoiceMessages == v) return;
     _confirmVoiceMessages = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+  void setShowIpInWebRtcCalls(bool v) {
+    if (_showIpInWebRtcCalls == v) return;
+    _showIpInWebRtcCalls = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -2534,6 +2545,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _confirmStickers = data['confirmStickers'] as bool? ?? false;
       _confirmGifs = data['confirmGifs'] as bool? ?? false;
       _confirmVoiceMessages = data['confirmVoiceMessages'] as bool? ?? false;
+      _showIpInWebRtcCalls = data['showIpInWebRtcCalls'] as bool? ?? true;
       // §54.9: Message field button toggles.
       _showAttachButton = data['showAttachButton'] as bool? ?? true;
       _showCommandsButton = data['showCommandsButton'] as bool? ?? true;
@@ -2681,6 +2693,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'confirmStickers': _confirmStickers,
         'confirmGifs': _confirmGifs,
         'confirmVoiceMessages': _confirmVoiceMessages,
+        'showIpInWebRtcCalls': _showIpInWebRtcCalls,
         'showAttachButton': _showAttachButton,
         'showCommandsButton': _showCommandsButton,
         'showAutoDeleteButton': _showAutoDeleteButton,

@@ -1046,6 +1046,38 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
           ),
         ),
       ),
+      InkWell(
+        onTap: () {
+          final appState = context.read<AppState>();
+          appState.setShowIpInWebRtcCalls(!appState.showIpInWebRtcCalls);
+        },
+        hoverColor: hoverBg,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Show IP in WebRTC calls',
+                  style: TextStyle(fontSize: 14, color: textColor),
+                ),
+              ),
+              SizedBox(
+                width: 36,
+                height: 20,
+                child: Switch(
+                  value: context.watch<AppState>().showIpInWebRtcCalls,
+                  onChanged: (v) {
+                    context.read<AppState>().setShowIpInWebRtcCalls(v);
+                  },
+                  activeColor: accentColor,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     ];
   }
 
