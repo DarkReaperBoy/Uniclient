@@ -61,7 +61,6 @@
 ## &sect;28 -- Two-Factor Authentication Setup
 
 ## &sect;29 -- Chat Export
-- [ ] spec &sect;29.4.2 "Calendar Box": calendar dialog renders BEHIND the floating OverlayEntry export panel — completely invisible and inaccessible. Root cause: `showDialog` called from within an OverlayEntry's widget context inserts a navigator route that sits below the OverlayEntry in z-order. Fix: call `showDialog` using the root Navigator context (e.g. `Navigator.of(context, rootNavigator: true)`) or show the calendar as a nested OverlayEntry on top of the panel. Confirmed by: _CalendarBox found in widget tree AND dismisses with Escape, but is never visible in screenshots.
 
 ## &sect;30 -- Bot Interactions
 - [ ] spec &sect;30.1 "Bot Command Button & Menu Button": no historyBotCommandStart (44x46px) slash button or historyBotMenuButton (RoundButton, 30px height, max 160px label) found in any compose area widget.
