@@ -17,6 +17,7 @@ const double _kParticleSizeMin = 1.5;
 const double _kParticleSizeMax = 2.0;
 const int _kAutoPauseTimeoutMs = 1000;
 const int _kColorCacheCapacity = 24;
+const double kSpoilerHiddenOpacity = 0.5;
 
 class _Particle {
   final double x, y, vx, vy, size;
@@ -294,9 +295,8 @@ class SpoilerTilePainter extends CustomPainter {
 
     final paint = Paint();
     if (tintColor != null) {
-      paint.colorFilter = ColorFilter.mode(
+      paint.colorFilter = SpoilerColorCache.instance.getFilter(
         tintColor!.withValues(alpha: opacity * 0.85),
-        BlendMode.srcIn,
       );
     } else {
       paint.color = Color.fromRGBO(255, 255, 255, opacity * 0.85);
@@ -348,6 +348,69 @@ class SpoilerTilePainter extends CustomPainter {
       old.frame != frame ||
       old.revealProgress != revealProgress ||
       old.borderRadius != borderRadius;
+}
+
+class SpoilerColorCache {
+  SpoilerColorCache._();
+  static final instance = SpoilerColorCache._();
+
+  final _cache = <int, ColorFilter>{};
+  final _order = <int>[];
+
+  ColorFilter getFilter(Color color) {
+    final key = color.value;
+    final existing = _cache[key];
+    if (existing != null) {
+      _order.remove(key);
+      _order.add(key);
+      return existing;
+    }
+    final filter = ColorFilter.mode(color, BlendMode.srcIn);
+    _cache[key] = filter;
+    _order.add(key);
+    while (_cache.length > _kColorCacheCapacity) {
+      _cache.remove(_order.removeAt(0));
+    }
+    return filter;
+  }
+
+  void clear() {
+    _cache.clear();
+    _order.clear();
+  }
+}
+
+void tileSpoilerOnRects(
+  Canvas canvas,
+  SpoilerSpriteSheet sheet,
+  int frame,
+  List<Rect> rects,
+  Color tintColor,
+  double opacity,
+) {
+  if (opacity <= 0 || rects.isEmpty) return;
+  final src = sheet.frameRect(frame.clamp(0, _kFrameCount - 1));
+  final tile = sheet.tileSize;
+  final paint = Paint()
+    ..colorFilter = SpoilerColorCache.instance.getFilter(
+      tintColor.withValues(alpha: opacity * 0.85),
+    );
+
+  for (final rect in rects) {
+    canvas.save();
+    canvas.clipRect(rect);
+    final startTX = (rect.left / tile).floor();
+    final endTX = (rect.right / tile).ceil();
+    final startTY = (rect.top / tile).floor();
+    final endTY = (rect.bottom / tile).ceil();
+    for (int ty = startTY; ty < endTY; ty++) {
+      for (int tx = startTX; tx < endTX; tx++) {
+        canvas.drawImageRect(sheet.image, src,
+            Rect.fromLTWH(tx * tile, ty * tile, tile, tile), paint);
+      }
+    }
+    canvas.restore();
+  }
 }
 
 class SpoilerRevealManager extends ChangeNotifier {

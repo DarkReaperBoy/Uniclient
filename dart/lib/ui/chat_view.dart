@@ -33,6 +33,7 @@ import 'custom_emoji_cache.dart';
 import 'reactions_detail.dart';
 import 'info_panel.dart';
 import 'shell.dart';
+import 'spoiler_animation.dart';
 import 'sticker_pack_viewer.dart';
 import 'message_bubble.dart';
 import 'popup_menu.dart';
@@ -11847,6 +11848,7 @@ class _ComposeFormattingOverlayState extends State<_ComposeFormattingOverlay>
     with TickerProviderStateMixin {
   late final AnimationController _spoilerAnim;
   bool _hasSpoiler = false;
+  SpoilerSpriteSheet? _spoilerSheet;
   final Map<int, AnimationController> _spoilerFadeAnims = {};
 
   @override
@@ -11884,8 +11886,12 @@ class _ComposeFormattingOverlayState extends State<_ComposeFormattingOverlay>
     );
     if (has && !_hasSpoiler) {
       _spoilerAnim.repeat();
+      SpoilerAnimationManager.instance.getSheet(SpoilerType.text).then((s) {
+        if (mounted) setState(() => _spoilerSheet = s);
+      });
     } else if (!has && _hasSpoiler) {
       _spoilerAnim.stop();
+      _spoilerSheet = null;
     }
     _hasSpoiler = has;
   }
@@ -11965,6 +11971,8 @@ class _ComposeFormattingOverlayState extends State<_ComposeFormattingOverlay>
                   : 0,
               spoilerPhase: _spoilerAnim.value,
               spoilerShown: spoilerShown,
+              spoilerSheet: _spoilerSheet,
+              spoilerFrame: SpoilerAnimationManager.instance.currentFrame,
             ),
           ),
         ),
@@ -11983,6 +11991,8 @@ class _FormattingPainter extends CustomPainter {
   final double scrollOffset;
   final double spoilerPhase;
   final Map<int, double> spoilerShown;
+  final SpoilerSpriteSheet? spoilerSheet;
+  final int spoilerFrame;
 
   _FormattingPainter({
     required this.entities,
@@ -11994,6 +12004,8 @@ class _FormattingPainter extends CustomPainter {
     required this.scrollOffset,
     required this.spoilerPhase,
     this.spoilerShown = const {},
+    this.spoilerSheet,
+    this.spoilerFrame = 0,
   });
 
   @override
@@ -12162,7 +12174,7 @@ class _FormattingPainter extends CustomPainter {
 
     final shown = spoilerShown[entityIndex] ?? 1.0;
     final bgOpacity = shown;
-    final fgOpacity = 1.0 * shown + 0.5 * (1.0 - shown);
+    final fgOpacity = 1.0 * shown + kSpoilerHiddenOpacity * (1.0 - shown);
 
     final insideBlockquote = entities.any((e) =>
         e.type == FormatType.blockquote &&
@@ -12180,38 +12192,48 @@ class _FormattingPainter extends CustomPainter {
           : const Color(0xFFFFFFFF);
     }
 
-    final rng = math.Random(42);
     final particleColor = isDark
         ? const Color(0xFFAABBCC)
         : const Color(0xFF667788);
 
+    final rects = <Rect>[];
     for (final box in boxes) {
       final rect = Rect.fromLTRB(box.left, box.top, box.right, box.bottom);
-      final w = rect.width;
-      final h = rect.height;
-      if (w <= 0 || h <= 0) continue;
-
+      if (rect.width <= 0 || rect.height <= 0) continue;
       if (bgOpacity > 0) {
         canvas.drawRect(
           rect,
           Paint()..color = bgColor.withValues(alpha: bgOpacity),
         );
       }
+      rects.add(rect);
+    }
 
-      final count = (w * h / 25).clamp(5, 150).toInt();
-      for (var i = 0; i < count; i++) {
-        final baseX = rng.nextDouble();
-        final baseY = rng.nextDouble();
-        final phase = (spoilerPhase + rng.nextDouble()) % 1.0;
-        final px = rect.left + ((baseX + phase * 0.3) % 1.0) * w;
-        final py = rect.top + ((baseY + phase * 0.15) % 1.0) * h;
-        final sz = 1.0 + rng.nextDouble() * 1.2;
-        final alpha = (0.3 + 0.7 * ((math.sin(phase * math.pi * 2) + 1) / 2)) * fgOpacity;
-        canvas.drawCircle(
-          Offset(px, py),
-          sz,
-          Paint()..color = particleColor.withValues(alpha: alpha),
-        );
+    if (spoilerSheet != null && rects.isNotEmpty) {
+      tileSpoilerOnRects(
+        canvas, spoilerSheet!, spoilerFrame,
+        rects, particleColor, fgOpacity,
+      );
+    } else if (rects.isNotEmpty) {
+      final rng = math.Random(42);
+      for (final rect in rects) {
+        final w = rect.width;
+        final h = rect.height;
+        final count = (w * h / 25).clamp(5, 150).toInt();
+        for (var i = 0; i < count; i++) {
+          final baseX = rng.nextDouble();
+          final baseY = rng.nextDouble();
+          final phase = (spoilerPhase + rng.nextDouble()) % 1.0;
+          final px = rect.left + ((baseX + phase * 0.3) % 1.0) * w;
+          final py = rect.top + ((baseY + phase * 0.15) % 1.0) * h;
+          final sz = 1.0 + rng.nextDouble() * 1.2;
+          final alpha = (0.3 + 0.7 * ((math.sin(phase * math.pi * 2) + 1) / 2)) * fgOpacity;
+          canvas.drawCircle(
+            Offset(px, py),
+            sz,
+            Paint()..color = particleColor.withValues(alpha: alpha),
+          );
+        }
       }
     }
   }
@@ -12219,6 +12241,7 @@ class _FormattingPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _FormattingPainter old) =>
       old.spoilerPhase != spoilerPhase ||
+      old.spoilerFrame != spoilerFrame ||
       old.scrollOffset != scrollOffset ||
       old.isDark != isDark ||
       !identical(old.entities, entities) ||
