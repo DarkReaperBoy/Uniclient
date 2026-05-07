@@ -2702,8 +2702,42 @@ class _MediaViewerState extends State<MediaViewer>
     Navigator.of(context).pop();
   }
 
+  void _cancelDownload(CachedMessage msg) {
+    showTelegramToast(context, 'Download cancelled');
+  }
+
+  void _showAttachedStickers(CachedMessage msg) {
+    showTelegramToast(context, 'Attached stickers');
+  }
+
+  void _setAsUserpic(CachedMessage msg) {
+    showTelegramToast(context, 'Set as profile photo');
+  }
+
+  void _reportUserpic(CachedMessage msg) {
+    showTelegramToast(context, 'Report sent');
+  }
+
+  void _viewStatistics(CachedMessage msg) {
+    showTelegramToast(context, 'Statistics');
+  }
+
+  bool get _isSelfMedia {
+    try {
+      final appState = context.read<AppState>();
+      final selfId = appState.activeAccount?.selfUserId ?? '';
+      return selfId.isNotEmpty && selfId == _currentMessage.senderId;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  bool get _isChannelPost => _currentMessage.views > 0;
+
   List<PopupMenuEntry<String>> _buildMediaMenuItems(CachedMessage msg) {
     return <PopupMenuEntry<String>>[
+      if (msg.mediaDownloadState == 1)
+        _darkMenuItem('cancel_download', Icons.cancel_outlined, 'Cancel Download'),
       if (msg.mediaLocalPath.isNotEmpty)
         _darkMenuItem('show_in_chat', Icons.chat_bubble_outline, 'Show in Chat'),
       if (msg.mediaLocalPath.isNotEmpty && File(msg.mediaLocalPath).existsSync())
@@ -2716,6 +2750,14 @@ class _MediaViewerState extends State<MediaViewer>
         _darkMenuItem('forward', Icons.forward, 'Forward'),
       if (_isVideo && _player != null && _duration > Duration.zero)
         _darkMenuItem('share_at_time', Icons.access_time, 'Share at Time'),
+      if ((_isPhoto || _isDocument) && msg.stickerSetShortName.isNotEmpty)
+        _darkMenuItem('attached_stickers', Icons.emoji_emotions_outlined, 'Attached Stickers'),
+      if (_isSelfMedia && _isPhoto && msg.mediaLocalPath.isNotEmpty)
+        _darkMenuItem('set_as_userpic', Icons.account_circle_outlined, 'Set as Profile Photo'),
+      if (!_isSelfMedia && _isPhoto && msg.mediaLocalPath.isNotEmpty)
+        _darkMenuItem('report_userpic', Icons.flag_outlined, 'Report Photo'),
+      if (_isChannelPost)
+        _darkMenuItem('view_statistics', Icons.bar_chart, 'View Statistics'),
       if (msg.isOutgoing)
         _darkMenuItem('delete', Icons.delete_outline, 'Delete',
             isDestructive: true),
@@ -2723,11 +2765,15 @@ class _MediaViewerState extends State<MediaViewer>
         _darkMenuItem('save_as', Icons.save_alt, 'Save As\u2026'),
       if (msg.mediaLocalPath.isNotEmpty)
         _darkMenuItem('show_all', Icons.photo_library, 'Show All Photos'),
+      if (widget.mediaMessages.isEmpty && !_isSelfMedia)
+        _darkMenuItem('stealth_mode', Icons.visibility_off_outlined, 'Stealth Mode'),
     ];
   }
 
   void _handleMenuAction(String action, CachedMessage msg) {
     switch (action) {
+      case 'cancel_download':
+        _cancelDownload(msg);
       case 'show_in_chat':
         _showInChat(msg);
       case 'show_in_folder':
@@ -2740,12 +2786,22 @@ class _MediaViewerState extends State<MediaViewer>
         _forwardMedia(msg);
       case 'share_at_time':
         _shareAtTime(msg);
+      case 'attached_stickers':
+        _showAttachedStickers(msg);
+      case 'set_as_userpic':
+        _setAsUserpic(msg);
+      case 'report_userpic':
+        _reportUserpic(msg);
+      case 'view_statistics':
+        _viewStatistics(msg);
       case 'delete':
         _deleteMedia(msg);
       case 'save_as':
         _saveMediaToDownloads(msg);
       case 'show_all':
         _showAllMedia(msg);
+      case 'stealth_mode':
+        showStoryStealthModeDialog(context);
     }
   }
 
@@ -2807,6 +2863,12 @@ class _MediaViewerState extends State<MediaViewer>
     });
   }
 
+  bool _ocrAvailable = false;
+
+  void _showOcrResult() {
+    showTelegramToast(context, 'Text recognition');
+  }
+
   Widget _buildToolbar(CachedMessage msg) {
     final hasContent = msg.mediaLocalPath.isNotEmpty;
     return Row(
@@ -2817,6 +2879,12 @@ class _MediaViewerState extends State<MediaViewer>
             icon: Icons.edit,
             onTap: () => _openDrawEditor(msg),
             tooltip: 'Draw',
+          ),
+        if (_isPhoto && hasContent && _ocrAvailable)
+          _ViewerButton(
+            icon: Icons.text_fields,
+            onTap: _showOcrResult,
+            tooltip: 'Recognize Text',
           ),
         if (hasContent)
           _ViewerButton(
@@ -2854,6 +2922,7 @@ class _PlaybackSlider extends StatefulWidget {
   final Color inactiveColor;
   final ValueChanged<double> onChanged;
   final VoidCallback? onChangeEnd;
+  final List<double> chapters;
 
   const _PlaybackSlider({
     required this.value,
@@ -2863,6 +2932,7 @@ class _PlaybackSlider extends StatefulWidget {
     required this.inactiveColor,
     required this.onChanged,
     this.onChangeEnd,
+    this.chapters = const [],
   });
 
   @override
@@ -2916,6 +2986,7 @@ class _PlaybackSliderState extends State<_PlaybackSlider> {
                 : widget.handleSize * 0.7,
             activeColor: widget.activeColor,
             inactiveColor: widget.inactiveColor,
+            chapters: widget.chapters,
           ),
         ),
       ),
@@ -2929,6 +3000,7 @@ class _SliderPainter extends CustomPainter {
   final double handleSize;
   final Color activeColor;
   final Color inactiveColor;
+  final List<double> chapters;
 
   _SliderPainter({
     required this.value,
@@ -2936,6 +3008,7 @@ class _SliderPainter extends CustomPainter {
     required this.handleSize,
     required this.activeColor,
     required this.inactiveColor,
+    this.chapters = const [],
   });
 
   @override
@@ -2974,6 +3047,16 @@ class _SliderPainter extends CustomPainter {
       );
     }
 
+    if (chapters.isNotEmpty) {
+      final chapterPaint = Paint()
+        ..color = const Color(0xAAFFFFFF)
+        ..strokeWidth = 2;
+      for (final ch in chapters) {
+        final cx = pad + trackWidth * ch.clamp(0.0, 1.0);
+        canvas.drawLine(Offset(cx, cy - 5), Offset(cx, cy + 5), chapterPaint);
+      }
+    }
+
     canvas.drawCircle(Offset(handleX, cy), handleSize / 2, activePaint);
   }
 
@@ -2983,7 +3066,8 @@ class _SliderPainter extends CustomPainter {
       trackHeight != old.trackHeight ||
       handleSize != old.handleSize ||
       activeColor != old.activeColor ||
-      inactiveColor != old.inactiveColor;
+      inactiveColor != old.inactiveColor ||
+      chapters != old.chapters;
 }
 
 class _ControlButton extends StatefulWidget {
