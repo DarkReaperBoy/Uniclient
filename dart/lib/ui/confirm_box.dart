@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 
 import '../models/engine_models.dart';
@@ -17,6 +18,7 @@ const double kBoxMaxListHeight = 492;
 const double kBoxMediumSkip = 20;
 const double kBoxLittleSkip = 10;
 const Duration kBoxDuration = Duration(milliseconds: 200);
+const IconData kBoxButtonCloseIcon = Icons.close;
 
 // ─── showTelegramBox — spec §36.1 animation: 200ms easeOutCirc dim, linear
 //     opacity on the box itself ───────────────────────────────────────────────
@@ -205,7 +207,7 @@ class _TelegramBoxState extends State<TelegramBox> {
               width: kBoxTitleHeight,
               height: kBoxTitleHeight,
               child: IconButton(
-                icon: Icon(Icons.close, size: 20, color: fg),
+                icon: Icon(kBoxButtonCloseIcon, size: 20, color: fg),
                 onPressed: () => Navigator.of(context).pop(),
               ),
             ),
@@ -270,38 +272,55 @@ Future<void> showConfirmBox(
   bool isDestructive = false,
   String? title,
   bool inform = false,
+  bool strictCancel = false,
+  void Function(String)? labelFilter,
+  EdgeInsets? labelPadding,
 }) {
+  bool confirmed = false;
+  bool explicitCancel = false;
+
   return showTelegramBox<void>(
     context: context,
     builder: (ctx) {
       final textFg = ctx.palette.boxTextFg;
+      final linkFg = ctx.palette.windowActiveTextFg;
 
       void confirm() {
+        confirmed = true;
         Navigator.of(ctx).pop();
         onConfirm?.call();
       }
+
+      void cancel() {
+        explicitCancel = true;
+        Navigator.of(ctx).pop();
+        onCancel?.call();
+      }
+
+      final defaultPadding = title != null
+          ? EdgeInsets.fromLTRB(
+              kBoxPadding.left, 0, kBoxPadding.right, kBoxPadding.bottom)
+          : kBoxPadding;
+
+      final bodyWidget = labelFilter != null
+          ? _buildLinkableText(text, textFg, linkFg, labelFilter)
+          : Text(
+              text,
+              style: TextStyle(fontSize: 14, height: 22 / 14, color: textFg),
+            );
 
       return TelegramBox(
         title: title,
         onConfirm: confirm,
         content: Padding(
-          padding: title != null
-              ? EdgeInsets.fromLTRB(
-                  kBoxPadding.left, 0, kBoxPadding.right, kBoxPadding.bottom)
-              : kBoxPadding,
-          child: Text(
-            text,
-            style: TextStyle(fontSize: 14, height: 22 / 14, color: textFg),
-          ),
+          padding: labelPadding ?? defaultPadding,
+          child: bodyWidget,
         ),
         buttons: [
           if (!inform)
             TelegramBoxButton(
               text: cancelText ?? 'Cancel',
-              onPressed: () {
-                Navigator.of(ctx).pop();
-                onCancel?.call();
-              },
+              onPressed: cancel,
             ),
           TelegramBoxButton(
             text: confirmText ?? 'OK',
@@ -311,6 +330,52 @@ Future<void> showConfirmBox(
         ],
       );
     },
+  ).then((_) {
+    if (!confirmed && !explicitCancel && !strictCancel) {
+      onCancel?.call();
+    }
+  });
+}
+
+Widget _buildLinkableText(
+  String text,
+  Color textFg,
+  Color linkFg,
+  void Function(String) onLinkTap,
+) {
+  final urlPattern = RegExp(r'https?://\S+');
+  final matches = urlPattern.allMatches(text);
+
+  if (matches.isEmpty) {
+    return Text(
+      text,
+      style: TextStyle(fontSize: 14, height: 22 / 14, color: textFg),
+    );
+  }
+
+  final spans = <InlineSpan>[];
+  int lastEnd = 0;
+  for (final match in matches) {
+    if (match.start > lastEnd) {
+      spans.add(TextSpan(text: text.substring(lastEnd, match.start)));
+    }
+    final url = match.group(0)!;
+    spans.add(TextSpan(
+      text: url,
+      style: TextStyle(color: linkFg, decoration: TextDecoration.underline),
+      recognizer: TapGestureRecognizer()..onTap = () => onLinkTap(url),
+    ));
+    lastEnd = match.end;
+  }
+  if (lastEnd < text.length) {
+    spans.add(TextSpan(text: text.substring(lastEnd)));
+  }
+
+  return Text.rich(
+    TextSpan(
+      style: TextStyle(fontSize: 14, height: 22 / 14, color: textFg),
+      children: spans,
+    ),
   );
 }
 
@@ -1131,21 +1196,22 @@ class _ReportReasonBox extends StatelessWidget {
   const _ReportReasonBox({required this.title});
 
   static const _reasons = [
-    ('Spam', 'spam'),
-    ('Fake Account', 'fake'),
-    ('Violence', 'violence'),
-    ('Child Abuse', 'child_abuse'),
-    ('Pornography', 'pornography'),
-    ('Copyright', 'copyright'),
-    ('Illegal Drugs', 'illegal_drugs'),
-    ('Personal Details', 'personal_details'),
-    ('Other', 'other'),
+    ('Spam', 'spam', Icons.report_gmailerrorred_outlined),
+    ('Fake Account', 'fake', Icons.person_off_outlined),
+    ('Violence', 'violence', Icons.gavel_outlined),
+    ('Child Abuse', 'child_abuse', Icons.shield_outlined),
+    ('Pornography', 'pornography', Icons.visibility_off_outlined),
+    ('Copyright', 'copyright', Icons.copyright_outlined),
+    ('Illegal Drugs', 'illegal_drugs', Icons.medication_outlined),
+    ('Personal Details', 'personal_details', Icons.badge_outlined),
+    ('Other', 'other', Icons.more_horiz),
   ];
 
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
     final textFg = p.boxTextFg;
+    final iconFg = p.windowSubTextFg;
     final hoverBg = p.windowBgOver;
 
     return TelegramBox(
@@ -1162,13 +1228,21 @@ class _ReportReasonBox extends StatelessWidget {
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.fromLTRB(24, 11, 24, 11),
-                child: Text(
-                  r.$1,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w400,
-                    color: textFg,
-                  ),
+                child: Row(
+                  children: [
+                    Icon(r.$3, size: 20, color: iconFg),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        r.$1,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                          color: textFg,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             );

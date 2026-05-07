@@ -15806,6 +15806,7 @@ class _ShareBox extends StatefulWidget {
   final bool hasCaptions;
   final String? copyLink;
   final bool forceDark;
+  final int starsCount;
 
   const _ShareBox({
     required this.chats,
@@ -15815,6 +15816,7 @@ class _ShareBox extends StatefulWidget {
     this.hasCaptions = false,
     this.copyLink,
     this.forceDark = false,
+    this.starsCount = 0,
   });
 
   @override
@@ -16151,6 +16153,19 @@ class _ShareBoxState extends State<_ShareBox> {
             child: Text('Cancel', style: TextStyle(color: hintColor)),
           ),
           const SizedBox(width: 8),
+          if (widget.starsCount > 0) ...[
+            Icon(Icons.star_rounded, size: 16, color: accentColor),
+            const SizedBox(width: 2),
+            Text(
+              '${widget.starsCount}',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: accentColor,
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
           GestureDetector(
             onSecondaryTapUp: _selected.isEmpty ? null : (details) {
               _showSendMenu(context, isDark, details.globalPosition);

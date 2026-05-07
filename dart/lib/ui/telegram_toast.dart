@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 enum ToastAttach { none, left, top, right, bottom }
@@ -236,5 +237,179 @@ _ToastPosition _positionForAttach(ToastAttach attach) {
         center: false,
         alignment: Alignment.centerRight,
       );
+  }
+}
+
+// ─── Sticker / Emoji Pack Toast — spec §36.15 ──────────────────────────────
+
+void showStickerToast(
+  BuildContext context, {
+  required String packName,
+  int packCount = 0,
+  bool isReaction = false,
+  VoidCallback? onOpenPack,
+}) {
+  final overlay = Overlay.of(context, rootOverlay: true);
+  late final OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (_) => _StickerToast(
+      packName: packName,
+      packCount: packCount,
+      isReaction: isReaction,
+      onOpenPack: onOpenPack,
+      onDone: () {
+        entry.remove();
+      },
+    ),
+  );
+  overlay.insert(entry);
+}
+
+class _StickerToast extends StatefulWidget {
+  final String packName;
+  final int packCount;
+  final bool isReaction;
+  final VoidCallback? onOpenPack;
+  final VoidCallback onDone;
+
+  const _StickerToast({
+    required this.packName,
+    required this.packCount,
+    required this.isReaction,
+    this.onOpenPack,
+    required this.onDone,
+  });
+
+  @override
+  State<_StickerToast> createState() => _StickerToastState();
+}
+
+class _StickerToastState extends State<_StickerToast>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  Timer? _holdTimer;
+  bool _hiding = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: _kFadeInMs),
+      reverseDuration: const Duration(milliseconds: _kFadeOutMs),
+    );
+    _ctrl.forward().then((_) {
+      if (!mounted) return;
+      _holdTimer = Timer(const Duration(milliseconds: 1500), _startHide);
+    });
+  }
+
+  void _startHide() {
+    if (!mounted || _hiding) return;
+    _hiding = true;
+    _ctrl.reverse().then((_) {
+      if (mounted) widget.onDone();
+    });
+  }
+
+  @override
+  void dispose() {
+    _holdTimer?.cancel();
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  TextSpan _buildMessage() {
+    const normal = TextStyle(
+      color: _kToastFg,
+      fontSize: 13,
+      fontWeight: FontWeight.normal,
+      decoration: TextDecoration.none,
+      height: 1.3,
+    );
+    final link = normal.copyWith(
+      fontWeight: FontWeight.w600,
+      decoration: TextDecoration.underline,
+    );
+
+    if (widget.isReaction) {
+      return TextSpan(
+        style: normal,
+        children: [
+          const TextSpan(text: 'This reaction is from the '),
+          TextSpan(
+            text: widget.packName,
+            style: link,
+            recognizer: TapGestureRecognizer()
+              ..onTap = widget.onOpenPack,
+          ),
+          const TextSpan(text: ' pack.'),
+        ],
+      );
+    }
+
+    if (widget.packCount > 1) {
+      return TextSpan(
+        style: normal,
+        children: [
+          const TextSpan(text: 'This message contains emoji from '),
+          TextSpan(
+            text: '${widget.packCount} packs',
+            style: link,
+            recognizer: TapGestureRecognizer()
+              ..onTap = widget.onOpenPack,
+          ),
+          const TextSpan(text: '.'),
+        ],
+      );
+    }
+
+    return TextSpan(
+      style: normal,
+      children: [
+        const TextSpan(text: 'This message contains emoji from '),
+        TextSpan(
+          text: '${widget.packName} pack',
+          style: link,
+          recognizer: TapGestureRecognizer()
+            ..onTap = widget.onOpenPack,
+        ),
+        const TextSpan(text: '.'),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final toastChild = Container(
+      constraints: const BoxConstraints(maxWidth: _kMaxWidth),
+      padding: _kPadding,
+      decoration: BoxDecoration(
+        color: _kToastBg,
+        borderRadius: BorderRadius.circular(_kRadius),
+      ),
+      child: Text.rich(
+        _buildMessage(),
+        textAlign: TextAlign.center,
+      ),
+    );
+
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: _kMargin * 4,
+      child: IgnorePointer(
+        ignoring: false,
+        child: Center(
+          child: FadeTransition(
+            opacity: _hiding
+                ? Tween<double>(begin: 1, end: 0).animate(CurvedAnimation(
+                    parent: ReverseAnimation(_ctrl), curve: Curves.easeIn))
+                : CurvedAnimation(parent: _ctrl, curve: Curves.easeOut),
+            child: toastChild,
+          ),
+        ),
+      ),
+    );
   }
 }
