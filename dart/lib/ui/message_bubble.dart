@@ -307,7 +307,9 @@ class _MessageBubbleState extends State<MessageBubble> {
         ),
       ));
     } else {
+      final showSec = context.read<AppState>().showMessageSeconds;
       for (final reactor in filtered) {
+        final hasDate = reactor.date > 0;
         items.add(PopupMenuItem<String>(
           value: reactor.peerId,
           height: 40,
@@ -317,15 +319,47 @@ class _MessageBubbleState extends State<MessageBubble> {
               _ReactorAvatar(name: reactor.peerName, size: 30),
               const SizedBox(width: 14),
               Expanded(
-                child: Text(
-                  reactor.peerName.isNotEmpty ? reactor.peerName : 'User',
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: textColor,
-                  ),
-                ),
+                child: hasDate
+                  ? Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          reactor.peerName.isNotEmpty ? reactor.peerName : 'User',
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: textColor,
+                          ),
+                        ),
+                        const SizedBox(height: 1),
+                        Row(
+                          children: [
+                            Icon(Icons.favorite, size: 12, color: subColor),
+                            const SizedBox(width: 3),
+                            Expanded(
+                              child: Text(
+                                formatReadDateLocal(reactor.date, showSeconds: showSec),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                                style: TextStyle(fontSize: 12, color: subColor),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    )
+                  : Text(
+                      reactor.peerName.isNotEmpty ? reactor.peerName : 'User',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
+                      ),
+                    ),
               ),
             ],
           ),

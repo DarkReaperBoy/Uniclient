@@ -274,9 +274,12 @@ class _ReactionsDetailPanelState extends State<ReactionsDetailPanel> {
   }
 
   String _buildTitle() {
-    final reactions = widget.message.reactions;
-    final totalCount = reactions.fold<int>(0, (s, r) => s + r.count);
-    if (totalCount > 0) return 'Reactions · $totalCount';
+    if (_readCount > 0) {
+      final mt = widget.message.mediaType;
+      if (mt == 3 || mt == 4) return 'Listened by $_readCount';
+      if (mt == 2 || mt == 5) return 'Watched by $_readCount';
+      return 'Seen by $_readCount';
+    }
     return 'Reactions';
   }
 
@@ -717,7 +720,7 @@ class _ReadParticipantRow extends StatelessWidget {
     final name = participant.name.isNotEmpty ? participant.name : 'User ${participant.userId}';
     final hasDate = participant.date > 0;
     final showSec = context.read<AppState>().showMessageSeconds;
-    final dateStr = _formatReadDateLocal(participant.date, showSeconds: showSec);
+    final dateStr = formatReadDateLocal(participant.date, showSeconds: showSec);
 
     return InkWell(
       onTap: onTap,
@@ -774,7 +777,7 @@ class _ReadParticipantRow extends StatelessWidget {
   }
 }
 
-String _formatReadDateLocal(int unixSeconds, {bool showSeconds = false}) {
+String formatReadDateLocal(int unixSeconds, {bool showSeconds = false}) {
   if (unixSeconds <= 0) return '';
   final dt = DateTime.fromMillisecondsSinceEpoch(unixSeconds * 1000);
   final now = DateTime.now();
