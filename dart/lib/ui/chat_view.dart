@@ -6829,7 +6829,11 @@ class _MessageList extends StatelessWidget {
           return Column(
             key: isJumpHighlight ? highlightMsgKey : null,
             children: [
-              if (showDate) _DateSeparator(timestamp: msg.timestamp, isScheduled: isScheduledView),
+              if (showDate) _DateSeparator(
+                timestamp: isScheduledView && msg.scheduleDate > 0 ? msg.scheduleDate * 1000 : msg.timestamp,
+                isScheduled: isScheduledView,
+                isUntilOnline: isScheduledView && msg.isScheduledUntilOnline,
+              ),
               if (showUnreadBar) _UnreadBar(count: openedUnreadCount),
               PlatformGestureDetector(
                 behavior: inSelectionMode ? HitTestBehavior.opaque : HitTestBehavior.deferToChild,
@@ -6907,7 +6911,11 @@ class _MessageList extends StatelessWidget {
         return Column(
           key: isJumpHighlight ? highlightMsgKey : null,
           children: [
-            if (showDate) _DateSeparator(timestamp: msg.timestamp, isScheduled: isScheduledView),
+            if (showDate) _DateSeparator(
+                timestamp: isScheduledView && msg.scheduleDate > 0 ? msg.scheduleDate * 1000 : msg.timestamp,
+                isScheduled: isScheduledView,
+                isUntilOnline: isScheduledView && msg.isScheduledUntilOnline,
+              ),
             if (showUnreadBar) _UnreadBar(count: openedUnreadCount),
             _SwipeToReplyRow(
               onReply: !inSelectionMode ? () => onReply(msg.msgId) : null,
@@ -7123,8 +7131,9 @@ class _DisplayItem {
 class _DateSeparator extends StatelessWidget {
   final int timestamp;
   final bool isScheduled;
+  final bool isUntilOnline;
 
-  const _DateSeparator({required this.timestamp, this.isScheduled = false});
+  const _DateSeparator({required this.timestamp, this.isScheduled = false, this.isUntilOnline = false});
 
   @override
   Widget build(BuildContext context) {
@@ -7133,7 +7142,9 @@ class _DateSeparator extends StatelessWidget {
     final diff = now.difference(dt);
 
     String text;
-    if (isScheduled) {
+    if (isScheduled && isUntilOnline) {
+      text = 'Scheduled until online';
+    } else if (isScheduled) {
       text = 'Scheduled for ${_months[dt.month - 1]} ${dt.day}';
     } else if (diff.inDays == 0 && dt.day == now.day) {
       text = 'Today';
@@ -14733,8 +14744,8 @@ class _ScheduledToggleButtonState extends State<_ScheduledToggleButton> {
                     child: Container(
                       width: 8,
                       height: 8,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFdf3f40),
+                      decoration: BoxDecoration(
+                        color: context.palette.attentionButtonFg,
                         shape: BoxShape.circle,
                       ),
                     ),

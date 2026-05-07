@@ -6,6 +6,7 @@ import '../theme/telegram_palette.dart';
 import 'package:flutter/services.dart';
 
 import 'confirm_box.dart';
+import 'popup_menu.dart';
 
 const double _cellW = 48;
 const double _cellH = 40;
@@ -677,16 +678,11 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
     if (!widget.isPremium) return;
     final box = context.findRenderObject() as RenderBox;
     final position = box.localToGlobal(Offset(0, box.size.height));
-    showMenu<int>(
+    showTelegramMenu<int>(
       context: context,
-      position: RelativeRect.fromLTRB(
-        position.dx + 40,
-        position.dy - 40,
-        position.dx + 200,
-        position.dy,
-      ),
+      position: position,
       items: _repeatPeriods.entries
-          .map((e) => PopupMenuItem<int>(value: e.key, child: Text(e.value)))
+          .map((e) => TelegramMenuItem<int>(value: e.key, label: e.value))
           .toList(),
     ).then((value) {
       if (value != null && mounted) {
