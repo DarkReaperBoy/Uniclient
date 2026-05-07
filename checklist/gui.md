@@ -57,16 +57,6 @@
 ## &sect;26 -- Admin Tools
 
 ## &sect;27 -- Passcode Lock Screen
-- [ ] spec &sect;27.1 "Settings Entry Point": no "Local passcode" row in Privacy & Security settings with On/Off label and menuIconLock icon found anywhere in the codebase.
-- [ ] spec &sect;27.2 "Passcode Create Flow": no Lottie "local_passcode_enter" animation, two PasswordInput fields (256px wide), description text, or validation logic (mismatch error "Passcodes don't match") found.
-- [ ] spec &sect;27.3 "Passcode Check Flow": no single-field verify-current-passcode page with flood protection found.
-- [ ] spec &sect;27.4 "Passcode Management Page": no change passcode, auto-lock timer, system unlock toggle, or disable passcode buttons found.
-- [ ] spec &sect;27.6 "Auto-Lock Timer Dialog (AutoLockBox)": no auto-lock box with 5 radio presets (1min/5min/1hr/5hr/Custom) and HH:MM TimeInput widget found.
-- [ ] spec &sect;27.8 "Lock Screen (PasscodeLockWidget)": no full-window lock overlay with 225px passcode input at height/3, 42px submit button, logout link, or system unlock icon button found.
-- [ ] spec &sect;27.9 "Lock Screen Transition Animation": no slide animation with easeOutCirc/easeInCirc easing for lock/unlock transitions found.
-- [ ] spec &sect;27.11 "Keyboard Shortcut: Ctrl+L": no Ctrl+L lock shortcut handler found.
-- [ ] spec &sect;27.12 "Auto-Lock Timer": no auto-lock timer with checkAutoLock() algorithm, kAutoLockTimeoutLateMs=3000ms grace, or lockByPasscode()/unlockPasscode() sequences found.
-- [ ] spec &sect;27.13 "Notification Behavior When Locked": no notification content hiding when passcode-locked found.
 
 ## &sect;28 -- Two-Factor Authentication Setup
 - [ ] spec &sect;28.1 "Entry Point": no "Two-Step Verification" button in Privacy & Security with dynamic On/Off/Loading label found.
