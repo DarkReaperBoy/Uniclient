@@ -651,7 +651,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
       ),
       _PrivacyIconRow(
         icon: Icons.lock,
-        label: 'Passcode Lock',
+        label: 'Local passcode',
         rightLabel: _hasPasscode ? 'On' : 'Off',
         textColor: textColor,
         subtextColor: subtextColor,
@@ -5071,7 +5071,7 @@ class _LocalPasscodeCreateState extends State<_LocalPasscodeCreate> {
 
     await _writePasscodeData(widget.configDir, {
       'hash': _hashPasscode(first),
-      'autoLockSeconds': 0,
+      'autoLockSeconds': 300,
     });
 
     if (!mounted) return;
@@ -5104,7 +5104,7 @@ class _LocalPasscodeCreateState extends State<_LocalPasscodeCreate> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
-          'Passcode Lock',
+          'Local Passcode',
           style: TextStyle(
               fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
         ),
@@ -5299,23 +5299,26 @@ class _LocalPasscodeCheckState extends State<_LocalPasscodeCheck> {
       return;
     }
 
+    final appState = context.read<AppState>();
+    if (!appState.passcodeCanTry()) {
+      setState(() => _error = 'Please try again later');
+      return;
+    }
+
     setState(() {
       _loading = true;
       _error = '';
     });
 
-    final data = await _readPasscodeData(widget.configDir);
-    final storedHash = data['hash'] as String? ?? '';
-
-    if (!mounted) return;
-
-    if (_hashPasscode(entered) == storedHash) {
-      widget.onSuccess();
+    if (appState.checkPasscode(entered)) {
+      if (mounted) widget.onSuccess();
     } else {
-      setState(() {
-        _loading = false;
-        _error = 'Wrong passcode';
-      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = 'Wrong passcode';
+        });
+      }
     }
   }
 
@@ -5345,7 +5348,7 @@ class _LocalPasscodeCheckState extends State<_LocalPasscodeCheck> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
-          'Passcode Lock',
+          'Local Passcode',
           style: TextStyle(
               fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
         ),
@@ -5599,7 +5602,7 @@ class _LocalPasscodeManageState extends State<_LocalPasscodeManage> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
-          'Passcode Lock',
+          'Local Passcode',
           style: TextStyle(
               fontSize: 17, fontWeight: FontWeight.w600, color: textColor),
         ),
@@ -5688,7 +5691,7 @@ class _AutoLockBoxState extends State<_AutoLockBox> {
   late int _selected;
   final _hoursController = TextEditingController();
   final _minutesController = TextEditingController();
-  static const _presets = [0, 60, 300, 3600, 18000];
+  static const _presets = [60, 300, 3600, 18000];
   static const _customSentinel = -1;
 
   @override
@@ -5731,7 +5734,6 @@ class _AutoLockBoxState extends State<_AutoLockBox> {
         context.palette.windowBgActive;
 
     final labels = {
-      0: 'Disabled',
       60: '1 minute',
       300: '5 minutes',
       3600: '1 hour',
