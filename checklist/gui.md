@@ -84,12 +84,8 @@
 
 ## §41 — Message Formatting Toolbar
 
-- [ ] spec §41.1 "No floating toolbar": spec says there is NO floating toolbar on text selection, only right-click context menu + keyboard shortcuts; code implements `_ComposeFormattingOverlay` which appears to be a context-menu-based approach — `chat_view.dart:11423`
-- [ ] spec §41.4 "Date formatting option": spec says Ctrl+Shift+D inserts a date via `CalendarBox` then `ChooseDateTimeBox`; code likely does not implement this custom date entity formatting — needs verification in `chat_view.dart`
-- [ ] spec §41.4 "Quote formatting": spec says Ctrl+Shift+. applies blockquote; needs verification that this keyboard shortcut is bound — `chat_view.dart`
-- [ ] spec §41.6 "Edit Link Dialog": spec says Ctrl+K opens `EditLinkBox` with text field + URL field, 320px wide box; needs verification of implementation — `chat_view.dart`
-- [ ] spec §41.7 "Code block language dialog": spec says clicking a code block's language header opens `EditCodeLanguageBox`; needs verification — `chat_view.dart`
-- [ ] spec §41.9 "Markdown auto-conversion disabled": spec says markdown syntax is NOT auto-converted while typing, only at send time; needs verification — `chat_view.dart`
+- [ ] spec §41.4 "Date formatting option": spec says Ctrl+Shift+D inserts a date via `CalendarBox` then `ChooseDateTimeBox`; code calls `showCalendarBox` only — missing the `ChooseDateTimeBox` (time picker) second step — `chat_view.dart:13536`
+- [ ] spec §41.7 "Code block language dialog": spec says clicking the language header strip opens `EditCodeLanguageBox`; `_ComposeFormattingOverlay` is wrapped in `IgnorePointer` so the header tap is swallowed by the TextField — dialog only accessible via context menu — `chat_view.dart:14031`
 
 ## §42 — Reactions Detail Popup
 
