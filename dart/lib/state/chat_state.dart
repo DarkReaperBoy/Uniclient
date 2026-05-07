@@ -355,6 +355,24 @@ class ChatState extends ChangeNotifier {
       }
     }
     notifyListeners();
+    if (_selectedReactionTagIds.isNotEmpty) {
+      _ensureEnoughTaggedMessages();
+    }
+  }
+
+  void _ensureEnoughTaggedMessages() {
+    const minVisible = 10;
+    const maxBatches = 5;
+    var batches = 0;
+    while (_hasMoreMessages && batches < maxBatches) {
+      final matchCount = _messages.where((m) => m.reactions.any((r) {
+        final key = r.isCustomEmoji ? 'custom:${r.documentId}' : 'emoji:${r.emoji}';
+        return _selectedReactionTagIds.contains(key);
+      })).length;
+      if (matchCount >= minVisible) break;
+      _loadMessages();
+      batches++;
+    }
   }
 
   void clearReactionTagSelection() {
@@ -1157,6 +1175,7 @@ class ChatState extends ChangeNotifier {
 
   void openSavedSublist(SavedSublistInfo sublist) {
     _activeSublist = sublist;
+    _selectedReactionTagIds.clear();
     notifyListeners();
   }
 

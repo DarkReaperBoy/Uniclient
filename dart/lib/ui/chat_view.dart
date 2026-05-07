@@ -28,7 +28,7 @@ import '../state/chat_state.dart';
 import '../theme/theme.dart';
 import '../theme/wallpaper.dart';
 import '../data/emoji_data.dart';
-import 'chat_list_row.dart' show ForwardDragData, MyNotesUserpic, SavedMessagesUserpic;
+import 'chat_list_row.dart' show ForwardDragData, MyNotesUserpic, SavedMessagesUserpic, isSavedMessages;
 import 'custom_emoji_cache.dart';
 import 'reactions_detail.dart';
 import 'info_panel.dart';
@@ -2707,15 +2707,26 @@ class _ChatViewState extends State<ChatView>
     final engine = appState.filterEngine;
     final hasHidden = _hiddenMsgIds.isNotEmpty;
     final hasEngine = appState.filtersEnabled;
-
-    if (!hasHidden && !hasEngine) return messages;
-
     final chatState = context.read<ChatState>();
     final chatType = chatState.activeChat?.type;
+
+    final tagIds = chatState.selectedReactionTagIds;
+    final hasTagFilter = tagIds.isNotEmpty &&
+        chatState.activeChat != null &&
+        isSavedMessages(chatState.activeChat!);
+
+    if (!hasHidden && !hasEngine && !hasTagFilter) return messages;
 
     return messages.where((m) {
       if (hasHidden && _hiddenMsgIds.contains(m.msgId)) return false;
       if (hasEngine && engine.isFiltered(m, appState, chatType: chatType)) return false;
+      if (hasTagFilter) {
+        final hasMatch = m.reactions.any((r) {
+          final key = r.isCustomEmoji ? 'custom:${r.documentId}' : 'emoji:${r.emoji}';
+          return tagIds.contains(key);
+        });
+        if (!hasMatch) return false;
+      }
       return true;
     }).toList();
   }
