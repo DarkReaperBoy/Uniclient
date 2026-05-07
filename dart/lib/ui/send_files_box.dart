@@ -528,7 +528,11 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       ),
     );
     _captionDialogOpen = false;
-    controller.dispose();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        controller.dispose();
+      });
+    });
     if (result == null) return;
     setState(() {
       if (result.isEmpty) {
