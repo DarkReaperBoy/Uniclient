@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -63,8 +64,8 @@ class _ExportTopBarState extends State<ExportTopBar>
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              height: _exportTopBarHeight - 1,
-              color: palette.windowBg,
+              height: _exportTopBarHeight - 3,
+              color: palette.mediaPlayerBg,
               padding: const EdgeInsets.symmetric(horizontal: 14),
               child: Row(
                 children: [
@@ -101,17 +102,17 @@ class _ExportTopBarState extends State<ExportTopBar>
               ),
             ),
             SizedBox(
-              height: 1,
+              height: 3,
               child: Stack(
                 children: [
                   Positioned.fill(
-                    child: Container(color: shadowColor),
+                    child: Container(color: palette.mediaPlayerInactiveFg),
                   ),
                   FractionallySizedBox(
                     widthFactor: chatState.exportProgress.clamp(0.0, 1.0),
                     alignment: Alignment.centerLeft,
                     child: Container(
-                      color: palette.windowBgActive,
+                      color: palette.mediaPlayerActiveFg,
                     ),
                   ),
                 ],
@@ -162,10 +163,15 @@ class ExportTarget {
 }
 
 void showExportPanel(BuildContext context, ExportTarget target) {
-  showDialog(
+  showGeneralDialog(
     context: context,
     barrierDismissible: false,
-    builder: (ctx) => _ExportPanelDialog(target: target),
+    barrierColor: Colors.transparent,
+    pageBuilder: (ctx, anim, secondAnim) => _ExportPanelDialog(target: target),
+    transitionDuration: const Duration(milliseconds: 200),
+    transitionBuilder: (ctx, anim, secondAnim, child) {
+      return FadeTransition(opacity: anim, child: child);
+    },
   );
 }
 
@@ -238,6 +244,9 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
 
   // Output format
   _ExportFormat _format = _ExportFormat.html;
+
+  // Export output path
+  String _exportLocation = '';
 
   // Date range filter (per-chat/per-topic mode)
   DateTime? _fromDate;
@@ -312,6 +321,16 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     return 2000 + (i - 90) * 200;
   }
 
+  String get _defaultExportLocation {
+    final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '';
+    return home.isEmpty ? 'Downloads/TelegramExport' : '$home/Downloads/TelegramExport';
+  }
+
+  String get _displayExportLocation {
+    if (_exportLocation.isNotEmpty) return _exportLocation;
+    return 'Downloads/TelegramExport';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -368,6 +387,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
       _sizeSliderPos = (data['sizeSliderPos'] as num?)?.toDouble() ?? _sizeSliderPos;
       _sessions = (data['sessions'] as bool?) ?? _sessions;
       _otherData = (data['otherData'] as bool?) ?? _otherData;
+      _exportLocation = (data['exportLocation'] as String?) ?? '';
       final fmt = data['format'] as String?;
       if (fmt != null) {
         _format = _ExportFormat.values.firstWhere(
@@ -408,6 +428,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
         'sessions': _sessions,
         'otherData': _otherData,
         'format': _format.name,
+        'exportLocation': _exportLocation,
       }));
     } catch (_) {}
   }
@@ -423,6 +444,24 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   void _updateSetting(VoidCallback fn) {
     setState(fn);
     _scheduleSave();
+  }
+
+  Future<void> _pickExportFolder() async {
+    final result = await FilePicker.platform.getDirectoryPath();
+    if (result != null) {
+      _updateSetting(() => _exportLocation = result);
+    }
+  }
+
+  void _openExportFolder() {
+    final path = _exportLocation.isNotEmpty ? _exportLocation : _defaultExportLocation;
+    if (Platform.isLinux) {
+      Process.run('xdg-open', [path]);
+    } else if (Platform.isMacOS) {
+      Process.run('open', [path]);
+    } else if (Platform.isWindows) {
+      Process.run('explorer', [path]);
+    }
   }
 
   @override
@@ -1301,27 +1340,31 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   Widget _buildLocationLabel(Color accentColor, Color subtextColor) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(22, 8, 22, 8),
-      child: Row(
-        children: [
-          Text('Location: ', style: TextStyle(fontSize: 13, color: subtextColor)),
-          Expanded(
-            child: GestureDetector(
-              onTap: () {
-                // Would open folder picker in production
-              },
-              child: Text(
-                'Downloads/TelegramExport',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: accentColor,
-                  decoration: TextDecoration.underline,
-                  decorationColor: accentColor,
+      child: SizedBox(
+        height: 21,
+        child: Row(
+          children: [
+            Text('Location: ', style: TextStyle(fontSize: 13, color: subtextColor)),
+            Expanded(
+              child: GestureDetector(
+                onTap: _pickExportFolder,
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: Text(
+                    _displayExportLocation,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: accentColor,
+                      decoration: TextDecoration.underline,
+                      decorationColor: accentColor,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                overflow: TextOverflow.ellipsis,
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1531,14 +1574,17 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
           ),
           Text(' to ', style: TextStyle(fontSize: 13, color: subtextColor)),
           GestureDetector(
-            onTap: () {},
-            child: Text(
-              'Downloads/TelegramExport',
-              style: TextStyle(
-                fontSize: 13,
-                color: accentColor,
-                decoration: TextDecoration.underline,
-                decorationColor: accentColor,
+            onTap: _pickExportFolder,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: Text(
+                _displayExportLocation,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: accentColor,
+                  decoration: TextDecoration.underline,
+                  decorationColor: accentColor,
+                ),
               ),
             ),
           ),
@@ -1807,26 +1853,29 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
               ),
             ),
           ),
-        AnimatedOpacity(
-          opacity: _showSkipFile ? 1.0 : 0.0,
-          duration: const Duration(milliseconds: 200),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(22, 10, 22, 0),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: GestureDetector(
-                onTap: _showSkipFile ? _skipCurrentFile : null,
-                child: MouseRegion(
-                  cursor: _showSkipFile
-                      ? SystemMouseCursors.click
-                      : SystemMouseCursors.basic,
-                  child: Text(
-                    'Skip file',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: linkColor,
-                      decoration: TextDecoration.underline,
-                      decorationColor: linkColor,
+        SizedBox(
+          height: 28,
+          child: AnimatedOpacity(
+            opacity: _showSkipFile ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 200),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(22, 6, 22, 0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: GestureDetector(
+                  onTap: _showSkipFile ? _skipCurrentFile : null,
+                  child: MouseRegion(
+                    cursor: _showSkipFile
+                        ? SystemMouseCursors.click
+                        : SystemMouseCursors.basic,
+                    child: Text(
+                      'Skip file',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: linkColor,
+                        decoration: TextDecoration.underline,
+                        decorationColor: linkColor,
+                      ),
                     ),
                   ),
                 ),
@@ -1856,11 +1905,12 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
                 backgroundColor: attentionFg,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(22),
                 ),
+                padding: const EdgeInsets.only(top: 12),
                 textStyle: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               child: const Text('Stop'),
@@ -1956,13 +2006,17 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
             width: 200,
             height: 44,
             child: ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () {
+                _openExportFolder();
+                Navigator.of(context).pop();
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: activeFg,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(22),
                 ),
+                padding: const EdgeInsets.only(top: 12),
                 textStyle: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
@@ -2162,7 +2216,7 @@ class _CalendarBoxState extends State<_CalendarBox> {
                 child: Row(
                   children: _weekDays
                       .map((d) => SizedBox(
-                            width: (320 - 28) / 7,
+                            width: 42,
                             height: 30,
                             child: Center(
                               child: Text(d,
@@ -2215,7 +2269,7 @@ class _CalendarBoxState extends State<_CalendarBox> {
 
   Widget _buildDayGrid(int offset, int daysInMonth, Color textColor,
       Color subtextColor, Color accentColor) {
-    final cellWidth = (320.0 - 28) / 7;
+    const cellWidth = 42.0;
     const cellHeight = 38.0;
     const selectedSize = 32.0;
 
