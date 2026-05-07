@@ -1324,6 +1324,21 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
 
   String get _effectiveIconName => _selectedIconName ?? _getAutoIconName();
 
+  void _insertEmoji(String emoji) {
+    final text = _nameController.text;
+    final sel = _nameController.selection;
+    final chars = text.characters;
+    if (chars.length >= 12) return;
+    final offset = sel.isValid ? sel.baseOffset : text.length;
+    final newText = text.substring(0, offset) + emoji + text.substring(offset);
+    if (newText.characters.length > 12) return;
+    _nameController.text = newText;
+    final newOffset = offset + emoji.length;
+    _nameController.selection = TextSelection.collapsed(offset: newOffset);
+    if (!_userTyped) _userTyped = true;
+    setState(() {});
+  }
+
   void _showIconPicker() {
     final box = _iconToggleKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null) return;
@@ -1781,12 +1796,12 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
                                             borderRadius: BorderRadius.circular(8),
                                             borderSide: BorderSide.none,
                                           ),
-                                    contentPadding: const EdgeInsets.fromLTRB(14, 12, 87, 12),
+                                    contentPadding: const EdgeInsets.fromLTRB(14, 12, 100, 12),
                                   ),
                                   style: TextStyle(fontSize: 14, color: textColor),
                                 ),
                                 Positioned(
-                                  right: 46,
+                                  right: 65,
                                   top: 0,
                                   bottom: 0,
                                   child: Center(
@@ -1798,6 +1813,17 @@ class _EditFilterBoxState extends State<_EditFilterBox> {
                                             ? const Color(0xFFE53935)
                                             : subtextColor,
                                       ),
+                                    ),
+                                  ),
+                                ),
+                                Positioned(
+                                  right: 40,
+                                  top: 0,
+                                  bottom: 0,
+                                  child: Center(
+                                    child: _EmojiButton(
+                                      isDark: widget.isDark,
+                                      onEmojiSelected: _insertEmoji,
                                     ),
                                   ),
                                 ),
@@ -2994,6 +3020,145 @@ class _FilterIconToggleState extends State<_FilterIconToggle> {
               iconData,
               size: 22,
               color: _hovering ? hoverColor : mutedColor,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EmojiButton extends StatefulWidget {
+  final bool isDark;
+  final ValueChanged<String> onEmojiSelected;
+
+  const _EmojiButton({
+    required this.isDark,
+    required this.onEmojiSelected,
+  });
+
+  @override
+  State<_EmojiButton> createState() => _EmojiButtonState();
+}
+
+class _EmojiButtonState extends State<_EmojiButton> {
+  bool _hovering = false;
+
+  static const _commonEmoji = [
+    '\u{1F4AC}', '\u{2B50}', '\u{1F4E2}', '\u{1F3AE}', '\u{1F4DA}',
+    '\u{1F3A8}', '\u{2708}', '\u{1F3C6}', '\u{1F4BC}', '\u{1F3E0}',
+    '\u{2764}', '\u{1F451}', '\u{1F338}', '\u{1F389}', '\u{1F4B0}',
+    '\u{1F431}', '\u{1F436}', '\u{1F525}', '\u{2705}', '\u{1F4CC}',
+    '\u{1F512}', '\u{1F514}', '\u{1F4A1}', '\u{1F4DD}', '\u{1F30D}',
+    '\u{1F3B5}', '\u{1F4F7}', '\u{1F4E6}', '\u{26A1}', '\u{1F680}',
+  ];
+
+  void _showEmojiPicker() {
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final offset = box.localToGlobal(Offset.zero);
+    final bgColor = widget.isDark ? const Color(0xFF17212B) : Colors.white;
+    final headerColor = widget.isDark
+        ? const Color(0xFF6C7883)
+        : const Color(0xFF999999);
+
+    showDialog<String>(
+      context: context,
+      barrierColor: Colors.transparent,
+      builder: (ctx) => Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => Navigator.of(ctx).pop(),
+            ),
+          ),
+          Positioned(
+            left: offset.dx - 200,
+            top: offset.dy + 30,
+            child: Material(
+              elevation: 4,
+              borderRadius: BorderRadius.circular(12),
+              color: bgColor,
+              child: SizedBox(
+                width: 244,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 14, 0, 6),
+                        child: Text(
+                          'Emoji',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: headerColor,
+                          ),
+                        ),
+                      ),
+                      Wrap(
+                        children: [
+                          for (final emoji in _commonEmoji)
+                            GestureDetector(
+                              onTap: () => Navigator.of(ctx).pop(emoji),
+                              child: MouseRegion(
+                                cursor: SystemMouseCursors.click,
+                                child: SizedBox(
+                                  width: 36,
+                                  height: 36,
+                                  child: Center(
+                                    child: Text(
+                                      emoji,
+                                      style: const TextStyle(fontSize: 20),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ).then((emoji) {
+      if (emoji != null) {
+        widget.onEmojiSelected(emoji);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final normalColor = widget.isDark
+        ? const Color(0xFF3E546A)
+        : const Color(0xFFBBBBBB);
+    final hoverColor = widget.isDark
+        ? const Color(0xFF4E647A)
+        : const Color(0xFFAAAAAA);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _showEmojiPicker,
+        child: SizedBox(
+          width: 28,
+          height: 28,
+          child: Center(
+            child: Icon(
+              Icons.emoji_emotions_outlined,
+              size: 20,
+              color: _hovering ? hoverColor : normalColor,
             ),
           ),
         ),
