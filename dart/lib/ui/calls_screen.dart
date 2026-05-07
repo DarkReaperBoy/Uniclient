@@ -17,6 +17,15 @@ import 'confirm_box.dart';
 import 'popup_menu.dart';
 import 'settings_style.dart';
 import 'telegram_toast.dart';
+import 'call_panel.dart' show CallRatingDialog, showCallRatingDialog;
+import 'call_screen.dart' show MinimisedCallBar;
+
+export 'call_panel.dart' show CallRatingDialog, showCallRatingDialog;
+export 'call_screen.dart' show MinimisedCallBar;
+
+typedef RateCallBox = CallRatingDialog;
+void showRateCallDialog(BuildContext context, {required String callId}) =>
+    showCallRatingDialog(context, callId: callId);
 
 // ---------------------------------------------------------------------------
 // §34.2: showCallsBox — entry point (GenericBox pattern)
@@ -2638,7 +2647,7 @@ class _CameraPreviewPlaceholder extends StatelessWidget {
             Icon(Icons.videocam_off, size: 48, color: iconColor),
             const SizedBox(height: 8),
             Text(
-              'Camera preview',
+              'Camera not available on this platform',
               style: TextStyle(fontSize: 13, color: textColor),
             ),
           ],
@@ -2649,258 +2658,11 @@ class _CameraPreviewPlaceholder extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// §34.15: Active Call Top Bar — 38px colored bar at top of main window
+// §34.15: Active Call Top Bar — 38px colored bar at top of main window.
+// The real implementation is MinimisedCallBar in call_screen.dart, which is
+// wired into shell.dart's _buildLayout with gradient backgrounds, mute
+// cross-line animation, signal bars, userpic strip, and duration timer.
+// ActiveCallTopBar is a public alias for external references.
 // ---------------------------------------------------------------------------
 
-enum CallBarState { connecting, active, muted, forceMuted }
-
-class ActiveCallTopBar extends StatefulWidget {
-  final String peerName;
-  final String peerShortName;
-  final bool isMuted;
-  final bool isGroupCall;
-  final CallBarState barState;
-  final Duration callDuration;
-  final int signalStrength;
-  final VoidCallback? onMuteToggle;
-  final VoidCallback? onHangup;
-  final VoidCallback? onTap;
-
-  const ActiveCallTopBar({
-    super.key,
-    required this.peerName,
-    this.peerShortName = '',
-    this.isMuted = false,
-    this.isGroupCall = false,
-    this.barState = CallBarState.active,
-    this.callDuration = Duration.zero,
-    this.signalStrength = 4,
-    this.onMuteToggle,
-    this.onHangup,
-    this.onTap,
-  });
-
-  @override
-  State<ActiveCallTopBar> createState() => _ActiveCallTopBarState();
-}
-
-class _ActiveCallTopBarState extends State<ActiveCallTopBar>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _stateAnim;
-
-  @override
-  void initState() {
-    super.initState();
-    _stateAnim = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 150),
-      value: 1.0,
-    );
-  }
-
-  @override
-  void didUpdateWidget(ActiveCallTopBar old) {
-    super.didUpdateWidget(old);
-    if (old.barState != widget.barState) {
-      _stateAnim.forward(from: _stateAnim.value);
-    }
-  }
-
-  @override
-  void dispose() {
-    _stateAnim.dispose();
-    super.dispose();
-  }
-
-  Color _bgColor(TelegramPalette p) {
-    switch (widget.barState) {
-      case CallBarState.connecting:
-        return p.callBarBgMuted;
-      case CallBarState.active:
-        return p.callBarBg;
-      case CallBarState.muted:
-        return p.callBarBgMuted;
-      case CallBarState.forceMuted:
-        return p.callBarBgMuted;
-    }
-  }
-
-  String _formatDuration(Duration d) {
-    final hours = d.inHours;
-    final minutes = d.inMinutes.remainder(60);
-    final seconds = d.inSeconds.remainder(60);
-    if (hours > 0) {
-      return '$hours:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-    }
-    return '$minutes:${seconds.toString().padLeft(2, '0')}';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final p = context.palette;
-    final bg = _bgColor(p);
-    final fg = p.callBarFg;
-
-    return AnimatedBuilder(
-      animation: _stateAnim,
-      builder: (context, _) {
-        return GestureDetector(
-          onTap: widget.onTap,
-          child: Container(
-            height: 38,
-            color: bg,
-            child: Row(
-              children: [
-                // §34.15: Mute toggle (41x38)
-                SizedBox(
-                  width: 41,
-                  height: 38,
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: widget.onMuteToggle,
-                      splashColor: p.callBarMuteRipple.withValues(alpha: 0.3),
-                      child: Center(
-                        child: Icon(
-                          widget.isMuted ? Icons.mic_off : Icons.mic,
-                          size: 20,
-                          color: fg,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                // §34.15: Duration label (1:1 only)
-                if (!widget.isGroupCall) ...[
-                  const SizedBox(width: 10),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 10),
-                    child: Text(
-                      _formatDuration(widget.callDuration),
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: fg,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  // §34.15: Signal bars
-                  Padding(
-                    padding: const EdgeInsets.only(top: 13),
-                    child: _SignalBarsWidget(
-                      strength: widget.signalStrength,
-                      color: fg,
-                    ),
-                  ),
-                ],
-                const SizedBox(width: 10),
-                // §34.15: Info label (peer name)
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 5),
-                    child: Text(
-                      widget.peerName,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: fg,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ),
-                // §34.15: "End Call" label (1:1 only)
-                if (!widget.isGroupCall)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 10),
-                    child: Text(
-                      'End call',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: fg,
-                      ),
-                    ),
-                  ),
-                // §34.15: Hangup button (41x38)
-                SizedBox(
-                  width: 41,
-                  height: 38,
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: widget.onHangup,
-                      child: Center(
-                        child: Icon(
-                          Icons.call_end,
-                          size: 20,
-                          color: fg,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-// §34.15: Signal bars — 4 bars, 3px wide, 1px skip, 3-12px height range
-class _SignalBarsWidget extends StatelessWidget {
-  final int strength;
-  final Color color;
-
-  const _SignalBarsWidget({required this.strength, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      size: const Size(19, 12),
-      painter: _SignalBarsPainter(strength: strength, color: color),
-    );
-  }
-}
-
-class _SignalBarsPainter extends CustomPainter {
-  final int strength;
-  final Color color;
-
-  _SignalBarsPainter({required this.strength, required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const barCount = 4;
-    const barWidth = 3.0;
-    const skip = 1.0;
-    const minH = 3.0;
-    const maxH = 12.0;
-    final step = (maxH - minH) / (barCount - 1);
-
-    for (int i = 0; i < barCount; i++) {
-      final h = minH + step * i;
-      final x = i * (barWidth + skip);
-      final isActive = i < strength;
-      final paint = Paint()
-        ..color = isActive ? color : color.withValues(alpha: 0.5)
-        ..style = PaintingStyle.fill;
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(x, size.height - h, barWidth, h),
-          const Radius.circular(1),
-        ),
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_SignalBarsPainter oldDelegate) =>
-      strength != oldDelegate.strength || color != oldDelegate.color;
-}
+typedef ActiveCallTopBar = MinimisedCallBar;
