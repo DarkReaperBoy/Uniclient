@@ -565,6 +565,9 @@ class CachedMessage {
   final bool forceReply;
   final String forceReplyPlaceholder;
 
+  // Data center ID for the media.
+  final int dcId;
+
   // Scheduled message metadata.
   final int scheduleDate;
   final bool isSilent;
@@ -681,6 +684,7 @@ class CachedMessage {
     this.keyboardHide = false,
     this.forceReply = false,
     this.forceReplyPlaceholder = '',
+    this.dcId = 0,
     this.scheduleDate = 0,
     this.isSilent = false,
     this.scheduleRepeatPeriod = 0,
@@ -727,6 +731,7 @@ class CachedMessage {
     reactions: (j['reactions'] as List<dynamic>?)
         ?.map((r) => MessageReaction.fromJson(r as Map<String, dynamic>))
         .toList() ?? const [],
+    dcId: j['dc_id'] as int? ?? 0,
     scheduleDate: j['schedule_date'] as int? ?? 0,
     isSilent: j['is_silent'] as bool? ?? false,
     scheduleRepeatPeriod: j['schedule_repeat_period'] as int? ?? 0,
@@ -872,6 +877,7 @@ class CachedMessage {
     bool? keyboardHide,
     bool? forceReply,
     String? forceReplyPlaceholder,
+    int? dcId,
     int? scheduleDate,
     bool? isSilent,
     int? scheduleRepeatPeriod,
@@ -984,6 +990,7 @@ class CachedMessage {
     keyboardHide: keyboardHide ?? this.keyboardHide,
     forceReply: forceReply ?? this.forceReply,
     forceReplyPlaceholder: forceReplyPlaceholder ?? this.forceReplyPlaceholder,
+    dcId: dcId ?? this.dcId,
     scheduleDate: scheduleDate ?? this.scheduleDate,
     isSilent: isSilent ?? this.isSilent,
     scheduleRepeatPeriod: scheduleRepeatPeriod ?? this.scheduleRepeatPeriod,

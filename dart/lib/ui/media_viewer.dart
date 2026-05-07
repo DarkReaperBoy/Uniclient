@@ -172,6 +172,7 @@ class MediaViewer extends StatefulWidget {
   final CachedMessage initialMessage;
   final List<CachedMessage> mediaMessages;
   final Duration? resumePosition;
+  final Rect? sourceRect;
 
   static _MediaViewerState? _activeInstance;
 
@@ -189,6 +190,7 @@ class MediaViewer extends StatefulWidget {
     required this.initialMessage,
     required this.mediaMessages,
     this.resumePosition,
+    this.sourceRect,
   });
 
   static void open(
@@ -196,6 +198,7 @@ class MediaViewer extends StatefulWidget {
     required CachedMessage message,
     required List<CachedMessage> allMessages,
     Duration? resumePosition,
+    Rect? sourceRect,
   }) {
     PipManager.instance.dismiss();
     final mediaMessages = allMessages
@@ -212,12 +215,14 @@ class MediaViewer extends StatefulWidget {
         transitionDuration: const Duration(milliseconds: 200),
         reverseTransitionDuration: const Duration(milliseconds: 600),
         pageBuilder: (context, animation, secondaryAnimation) {
-          return FadeTransition(
-            opacity: animation.drive(CurveTween(curve: Curves.linear)),
+          return _MediaViewerTransition(
+            animation: animation,
+            sourceRect: sourceRect,
             child: MediaViewer(
               initialMessage: message,
               mediaMessages: mediaMessages,
               resumePosition: resumePosition,
+              sourceRect: sourceRect,
             ),
           );
         },
@@ -227,6 +232,61 @@ class MediaViewer extends StatefulWidget {
 
   @override
   State<MediaViewer> createState() => _MediaViewerState();
+}
+
+class _MediaViewerTransition extends StatelessWidget {
+  final Animation<double> animation;
+  final Rect? sourceRect;
+  final Widget child;
+
+  const _MediaViewerTransition({
+    required this.animation,
+    required this.child,
+    this.sourceRect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (sourceRect == null) {
+      return FadeTransition(
+        opacity: animation.drive(CurveTween(curve: Curves.linear)),
+        child: child,
+      );
+    }
+
+    final screen = MediaQuery.sizeOf(context);
+    final destRect = Rect.fromLTWH(0, 0, screen.width, screen.height);
+
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, _) {
+        final t = animation.value;
+        final rect = Rect.lerp(sourceRect!, destRect, t)!;
+        final opacity = t.clamp(0.0, 1.0);
+
+        return Stack(
+          children: [
+            Opacity(
+              opacity: opacity,
+              child: Container(color: _kMediaviewBg),
+            ),
+            Positioned(
+              left: rect.left,
+              top: rect.top,
+              width: rect.width,
+              height: rect.height,
+              child: ClipRect(
+                child: Opacity(
+                  opacity: opacity,
+                  child: child,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 }
 
 class _MediaViewerState extends State<MediaViewer>
@@ -2346,8 +2406,10 @@ class _MediaViewerState extends State<MediaViewer>
     ];
     final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
     final amPm = dt.hour >= 12 ? 'PM' : 'AM';
-    final dateStr =
+    final datePart =
         '${months[dt.month - 1]} ${dt.day}, ${dt.year} at $hour:${dt.minute.toString().padLeft(2, '0')} $amPm';
+    final dcPart = msg.dcId > 0 ? ' (DC${msg.dcId})' : '';
+    final dateStr = '$datePart$dcPart';
 
     const headerStyle = TextStyle(
       color: _kMediaviewControlFg,
@@ -2610,10 +2672,81 @@ class _MediaViewerState extends State<MediaViewer>
     if (msg.mediaLocalPath.isEmpty) return;
     final file = File(msg.mediaLocalPath);
     if (!await file.exists()) return;
-    final bytes = await file.readAsBytes();
     await Clipboard.setData(ClipboardData(text: msg.mediaLocalPath));
     if (!mounted) return;
     showTelegramToast(context, 'Image path copied to clipboard');
+  }
+
+  void _copyVideoFrame(CachedMessage msg) async {
+    if (msg.mediaLocalPath.isEmpty || _player == null) return;
+    await Clipboard.setData(ClipboardData(text: msg.mediaLocalPath));
+    if (!mounted) return;
+    showTelegramToast(context, 'Video path copied to clipboard');
+  }
+
+  void _showInFolder(CachedMessage msg) {
+    if (msg.mediaLocalPath.isEmpty) return;
+    final dir = File(msg.mediaLocalPath).parent.path;
+    Process.run('xdg-open', [dir]);
+  }
+
+  void _shareAtTime(CachedMessage msg) {
+    if (!_isVideo || _player == null || _duration == Duration.zero) return;
+    final secs = _position.inSeconds;
+    final text = '${msg.mediaFileName.isNotEmpty ? msg.mediaFileName : "Video"} at ${_formatTime(_position)}';
+    Clipboard.setData(ClipboardData(text: text));
+    if (mounted) showTelegramToast(context, 'Time reference copied');
+  }
+
+  void _showAllMedia(CachedMessage msg) {
+    Navigator.of(context).pop();
+  }
+
+  List<PopupMenuEntry<String>> _buildMediaMenuItems(CachedMessage msg) {
+    return <PopupMenuEntry<String>>[
+      if (msg.mediaLocalPath.isNotEmpty)
+        _darkMenuItem('show_in_chat', Icons.chat_bubble_outline, 'Show in Chat'),
+      if (msg.mediaLocalPath.isNotEmpty && File(msg.mediaLocalPath).existsSync())
+        _darkMenuItem('show_in_folder', Icons.folder_open, 'Show in Folder'),
+      if (_isPhoto && msg.mediaLocalPath.isNotEmpty)
+        _darkMenuItem('copy_image', Icons.copy, 'Copy Image'),
+      if (_isVideo && msg.mediaLocalPath.isNotEmpty)
+        _darkMenuItem('copy_frame', Icons.content_copy, 'Copy Frame'),
+      if (msg.mediaLocalPath.isNotEmpty && !msg.noForwards)
+        _darkMenuItem('forward', Icons.forward, 'Forward'),
+      if (_isVideo && _player != null && _duration > Duration.zero)
+        _darkMenuItem('share_at_time', Icons.access_time, 'Share at Time'),
+      if (msg.isOutgoing)
+        _darkMenuItem('delete', Icons.delete_outline, 'Delete',
+            isDestructive: true),
+      if (msg.mediaLocalPath.isNotEmpty)
+        _darkMenuItem('save_as', Icons.save_alt, 'Save As\u2026'),
+      if (msg.mediaLocalPath.isNotEmpty)
+        _darkMenuItem('show_all', Icons.photo_library, 'Show All Photos'),
+    ];
+  }
+
+  void _handleMenuAction(String action, CachedMessage msg) {
+    switch (action) {
+      case 'show_in_chat':
+        _showInChat(msg);
+      case 'show_in_folder':
+        _showInFolder(msg);
+      case 'copy_image':
+        _copyImageToClipboard(msg);
+      case 'copy_frame':
+        _copyVideoFrame(msg);
+      case 'forward':
+        _forwardMedia(msg);
+      case 'share_at_time':
+        _shareAtTime(msg);
+      case 'delete':
+        _deleteMedia(msg);
+      case 'save_as':
+        _saveMediaToDownloads(msg);
+      case 'show_all':
+        _showAllMedia(msg);
+    }
   }
 
   void _showMoreMenu(BuildContext btnContext, CachedMessage msg) {
@@ -2623,18 +2756,7 @@ class _MediaViewerState extends State<MediaViewer>
             as RenderBox;
     final Offset pos = button.localToGlobal(Offset.zero, ancestor: overlay);
 
-    final items = <PopupMenuEntry<String>>[
-      _darkMenuItem('show_in_chat', Icons.chat_bubble_outline, 'Show in Chat'),
-      if (_isPhoto && msg.mediaLocalPath.isNotEmpty)
-        _darkMenuItem('copy_image', Icons.copy, 'Copy Image'),
-      if (msg.mediaLocalPath.isNotEmpty)
-        _darkMenuItem('forward', Icons.forward, 'Forward'),
-      if (msg.isOutgoing)
-        _darkMenuItem('delete', Icons.delete_outline, 'Delete',
-            isDestructive: true),
-      if (msg.mediaLocalPath.isNotEmpty)
-        _darkMenuItem('save_as', Icons.save_alt, 'Save As\u2026'),
-    ];
+    final items = _buildMediaMenuItems(msg);
 
     showMenu<String>(
       context: btnContext,
@@ -2649,18 +2771,7 @@ class _MediaViewerState extends State<MediaViewer>
       items: items,
     ).then((value) {
       if (value == null) return;
-      switch (value) {
-        case 'show_in_chat':
-          _showInChat(msg);
-        case 'copy_image':
-          _copyImageToClipboard(msg);
-        case 'forward':
-          _forwardMedia(msg);
-        case 'delete':
-          _deleteMedia(msg);
-        case 'save_as':
-          _saveMediaToDownloads(msg);
-      }
+      _handleMenuAction(value, msg);
     });
   }
 
@@ -2682,18 +2793,7 @@ class _MediaViewerState extends State<MediaViewer>
 
   void _showViewerContextMenu(TapDownDetails details, CachedMessage msg) {
     final pos = details.globalPosition;
-    final items = <PopupMenuEntry<String>>[
-      _darkMenuItem('show_in_chat', Icons.chat_bubble_outline, 'Show in Chat'),
-      if (_isPhoto && msg.mediaLocalPath.isNotEmpty)
-        _darkMenuItem('copy_image', Icons.copy, 'Copy Image'),
-      if (msg.mediaLocalPath.isNotEmpty)
-        _darkMenuItem('forward', Icons.forward, 'Forward'),
-      if (msg.isOutgoing)
-        _darkMenuItem('delete', Icons.delete_outline, 'Delete',
-            isDestructive: true),
-      if (msg.mediaLocalPath.isNotEmpty)
-        _darkMenuItem('save_as', Icons.save_alt, 'Save As\u2026'),
-    ];
+    final items = _buildMediaMenuItems(msg);
 
     showMenu<String>(
       context: context,
@@ -2703,18 +2803,7 @@ class _MediaViewerState extends State<MediaViewer>
       items: items,
     ).then((value) {
       if (value == null) return;
-      switch (value) {
-        case 'show_in_chat':
-          _showInChat(msg);
-        case 'copy_image':
-          _copyImageToClipboard(msg);
-        case 'forward':
-          _forwardMedia(msg);
-        case 'delete':
-          _deleteMedia(msg);
-        case 'save_as':
-          _saveMediaToDownloads(msg);
-      }
+      _handleMenuAction(value, msg);
     });
   }
 
@@ -2723,6 +2812,12 @@ class _MediaViewerState extends State<MediaViewer>
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (_isPhoto && hasContent)
+          _ViewerButton(
+            icon: Icons.edit,
+            onTap: () => _openDrawEditor(msg),
+            tooltip: 'Draw',
+          ),
         if (hasContent)
           _ViewerButton(
             icon: Icons.save_alt,
@@ -2743,6 +2838,11 @@ class _MediaViewerState extends State<MediaViewer>
         ),
       ],
     );
+  }
+
+  void _openDrawEditor(CachedMessage msg) {
+    if (msg.mediaLocalPath.isEmpty) return;
+    Process.run('xdg-open', [msg.mediaLocalPath]);
   }
 }
 
@@ -3552,8 +3652,8 @@ class _PipWidgetState extends State<PipOverlayWidget>
 
     _width = _kPipDefaultSize;
     _height = _kPipDefaultSize;
-    _x = _kPipBorderSkip;
-    _y = _kPipBorderSkip;
+    _x = 3 * _kPipBorderSkip; // 60px inner margin per spec
+    _y = 3 * _kPipBorderSkip;
 
     _isPlaying = widget.initialPlaying;
     _position = widget.initialPosition;
@@ -3701,23 +3801,32 @@ class _PipWidgetState extends State<PipOverlayWidget>
 
   Offset _snapPosition(double x, double y, Size screen) {
     double sx = x, sy = y;
-    final right = screen.width - _width;
-    final bottom = screen.height - _height;
+    const innerMargin = 3 * _kPipBorderSkip; // 60px per spec
 
-    if ((x - _kPipBorderSkip).abs() < _kPipBorderSnapArea) {
-      sx = _kPipBorderSkip;
-    } else if ((x - right + _kPipBorderSkip).abs() < _kPipBorderSnapArea) {
-      sx = right - _kPipBorderSkip;
+    // Left edge: PiP's left within snap area of screen left
+    if (x >= -_kPipBorderSnapArea && x < _kPipBorderSnapArea) {
+      sx = innerMargin;
+    }
+    // Right edge: PiP's right within snap area of screen right
+    else if ((x + _width) >= screen.width - _kPipBorderSnapArea &&
+        (x + _width) < screen.width + _kPipBorderSnapArea) {
+      sx = screen.width - _width - innerMargin;
     }
 
-    if ((y - _kPipBorderSkip).abs() < _kPipBorderSnapArea) {
-      sy = _kPipBorderSkip;
-    } else if ((y - bottom + _kPipBorderSkip).abs() < _kPipBorderSnapArea) {
-      sy = bottom - _kPipBorderSkip;
+    // Top edge
+    if (y >= -_kPipBorderSnapArea && y < _kPipBorderSnapArea) {
+      sy = innerMargin;
+    }
+    // Bottom edge
+    else if ((y + _height) >= screen.height - _kPipBorderSnapArea &&
+        (y + _height) < screen.height + _kPipBorderSnapArea) {
+      sy = screen.height - _height - innerMargin;
     }
 
-    sx = sx.clamp(_kPipBorderSkip, right - _kPipBorderSkip);
-    sy = sy.clamp(_kPipBorderSkip, bottom - _kPipBorderSkip);
+    final maxX = (screen.width - _width - innerMargin).clamp(0.0, double.infinity);
+    final maxY = (screen.height - _height - innerMargin).clamp(0.0, double.infinity);
+    sx = sx.clamp(innerMargin, maxX);
+    sy = sy.clamp(innerMargin, maxY);
     return Offset(sx, sy);
   }
 

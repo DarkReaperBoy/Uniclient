@@ -3282,15 +3282,23 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
     final isVideoNote = message.mediaType == 5;
     final vnPlaying = isVideoNote && _vnCtrl != null;
 
-    return GestureDetector(
+    return Builder(
+      builder: (thumbContext) => GestureDetector(
       onTap: vnPlaying
           ? _toggleVideoNoteSound
           : canOpenViewer
-              ? () => MediaViewer.open(
+              ? () {
+                  final box = thumbContext.findRenderObject() as RenderBox?;
+                  final sourceRect = box != null
+                      ? box.localToGlobal(Offset.zero) & box.size
+                      : null;
+                  MediaViewer.open(
                     context,
                     message: message,
                     allMessages: widget.allMessages,
-                  )
+                    sourceRect: sourceRect,
+                  );
+                }
               : canOpenStickerPack
                   ? () => StickerPackViewer.show(context, message)
                   : null,
@@ -3717,6 +3725,7 @@ class _VisualMediaState extends State<_VisualMedia> with TickerProviderStateMixi
       ),  // Center
       ),  // outer SizedBox (effectWidth × effectHeight)
     ),
+    ),  // Builder
     );
   }
 
@@ -7461,9 +7470,16 @@ class _AlbumThumbState extends State<_AlbumThumb> {
       image = _thumbOrPlaceholder();
     }
 
-    return GestureDetector(
+    return Builder(
+      builder: (thumbCtx) => GestureDetector(
       onTap: canOpen
-          ? () => MediaViewer.open(context, message: msg, allMessages: widget.allMessages)
+          ? () {
+              final box = thumbCtx.findRenderObject() as RenderBox?;
+              final sourceRect = box != null
+                  ? box.localToGlobal(Offset.zero) & box.size
+                  : null;
+              MediaViewer.open(context, message: msg, allMessages: widget.allMessages, sourceRect: sourceRect);
+            }
           : null,
       child: ClipRRect(
         borderRadius: widget.borderRadius,
@@ -7505,6 +7521,7 @@ class _AlbumThumbState extends State<_AlbumThumb> {
           ),
         ),
       ),
+    ),  // Builder
     );
   }
 
