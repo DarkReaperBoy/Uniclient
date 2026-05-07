@@ -153,6 +153,16 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
   _TextBgStyle _currentTextBgStyle = _TextBgStyle.none;
   _TextAlign _currentTextAlign = _TextAlign.center;
 
+  // Font size for text tool (§32.15.5: range 14-72pt)
+  double _fontSize = 32;
+  bool _fontSizeSliderExpanded = false;
+
+  // Video state (§32.15.3)
+  File? _videoFile;
+  double _trimStart = 0.0;
+  double _trimEnd = 1.0;
+  Duration _videoDuration = Duration.zero;
+
   // Post stage state
   final TextEditingController _captionController = TextEditingController();
   StoryPrivacyOption _privacy = StoryPrivacyOption.everyone;
@@ -176,8 +186,14 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
     'monospace',
     'serif',
     'cursive',
+    'Georgia',
+    'system-ui',
+    'fantasy',
   ];
-  static const _fontLabels = ['Regular', 'Typewriter', 'Serif', 'Handwriting'];
+  static const _fontLabels = [
+    'Regular', 'Typewriter', 'Serif', 'Handwriting',
+    'Classic', 'Modern', 'Decorative',
+  ];
 
   @override
   void initState() {
@@ -204,16 +220,34 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
 
   Future<void> _pickImage() async {
     final result = await FilePicker.platform.pickFiles(
-      type: FileType.image,
+      type: FileType.custom,
+      allowedExtensions: [
+        'jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp',
+        'mp4', 'mov', 'avi', 'mkv', 'webm',
+      ],
       allowMultiple: false,
     );
     if (result != null && result.files.isNotEmpty && result.files.first.path != null) {
       final file = File(result.files.first.path!);
-      setState(() {
-        _imageFile = file;
-        _hasMedia = true;
-      });
-      _loadImage(file);
+      final ext = file.path.split('.').last.toLowerCase();
+      final isVideo = ['mp4', 'mov', 'avi', 'mkv', 'webm'].contains(ext);
+      if (isVideo) {
+        setState(() {
+          _videoFile = file;
+          _imageFile = null;
+          _hasMedia = true;
+          _trimStart = 0.0;
+          _trimEnd = 1.0;
+          _videoDuration = const Duration(seconds: 60);
+        });
+      } else {
+        setState(() {
+          _imageFile = file;
+          _videoFile = null;
+          _hasMedia = true;
+        });
+        _loadImage(file);
+      }
     } else {
       setState(() {
         _hasMedia = false;
@@ -455,6 +489,26 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
         height: _canvasHeight * scale,
       );
     }
+    if (_hasMedia && _videoFile != null) {
+      return Container(
+        color: Colors.black,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.videocam, color: Colors.white38, size: 64),
+              const SizedBox(height: 8),
+              Text(
+                _videoFile!.path.split('/').last,
+                style: const TextStyle(color: Colors.white54, fontSize: 12),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     final colors = _gradientBackgrounds[_gradientIndex % _gradientBackgrounds.length];
     return Container(
       decoration: BoxDecoration(
@@ -625,7 +679,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
         isText: true,
         text: '',
         color: _brushColor,
-        fontSize: 32,
+        fontSize: _fontSize,
         textAlign: _currentTextAlign,
         textBgStyle: _currentTextBgStyle,
         fontFamily: _fonts[_selectedFontIndex],
@@ -730,6 +784,11 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
             ),
             const SizedBox(width: 8),
             _buildTopBarButton(
+              icon: Icons.emoji_emotions,
+              onTap: _showStickerPicker,
+            ),
+            const SizedBox(width: 8),
+            _buildTopBarButton(
               icon: Icons.brush,
               onTap: () => _switchMode(_EditorMode.paint),
             ),
@@ -783,6 +842,17 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (_videoFile != null && _mode == _EditorMode.transform)
+            _VideoTrimSlider(
+              trimStart: _trimStart,
+              trimEnd: _trimEnd,
+              onChanged: (start, end) {
+                setState(() {
+                  _trimStart = start;
+                  _trimEnd = end;
+                });
+              },
+            ),
           if (_mode == _EditorMode.paint) _buildPaintToolBar(),
           const SizedBox(height: 6),
           _buildMainBar(),
@@ -1050,6 +1120,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
         _buildToggleRow(
           icon: Icons.bookmark_outline,
           label: 'Keep on my page',
+          subtitle: 'Story will stay on your profile after it expires',
           value: _saveToProfile,
           onChanged: (v) => setState(() => _saveToProfile = v),
         ),
@@ -1057,6 +1128,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
           _buildToggleRow(
             icon: Icons.forward_outlined,
             label: 'Allow sharing',
+            subtitle: 'Let viewers share your story as a link',
             value: _allowSharing,
             onChanged: (v) => setState(() => _allowSharing = v),
           ),
@@ -1067,6 +1139,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
   Widget _buildToggleRow({
     required IconData icon,
     required String label,
+    String? subtitle,
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
@@ -1077,9 +1150,22 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
           Icon(icon, color: Colors.white70, size: 24),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                ),
+                if (subtitle != null)
+                  Text(
+                    subtitle,
+                    style: const TextStyle(color: Colors.white38, fontSize: 11),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+              ],
             ),
           ),
           _StorySwitch(value: value, onChanged: onChanged),
@@ -1207,6 +1293,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
   }
 
   PopupMenuItem<int> _durationItem(int hours) {
+    final isPremiumGated = hours == 48;
     return PopupMenuItem(
       value: hours,
       child: Row(
@@ -1217,6 +1304,10 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
             const SizedBox(width: 18),
           const SizedBox(width: 8),
           Text('$hours hours'),
+          if (isPremiumGated) ...[
+            const SizedBox(width: 6),
+            const Icon(Icons.lock, size: 14, color: Color(0xFF8E8E93)),
+          ],
         ],
       ),
     );
@@ -1225,112 +1316,145 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
   Widget _buildTextEditOverlay() {
     return Material(
       color: Colors.black54,
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+      child: Stack(
+        children: [
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                IconButton(
-                  icon: Icon(
-                    _currentTextAlign == _TextAlign.left
-                        ? Icons.format_align_left
-                        : _currentTextAlign == _TextAlign.center
-                            ? Icons.format_align_center
-                            : Icons.format_align_right,
-                    color: Colors.white,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    IconButton(
+                      icon: Icon(
+                        _currentTextAlign == _TextAlign.left
+                            ? Icons.format_align_left
+                            : _currentTextAlign == _TextAlign.center
+                                ? Icons.format_align_center
+                                : Icons.format_align_right,
+                        color: Colors.white,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _currentTextAlign = _TextAlign.values[
+                              (_currentTextAlign.index + 1) % _TextAlign.values.length];
+                          _editingTextItem?.textAlign = _currentTextAlign;
+                        });
+                      },
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.format_color_fill, color: Colors.white),
+                      onPressed: () {
+                        setState(() {
+                          _currentTextBgStyle = _TextBgStyle.values[
+                              (_currentTextBgStyle.index + 1) % _TextBgStyle.values.length];
+                          _editingTextItem?.textBgStyle = _currentTextBgStyle;
+                        });
+                      },
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.font_download, color: Colors.white),
+                      onPressed: _showFontPicker,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 36,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    itemCount: _paletteColors.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (ctx, i) {
+                      final c = _paletteColors[i];
+                      return GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _brushColor = c;
+                            _editingTextItem?.color = c;
+                          });
+                        },
+                        child: Container(
+                          width: 24,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: c,
+                            border: _brushColor == c
+                                ? Border.all(color: Colors.white, width: 2)
+                                : null,
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                  onPressed: () {
-                    setState(() {
-                      _currentTextAlign = _TextAlign.values[
-                          (_currentTextAlign.index + 1) % _TextAlign.values.length];
-                      _editingTextItem?.textAlign = _currentTextAlign;
-                    });
-                  },
                 ),
-                IconButton(
-                  icon: const Icon(Icons.format_color_fill, color: Colors.white),
-                  onPressed: () {
-                    setState(() {
-                      _currentTextBgStyle = _TextBgStyle.values[
-                          (_currentTextBgStyle.index + 1) % _TextBgStyle.values.length];
-                      _editingTextItem?.textBgStyle = _currentTextBgStyle;
-                    });
-                  },
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  child: TextField(
+                    controller: _textEditController,
+                    autofocus: true,
+                    textAlign: _currentTextAlign == _TextAlign.left
+                        ? TextAlign.left
+                        : _currentTextAlign == _TextAlign.right
+                            ? TextAlign.right
+                            : TextAlign.center,
+                    style: TextStyle(
+                      color: _brushColor,
+                      fontSize: _fontSize,
+                      fontFamily: _fonts[_selectedFontIndex],
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: null,
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      hintText: 'Type text...',
+                      hintStyle: TextStyle(color: Colors.white38),
+                    ),
+                    onSubmitted: (_) => _commitTextEdit(),
+                  ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.font_download, color: Colors.white),
-                  onPressed: _showFontPicker,
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: _commitTextEdit,
+                  child: const Text('Done', style: TextStyle(color: Color(0xFF4DB8FF), fontSize: 16)),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 36,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                shrinkWrap: true,
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                itemCount: _paletteColors.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (ctx, i) {
-                  final c = _paletteColors[i];
-                  return GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _brushColor = c;
-                        _editingTextItem?.color = c;
-                      });
-                    },
-                    child: Container(
-                      width: 24,
-                      height: 24,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: c,
-                        border: _brushColor == c
-                            ? Border.all(color: Colors.white, width: 2)
-                            : null,
-                      ),
-                    ),
-                  );
+          ),
+          // §32.15.5: Vertical font-size slider (14-72pt)
+          Positioned(
+            right: 16,
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child: GestureDetector(
+                onVerticalDragStart: (_) => setState(() => _fontSizeSliderExpanded = true),
+                onVerticalDragUpdate: (d) {
+                  setState(() {
+                    final delta = -d.delta.dy / 280;
+                    _fontSize = (_fontSize + delta * (72 - 14)).clamp(14.0, 72.0);
+                    _editingTextItem?.fontSize = _fontSize;
+                  });
                 },
+                onVerticalDragEnd: (_) => setState(() => _fontSizeSliderExpanded = false),
+                child: SizedBox(
+                  width: _fontSizeSliderExpanded ? 40 : 24,
+                  height: 280 + 48,
+                  child: CustomPaint(
+                    painter: _FontSizeSliderPainter(
+                      ratio: (_fontSize - 14) / (72 - 14),
+                      expanded: _fontSizeSliderExpanded,
+                    ),
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: TextField(
-                controller: _textEditController,
-                autofocus: true,
-                textAlign: _currentTextAlign == _TextAlign.left
-                    ? TextAlign.left
-                    : _currentTextAlign == _TextAlign.right
-                        ? TextAlign.right
-                        : TextAlign.center,
-                style: TextStyle(
-                  color: _brushColor,
-                  fontSize: 32,
-                  fontFamily: _fonts[_selectedFontIndex],
-                  fontWeight: FontWeight.bold,
-                ),
-                maxLines: null,
-                decoration: const InputDecoration(
-                  border: InputBorder.none,
-                  hintText: 'Type text...',
-                  hintStyle: TextStyle(color: Colors.white38),
-                ),
-                onSubmitted: (_) => _commitTextEdit(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextButton(
-              onPressed: _commitTextEdit,
-              child: const Text('Done', style: TextStyle(color: Color(0xFF4DB8FF), fontSize: 16)),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -1346,6 +1470,7 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
         _editingTextItem!.fontFamily = _fonts[_selectedFontIndex];
         _editingTextItem!.textAlign = _currentTextAlign;
         _editingTextItem!.textBgStyle = _currentTextBgStyle;
+        _editingTextItem!.fontSize = _fontSize;
       }
     }
     setState(() => _editingTextItem = null);
@@ -1392,6 +1517,35 @@ class _StoryEditorLayerState extends State<_StoryEditorLayer>
             );
           },
         ),
+      ),
+    );
+  }
+
+  void _showStickerPicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1A),
+      isScrollControlled: true,
+      builder: (ctx) => _StickerPickerPanel(
+        onEmojiSelected: (emoji) {
+          Navigator.pop(ctx);
+          final center = Offset(
+            _canvasWidth / 2,
+            _canvasHeight / 2,
+          );
+          setState(() {
+            _sceneItems.add(_SceneItem(
+              position: center,
+              isText: true,
+              text: emoji,
+              color: Colors.white,
+              fontSize: 64,
+              textAlign: _TextAlign.center,
+              textBgStyle: _TextBgStyle.none,
+              fontFamily: 'sans-serif',
+            ));
+          });
+        },
       ),
     );
   }
@@ -1561,58 +1715,125 @@ class _BrushSizeSliderPainter extends CustomPainter {
 
 // ── Dialogs ──
 
-class _PrivacyDialog extends StatelessWidget {
+class _PrivacyDialog extends StatefulWidget {
   final StoryPrivacyOption current;
   final ValueChanged<StoryPrivacyOption> onSelected;
 
   const _PrivacyDialog({required this.current, required this.onSelected});
 
   @override
+  State<_PrivacyDialog> createState() => _PrivacyDialogState();
+}
+
+class _PrivacyDialogState extends State<_PrivacyDialog> {
+  late StoryPrivacyOption _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = widget.current;
+  }
+
+  static const _options = [
+    (StoryPrivacyOption.everyone, Icons.public, 'Everyone', 'All your subscribers'),
+    (StoryPrivacyOption.contacts, Icons.people, 'Contacts', 'Exclude people'),
+    (StoryPrivacyOption.closeFriends, Icons.star, 'Close Friends', 'Close friends list'),
+    (StoryPrivacyOption.selectedContacts, Icons.person_add, 'Selected Contacts', 'Select allowed users'),
+  ];
+
+  @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Who can view your story?'),
-      contentPadding: const EdgeInsets.symmetric(vertical: 12),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: StoryPrivacyOption.values.map((option) {
-          final icons = {
-            StoryPrivacyOption.everyone: Icons.public,
-            StoryPrivacyOption.contacts: Icons.people,
-            StoryPrivacyOption.closeFriends: Icons.star,
-            StoryPrivacyOption.selectedContacts: Icons.person_add,
-          };
-          final labels = {
-            StoryPrivacyOption.everyone: 'Everyone',
-            StoryPrivacyOption.contacts: 'Contacts',
-            StoryPrivacyOption.closeFriends: 'Close Friends',
-            StoryPrivacyOption.selectedContacts: 'Selected Contacts',
-          };
-          final subtitles = {
-            StoryPrivacyOption.everyone: 'All your subscribers',
-            StoryPrivacyOption.contacts: 'Exclude people',
-            StoryPrivacyOption.closeFriends: 'Close friends list',
-            StoryPrivacyOption.selectedContacts: 'Select allowed users',
-          };
-          return RadioListTile<StoryPrivacyOption>(
-            value: option,
-            groupValue: current,
-            onChanged: (v) {
-              if (v != null) onSelected(v);
-              Navigator.pop(context);
-            },
-            secondary: Icon(icons[option], size: 28),
-            title: Text(labels[option]!),
-            subtitle: Text(subtitles[option]!, style: const TextStyle(fontSize: 12)),
-            activeColor: const Color(0xFF4DB8FF),
-          );
-        }).toList(),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subtextColor = isDark ? Colors.white54 : Colors.black45;
+    return Center(
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          width: 320,
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                height: 48,
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Who can view your story?',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                ),
+              ),
+              for (final (option, icon, label, subtitle) in _options)
+                InkWell(
+                  onTap: () => setState(() => _selected = option),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    child: Row(
+                      children: [
+                        Icon(icon, size: 24, color: const Color(0xFF4DB8FF)),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(label, style: TextStyle(fontSize: 14, color: textColor)),
+                              Text(subtitle, style: TextStyle(fontSize: 12, color: subtextColor)),
+                            ],
+                          ),
+                        ),
+                        Radio<StoryPrivacyOption>(
+                          value: option,
+                          groupValue: _selected,
+                          onChanged: (v) {
+                            if (v != null) setState(() => _selected = v);
+                          },
+                          activeColor: const Color(0xFF4DB8FF),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text('Cancel', style: TextStyle(color: subtextColor)),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: () {
+                        widget.onSelected(_selected);
+                        Navigator.pop(context);
+                      },
+                      child: const Text('Save', style: TextStyle(color: Color(0xFF4DB8FF))),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
-      ],
+      ),
     );
   }
 }
@@ -1727,6 +1948,280 @@ class _StorySwitch extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// §32.15.5: Vertical font-size slider painter (14-72pt)
+class _FontSizeSliderPainter extends CustomPainter {
+  final double ratio;
+  final bool expanded;
+
+  _FontSizeSliderPainter({required this.ratio, required this.expanded});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final topY = 24.0;
+    final bottomY = size.height - 24.0;
+    final height = bottomY - topY;
+
+    final expandedTopW = expanded ? 20.0 : 2.0;
+    final expandedBottomW = expanded ? 4.0 : 2.0;
+    final alpha = expanded ? 176 : 96;
+
+    final paint = Paint()
+      ..color = Color.fromARGB(alpha, 255, 255, 255)
+      ..style = PaintingStyle.fill;
+
+    final path = Path();
+    path.moveTo(cx - expandedTopW / 2, topY);
+    path.lineTo(cx + expandedTopW / 2, topY);
+    path.lineTo(cx + expandedBottomW / 2, bottomY);
+    path.lineTo(cx - expandedBottomW / 2, bottomY);
+    path.close();
+    canvas.drawPath(path, paint);
+
+    final handleY = bottomY - height * ratio;
+    final handleR = 4 + (20 - 4) * ratio;
+    canvas.drawCircle(
+      Offset(cx, handleY),
+      handleR / 2,
+      Paint()..color = Colors.white,
+    );
+
+    final label = '${(14 + (72 - 14) * ratio).round()}';
+    final tp = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: const TextStyle(color: Colors.white70, fontSize: 10),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset(cx - tp.width / 2, handleY - tp.height - 6));
+  }
+
+  @override
+  bool shouldRepaint(covariant _FontSizeSliderPainter old) =>
+      old.ratio != ratio || old.expanded != expanded;
+}
+
+// §32.15.3: Video trim slider with draggable handles
+class _VideoTrimSlider extends StatefulWidget {
+  final double trimStart;
+  final double trimEnd;
+  final void Function(double start, double end) onChanged;
+
+  const _VideoTrimSlider({
+    required this.trimStart,
+    required this.trimEnd,
+    required this.onChanged,
+  });
+
+  @override
+  State<_VideoTrimSlider> createState() => _VideoTrimSliderState();
+}
+
+class _VideoTrimSliderState extends State<_VideoTrimSlider> {
+  static const _kHeight = 48.0;
+  static const _kFrameCount = 12;
+  static const _kFrameSize = 36.0;
+  static const _kFrameRadius = 4.0;
+  static const _kHandleWidth = 8.0;
+  static const _kMinDuration = 1.0 / 60.0;
+  static const _kDarkenColor = Color(0x73000000);
+
+  bool _draggingLeft = false;
+  bool _draggingRight = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: _kHeight,
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final totalW = constraints.maxWidth;
+          final startX = widget.trimStart * totalW;
+          final endX = widget.trimEnd * totalW;
+
+          return GestureDetector(
+            onHorizontalDragStart: (d) {
+              final x = d.localPosition.dx;
+              if ((x - startX).abs() < 20) {
+                _draggingLeft = true;
+              } else if ((x - endX).abs() < 20) {
+                _draggingRight = true;
+              }
+            },
+            onHorizontalDragUpdate: (d) {
+              final x = d.localPosition.dx / totalW;
+              if (_draggingLeft) {
+                final newStart = x.clamp(0.0, widget.trimEnd - _kMinDuration);
+                widget.onChanged(newStart, widget.trimEnd);
+              } else if (_draggingRight) {
+                final newEnd = x.clamp(widget.trimStart + _kMinDuration, 1.0);
+                widget.onChanged(widget.trimStart, newEnd);
+              }
+            },
+            onHorizontalDragEnd: (_) {
+              _draggingLeft = false;
+              _draggingRight = false;
+            },
+            child: CustomPaint(
+              painter: _VideoTrimPainter(
+                trimStart: widget.trimStart,
+                trimEnd: widget.trimEnd,
+                frameCount: _kFrameCount,
+              ),
+              size: Size(totalW, _kHeight),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _VideoTrimPainter extends CustomPainter {
+  final double trimStart;
+  final double trimEnd;
+  final int frameCount;
+
+  _VideoTrimPainter({
+    required this.trimStart,
+    required this.trimEnd,
+    required this.frameCount,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final frameW = size.width / frameCount;
+    final frameH = size.height - 12;
+    final frameY = 6.0;
+
+    for (var i = 0; i < frameCount; i++) {
+      final x = i * frameW;
+      final hue = (i / frameCount) * 360;
+      final color = HSLColor.fromAHSL(1, hue, 0.3, 0.25).toColor();
+      final rect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(x + 1, frameY, frameW - 2, frameH),
+        const Radius.circular(4),
+      );
+      canvas.drawRRect(rect, Paint()..color = color);
+    }
+
+    final darken = Paint()..color = const Color(0x73000000);
+    final startX = trimStart * size.width;
+    final endX = trimEnd * size.width;
+
+    if (startX > 0) {
+      canvas.drawRect(Rect.fromLTWH(0, 0, startX, size.height), darken);
+    }
+    if (endX < size.width) {
+      canvas.drawRect(
+        Rect.fromLTWH(endX, 0, size.width - endX, size.height),
+        darken,
+      );
+    }
+
+    final handlePaint = Paint()..color = Colors.white;
+    final leftHandle = RRect.fromRectAndRadius(
+      Rect.fromLTWH(startX - 4, 0, 8, size.height),
+      const Radius.circular(4),
+    );
+    final rightHandle = RRect.fromRectAndRadius(
+      Rect.fromLTWH(endX - 4, 0, 8, size.height),
+      const Radius.circular(4),
+    );
+    canvas.drawRRect(leftHandle, handlePaint);
+    canvas.drawRRect(rightHandle, handlePaint);
+
+    final borderPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    canvas.drawRect(
+      Rect.fromLTWH(startX, 0, endX - startX, size.height),
+      borderPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _VideoTrimPainter old) =>
+      old.trimStart != trimStart || old.trimEnd != trimEnd;
+}
+
+// §32.15.4: Sticker/emoji picker panel
+class _StickerPickerPanel extends StatelessWidget {
+  final ValueChanged<String> onEmojiSelected;
+
+  const _StickerPickerPanel({required this.onEmojiSelected});
+
+  static const _tabs = ['Emoji', 'Stickers'];
+
+  static const _emojis = [
+    '😀', '😂', '🥹', '😍', '🥰', '😎', '🤩', '🥳',
+    '😇', '🤔', '😏', '😴', '🤯', '😱', '🥺', '😭',
+    '🤗', '😤', '🫡', '🫶', '💀', '👻', '🤖', '👽',
+    '🐱', '🐶', '🦊', '🐻', '🐼', '🐸', '🦁', '🐧',
+    '🌸', '🌺', '🌻', '🌹', '🍀', '🍁', '🌈', '⭐',
+    '🔥', '💥', '❤️', '💜', '💙', '💚', '💛', '🖤',
+    '👍', '👎', '✌️', '🤞', '👏', '🙌', '💪', '🫰',
+    '🎉', '🎊', '🎁', '🏆', '🎯', '🎸', '🎵', '🎨',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 420,
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Text('Emoji', style: TextStyle(color: Color(0xFF4DB8FF), fontSize: 14, fontWeight: FontWeight.w600)),
+                SizedBox(width: 24),
+                Text('Stickers', style: TextStyle(color: Colors.white38, fontSize: 14, fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: GridView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 8,
+                mainAxisSpacing: 4,
+                crossAxisSpacing: 4,
+              ),
+              itemCount: _emojis.length,
+              itemBuilder: (ctx, i) {
+                return GestureDetector(
+                  onTap: () => onEmojiSelected(_emojis[i]),
+                  child: Center(
+                    child: Text(
+                      _emojis[i],
+                      style: const TextStyle(fontSize: 28),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

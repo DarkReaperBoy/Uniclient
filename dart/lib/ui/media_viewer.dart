@@ -5488,6 +5488,19 @@ class _StoriesViewerState extends State<StoriesViewer>
     _loadStory();
   }
 
+  void _showViewsList(BuildContext context, StoryItem story) {
+    final renderBox = context.findRenderObject() as RenderBox;
+    final offset = renderBox.localToGlobal(Offset.zero);
+    showDialog(
+      context: context,
+      barrierColor: Colors.transparent,
+      builder: (ctx) => _StoryViewsListPopup(
+        viewCount: story.views,
+        position: offset,
+      ),
+    );
+  }
+
   void _handleAreaReaction(String emoji) {
     setState(() => _liked = true);
   }
@@ -5742,7 +5755,7 @@ class _StoriesViewerState extends State<StoriesViewer>
               ],
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 22),
           Text(
             widget.peerName,
             style: const TextStyle(
@@ -5936,7 +5949,7 @@ class _StoriesViewerState extends State<StoriesViewer>
                 ],
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 22),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -6221,14 +6234,21 @@ class _StoriesViewerState extends State<StoriesViewer>
           Expanded(
             child: Row(
               children: [
-                if (story.views > 0) ...[
-                  const Icon(Icons.visibility, color: Colors.white54, size: 16),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${story.views}',
-                    style: const TextStyle(color: Colors.white54, fontSize: 12),
+                if (story.views > 0)
+                  GestureDetector(
+                    onTap: () => _showViewsList(context, story),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _StoryViewsAvatarStack(count: story.views),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${story.views}',
+                          style: const TextStyle(color: Colors.white70, fontSize: 12),
+                        ),
+                      ],
+                    ),
                   ),
-                ],
                 const Spacer(),
                 Text(
                   '${_currentIndex + 1}/${widget.stories.length}',
@@ -6687,6 +6707,210 @@ class _StealthFeatureRow extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// §32.9: Stacked avatars for story view count
+class _StoryViewsAvatarStack extends StatelessWidget {
+  final int count;
+
+  const _StoryViewsAvatarStack({required this.count});
+
+  static const _kAvatarSize = 24.0;
+  static const _kShift = 9.0;
+  static const _kStroke = 4.0;
+  static const _kMaxShow = 3;
+
+  static const _colors = [
+    Color(0xFF7765CB),
+    Color(0xFF6EC47A),
+    Color(0xFFE67985),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final showCount = count.clamp(0, _kMaxShow);
+    if (showCount == 0) return const SizedBox.shrink();
+
+    final totalW = _kAvatarSize + (_kShift * (showCount - 1));
+    return SizedBox(
+      width: totalW,
+      height: _kAvatarSize,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: List.generate(showCount, (i) {
+          return Positioned(
+            left: i * _kShift,
+            child: Container(
+              width: _kAvatarSize,
+              height: _kAvatarSize,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _colors[i % _colors.length],
+                border: Border.all(
+                  color: Colors.black,
+                  width: _kStroke / 2,
+                ),
+              ),
+              child: Center(
+                child: Icon(
+                  Icons.person,
+                  size: _kAvatarSize * 0.5,
+                  color: Colors.white70,
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+}
+
+// §32.9: "Who Viewed" popup
+class _StoryViewsListPopup extends StatelessWidget {
+  final int viewCount;
+  final Offset position;
+
+  const _StoryViewsListPopup({
+    required this.viewCount,
+    required this.position,
+  });
+
+  static const _kWidth = 240.0;
+  static const _kMaxHeight = 320.0;
+  static const _kRadius = 7.0;
+  static const _kRowHeight = 48.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subtextColor = isDark ? Colors.white54 : Colors.black45;
+
+    return Stack(
+      children: [
+        GestureDetector(
+          onTap: () => Navigator.pop(context),
+          child: Container(color: Colors.transparent),
+        ),
+        Positioned(
+          left: position.dx.clamp(16, MediaQuery.sizeOf(context).width - _kWidth - 16),
+          bottom: MediaQuery.sizeOf(context).height - position.dy + 8,
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              width: _kWidth,
+              constraints: const BoxConstraints(maxHeight: _kMaxHeight),
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: BorderRadius.circular(_kRadius),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    child: Row(
+                      children: [
+                        Text(
+                          'Who Viewed',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: textColor,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '$viewCount',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: subtextColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Flexible(
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      itemCount: viewCount.clamp(0, 50),
+                      itemBuilder: (ctx, i) {
+                        final colors = [
+                          const Color(0xFF7765CB),
+                          const Color(0xFF6EC47A),
+                          const Color(0xFFE67985),
+                          const Color(0xFFE6A96F),
+                          const Color(0xFF6AADE6),
+                        ];
+                        return SizedBox(
+                          height: _kRowHeight,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 32,
+                                  height: 32,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: colors[i % colors.length],
+                                  ),
+                                  child: const Center(
+                                    child: Icon(Icons.person, size: 18, color: Colors.white70),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        'Viewer ${i + 1}',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w500,
+                                          color: textColor,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        'Just now',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: subtextColor,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ],
