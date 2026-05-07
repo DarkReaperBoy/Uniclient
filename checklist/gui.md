@@ -84,8 +84,6 @@
 
 ## §41 — Message Formatting Toolbar
 
-- [ ] spec §41.4 "Date formatting option": spec says Ctrl+Shift+D inserts a date via `CalendarBox` then `ChooseDateTimeBox`; code calls `showCalendarBox` only — missing the `ChooseDateTimeBox` (time picker) second step — `chat_view.dart:13536`
-- [ ] spec §41.7 "Code block language dialog": spec says clicking the language header strip opens `EditCodeLanguageBox`; `_ComposeFormattingOverlay` is wrapped in `IgnorePointer` so the header tap is swallowed by the TextField — dialog only accessible via context menu — `chat_view.dart:14031`
 
 ## §42 — Reactions Detail Popup
 
