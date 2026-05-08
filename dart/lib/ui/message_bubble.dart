@@ -5953,6 +5953,23 @@ class _LargeCustomEmojiTileState extends State<_LargeCustomEmojiTile>
         ),
       );
     }
+    final pathBytes = cache.getPath(widget.documentId);
+    if (pathBytes != null) {
+      return Opacity(
+        opacity: 0.125,
+        child: SizedBox(
+          width: widget.size,
+          height: widget.size,
+          child: CustomPaint(
+            size: Size(widget.size, widget.size),
+            painter: _SvgPathPreviewPainter(
+              pathBytes: pathBytes,
+              color: DefaultTextStyle.of(context).style.color ?? Colors.white,
+            ),
+          ),
+        ),
+      );
+    }
     return SizedBox(
       width: widget.size,
       height: widget.size,
@@ -6205,7 +6222,7 @@ class _CustomEmojiInlineState extends State<_CustomEmojiInline>
                 children: [
                   if (_fadeController.value < 1.0)
                     Opacity(
-                      opacity: _previewOpacity * (1.0 - _fadeController.value),
+                      opacity: 1.0 - _fadeController.value,
                       child: _buildPreview(cache),
                     ),
                   Opacity(opacity: _fadeController.value, child: child),
@@ -6278,24 +6295,23 @@ class _CustomEmojiInlineState extends State<_CustomEmojiInline>
   }
 
   Widget _buildPreviewOrBlank(CustomEmojiCache cache) {
-    final preview = _buildPreview(cache);
-    if (preview is! SizedBox || (preview as SizedBox).child != null) {
-      return Opacity(opacity: _previewOpacity, child: preview);
-    }
-    return preview;
+    return _buildPreview(cache);
   }
 
   Widget _buildPreview(CustomEmojiCache cache) {
     final pathBytes = cache.getPath(widget.documentId);
     if (pathBytes != null) {
-      return SizedBox(
-        width: _adjustedSize,
-        height: _adjustedSize,
-        child: CustomPaint(
-          size: const Size(_adjustedSize, _adjustedSize),
-          painter: _SvgPathPreviewPainter(
-            pathBytes: pathBytes,
-            color: DefaultTextStyle.of(context).style.color ?? Colors.white,
+      return Opacity(
+        opacity: _previewOpacity,
+        child: SizedBox(
+          width: _adjustedSize,
+          height: _adjustedSize,
+          child: CustomPaint(
+            size: const Size(_adjustedSize, _adjustedSize),
+            painter: _SvgPathPreviewPainter(
+              pathBytes: pathBytes,
+              color: DefaultTextStyle.of(context).style.color ?? Colors.white,
+            ),
           ),
         ),
       );
