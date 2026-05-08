@@ -100,18 +100,6 @@
 
 # Audit: §50-§57 AyuGram Features & Appendices
 
-## §50 — Streamer Mode & Read Toggles
-
-- [ ] spec §50.2 "Streamer Mode — what it does": No `StreamerModeState` or streamer-mode runtime toggle exists anywhere in the Dart codebase. The spec requires a non-persistent `enabled` boolean with a `Stream<bool>` for drawer/tray sync — `state/app_state.dart` only has `showStreamerToggleInDrawer` / `showStreamerToggleInTray` (visibility gates), but no actual streamer mode on/off state or OS platform channel for `SetWindowDisplayAffinity` / `NSWindow.sharingType`
-- [ ] spec §50.3.1 "Drawer toggle": The drawer does not render a Streamer Mode on/off toggle row (only the visibility setting in `ayu_other_page.dart` "Show Streamer Mode toggle in drawer" exists, but the drawer itself has no toggle to flip the actual mode)
-- [ ] spec §50.3.2 "Tray menu toggle": No tray menu integration exists — spec requires "Enable/Disable Streamer Mode" action in the system tray context menu; the code only has a setting to show/hide it (`showStreamerToggleInTray`)
-- [ ] spec §50.3.3 "Settings page — Drawer/Tray elements": Drawer/Tray elements are located in `ayu_other_page.dart` instead of the Ghost Mode page as spec §50.3.3 requires (spec says these live under "AyuGram settings > Ghost Mode page" subsections "Drawer Elements" / "Tray Elements")
-- [ ] spec §50.4 "Visual indicators": No visual indicator that Streamer Mode is active (no icon, no chip, no badge anywhere)
-- [ ] spec §50.7 "Read toggles — Local Read / Server Read model": `showLReadToggleInDrawer` and `showSReadToggleInDrawer` settings exist in `ayu_other_page.dart` as drawer visibility toggles, but no actual LRead/SRead drawer toggle rows are rendered in the drawer at runtime
-- [ ] spec §50.8 "All referenced settings keys": Missing `showGhostToggleInDrawer` / `showStreamerToggleInDrawer` visibility settings on the Ghost Mode page itself — they only appear on `ayu_other_page.dart` (the "Other" page), not the Ghost Mode settings where the spec places them
-- [ ] spec §50.9 "Chat list right-click — Read Message action": No "Read Message" context menu action on chat list items that forces a one-shot server read (spec requires this with a confirmation dialog)
-- [ ] spec §50.9 "Chat context — per-peer exclusions": No "Read Exclusion" / "Typing Exclusion" per-peer override submenu on the chat context menu
-
 ## §51 — Ghost Mode
 
 - [ ] spec §51.2.1 "Ghost Mode collapsible toggle": The ghost sub-toggles use checkboxes inside `AnimatedSize` which is correct, but the master toggle uses `_GhostMasterToggle` as a separate widget rather than a standard collapsible parent toggle — the visual style differs from spec (spec says "collapsible parent toggle labeled Ghost Mode")
@@ -211,10 +199,7 @@
 
 ## General / Cross-Cutting Issues
 
-- [ ] No Streamer Mode feature exists at all — neither the runtime toggle, OS hooks, nor any UI surface. This is the largest missing AyuGram feature
 - [ ] Ghost mode lock mechanism uses Shift+click on desktop and long-press on mobile (matching spec §51.2.1). Verified correct in `_LockableToggleRow`
-- [ ] Per-peer read/typing exclusions (§50.7, §51.5) are entirely missing — no `Map<int64, ReadExclusion>` storage or per-chat override UI
-- [ ] "Read Message" chat-list context action (§50.7) with confirmation dialog is missing
 - [ ] The collapsible toggle in `ayu_section_builder.dart` does not implement a master toggle that sets all sub-checkboxes — it only shows/hides nested checkboxes. Spec §51.2.1 says the master toggle calls `setGhostModeEnabled(bool)` which flips all five core toggles
 - [ ] No `-ghost` command-line flag support for launch-time ghost mode activation
 - [ ] Statistics page infrastructure (`StatsChartWidget`, all 5 chart types, tooltip, footer, pie zoom, server zoom, filter buttons, FPS-adaptive animation) is fully built but never wired to any navigation entry point
