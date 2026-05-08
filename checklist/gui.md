@@ -113,8 +113,3 @@
 
 ## §57 — Appendix B: Dark Theme Color Palette
 
-## General / Cross-Cutting Issues
-
-- [ ] Ghost mode lock mechanism uses Shift+click on desktop and long-press on mobile (matching spec §51.2.1). Verified correct in `_LockableToggleRow`
-- [ ] The collapsible toggle in `ayu_section_builder.dart` does not implement a master toggle that sets all sub-checkboxes — it only shows/hides nested checkboxes. Spec §51.2.1 says the master toggle calls `setGhostModeEnabled(bool)` which flips all five core toggles
-- [ ] No `-ghost` command-line flag support for launch-time ghost mode activation
