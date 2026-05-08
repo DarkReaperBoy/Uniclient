@@ -104,9 +104,6 @@
 
 ## §52 — Anti-Recall & Message History
 
-- [ ] spec §52.1 "Settings — semiTransparentDeletedMessages": Setting exists as `semiTransparentDeleted` in `ayu_chats_page.dart` as a toggle in the Messages section, but spec §52.1 says it should be under "Spy Essentials" subsection. It is implemented on the Chats page instead of the Ghost/AyuGram page
-- [ ] spec §52.1 "deletedMark / editedMark — EditMarkBox dialog": No `EditMarkBox` dialog to customize the deleted mark or edited mark text. The `_BubbleRadiusSection` in `ayu_chats_page.dart` uses `deletedMark` and `editedMark` from state for the preview, but there is no settings UI to edit these strings (spec §52.10 describes a 320px dialog with text input and reset-to-default button)
-- [ ] spec §52.1 "replaceBottomInfoWithIcons toggle": Toggle exists in the code (`replaceMarksWithIcons` in ayu_chats_page.dart) but there is no sub-settings reveal for the deleted mark and edited mark text customization buttons when this toggle is OFF (spec §54.11 says "When disabled, reveals sub-settings for custom deleted mark text and edited mark text via EditMarkBox dialogs")
 - [ ] spec §52.2-52.4 "Deletion/Edit interception flow": No actual deletion or edit interception implementation exists in the Dart codebase. There is no mechanism to preserve deleted messages or capture pre-edit text. The `saveDeletedMessages` and `saveMessagesHistory` toggles in `ghost_settings_page.dart` are persisted but have no functional backend wiring
 - [ ] spec §52.5 "Deleted Messages Viewer": No "View deleted messages" section panel or chat-list context menu action. No `MessageHistory` equivalent widget exists
 - [ ] spec §52.4 "Edit History Viewer": No "Edits history" context menu item or section panel for viewing edit revisions
