@@ -27,11 +27,18 @@ cd "$(dirname "$0")/.."
 PROJECT_ROOT="$(pwd)"
 SCRIPTS="$PROJECT_ROOT/scripts"
 SPEC_FILE="$PROJECT_ROOT/research/telegram_desktop_ui.md"
+AYUGRAM_DIR="/home/nako/Documents/AyuGramDesktop"
+AYUGRAM_UI="$AYUGRAM_DIR/Telegram/SourceFiles"
 
 # ─── Startup checks ─────────────────────────────────────────────
 for cmd in claude jq magick git; do
   command -v "$cmd" &>/dev/null || { echo "FATAL: '$cmd' not found in PATH. Run inside nix develop."; exit 1; }
 done
+if [[ ! -d "$AYUGRAM_DIR" ]]; then
+  echo "FATAL: AyuGram Desktop not found at $AYUGRAM_DIR"
+  echo "Clone it: git clone --depth 1 https://github.com/AyuGram/AyuGramDesktop.git $AYUGRAM_DIR"
+  exit 1
+fi
 
 # ─── Configuration ───────────────────────────────────────────────
 RATE_LIMIT_WAIT="${RALPH_RATE_WAIT:-300}"
@@ -277,20 +284,34 @@ launch_app() {
 # ═════════════════════════════════════════════════════════════════
 build_impl_prompt() {
   local extra="${1:-}"
-  cat <<'PROMPT_END'
+  cat <<PROMPT_END
 You are running in unattended automation mode (ralph loop). No human is watching.
 This is STAGE 1 (IMPLEMENTATION). Implement ALL items in the first section that
 has unchecked items. A separate verification session tests your work afterwards.
 
+REFERENCE SOURCE CODE: The AyuGram Desktop (Telegram Desktop fork) source is at:
+  $AYUGRAM_UI/
+Use it as the PRIMARY reference for exact pixel values, colors, dimensions, and behavior.
+Key directories:
+  - $AYUGRAM_UI/dialogs/ — chat list, rows, filters
+  - $AYUGRAM_UI/history/ — message list, bubbles, compose
+  - $AYUGRAM_UI/info/ — info panel, members, shared media
+  - $AYUGRAM_UI/settings/ — settings screens
+  - $AYUGRAM_UI/calls/ — call UI
+  - $AYUGRAM_UI/boxes/ — dialogs, popups
+  - $AYUGRAM_UI/window/ — layout, columns, titlebar
+Look for .style files (pixel constants), .cpp files (behavior), and .h files (structure).
+
 MANDATORY FIRST STEPS:
 1. Read CLAUDE.md (every rule is binding)
 2. Read checklist/gui.md — find the FIRST section (## heading) that contains "- [ ]" items
-3. Read ALL "- [ ]" items in that section — they typically touch the same files and spec area
+3. Read ALL "- [ ]" items in that section
 
 THEN:
-4. Read the relevant spec sections cited in the items (from research/telegram_desktop_ui.md)
-5. Read existing source files BEFORE writing code
-6. Implement ALL items in the section — no stubs, no placeholders
+4. Find and read the corresponding AyuGram source files for the UI area being fixed
+   (search $AYUGRAM_UI/ for relevant .style, .cpp, .h files)
+5. Read existing Dart source files BEFORE writing code
+6. Implement ALL items matching the AyuGram reference — no stubs, no placeholders
 7. Build and basic sanity check:
    a. ONLY rebuild Go if you changed files under go/: scripts/build_go.sh linux
       (Skip if you only changed dart/ files — saves 30-60 seconds)
@@ -305,8 +326,8 @@ THEN:
 RULES:
 - ONE SECTION per session. All items in it, one commit, then exit.
 - TELEGRAM ONLY for testing.
-- Do NOT read SPEC.md, auth/auth.md, or research/ files except cited spec sections.
 - Do NOT refactor unrelated code or fix unrelated bugs.
+- The AyuGram source is GROUND TRUTH — match it exactly.
 PROMPT_END
   [[ -n "$extra" ]] && echo -e "\n$extra"
 }
@@ -330,9 +351,13 @@ $item
 COMMIT: $commit_msg
 FILES: $diff_stat
 
+REFERENCE SOURCE CODE: AyuGram Desktop source is at $AYUGRAM_UI/
+Use it to verify exact values. Search for .style files for pixel constants,
+.cpp files for behavior. The AyuGram source is GROUND TRUTH.
+
 STEPS:
 1. Read CLAUDE.md
-2. Read the spec sections cited in the items above
+2. For each item, find the corresponding AyuGram source files to know the correct values
 3. Build & launch the app (skip Go build if only dart/ files changed):
    scripts/build_flutter.sh linux debug
    cd dart/build/linux/x64/debug/bundle && nohup ./uniclient > /tmp/uniclient_log.txt 2>&1 &
@@ -385,12 +410,18 @@ PROMPT_END
 build_extraction_prompt() {
   local start_line="$1" end_line="$2" section_name="$3" chunk_id="$4"
   cat <<PROMPT_END
-You are an autonomous UI auditor comparing a Flutter app against a Telegram Desktop UI spec.
-Read the spec section below, then read the corresponding Dart source files, and find EVERY discrepancy.
+You are an autonomous UI auditor comparing a Flutter app against the REAL AyuGram Desktop source code.
+The AyuGram source is GROUND TRUTH — not a spec document, not a description, the actual C++ code.
 
-SPEC SECTION: $section_name (lines $start_line-$end_line of research/telegram_desktop_ui.md)
+REFERENCE: AyuGram Desktop source at $AYUGRAM_UI/
+Key source directories for this section ($section_name):
+  - Look for .style files for exact pixel values, margins, fonts, colors
+  - Look for .cpp/.h files for behavior, state, interactions
+  - Use: find $AYUGRAM_UI/ -name "*.style" | xargs grep -l "relevant_keyword"
 
-Read the spec lines. Then list ALL dart files under dart/lib/ and read the ones relevant to this section.
+ALSO READ: research/telegram_desktop_ui.md lines $start_line-$end_line for context about this section.
+
+Then read the corresponding Dart source files under dart/lib/ and compare against AyuGram.
 
 SEVERITY (proportional — Weber's Law):
 - CRITICAL: >25% deviation on small elements, element missing entirely, interaction broken
@@ -398,12 +429,12 @@ SEVERITY (proportional — Weber's Law):
 - MINOR: 5-10% proportional deviation
 - COSMETIC: <5% deviation — DO NOT REPORT cosmetic issues
 
-For each bug/deviation found, output ONE checklist line:
-- [ ] [SEVERITY] spec §X "subsection": what's wrong (spec says Y, code does Z) — \`file.dart\`
+For each discrepancy between AyuGram source and Dart code, output ONE checklist line:
+- [ ] [SEVERITY] §$section_name: what's wrong (AyuGram has Y, our code does Z) — \`file.dart\`
 
 RULES:
-- Only report REAL issues where code deviates from spec or is broken
-- Be specific with values: "spec says 46px but code uses 40px" not "wrong size"
+- The AyuGram C++ source is the authority, not the prose spec
+- Be specific: "AyuGram dialogsRowHeight: 62px but ChatListRow uses 64" not "wrong size"
 - Only report CRITICAL and MAJOR issues. Skip MINOR and COSMETIC.
 - Check: dimensions, colors, behavior, missing features, placeholders, TODO stubs, broken interactions
 - One "- [ ]" line per issue
@@ -420,6 +451,7 @@ build_journey_prompt() {
   local journey_name="$1" screenshots="$2" journey_id="$3"
   cat <<PROMPT_END
 You are verifying a Flutter app's UI by testing a user journey. The app is running.
+Compare against AyuGram Desktop source at $AYUGRAM_UI/ as GROUND TRUTH.
 
 JOURNEY: $journey_name
 
@@ -427,8 +459,9 @@ STEPS:
 1. Use scripts/flutter_interact.sh to navigate the journey:
 $screenshots
 2. At each step, take a screenshot: scripts/flutter_inspect.sh screenshot /tmp/journey_${journey_id}_stepN.png
-3. Compare what you see against the spec (research/telegram_desktop_ui.md — read relevant sections)
-4. Check BOTH desktop (1024x768) and mobile (400x720) modes
+3. Find the corresponding AyuGram source files (search $AYUGRAM_UI/ for .style and .cpp files)
+4. Compare what you see against the AyuGram implementation
+5. Check BOTH desktop (1024x768) and mobile (400x720) modes
 
 SEVERITY (proportional — Weber's Law):
 - CRITICAL: layout collapsed, element missing, interaction broken, crash
@@ -436,7 +469,7 @@ SEVERITY (proportional — Weber's Law):
 - Skip MINOR and COSMETIC
 
 Report findings as checklist items:
-- [ ] [SEVERITY] spec §X: description — \`file.dart\`
+- [ ] [SEVERITY] description (AyuGram has X, our app has Y) — \`file.dart\`
 
 Write findings to /home/nako/Documents/uniclient/checklist/audit_journey_${journey_id}.md
 If no issues: write "# No issues found"
