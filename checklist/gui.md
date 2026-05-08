@@ -51,17 +51,6 @@ The `bridge.dart` file and its platform-specific implementations (`bridge_ffi.da
 
 All methods are fully implemented and wired to the backend. No implementation gaps, stubs, or placeholders detected. The architecture is clean and follows proper FFI best practices for memory management, thread safety, and platform-specific handling.
 
-# system_tray — Missing notifications toggle, no icon badge, wrong ghost default, incomplete hide notification
-
-## Findings
-
-- [ ] [MAJOR] Missing desktop-notifications toggle in tray menu — `system_tray.dart` has no `onNotificationsToggle` callback and no API to toggle desktop notifications from the tray, and the native runner has no corresponding menu item. AyuGram adds "Enable/Disable notifications from tray" (conditioned on passcode-not-locked) as a standard tray action. — `system_tray.dart:39-49` (all callbacks defined) ← `AyuGram/tray.cpp:97-108`
-
-- [ ] [MAJOR] Tray icon never renders an unread-count badge on the icon itself — `updateUnread` only sends a text label ("UniClient (N unread)") via `setTooltip`/`app_indicator_set_label`. AyuGram dynamically renders a counter overlay directly on the icon at every size (16–256 px), keyed on muted state and counter slice. The appindicator label is a text annotation beside the icon, not a badge on it. — `system_tray.dart:95-97` ← `AyuGram/platform/linux/tray_linux.cpp:206-213`
-
-- [ ] [MAJOR] Ghost-mode tray item is hidden by default, but AyuGram shows it by default — AyuGram's `_showGhostToggleInTray` defaults to `true` so the ghost toggle is visible in a fresh install. `system_tray.dart::init()` never calls `updateGhostItem(show: true, ...)` after setup, and the native runner hides the item at construction. Nothing initialises the item to visible after `init()` returns, so the ghost item is invisible contrary to the reference default. — `system_tray.dart:53-78` (init body, no updateGhostItem call) ← `AyuGram/ayu/ayu_settings.h:677`
-
-- [ ] [MAJOR] `onWindowHidden` is not fired when the user hides the window via the tray "Hide" menu item — The native runner's `on_tray_show_hide` callback calls `toggle_window_visibility` directly without invoking `onWindowHidden` on the Dart channel. Only the window close-button path fires `onWindowHidden`. AyuGram fires `hideToTrayRequests` for every hide-to-tray path (both from icon click and from the minimize-to-tray menu item), so Dart-side state tracking is out of sync when the user hides via the tray menu. — `system_tray.dart:43` (`onWindowHidden` callback field) ← `AyuGram/tray.cpp:192-207` (`hideToTrayRequests` merges all hide triggers) / native runner `dart/linux/my_application.cc:63-65` (fires nothing to Dart)
 
 # web_drop_web — Web drag-and-drop file zone
 
