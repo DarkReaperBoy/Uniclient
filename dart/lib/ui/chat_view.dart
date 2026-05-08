@@ -356,6 +356,11 @@ class _ChatViewState extends State<ChatView>
   double _autoScrollCurrentY = 0;
   Timer? _autoScrollTimer;
 
+  // §49.13: Sticky date header overlay.
+  String _stickyDateText = '';
+  bool _showStickyDate = false;
+  Timer? _stickyDateHideTimer;
+
   // §23.8: Video processing toasts state
   bool _showVideoTipToast = false;
   bool _showVideoTooltip = false;
@@ -561,6 +566,7 @@ class _ChatViewState extends State<ChatView>
     _videoTooltipTimer?.cancel();
     _videoPublishedTimer?.cancel();
     _autoScrollTimer?.cancel();
+    _stickyDateHideTimer?.cancel();
     super.dispose();
   }
 
@@ -647,6 +653,9 @@ class _ChatViewState extends State<ChatView>
       _mentionsAnimCtrl.value = 0;
       _reactionsAnimCtrl.value = 0;
       _pollVotesAnimCtrl.value = 0;
+      _showStickyDate = false;
+      _stickyDateText = '';
+      _stickyDateHideTimer?.cancel();
       if (_editingMsgId != null || _replyToId != null || _isSearching || _pinnedBarDismissed || _isForwarding || _isEditingStarsPrice) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
@@ -747,6 +756,7 @@ class _ChatViewState extends State<ChatView>
       context.read<ChatState>().loadMoreMessages();
     }
     _updateFabVisibility();
+    _updateStickyDate();
     // Spec §49.4: destroy unread bar when user scrolls to bottom.
     if (_scrollController.offset < 10) {
       context.read<ChatState>().clearOpenedUnread();
@@ -796,6 +806,64 @@ class _ChatViewState extends State<ChatView>
         _fabAnimCtrl.reverse();
       }
     }
+  }
+
+  /// §49.13: Update sticky date header overlay.
+  /// Shows current top-visible date while scrolling, fades in 200ms,
+  /// auto-hides after 1000ms of no scroll activity.
+  void _updateStickyDate() {
+    final chatState = context.read<ChatState>();
+    final messages = chatState.messages;
+    if (messages.isEmpty || !_scrollController.hasClients) {
+      if (_showStickyDate) setState(() => _showStickyDate = false);
+      return;
+    }
+
+    final pos = _scrollController.position;
+    if (pos.pixels < 200) {
+      _stickyDateHideTimer?.cancel();
+      if (_showStickyDate) setState(() => _showStickyDate = false);
+      return;
+    }
+
+    const avgHeight = 55.0;
+    final topDistance = pos.pixels + pos.viewportDimension;
+    final topIndex = (topDistance / avgHeight).floor().clamp(0, messages.length - 1);
+    final topMsg = messages[topIndex];
+    final newText = _formatDateBadge(topMsg.timestamp);
+
+    bool changed = false;
+    if (newText != _stickyDateText) {
+      _stickyDateText = newText;
+      changed = true;
+    }
+    if (!_showStickyDate) {
+      _showStickyDate = true;
+      changed = true;
+    }
+    if (changed) setState(() {});
+
+    _stickyDateHideTimer?.cancel();
+    _stickyDateHideTimer = Timer(const Duration(milliseconds: 1000), () {
+      if (mounted) setState(() => _showStickyDate = false);
+    });
+  }
+
+  static String _formatDateBadge(int timestampMs) {
+    final dt = DateTime.fromMillisecondsSinceEpoch(timestampMs);
+    final now = DateTime.now();
+    if (dt.year == now.year && dt.month == now.month && dt.day == now.day) {
+      return 'Today';
+    }
+    final yesterday = now.subtract(const Duration(days: 1));
+    if (dt.year == yesterday.year && dt.month == yesterday.month && dt.day == yesterday.day) {
+      return 'Yesterday';
+    }
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
 
   /// §23.8: Check if entering scheduled view with video messages and show tip toast.
@@ -4538,6 +4606,68 @@ class _ChatViewState extends State<ChatView>
                     highlightMsgKey: _activeHighlightId != null ? _highlightMsgKey : null,
                   ),
                 ),
+                // §49.13: Sticky date header overlay — fades in 200ms, hides after 1000ms.
+                if (_stickyDateText.isNotEmpty)
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: IgnorePointer(
+                      ignoring: !_showStickyDate,
+                      child: AnimatedOpacity(
+                        opacity: _showStickyDate ? 1.0 : 0.0,
+                        duration: const Duration(milliseconds: 200),
+                        child: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 10),
+                            child: GestureDetector(
+                              onTap: () {
+                                final chatState = context.read<ChatState>();
+                                final messages = chatState.messages;
+                                if (messages.isEmpty || !_scrollController.hasClients) return;
+                                final pos = _scrollController.position;
+                                const avgHeight = 55.0;
+                                final topDistance = pos.pixels + pos.viewportDimension;
+                                final topIndex = (topDistance / avgHeight).floor().clamp(0, messages.length - 1);
+                                final topMsg = messages[topIndex];
+                                final dt = DateTime.fromMillisecondsSinceEpoch(topMsg.timestamp);
+                                showDialog(
+                                  context: context,
+                                  builder: (ctx) => _CalendarBox(
+                                    initialDate: dt,
+                                    minDate: DateTime(2013, 8, 1),
+                                    maxDate: DateTime.now(),
+                                    onDateSelected: (date) {
+                                      Navigator.of(ctx).pop();
+                                      chatState.jumpToMessage(date.millisecondsSinceEpoch);
+                                    },
+                                  ),
+                                );
+                              },
+                              child: MouseRegion(
+                                cursor: SystemMouseCursors.click,
+                                child: Container(
+                                  padding: const EdgeInsets.fromLTRB(12, 3, 12, 4),
+                                  decoration: BoxDecoration(
+                                    color: context.palette.msgServiceBg,
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Text(
+                                    _stickyDateText,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: context.palette.msgServiceFg,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 // Spec §5 / §49.17: Stacked corner buttons.
                 // Order bottom→top: Jump-down → Mentions → Reactions → PollVotes.
                 // 4px gap (historyUnreadThingsSkip) between buttons, 12px right, 10px bottom.
@@ -10863,7 +10993,7 @@ class _ScrollToBottomFabState extends State<_ScrollToBottomFab> {
     final discBg = palette.historyToDownBg;
     final discBgOver = palette.historyToDownBgOver;
     final arrowColor = palette.historyToDownFg;
-    final badgeBg = palette.dialogsUnreadBgMuted;
+    final badgeBg = palette.dialogsUnreadBg;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -10895,8 +11025,8 @@ class _ScrollToBottomFabState extends State<_ScrollToBottomFab> {
                         widget.unreadCount > 9999
                             ? '9999+'
                             : widget.unreadCount.toString(),
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: palette.dialogsUnreadFg,
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                           height: 1.0,
