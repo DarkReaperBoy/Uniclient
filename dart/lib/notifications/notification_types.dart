@@ -61,6 +61,8 @@ class NotificationData {
   final String sublistPeerId;
   final bool hideMarkAsRead;
   final bool muteStateUnknown;
+  final String pollVoteOption;
+  final bool isReactorPeer;
 
   const NotificationData({
     required this.accountId,
@@ -112,6 +114,8 @@ class NotificationData {
     this.sublistPeerId = '',
     this.hideMarkAsRead = false,
     this.muteStateUnknown = false,
+    this.pollVoteOption = '',
+    this.isReactorPeer = false,
   });
 
   NotificationData copyWith({
@@ -164,6 +168,8 @@ class NotificationData {
     String? sublistPeerId,
     bool? hideMarkAsRead,
     bool? muteStateUnknown,
+    String? pollVoteOption,
+    bool? isReactorPeer,
   }) {
     return NotificationData(
       accountId: accountId ?? this.accountId,
@@ -215,6 +221,8 @@ class NotificationData {
       sublistPeerId: sublistPeerId ?? this.sublistPeerId,
       hideMarkAsRead: hideMarkAsRead ?? this.hideMarkAsRead,
       muteStateUnknown: muteStateUnknown ?? this.muteStateUnknown,
+      pollVoteOption: pollVoteOption ?? this.pollVoteOption,
+      isReactorPeer: isReactorPeer ?? this.isReactorPeer,
     );
   }
 }
@@ -274,8 +282,12 @@ String _composeTitle(NotificationData data, NotificationSettings settings) {
 String _composeSubtitle(NotificationData data, NotificationSettings settings) {
   if (!settings.previewName) return '';
 
-  if (data.isReaction && data.reactorName.isNotEmpty) {
-    return data.reactorName;
+  if ((data.isReaction || data.isPollVote) && data.reactorName.isNotEmpty) {
+    final hideReactionSender = !settings.reactionsShowPreview;
+    if (!hideReactionSender && !data.isReactorPeer) {
+      return data.reactorName;
+    }
+    return '';
   }
 
   if (data.isGroup || data.isChannel) {
@@ -287,16 +299,24 @@ String _composeSubtitle(NotificationData data, NotificationSettings settings) {
 }
 
 String _composeBody(NotificationData data, NotificationSettings settings) {
-  if (!settings.previewText) return 'You have a new message';
+  final hideMessageText = !settings.previewText;
 
-  if (data.isReaction) return _composeReactionText(data);
+  if (data.isPollVote) {
+    return _composePollVoteText(data, hideMessageText: hideMessageText);
+  }
+
+  if (data.isReaction) {
+    return _composeReactionText(data, hideMessageText: hideMessageText);
+  }
+
+  if (hideMessageText) return 'You have a new message';
 
   if (data.forwardCount > 1) {
     return '${data.forwardCount} forwarded messages';
   }
   if (data.forwardFrom.isNotEmpty && data.forwardCount <= 1) {
     final fwdText = _messageTextForType(data);
-    return '➡️ $fwdText';
+    return '➡️ ${data.forwardFrom}: $fwdText';
   }
 
   var text = _messageTextForType(data);
@@ -355,9 +375,11 @@ String _maskLoginCodes(String text) {
   });
 }
 
-String _composeReactionText(NotificationData data) {
+String _composeReactionText(NotificationData data, {required bool hideMessageText}) {
   final emoji = data.reactionEmoji;
   if (emoji.isEmpty) return '';
+
+  if (hideMessageText) return '$emoji to your message';
 
   switch (data.reactedToType) {
     case 1: return '$emoji to your photo';
@@ -388,6 +410,20 @@ String _composeReactionText(NotificationData data) {
   }
 }
 
+String _composePollVoteText(NotificationData data, {required bool hideMessageText}) {
+  if (hideMessageText) return 'Voted in a poll';
+
+  if (data.pollVoteOption.isNotEmpty) {
+    return 'Voted for «${data.pollVoteOption}»';
+  }
+
+  if (data.pollQuestion.isNotEmpty) {
+    return 'Voted in poll: ${data.pollQuestion}';
+  }
+
+  return 'Voted in a poll';
+}
+
 class NotificationSettings {
   final bool desktopNotify;
   final bool allowSound;
@@ -399,6 +435,7 @@ class NotificationSettings {
   final bool groupsNotify;
   final bool channelsNotify;
   final bool reactionsNotify;
+  final bool reactionsShowPreview;
   final bool includeMutedChats;
   final bool countUnreadMessages;
   final bool useNativeNotifications;
@@ -421,6 +458,7 @@ class NotificationSettings {
     this.groupsNotify = true,
     this.channelsNotify = true,
     this.reactionsNotify = true,
+    this.reactionsShowPreview = true,
     this.includeMutedChats = true,
     this.countUnreadMessages = true,
     this.useNativeNotifications = true,
@@ -444,6 +482,7 @@ class NotificationSettings {
     bool? groupsNotify,
     bool? channelsNotify,
     bool? reactionsNotify,
+    bool? reactionsShowPreview,
     bool? includeMutedChats,
     bool? countUnreadMessages,
     bool? useNativeNotifications,
@@ -466,6 +505,8 @@ class NotificationSettings {
       groupsNotify: groupsNotify ?? this.groupsNotify,
       channelsNotify: channelsNotify ?? this.channelsNotify,
       reactionsNotify: reactionsNotify ?? this.reactionsNotify,
+      reactionsShowPreview:
+          reactionsShowPreview ?? this.reactionsShowPreview,
       includeMutedChats: includeMutedChats ?? this.includeMutedChats,
       countUnreadMessages: countUnreadMessages ?? this.countUnreadMessages,
       useNativeNotifications:
