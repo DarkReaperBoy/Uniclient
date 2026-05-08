@@ -126,6 +126,71 @@ wait_for_internet() {
   sleep 2
 }
 
+# ─── Rate limit detection & waiting ──────────────────────────────
+RATE_LIMITED=false
+
+check_and_wait_rate_limit() {
+  local output_file="$1"
+  [[ -f "$output_file" ]] || return 1
+
+  # Check for rate limit message in session output
+  if ! grep -q "hit your limit\|rate.limit\|Rate limit\|429\|Too Many Requests" "$output_file" 2>/dev/null; then
+    RATE_LIMITED=false
+    return 1
+  fi
+
+  RATE_LIMITED=true
+  log ""
+  log "  ⏰ RATE LIMITED detected."
+
+  # Try to extract reset time like "resets 9:30pm (Asia/Muscat)"
+  local reset_str
+  reset_str=$(grep -oP 'resets?\s+\K[0-9]{1,2}:[0-9]{2}\s*(am|pm|AM|PM)' "$output_file" 2>/dev/null | head -1 || true)
+
+  if [[ -n "$reset_str" ]]; then
+    # Parse the time and compute seconds to wait
+    local reset_epoch
+    reset_epoch=$(date -d "$reset_str" +%s 2>/dev/null || true)
+    local now_epoch
+    now_epoch=$(date +%s)
+
+    if [[ -n "$reset_epoch" && "$reset_epoch" -gt "$now_epoch" ]]; then
+      local wait_secs=$(( reset_epoch - now_epoch + 60 ))  # +60s buffer
+      local wait_mins=$(( wait_secs / 60 ))
+      log "  ⏰ Rate limit resets at $reset_str. Waiting ${wait_mins} minutes (${wait_secs}s)..."
+      log "     Sleeping until $(date -d "+${wait_secs} seconds" '+%H:%M:%S')..."
+
+      # Sleep in chunks so Ctrl+C works and we can show progress
+      local slept=0
+      while [[ $slept -lt $wait_secs ]]; do
+        sleep 30
+        slept=$((slept + 30))
+        local remaining=$(( wait_secs - slept ))
+        if [[ $((slept % 300)) -eq 0 && $remaining -gt 0 ]]; then
+          log "     Still waiting... ${remaining}s left ($(date '+%H:%M:%S'))"
+        fi
+      done
+    else
+      # Reset time in the past or unparseable — default 30 min wait
+      log "  ⏰ Could not parse reset time '$reset_str'. Waiting 30 minutes..."
+      sleep 1800
+    fi
+  else
+    # No reset time found — default 30 min wait
+    log "  ⏰ No reset time found in output. Waiting 30 minutes..."
+    sleep 1800
+  fi
+
+  # Reset circuit breaker after rate limit wait (the API should be available now)
+  CB_FAILURES=0
+  CB_OPEN=false
+  CB_OPEN_UNTIL=0
+  RATE_LIMITED=false
+  log "  ✅ Rate limit wait complete. Circuit breaker reset. Resuming."
+  log ""
+  return 0
+}
+
 # ─── Circuit breaker state ───────────────────────────────────────
 CB_FAILURES=0
 CB_OPEN=false
@@ -229,6 +294,31 @@ invoke_claude() {
   duration=$(grep -o '"duration_ms":[0-9]*' "$iter_file.jsonl" 2>/dev/null | tail -1 | grep -o '[0-9]*' || echo "0")
   local duration_s=$(( ${duration:-0} / 1000 ))
   echo "$(date '+%H:%M:%S') $label $model \$$cost ${duration_s}s" >> "$COST_LOG" || true
+
+  # Check for rate limit BEFORE declaring success/failure
+  if check_and_wait_rate_limit "$iter_file.jsonl"; then
+    # Was rate limited, waited, now retry the same call
+    log "  🔄 Retrying $label after rate limit wait..."
+    code=0
+    claude \
+      --print \
+      --dangerously-skip-permissions \
+      --model "$model" \
+      --effort "$effort" \
+      --output-format stream-json \
+      --verbose \
+      -p "$prompt" \
+      2>&1 \
+      | tee "$iter_file.jsonl" \
+      | jq -Rr --unbuffered --arg root "$PROJECT_ROOT/" "$JQ_FMT" \
+      | tee -a "$iter_file" \
+      || code=${PIPESTATUS[0]:-$?}
+    # Re-extract cost
+    cost=$(grep -o '"total_cost_usd":[0-9.]*' "$iter_file.jsonl" 2>/dev/null | tail -1 | grep -o '[0-9.]*' || echo "0")
+    duration=$(grep -o '"duration_ms":[0-9]*' "$iter_file.jsonl" 2>/dev/null | tail -1 | grep -o '[0-9]*' || echo "0")
+    duration_s=$(( ${duration:-0} / 1000 ))
+    echo "$(date '+%H:%M:%S') $label-RETRY $model \$$cost ${duration_s}s" >> "$COST_LOG" || true
+  fi
 
   echo ""
   if [[ $code -eq 0 ]]; then
@@ -700,10 +790,7 @@ Item: $CURRENT_ITEMS"
     IMPL_EXIT=0
     invoke_claude "$(build_impl_prompt "$IMPL_EXTRA")" "$IMPL_FILE" "IMPLEMENT" || IMPL_EXIT=$?
 
-    if [[ $IMPL_EXIT -eq 2 ]]; then
-      log "Rate limited. Waiting ${RATE_LIMIT_WAIT}s..."
-      sleep "$RATE_LIMIT_WAIT"; continue
-    elif [[ $IMPL_EXIT -ne 0 ]]; then
+    if [[ $IMPL_EXIT -ne 0 ]]; then
       CONSECUTIVE_FAILURES=$((CONSECUTIVE_FAILURES + 1))
       BACKOFF=$(( BACKOFF_BASE * (2 ** (CONSECUTIVE_FAILURES - 1)) ))
       [[ $BACKOFF -gt $BACKOFF_MAX ]] && BACKOFF=$BACKOFF_MAX
@@ -732,10 +819,7 @@ Item: $CURRENT_ITEMS"
     VERIFY_EXIT=0
     invoke_claude "$(build_verify_prompt "$CURRENT_ITEMS")" "$VERIFY_FILE" "VERIFY" "claude-sonnet-4-6" || VERIFY_EXIT=$?
 
-    if [[ $VERIFY_EXIT -eq 2 ]]; then
-      log "Rate limited during verify. Waiting..."
-      sleep "$RATE_LIMIT_WAIT"; continue
-    elif [[ $VERIFY_EXIT -ne 0 ]]; then
+    if [[ $VERIFY_EXIT -ne 0 ]]; then
       CONSECUTIVE_FAILURES=$((CONSECUTIVE_FAILURES + 1))
       BACKOFF=$(( BACKOFF_BASE * (2 ** (CONSECUTIVE_FAILURES - 1)) ))
       [[ $BACKOFF -gt $BACKOFF_MAX ]] && BACKOFF=$BACKOFF_MAX
@@ -839,8 +923,21 @@ Item: $CURRENT_ITEMS"
     CHUNK_ID=0
     SUCCESSFUL_CHUNKS=0
     FAILED_CHUNKS=0
+    BATCH_RATE_LIMITED=false
 
     for dart_file in "${DART_FILES[@]}"; do
+      # If rate limited, wait before launching more
+      if $BATCH_RATE_LIMITED; then
+        log "  ⏰ Rate limit detected in previous batch. Checking before continuing..."
+        # Find any rate-limited output from the last batch
+        for rl_check in "$ITER_LOG_DIR"/audit_c${AUDIT_CYCLE}_*.log.jsonl; do
+          if [[ -f "$rl_check" ]] && check_and_wait_rate_limit "$rl_check"; then
+            break
+          fi
+        done
+        BATCH_RATE_LIMITED=false
+      fi
+
       dart_basename=$(basename "$dart_file" .dart)
       CHUNK_FILE="$ITER_LOG_DIR/audit_c${AUDIT_CYCLE}_${dart_basename}.log"
       PROMPT="$(build_audit_prompt "$dart_file" "$CHUNK_ID")"
@@ -864,6 +961,17 @@ Item: $CURRENT_ITEMS"
           fi
         done
         PIDS=()
+
+        # Check if any session in this batch was rate limited
+        if [[ $FAILED_CHUNKS -gt 0 ]]; then
+          for rl_check in "$ITER_LOG_DIR"/audit_c${AUDIT_CYCLE}_*.log.jsonl; do
+            if [[ -f "$rl_check" ]] && grep -q "hit your limit\|rate.limit\|Rate limit" "$rl_check" 2>/dev/null; then
+              BATCH_RATE_LIMITED=true
+              log "  ⚠️  Rate limit detected in batch. Will wait before next batch."
+              break
+            fi
+          done
+        fi
       fi
     done
 
@@ -952,8 +1060,19 @@ $(echo "$JSTEPS" | tr ';' '\n' | sed 's/^/  - /')"
       CHUNK_ID=0
       SUCCESSFUL_CHUNKS=0
       FAILED_CHUNKS=0
+      BATCH_RATE_LIMITED=false
 
       for dart_file in "${DART_FILES[@]}"; do
+        if $BATCH_RATE_LIMITED; then
+          log "  ⏰ Rate limit detected. Checking before continuing..."
+          for rl_check in "$ITER_LOG_DIR"/cleanup_c${AUDIT_CYCLE}_*.log.jsonl; do
+            if [[ -f "$rl_check" ]] && check_and_wait_rate_limit "$rl_check"; then
+              break
+            fi
+          done
+          BATCH_RATE_LIMITED=false
+        fi
+
         dart_basename=$(basename "$dart_file" .dart)
         CHUNK_FILE="$ITER_LOG_DIR/cleanup_c${AUDIT_CYCLE}_${dart_basename}.log"
         PROMPT="$(build_cleanup_prompt "$dart_file" "$CHUNK_ID")"
@@ -977,6 +1096,15 @@ $(echo "$JSTEPS" | tr ';' '\n' | sed 's/^/  - /')"
             fi
           done
           PIDS=()
+          if [[ $FAILED_CHUNKS -gt 0 ]]; then
+            for rl_check in "$ITER_LOG_DIR"/cleanup_c${AUDIT_CYCLE}_*.log.jsonl; do
+              if [[ -f "$rl_check" ]] && grep -q "hit your limit\|rate.limit\|Rate limit" "$rl_check" 2>/dev/null; then
+                BATCH_RATE_LIMITED=true
+                log "  ⚠️  Rate limit detected in batch. Will wait before next batch."
+                break
+              fi
+            done
+          fi
         fi
       done
 
