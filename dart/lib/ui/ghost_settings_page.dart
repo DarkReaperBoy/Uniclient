@@ -224,15 +224,63 @@ class GhostSettingsPage extends StatelessWidget {
             isDark: isDark,
             useMaterial: appState.materialSwitches,
           ),
-          if (!Platform.isAndroid && !Platform.isIOS) ...[
-            Container(height: 1, color: dividerColor, margin: const EdgeInsets.symmetric(horizontal: 22)),
+          const SizedBox(height: 7),
+          Container(height: 1, color: dividerColor),
+          const SizedBox(height: 7),
+
+          // ── Drawer Elements (§50.3.3 / §50.8) ──
+          _SectionLabel(label: 'Drawer Elements', color: sectionLabelColor),
+          _ToggleRow(
+            label: 'Ghost Mode',
+            value: appState.showGhostToggleInDrawer,
+            onChanged: (v) => appState.setShowGhostToggleInDrawer(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _ToggleRow(
+            label: 'Read Receipts (LRead)',
+            value: appState.showLReadToggleInDrawer,
+            onChanged: (v) => appState.setShowLReadToggleInDrawer(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          _ToggleRow(
+            label: 'Story Reads (SRead)',
+            value: appState.showSReadToggleInDrawer,
+            onChanged: (v) => appState.setShowSReadToggleInDrawer(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          if (Platform.isWindows || Platform.isMacOS)
             _ToggleRow(
-              label: 'Show Ghost Mode in Tray',
+              label: 'Streamer Mode',
+              value: appState.showStreamerToggleInDrawer,
+              onChanged: (v) => appState.setShowStreamerToggleInDrawer(v),
+              isDark: isDark,
+              useMaterial: appState.materialSwitches,
+            ),
+          const SizedBox(height: 7),
+          Container(height: 1, color: dividerColor),
+          const SizedBox(height: 7),
+
+          // ── Tray Elements (§50.3.3 / §50.8) ──
+          if (!Platform.isAndroid && !Platform.isIOS) ...[
+            _SectionLabel(label: 'Tray Elements', color: sectionLabelColor),
+            _ToggleRow(
+              label: 'Ghost Mode',
               value: appState.showGhostToggleInTray,
               onChanged: (v) => appState.setShowGhostToggleInTray(v),
               isDark: isDark,
               useMaterial: appState.materialSwitches,
             ),
+            if (Platform.isWindows || Platform.isMacOS)
+              _ToggleRow(
+                label: 'Streamer Mode',
+                value: appState.showStreamerToggleInTray,
+                onChanged: (v) => appState.setShowStreamerToggleInTray(v),
+                isDark: isDark,
+                useMaterial: appState.materialSwitches,
+              ),
           ],
           const SizedBox(height: 24),
         ],

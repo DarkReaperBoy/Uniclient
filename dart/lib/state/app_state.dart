@@ -232,6 +232,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   // §50.2: Streamer Mode — global, non-persistent (OFF on every cold launch).
   bool _streamerModeEnabled = false;
+  final StreamController<bool> _streamerModeController = StreamController<bool>.broadcast();
   bool _showStreamerToggleInDrawer = false;
   bool _showStreamerToggleInTray = false;
 
@@ -317,6 +318,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   // §50.7: Per-peer read exclusions. Key: "accountId:chatId", value: 0=default, 1=neverRead, 2=alwaysRead.
   Map<String, int> _readExclusions = {};
+  // §50.9: Per-peer typing exclusions. Key: "accountId:chatId", value: 0=default, 1=neverType, 2=alwaysType.
+  Map<String, int> _typingExclusions = {};
 
   // Spec §17.7.1: PowerSaving bitfield (matches tdesktop bit positions).
   static const kPowerSavingStickersPanel = 1 << 0;
@@ -462,6 +465,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   // §50.2 Streamer Mode getters
   bool get streamerModeEnabled => _streamerModeEnabled;
+  Stream<bool> get streamerModeStream => _streamerModeController.stream;
   bool get showStreamerToggleInDrawer => _showStreamerToggleInDrawer;
   bool get showStreamerToggleInTray => _showStreamerToggleInTray;
   bool get showGhostToggleInTray => _showGhostToggleInTray;
@@ -743,6 +747,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setStreamerModeEnabled(bool v) {
     if (_streamerModeEnabled == v) return;
     _streamerModeEnabled = v;
+    _streamerModeController.add(v);
     _applyStreamerMode(v);
     notifyListeners();
   }
@@ -1186,6 +1191,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _hideFromBlocked = false;
     _shadowBanIds = {};
     _readExclusions = {};
+    _typingExclusions = {};
     notifyListeners();
     _saveWindowPrefs();
     _syncGhostToEngine();
@@ -1227,6 +1233,21 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _readExclusions.remove(key);
     } else {
       _readExclusions[key] = value.clamp(0, 2);
+    }
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  // §50.9: Per-peer typing exclusion. 0=default, 1=neverType, 2=alwaysType.
+  int getTypingExclusion(String accountId, String chatId) =>
+      _typingExclusions['$accountId:$chatId'] ?? 0;
+
+  void setTypingExclusion(String accountId, String chatId, int value) {
+    final key = '$accountId:$chatId';
+    if (value == 0) {
+      _typingExclusions.remove(key);
+    } else {
+      _typingExclusions[key] = value.clamp(0, 2);
     }
     notifyListeners();
     _saveWindowPrefs();
@@ -2752,6 +2773,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       if (rawExcl != null) {
         _readExclusions = rawExcl.map((k, v) => MapEntry(k, (v as int?) ?? 0));
       }
+      final rawTypingExcl = data['typingExclusions'] as Map<String, dynamic>?;
+      if (rawTypingExcl != null) {
+        _typingExclusions = rawTypingExcl.map((k, v) => MapEntry(k, (v as int?) ?? 0));
+      }
       filterEngine.loadFromJson(data);
       _loadWallpaper(data);
       _loadCustomThemeFromCache();
@@ -2924,6 +2949,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'shadowBanIds': _shadowBanIds.toList(),
         ...filterEngine.toJson(),
         'readExclusions': _readExclusions,
+        'typingExclusions': _typingExclusions,
         'wallpaperType': _wallpaper.type.index,
         'wallpaperColors': _wallpaper.backgroundColors
             .map((c) => (c.value & 0xFFFFFF).toRadixString(16).padLeft(6, '0'))

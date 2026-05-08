@@ -1306,6 +1306,7 @@ class _ChatListPanelState extends State<ChatListPanel>
     final isChannel = chat.type == ChatType.channel;
     final ghostBlocksReads = !appState.sendReadMessages;
     final currentExclusion = appState.getReadExclusion(chat.accountId, chat.chatId);
+    final currentTypingExclusion = appState.getTypingExclusion(chat.accountId, chat.chatId);
 
     final shadowBanId = int.tryParse(chat.chatId);
     final canShadowBan = appState.filtersEnabled &&
@@ -1344,6 +1345,14 @@ class _ChatListPanelState extends State<ChatListPanel>
               : currentExclusion == 2
                   ? 'Read Exclusion: Always'
                   : 'Read Exclusion',
+        ),
+        TelegramMenuItem(
+          value: 'typing_exclusion',
+          label: currentTypingExclusion == 1
+              ? 'Typing Exclusion: Never'
+              : currentTypingExclusion == 2
+                  ? 'Typing Exclusion: Always'
+                  : 'Typing Exclusion',
         ),
         const TelegramMenuItem(
           value: 'view_deleted',
@@ -1418,6 +1427,10 @@ class _ChatListPanelState extends State<ChatListPanel>
         case 'read_exclusion':
           if (context.mounted) {
             _showReadExclusionMenu(context, chat, globalPosition);
+          }
+        case 'typing_exclusion':
+          if (context.mounted) {
+            _showTypingExclusionMenu(context, chat, globalPosition);
           }
         case 'view_deleted':
           chatState.openChat(chat);
@@ -1665,6 +1678,37 @@ class _ChatListPanelState extends State<ChatListPanel>
     });
   }
 
+  void _showTypingExclusionMenu(BuildContext context, ChatInfo chat, Offset globalPosition) {
+    final appState = context.read<AppState>();
+    final current = appState.getTypingExclusion(chat.accountId, chat.chatId);
+
+    showTelegramMenu<int>(
+      context: context,
+      position: globalPosition,
+      items: [
+        TelegramMenuItem(
+          value: 0,
+          label: 'Default',
+          icon: current == 0 ? const Icon(Icons.check, size: 18) : null,
+        ),
+        TelegramMenuItem(
+          value: 1,
+          label: 'Never Send Typing',
+          icon: current == 1 ? const Icon(Icons.check, size: 18) : null,
+        ),
+        TelegramMenuItem(
+          value: 2,
+          label: 'Always Send Typing',
+          icon: current == 2 ? const Icon(Icons.check, size: 18) : null,
+        ),
+      ],
+    ).then((value) {
+      if (value != null) {
+        appState.setTypingExclusion(chat.accountId, chat.chatId, value);
+      }
+    });
+  }
+
 }
 
 class _ReadConfirmContent extends StatelessWidget {
@@ -1769,7 +1813,18 @@ class _SearchBar extends StatelessWidget {
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
             ),
-            const SizedBox(width: 4),
+            // §50.4: Streamer Mode visual indicator — small icon when active.
+            if (context.watch<AppState>().streamerModeEnabled)
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Icon(
+                  Icons.videocam_off,
+                  size: 18,
+                  color: context.palette.windowBgActive,
+                ),
+              )
+            else
+              const SizedBox(width: 4),
           ],
           Expanded(
             child: SizedBox(
