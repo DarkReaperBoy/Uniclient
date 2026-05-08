@@ -166,6 +166,71 @@ run_static_scan() {
       [[ -n "$file" ]] && echo "- [ ] [MAJOR] Empty catch block (silently swallows errors) — \`$(basename "$file"):$line\`"
     done < <(grep -rn "catch.*{}" "$scan_dir/" 2>/dev/null || true)
 
+    # Resource leak detection: addListener without removeListener per file
+    for f in "$scan_dir/ui/"*.dart "$scan_dir/state/"*.dart; do
+      [[ -f "$f" ]] || continue
+      local adds removes fname
+      fname=$(basename "$f")
+      adds=$(grep -c "addListener\|\.listen(" "$f" 2>/dev/null || true)
+      adds="${adds//[^0-9]/}"; [[ -z "$adds" ]] && adds=0
+      removes=$(grep -c "removeListener\|\.cancel()" "$f" 2>/dev/null || true)
+      removes="${removes//[^0-9]/}"; [[ -z "$removes" ]] && removes=0
+      if [[ $adds -gt 0 && $removes -lt $adds ]]; then
+        echo "- [ ] [MAJOR] Potential resource leak: $adds listeners/subscriptions added but only $removes removed — \`$fname\`"
+      fi
+    done
+
+    # Timer leak detection
+    for f in "$scan_dir/ui/"*.dart "$scan_dir/state/"*.dart; do
+      [[ -f "$f" ]] || continue
+      local timers cancels fname
+      fname=$(basename "$f")
+      timers=$(grep -c "Timer(\|Timer.periodic(" "$f" 2>/dev/null || true)
+      timers="${timers//[^0-9]/}"; [[ -z "$timers" ]] && timers=0
+      cancels=$(grep -c "\.cancel()" "$f" 2>/dev/null || true)
+      cancels="${cancels//[^0-9]/}"; [[ -z "$cancels" ]] && cancels=0
+      if [[ $timers -gt 0 && $cancels -lt $timers ]]; then
+        echo "- [ ] [MAJOR] Potential timer leak: $timers timers created but only $cancels cancel() calls — \`$fname\`"
+      fi
+    done
+
+    # setState after await without mounted check
+    while IFS= read -r match; do
+      [[ -n "$match" ]] && echo "- [ ] [MAJOR] setState after await without mounted check — $match"
+    done < <(
+      for f in "$scan_dir/ui/"*.dart; do
+        [[ -f "$f" ]] || continue
+        awk '
+          /await / { awaiting=NR; file=FILENAME }
+          /setState/ && awaiting && (NR - awaiting) <= 5 {
+            # Check if mounted appears between await and setState
+            found_mounted=0
+            for (i=awaiting; i<=NR; i++) {
+              if (lines[i] ~ /mounted/) found_mounted=1
+            }
+            if (!found_mounted) print "`" FILENAME ":" NR "` — setState " (NR-awaiting) " lines after await"
+            awaiting=0
+          }
+          { lines[NR]=$0 }
+          /[;}]/ && !/await/ && !/setState/ { if (NR - awaiting > 5) awaiting=0 }
+        ' "$f" 2>/dev/null
+      done || true
+    )
+
+    # context.read inside build() methods (should be context.watch for reactivity)
+    while IFS=: read -r file line content; do
+      [[ -n "$file" ]] && echo "- [ ] [CRITICAL] context.read inside build (should be context.watch for reactivity) — \`$(basename "$file"):$line\`"
+    done < <(
+      for f in "$scan_dir/ui/"*.dart; do
+        [[ -f "$f" ]] || continue
+        awk '
+          /Widget build\(/ { in_build=1 }
+          in_build && /context\.read</ { print FILENAME ":" NR ":" $0 }
+          in_build && /^[[:space:]]*\}/ && !/if|else|for|while|switch|try|catch/ { in_build=0 }
+        ' "$f" 2>/dev/null
+      done || true
+    )
+
   } > "$out_file"
 
   local count
@@ -408,6 +473,8 @@ extract_skeleton() {
   skeleton+="$(grep -n -A5 "void initState\|void dispose\|void didChangeDependencies\|void didUpdateWidget" "$dart_file" 2>/dev/null | head -60 || true)"$'\n'
   skeleton+="--- Error handling (try/catch) ---"$'\n'
   skeleton+="$(grep -n -B1 -A2 "} catch\|catch (" "$dart_file" 2>/dev/null | head -40 || true)"$'\n'
+  skeleton+="--- Animation constants (Duration, Curves, controllers) ---"$'\n'
+  skeleton+="$(grep -n "Duration(\|Curves\.\|AnimationController\|Tween\|AnimatedBuilder\|vsync" "$dart_file" 2>/dev/null | head -30 || true)"$'\n'
 
   echo "$skeleton"
 }
@@ -1265,7 +1332,7 @@ Item: $CURRENT_ITEMS"
     log "  Layer 1: Comparing Dart files against AyuGram source (skeleton mode)..."
 
     # Get all auditable dart files
-    mapfile -t ALL_DART_FILES < <(find "$PROJECT_ROOT/dart/lib/ui" "$PROJECT_ROOT/dart/lib/state" "$PROJECT_ROOT/dart/lib/bridge" "$PROJECT_ROOT/dart/lib/theme" -name "*.dart" -type f 2>/dev/null | grep -v '/proto/' | sort)
+    mapfile -t ALL_DART_FILES < <(find "$PROJECT_ROOT/dart/lib" -name "*.dart" -type f 2>/dev/null | grep -v '/proto/' | sort)
 
     # Filter by fingerprint on cycle 2+ (skip unchanged files)
     DART_FILES=()
@@ -1397,6 +1464,7 @@ Item: $CURRENT_ITEMS"
         "search_flow|tap 200 35;sleep 1;type 'test';sleep 2"
         "settings|taptext 'Settings';sleep 2;scroll 400 400 0 -300;sleep 1"
         "responsive|resize desktop;sleep 2;resize mobile;sleep 2;resize desktop;sleep 1"
+        "keyboard|key escape;sleep 1;key tab;sleep 1;key tab;sleep 1;key enter;sleep 1;type 'test';key enter;sleep 1"
       )
 
       # Journeys run SEQUENTIALLY — they share the app via IPC files,
@@ -1445,7 +1513,7 @@ $(echo "$JSTEPS" | tr ';' '\n' | sed 's/^/  - /')"
 
       git -C "$PROJECT_ROOT" tag -f "audit-pre-cycle-${AUDIT_CYCLE}b" HEAD 2>/dev/null || true
 
-      mapfile -t DART_FILES < <(find "$PROJECT_ROOT/dart/lib/ui" "$PROJECT_ROOT/dart/lib/state" "$PROJECT_ROOT/dart/lib/bridge" "$PROJECT_ROOT/dart/lib/theme" -name "*.dart" -type f 2>/dev/null | grep -v '/proto/' | sort)
+      mapfile -t DART_FILES < <(find "$PROJECT_ROOT/dart/lib" -name "*.dart" -type f 2>/dev/null | grep -v '/proto/' | sort)
       NUM_FILES=${#DART_FILES[@]}
       log "  📂 Sweeping ALL $NUM_FILES files for placeholders & perf issues"
 
