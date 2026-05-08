@@ -753,8 +753,7 @@ launch_app() {
     "$SCRIPTS/build_go.sh" linux 2>&1 | tail -3
     "$SCRIPTS/build_flutter.sh" linux debug 2>&1 | tail -5
   fi
-  cd "$bundle" && nohup ./uniclient > /tmp/uniclient_log.txt 2>&1 &
-  cd "$PROJECT_ROOT"
+  (cd "$bundle" && nohup ./uniclient > /tmp/uniclient_log.txt 2>&1 &)
   sleep 4
   if ! pgrep -x uniclient &>/dev/null; then
     log "App failed to launch"
@@ -1146,6 +1145,13 @@ while true; do
     [[ $ITEM_COUNT -gt 5 ]] && log "     ... and $((ITEM_COUNT - 5)) more"
     log ""
 
+    # Guard: if no section found (items exist but no ## headers), treat as audit needed
+    if [[ -z "$CURRENT_SECTION" || $ITEM_COUNT -eq 0 ]]; then
+      log "  ⚠️  gui.md has items but no ## section headers. Clearing and re-auditing."
+      echo "" > "$PROJECT_ROOT/checklist/gui.md"
+      continue
+    fi
+
     pkill -x uniclient 2>/dev/null || true
     rm -f /tmp/uniclient_debug_cmd.json /tmp/uniclient_debug_out.json
 
@@ -1265,27 +1271,26 @@ Item: $CURRENT_ITEMS"
     # Safety tag for rollback
     git -C "$PROJECT_ROOT" tag -f "audit-pre-cycle-${AUDIT_CYCLE}a" HEAD 2>/dev/null || true
 
-    # ── Take SSIM baseline (if previous cycle exists) ────────
+    # ── Take SSIM screenshot and compare vs previous cycle ───
     SSIM_DIR="$AUDIT_DATA/ssim_cycle_${AUDIT_CYCLE}"
     mkdir -p "$SSIM_DIR"
     PREV_SSIM_DIR="$AUDIT_DATA/ssim_cycle_$((AUDIT_CYCLE - 1))"
 
-    if [[ $AUDIT_CYCLE -gt 1 ]] && launch_app; then
-      "$SCRIPTS/flutter_inspect.sh" screenshot "$SSIM_DIR/desktop_pre.png" 2>/dev/null || true
+    if launch_app; then
+      "$SCRIPTS/flutter_inspect.sh" screenshot "$SSIM_DIR/desktop.png" 2>/dev/null || true
       "$SCRIPTS/flutter_interact.sh" resize mobile 2>/dev/null || true
       sleep 1.5
-      "$SCRIPTS/flutter_inspect.sh" screenshot "$SSIM_DIR/mobile_pre.png" 2>/dev/null || true
+      "$SCRIPTS/flutter_inspect.sh" screenshot "$SSIM_DIR/mobile.png" 2>/dev/null || true
       "$SCRIPTS/flutter_interact.sh" resize desktop 2>/dev/null || true
-      sleep 1
 
-      # Compare against previous cycle
-      if [[ -f "$PREV_SSIM_DIR/desktop_post.png" ]]; then
-        SSIM_DESKTOP=$(ssim_compare "$PREV_SSIM_DIR/desktop_post.png" "$SSIM_DIR/desktop_pre.png")
-        log "SSIM desktop (vs prev cycle): $SSIM_DESKTOP"
+      # Compare against previous cycle's screenshots
+      if [[ -f "$PREV_SSIM_DIR/desktop.png" ]]; then
+        SSIM_DESKTOP=$(ssim_compare "$PREV_SSIM_DIR/desktop.png" "$SSIM_DIR/desktop.png")
+        log "  📸 SSIM desktop (vs prev cycle): $SSIM_DESKTOP"
       fi
-      if [[ -f "$PREV_SSIM_DIR/mobile_post.png" ]]; then
-        SSIM_MOBILE=$(ssim_compare "$PREV_SSIM_DIR/mobile_post.png" "$SSIM_DIR/mobile_pre.png")
-        log "SSIM mobile (vs prev cycle): $SSIM_MOBILE"
+      if [[ -f "$PREV_SSIM_DIR/mobile.png" ]]; then
+        SSIM_MOBILE=$(ssim_compare "$PREV_SSIM_DIR/mobile.png" "$SSIM_DIR/mobile.png")
+        log "  📸 SSIM mobile (vs prev cycle): $SSIM_MOBILE"
       fi
 
       pkill -x uniclient 2>/dev/null || true
@@ -1328,6 +1333,7 @@ Item: $CURRENT_ITEMS"
     SUCCESSFUL_CHUNKS=0
     FAILED_CHUNKS=0
     BATCH_RATE_LIMITED=false
+    unset CHUNK_ID_MAP 2>/dev/null || true
     declare -A CHUNK_ID_MAP
 
     for dart_file in "${DART_FILES[@]}"; do
@@ -1455,13 +1461,23 @@ Item: $CURRENT_ITEMS"
 
         dart_basename=$(basename "$dart_file" .dart)
         CHUNK_FILE="$ITER_LOG_DIR/cleanup_c${AUDIT_CYCLE}_${dart_basename}.log"
-        PROMPT="$(build_cleanup_prompt "$dart_file" "$CHUNK_ID")"
 
-        log "    [$((CHUNK_ID + 1))/$NUM_FILES] $dart_basename.dart"
+        tier=$(get_file_tier "$dart_file")
+        if [[ "$tier" == "skip" ]]; then
+          log "    [$((CHUNK_ID + 1))/$NUM_FILES] $dart_basename.dart — SKIP (tiny)"
+          CHUNK_ID=$((CHUNK_ID + 1))
+          SUCCESSFUL_CHUNKS=$((SUCCESSFUL_CHUNKS + 1))
+          continue
+        fi
+        model="claude-sonnet-4-6"
+        [[ "$tier" == "haiku" ]] && model="claude-haiku-4-5-20251001"
+
+        PROMPT="$(build_cleanup_prompt "$dart_file" "$CHUNK_ID")"
+        log "    [$((CHUNK_ID + 1))/$NUM_FILES] $dart_basename.dart (tier=$tier)"
 
         (
           set +e
-          invoke_claude "$PROMPT" "$CHUNK_FILE" "CLEANUP-${dart_basename}" "claude-sonnet-4-6"
+          invoke_claude "$PROMPT" "$CHUNK_FILE" "CLEANUP-${dart_basename}" "$model"
           exit $?
         ) &
         PIDS+=($!)
@@ -1566,7 +1582,7 @@ Item: $CURRENT_ITEMS"
     fi
     if [[ "$FINDINGS" -gt "$LAST_PHASE_FINDINGS" && $AUDIT_CYCLE -gt 1 ]]; then
       DIVERGE_COUNT=$((DIVERGE_COUNT + 1))
-      log "  ⚠️  DIVERGENCE: findings $LAST_AUDIT_FINDINGS → $FINDINGS (count: $DIVERGE_COUNT)"
+      log "  ⚠️  DIVERGENCE: findings $LAST_PHASE_FINDINGS → $FINDINGS (count: $DIVERGE_COUNT)"
       if [[ $DIVERGE_COUNT -ge 2 ]]; then
         rollback_tag="audit-pre-cycle-$((AUDIT_CYCLE - 2))a"
         if git -C "$PROJECT_ROOT" rev-parse "$rollback_tag" &>/dev/null; then
