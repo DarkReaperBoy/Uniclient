@@ -133,7 +133,7 @@ check_and_wait_rate_limit() {
   local output_file="$1"
   [[ -f "$output_file" ]] || return 1
 
-  # Check for rate limit message in session output
+  # Check for rate limit message (may be JSON-wrapped or plain text)
   if ! grep -q "hit your limit\|rate.limit\|Rate limit\|429\|Too Many Requests" "$output_file" 2>/dev/null; then
     RATE_LIMITED=false
     return 1
@@ -144,8 +144,18 @@ check_and_wait_rate_limit() {
   log "  ⏰ RATE LIMITED detected."
 
   # Try to extract reset time like "resets 9:30pm (Asia/Muscat)"
+  # The text may be JSON-wrapped: {"type":"text","text":"...resets 9:30pm..."}
   local reset_str
   reset_str=$(grep -oP 'resets?\s+\K[0-9]{1,2}:[0-9]{2}\s*(am|pm|AM|PM)' "$output_file" 2>/dev/null | head -1 || true)
+  # If not found, try extracting from JSON string values
+  if [[ -z "$reset_str" ]]; then
+    reset_str=$(jq -r 'select(.type=="result" or .type=="system" or .type=="assistant") | .. | strings' "$output_file" 2>/dev/null \
+      | grep -oP 'resets?\s+\K[0-9]{1,2}:[0-9]{2}\s*(am|pm|AM|PM)' 2>/dev/null | head -1 || true)
+  fi
+  # Last resort: brute-force search for time pattern near "reset"
+  if [[ -z "$reset_str" ]]; then
+    reset_str=$(cat "$output_file" | tr '\\' '\n' | grep -oP 'resets?\s+\K[0-9]{1,2}:[0-9]{2}\s*(am|pm|AM|PM)' 2>/dev/null | head -1 || true)
+  fi
 
   if [[ -n "$reset_str" ]]; then
     # Parse the time and compute seconds to wait
@@ -295,8 +305,8 @@ invoke_claude() {
   local duration_s=$(( ${duration:-0} / 1000 ))
   echo "$(date '+%H:%M:%S') $label $model \$$cost ${duration_s}s" >> "$COST_LOG" || true
 
-  # Check for rate limit BEFORE declaring success/failure
-  if check_and_wait_rate_limit "$iter_file.jsonl"; then
+  # Check for rate limit ONLY on failure
+  if [[ $code -ne 0 ]] && check_and_wait_rate_limit "$iter_file.jsonl"; then
     # Was rate limited, waited, now retry the same call
     log "  🔄 Retrying $label after rate limit wait..."
     code=0
