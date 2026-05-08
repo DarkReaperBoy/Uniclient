@@ -126,6 +126,106 @@ wait_for_internet() {
   sleep 2
 }
 
+# ─── Static scan: catch obvious bugs with ZERO tokens ────────────
+run_static_scan() {
+  local scan_dir="$PROJECT_ROOT/dart/lib"
+  local out_file="$PROJECT_ROOT/checklist/audit_chunk_static.md"
+  log "  🔍 Static scan: grepping for placeholders, stubs, perf issues..."
+
+  {
+    echo "## static_scan — Mechanical pattern detection (zero AI cost)"
+    echo ""
+
+    # Empty callbacks
+    while IFS=: read -r file line content; do
+      [[ -n "$file" ]] && echo "- [ ] [CRITICAL] Empty callback — \`$(basename "$file"):$line\` — \`$content\`"
+    done < <(grep -rn "onTap: () {}\|onPressed: () {}\|onLongPress: () {}" "$scan_dir/ui/" 2>/dev/null || true)
+
+    # TODO/FIXME/HACK stubs
+    while IFS=: read -r file line content; do
+      [[ -n "$file" ]] && echo "- [ ] [CRITICAL] TODO/stub marker — \`$(basename "$file"):$line\` — \`${content:0:120}\`"
+    done < <(grep -rn "TODO\|FIXME\|HACK\|XXX" "$scan_dir/ui/" "$scan_dir/state/" 2>/dev/null | grep -v "node_modules\|.dart.js" || true)
+
+    # "coming soon" / "not implemented" fake features
+    while IFS=: read -r file line content; do
+      [[ -n "$file" ]] && echo "- [ ] [CRITICAL] Fake feature — \`$(basename "$file"):$line\` — \`${content:0:120}\`"
+    done < <(grep -rn "coming soon\|not yet supported\|not implemented\|not.supported" "$scan_dir/ui/" 2>/dev/null | grep -iv "ErrNotSupported\|// not" || true)
+
+    # debugPrint used as stub implementation
+    while IFS=: read -r file line content; do
+      [[ -n "$file" ]] && echo "- [ ] [MAJOR] debugPrint stub (should be real implementation) — \`$(basename "$file"):$line\`"
+    done < <(grep -rn "debugPrint" "$scan_dir/ui/" 2>/dev/null || true)
+
+    # Non-builder ListViews (perf issue)
+    while IFS=: read -r file line content; do
+      [[ -n "$file" ]] && echo "- [ ] [MAJOR] Non-lazy ListView (use ListView.builder) — \`$(basename "$file"):$line\`"
+    done < <(grep -rn "ListView(" "$scan_dir/ui/" 2>/dev/null | grep -v "ListView.builder\|ListView.separated\|ListView.custom" || true)
+
+  } > "$out_file"
+
+  local count
+  count=$(grep -c '^- \[ \]' "$out_file" 2>/dev/null || true)
+  count="${count//[^0-9]/}"
+  [[ -z "$count" ]] && count=0
+  log "  📊 Static scan: $count issues found (cost: \$0)"
+}
+
+# ─── Skeleton extraction: reduce tokens by 80% ──────────────────
+extract_skeleton() {
+  local dart_file="$1"
+  local skeleton=""
+
+  # Extract only the interesting parts: callbacks, constants, bridge calls, switch cases
+  skeleton+="=== FILE: $(basename "$dart_file") ==="$'\n'
+  skeleton+="--- Class/Widget declarations ---"$'\n'
+  skeleton+="$(grep -n "^class \|^abstract class \|^mixin " "$dart_file" 2>/dev/null || true)"$'\n'
+  skeleton+="--- Callbacks (onTap, onPressed, etc.) with context ---"$'\n'
+  skeleton+="$(grep -n -B1 -A3 "onTap:\|onPressed:\|onLongPress:\|onChanged:\|onSubmitted:" "$dart_file" 2>/dev/null || true)"$'\n'
+  skeleton+="--- Numeric constants and dimensions ---"$'\n'
+  skeleton+="$(grep -n "height:\|width:\|fontSize:\|EdgeInsets\|SizedBox\|BorderRadius\|= [0-9]" "$dart_file" 2>/dev/null | head -60 || true)"$'\n'
+  skeleton+="--- Bridge/Engine calls ---"$'\n'
+  skeleton+="$(grep -n "bridge\.\|engine\.\|_engine\.\|EngineService\.\|\.call(" "$dart_file" 2>/dev/null || true)"$'\n'
+  skeleton+="--- Switch/case blocks (stub detection) ---"$'\n'
+  skeleton+="$(grep -n -A2 "case '\|case \"" "$dart_file" 2>/dev/null | head -80 || true)"$'\n'
+  skeleton+="--- Color values ---"$'\n'
+  skeleton+="$(grep -n "Color(\|0xFF\|0xff\|AppColors\.\|TelegramPalette\." "$dart_file" 2>/dev/null | head -40 || true)"$'\n'
+  skeleton+="--- State fields ---"$'\n'
+  skeleton+="$(grep -n "bool _\|int _\|String _\|List<\|Map<\|final _\|late " "$dart_file" 2>/dev/null | head -40 || true)"$'\n'
+
+  echo "$skeleton"
+}
+
+# ─── Fingerprint cache for skip-unchanged ────────────────────────
+FINGERPRINT_FILE="$PROJECT_ROOT/audit/fingerprints.json"
+
+should_audit_file() {
+  local dart_file="$1" cycle="$2"
+  # Always audit on cycle 1
+  [[ "$cycle" -le 1 ]] && return 0
+  # Check if file hash changed since last audit
+  local current_hash
+  current_hash=$(sha256sum "$dart_file" 2>/dev/null | cut -d' ' -f1)
+  local stored_hash
+  stored_hash=$(jq -r --arg f "$dart_file" '.[$f] // ""' "$FINGERPRINT_FILE" 2>/dev/null || true)
+  if [[ "$current_hash" == "$stored_hash" ]]; then
+    return 1  # unchanged, skip
+  fi
+  return 0  # changed or new, audit
+}
+
+update_fingerprint() {
+  local dart_file="$1"
+  local current_hash
+  current_hash=$(sha256sum "$dart_file" 2>/dev/null | cut -d' ' -f1)
+  # Create or update the fingerprint file
+  if [[ ! -f "$FINGERPRINT_FILE" ]]; then
+    echo '{}' > "$FINGERPRINT_FILE"
+  fi
+  local tmp
+  tmp=$(jq --arg f "$dart_file" --arg h "$current_hash" '. + {($f): $h}' "$FINGERPRINT_FILE" 2>/dev/null)
+  [[ -n "$tmp" ]] && echo "$tmp" > "$FINGERPRINT_FILE"
+}
+
 # ─── Rate limit detection & waiting ──────────────────────────────
 RATE_LIMITED=false
 
@@ -513,12 +613,21 @@ build_audit_prompt() {
   local dart_file="$1" chunk_id="$2"
   local dart_basename
   dart_basename=$(basename "$dart_file" .dart)
+  local skeleton
+  skeleton=$(extract_skeleton "$dart_file")
   cat <<PROMPT_END
-You are an autonomous auditor. Your job: read ONE Dart file, find the matching AyuGram
-Desktop C++ source, and report EVERY discrepancy — visual, behavioral, AND wiring.
+You are an autonomous auditor. Compare ONE Dart file against AyuGram Desktop C++ source.
 
-DART FILE TO AUDIT: $dart_file
-Read this file COMPLETELY. Every line.
+DART FILE: $dart_file
+Here is a pre-extracted SKELETON of the interesting parts (callbacks, constants, bridge calls,
+switch cases, state fields). Use this to identify areas to investigate, then read the FULL
+sections of the Dart file that look suspicious (use Read with offset/limit for specific lines).
+
+--- SKELETON START ---
+$skeleton
+--- SKELETON END ---
+
+For any suspicious pattern in the skeleton, read the full context from the Dart file to confirm.
 
 AYUGRAM SOURCE (GROUND TRUTH): $AYUGRAM_UI/
 Steps:
@@ -631,13 +740,20 @@ build_cleanup_prompt() {
   local dart_file="$1" chunk_id="$2"
   local dart_basename
   dart_basename=$(basename "$dart_file" .dart)
+  local skeleton
+  skeleton=$(extract_skeleton "$dart_file")
   cat <<PROMPT_END
-You are a code quality auditor. Your job: read ONE Dart file and find every placeholder,
-stub, fake feature, broken wiring, and performance issue. This is NOT a visual comparison —
-this is a deep code review for things that shouldn't ship.
+You are a code quality auditor. Find placeholders, stubs, broken wiring, and perf issues.
+NOTE: Obvious patterns (empty callbacks, TODOs, debugPrint stubs) were already caught by
+a static scan. Focus on things that REQUIRE reading the code to understand.
 
-DART FILE TO AUDIT: $dart_file
-Read this file COMPLETELY. Every line.
+DART FILE: $dart_file
+
+--- SKELETON (pre-extracted interesting parts) ---
+$skeleton
+--- END SKELETON ---
+
+For suspicious patterns, read the full context from the Dart file (use Read with offset/limit).
 
 Also read any state/bridge files it imports to verify the wiring is real.
 
@@ -917,14 +1033,33 @@ Item: $CURRENT_ITEMS"
       pkill -x uniclient 2>/dev/null || true
     fi
 
+    # ── LAYER 0: Static scan (ZERO tokens) ─────────────────────
+    update_progress "audit" "cycle $AUDIT_CYCLE" "Layer 0: static scan"
+    run_static_scan
+
     # ── LAYER 1: Per-file audit (Dart vs AyuGram, parallel Sonnet) ─
     update_progress "audit" "cycle $AUDIT_CYCLE" "Layer 1: per-file code comparison"
-    log "  Layer 1: Comparing Dart files against AyuGram source..."
+    log "  Layer 1: Comparing Dart files against AyuGram source (skeleton mode)..."
 
-    # Get all auditable dart files: UI + state + bridge + theme (skip generated protos)
-    mapfile -t DART_FILES < <(find "$PROJECT_ROOT/dart/lib/ui" "$PROJECT_ROOT/dart/lib/state" "$PROJECT_ROOT/dart/lib/bridge" "$PROJECT_ROOT/dart/lib/theme" -name "*.dart" -type f 2>/dev/null | grep -v '/proto/' | sort)
+    # Get all auditable dart files
+    mapfile -t ALL_DART_FILES < <(find "$PROJECT_ROOT/dart/lib/ui" "$PROJECT_ROOT/dart/lib/state" "$PROJECT_ROOT/dart/lib/bridge" "$PROJECT_ROOT/dart/lib/theme" -name "*.dart" -type f 2>/dev/null | grep -v '/proto/' | sort)
+
+    # Filter by fingerprint on cycle 2+ (skip unchanged files)
+    DART_FILES=()
+    SKIPPED_UNCHANGED=0
+    for dart_file in "${ALL_DART_FILES[@]}"; do
+      if should_audit_file "$dart_file" "$AUDIT_CYCLE"; then
+        DART_FILES+=("$dart_file")
+      else
+        SKIPPED_UNCHANGED=$((SKIPPED_UNCHANGED + 1))
+      fi
+    done
     NUM_FILES=${#DART_FILES[@]}
-    log "  📂 Auditing ALL $NUM_FILES files (ui + state + bridge + theme)"
+    if [[ $SKIPPED_UNCHANGED -gt 0 ]]; then
+      log "  📂 Auditing $NUM_FILES files ($SKIPPED_UNCHANGED unchanged, skipped)"
+    else
+      log "  📂 Auditing ALL $NUM_FILES files (cycle $AUDIT_CYCLE — full scan)"
+    fi
 
     rm -f "$PROJECT_ROOT/checklist/audit_chunk_"*.md "$PROJECT_ROOT/checklist/audit_journey_"*.md
 
@@ -993,8 +1128,14 @@ Item: $CURRENT_ITEMS"
       fi
     done
 
+    # Update fingerprints for successfully audited files
+    for dart_file in "${DART_FILES[@]}"; do
+      update_fingerprint "$dart_file"
+    done
+
     log ""
     log "  📊 Layer 1: $SUCCESSFUL_CHUNKS/$NUM_FILES audited, $FAILED_CHUNKS failed"
+    [[ $SKIPPED_UNCHANGED -gt 0 ]] && log "  ⏭️  $SKIPPED_UNCHANGED files skipped (unchanged since last audit)"
     [[ $FAILED_CHUNKS -gt 0 ]] && log "  ⚠️  $FAILED_CHUNKS files failed (partial-failure — continuing)"
 
     # ── LAYER 2: Journey-based visual audit (if app builds) ──
