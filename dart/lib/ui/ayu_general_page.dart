@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
 import 'ayu_section_builder.dart';
+import 'confirm_box.dart';
 
 class AyuGeneralPage extends StatelessWidget {
   const AyuGeneralPage({super.key});
@@ -18,14 +21,21 @@ class AyuGeneralPage extends StatelessWidget {
     // Translation Provider
     b.addSkip();
     b.addSectionTitle('Translation Provider');
+    final nativeProviderName = Platform.isMacOS
+        ? 'macOS'
+        : Platform.isWindows
+            ? 'Windows'
+            : Platform.isLinux
+                ? 'Linux'
+                : null;
     b.addChooseButton(
       label: 'Translation Provider',
       value: appState.translationProvider,
-      items: const {
+      items: {
         0: 'Telegram',
         1: 'Google',
         2: 'Yandex',
-        3: 'Linux',
+        if (nativeProviderName != null) 3: nativeProviderName,
       },
       onChanged: (v) => appState.setTranslationProvider(v),
     );
@@ -80,7 +90,16 @@ class AyuGeneralPage extends StatelessWidget {
       label: 'Filter Zalgo',
       subtitle: 'Filter stacked diacritical marks that overflow text',
       value: appState.filterZalgo,
-      onChanged: (v) => appState.setFilterZalgo(v),
+      onChanged: (v) {
+        showConfirmBox(
+          context,
+          title: 'Restart Required',
+          text: 'Filter Zalgo will be applied after restarting.',
+          confirmText: 'Apply',
+          cancelText: 'Cancel',
+          onConfirm: () => appState.setFilterZalgo(v),
+        );
+      },
       showBetaBadge: true,
     );
 

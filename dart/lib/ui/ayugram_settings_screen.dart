@@ -65,11 +65,11 @@ class AyuGramSettingsScreen extends StatelessWidget {
           // shows currently selected app icon theme
           Center(
             child: Container(
-              width: 96,
-              height: 96,
+              width: 100,
+              height: 100,
               decoration: BoxDecoration(
                 color: logoColor,
-                borderRadius: BorderRadius.circular(48),
+                borderRadius: BorderRadius.circular(50),
               ),
               child: Center(
                 child: Icon(

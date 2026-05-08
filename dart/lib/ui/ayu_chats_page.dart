@@ -226,8 +226,9 @@ class AyuChatsPage extends StatelessWidget {
             (v) => s.setShowMessageDetailsInContextMenu(v)),
         _ContextMenuItem('Repeat Message', s.showRepeatMessageInContextMenu,
             (v) => s.setShowRepeatMessageInContextMenu(v)),
-        _ContextMenuItem('Add Filter', s.showAddFilterInContextMenu,
-            (v) => s.setShowAddFilterInContextMenu(v)),
+        if (s.filtersEnabled)
+          _ContextMenuItem('Add Filter', s.showAddFilterInContextMenu,
+              (v) => s.setShowAddFilterInContextMenu(v)),
       ];
 }
 
