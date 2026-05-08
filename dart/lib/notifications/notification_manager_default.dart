@@ -14,13 +14,18 @@ class DefaultNotificationItem {
   final String id;
   final NotificationData data;
   final DateTime shownAt;
+  bool waitingForInput;
 
   DefaultNotificationItem({
     required this.id,
     required this.data,
     required this.shownAt,
+    this.waitingForInput = true,
   });
 }
+
+const _dismissDuration = Duration(milliseconds: 3000);
+const _inputCheckInterval = Duration(milliseconds: 300);
 
 class DefaultManager extends NotificationManager {
   @override
@@ -29,6 +34,8 @@ class DefaultManager extends NotificationManager {
   final List<DefaultNotificationItem> _active = [];
   final Queue<DefaultNotificationItem> _queue = Queue();
   final Map<String, Timer> _dismissTimers = {};
+  Timer? _inputCheckTimer;
+  DateTime _lastUserInputTime = DateTime.now();
   int _nextId = 0;
   int _maxVisible = 3;
   NotificationCorner _corner = NotificationCorner.bottomRight;
@@ -47,6 +54,10 @@ class DefaultManager extends NotificationManager {
   bool get showHideAll => _active.length >= 2 || _queue.isNotEmpty;
 
   NotificationCorner get corner => _corner;
+
+  void onUserInput() {
+    _lastUserInputTime = DateTime.now();
+  }
 
   @override
   void showNotification(NotificationData data, NotificationSettings settings) {
@@ -86,9 +97,36 @@ class DefaultManager extends NotificationManager {
     _active.add(item);
     onShow?.call(item);
     onHideAllChanged?.call();
+    _checkLastInput();
+  }
 
-    _dismissTimers[item.id] = Timer(const Duration(seconds: 5), () {
-      dismiss(item.id);
+  void _checkLastInput() {
+    var anyWaiting = false;
+    final hasReplying =
+        _active.any((n) => isStickyCheck != null && isStickyCheck!(n.id));
+
+    for (final item in _active) {
+      if (!item.waitingForInput) continue;
+      if (_lastUserInputTime.isAfter(item.shownAt)) {
+        item.waitingForInput = false;
+        if (!hasReplying) {
+          _startDismissTimer(item.id);
+        }
+      } else {
+        anyWaiting = true;
+      }
+    }
+
+    if (anyWaiting) {
+      _inputCheckTimer?.cancel();
+      _inputCheckTimer = Timer(_inputCheckInterval, _checkLastInput);
+    }
+  }
+
+  void _startDismissTimer(String id) {
+    _dismissTimers[id]?.cancel();
+    _dismissTimers[id] = Timer(_dismissDuration, () {
+      dismiss(id);
     });
   }
 
@@ -109,9 +147,21 @@ class DefaultManager extends NotificationManager {
   }
 
   void resumeDismissTimer(String id) {
-    _dismissTimers[id] = Timer(const Duration(seconds: 5), () {
+    _dismissTimers[id] = Timer(_dismissDuration, () {
       dismiss(id);
     });
+  }
+
+  void startAllHiding() {
+    final hasReplying =
+        _active.any((n) => isStickyCheck != null && isStickyCheck!(n.id));
+    if (hasReplying) return;
+    for (final item in _active) {
+      if (item.waitingForInput) continue;
+      if (!_dismissTimers.containsKey(item.id)) {
+        _startDismissTimer(item.id);
+      }
+    }
   }
 
   void hideAll() {
@@ -143,6 +193,64 @@ class DefaultManager extends NotificationManager {
   }
 
   @override
+  void clearForItem(String accountId, String chatId, String messageId) {
+    final toRemove = _active
+        .where((n) =>
+            n.data.accountId == accountId &&
+            n.data.chatId == chatId &&
+            n.data.messageId == messageId)
+        .map((n) => n.id)
+        .toList();
+    for (final id in toRemove) {
+      dismiss(id);
+    }
+    _queue.removeWhere((n) =>
+        n.data.accountId == accountId &&
+        n.data.chatId == chatId &&
+        n.data.messageId == messageId);
+  }
+
+  @override
+  void clearForTopic(String accountId, String chatId, String topicRootId) {
+    final toRemove = _active
+        .where((n) =>
+            n.data.accountId == accountId &&
+            n.data.chatId == chatId &&
+            n.data.isForumTopic &&
+            n.data.topicRootId == topicRootId)
+        .map((n) => n.id)
+        .toList();
+    for (final id in toRemove) {
+      dismiss(id);
+    }
+    _queue.removeWhere((n) =>
+        n.data.accountId == accountId &&
+        n.data.chatId == chatId &&
+        n.data.isForumTopic &&
+        n.data.topicRootId == topicRootId);
+  }
+
+  @override
+  void clearForSublist(String accountId, String chatId, String sublistPeerId) {
+    final toRemove = _active
+        .where((n) =>
+            n.data.accountId == accountId &&
+            n.data.chatId == chatId &&
+            n.data.isMonoforumSublist &&
+            n.data.sublistPeerId == sublistPeerId)
+        .map((n) => n.id)
+        .toList();
+    for (final id in toRemove) {
+      dismiss(id);
+    }
+    _queue.removeWhere((n) =>
+        n.data.accountId == accountId &&
+        n.data.chatId == chatId &&
+        n.data.isMonoforumSublist &&
+        n.data.sublistPeerId == sublistPeerId);
+  }
+
+  @override
   void clearForAccount(String accountId) {
     final toRemove = _active
         .where((n) => n.data.accountId == accountId)
@@ -165,6 +273,7 @@ class DefaultManager extends NotificationManager {
 
   @override
   void dispose() {
+    _inputCheckTimer?.cancel();
     for (final t in _dismissTimers.values) {
       t.cancel();
     }

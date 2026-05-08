@@ -145,6 +145,7 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
     if (!_hasReceivedInput) {
       _hasReceivedInput = true;
     }
+    widget.manager.onUserInput();
   }
 
   void _startHideCountdown(_PopupState popup) {

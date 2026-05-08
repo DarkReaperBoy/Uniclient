@@ -57,6 +57,8 @@ class NotificationData {
   final bool spoilerLoginCode;
   final bool isMonoforumSublist;
   final String sublistPeerName;
+  final String topicRootId;
+  final String sublistPeerId;
 
   const NotificationData({
     required this.accountId,
@@ -104,6 +106,8 @@ class NotificationData {
     this.spoilerLoginCode = false,
     this.isMonoforumSublist = false,
     this.sublistPeerName = '',
+    this.topicRootId = '',
+    this.sublistPeerId = '',
   });
 
   NotificationData copyWith({
@@ -152,6 +156,8 @@ class NotificationData {
     bool? spoilerLoginCode,
     bool? isMonoforumSublist,
     String? sublistPeerName,
+    String? topicRootId,
+    String? sublistPeerId,
   }) {
     return NotificationData(
       accountId: accountId ?? this.accountId,
@@ -199,6 +205,8 @@ class NotificationData {
       spoilerLoginCode: spoilerLoginCode ?? this.spoilerLoginCode,
       isMonoforumSublist: isMonoforumSublist ?? this.isMonoforumSublist,
       sublistPeerName: sublistPeerName ?? this.sublistPeerName,
+      topicRootId: topicRootId ?? this.topicRootId,
+      sublistPeerId: sublistPeerId ?? this.sublistPeerId,
     );
   }
 }

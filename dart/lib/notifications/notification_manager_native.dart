@@ -451,6 +451,66 @@ class NativeManager extends NotificationManager {
   }
 
   @override
+  void clearForItem(String accountId, String chatId, String messageId) {
+    final contextKey = '$accountId:$chatId';
+    final ids = _notifications[contextKey];
+    if (ids != null) {
+      final nativeId = ids.remove(messageId);
+      if (nativeId != null) {
+        _closeNotification(nativeId);
+        _nativeIdToData.remove(nativeId);
+      }
+      if (ids.isEmpty) {
+        _notifications.remove(contextKey);
+      }
+    }
+  }
+
+  @override
+  void clearForTopic(String accountId, String chatId, String topicRootId) {
+    final contextKey = '$accountId:$chatId';
+    final ids = _notifications[contextKey];
+    if (ids == null) return;
+    final toRemove = <String>[];
+    for (final entry in ids.entries) {
+      final data = _nativeIdToData[entry.value];
+      if (data != null && data.isForumTopic && data.topicRootId == topicRootId) {
+        _closeNotification(entry.value);
+        _nativeIdToData.remove(entry.value);
+        toRemove.add(entry.key);
+      }
+    }
+    for (final key in toRemove) {
+      ids.remove(key);
+    }
+    if (ids.isEmpty) {
+      _notifications.remove(contextKey);
+    }
+  }
+
+  @override
+  void clearForSublist(String accountId, String chatId, String sublistPeerId) {
+    final contextKey = '$accountId:$chatId';
+    final ids = _notifications[contextKey];
+    if (ids == null) return;
+    final toRemove = <String>[];
+    for (final entry in ids.entries) {
+      final data = _nativeIdToData[entry.value];
+      if (data != null && data.isMonoforumSublist && data.sublistPeerId == sublistPeerId) {
+        _closeNotification(entry.value);
+        _nativeIdToData.remove(entry.value);
+        toRemove.add(entry.key);
+      }
+    }
+    for (final key in toRemove) {
+      ids.remove(key);
+    }
+    if (ids.isEmpty) {
+      _notifications.remove(contextKey);
+    }
+  }
+
+  @override
   void clearForAccount(String accountId) {
     final toRemove = <String>[];
     for (final entry in _notifications.entries) {

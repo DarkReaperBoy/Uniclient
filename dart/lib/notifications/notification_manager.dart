@@ -9,6 +9,12 @@ abstract class NotificationManager {
 
   void clearForChat(String accountId, String chatId);
 
+  void clearForItem(String accountId, String chatId, String messageId);
+
+  void clearForTopic(String accountId, String chatId, String topicRootId);
+
+  void clearForSublist(String accountId, String chatId, String sublistPeerId);
+
   void clearForAccount(String accountId);
 
   void clearAll();
@@ -27,6 +33,15 @@ class DummyManager extends NotificationManager {
 
   @override
   void clearForChat(String accountId, String chatId) {}
+
+  @override
+  void clearForItem(String accountId, String chatId, String messageId) {}
+
+  @override
+  void clearForTopic(String accountId, String chatId, String topicRootId) {}
+
+  @override
+  void clearForSublist(String accountId, String chatId, String sublistPeerId) {}
 
   @override
   void clearForAccount(String accountId) {}
