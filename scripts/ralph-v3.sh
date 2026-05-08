@@ -12,7 +12,7 @@
 #     implement (Opus), verify (Opus), push. Until gui.md empty.
 #   MODE 2 (AUDIT): Three-layer audit of codebase vs spec:
 #     Layer 1: Parallel Sonnet sessions extract constraint violations ($0.087/session)
-#     Layer 2: Journey-based visual audit with SSIM regression ($0.13/session)
+#     SSIM regression between cycles for visual change detection
 #     Layer 3: Generate new gui.md from findings, return to MODE 1
 #     Convergence: zero critical+major findings for 2 consecutive cycles → done.
 #
@@ -990,37 +990,6 @@ If no issues: write "# ${dart_basename} — No issues found"
 PROMPT_END
 }
 
-# ═════════════════════════════════════════════════════════════════
-# AUDIT: VISUAL JOURNEY REVIEW PROMPT (Sonnet, per journey)
-# ═════════════════════════════════════════════════════════════════
-build_journey_prompt() {
-  local journey_name="$1" screenshots="$2" journey_id="$3"
-  cat <<PROMPT_END
-You are verifying a Flutter app's UI by testing a user journey. The app is running.
-Compare against AyuGram Desktop source at $AYUGRAM_UI/ as GROUND TRUTH.
-
-JOURNEY: $journey_name
-
-STEPS:
-1. Use scripts/flutter_interact.sh to navigate the journey:
-$screenshots
-2. At each step, take a screenshot: scripts/flutter_inspect.sh screenshot /tmp/journey_${journey_id}_stepN.png
-3. Find the corresponding AyuGram source files (search $AYUGRAM_UI/ for .style and .cpp files)
-4. Compare what you see against the AyuGram implementation
-5. Check BOTH desktop (1024x768) and mobile (400x720) modes
-
-SEVERITY (proportional — Weber's Law):
-- CRITICAL: layout collapsed, element missing, interaction broken, crash
-- MAJOR: >10% proportional deviation, wrong order, wrong state
-- Skip MINOR and COSMETIC
-
-Report findings as checklist items:
-- [ ] [SEVERITY] description (AyuGram has X, our app has Y) — \`file.dart\`
-
-Write findings to /home/nako/Documents/uniclient/checklist/audit_journey_${journey_id}.md
-If no issues: write "# No issues found"
-PROMPT_END
-}
 
 # ═════════════════════════════════════════════════════════════════
 # CLEANUP SWEEP PROMPT (placeholders, stubs, optimization — no AyuGram)
@@ -1351,7 +1320,7 @@ Item: $CURRENT_ITEMS"
       log "  📂 Auditing ALL $NUM_FILES files (cycle $AUDIT_CYCLE — full scan)"
     fi
 
-    rm -f "$PROJECT_ROOT/checklist/audit_chunk_"*.md "$PROJECT_ROOT/checklist/audit_journey_"*.md
+    rm -f "$PROJECT_ROOT/checklist/audit_chunk_"*.md
 
     BATCH_SIZE=8
     PIDS=()
@@ -1448,57 +1417,6 @@ Item: $CURRENT_ITEMS"
     [[ $SKIPPED_UNCHANGED -gt 0 ]] && log "  ⏭️  $SKIPPED_UNCHANGED files skipped (unchanged since last audit)"
     [[ $FAILED_CHUNKS -gt 0 ]] && log "  ⚠️  $FAILED_CHUNKS files failed (partial-failure — continuing)"
 
-    # ── LAYER 2: Journey-based visual audit (if app builds) ──
-    update_progress "audit" "cycle $AUDIT_CYCLE" "Layer 2: visual journey audit"
-    JID=0
-
-    if launch_app; then
-      log "Layer 2: Running visual journey audit..."
-
-      # Journey definitions: name + interaction steps
-      JOURNEYS=(
-        "chat_navigation|taptext 'All Chats';sleep 2;scroll 400 400 0 -300;sleep 1"
-        "message_reading|open 0;sleep 2;scroll 600 400 0 -200;sleep 1"
-        "search_flow|tap 200 35;sleep 1;type 'test';sleep 2"
-        "settings|taptext 'Settings';sleep 2;scroll 400 400 0 -300;sleep 1"
-        "responsive|resize desktop;sleep 2;resize mobile;sleep 2;resize desktop;sleep 1"
-        "keyboard|key escape;sleep 1;key tab;sleep 1;key tab;sleep 1;key enter;sleep 1;type 'test';key enter;sleep 1"
-      )
-
-      # Journeys run SEQUENTIALLY — they share the app via IPC files,
-      # so parallel execution causes command interleaving and wrong responses.
-      for journey_def in "${JOURNEYS[@]}"; do
-        IFS='|' read -r JNAME JSTEPS <<< "$journey_def"
-        JOURNEY_FILE="$ITER_LOG_DIR/audit_c${AUDIT_CYCLE}_journey_$(printf '%02d' $JID).log"
-
-        JOURNEY_STEPS="Steps to execute via scripts/flutter_interact.sh:
-$(echo "$JSTEPS" | tr ';' '\n' | sed 's/^/  - /')"
-
-        PROMPT="$(build_journey_prompt "$JNAME" "$JOURNEY_STEPS" "$JID")"
-
-        invoke_claude "$PROMPT" "$JOURNEY_FILE" "JOURNEY-C${AUDIT_CYCLE}-${JID}" "claude-sonnet-4-6" || true
-        JID=$((JID + 1))
-
-        # Reset app state between journeys for clean starting state
-        pkill -x uniclient 2>/dev/null || true
-        sleep 2
-        launch_app || { log "App failed to relaunch between journeys"; break; }
-      done
-
-      log "Layer 2: $JID journey audits completed"
-
-      # Take post-audit SSIM screenshots
-      "$SCRIPTS/flutter_inspect.sh" screenshot "$SSIM_DIR/desktop_post.png" 2>/dev/null || true
-      "$SCRIPTS/flutter_interact.sh" resize mobile 2>/dev/null || true
-      sleep 1.5
-      "$SCRIPTS/flutter_inspect.sh" screenshot "$SSIM_DIR/mobile_post.png" 2>/dev/null || true
-      "$SCRIPTS/flutter_interact.sh" resize desktop 2>/dev/null || true
-
-      pkill -x uniclient 2>/dev/null || true
-    else
-      log "Layer 2: SKIPPED (app failed to launch). Degrading to Layer 1 only."
-    fi
-
     else
       # ── Phase B: CLEANUP SWEEP (placeholders, stubs, perf) ──
       echo ""
@@ -1580,7 +1498,6 @@ $(echo "$JSTEPS" | tr ';' '\n' | sed 's/^/  - /')"
 
       log ""
       log "  📊 Cleanup: $SUCCESSFUL_CHUNKS/$NUM_FILES swept, $FAILED_CHUNKS failed"
-      JID=0
     fi  # end ayugram/cleanup phase
 
     # ── MERGE: Combine all findings into gui.md ──────────────
@@ -1600,19 +1517,9 @@ $(echo "$JSTEPS" | tr ';' '\n' | sed 's/^/  - /')"
         cat "$f"
         echo ""
       done
-      echo "## Visual Journey Findings (Layer 2)"
-      echo ""
-      for f in "$PROJECT_ROOT/checklist/audit_journey_"*.md; do
-        [[ -f "$f" ]] || continue
-        if grep -qi "no issues found" "$f" && [[ $(wc -l < "$f") -le 2 ]]; then
-          continue
-        fi
-        cat "$f"
-        echo ""
-      done
     } > "$PROJECT_ROOT/checklist/gui.md"
 
-    rm -f "$PROJECT_ROOT/checklist/audit_chunk_"*.md "$PROJECT_ROOT/checklist/audit_journey_"*.md
+    rm -f "$PROJECT_ROOT/checklist/audit_chunk_"*.md
 
     FINDINGS=$(grep -c '^- \[ \]' "$PROJECT_ROOT/checklist/gui.md" 2>/dev/null || true)
     FINDINGS="${FINDINGS//[^0-9]/}"
@@ -1621,8 +1528,7 @@ $(echo "$JSTEPS" | tr ';' '\n' | sed 's/^/  - /')"
     log "  ┌──────────────────────────────────────────────────"
     log "  │ 📋 Audit cycle $AUDIT_CYCLE results"
     log "  │ 🔢 Findings: $FINDINGS items"
-    log "  │ 📦 L1 files: $SUCCESSFUL_CHUNKS ok, $FAILED_CHUNKS failed"
-    log "  │ 🚶 L2 journeys: $JID completed"
+    log "  │ 📦 Files: $SUCCESSFUL_CHUNKS ok, $FAILED_CHUNKS failed"
     log "  └──────────────────────────────────────────────────"
 
     # ── Handle findings ────────────────────────────────────────
