@@ -161,6 +161,11 @@ run_static_scan() {
       [[ -n "$file" ]] && echo "- [ ] [MAJOR] Non-lazy ListView (use ListView.builder) — \`$(basename "$file"):$line\`"
     done < <(grep -rn "ListView(" "$scan_dir/ui/" 2>/dev/null | grep -v "ListView.builder\|ListView.separated\|ListView.custom" || true)
 
+    # Empty catch blocks (silent error swallowing)
+    while IFS=: read -r file line content; do
+      [[ -n "$file" ]] && echo "- [ ] [MAJOR] Empty catch block (silently swallows errors) — \`$(basename "$file"):$line\`"
+    done < <(grep -rn "catch.*{}" "$scan_dir/" 2>/dev/null || true)
+
   } > "$out_file"
 
   local count
@@ -255,23 +260,68 @@ extract_ayugram_context() {
   # Map Dart files to likely AyuGram directories by name/purpose
   local ayu_dirs=()
   case "$dart_basename" in
-    chat_list*|filter_column) ayu_dirs=("dialogs") ;;
-    message_bubble|chat_view) ayu_dirs=("history" "history/view") ;;
-    info_panel)               ayu_dirs=("info") ;;
+    # Layout & Navigation
+    shell|titlebar)                     ayu_dirs=("window") ;;
+    hamburger_drawer)                   ayu_dirs=("window") ;;
+    filter_column)                      ayu_dirs=("dialogs") ;;
+    chat_list*)                         ayu_dirs=("dialogs" "dialogs/ui") ;;
+    chat_switch_overlay)                ayu_dirs=("dialogs") ;;
+    # Messages & Chat
+    message_bubble)                     ayu_dirs=("history/view" "history/view/media") ;;
+    chat_view)                          ayu_dirs=("history" "history/view") ;;
+    send_files_box)                     ayu_dirs=("boxes") ;;
+    # Panels
+    info_panel)                         ayu_dirs=("info" "info/profile") ;;
+    peer_short_info)                    ayu_dirs=("info") ;;
+    my_profile_page)                    ayu_dirs=("info" "settings") ;;
+    # Settings
     settings*|chat_settings*|privacy*|notifications*|advanced*|folders*|active_sessions*|shortcuts*)
-                              ayu_dirs=("settings") ;;
-    call_*|calls_*)           ayu_dirs=("calls") ;;
-    emoji_panel|sticker*)     ayu_dirs=("chat_helpers") ;;
-    shell|titlebar)           ayu_dirs=("window") ;;
-    hamburger_drawer)         ayu_dirs=("window") ;;
-    auth_screen)              ayu_dirs=("intro") ;;
-    media_viewer)             ayu_dirs=("media/view") ;;
-    admin_tools)              ayu_dirs=("boxes/peers") ;;
-    create_group*|create_channel*) ayu_dirs=("boxes/peers") ;;
-    contacts_screen)          ayu_dirs=("boxes") ;;
-    story_editor)             ayu_dirs=("media/stories") ;;
-    *theme*|*wallpaper*)      ayu_dirs=("boxes" "window") ;;
-    *)                        ayu_dirs=() ;;
+                                        ayu_dirs=("settings" "settings/sections") ;;
+    # Calls
+    call_*|calls_*)                     ayu_dirs=("calls") ;;
+    # Emoji & Stickers
+    emoji_panel|custom_emoji*)          ayu_dirs=("chat_helpers") ;;
+    sticker*|emoji_status*)             ayu_dirs=("chat_helpers") ;;
+    # Auth
+    auth_screen|auth_state)             ayu_dirs=("intro") ;;
+    # Media
+    media_viewer)                       ayu_dirs=("media/view") ;;
+    photo_crop_editor)                  ayu_dirs=("editor") ;;
+    story_editor)                       ayu_dirs=("media/stories") ;;
+    # Boxes & Dialogs
+    admin_tools)                        ayu_dirs=("boxes/peers") ;;
+    create_group*|create_channel*)      ayu_dirs=("boxes/peers") ;;
+    contacts_screen)                    ayu_dirs=("boxes") ;;
+    confirm_box|input_dialogs)          ayu_dirs=("boxes") ;;
+    choose_datetime_box)                ayu_dirs=("boxes") ;;
+    color_picker_box)                   ayu_dirs=("boxes") ;;
+    edit_forum_topic_box|forum_topic*)  ayu_dirs=("boxes/peers") ;;
+    language_box)                       ayu_dirs=("boxes") ;;
+    chat_export)                        ayu_dirs=("export") ;;
+    payment_panel)                      ayu_dirs=("payments") ;;
+    # Context menus & popups
+    popup_menu)                         ayu_dirs=("ui" "history/view" "dialogs/ui") ;;
+    reactions_detail)                   ayu_dirs=("history/view") ;;
+    # Theme & Appearance
+    *theme*|*wallpaper*|telegram_palette) ayu_dirs=("boxes" "window") ;;
+    # Notifications
+    notification_popup|notification_*)  ayu_dirs=("window") ;;
+    # Keyboard & Input
+    keyboard_shortcuts)                 ayu_dirs=("core") ;;
+    spoiler_animation)                  ayu_dirs=("ui/effects") ;;
+    instant_view)                       ayu_dirs=("iv") ;;
+    web_app_panel)                      ayu_dirs=("calls") ;;
+    # AyuGram-specific
+    ghost_*|ayu_*)                      ayu_dirs=("ayu" "ayu/ui") ;;
+    # State & Bridge
+    app_state|chat_state|engine_service) ayu_dirs=("data" "core") ;;
+    ayu_forward)                        ayu_dirs=("ayu") ;;
+    # Stats
+    stats_chart)                        ayu_dirs=("data") ;;
+    # Misc UI
+    telegram_toast|telegram_tooltip)    ayu_dirs=("ui/toast" "ui") ;;
+    # Fallback: search broadly
+    *)                                  ayu_dirs=("ui" "boxes") ;;
   esac
 
   if [[ ${#ayu_dirs[@]} -eq 0 ]]; then
@@ -306,19 +356,27 @@ extract_ayugram_context() {
   echo "$context"
 }
 
-# ─── Tier routing: skip/haiku/sonnet per file ────────────────────
+# ─── Tier routing: complexity-based skip/haiku/sonnet ─────────────
 get_file_tier() {
   local dart_file="$1"
-  local lines
+  local lines callbacks switch_cases state_fields score
   lines=$(wc -l < "$dart_file" 2>/dev/null || echo 0)
-  local callbacks
-  callbacks=$(grep -c "onTap:\|onPressed:\|bridge\.\|engine\.\|_engine\." "$dart_file" 2>/dev/null || true)
-  callbacks="${callbacks//[^0-9]/}"
-  [[ -z "$callbacks" ]] && callbacks=0
 
-  if [[ $lines -lt 100 && $callbacks -lt 2 ]]; then
+  callbacks=$(grep -c "onTap:\|onPressed:\|onLongPress:\|bridge\.\|engine\.\|_engine\.\|\.call(" "$dart_file" 2>/dev/null || true)
+  callbacks="${callbacks//[^0-9]/}"; [[ -z "$callbacks" ]] && callbacks=0
+
+  switch_cases=$(grep -c "case '\|case \"" "$dart_file" 2>/dev/null || true)
+  switch_cases="${switch_cases//[^0-9]/}"; [[ -z "$switch_cases" ]] && switch_cases=0
+
+  state_fields=$(grep -c "bool _\|int _\|String _\|List<.*> _\|Map<.*> _\|late " "$dart_file" 2>/dev/null || true)
+  state_fields="${state_fields//[^0-9]/}"; [[ -z "$state_fields" ]] && state_fields=0
+
+  # Complexity score: weighted sum
+  score=$(( callbacks * 3 + switch_cases * 2 + state_fields + lines / 200 ))
+
+  if [[ $score -lt 3 ]]; then
     echo "skip"
-  elif [[ $lines -lt 500 ]]; then
+  elif [[ $score -lt 12 ]]; then
     echo "haiku"
   else
     echo "sonnet"
@@ -346,6 +404,10 @@ extract_skeleton() {
   skeleton+="$(grep -n "Color(\|0xFF\|0xff\|AppColors\.\|TelegramPalette\." "$dart_file" 2>/dev/null | head -40 || true)"$'\n'
   skeleton+="--- State fields ---"$'\n'
   skeleton+="$(grep -n "bool _\|int _\|String _\|List<\|Map<\|final _\|late " "$dart_file" 2>/dev/null | head -40 || true)"$'\n'
+  skeleton+="--- Lifecycle methods (initState, dispose, didChangeDependencies) ---"$'\n'
+  skeleton+="$(grep -n -A5 "void initState\|void dispose\|void didChangeDependencies\|void didUpdateWidget" "$dart_file" 2>/dev/null | head -60 || true)"$'\n'
+  skeleton+="--- Error handling (try/catch) ---"$'\n'
+  skeleton+="$(grep -n -B1 -A2 "} catch\|catch (" "$dart_file" 2>/dev/null | head -40 || true)"$'\n'
 
   echo "$skeleton"
 }
@@ -1230,6 +1292,7 @@ Item: $CURRENT_ITEMS"
     SUCCESSFUL_CHUNKS=0
     FAILED_CHUNKS=0
     BATCH_RATE_LIMITED=false
+    declare -A CHUNK_ID_MAP
 
     for dart_file in "${DART_FILES[@]}"; do
       # If rate limited, wait before launching more
@@ -1260,6 +1323,7 @@ Item: $CURRENT_ITEMS"
       local model="claude-sonnet-4-6"
       [[ "$tier" == "haiku" ]] && model="claude-haiku-4-5-20251001"
 
+      CHUNK_ID_MAP["$dart_basename"]=$CHUNK_ID
       PROMPT="$(build_audit_prompt "$dart_file" "$CHUNK_ID")"
       log "    [$((CHUNK_ID + 1))/$NUM_FILES] $dart_basename.dart ($(wc -l < "$dart_file") lines, tier=$tier)"
 
@@ -1302,9 +1366,16 @@ Item: $CURRENT_ITEMS"
       fi
     done
 
-    # Update fingerprints for successfully audited files
+    # Only update fingerprints for files whose audit SUCCEEDED (not rate-limited/failed)
     for dart_file in "${DART_FILES[@]}"; do
-      update_fingerprint "$dart_file"
+      local db
+      db=$(basename "$dart_file" .dart)
+      local chunk_out="$PROJECT_ROOT/checklist/audit_chunk_${CHUNK_ID_MAP[$db]:-999}.md"
+      local chunk_jsonl="$ITER_LOG_DIR/audit_c${AUDIT_CYCLE}_${db}.log.jsonl"
+      # Only fingerprint if output exists AND was not rate-limited
+      if [[ -f "$chunk_out" ]] && ! grep -q "hit your limit\|rate.limit\|Rate limit" "$chunk_jsonl" 2>/dev/null; then
+        update_fingerprint "$dart_file"
+      fi
     done
 
     log ""
