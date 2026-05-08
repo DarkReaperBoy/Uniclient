@@ -484,8 +484,8 @@ const _themePresets = [
     id: 'night',
     label: 'Night',
     background: Color(0xFF485761),
-    receivedBubble: Color(0xFF182533),
-    sentBubble: Color(0xFF2B5278),
+    receivedBubble: Color(0xFF24292E),
+    sentBubble: Color(0xFF265E8C),
     isDarkTheme: true,
   ),
   _ThemePreset(
@@ -2011,7 +2011,7 @@ class _CloudThemeCardState extends State<_CloudThemeCard> {
         : (t.isDark ? const Color(0xFF0E1621) : const Color(0xFFDFE7EB));
     final recv = t.recvColor != 0
         ? _argbToColor(t.recvColor)
-        : (t.isDark ? const Color(0xFF182533) : const Color(0xFFFFFFFF));
+        : (t.isDark ? const Color(0xFF24292E) : const Color(0xFFFFFFFF));
     final accent = _argbToColor(t.accentColor);
     final borderColor = widget.isActive ? widget.accentColor : Colors.transparent;
 
@@ -2140,8 +2140,8 @@ class _ChatBackgroundSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final thumbBg = isDark ? const Color(0xFF0E1621) : const Color(0xFFDFE7EB);
-    final thumbRecv = isDark ? const Color(0xFF182533) : const Color(0xFFFFFFFF);
-    final thumbSent = isDark ? const Color(0xFF2B5278) : const Color(0xFFEEFFDE);
+    final thumbRecv = isDark ? const Color(0xFF24292E) : const Color(0xFFFFFFFF);
+    final thumbSent = isDark ? const Color(0xFF265E8C) : const Color(0xFFEEFFDE);
     final windowWidth = MediaQuery.of(context).size.width;
     final isWide = windowWidth >= 880;
 

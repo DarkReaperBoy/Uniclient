@@ -391,7 +391,7 @@ class _AvatarCornersPreviewState extends State<_AvatarCornersPreview> {
   Widget build(BuildContext context) {
     const photoSize = 46.0;
     final avatarRadius = photoSize / 2 * (widget.corners / 23.0);
-    final bgColor = widget.isDark ? const Color(0xFF182533) : const Color(0xFFF1F1F1);
+    final bgColor = widget.isDark ? const Color(0xFF24292E) : const Color(0xFFF1F1F1);
     final nameColor = widget.isDark ? Colors.white : Colors.black87;
     final previewColor =
         widget.isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);

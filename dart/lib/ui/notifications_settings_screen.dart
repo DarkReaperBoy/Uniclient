@@ -2854,7 +2854,7 @@ class _NotificationPreview extends StatelessWidget {
     final wallpaperBg =
         isDark ? const Color(0xFF0E1621) : const Color(0xFFDBDDC0);
     final bubbleBg =
-        isDark ? const Color(0xFF182533) : const Color(0xFFFFFFFF);
+        isDark ? const Color(0xFF24292E) : const Color(0xFFFFFFFF);
     final titleColor =
         isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final textColor =

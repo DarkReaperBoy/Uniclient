@@ -517,8 +517,8 @@ class _MessagePreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final inBg = isDark ? const Color(0xFF182533) : const Color(0xFFFFFFFF);
-    final outBg = isDark ? const Color(0xFF2B5278) : const Color(0xFFEFFEDE);
+    final inBg = isDark ? const Color(0xFF24292E) : const Color(0xFFFFFFFF);
+    final outBg = isDark ? const Color(0xFF265E8C) : const Color(0xFFEFFEDE);
     final textColor =
         isDark ? Colors.white.withValues(alpha: 0.87) : Colors.black87;
     final metaColor =

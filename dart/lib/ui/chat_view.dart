@@ -11726,7 +11726,7 @@ class RichTextEditingController extends TextEditingController {
         if (active.contains(FormatType.blockquote)) {
           merged = merged.copyWith(
             backgroundColor: isDark
-              ? const Color(0xFF182533)
+              ? const Color(0xFF24292E)
               : const Color(0xFFF0F4F7));
         }
 
@@ -12334,7 +12334,7 @@ class _FormattingPainter extends CustomPainter {
     final Color bgColor;
     if (insideBlockquote) {
       bgColor = isDark
-          ? const Color(0xFF182533)
+          ? const Color(0xFF24292E)
           : const Color(0xFFF0F4F7);
     } else {
       bgColor = isDark
@@ -18866,9 +18866,9 @@ class _ThemePill extends StatelessWidget {
         ? _fromArgb(messageColors.first)
         : accentColor != null && accentColor! != 0
             ? _fromArgb(accentColor!)
-            : (isDark ? const Color(0xFF2b5278) : const Color(0xFFeffdde));
+            : (isDark ? const Color(0xFF265E8C) : const Color(0xFFeffdde));
 
-    final inColor = isDark ? const Color(0xFF182533) : Colors.white;
+    final inColor = isDark ? const Color(0xFF24292E) : Colors.white;
 
     return GestureDetector(
       onTap: onTap,

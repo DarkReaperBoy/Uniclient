@@ -35,9 +35,9 @@ class AppColors {
   static const danger = Color(0xFFD14E4E);
   static const warning = Color(0xFFFAAD38);
 
-  static const bubbleSent = Color(0xFF2b5278);
+  static const bubbleSent = Color(0xFF265E8C);
   static const bubbleSentLight = Color(0xFFeffdde);
-  static const bubbleReceived = Color(0xFF182533);
+  static const bubbleReceived = Color(0xFF24292E);
   static const bubbleReceivedLight = Color(0xFFffffff);
   static const bubbleSentSelected = Color(0xFF2e70a5);
   static const bubbleSentSelectedLight = Color(0xFFcbebb5);
