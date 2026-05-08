@@ -48,6 +48,9 @@ class SystemTray {
   /// Callback invoked when the user clicks the Ghost Mode tray item.
   void Function()? onGhostToggle;
 
+  /// Callback invoked when the user clicks the Notifications tray item.
+  void Function()? onNotificationsToggle;
+
   /// Initialize the tray.  Call once after the engine is running.
   /// No-op on Flutter Web — native tray is desktop-only (§13.5).
   Future<void> init() async {
@@ -97,6 +100,31 @@ class SystemTray {
       await _channel.invokeMethod<void>('setTooltip', label);
     } catch (e) {
       Debug.log('TRAY', 'setTooltip failed: $e');
+    }
+  }
+
+  /// Update the notifications toggle tray item label.
+  Future<void> updateNotificationsItem({required bool enabled}) async {
+    if (!_available) return;
+    try {
+      await _channel.invokeMethod<void>('setNotificationsTrayItem', {
+        'enabled': enabled,
+      });
+    } catch (e) {
+      Debug.log('TRAY', 'setNotificationsTrayItem failed: $e');
+    }
+  }
+
+  /// Render an unread-count badge overlay on the tray icon.
+  Future<void> updateBadge(int count, {bool muted = false}) async {
+    if (!_available) return;
+    try {
+      await _channel.invokeMethod<void>('setUnreadBadge', {
+        'count': count,
+        'muted': muted,
+      });
+    } catch (e) {
+      Debug.log('TRAY', 'setUnreadBadge failed: $e');
     }
   }
 
@@ -204,6 +232,9 @@ class SystemTray {
       case 'onGhostToggle':
         Debug.log('TRAY', 'ghost toggle requested from tray menu');
         onGhostToggle?.call();
+      case 'onNotificationsToggle':
+        Debug.log('TRAY', 'notifications toggle requested from tray menu');
+        onNotificationsToggle?.call();
       default:
         Debug.log('TRAY', 'unknown native call: ${call.method}');
     }

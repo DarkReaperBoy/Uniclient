@@ -325,7 +325,15 @@ class _UniClientAppState extends State<UniClientApp>
       _tray.updateGhostItem(
           appState.showGhostToggleInTray, appState.ghostModeEnabled);
 
-      // Track unread count changes and update tray tooltip (§37.11).
+      // Notifications toggle from tray menu.
+      _tray.onNotificationsToggle = () {
+        final current = _notifSystem.settings;
+        final toggled = !current.desktopNotify;
+        _notifSystem.updateSettings(current.copyWith(desktopNotify: toggled));
+        _tray.updateNotificationsItem(enabled: toggled);
+      };
+
+      // Track unread count changes and update tray tooltip + badge (§37.11).
       if (_tray.isAvailable) {
         _chatStateRef = chatState;
         _unreadListener = () {
@@ -335,9 +343,11 @@ class _UniClientAppState extends State<UniClientApp>
             countMessages: settings.countUnreadMessages,
           );
           _tray.updateUnread(badge);
+          _tray.updateBadge(badge);
         };
         chatState.addListener(_unreadListener!);
         _tray.updateUnread(chatState.badgeUnreadCount());
+        _tray.updateBadge(chatState.badgeUnreadCount());
       }
     }
 
@@ -360,6 +370,8 @@ class _UniClientAppState extends State<UniClientApp>
     _chatStateRef ??= chatState;
     _notifSystem.init(const NotificationSettings());
     _notifSystem.onFlashBounce = () => _tray.flashWindow();
+    _tray.updateNotificationsItem(
+        enabled: _notifSystem.settings.desktopNotify);
 
     // §37.12: Sync passcode lock state into notification system.
     appState.addListener(() {

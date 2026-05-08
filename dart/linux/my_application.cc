@@ -2,6 +2,7 @@
 
 #include <flutter_linux/flutter_linux.h>
 #include <gio/gio.h>
+#include <math.h>
 
 #ifdef HAVE_APPINDICATOR
 #include <libayatana-appindicator/app-indicator.h>
@@ -21,8 +22,11 @@ struct _MyApplication {
   AppIndicator* indicator;
   GtkWidget* tray_menu;
   GtkWidget* show_hide_item;
+  GtkWidget* notifications_item;
   GtkWidget* streamer_item;
   GtkWidget* ghost_item;
+  int badge_toggle;
+  gchar* badge_dir;
 #endif
 };
 
@@ -61,7 +65,15 @@ static void toggle_window_visibility(MyApplication* self) {
 
 #ifdef HAVE_APPINDICATOR
 static void on_tray_show_hide(GtkMenuItem* /*item*/, gpointer user_data) {
-  toggle_window_visibility(MY_APPLICATION(user_data));
+  MyApplication* self = MY_APPLICATION(user_data);
+  gboolean was_visible = self->window &&
+      gtk_widget_get_visible(GTK_WIDGET(self->window));
+  toggle_window_visibility(self);
+  if (was_visible && self->tray_channel) {
+    fl_method_channel_invoke_method(
+        self->tray_channel, "onWindowHidden", nullptr, nullptr, nullptr,
+        nullptr);
+  }
 }
 
 static void on_tray_streamer_toggle(GtkMenuItem* /*item*/, gpointer user_data) {
@@ -82,6 +94,16 @@ static void on_tray_ghost_toggle(GtkMenuItem* /*item*/, gpointer user_data) {
   }
 }
 
+static void on_tray_notifications_toggle(GtkMenuItem* /*item*/,
+                                         gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  if (self->tray_channel) {
+    fl_method_channel_invoke_method(
+        self->tray_channel, "onNotificationsToggle", nullptr, nullptr, nullptr,
+        nullptr);
+  }
+}
+
 static void on_tray_quit(GtkMenuItem* /*item*/, gpointer user_data) {
   MyApplication* self = MY_APPLICATION(user_data);
   // Notify Dart side that the app is quitting.
@@ -93,6 +115,93 @@ static void on_tray_quit(GtkMenuItem* /*item*/, gpointer user_data) {
   if (self->window) {
     gtk_widget_destroy(GTK_WIDGET(self->window));
   }
+}
+
+static void update_tray_badge(MyApplication* self, int count,
+                              gboolean muted) {
+  if (!self->indicator) return;
+
+  if (count <= 0) {
+    gchar* icon_path = get_icon_path();
+    gchar* icon_dir = icon_path ? g_path_get_dirname(icon_path) : nullptr;
+    app_indicator_set_icon_theme_path(self->indicator,
+                                     icon_dir ? icon_dir : "");
+    app_indicator_set_icon_full(self->indicator, "uniclient", "UniClient");
+    g_free(icon_dir);
+    g_free(icon_path);
+    return;
+  }
+
+  gchar* icon_path = get_icon_path();
+  if (!icon_path) return;
+
+  GError* error = NULL;
+  GdkPixbuf* base = gdk_pixbuf_new_from_file(icon_path, &error);
+  g_free(icon_path);
+  if (!base) {
+    if (error) g_error_free(error);
+    return;
+  }
+
+  int w = gdk_pixbuf_get_width(base);
+  int h = gdk_pixbuf_get_height(base);
+
+  cairo_surface_t* surface =
+      cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w, h);
+  cairo_t* cr = cairo_create(surface);
+  gdk_cairo_set_source_pixbuf(cr, base, 0, 0);
+  cairo_paint(cr);
+  g_object_unref(base);
+
+  double badge_r = w * 0.28;
+  double cx = w - badge_r - 1;
+  double cy = h - badge_r - 1;
+
+  if (muted) {
+    cairo_set_source_rgb(cr, 0.6, 0.6, 0.6);
+  } else {
+    cairo_set_source_rgb(cr, 0.93, 0.28, 0.27);
+  }
+  cairo_arc(cr, cx, cy, badge_r, 0, 2 * M_PI);
+  cairo_fill(cr);
+
+  char text[8];
+  if (count > 99)
+    snprintf(text, sizeof(text), "99+");
+  else
+    snprintf(text, sizeof(text), "%d", count);
+
+  cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
+  cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL,
+                         CAIRO_FONT_WEIGHT_BOLD);
+  cairo_set_font_size(cr, badge_r * 1.2);
+
+  cairo_text_extents_t extents;
+  cairo_text_extents(cr, text, &extents);
+  cairo_move_to(cr, cx - extents.width / 2 - extents.x_bearing,
+                cy - extents.height / 2 - extents.y_bearing);
+  cairo_show_text(cr, text);
+
+  if (!self->badge_dir) {
+    self->badge_dir =
+        g_build_filename(g_get_tmp_dir(), "uniclient_tray", NULL);
+    g_mkdir_with_parents(self->badge_dir, 0700);
+  }
+
+  self->badge_toggle = !self->badge_toggle;
+  const char* name =
+      self->badge_toggle ? "uniclient_badge_a" : "uniclient_badge_b";
+  gchar* filename = g_strdup_printf("%s.png", name);
+  gchar* path = g_build_filename(self->badge_dir, filename, NULL);
+  cairo_surface_write_to_png(surface, path);
+  g_free(path);
+  g_free(filename);
+
+  cairo_destroy(cr);
+  cairo_surface_destroy(surface);
+
+  app_indicator_set_icon_theme_path(self->indicator, self->badge_dir);
+  app_indicator_set_icon_full(self->indicator, name, "UniClient");
 }
 
 static void init_tray(MyApplication* self) {
@@ -124,17 +233,22 @@ static void init_tray(MyApplication* self) {
   g_signal_connect(self->show_hide_item, "activate",
                    G_CALLBACK(on_tray_show_hide), self);
 
+  self->notifications_item =
+      gtk_menu_item_new_with_label("Disable Notifications");
+  gtk_menu_shell_append(GTK_MENU_SHELL(self->tray_menu),
+                        self->notifications_item);
+  g_signal_connect(self->notifications_item, "activate",
+                   G_CALLBACK(on_tray_notifications_toggle), self);
+
   self->streamer_item = gtk_menu_item_new_with_label("Enable Streamer Mode");
   gtk_menu_shell_append(GTK_MENU_SHELL(self->tray_menu), self->streamer_item);
   g_signal_connect(self->streamer_item, "activate",
                    G_CALLBACK(on_tray_streamer_toggle), self);
-  gtk_widget_hide(self->streamer_item);
 
   self->ghost_item = gtk_menu_item_new_with_label("Enable Ghost Mode");
   gtk_menu_shell_append(GTK_MENU_SHELL(self->tray_menu), self->ghost_item);
   g_signal_connect(self->ghost_item, "activate",
                    G_CALLBACK(on_tray_ghost_toggle), self);
-  gtk_widget_hide(self->ghost_item);
 
   GtkWidget* separator = gtk_separator_menu_item_new();
   gtk_menu_shell_append(GTK_MENU_SHELL(self->tray_menu), separator);
@@ -145,7 +259,6 @@ static void init_tray(MyApplication* self) {
 
   gtk_widget_show_all(self->tray_menu);
   gtk_widget_hide(self->streamer_item);
-  gtk_widget_hide(self->ghost_item);
   app_indicator_set_menu(self->indicator, GTK_MENU(self->tray_menu));
 
   g_free(icon_path);
@@ -239,6 +352,31 @@ static void tray_method_call_handler(FlMethodChannel* channel,
       } else {
         gtk_widget_hide(self->streamer_item);
       }
+    }
+#endif
+    fl_method_call_respond_success(method_call, nullptr, nullptr);
+  } else if (g_strcmp0(method, "setNotificationsTrayItem") == 0) {
+#ifdef HAVE_APPINDICATOR
+    FlValue* args = fl_method_call_get_args(method_call);
+    if (self->notifications_item &&
+        fl_value_get_type(args) == FL_VALUE_TYPE_MAP) {
+      FlValue* enabled_val = fl_value_lookup_string(args, "enabled");
+      gboolean enabled = enabled_val ? fl_value_get_bool(enabled_val) : TRUE;
+      gtk_menu_item_set_label(GTK_MENU_ITEM(self->notifications_item),
+                              enabled ? "Disable Notifications"
+                                      : "Enable Notifications");
+    }
+#endif
+    fl_method_call_respond_success(method_call, nullptr, nullptr);
+  } else if (g_strcmp0(method, "setUnreadBadge") == 0) {
+#ifdef HAVE_APPINDICATOR
+    FlValue* args = fl_method_call_get_args(method_call);
+    if (fl_value_get_type(args) == FL_VALUE_TYPE_MAP) {
+      FlValue* count_val = fl_value_lookup_string(args, "count");
+      FlValue* muted_val = fl_value_lookup_string(args, "muted");
+      int count = count_val ? (int)fl_value_get_int(count_val) : 0;
+      gboolean muted = muted_val ? fl_value_get_bool(muted_val) : FALSE;
+      update_tray_badge(self, count, muted);
     }
 #endif
     fl_method_call_respond_success(method_call, nullptr, nullptr);
@@ -709,6 +847,8 @@ static void my_application_dispose(GObject* object) {
     gtk_widget_destroy(self->tray_menu);
     self->tray_menu = nullptr;
   }
+  g_free(self->badge_dir);
+  self->badge_dir = nullptr;
 #endif
   G_OBJECT_CLASS(my_application_parent_class)->dispose(object);
 }
@@ -731,8 +871,11 @@ static void my_application_init(MyApplication* self) {
   self->indicator = nullptr;
   self->tray_menu = nullptr;
   self->show_hide_item = nullptr;
+  self->notifications_item = nullptr;
   self->streamer_item = nullptr;
   self->ghost_item = nullptr;
+  self->badge_toggle = 0;
+  self->badge_dir = nullptr;
 #endif
 }
 
