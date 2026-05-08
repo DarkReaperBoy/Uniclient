@@ -1378,7 +1378,6 @@ Item: $CURRENT_ITEMS"
       CHUNK_FILE="$ITER_LOG_DIR/audit_c${AUDIT_CYCLE}_${dart_basename}.log"
 
       # Tier routing: skip tiny files, use haiku for simple, sonnet for complex
-      local tier
       tier=$(get_file_tier "$dart_file")
       if [[ "$tier" == "skip" ]]; then
         log "    [$((CHUNK_ID + 1))/$NUM_FILES] $dart_basename.dart — SKIP (tiny/no callbacks)"
@@ -1387,7 +1386,7 @@ Item: $CURRENT_ITEMS"
         continue
       fi
 
-      local model="claude-sonnet-4-6"
+      model="claude-sonnet-4-6"
       [[ "$tier" == "haiku" ]] && model="claude-haiku-4-5-20251001"
 
       CHUNK_ID_MAP["$dart_basename"]=$CHUNK_ID
@@ -1435,10 +1434,9 @@ Item: $CURRENT_ITEMS"
 
     # Only update fingerprints for files whose audit SUCCEEDED (not rate-limited/failed)
     for dart_file in "${DART_FILES[@]}"; do
-      local db
       db=$(basename "$dart_file" .dart)
-      local chunk_out="$PROJECT_ROOT/checklist/audit_chunk_${CHUNK_ID_MAP[$db]:-999}.md"
-      local chunk_jsonl="$ITER_LOG_DIR/audit_c${AUDIT_CYCLE}_${db}.log.jsonl"
+      chunk_out="$PROJECT_ROOT/checklist/audit_chunk_${CHUNK_ID_MAP[$db]:-999}.md"
+      chunk_jsonl="$ITER_LOG_DIR/audit_c${AUDIT_CYCLE}_${db}.log.jsonl"
       # Only fingerprint if output exists AND was not rate-limited
       if [[ -f "$chunk_out" ]] && ! grep -q "hit your limit\|rate.limit\|Rate limit" "$chunk_jsonl" 2>/dev/null; then
         update_fingerprint "$dart_file"
