@@ -455,6 +455,17 @@ CHECK ALL OF THESE — not just visuals:
 - Context menus: which items appear and what do they do?
 - Error/empty/loading states
 
+**PERFORMANCE & OPTIMIZATION:**
+- Unnecessary rebuilds: widgets rebuilding on every frame or every setState when they shouldn't
+- Missing const constructors on stateless widgets
+- Large lists not using ListView.builder (building all children at once instead of lazy)
+- Images not using cacheWidth/cacheHeight or ResizeImage (decoding at full resolution)
+- Heavy work on the UI thread (JSON parsing, sorting, filtering in build methods)
+- Missing RepaintBoundary on animated/frequently-changing widgets
+- Unbounded list growth (lists that grow forever without pagination or eviction)
+- Redundant network calls (fetching data already in cache, no deduplication)
+- Missing Isolate.run for expensive operations (large list transforms, image processing)
+
 OUTPUT FORMAT — EVERY item cites BOTH files:
 
 ## $dart_basename — [short description]
