@@ -93,13 +93,6 @@
 
 ## §46 — Link Preview in Compose
 
-- [ ] spec §46.1 "URL detection debouncing": spec says 500ms debounce for 1-2 char changes, 0ms for paste; code has a `_betterLinkPreviewUrl` function and link preview logic in chat_view.dart — needs detailed verification of debounce timing
-- [ ] spec §46.2 "Preview card layout": spec says 49px height bar with left icon at (7,7), thumbnail at 53px left, text at 53/95px, cancel button 49x49px; needs verification that the FieldHeader equivalent in chat_view.dart matches these exact pixel values
-- [ ] spec §46.3 "Large vs small media toggle": spec says DraftOptionsBox has "Enlarge photo/video" / "Shrink photo/video" button; needs verification of implementation
-- [ ] spec §46.4 "Preview above/below text": spec says `WebPageDraft.invert` flag controls position; needs verification
-- [ ] spec §46.5 "Multiple URLs": spec says first link with cached preview is picked; the link-preview flow in chat_view.dart needs verification for multi-URL handling
-- [ ] spec §46.8 "Remove preview": spec says clicking cancel X removes preview and sets `removed` flag that persists in draft; needs verification
-
 ## §47 — Restricted Permissions UI
 
 - [ ] spec §47 "WriteRestrictionType enum": spec defines None/Rights/PremiumRequired/Frozen/Hidden types; code in chat_view.dart likely implements a restriction bar but full coverage of all 5 types needs verification
