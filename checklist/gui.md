@@ -95,14 +95,7 @@
 
 ## §47 — Restricted Permissions UI
 
-- [ ] spec §47 "WriteRestrictionType enum": spec defines None/Rights/PremiumRequired/Frozen/Hidden types; code in chat_view.dart likely implements a restriction bar but full coverage of all 5 types needs verification
-- [ ] spec §47 "Per-restriction error strings": spec defines 3 tiers of error messages (timed/permanent/default) for each `ChatRestriction` flag; these localized strings need to come from the engine and be displayed correctly
-- [ ] spec §47 "Grayed/forbidden send button": spec says record/round button at 50% opacity when forbidden with suppressed ripple; needs verification in chat_view.dart send button implementation
-- [ ] spec §47 "Slowmode countdown": spec says MM:SS countdown on send button using `normalFont` 13px in `windowSubTextFg`; needs verification
-- [ ] spec §47 "Join to Send button": spec says unjoin channels show "JOIN CHANNEL" / "JOIN GROUP" / "APPLY TO JOIN GROUP" button; needs verification
-- [ ] spec §47 "Bot Start button": spec says first-time bot chats show "START" button; needs verification
-- [ ] spec §47 "Unblock button": spec says blocked users show "UNBLOCK" button in `attentionButtonFg` red; needs verification
-- [ ] spec §47 "Forum topic closed": spec says closed topics show "This topic is closed." restriction text; needs verification
+
 
 ## §48 — Drag-and-Drop File Overlay
 
