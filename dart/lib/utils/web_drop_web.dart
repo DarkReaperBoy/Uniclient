@@ -10,7 +10,7 @@ import 'web_drop.dart';
 
 Widget buildWebDropZone({
   required Widget child,
-  void Function()? onDragEnter,
+  void Function(List<String> mimeTypes)? onDragEnter,
   void Function()? onDragLeave,
   void Function(Offset localPosition)? onDragUpdate,
   void Function(List<WebDroppedFile> files)? onDrop,
@@ -26,7 +26,7 @@ Widget buildWebDropZone({
 
 class _WebDropZone extends StatefulWidget {
   final Widget child;
-  final void Function()? onDragEnter;
+  final void Function(List<String> mimeTypes)? onDragEnter;
   final void Function()? onDragLeave;
   final void Function(Offset localPosition)? onDragUpdate;
   final void Function(List<WebDroppedFile> files)? onDrop;
@@ -82,7 +82,20 @@ class _WebDropZoneState extends State<_WebDropZone> {
     _enterCount++;
     if (!_active) {
       _active = true;
-      widget.onDragEnter?.call();
+      final mimeTypes = <String>[];
+      final de = event as web.DragEvent;
+      final dt = de.dataTransfer;
+      if (dt != null) {
+        final items = dt.items;
+        for (var i = 0; i < items.length; i++) {
+          final item = items[i];
+          if (item.kind == 'file') {
+            final t = item.type.toLowerCase();
+            if (t.isNotEmpty) mimeTypes.add(t);
+          }
+        }
+      }
+      widget.onDragEnter?.call(mimeTypes);
     }
   }
 

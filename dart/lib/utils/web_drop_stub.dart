@@ -4,7 +4,7 @@ import 'web_drop.dart';
 
 Widget buildWebDropZone({
   required Widget child,
-  void Function()? onDragEnter,
+  void Function(List<String> mimeTypes)? onDragEnter,
   void Function()? onDragLeave,
   void Function(Offset localPosition)? onDragUpdate,
   void Function(List<WebDroppedFile> files)? onDrop,

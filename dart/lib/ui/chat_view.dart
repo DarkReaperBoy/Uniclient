@@ -4145,13 +4145,13 @@ class _ChatViewState extends State<ChatView>
     if (kIsWeb) {
       return buildWebDropZone(
         child: child,
-        onDragEnter: () {
+        onDragEnter: (mimeTypes) {
           if (_isVoiceRecording) return;
           final chat = context.read<ChatState>().activeChat;
           if (!_canSendFiles(chat)) return;
           setState(() {
             _isDragOver = true;
-            _dragLayout = _DragZoneLayout.photoFiles;
+            _dragLayout = _classifyMimeTypes(mimeTypes);
           });
           _dragOverlayAnimCtrl.forward();
         },
@@ -17013,6 +17013,29 @@ _DragZoneLayout _classifyDragFiles(List<String> paths) {
     } else {
       allSmallImages = false;
       if (!videoExts.contains(ext)) {
+        allMedia = false;
+      }
+    }
+  }
+  if (allSmallImages) return _DragZoneLayout.photoFiles;
+  if (allMedia) return _DragZoneLayout.mediaFiles;
+  return _DragZoneLayout.files;
+}
+
+_DragZoneLayout _classifyMimeTypes(List<String> mimeTypes) {
+  if (mimeTypes.isEmpty) return _DragZoneLayout.photoFiles;
+  const imageTypes = {'image/jpeg', 'image/png', 'image/bmp', 'image/webp', 'image/tiff', 'image/heic', 'image/heif'};
+  const videoTypes = {'video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska', 'video/webm'};
+  bool allSmallImages = true;
+  bool allMedia = true;
+  for (final mime in mimeTypes) {
+    if (mime == 'image/gif') {
+      allSmallImages = false;
+    } else if (imageTypes.contains(mime)) {
+      // Size unknown during drag; assume small
+    } else {
+      allSmallImages = false;
+      if (!videoTypes.contains(mime)) {
         allMedia = false;
       }
     }
