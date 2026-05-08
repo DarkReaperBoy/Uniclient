@@ -508,7 +508,10 @@ while true; do
   # ─── Check for checklist items ──────────────────────────────
   REMAINING=0
   if [[ -f "$PROJECT_ROOT/checklist/gui.md" ]]; then
-    REMAINING=$(grep -c '^- \[ \]' "$PROJECT_ROOT/checklist/gui.md" 2>/dev/null || echo 0)
+    REMAINING=$(grep -c '^- \[ \]' "$PROJECT_ROOT/checklist/gui.md" 2>/dev/null || true)
+    REMAINING="${REMAINING:-0}"
+    REMAINING="${REMAINING//[^0-9]/}"
+    [[ -z "$REMAINING" ]] && REMAINING=0
   fi
 
   if [[ "$REMAINING" -gt 0 ]]; then
@@ -539,7 +542,9 @@ while true; do
       fi
     done < "$PROJECT_ROOT/checklist/gui.md"
     CURRENT_ITEMS="${CURRENT_ITEMS%$'\n'}"
-    ITEM_COUNT=$(echo "$CURRENT_ITEMS" | grep -c '^- \[ \]' || echo 0)
+    ITEM_COUNT=$(echo "$CURRENT_ITEMS" | grep -c '^- \[ \]' || true)
+    ITEM_COUNT="${ITEM_COUNT//[^0-9]/}"
+    [[ -z "$ITEM_COUNT" ]] && ITEM_COUNT=0
     log ""
     log "  📂 Section: $SECTION_NAME"
     log "  📝 Items: $ITEM_COUNT"
@@ -850,7 +855,9 @@ $(echo "$JSTEPS" | tr ';' '\n' | sed 's/^/  - /')"
 
     rm -f "$PROJECT_ROOT/checklist/audit_chunk_"*.md "$PROJECT_ROOT/checklist/audit_journey_"*.md
 
-    FINDINGS=$(grep -c '^- \[ \]' "$PROJECT_ROOT/checklist/gui.md" 2>/dev/null || echo 0)
+    FINDINGS=$(grep -c '^- \[ \]' "$PROJECT_ROOT/checklist/gui.md" 2>/dev/null || true)
+    FINDINGS="${FINDINGS//[^0-9]/}"
+    [[ -z "$FINDINGS" ]] && FINDINGS=0
     echo ""
     log "  ┌──────────────────────────────────────────────────"
     log "  │ 📋 Audit cycle $AUDIT_CYCLE results"
