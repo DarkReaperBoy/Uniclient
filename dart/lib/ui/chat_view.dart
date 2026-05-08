@@ -1376,6 +1376,8 @@ class _ChatViewState extends State<ChatView>
         if (chat != null)
           const TelegramMenuItem(value: 'copy_link', icon: Icon(Icons.link), label: 'Copy Message Link'),
         const TelegramMenuItem(value: 'forward', icon: Icon(Icons.forward), label: 'Forward'),
+        if (isForwardRestricted && isGroupOrChannel)
+          const TelegramMenuItem.separator(),
         if (isForwardRestricted)
           TelegramMenuItem(
             icon: isGroupOrChannel ? const Icon(Icons.copyright) : null,
@@ -2172,6 +2174,8 @@ class _ChatViewState extends State<ChatView>
 
   bool _shouldShowRepeatMessage(CachedMessage msg, ChatInfo? chat) {
     if (msg.isService) return false;
+    if (msg.isSending) return false;
+    if (msg.msgId.isEmpty) return false;
     if (chat?.type == ChatType.channel) return false;
     return _checkMenuVisibility(context.read<AppState>().showRepeatMessageInContextMenu);
   }
