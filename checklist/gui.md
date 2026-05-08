@@ -105,14 +105,6 @@
 
 ## §53 — Forward Enhancements
 
-- [ ] spec §53.1 "Intelligent Forward — chunking algorithm": `AyuForward.buildChunks()` in `state/ayu_forward.dart` implements the chunking logic correctly, splitting messages by restriction status. However, there is no `intelligentForward` call path that triggers from the standard forward UI — the method exists but is not wired to any forward dialog or share box intercept
-- [ ] spec §53.2 "Forward Progress Tracking — compose area replacement": `ForwardProgress` class exists with correct state machine (Preparing/Downloading/Sending/Finished), but no `AyuForwardWriteRestriction` widget replaces the compose area during an active forward. The progress bar UI described in spec (full-width FlatButton replacing compose field) does not exist
-- [ ] spec §53.3 "Repeat Message — context menu action": No "Repeat Message" context menu item on message bubbles. The `showRepeatMessageInContextMenu` setting exists in `ayu_chats_page.dart` (context menu visibility), but no actual menu action is implemented
-- [ ] spec §53.3 "Repeat Message — Shift+click for no-quote mode": No implementation of the "send as own without forward header" behavior triggered by Shift+clicking Repeat Message
-- [ ] spec §53.4 "Restriction Override — context menu label": No "Plain forwarding is not allowed." label (`ayu_UnforwardableContextMenuText`) in the context menu for restricted messages
-- [ ] spec §53.5 "Download-and-Resend Pipeline": `engine.resendAsOwn()` and `engine.resendAlbumAsOwn()` calls exist in `ayu_forward.dart`, but these delegate to the engine service which is the Go bridge — the actual download/re-upload logic depends on the Go backend, not verified here
-- [ ] spec §53.8 "Repeat Message — No Hint Text": Irrelevant since the menu item itself doesn't exist yet
-
 ## §54 — AyuGram UI Customization
 
 - [ ] spec §54.1 "Avatar Corners — live preview": `_AvatarCornersPreview` renders a static placeholder ("A" letter, purple background) instead of the actual AyuGramReleases channel userpic fetched via `contacts.resolveUsername`. The preview does not resolve a real userpic as spec requires — `ayu_appearance_page.dart`
