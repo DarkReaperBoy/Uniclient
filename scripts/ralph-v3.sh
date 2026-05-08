@@ -601,7 +601,8 @@ ITEM_ATTEMPTS=0
 CONVERGE_COUNT=0
 DIVERGE_COUNT=0
 LAST_COMMIT_HASH="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || echo "none")"
-LAST_AUDIT_FINDINGS=999999
+LAST_AYUGRAM_FINDINGS=999999
+LAST_CLEANUP_FINDINGS=999999
 # Two-phase audit: "ayugram" (compare vs source) then "cleanup" (stubs/perf)
 AUDIT_PHASE="ayugram"
 
@@ -692,7 +693,7 @@ Attempt $((ITEM_ATTEMPTS + 1)) of $MAX_IMPL_ATTEMPTS. Fix the issues above."
       log "Item failed $MAX_IMPL_ATTEMPTS times. Skipping."
       IMPL_EXTRA="This item failed verification $MAX_IMPL_ATTEMPTS times.
 SKIP IT — delete it from checklist/gui.md, commit, and exit.
-Item: $CURRENT_ITEM"
+Item: $CURRENT_ITEMS"
       ITEM_ATTEMPTS=0
     fi
 
@@ -1061,8 +1062,13 @@ $(echo "$JSTEPS" | tr ';' '\n' | sed 's/^/  - /')"
       fi
     fi
 
-    # ── Divergence detection ─────────────────────────────────
-    if [[ "$FINDINGS" -gt "$LAST_AUDIT_FINDINGS" && $AUDIT_CYCLE -gt 1 ]]; then
+    # ── Divergence detection (per-phase comparison) ─────────
+    if [[ "$AUDIT_PHASE" == "ayugram" ]]; then
+      LAST_PHASE_FINDINGS=$LAST_AYUGRAM_FINDINGS
+    else
+      LAST_PHASE_FINDINGS=$LAST_CLEANUP_FINDINGS
+    fi
+    if [[ "$FINDINGS" -gt "$LAST_PHASE_FINDINGS" && $AUDIT_CYCLE -gt 1 ]]; then
       DIVERGE_COUNT=$((DIVERGE_COUNT + 1))
       log "  ⚠️  DIVERGENCE: findings $LAST_AUDIT_FINDINGS → $FINDINGS (count: $DIVERGE_COUNT)"
       if [[ $DIVERGE_COUNT -ge 2 ]]; then
@@ -1081,7 +1087,11 @@ $(echo "$JSTEPS" | tr ';' '\n' | sed 's/^/  - /')"
     else
       DIVERGE_COUNT=0
     fi
-    LAST_AUDIT_FINDINGS=$FINDINGS
+    if [[ "$AUDIT_PHASE" == "ayugram" ]]; then
+      LAST_AYUGRAM_FINDINGS=$FINDINGS
+    else
+      LAST_CLEANUP_FINDINGS=$FINDINGS
+    fi
     CONVERGE_COUNT=0
 
     # ── Commit new checklist ─────────────────────────────────
@@ -1104,6 +1114,7 @@ EOF
     # After fixing this phase's items, move to next phase
     if [[ "$AUDIT_PHASE" == "ayugram" ]]; then
       log "  AyuGram checklist ($FINDINGS items) committed. Fixing, then cleanup sweep."
+      AUDIT_PHASE="cleanup"
     else
       log "  Cleanup checklist ($FINDINGS items) committed. Fixing, then next AyuGram cycle."
       AUDIT_PHASE="ayugram"
@@ -1131,4 +1142,4 @@ log "║    - Same-model blind spot (Claude auditing Claude)          ║"
 log "║    - Animation/timing not testable via screenshots           ║"
 log "║    - ~10-15% of spec surface requires human judgment         ║"
 log "╚══════════════════════════════════════════════════════════════╝"
-notify "Ralph v2 DONE. $IMPL_ITERATION impl, $AUDIT_CYCLE audit, $TOTAL_COMMITS commits. \$$TOTAL_COST"
+notify "Ralph v3 DONE. $IMPL_ITERATION impl, $AUDIT_CYCLE audit, $TOTAL_COMMITS commits. \$$TOTAL_COST"
