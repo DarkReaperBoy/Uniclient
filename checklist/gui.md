@@ -72,21 +72,6 @@ All methods are fully implemented and wired to the backend. No implementation ga
 
 ---
 
-- [ ] [CRITICAL] `_countTiming` missing server-side cloud delay: AyuGram's `countTiming` (lines 382–403) extends the delay to `config.notifyCloudDelay` (~30s) when the current session is offline but another device is recently online, and to `config.notifyDefaultDelay` (~1.5s) when another device is actively online at the same moment. This prevents duplicate notifications across devices (phone active → desktop should wait). Dart always fires after 100ms or 500ms regardless of other-session state, defeating Telegram's cross-device dedup — `notification_system.dart:264-274` ← `notifications_manager.cpp:378-403`
-
-- [ ] [CRITICAL] `_delayTimers` list grows without bound — memory leak: `_scheduleDispatch` appends each fired timer to `_delayTimers` but the callback `() => _dispatch(data)` never removes the timer from the list after it fires. Every notification with a non-zero delay permanently adds a dead `Timer` object to the list. `dispose()` clears it, but during a long session with thousands of messages this leaks memory indefinitely — `notification_system.dart:281-283` ← (AyuGram uses `_waitTimer.callOnce` callbacks, no list accumulation: `notifications_manager.cpp:484-489`)
-
-- [ ] [CRITICAL] Album notification text hardcoded as `'Album'`: When multiple album items are grouped, Dart sets `text: 'Album'` — a hardcoded English string. AyuGram's `showGrouped()` instead re-dispatches the actual last grouped item with its real content text (e.g. "Photo", "Video", or caption), populated from the history item. The word "Album" never appears as notification text in TDesktop — `notification_system.dart:324-325` ← `notifications_manager.cpp:680-697`
-
-- [ ] [MAJOR] Missing `clearIncomingFrom*` methods: AyuGram has `clearIncomingFromHistory`, `clearIncomingFromTopic`, `clearIncomingFromSublist` (lines 602–625) which clear ONLY the sound/flash alert queue (`_whenAlerts`) without touching the visual notification queue. This is called when a chat is opened/read to suppress the sound but keep pending toast notifications alive. Dart's `clearForChat` nukes everything including dedup maps — `notification_system.dart:401-405` ← `notifications_manager.cpp:602-625`
-
-- [ ] [MAJOR] Missing `checkDelayed`: AyuGram's `checkDelayed()` (lines 646–678) processes notifications that landed in `_settingWaiters` because peer/thread mute state was `Unknown` at schedule time. When the peer data loads, `checkDelayed` is called and the notification is either promoted to `_waiters` (show it) or discarded. Without this, any notification that arrives before peer data is ready is silently dropped — `notification_system.dart` (absent) ← `notifications_manager.cpp:646-678`
-
-- [ ] [MAJOR] Missing `updateAll`: AyuGram fires `_manager->updateAll()` when `ChangeType::ViewParams` settings change (privacy level changes, show-name toggle, etc.) so visible notification popups refresh their content. Dart has no equivalent — privacy setting changes take effect only for future notifications — `notification_system.dart` (absent) ← `notifications_manager.cpp:1040-1044`, `notifications_manager.h:129`
-
-- [ ] [MAJOR] Missing `notifyFromAll` filter: AyuGram's `computeSkipState` (line 341–345) skips notifications from accounts that are not the currently active account when `settings.notifyFromAll()` is false. `_shouldNotifyForType` in Dart has no such check — all logged-in accounts always fire notifications regardless of the "Notify from all accounts" setting — `notification_system.dart:214-219` ← `notifications_manager.cpp:341-345`
-
-- [ ] [MAJOR] Forward group timer restart doesn't flush previous group: When a new forward group arrives while `_groupedTimer` is already ticking for a previous group, Dart cancels and restarts the timer (line 204–207), delaying the previous group further. AyuGram's `showNext` (lines 926–933) immediately calls `showGrouped()` to flush the previous group before starting the new group's timer — users see the previous group's notification before the new group's window begins — `notification_system.dart:203-207` ← `notifications_manager.cpp:926-933`
 
 # notification_types.dart — Missing Privacy & Poll Vote Handling
 
