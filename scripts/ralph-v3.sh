@@ -170,6 +170,161 @@ run_static_scan() {
   log "  📊 Static scan: $count issues found (cost: \$0)"
 }
 
+# ─── AyuGram palette diff: catch color mismatches for $0 ────────
+run_palette_diff() {
+  local palette_file="$AYUGRAM_DIR/Telegram/lib_ui/ui/colors.palette"
+  local dart_palette="$PROJECT_ROOT/dart/lib/theme/telegram_palette.dart"
+  local out_file="$PROJECT_ROOT/checklist/audit_chunk_palette.md"
+
+  if [[ ! -f "$palette_file" || ! -f "$dart_palette" ]]; then
+    log "  ⏭️  Palette diff: skipped (files not found)"
+    return
+  fi
+
+  log "  🎨 Palette diff: comparing AyuGram colors.palette vs telegram_palette.dart..."
+
+  {
+    echo "## palette_diff — Color comparison (zero AI cost)"
+    echo ""
+
+    # Extract hex colors from AyuGram palette (resolve simple aliases)
+    # Format: "windowBg: #ffffff;" → windowBg=#ffffff
+    declare -A ayugram_colors
+    while IFS= read -r pline; do
+      pline=$(echo "$pline" | sed 's/\/\/.*//;s/^[[:space:]]*//' | tr -d ';')
+      [[ -z "$pline" || "$pline" == //* ]] && continue
+      local key val
+      key=$(echo "$pline" | cut -d: -f1 | tr -d ' ')
+      val=$(echo "$pline" | cut -d: -f2- | tr -d ' ')
+      [[ -n "$key" && -n "$val" ]] && ayugram_colors["$key"]="$val"
+    done < "$palette_file"
+
+    # Extract Color(0xFFRRGGBB) from Dart palette
+    while IFS= read -r dline; do
+      local dart_key dart_hex
+      dart_key=$(echo "$dline" | grep -oP "static\s+const\s+Color\s+\K\w+" || true)
+      dart_hex=$(echo "$dline" | grep -oP "Color\(0x\K[0-9A-Fa-f]{8}" || true)
+      [[ -z "$dart_key" || -z "$dart_hex" ]] && continue
+      # Convert 0xAARRGGBB to #rrggbb (drop alpha)
+      local dart_rgb="#${dart_hex:2:6}"
+      dart_rgb=$(echo "$dart_rgb" | tr '[:upper:]' '[:lower:]')
+      # Check if this key exists in AyuGram
+      local ayu_val="${ayugram_colors[$dart_key]:-}"
+      if [[ -z "$ayu_val" ]]; then
+        continue  # Dart-only color, not necessarily a bug
+      fi
+      # Resolve simple alias: if ayu_val doesn't start with #, follow one level
+      if [[ "$ayu_val" != \#* ]]; then
+        ayu_val="${ayugram_colors[$ayu_val]:-$ayu_val}"
+      fi
+      if [[ "$ayu_val" == \#* ]]; then
+        local ayu_rgb
+        ayu_rgb=$(echo "$ayu_val" | tr '[:upper:]' '[:lower:]')
+        if [[ "$dart_rgb" != "$ayu_rgb" ]]; then
+          local linenum
+          linenum=$(grep -n "$dart_key" "$dart_palette" 2>/dev/null | head -1 | cut -d: -f1)
+          echo "- [ ] [MAJOR] Color mismatch '$dart_key': AyuGram=$ayu_rgb, Dart=$dart_rgb — \`telegram_palette.dart:${linenum:-?}\` ← \`colors.palette\`"
+        fi
+      fi
+    done < "$dart_palette"
+
+    # Check for AyuGram colors missing from Dart
+    for ayu_key in "${!ayugram_colors[@]}"; do
+      if ! grep -q "$ayu_key" "$dart_palette" 2>/dev/null; then
+        local ayu_val="${ayugram_colors[$ayu_key]}"
+        [[ "$ayu_val" == \#* ]] && echo "- [ ] [MAJOR] Missing palette entry '$ayu_key' (AyuGram=$ayu_val) — \`telegram_palette.dart\` ← \`colors.palette\`"
+      fi
+    done
+
+  } > "$out_file"
+
+  local count
+  count=$(grep -c '^- \[ \]' "$out_file" 2>/dev/null || true)
+  count="${count//[^0-9]/}"
+  [[ -z "$count" ]] && count=0
+  log "  📊 Palette diff: $count color mismatches found (cost: \$0)"
+}
+
+# ─── AyuGram style extraction: pre-build context for sessions ───
+extract_ayugram_context() {
+  local dart_file="$1"
+  local dart_basename
+  dart_basename=$(basename "$dart_file" .dart)
+  local context=""
+
+  # Map Dart files to likely AyuGram directories by name/purpose
+  local ayu_dirs=()
+  case "$dart_basename" in
+    chat_list*|filter_column) ayu_dirs=("dialogs") ;;
+    message_bubble|chat_view) ayu_dirs=("history" "history/view") ;;
+    info_panel)               ayu_dirs=("info") ;;
+    settings*|chat_settings*|privacy*|notifications*|advanced*|folders*|active_sessions*|shortcuts*)
+                              ayu_dirs=("settings") ;;
+    call_*|calls_*)           ayu_dirs=("calls") ;;
+    emoji_panel|sticker*)     ayu_dirs=("chat_helpers") ;;
+    shell|titlebar)           ayu_dirs=("window") ;;
+    hamburger_drawer)         ayu_dirs=("window") ;;
+    auth_screen)              ayu_dirs=("intro") ;;
+    media_viewer)             ayu_dirs=("media/view") ;;
+    admin_tools)              ayu_dirs=("boxes/peers") ;;
+    create_group*|create_channel*) ayu_dirs=("boxes/peers") ;;
+    contacts_screen)          ayu_dirs=("boxes") ;;
+    story_editor)             ayu_dirs=("media/stories") ;;
+    *theme*|*wallpaper*)      ayu_dirs=("boxes" "window") ;;
+    *)                        ayu_dirs=() ;;
+  esac
+
+  if [[ ${#ayu_dirs[@]} -eq 0 ]]; then
+    echo "(no pre-mapped AyuGram context for $dart_basename)"
+    return
+  fi
+
+  # Extract relevant .style values
+  context+="=== AYUGRAM STYLE VALUES ==="$'\n'
+  for dir in "${ayu_dirs[@]}"; do
+    for style_file in "$AYUGRAM_UI/$dir"/*.style "$AYUGRAM_UI/ui/$dir"/*.style; do
+      [[ -f "$style_file" ]] || continue
+      context+="--- $(basename "$style_file") ---"$'\n'
+      # Extract pixel values and key definitions (skip comments, includes)
+      grep -E "^[a-zA-Z].*: [0-9]+px|^[a-zA-Z].*: margins\(|^[a-zA-Z].*: font\(|^[a-zA-Z].*: #[0-9a-fA-F]" "$style_file" 2>/dev/null | head -80
+      context+=$'\n'
+    done
+  done
+
+  # Extract key function signatures from .h files
+  context+="=== AYUGRAM HEADER SIGNATURES ==="$'\n'
+  for dir in "${ayu_dirs[@]}"; do
+    for h_file in "$AYUGRAM_UI/$dir"/*.h "$AYUGRAM_UI/ui/$dir"/*.h; do
+      [[ -f "$h_file" ]] || continue
+      context+="--- $(basename "$h_file") ---"$'\n'
+      # Extract class declarations and public method signatures
+      grep -E "^class |void |bool |int |QString |QRect |QSize |static |virtual " "$h_file" 2>/dev/null | head -30
+      context+=$'\n'
+    done
+  done
+
+  echo "$context"
+}
+
+# ─── Tier routing: skip/haiku/sonnet per file ────────────────────
+get_file_tier() {
+  local dart_file="$1"
+  local lines
+  lines=$(wc -l < "$dart_file" 2>/dev/null || echo 0)
+  local callbacks
+  callbacks=$(grep -c "onTap:\|onPressed:\|bridge\.\|engine\.\|_engine\." "$dart_file" 2>/dev/null || true)
+  callbacks="${callbacks//[^0-9]/}"
+  [[ -z "$callbacks" ]] && callbacks=0
+
+  if [[ $lines -lt 100 && $callbacks -lt 2 ]]; then
+    echo "skip"
+  elif [[ $lines -lt 500 ]]; then
+    echo "haiku"
+  else
+    echo "sonnet"
+  fi
+}
+
 # ─── Skeleton extraction: reduce tokens by 80% ──────────────────
 extract_skeleton() {
   local dart_file="$1"
@@ -615,19 +770,24 @@ build_audit_prompt() {
   dart_basename=$(basename "$dart_file" .dart)
   local skeleton
   skeleton=$(extract_skeleton "$dart_file")
+  local ayugram_context
+  ayugram_context=$(extract_ayugram_context "$dart_file")
   cat <<PROMPT_END
 You are an autonomous auditor. Compare ONE Dart file against AyuGram Desktop C++ source.
 
 DART FILE: $dart_file
-Here is a pre-extracted SKELETON of the interesting parts (callbacks, constants, bridge calls,
-switch cases, state fields). Use this to identify areas to investigate, then read the FULL
-sections of the Dart file that look suspicious (use Read with offset/limit for specific lines).
 
---- SKELETON START ---
+--- DART SKELETON (pre-extracted interesting parts) ---
 $skeleton
---- SKELETON END ---
+--- END DART SKELETON ---
 
-For any suspicious pattern in the skeleton, read the full context from the Dart file to confirm.
+--- AYUGRAM REFERENCE (pre-extracted style values + headers) ---
+$ayugram_context
+--- END AYUGRAM REFERENCE ---
+
+The AyuGram context above is pre-extracted. Use it for dimensional/color/style comparisons.
+For BEHAVIORAL comparisons, search the AyuGram source: find $AYUGRAM_UI/ -name "*.cpp" | xargs grep -l "keyword"
+For suspicious patterns in the skeleton, read the full Dart file sections (Read with offset/limit).
 
 AYUGRAM SOURCE (GROUND TRUTH): $AYUGRAM_UI/
 Steps:
@@ -1033,9 +1193,10 @@ Item: $CURRENT_ITEMS"
       pkill -x uniclient 2>/dev/null || true
     fi
 
-    # ── LAYER 0: Static scan (ZERO tokens) ─────────────────────
-    update_progress "audit" "cycle $AUDIT_CYCLE" "Layer 0: static scan"
+    # ── LAYER 0: Mechanical scans (ZERO tokens) ────────────────
+    update_progress "audit" "cycle $AUDIT_CYCLE" "Layer 0: mechanical scans"
     run_static_scan
+    run_palette_diff
 
     # ── LAYER 1: Per-file audit (Dart vs AyuGram, parallel Sonnet) ─
     update_progress "audit" "cycle $AUDIT_CYCLE" "Layer 1: per-file code comparison"
@@ -1085,13 +1246,26 @@ Item: $CURRENT_ITEMS"
 
       dart_basename=$(basename "$dart_file" .dart)
       CHUNK_FILE="$ITER_LOG_DIR/audit_c${AUDIT_CYCLE}_${dart_basename}.log"
-      PROMPT="$(build_audit_prompt "$dart_file" "$CHUNK_ID")"
 
-      log "    [$((CHUNK_ID + 1))/$NUM_FILES] $dart_basename.dart ($(wc -l < "$dart_file") lines)"
+      # Tier routing: skip tiny files, use haiku for simple, sonnet for complex
+      local tier
+      tier=$(get_file_tier "$dart_file")
+      if [[ "$tier" == "skip" ]]; then
+        log "    [$((CHUNK_ID + 1))/$NUM_FILES] $dart_basename.dart — SKIP (tiny/no callbacks)"
+        CHUNK_ID=$((CHUNK_ID + 1))
+        SUCCESSFUL_CHUNKS=$((SUCCESSFUL_CHUNKS + 1))
+        continue
+      fi
+
+      local model="claude-sonnet-4-6"
+      [[ "$tier" == "haiku" ]] && model="claude-haiku-4-5-20251001"
+
+      PROMPT="$(build_audit_prompt "$dart_file" "$CHUNK_ID")"
+      log "    [$((CHUNK_ID + 1))/$NUM_FILES] $dart_basename.dart ($(wc -l < "$dart_file") lines, tier=$tier)"
 
       (
         set +e
-        invoke_claude "$PROMPT" "$CHUNK_FILE" "AUDIT-${dart_basename}" "claude-sonnet-4-6"
+        invoke_claude "$PROMPT" "$CHUNK_FILE" "AUDIT-${dart_basename}" "$model"
         exit $?
       ) &
       PIDS+=($!)
