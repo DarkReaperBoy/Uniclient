@@ -60,6 +60,7 @@ class NotificationData {
   final String topicRootId;
   final String sublistPeerId;
   final bool hideMarkAsRead;
+  final bool muteStateUnknown;
 
   const NotificationData({
     required this.accountId,
@@ -110,6 +111,7 @@ class NotificationData {
     this.topicRootId = '',
     this.sublistPeerId = '',
     this.hideMarkAsRead = false,
+    this.muteStateUnknown = false,
   });
 
   NotificationData copyWith({
@@ -161,6 +163,7 @@ class NotificationData {
     String? topicRootId,
     String? sublistPeerId,
     bool? hideMarkAsRead,
+    bool? muteStateUnknown,
   }) {
     return NotificationData(
       accountId: accountId ?? this.accountId,
@@ -211,6 +214,7 @@ class NotificationData {
       topicRootId: topicRootId ?? this.topicRootId,
       sublistPeerId: sublistPeerId ?? this.sublistPeerId,
       hideMarkAsRead: hideMarkAsRead ?? this.hideMarkAsRead,
+      muteStateUnknown: muteStateUnknown ?? this.muteStateUnknown,
     );
   }
 }
@@ -404,6 +408,7 @@ class NotificationSettings {
   final NotificationCorner corner;
   final int maxNotificationCount;
   final int displayIndex;
+  final bool notifyFromAll;
 
   const NotificationSettings({
     this.desktopNotify = true,
@@ -425,6 +430,7 @@ class NotificationSettings {
     this.corner = NotificationCorner.bottomRight,
     this.maxNotificationCount = 3,
     this.displayIndex = 0,
+    this.notifyFromAll = true,
   });
 
   NotificationSettings copyWith({
@@ -447,6 +453,7 @@ class NotificationSettings {
     NotificationCorner? corner,
     int? maxNotificationCount,
     int? displayIndex,
+    bool? notifyFromAll,
   }) {
     return NotificationSettings(
       desktopNotify: desktopNotify ?? this.desktopNotify,
@@ -471,6 +478,7 @@ class NotificationSettings {
       corner: corner ?? this.corner,
       maxNotificationCount: maxNotificationCount ?? this.maxNotificationCount,
       displayIndex: displayIndex ?? this.displayIndex,
+      notifyFromAll: notifyFromAll ?? this.notifyFromAll,
     );
   }
 }

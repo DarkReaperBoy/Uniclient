@@ -35,6 +35,12 @@ class _NotificationKey {
   int get hashCode => Object.hash(messageId, type);
 }
 
+class _AccountSessionState {
+  bool isOnline = true;
+  int otherOnlineAt = 0;
+  int lastSetOnlineAt = 0;
+}
+
 class _DndChecker {
   bool _inhibited = false;
   DBusClient? _dbus;
@@ -84,14 +90,19 @@ class NotificationSystem {
   bool get passcodeLocked => _passcodeLocked;
   set passcodeLocked(bool value) => _passcodeLocked = value;
 
+  String _activeAccountId = '';
+  String get activeAccountId => _activeAccountId;
+  set activeAccountId(String value) => _activeAccountId = value;
+
   void Function()? onFlashBounce;
 
-  // §37.6.1 timing constants
   static const _kMinimalDelay = Duration(milliseconds: 100);
   static const _kMinimalForwardDelay = Duration(milliseconds: 500);
   static const _kMinimalAlertDelay = Duration(milliseconds: 500);
   static const _kWaitingForAllGroupedDelay = Duration(milliseconds: 1000);
   static const _kReactionNotificationEach = Duration(hours: 1);
+  static const _kNotifyCloudDelay = Duration(seconds: 30);
+  static const _kNotifyDefaultDelay = Duration(milliseconds: 1500);
 
   // §37.6.3 dedup: threadKey → { (messageId, type) → lastTime }
   final Map<String, Map<_NotificationKey, DateTime>> _whenMaps = {};
@@ -103,8 +114,11 @@ class NotificationSystem {
   Timer? _groupedTimer;
   final List<NotificationData> _groupedBuffer = [];
 
-  // §37.6.1 delayed dispatch for non-grouped messages
-  final List<Timer> _delayTimers = [];
+  // Per-account session state for cross-device dedup
+  final Map<String, _AccountSessionState> _accountStates = {};
+
+  // Notifications waiting for mute state resolution
+  final List<NotificationData> _settingWaiters = [];
 
   NotificationManager get manager => _manager;
   ManagerType get activeManagerType => _manager.type;
@@ -136,6 +150,23 @@ class NotificationSystem {
       Debug.log(
           'NOTIF', 'manager switched: $oldType → ${_manager.type}');
     }
+  }
+
+  void updateAll() {
+    _manager.updateAll();
+  }
+
+  void updateSessionState({
+    required String accountId,
+    required bool isOnline,
+    int otherOnlineAt = 0,
+    int lastSetOnlineAt = 0,
+  }) {
+    final state =
+        _accountStates.putIfAbsent(accountId, () => _AccountSessionState());
+    state.isOnline = isOnline;
+    state.otherOnlineAt = otherOnlineAt;
+    state.lastSetOnlineAt = lastSetOnlineAt;
   }
 
   void _selectManager() {
@@ -182,12 +213,10 @@ class NotificationSystem {
     var effectiveData = data;
     if (data.isMuted) {
       if (data.isScheduled && data.isOutgoing) {
-        // Own scheduled messages in muted chats: show but force silent
         effectiveData = data.copyWith(isSilent: true);
       } else if (!data.isSenderMuted) {
         // Sender NOT muted in muted group (e.g. mention): show with sound
       } else {
-        // Thread muted + sender muted/absent: skip entirely
         return;
       }
     }
@@ -199,11 +228,14 @@ class NotificationSystem {
 
     if (!_passesDedup(effectiveData)) return;
 
+    // Buffer notifications with unknown mute state for later processing
+    if (effectiveData.muteStateUnknown) {
+      _settingWaiters.add(effectiveData);
+      return;
+    }
+
     if (_isGroupable(effectiveData)) {
-      _groupedBuffer.add(effectiveData);
-      _groupedTimer?.cancel();
-      _groupedTimer =
-          Timer(_kWaitingForAllGroupedDelay, _flushGroupedBuffer);
+      _addToGroupBuffer(effectiveData);
       return;
     }
 
@@ -212,6 +244,11 @@ class NotificationSystem {
   }
 
   bool _shouldNotifyForType(NotificationData data) {
+    if (!_settings.notifyFromAll &&
+        _activeAccountId.isNotEmpty &&
+        data.accountId != _activeAccountId) {
+      return false;
+    }
     if (data.isReaction || data.isPollVote) return _settings.reactionsNotify;
     if (data.isChannel) return _settings.channelsNotify;
     if (data.isGroup) return _settings.groupsNotify;
@@ -262,12 +299,37 @@ class NotificationSystem {
   }
 
   Duration _countTiming(NotificationData data) {
-    if (_settings.disableNotificationsDelay) return _kMinimalDelay;
-
     Duration delay = _kMinimalDelay;
 
     if (data.forwardFrom.isNotEmpty) {
       if (delay < _kMinimalForwardDelay) delay = _kMinimalForwardDelay;
+    }
+
+    if (!_settings.disableNotificationsDelay) {
+      final state = _accountStates[data.accountId];
+      if (state != null) {
+        final nowSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+        final onlineCloudTimeoutSec = 300;
+        final otherNotOld =
+            state.otherOnlineAt + onlineCloudTimeoutSec > nowSec;
+        final otherLaterThanMe = state.otherOnlineAt * 1000 +
+                (DateTime.now().millisecondsSinceEpoch -
+                    state.lastSetOnlineAt) >
+            nowSec * 1000;
+
+        if (!state.isOnline && otherNotOld && otherLaterThanMe) {
+          delay = _kNotifyCloudDelay;
+        } else if (state.otherOnlineAt >= nowSec) {
+          delay = _kNotifyDefaultDelay;
+        }
+      }
+    }
+
+    if (_settings.disableNotificationsDelay) {
+      delay = _kMinimalDelay;
+      if (data.forwardFrom.isNotEmpty && delay < _kMinimalForwardDelay) {
+        delay = _kMinimalForwardDelay;
+      }
     }
 
     return delay;
@@ -278,8 +340,35 @@ class NotificationSystem {
       _dispatch(data);
       return;
     }
-    final timer = Timer(delay, () => _dispatch(data));
-    _delayTimers.add(timer);
+    late final Timer timer;
+    timer = Timer(delay, () {
+      _dispatch(data);
+    });
+    // No list accumulation — timer is self-contained and GC'd after firing
+  }
+
+  bool _isSameGroup(NotificationData a, NotificationData b) {
+    if (a.accountId != b.accountId || a.chatId != b.chatId) return false;
+    if (a.groupedId.isNotEmpty && b.groupedId.isNotEmpty) {
+      return a.groupedId == b.groupedId;
+    }
+    if (a.forwardFrom.isNotEmpty && b.forwardFrom.isNotEmpty) {
+      return a.forwardFrom == b.forwardFrom &&
+          (a.timestamp - b.timestamp).abs() <= 2;
+    }
+    return false;
+  }
+
+  void _addToGroupBuffer(NotificationData data) {
+    if (_groupedTimer != null && _groupedTimer!.isActive) {
+      _groupedTimer!.cancel();
+      if (_groupedBuffer.isNotEmpty && !_isSameGroup(_groupedBuffer.last, data)) {
+        _flushGroupedBuffer();
+      }
+    }
+    _groupedBuffer.add(data);
+    _groupedTimer =
+        Timer(_kWaitingForAllGroupedDelay, _flushGroupedBuffer);
   }
 
   void _flushGroupedBuffer() {
@@ -320,10 +409,7 @@ class NotificationSystem {
         if (group.length == 1) {
           _dispatch(group.first);
         } else {
-          _dispatch(group.first.copyWith(
-            text: 'Album',
-            forwardCount: 0,
-          ));
+          _dispatch(group.last);
         }
       }
 
@@ -365,14 +451,12 @@ class NotificationSystem {
 
     final dnd = _dndChecker.isActive;
 
-    // §37.8: For custom (DefaultManager) popups, skip toast when DND active
     if (_manager is DefaultManager && dnd) {
       Debug.log('NOTIF', 'DND active, skipping custom toast');
     } else {
       _manager.showNotification(display, effectiveSettings);
     }
 
-    // §37.7+37.8: Sound suppressed by silent flag, soundNone, or DND
     final forceSilent = data.isSilent || data.soundNone || dnd;
 
     final threadKey = '${data.accountId}:${data.chatId}';
@@ -386,7 +470,6 @@ class NotificationSystem {
       _lastAlertPerThread[threadKey] = now;
     }
 
-    // §37.10: Flash taskbar / bounce dock
     if (_settings.flashBounce && !dnd && alertAllowed && !forceSilent) {
       onFlashBounce?.call();
     }
@@ -398,10 +481,67 @@ class NotificationSystem {
         '${_passcodeLocked ? " (locked)" : ""}');
   }
 
+  void checkDelayed() {
+    if (_settingWaiters.isEmpty) return;
+
+    final promoted = <NotificationData>[];
+    _settingWaiters.removeWhere((data) {
+      if (data.muteStateUnknown) return false;
+      if (data.isMuted && data.isSenderMuted) return true;
+      promoted.add(data);
+      return true;
+    });
+
+    for (final data in promoted) {
+      if (_isGroupable(data)) {
+        _addToGroupBuffer(data);
+      } else {
+        final delay = _countTiming(data);
+        _scheduleDispatch(data, delay);
+      }
+    }
+  }
+
+  void resolveDelayedMuteState({
+    required String accountId,
+    required String chatId,
+    required bool isMuted,
+    bool isSenderMuted = true,
+  }) {
+    for (var i = 0; i < _settingWaiters.length; i++) {
+      final data = _settingWaiters[i];
+      if (data.accountId == accountId && data.chatId == chatId) {
+        _settingWaiters[i] = data.copyWith(
+          muteStateUnknown: false,
+          isMuted: isMuted,
+          isSenderMuted: isSenderMuted,
+        );
+      }
+    }
+    checkDelayed();
+  }
+
   void clearForChat(String accountId, String chatId) {
     _manager.clearForChat(accountId, chatId);
     _whenMaps.remove('$accountId:$chatId');
     _lastAlertPerThread.remove('$accountId:$chatId');
+  }
+
+  void clearIncomingFromChat(String accountId, String chatId) {
+    _manager.clearForChat(accountId, chatId);
+    _lastAlertPerThread.remove('$accountId:$chatId');
+  }
+
+  void clearIncomingFromTopic(
+      String accountId, String chatId, String topicRootId) {
+    _manager.clearForTopic(accountId, chatId, topicRootId);
+    _lastAlertPerThread.remove('$accountId:$chatId:$topicRootId');
+  }
+
+  void clearIncomingFromSublist(
+      String accountId, String chatId, String sublistPeerId) {
+    _manager.clearForSublist(accountId, chatId, sublistPeerId);
+    _lastAlertPerThread.remove('$accountId:$chatId:$sublistPeerId');
   }
 
   void clearForAccount(String accountId) {
@@ -419,12 +559,10 @@ class NotificationSystem {
   void dispose() {
     _groupedTimer?.cancel();
     _groupedBuffer.clear();
-    for (final t in _delayTimers) {
-      t.cancel();
-    }
-    _delayTimers.clear();
+    _settingWaiters.clear();
     _whenMaps.clear();
     _lastAlertPerThread.clear();
+    _accountStates.clear();
     _soundPlayer.dispose();
     _dndChecker.dispose();
     _manager.dispose();

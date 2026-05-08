@@ -19,6 +19,8 @@ abstract class NotificationManager {
 
   void clearAll();
 
+  void updateAll() {}
+
   void updateSettings(NotificationSettings settings) {}
 
   void dispose() {}
