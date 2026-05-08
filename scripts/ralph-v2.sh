@@ -405,42 +405,52 @@ PROMPT_END
 }
 
 # ═════════════════════════════════════════════════════════════════
-# AUDIT: CONSTRAINT EXTRACTION PROMPT (Sonnet, per spec chunk)
+# AUDIT: PER-FILE COMPARISON PROMPT (Sonnet, per dart file)
 # ═════════════════════════════════════════════════════════════════
-build_extraction_prompt() {
-  local start_line="$1" end_line="$2" section_name="$3" chunk_id="$4"
+build_audit_prompt() {
+  local dart_file="$1" chunk_id="$2"
+  local dart_basename
+  dart_basename=$(basename "$dart_file" .dart)
   cat <<PROMPT_END
-You are an autonomous UI auditor comparing a Flutter app against the REAL AyuGram Desktop source code.
-The AyuGram source is GROUND TRUTH — not a spec document, not a description, the actual C++ code.
+You are an autonomous UI auditor. Your job: compare ONE Flutter Dart file against the
+real AyuGram Desktop (Telegram Desktop fork) C++ source code and find every discrepancy.
 
-REFERENCE: AyuGram Desktop source at $AYUGRAM_UI/
-Key source directories for this section ($section_name):
-  - Look for .style files for exact pixel values, margins, fonts, colors
-  - Look for .cpp/.h files for behavior, state, interactions
-  - Use: find $AYUGRAM_UI/ -name "*.style" | xargs grep -l "relevant_keyword"
+DART FILE TO AUDIT: $dart_file
+Read this file COMPLETELY.
 
-ALSO READ: research/telegram_desktop_ui.md lines $start_line-$end_line for context about this section.
+AYUGRAM SOURCE (GROUND TRUTH): $AYUGRAM_UI/
+Your job:
+1. Read the Dart file above
+2. Figure out what UI area it implements (chat list? message bubbles? settings? header?)
+3. Find the MATCHING AyuGram C++ source files:
+   - Search: find $AYUGRAM_UI/ -name "*.style" -o -name "*.cpp" -o -name "*.h" | xargs grep -l "keyword"
+   - .style files have exact pixel values: dialogsRowHeight: 62px, photoSize: 46px, etc.
+   - .cpp files have behavior: how widgets are created, laid out, respond to events
+   - .h files have structure: class definitions, enums, constants
+4. Compare the Dart implementation against the AyuGram source line by line
+5. Report every discrepancy
 
-Then read the corresponding Dart source files under dart/lib/ and compare against AyuGram.
+Create a SECTION HEADING for this file, then list all issues:
+
+## $dart_basename — [short description of what this file does]
+
+- [ ] [CRITICAL] description (AyuGram has X, our code has Y) — \`$(basename "$dart_file")\`
+- [ ] [MAJOR] description — \`$(basename "$dart_file")\`
 
 SEVERITY (proportional — Weber's Law):
-- CRITICAL: >25% deviation on small elements, element missing entirely, interaction broken
-- MAJOR: >10% proportional deviation, wrong element order, wrong visibility state
-- MINOR: 5-10% proportional deviation
-- COSMETIC: <5% deviation — DO NOT REPORT cosmetic issues
-
-For each discrepancy between AyuGram source and Dart code, output ONE checklist line:
-- [ ] [SEVERITY] §$section_name: what's wrong (AyuGram has Y, our code does Z) — \`file.dart\`
+- CRITICAL: >25% deviation on small elements, element missing, interaction broken, placeholder/TODO
+- MAJOR: >10% proportional deviation, wrong behavior, wrong state, wrong order
+- Skip MINOR (<10%) and COSMETIC (<5%)
 
 RULES:
-- The AyuGram C++ source is the authority, not the prose spec
-- Be specific: "AyuGram dialogsRowHeight: 62px but ChatListRow uses 64" not "wrong size"
-- Only report CRITICAL and MAJOR issues. Skip MINOR and COSMETIC.
-- Check: dimensions, colors, behavior, missing features, placeholders, TODO stubs, broken interactions
-- One "- [ ]" line per issue
+- AyuGram C++ source is the ONLY authority. Do NOT reference any spec/markdown file.
+- Be specific: "AyuGram st::dialogsRowHeight = 62px but ChatListRow height is 64" not "wrong size"
+- Check: dimensions, colors, fonts, padding, margins, behavior, missing features, TODO stubs, empty callbacks
+- If the Dart file has features AyuGram doesn't — that's fine, skip those
+- If AyuGram has features the Dart file is missing — that's a CRITICAL finding
 
-Write ALL findings to /home/nako/Documents/uniclient/checklist/audit_chunk_${chunk_id}.md
-If no issues found, write a file containing only: # No issues found
+Write findings to /home/nako/Documents/uniclient/checklist/audit_chunk_${chunk_id}.md
+If no issues: write "# ${dart_basename} — No issues found"
 PROMPT_END
 }
 
@@ -668,7 +678,7 @@ Item: $CURRENT_ITEM"
     echo ""
     log "╔══════════════════════════════════════════════════════════════╗"
     log "║  🔍 AUDIT CYCLE $AUDIT_CYCLE / $MAX_AUDIT_CYCLES                                  "
-    log "║  📊 Checklist empty — re-auditing codebase against spec      "
+    log "║  📊 Checklist empty — auditing Dart code against AyuGram source"
     log "║  🏷️  Git tag: audit-pre-cycle-${AUDIT_CYCLE}                           "
     log "╚══════════════════════════════════════════════════════════════╝"
     update_progress "audit" "cycle $AUDIT_CYCLE" "starting"
@@ -702,50 +712,33 @@ Item: $CURRENT_ITEM"
       pkill -x uniclient 2>/dev/null || true
     fi
 
-    # ── LAYER 1: Constraint extraction (parallel Sonnet) ─────
-    update_progress "audit" "cycle $AUDIT_CYCLE" "Layer 1: constraint extraction"
-    log "Layer 1: Extracting constraints from spec..."
+    # ── LAYER 1: Per-file audit (Dart vs AyuGram, parallel Sonnet) ─
+    update_progress "audit" "cycle $AUDIT_CYCLE" "Layer 1: per-file code comparison"
+    log "  Layer 1: Comparing each Dart UI file against AyuGram source..."
 
-    if [[ ! -f "$SPEC_FILE" ]]; then
-      log "FATAL: spec file not found at $SPEC_FILE"
-      break
-    fi
-
-    # Get section boundaries
-    mapfile -t SECTION_STARTS < <(grep -n '^## ' "$SPEC_FILE" | cut -d: -f1)
-    TOTAL_LINES=$(wc -l < "$SPEC_FILE")
-    NUM_SECTIONS=${#SECTION_STARTS[@]}
+    # Get all UI dart files (skip generated protos, models, bridge)
+    mapfile -t DART_FILES < <(find "$PROJECT_ROOT/dart/lib/ui" -name "*.dart" -type f | sort)
+    NUM_FILES=${#DART_FILES[@]}
+    log "  📂 Found $NUM_FILES Dart UI files to audit"
 
     rm -f "$PROJECT_ROOT/checklist/audit_chunk_"*.md "$PROJECT_ROOT/checklist/audit_journey_"*.md
 
-    # Run extraction in parallel batches
     BATCH_SIZE=6
     PIDS=()
     CHUNK_ID=0
     SUCCESSFUL_CHUNKS=0
     FAILED_CHUNKS=0
 
-    for ((i=0; i<NUM_SECTIONS; i++)); do
-      START=${SECTION_STARTS[$i]}
-      if [[ $((i + 1)) -lt $NUM_SECTIONS ]]; then
-        END=$((SECTION_STARTS[$((i + 1))] - 1))
-      else
-        END=$TOTAL_LINES
-      fi
+    for dart_file in "${DART_FILES[@]}"; do
+      dart_basename=$(basename "$dart_file" .dart)
+      CHUNK_FILE="$ITER_LOG_DIR/audit_c${AUDIT_CYCLE}_${dart_basename}.log"
+      PROMPT="$(build_audit_prompt "$dart_file" "$CHUNK_ID")"
 
-      SECTION_NAME=$(sed -n "${START}p" "$SPEC_FILE" | sed 's/^## //')
-      SECTION_SIZE=$((END - START))
-      [[ $SECTION_SIZE -lt 20 ]] && continue
+      log "    [$CHUNK_ID/$NUM_FILES] $dart_basename.dart"
 
-      CHUNK_FILE="$ITER_LOG_DIR/audit_c${AUDIT_CYCLE}_chunk_$(printf '%02d' $CHUNK_ID).log"
-      PROMPT="$(build_extraction_prompt "$START" "$END" "$SECTION_NAME" "$CHUNK_ID")"
-
-      log "  Chunk $CHUNK_ID: §$SECTION_NAME (lines $START-$END)"
-
-      # Partial failure: each chunk is independent (bulkhead)
       (
         set +e
-        invoke_claude "$PROMPT" "$CHUNK_FILE" "AUDIT-C${AUDIT_CYCLE}-${CHUNK_ID}" "claude-sonnet-4-6"
+        invoke_claude "$PROMPT" "$CHUNK_FILE" "AUDIT-${dart_basename}" "claude-sonnet-4-6"
         exit $?
       ) &
       PIDS+=($!)
@@ -763,7 +756,6 @@ Item: $CURRENT_ITEM"
       fi
     done
 
-    # Wait for remaining
     for pid in "${PIDS[@]}"; do
       if wait "$pid" 2>/dev/null; then
         SUCCESSFUL_CHUNKS=$((SUCCESSFUL_CHUNKS + 1))
@@ -773,8 +765,8 @@ Item: $CURRENT_ITEM"
     done
 
     log ""
-    log "  📊 Layer 1 results: $SUCCESSFUL_CHUNKS/$CHUNK_ID succeeded, $FAILED_CHUNKS failed"
-    [[ $FAILED_CHUNKS -gt 0 ]] && log "  ⚠️  $FAILED_CHUNKS chunks failed (partial-failure — continuing with what we have)"
+    log "  📊 Layer 1: $SUCCESSFUL_CHUNKS/$NUM_FILES files audited, $FAILED_CHUNKS failed"
+    [[ $FAILED_CHUNKS -gt 0 ]] && log "  ⚠️  $FAILED_CHUNKS files failed (partial-failure — continuing)"
 
     # ── LAYER 2: Journey-based visual audit (if app builds) ──
     update_progress "audit" "cycle $AUDIT_CYCLE" "Layer 2: visual journey audit"
@@ -831,7 +823,7 @@ $(echo "$JSTEPS" | tr ';' '\n' | sed 's/^/  - /')"
     {
       echo "# GUI Audit — Cycle $AUDIT_CYCLE ($(date '+%Y-%m-%d %H:%M'))"
       echo ""
-      echo "## Constraint Violations (Layer 1)"
+      echo "## Code Comparison Findings (Dart vs AyuGram)"
       echo ""
       for f in "$PROJECT_ROOT/checklist/audit_chunk_"*.md; do
         [[ -f "$f" ]] || continue
@@ -862,7 +854,7 @@ $(echo "$JSTEPS" | tr ';' '\n' | sed 's/^/  - /')"
     log "  ┌──────────────────────────────────────────────────"
     log "  │ 📋 Audit cycle $AUDIT_CYCLE results"
     log "  │ 🔢 Findings: $FINDINGS items"
-    log "  │ 📦 L1 chunks: $SUCCESSFUL_CHUNKS ok, $FAILED_CHUNKS failed"
+    log "  │ 📦 L1 files: $SUCCESSFUL_CHUNKS ok, $FAILED_CHUNKS failed"
     log "  │ 🚶 L2 journeys: $JID completed"
     log "  └──────────────────────────────────────────────────"
 
@@ -909,7 +901,7 @@ $(echo "$JSTEPS" | tr ';' '\n' | sed 's/^/  - /')"
     # ── Commit new checklist ─────────────────────────────────
     git -C "$PROJECT_ROOT" add checklist/gui.md 2>/dev/null || true
     git -C "$PROJECT_ROOT" commit -m "$(cat <<EOF
-Audit cycle $AUDIT_CYCLE: $FINDINGS items found (L1: $SUCCESSFUL_CHUNKS chunks, L2: $JID journeys)
+Audit cycle $AUDIT_CYCLE: $FINDINGS items found (L1: $SUCCESSFUL_CHUNKS files, L2: $JID journeys)
 
 Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
 EOF
