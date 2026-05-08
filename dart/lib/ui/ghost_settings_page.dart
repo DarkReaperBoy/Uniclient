@@ -8,6 +8,8 @@ import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../theme/theme.dart';
 import 'ayu_toggle.dart';
+import 'confirm_box.dart';
+import 'edit_mark_box.dart';
 import 'settings_style.dart';
 import 'telegram_toast.dart';
 
@@ -194,6 +196,47 @@ class GhostSettingsPage extends StatelessWidget {
             onChanged: (v) => appState.setSaveForBots(v),
             isDark: isDark,
             useMaterial: appState.materialSwitches,
+          ),
+          Container(height: 1, color: dividerColor, margin: const EdgeInsets.symmetric(horizontal: 22)),
+          _BetaToggleRow(
+            label: 'Semi-transparent Deleted',
+            value: appState.semiTransparentDeleted,
+            onChanged: (v) => appState.setSemiTransparentDeleted(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          Container(height: 1, color: dividerColor, margin: const EdgeInsets.symmetric(horizontal: 22)),
+          _ToggleRow(
+            label: 'Replace Marks with Icons',
+            value: appState.replaceMarksWithIcons,
+            onChanged: (v) => appState.setReplaceMarksWithIcons(v),
+            isDark: isDark,
+            useMaterial: appState.materialSwitches,
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: !appState.replaceMarksWithIcons
+                ? Column(
+                    children: [
+                      _MarkEditButton(
+                        label: 'Deleted mark',
+                        currentValue: appState.deletedMark,
+                        defaultValue: '\u{1F9F9}',
+                        onSave: (v) => appState.setDeletedMark(v),
+                        isDark: isDark,
+                      ),
+                      _MarkEditButton(
+                        label: 'Edited mark',
+                        currentValue: appState.editedMark,
+                        defaultValue: '',
+                        onSave: (v) => appState.setEditedMark(v),
+                        isDark: isDark,
+                      ),
+                    ],
+                  )
+                : const SizedBox.shrink(),
           ),
           const SizedBox(height: 7),
           Container(height: 1, color: dividerColor),
@@ -666,6 +709,120 @@ class _AccountAvatar extends StatelessWidget {
             fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BetaToggleRow extends StatelessWidget {
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final bool isDark;
+  final bool useMaterial;
+
+  const _BetaToggleRow({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+    required this.isDark,
+    this.useMaterial = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => onChanged(!value),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Row(
+                children: [
+                  Flexible(
+                    child: Text(label,
+                        style: TextStyle(
+                            fontSize: 14,
+                            color: isDark ? Colors.white : Colors.black87)),
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF9500),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                    child: const Text('BETA',
+                        style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white)),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            AyuToggle(
+              value: value,
+              onChanged: onChanged,
+              isMaterial: useMaterial,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MarkEditButton extends StatelessWidget {
+  final String label;
+  final String currentValue;
+  final String defaultValue;
+  final ValueChanged<String> onSave;
+  final bool isDark;
+
+  const _MarkEditButton({
+    required this.label,
+    required this.currentValue,
+    required this.defaultValue,
+    required this.onSave,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final accentColor = isDark
+        ? const Color(0xFF6AB2F2)
+        : const Color(0xFF3390EC);
+    final displayValue = currentValue.isEmpty
+        ? (defaultValue.isEmpty ? 'default' : defaultValue)
+        : currentValue;
+
+    return InkWell(
+      onTap: () => showEditMarkBox(
+        context,
+        title: label,
+        currentValue: currentValue,
+        defaultValue: defaultValue,
+        onSave: onSave,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 34, vertical: 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(label,
+                  style: TextStyle(
+                      fontSize: 14,
+                      color: isDark ? Colors.white : Colors.black87)),
+            ),
+            Text(displayValue,
+                style: TextStyle(fontSize: 14, color: accentColor)),
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_right, size: 18, color: accentColor),
+          ],
         ),
       ),
     );
