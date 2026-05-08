@@ -107,7 +107,6 @@
 
 ## §54 — AyuGram UI Customization
 
-- [ ] spec §54.1 "Avatar Corners — live preview": `_AvatarCornersPreview` renders a static placeholder (custom AyuGram painter, purple gradient with white icon) instead of the actual AyuGramReleases channel userpic fetched via `contacts.resolveUsername`. The preview does not resolve a real userpic as spec requires — `ayu_appearance_page.dart`
 
 ## §55 — Channel & Group Statistics
 
