@@ -56,10 +56,6 @@ All methods are fully implemented and wired to the backend. No implementation ga
 
 ## CRITICAL Issues
 
-- [ ] **[CRITICAL] Dropped files are not processed** — The `onDrop` callback in `web_drop_web.dart:72` invokes `widget.onDrop?.call(fileNames)` with extracted filenames, but the caller in `dart/lib/ui/chat_view.dart` (line ~1780) completely ignores the filenames and opens a FilePicker instead. The user drags files, but they are discarded and a file picker is shown, defeating the purpose of drag-and-drop. `web_drop_web.dart:72` ← `chat_view.dart:~1780`
-
-- [ ] **[CRITICAL] Hardcoded overlay color instead of theme color** — The drag-over overlay uses a hardcoded color `const Color(0x3340a7e3)` at `web_drop_web.dart:85`. AyuGram uses dynamic theme colors `windowSubTextFg` (drag text) and `windowActiveTextFg` (hover state) from `chat_helpers.style`. The hardcoded color may not match the app's theme or respect dark mode. `web_drop_web.dart:85` ← `AyuGramDesktop/Telegram/SourceFiles/chat_helpers/chat_helpers.style:dragColor`
-
 ## MAJOR Issues
 
 - [ ] **[MAJOR] Missing file type validation** — AyuGram's DragArea detects drag type (Files, PhotoFiles, MediaFiles, Image) using `Storage::ComputeMimeDataState()` and shows different drag zones per type (`history_drag_area.cpp:194-196`). The web version accepts all files without validation. `web_drop_web.dart:58-74` ← `history_drag_area.cpp:194-196`
