@@ -290,13 +290,18 @@ func (e *Engine) handleNewMessage(accountID, chatID string, msg *cores.Message) 
 	})
 }
 
-// handleEditMessage saves pre-edit text (anti-recall) then updates the cached message.
+// handleEditMessage saves pre-edit text (anti-recall §52.4) then updates the cached message.
+// Respects saveMessagesHistory setting.
 func (e *Engine) handleEditMessage(accountID, chatID string, msg *cores.Message) {
 	now := time.Now().UnixMilli()
 	editedAt := now
 	if msg.EditedAt != nil {
 		editedAt = msg.EditedAt.UnixMilli()
 	}
+
+	e.antiRecallMu.RLock()
+	saveHistory := e.saveMessagesHistory
+	e.antiRecallMu.RUnlock()
 
 	// Anti-recall: save pre-edit text before applying update.
 	var oldText, oldSenderID, oldSenderName string
@@ -308,7 +313,7 @@ func (e *Engine) handleEditMessage(accountID, chatID string, msg *cores.Message)
 		accountID, chatID, msg.ID,
 	).Scan(&oldText, &oldSenderID, &oldSenderName, &oldRich, &isOutgoing)
 
-	if oldText != "" && oldText != msg.Text && isOutgoing == 0 {
+	if saveHistory && oldText != "" && oldText != msg.Text && isOutgoing == 0 {
 		var entitiesJSON string
 		if len(oldRich) > 0 {
 			entitiesJSON = string(oldRich)
@@ -341,7 +346,8 @@ func (e *Engine) handleEditMessage(accountID, chatID string, msg *cores.Message)
 	})
 }
 
-// handleDeleteMessage marks message as deleted (anti-recall) and emits event.
+// handleDeleteMessage marks message as deleted (anti-recall §52.2) and emits event.
+// Respects saveDeletedMessages and saveForBots settings.
 func (e *Engine) handleDeleteMessage(accountID, chatID, msgID string) {
 	resolvedChatID := chatID
 	var senderID string
@@ -368,15 +374,31 @@ func (e *Engine) handleDeleteMessage(accountID, chatID, msgID string) {
 		senderIsBot = isBot == 1
 	}
 
+	e.antiRecallMu.RLock()
+	savable := e.saveDeletedMessages && (!senderIsBot || e.saveForBots)
+	e.antiRecallMu.RUnlock()
+
 	now := time.Now().UnixMilli()
-	if resolvedChatID != "" {
-		e.db.Exec(
-			"UPDATE messages SET is_deleted = 1, deleted_at = ? WHERE account_id = ? AND chat_id = ? AND msg_id = ?",
-			now, accountID, resolvedChatID, msgID)
+	if savable {
+		if resolvedChatID != "" {
+			e.db.Exec(
+				"UPDATE messages SET is_deleted = 1, deleted_at = ? WHERE account_id = ? AND chat_id = ? AND msg_id = ?",
+				now, accountID, resolvedChatID, msgID)
+		} else {
+			e.db.Exec(
+				"UPDATE messages SET is_deleted = 1, deleted_at = ? WHERE account_id = ? AND msg_id = ?",
+				now, accountID, msgID)
+		}
 	} else {
-		e.db.Exec(
-			"UPDATE messages SET is_deleted = 1, deleted_at = ? WHERE account_id = ? AND msg_id = ?",
-			now, accountID, msgID)
+		if resolvedChatID != "" {
+			e.db.Exec(
+				"DELETE FROM messages WHERE account_id = ? AND chat_id = ? AND msg_id = ?",
+				accountID, resolvedChatID, msgID)
+		} else {
+			e.db.Exec(
+				"DELETE FROM messages WHERE account_id = ? AND msg_id = ?",
+				accountID, msgID)
+		}
 	}
 
 	e.emitEvent(EventMsgDeleted, accountID, MsgDeletedEvent{

@@ -1710,6 +1710,15 @@ class EngineService {
     return resp['has_revisions'] == true;
   }
 
+  void setAntiRecallSettings({required bool saveDeleted, required bool saveHistory, required bool saveForBots}) {
+    final payload = utf8.encode(json.encode({
+      'save_deleted_messages': saveDeleted,
+      'save_messages_history': saveHistory,
+      'save_for_bots': saveForBots,
+    }));
+    _callRaw('__engine', 'SetAntiRecallSettings', Uint8List.fromList(payload));
+  }
+
   List<CachedMessage> getDeletedMessages(String accountId, String chatId, {String search = '', int offset = 0, int limit = 20}) {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

@@ -848,6 +848,18 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		e.ClearActiveChat()
 		return nil, nil
 
+	case "SetAntiRecallSettings":
+		var params struct {
+			SaveDeletedMessages bool `json:"save_deleted_messages"`
+			SaveMessagesHistory bool `json:"save_messages_history"`
+			SaveForBots         bool `json:"save_for_bots"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		e.SetAntiRecallSettings(params.SaveDeletedMessages, params.SaveMessagesHistory, params.SaveForBots)
+		return nil, nil
+
 	// ── Search ──
 
 	case "SearchMessages":

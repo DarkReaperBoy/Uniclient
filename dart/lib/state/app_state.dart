@@ -1043,6 +1043,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setSaveDeletedMessages(bool v) {
     if (_saveDeletedMessages == v) return;
     _saveDeletedMessages = v;
+    _syncAntiRecallSettings();
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -1050,6 +1051,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setSaveMessagesHistory(bool v) {
     if (_saveMessagesHistory == v) return;
     _saveMessagesHistory = v;
+    _syncAntiRecallSettings();
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -1057,8 +1059,17 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setSaveForBots(bool v) {
     if (_saveForBots == v) return;
     _saveForBots = v;
+    _syncAntiRecallSettings();
     notifyListeners();
     _saveWindowPrefs();
+  }
+
+  void _syncAntiRecallSettings() {
+    _engine.setAntiRecallSettings(
+      saveDeleted: _saveDeletedMessages,
+      saveHistory: _saveMessagesHistory,
+      saveForBots: _saveForBots,
+    );
   }
 
   void setDeletedMark(String v) {
@@ -2139,6 +2150,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _loadWindowPrefs();
       // §51.1 Sync ghost mode toggles to engine on startup.
       _syncGhostToEngine();
+      // §52.2 Sync anti-recall settings to engine on startup.
+      _syncAntiRecallSettings();
       WidgetsBinding.instance.addObserver(this);
       if (_systemDarkMode) {
         final brightness =

@@ -73,6 +73,12 @@ type Engine struct {
 	lockFile     *os.File       // single-instance lock file (held open with flock)
 	shuttingDown bool
 	wg           sync.WaitGroup // tracks background goroutines
+
+	// Anti-recall settings (§52): controlled from Dart via SetAntiRecallSettings.
+	antiRecallMu           sync.RWMutex
+	saveDeletedMessages    bool
+	saveMessagesHistory    bool
+	saveForBots            bool
 }
 
 // Init initializes the engine: opens vault+DB, loads accounts, starts connections.
@@ -82,13 +88,16 @@ type Engine struct {
 // vaultPassword: password for the encrypted vault (empty string = no vault encryption)
 func Init(configDir, cacheDir, downloadDir, vaultPassword string) (*Engine, error) {
 	e := &Engine{
-		accounts:    make(map[string]*Account),
-		configDir:   configDir,
-		cacheDir:    cacheDir,
-		downloadDir: downloadDir,
-		mediaDir:    filepath.Join(cacheDir, "media"),
-		maxCache:    1 << 30, // 1GB default
-		avatars:     newAvatarState(),
+		accounts:            make(map[string]*Account),
+		configDir:           configDir,
+		cacheDir:            cacheDir,
+		downloadDir:         downloadDir,
+		mediaDir:            filepath.Join(cacheDir, "media"),
+		maxCache:            1 << 30, // 1GB default
+		avatars:             newAvatarState(),
+		saveDeletedMessages: true,
+		saveMessagesHistory: true,
+		saveForBots:         false,
 	}
 
 	// Ensure directories exist.
@@ -191,6 +200,15 @@ func (e *Engine) pushEvent(data []byte) {
 	if cb != nil {
 		cb(data)
 	}
+}
+
+// SetAntiRecallSettings updates the anti-recall settings (§52).
+func (e *Engine) SetAntiRecallSettings(saveDeleted, saveHistory, saveForBots bool) {
+	e.antiRecallMu.Lock()
+	defer e.antiRecallMu.Unlock()
+	e.saveDeletedMessages = saveDeleted
+	e.saveMessagesHistory = saveHistory
+	e.saveForBots = saveForBots
 }
 
 // SetActiveChat tells the engine which chat the user is looking at.

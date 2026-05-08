@@ -1292,6 +1292,11 @@ class _ChatViewState extends State<ChatView>
     final isForwardRestricted = (chat != null && AyuForward.isChatRestricted(chat)) || AyuForward.isMessageRestricted(msg);
     final urls = _urlRegExp.allMatches(msg.contentText).map((m) => m.group(0)!).toSet().toList();
 
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+    final ghostBlocksReads = !appState.sendReadMessages;
+    final hasRevisions = msg.editedAt > 0 && chat != null && engine.hasEditRevisions(chat.accountId, chat.chatId, msg.msgId);
+
     final inSelection = _selectionMode && _selectedMsgIds.isNotEmpty;
     final canSendNow = isScheduled && msg.allowsSendNow;
     final canReschedule = isScheduled && msg.allowsReschedule;
@@ -1333,8 +1338,8 @@ class _ChatViewState extends State<ChatView>
           TelegramMenuItem(value: 'copy_url:$url', icon: const Icon(Icons.link), label: urls.length == 1 ? 'Copy Link' : 'Copy Link: ${Uri.tryParse(url)?.host ?? url}'),
         // Pass 2: message actions (AddMessageActions)
         const TelegramMenuItem.separator(),
-        if (msg.editedAt > 0)
-          const TelegramMenuItem(value: 'edits_history', icon: Icon(Icons.edit_note), label: 'Edits History'),
+        if (hasRevisions)
+          const TelegramMenuItem(value: 'edits_history', icon: Icon(Icons.edit_note), label: 'Edits history'),
         if (!isSavedMessages && _shouldShowHideMessage())
           const TelegramMenuItem(value: 'hide_message', icon: Icon(Icons.visibility_off), label: 'Hide Message'),
         if (isGroupOrChannel && msg.senderId.isNotEmpty && _shouldShowUserMessages())
@@ -1415,7 +1420,8 @@ class _ChatViewState extends State<ChatView>
           const TelegramMenuItem(value: 'reschedule', icon: Icon(Icons.schedule_send), label: 'Reschedule'),
         if (inSelection && allSelectedCanReschedule)
           const TelegramMenuItem(value: 'reschedule_selected', icon: Icon(Icons.schedule_send), label: 'Reschedule selected'),
-        const TelegramMenuItem(value: 'read_until', icon: Icon(Icons.done_all), label: 'Read Until Here'),
+        if (ghostBlocksReads && !msg.isOutgoing && !msg.isDeleted)
+          const TelegramMenuItem(value: 'read_until', icon: Icon(Icons.done_all), label: 'Read until here'),
         if (msg.mediaUnread && msg.ttlSeconds > 0)
           const TelegramMenuItem(value: 'burn_media', icon: Icon(Icons.local_fire_department), label: 'Burn Media'),
         if (msg.contentText.isNotEmpty && _shouldShowAddFilter())
