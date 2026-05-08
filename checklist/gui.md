@@ -130,21 +130,6 @@ Data/utility file for notification text composition. Compares against AyuGram De
 
 ## Findings
 
-- [ ] [CRITICAL] `sendWithoutSound` is typed as `bool` in Dart's `GhostModeAccountSettings` but AyuGram uses a 3-way `SendWithoutSoundOption` enum (Never=0, InGhostMode=1, Always=2). The "InGhostMode" behavior — automatically sending without sound only while ghost mode is active — is completely missing. Dart collapses Never and InGhostMode both to `false`, so the conditional behavior is lost. — `app_state.dart:29,44,68,84,981-985` ← `ayu_settings.h:96,115,170` + `ayu_settings.cpp:112-122`
-
-- [ ] [CRITICAL] `setSendUploadProgress` calls `_engine.updateConfig(sendTyping: v)` and `_syncGhostToEngine` maps `sendTyping: s.sendUploadProgress`. Upload progress and typing status are distinct engine fields. This silently aliases `sendUploadProgress` to the `sendTyping` engine field, so disabling upload-progress in ghost mode also disables typing indicators (and vice versa) — two independent ghost features are conflated into one. — `app_state.dart:941,1215` ← `ayu_settings.h:91,92` (separate `sendOnlinePackets` and `sendUploadProgress` fields)
-
-- [ ] [CRITICAL] `suggestGhostModeBeforeViewingStory` is entirely absent from Dart's `GhostModeAccountSettings`. AyuGram stores it per-account (default `true`), persists it in JSON, and uses it to prompt the user before viewing a story in normal mode. The Dart struct has no field, no fromJson/toJson entry, no getter/setter — the feature is silently dropped. — `app_state.dart:21-90` ← `ayu_settings.h:98,141,172` + `ayu_settings.cpp:131-135,219`
-
-- [ ] [MAJOR] `setGhostModeEnabled(true)` does not call any `markAsOnline` equivalent on the engine. AyuGram's C++ immediately calls `AyuWorker::markAsOnline(session)` when enabling ghost mode so the user appears online before going silent. Dart's implementation only updates the toggle values and syncs to engine but never sends the presence packet, so the user may appear offline immediately instead of transitioning cleanly. — `app_state.dart:860-900` ← `ayu_settings.cpp:145-151`
-
-- [ ] [MAJOR] `_filterZalgo` defaults to `true` in Dart (field init, `resetAyuSettings`, and load fallback `?? true`), but AyuGram defaults it to `false`. Users get zalgo text filtering enabled out-of-the-box while AyuGram ships it off. — `app_state.dart:265,1163,2739` ← `ayu_settings.h:689`
-
-- [ ] [MAJOR] `wideMultiplier` is clamped to `[1.0, 4.0]` in Dart but AyuGram validates `[0.5, 4.0]`. Values 0.5–0.99 are valid AyuGram wide-column multipliers that Dart rejects outright, and settings migrated from AyuGram JSON in that range would be silently pinned to 1.0. — `app_state.dart:716` ← `ayu_settings.cpp:518`
-
-- [ ] [MAJOR] `materialSwitches` load fallback is `?? false` but AyuGram defaults it to `true`. Any user whose prefs file lacks this key (first upgrade from an older build) gets switches rendered in the non-material style instead of the AyuGram default. — `app_state.dart:2633` ← `ayu_settings.h:635`
-
-- [ ] [MAJOR] `_screenReaderOptimized` is never written to `_saveWindowPrefs` or read back in `_loadWindowPrefs`, so the setting resets to `false` on every cold launch. It is declared and has a setter but is silently non-persistent. — `app_state.dart:136,421,1691-1692` (absent from the `_saveWindowPrefs` map at lines 2799–2970)
 
 # audio_service — Audio metadata not passed to player
 
