@@ -66,20 +66,6 @@ All methods are fully implemented and wired to the backend. No implementation ga
 
 - Recommended fix: Modify the callback in `chat_view.dart` to pass the extracted File objects (or their metadata) to `_uploadFiles()` instead of opening FilePicker, or document why FilePicker is necessary and add explanatory text to the overlay.
 
-# notification_manager_default — Audit Findings
-
-## DefaultManager / DefaultNotificationItem
-
-- [ ] [CRITICAL] Missing `clearForItem(messageId)` method — AyuGram dismisses notifications when a specific message is deleted (delete-for-everyone), but `DefaultManager` has no per-item clearing; `clearForChat` and `clearForAccount` exist but cannot target a single message — `notification_manager_default.dart:132` ← `AyuGram/window/notifications_manager_default.cpp:457`
-
-- [ ] [MAJOR] Auto-dismiss timer fires at 5000ms vs AyuGram's `notifyWaitLongHide: 3000ms` — 67% deviation; both `_displayItem` and `resumeDismissTimer` use `Duration(seconds: 5)` — `notification_manager_default.dart:90,112` ← `AyuGram/window/window.style:51` + `notifications_manager_default.cpp:780`
-
-- [ ] [MAJOR] Missing `clearForTopic(accountId, chatId, topicRootId)` method — AyuGram implements `doClearFromTopic` for per-topic notification clearing; `NotificationData` already carries `isForumTopic`/`topicTitle` fields, making this gap inconsistent — `notification_manager_default.dart:132-155` ← `AyuGram/window/notifications_manager_default.cpp:389`
-
-- [ ] [MAJOR] Missing `clearForSublist(accountId, chatId, sublistPeerId)` method — AyuGram implements `doClearFromSublist`; `NotificationData` already carries `isMonoforumSublist`/`sublistPeerName` fields — `notification_manager_default.dart:132-155` ← `AyuGram/window/notifications_manager_default.cpp:407`
-
-- [ ] [MAJOR] No user-input awareness before starting auto-dismiss timer — AyuGram's `checkLastInput` (lines 186–200) defers the hide timer until after the user has interacted with the system (`_waitingForInput` flag, `lastInputTime` check at line 773); Dart starts the 5s timer immediately on display, so notifications silently vanish when the user is away from the keyboard — `notification_manager_default.dart:85-93` ← `AyuGram/window/notifications_manager_default.cpp:767-785`
-
 # notification_manager_native — Audit Findings
 
 ## notification_manager_native — Linux DBus notification backend
