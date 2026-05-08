@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import '../theme/telegram_palette.dart';
@@ -361,19 +362,15 @@ class _AvatarCornersPreview extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           child: Row(
             children: [
-              Container(
-                width: photoSize,
-                height: photoSize,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF8544D6),
-                  borderRadius: BorderRadius.circular(avatarRadius),
-                ),
-                child: Center(
-                  child: Text('A',
-                      style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white.withValues(alpha: 0.9))),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(avatarRadius),
+                child: SizedBox(
+                  width: photoSize,
+                  height: photoSize,
+                  child: CustomPaint(
+                    painter: _AyuGramAvatarPainter(),
+                    size: const Size(photoSize, photoSize),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -403,6 +400,47 @@ class _AvatarCornersPreview extends StatelessWidget {
       ),
     );
   }
+}
+
+class _AyuGramAvatarPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final gradient = const LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Color(0xFF9B59B6), Color(0xFF6C3483)],
+    );
+    canvas.drawRect(rect, Paint()..shader = gradient.createShader(rect));
+
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final scale = size.width / 46.0;
+    final paint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+
+    final path = Path();
+    path.moveTo(cx + 12 * scale, cy - 2 * scale);
+    path.lineTo(cx - 4 * scale, cy + 10 * scale);
+    path.lineTo(cx - 1 * scale, cy + 4 * scale);
+    path.lineTo(cx + 5 * scale, cy + 8 * scale);
+    path.close();
+    canvas.drawPath(path, paint);
+
+    final path2 = Path();
+    path2.moveTo(cx - 14 * scale, cy - 1 * scale);
+    path2.lineTo(cx + 12 * scale, cy - 10 * scale);
+    path2.lineTo(cx + 12 * scale, cy - 2 * scale);
+    path2.lineTo(cx - 4 * scale, cy + 10 * scale);
+    path2.close();
+    canvas.drawPath(path2, Paint()
+      ..color = Colors.white.withValues(alpha: 0.85)
+      ..style = PaintingStyle.fill);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _MonoFontRow extends StatelessWidget {
@@ -652,21 +690,6 @@ class _AppIconPicker extends StatelessWidget {
     Color(0xFFFF69B4), Color(0xFFDA70D6), Color(0xFF4169E1),
   ];
 
-  static IconData _iconForTheme(String theme) {
-    return switch (theme) {
-      'discord' => Icons.headphones,
-      'spotify' => Icons.music_note,
-      'extera' || 'extera2' => Icons.auto_awesome,
-      'nothing' => Icons.circle_outlined,
-      'bard' => Icons.auto_fix_high,
-      'yaplus' => Icons.add_circle_outline,
-      'win95' => Icons.window,
-      'chibi' || 'chibi2' => Icons.face,
-      'alt' => Icons.swap_horiz,
-      _ => Icons.send,
-    };
-  }
-
   @override
   Widget build(BuildContext context) {
     final selected = selectedIcon.isEmpty ? 'default' : selectedIcon;
@@ -702,17 +725,15 @@ class _AppIconPicker extends StatelessWidget {
                         width: 2)
                     : null,
               ),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Center(
-                  child: Icon(
-                    _iconForTheme(name),
-                    size: 28,
-                    color: Colors.white,
+              child: SizedBox(
+                width: 64,
+                height: 64,
+                child: CustomPaint(
+                  painter: _AppIconThemePainter(
+                    themeName: name,
+                    color: color,
                   ),
+                  size: const Size(64, 64),
                 ),
               ),
             ),
@@ -721,6 +742,218 @@ class _AppIconPicker extends StatelessWidget {
       ),
     );
   }
+}
+
+class _AppIconThemePainter extends CustomPainter {
+  final String themeName;
+  final Color color;
+
+  _AppIconThemePainter({required this.themeName, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(10));
+    canvas.drawRRect(rrect, Paint()..color = color);
+
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final paint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+    final strokePaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round;
+
+    switch (themeName) {
+      case 'discord':
+        _drawDiscord(canvas, cx, cy, size, paint);
+      case 'spotify':
+        _drawSpotify(canvas, cx, cy, size, strokePaint);
+      case 'extera' || 'extera2':
+        _drawExtera(canvas, cx, cy, size, paint);
+      case 'nothing':
+        _drawNothing(canvas, cx, cy, size, strokePaint);
+      case 'bard':
+        _drawBard(canvas, cx, cy, size, paint);
+      case 'yaplus':
+        _drawYaPlus(canvas, cx, cy, size, paint, strokePaint);
+      case 'win95':
+        _drawWin95(canvas, cx, cy, size, paint);
+      case 'chibi' || 'chibi2':
+        _drawChibi(canvas, cx, cy, size, paint);
+      case 'alt':
+        _drawAlt(canvas, cx, cy, size, paint);
+      default:
+        _drawDefault(canvas, cx, cy, size, paint);
+    }
+  }
+
+  void _drawDefault(Canvas canvas, double cx, double cy, Size size, Paint paint) {
+    final s = size.width / 64;
+    final path = Path();
+    path.moveTo(cx - 18 * s, cy);
+    path.lineTo(cx + 16 * s, cy - 14 * s);
+    path.lineTo(cx + 16 * s, cy - 4 * s);
+    path.lineTo(cx - 6 * s, cy + 14 * s);
+    path.close();
+    canvas.drawPath(path, paint);
+    final path2 = Path();
+    path2.moveTo(cx + 16 * s, cy - 4 * s);
+    path2.lineTo(cx - 6 * s, cy + 14 * s);
+    path2.lineTo(cx - 2 * s, cy + 5 * s);
+    path2.lineTo(cx + 6 * s, cy + 10 * s);
+    path2.close();
+    canvas.drawPath(path2, Paint()..color = Colors.white.withValues(alpha: 0.7));
+  }
+
+  void _drawAlt(Canvas canvas, double cx, double cy, Size size, Paint paint) {
+    final s = size.width / 64;
+    final path = Path();
+    path.moveTo(cx + 18 * s, cy);
+    path.lineTo(cx - 16 * s, cy - 14 * s);
+    path.lineTo(cx - 16 * s, cy - 4 * s);
+    path.lineTo(cx + 6 * s, cy + 14 * s);
+    path.close();
+    canvas.drawPath(path, paint);
+    final path2 = Path();
+    path2.moveTo(cx - 16 * s, cy - 4 * s);
+    path2.lineTo(cx + 6 * s, cy + 14 * s);
+    path2.lineTo(cx + 2 * s, cy + 5 * s);
+    path2.lineTo(cx - 6 * s, cy + 10 * s);
+    path2.close();
+    canvas.drawPath(path2, Paint()..color = Colors.white.withValues(alpha: 0.7));
+  }
+
+  void _drawDiscord(Canvas canvas, double cx, double cy, Size size, Paint paint) {
+    final s = size.width / 64;
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(cx, cy - 4 * s), width: 28 * s, height: 28 * s),
+      paint,
+    );
+    final band = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: Offset(cx, cy + 12 * s), width: 22 * s, height: 8 * s),
+      Radius.circular(4 * s),
+    );
+    canvas.drawRRect(band, paint);
+  }
+
+  void _drawSpotify(Canvas canvas, double cx, double cy, Size size, Paint strokePaint) {
+    final s = size.width / 64;
+    final sp = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.0 * s
+      ..strokeCap = StrokeCap.round;
+    for (int i = 0; i < 3; i++) {
+      final yOff = (i - 1) * 9.0 * s;
+      final path = Path();
+      path.moveTo(cx - 14 * s, cy + yOff + 3 * s);
+      path.quadraticBezierTo(cx, cy + yOff - 6 * s, cx + 14 * s, cy + yOff + 3 * s);
+      canvas.drawPath(path, sp);
+    }
+  }
+
+  void _drawExtera(Canvas canvas, double cx, double cy, Size size, Paint paint) {
+    final s = size.width / 64;
+    _drawStar(canvas, cx, cy, 14 * s, 6 * s, 4, paint);
+    _drawStar(canvas, cx - 12 * s, cy - 10 * s, 6 * s, 3 * s, 4,
+        Paint()..color = Colors.white.withValues(alpha: 0.6));
+    _drawStar(canvas, cx + 10 * s, cy + 12 * s, 5 * s, 2.5 * s, 4,
+        Paint()..color = Colors.white.withValues(alpha: 0.5));
+  }
+
+  void _drawStar(Canvas canvas, double cx, double cy, double outer, double inner, int points, Paint paint) {
+    final path = Path();
+    for (int i = 0; i < points * 2; i++) {
+      final angle = (i * 3.14159265 / points) - 3.14159265 / 2;
+      final r = i.isEven ? outer : inner;
+      final x = cx + r * _cos(angle);
+      final y = cy + r * _sin(angle);
+      if (i == 0) { path.moveTo(x, y); } else { path.lineTo(x, y); }
+    }
+    path.close();
+    canvas.drawPath(path, paint);
+  }
+
+  void _drawNothing(Canvas canvas, double cx, double cy, Size size, Paint strokePaint) {
+    final s = size.width / 64;
+    final sp = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5 * s;
+    canvas.drawCircle(Offset(cx, cy), 16 * s, sp);
+    canvas.drawCircle(Offset(cx, cy), 4 * s, Paint()..color = Colors.white);
+  }
+
+  void _drawBard(Canvas canvas, double cx, double cy, Size size, Paint paint) {
+    final s = size.width / 64;
+    _drawStar(canvas, cx, cy, 18 * s, 8 * s, 4, paint);
+  }
+
+  void _drawYaPlus(Canvas canvas, double cx, double cy, Size size, Paint paint, Paint strokePaint) {
+    final s = size.width / 64;
+    final sp = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4.0 * s
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(Offset(cx - 14 * s, cy), Offset(cx + 14 * s, cy), sp);
+    canvas.drawLine(Offset(cx, cy - 14 * s), Offset(cx, cy + 14 * s), sp);
+  }
+
+  void _drawWin95(Canvas canvas, double cx, double cy, Size size, Paint paint) {
+    final s = size.width / 64;
+    final gap = 2.0 * s;
+    final half = 11.0 * s;
+    final colors = [
+      const Color(0xFFFF0000), const Color(0xFF00FF00),
+      const Color(0xFF0000FF), const Color(0xFFFFFF00),
+    ];
+    final offsets = [
+      Offset(cx - half / 2 - gap / 2, cy - half / 2 - gap / 2),
+      Offset(cx + gap / 2, cy - half / 2 - gap / 2),
+      Offset(cx - half / 2 - gap / 2, cy + gap / 2),
+      Offset(cx + gap / 2, cy + gap / 2),
+    ];
+    for (int i = 0; i < 4; i++) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(offsets[i].dx, offsets[i].dy, half, half),
+          Radius.circular(2 * s),
+        ),
+        Paint()..color = colors[i],
+      );
+    }
+  }
+
+  void _drawChibi(Canvas canvas, double cx, double cy, Size size, Paint paint) {
+    final s = size.width / 64;
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(cx, cy), width: 30 * s, height: 32 * s),
+      paint,
+    );
+    final eyePaint = Paint()..color = color;
+    canvas.drawCircle(Offset(cx - 6 * s, cy - 3 * s), 3 * s, eyePaint);
+    canvas.drawCircle(Offset(cx + 6 * s, cy - 3 * s), 3 * s, eyePaint);
+    final smile = Path();
+    smile.moveTo(cx - 5 * s, cy + 6 * s);
+    smile.quadraticBezierTo(cx, cy + 11 * s, cx + 5 * s, cy + 6 * s);
+    canvas.drawPath(smile, Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5 * s
+      ..strokeCap = StrokeCap.round);
+  }
+
+  static double _cos(double a) => math.cos(a);
+  static double _sin(double a) => math.sin(a);
+
+  @override
+  bool shouldRepaint(covariant _AppIconThemePainter oldDelegate) =>
+      oldDelegate.themeName != themeName || oldDelegate.color != color;
 }
 
 class _ToggleRow extends StatelessWidget {

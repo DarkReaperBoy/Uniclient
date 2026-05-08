@@ -37,7 +37,11 @@ class GhostSettingsPage extends StatelessWidget {
         backgroundColor: isDark ? const Color(0xFF17212B) : Colors.white,
         foregroundColor: isDark ? Colors.white : Colors.black87,
         elevation: 0,
-        title: const SizedBox.shrink(),
+        title: Text('AyuGram',
+            style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white : Colors.black87)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
@@ -242,7 +246,7 @@ class GhostSettingsPage extends StatelessWidget {
           Container(height: 1, color: dividerColor),
           const SizedBox(height: 7),
 
-          // ── Other (§51.4) ──
+          // ── Other (§54.12) ──
           _SectionLabel(label: 'Other', color: sectionLabelColor),
           _ToggleRow(
             label: 'Local Premium',
@@ -258,64 +262,20 @@ class GhostSettingsPage extends StatelessWidget {
             isDark: isDark,
             useMaterial: appState.materialSwitches,
           ),
-          const SizedBox(height: 7),
-          Container(height: 1, color: dividerColor),
-          const SizedBox(height: 7),
-
-          // ── Drawer Elements (§50.3.3 / §50.8) ──
-          _SectionLabel(label: 'Drawer Elements', color: sectionLabelColor),
           _ToggleRow(
-            label: 'Ghost Mode',
-            value: appState.showGhostToggleInDrawer,
-            onChanged: (v) => appState.setShowGhostToggleInDrawer(v),
+            label: 'Disable Stories',
+            value: appState.disableStories,
+            onChanged: (v) => appState.setDisableStories(v),
             isDark: isDark,
             useMaterial: appState.materialSwitches,
           ),
           _ToggleRow(
-            label: 'Read Receipts (LRead)',
-            value: appState.showLReadToggleInDrawer,
-            onChanged: (v) => appState.setShowLReadToggleInDrawer(v),
+            label: 'Disable Custom Wallpapers for All Chats',
+            value: appState.disableCustomBackgrounds,
+            onChanged: (v) => appState.setDisableCustomBackgrounds(v),
             isDark: isDark,
             useMaterial: appState.materialSwitches,
           ),
-          _ToggleRow(
-            label: 'Story Reads (SRead)',
-            value: appState.showSReadToggleInDrawer,
-            onChanged: (v) => appState.setShowSReadToggleInDrawer(v),
-            isDark: isDark,
-            useMaterial: appState.materialSwitches,
-          ),
-          if (Platform.isWindows || Platform.isMacOS)
-            _ToggleRow(
-              label: 'Streamer Mode',
-              value: appState.showStreamerToggleInDrawer,
-              onChanged: (v) => appState.setShowStreamerToggleInDrawer(v),
-              isDark: isDark,
-              useMaterial: appState.materialSwitches,
-            ),
-          const SizedBox(height: 7),
-          Container(height: 1, color: dividerColor),
-          const SizedBox(height: 7),
-
-          // ── Tray Elements (§50.3.3 / §50.8) ──
-          if (!Platform.isAndroid && !Platform.isIOS) ...[
-            _SectionLabel(label: 'Tray Elements', color: sectionLabelColor),
-            _ToggleRow(
-              label: 'Ghost Mode',
-              value: appState.showGhostToggleInTray,
-              onChanged: (v) => appState.setShowGhostToggleInTray(v),
-              isDark: isDark,
-              useMaterial: appState.materialSwitches,
-            ),
-            if (Platform.isWindows || Platform.isMacOS)
-              _ToggleRow(
-                label: 'Streamer Mode',
-                value: appState.showStreamerToggleInTray,
-                onChanged: (v) => appState.setShowStreamerToggleInTray(v),
-                isDark: isDark,
-                useMaterial: appState.materialSwitches,
-              ),
-          ],
           const SizedBox(height: 24),
         ],
       ),

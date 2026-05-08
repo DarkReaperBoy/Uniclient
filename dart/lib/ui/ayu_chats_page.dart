@@ -314,9 +314,9 @@ class _WideMultiplierSliderState extends State<_WideMultiplierSlider> {
             ),
             child: Slider(
               value: _localValue,
-              min: 1.0,
+              min: 0.5,
               max: 4.0,
-              divisions: 60,
+              divisions: 70,
               onChanged: (v) => setState(() => _localValue = v),
               onChangeEnd: (v) {
                 final snapped = (v * 20).round() / 20.0;
