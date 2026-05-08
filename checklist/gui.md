@@ -90,15 +90,6 @@
 ## §43 — Read Receipts Detail
 
 
-## §45 — Custom Emoji Rendering
-
-- [ ] spec §45.1 "Inline rendering size": spec says logical size 18px, adjusted frame 20px; code defines `EmojiSizeTag.normal: 20.0` — verified OK
-- [ ] spec §45.2 "Large emoji size tiers": spec defines 1-emoji=112px, 2-emoji=78px, 3-emoji=58px; code defines size constants but rendering of large isolated custom emoji in messages needs verification in message_bubble.dart — `custom_emoji_cache.dart:20-25`
-- [ ] spec §45.7 "Loading states": spec describes 3-phase loading (Loading with SVG preview at 12.5% opacity, Caching, Cached); code provides `getThumb`/`getPath`/`getFile` for multi-level loading but the 12.5% opacity SVG preview rendering depends on callers — `custom_emoji_cache.dart:96-103`
-- [ ] spec §45.8 "Two-level cache": code implements in-memory instance cache with refcounting (`acquire`/`release`) and disk sprite atlas cache; batched API requests up to 100 IDs — verified OK in `custom_emoji_cache.dart`
-- [ ] spec §45.8 "Eviction": spec says when all references drop to zero, file data evicted from memory (disk retained); code implements `_evictFromMemory` that removes from `_files` map — verified OK
-- [ ] spec §45.9 "Click behavior": spec says clicking custom emoji opens `ShowReactionPreview` overlay with "View Pack" affordance; this overlay is not implemented in the codebase — no `reaction_preview` or `sticker_preview` overlay exists
-- [ ] spec §45.14 "Reaction/emoji preview overlay": spec describes a full-viewport overlay with `MediaPreviewWidget`, clickable "View Pack" rounded-shadow rectangle, and 120ms fade; this entire overlay system is not implemented — missing feature
 
 ## §46 — Link Preview in Compose
 
