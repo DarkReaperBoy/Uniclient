@@ -3131,7 +3131,7 @@ class _ChatViewState extends State<ChatView>
               if (canToggle)
                 _DraftOptionRow(
                   icon: isSmall ? Icons.open_in_full : Icons.close_fullscreen,
-                  label: isSmall ? 'Enlarge media' : 'Shrink media',
+                  label: isSmall ? 'Enlarge photo/video' : 'Shrink photo/video',
                   palette: palette,
                   onTap: () {
                     Navigator.pop(ctx);
@@ -8188,7 +8188,7 @@ class _WebPreviewBar extends StatelessWidget {
     final hasThumb = !isLoading && preview.thumbB64.isNotEmpty;
     final showInvert = !isLoading && hasText;
     final hasMultipleLinks = !isLoading && linkCount > 1;
-    var rightButtonsWidth = 41.0; // close button
+    var rightButtonsWidth = 49.0; // close button
     if (canToggleSize) rightButtonsWidth += 49.0;
     if (showInvert) rightButtonsWidth += 41.0;
     if (hasMultipleLinks) rightButtonsWidth += 56.0;
@@ -8217,7 +8217,7 @@ class _WebPreviewBar extends StatelessWidget {
               ),
             ),
             Positioned(
-              left: 43,
+              left: 53,
               top: 6,
               right: rightButtonsWidth + 42,
               child: Text(
@@ -8235,7 +8235,7 @@ class _WebPreviewBar extends StatelessWidget {
               ),
             ),
             Positioned(
-              left: 43,
+              left: 53,
               top: 24,
               right: rightButtonsWidth + 42,
               child: Text(
@@ -8273,7 +8273,7 @@ class _WebPreviewBar extends StatelessWidget {
             ),
             if (hasMultipleLinks) ...[
               Positioned(
-                right: 41.0 + (canToggleSize ? 49.0 : 0) + (showInvert ? 41.0 : 0),
+                right: 49.0 + (canToggleSize ? 49.0 : 0) + (showInvert ? 41.0 : 0),
                 top: 0,
                 child: SizedBox(
                   width: 28,
@@ -8290,7 +8290,7 @@ class _WebPreviewBar extends StatelessWidget {
                 ),
               ),
               Positioned(
-                right: 41.0 + (canToggleSize ? 49.0 : 0) + (showInvert ? 41.0 : 0) + 28,
+                right: 49.0 + (canToggleSize ? 49.0 : 0) + (showInvert ? 41.0 : 0) + 28,
                 top: 0,
                 child: SizedBox(
                   width: 28,
@@ -8309,7 +8309,7 @@ class _WebPreviewBar extends StatelessWidget {
             ],
             if (showInvert)
               Positioned(
-                right: 41.0 + (canToggleSize ? 49.0 : 0),
+                right: 49.0 + (canToggleSize ? 49.0 : 0),
                 top: 0,
                 child: SizedBox(
                   width: 41,
@@ -8325,14 +8325,14 @@ class _WebPreviewBar extends StatelessWidget {
               ),
             if (canToggleSize)
               Positioned(
-                right: 41,
+                right: 49,
                 top: 0,
                 child: SizedBox(
                   width: 49,
                   height: 49,
                   child: IconButton(
                     onPressed: onToggleSize,
-                    tooltip: 'Enlarge media',
+                    tooltip: 'Enlarge photo/video',
                     icon: Icon(Icons.open_in_full, size: 16, color: palette.historyReplyIconFg.withValues(alpha: 0.6)),
                     splashRadius: 18,
                     padding: EdgeInsets.zero,
@@ -8343,7 +8343,7 @@ class _WebPreviewBar extends StatelessWidget {
               right: 0,
               top: 0,
               child: SizedBox(
-                width: 41,
+                width: 49,
                 height: 49,
                 child: IconButton(
                   onPressed: onCancel,
@@ -8384,7 +8384,7 @@ class _WebPreviewBar extends StatelessWidget {
           ),
           if (hasThumb)
             Positioned(
-              left: 43,
+              left: 53,
               top: 8,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(4),
@@ -8406,7 +8406,7 @@ class _WebPreviewBar extends StatelessWidget {
               ),
             ),
           Positioned(
-            left: hasThumb ? 83 : 43,
+            left: textLeft,
             top: 6,
             right: rightButtonsWidth,
             child: Text(
@@ -8424,7 +8424,7 @@ class _WebPreviewBar extends StatelessWidget {
             ),
           ),
           Positioned(
-            left: hasThumb ? 83 : 43,
+            left: textLeft,
             top: 24,
             right: rightButtonsWidth,
             child: Text(
@@ -8440,7 +8440,7 @@ class _WebPreviewBar extends StatelessWidget {
           ),
           if (hasMultipleLinks) ...[
             Positioned(
-              right: 41.0 + (canToggleSize ? 49.0 : 0) + (showInvert ? 41.0 : 0),
+              right: 49.0 + (canToggleSize ? 49.0 : 0) + (showInvert ? 41.0 : 0),
               top: 0,
               child: SizedBox(
                 width: 28,
@@ -8457,7 +8457,7 @@ class _WebPreviewBar extends StatelessWidget {
               ),
             ),
             Positioned(
-              right: 41.0 + (canToggleSize ? 49.0 : 0) + (showInvert ? 41.0 : 0) + 28,
+              right: 49.0 + (canToggleSize ? 49.0 : 0) + (showInvert ? 41.0 : 0) + 28,
               top: 0,
               child: SizedBox(
                 width: 28,
@@ -8476,7 +8476,7 @@ class _WebPreviewBar extends StatelessWidget {
           ],
           if (showInvert)
             Positioned(
-              right: 41.0 + (canToggleSize ? 49.0 : 0),
+              right: 49.0 + (canToggleSize ? 49.0 : 0),
               top: 0,
               child: SizedBox(
                 width: 41,
@@ -8492,14 +8492,14 @@ class _WebPreviewBar extends StatelessWidget {
             ),
           if (canToggleSize)
             Positioned(
-              right: 41,
+              right: 49,
               top: 0,
               child: SizedBox(
                 width: 49,
                 height: 49,
                 child: IconButton(
                   onPressed: onToggleSize,
-                  tooltip: 'Shrink media',
+                  tooltip: 'Shrink photo/video',
                   icon: Icon(Icons.close_fullscreen, size: 16, color: palette.historyReplyIconFg.withValues(alpha: 0.6)),
                   splashRadius: 18,
                   padding: EdgeInsets.zero,
@@ -8510,7 +8510,7 @@ class _WebPreviewBar extends StatelessWidget {
             right: 0,
             top: 0,
             child: SizedBox(
-              width: 41,
+              width: 49,
               height: 49,
               child: IconButton(
                 onPressed: onCancel,
