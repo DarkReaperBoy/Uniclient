@@ -82,35 +82,6 @@ Data/utility file for notification text composition. Compares against AyuGram De
 
 ## Findings
 
-- [ ] [CRITICAL] Poll vote notifications not composed correctly — `notification_types.dart:273-291` ← `AyuGramDesktop/window/notifications_manager.cpp:1596-1600,1222-1246`
-  - Dart `_composeBody()` checks `if (data.isReaction)` but NOT `if (data.isPollVote)`
-  - Poll votes should call a `_composePollVoteText()` function that shows the voted-on option, not the poll question
-  - AyuGram calls `ComposePollVoteNotification()` which fetches the answer text from the poll media
-  - **Result:** Poll vote notifications show poll question instead of the option voted on — wrong behavior
-
-- [ ] [CRITICAL] Reaction privacy settings ignored — `notification_types.dart:261-262` ← `AyuGramDesktop/window/notifications_manager.cpp:1586-1592`
-  - Dart always shows `data.reactorName` if not empty, no privacy check
-  - AyuGram checks `hideReactionSender = reactionFrom && !peer->session().api().reactionsNotifySettings().showPreviewsCurrent()`
-  - If reaction sender should be hidden, AyuGram returns empty string (line 1590-1591)
-  - **Result:** Potential privacy leak — reaction senders are shown even when user disabled reaction previews
-
-- [ ] [MAJOR] Forward "from" field exists but never used — `notification_types.dart:33,281-283` ← `AyuGramDesktop/window/notifications_manager.cpp:1612-1616`
-  - Line 281 checks `if (data.forwardFrom.isNotEmpty && data.forwardCount <= 1)` but never uses the value
-  - The `forwardFrom` string field is defined but unused; this suggests incomplete forwarding support
-  - Line 283 returns `'➡️ $fwdText'` but should ideally show who it's forwarded from if available
-  - **Result:** Forward-from information is lost; only message content shown
-
-- [ ] [MAJOR] Subtitle logic incomplete for reaction sender equality check — `notification_types.dart:261-262` ← `AyuGramDesktop/window/notifications_manager.cpp:1590`
-  - Dart shows `data.reactorName` unconditionally for reactions
-  - AyuGram checks `(!hideReactionSender && reactionFrom != peer)` before showing the reactor name
-  - If reactor is the same as the peer, AyuGram shows empty string (self-reaction)
-  - **Result:** Self-reactions show reactor name when they shouldn't (minor UX issue)
-
-- [ ] [MAJOR] Missing hideMessageText privacy check for reaction/poll notifications — `notification_types.dart:276` ← `AyuGramDesktop/window/notifications_manager.cpp:1600,1605`
-  - AyuGram passes `hideMessageText` flag to `ComposePollVoteNotification()` and `ComposeReactionNotification()`
-  - These functions check hideMessageText and return privacy-respecting text if true
-  - Dart's `_composeReactionText()` doesn't take any privacy settings parameter
-  - **Result:** Reaction/poll notifications may show preview text when user disabled previews
 
 ---
 
