@@ -58,20 +58,6 @@ All methods are fully implemented and wired to the backend. No implementation ga
 
 ## MAJOR Issues
 
-- [ ] **[MAJOR] Missing file type validation** — AyuGram's DragArea detects drag type (Files, PhotoFiles, MediaFiles, Image) using `Storage::ComputeMimeDataState()` and shows different drag zones per type (`history_drag_area.cpp:194-196`). The web version accepts all files without validation. `web_drop_web.dart:58-74` ← `history_drag_area.cpp:194-196`
-
-- [ ] **[MAJOR] Missing styled drag-over UI** — AyuGram renders a styled overlay box with:
-  - Rounded corners and shadow (`history_drag_area.cpp:335-336`)
-  - Text instructions like "Drag files here" (`history_drag_area.cpp:129-170`)
-  - Font styling (`st::dragFont` 27px semibold, `st::dragSubfont`)
-  - Animated opacity and color transitions (`history_drag_area.cpp:399-427`)
-
-  The web version shows only a flat, unadorned semi-transparent blue box with no text, no styling, and no animations. `web_drop_web.dart:78-88` ← `history_drag_area.cpp:316-357`
-
-- [ ] **[MAJOR] Missing drag position tracking** — AyuGram's `dragMoveEvent()` tracks cursor position within the drag area and animates the hover state when the cursor is over the drop target (`history_drag_area.cpp:293-307`). The web version only tracks dragover/dragleave globally at the document level. `web_drop_web.dart:49-56` ← `history_drag_area.cpp:293-307`
-
-- [ ] **[MAJOR] Missing opacity animations** — AyuGram animates drag area visibility with opacity transitions (400ms duration) when entering/leaving (`history_drag_area.cpp:399-427`). The web version shows/hides the overlay instantly. `web_drop_web.dart:51, 55` ← `history_drag_area.cpp:399-427`
-
 ## Notes
 
 - On web, the JavaScript Drag and Drop API has security restrictions: dropped files cannot be accessed directly by filename—they must be processed through specific APIs like File objects in the DataTransfer. However, the current implementation extracts filenames but doesn't use them, which wastes the extraction effort and wastes user time (they must re-select files via FilePicker).
