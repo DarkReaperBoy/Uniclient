@@ -66,32 +66,6 @@ All methods are fully implemented and wired to the backend. No implementation ga
 
 - Recommended fix: Modify the callback in `chat_view.dart` to pass the extracted File objects (or their metadata) to `_uploadFiles()` instead of opening FilePicker, or document why FilePicker is necessary and add explanatory text to the overlay.
 
-# notification_manager_native — Audit Findings
-
-## notification_manager_native — Linux DBus notification backend
-
-- [ ] [CRITICAL] Sound capability string wrong: `handlesSound` and the sound hint branch check `'sound-file'` (a **hint name**), but the freedesktop spec and AyuGram both check capability `'sound'`. On every standard notification daemon, `_capabilities.contains('sound-file')` returns false, so `handlesSound` is always false and the sound hint is never sent — notifications are silently muted regardless of user settings. — `notification_manager_native.dart:126,335` ← `AyuGram/platform/linux/notifications_manager_linux.cpp:640`
-
-- [ ] [CRITICAL] Image-data key spec version thresholds are off-by-one: Dart assigns `'image-data'` for spec `>= 1.1`, but AyuGram only assigns it for `>= 1.2`; Dart assigns `'image_data'` for `>= 1.0`, but AyuGram assigns `'image_data'` only for `== 1.1`; Dart assigns `'icon_data'` for `< 1.0` (effectively never), but AyuGram assigns it for `< 1.1`. Result: spec 1.1 servers get the wrong key (`'image-data'` instead of `'image_data'`), breaking notification images on that class of server. — `notification_manager_native.dart:184-190` ← `AyuGram/platform/linux/notifications_manager_linux.cpp:124-132`
-
-- [ ] [CRITICAL] `NotificationClosed` signal handler ignores the close reason: Dart always removes the notification from tracking on any close. AyuGram only removes it when `reason == 2` (user dismissed); for all other reasons (expired, programmatic close) the tracking is kept so a subsequent `CloseNotification` call can later clear it from notification history when the user reads the chat. This means read-clearing of already-closed notifications is broken. — `notification_manager_native.dart:263-267` ← `AyuGram/platform/linux/notifications_manager_linux.cpp:490-519`
-
-- [ ] [MAJOR] Notification `expireTimeout` hardcoded to 5000 ms instead of -1 (server default): AyuGram passes `-1` so the server uses whatever timeout the user configured system-wide. Dart forces a 5-second dismiss regardless of system settings, causing notifications to vanish before the user can act on them. — `notification_manager_native.dart:368` ← `AyuGram/platform/linux/notifications_manager_linux.cpp:798`
-
-- [ ] [MAJOR] `actions` array sent regardless of whether the notification server advertises the `'actions'` capability: AyuGram gates the entire action block on `HasCapability("actions")`. Dart always includes `default` / `mail-mark-read` / `inline-reply` entries, which may cause errors or warnings on servers that do not support actions. — `notification_manager_native.dart:302-313` ← `AyuGram/platform/linux/notifications_manager_linux.cpp:613`
-
-- [ ] [MAJOR] `mail-mark-read` action added unconditionally: AyuGram only includes it when `!options.hideMarkAsRead`. Dart always includes it, showing a "Mark as Read" button in contexts where it should be suppressed (e.g. when the option is disabled or for certain chat types). — `notification_manager_native.dart:305-307` ← `AyuGram/platform/linux/notifications_manager_linux.cpp:617-622`
-
-- [ ] [MAJOR] Missing `action-icons` hint: AyuGram sets `hints["action-icons"] = true` when the server advertises `'action-icons'` capability, enabling icon-only action buttons. Dart never adds this hint, so buttons always show text labels even on servers that prefer icons. — `notification_manager_native.dart:316-346` ← `AyuGram/platform/linux/notifications_manager_linux.cpp:634-638`
-
-- [ ] [MAJOR] Missing `x-canonical-append` hint: AyuGram sets `hints["x-canonical-append"] = "true"` when the server supports it (Ubuntu/Unity append-style stacking). Dart omits it, breaking stacked notification behaviour on Ubuntu. — `notification_manager_native.dart:316-346` ← `AyuGram/platform/linux/notifications_manager_linux.cpp:660-663`
-
-- [ ] [MAJOR] Missing `desktop-entry` hint: AyuGram always sets `hints["desktop-entry"]` to the application desktop file name. Dart never sets it, breaking notification grouping and routing on GNOME Shell and KDE Plasma. — `notification_manager_native.dart:316-346` ← `AyuGram/platform/linux/notifications_manager_linux.cpp:670-671`
-
-- [ ] [MAJOR] Missing `body-markup` capability check in `_buildBody`: AyuGram checks `HasCapability("body-markup")` and, when supported, wraps the subtitle in `<b>…</b>` and joins it with the message using `\n`. Dart always emits `"subtitle: text"` plain text, so the sender name is never bold on servers that support markup (e.g. KDE's notification daemon). — `notification_manager_native.dart:384-389` ← `AyuGram/platform/linux/notifications_manager_linux.cpp:779-792`
-
-- [ ] [MAJOR] Missing `ActivationToken` / `XDG_ACTIVATION_TOKEN` signal handler: AyuGram subscribes to the `activation_token` signal and writes the token to `XDG_ACTIVATION_TOKEN` so that clicking a notification properly raises the window on Wayland compositors requiring XDG activation. Dart subscribes to `ActionInvoked` and `NotificationClosed` only; without the token, clicking a notification on Wayland does nothing or fails silently. — `notification_manager_native.dart:213-233` ← `AyuGram/platform/linux/notifications_manager_linux.cpp:475-488`
-
 # notification_system — NotificationSystem orchestrator audit
 
 ## Compared against: `window/notifications_manager.cpp` + `window/notifications_manager.h`
