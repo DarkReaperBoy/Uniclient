@@ -35,8 +35,7 @@ class GhostSettingsPage extends StatelessWidget {
         backgroundColor: isDark ? const Color(0xFF17212B) : Colors.white,
         foregroundColor: isDark ? Colors.white : Colors.black87,
         elevation: 0,
-        title: const Text('AyuGram',
-            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+        title: const SizedBox.shrink(),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
@@ -55,24 +54,16 @@ class GhostSettingsPage extends StatelessWidget {
             onScopeChanged: (bool global, String? userId) {
               if (global) {
                 appState.setUseGlobalGhostMode(true);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Switched to same settings for all accounts.'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
+                showTelegramToast(context,
+                    'Switched to same settings for all accounts.');
               } else {
                 appState.setUseGlobalGhostMode(false);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Switched to individual settings for each account.'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
+                showTelegramToast(context,
+                    'Switched to individual settings for each account.');
               }
             },
           ),
-          _GhostMasterToggle(
+          _ToggleRow(
             label: 'Ghost Mode',
             value: appState.ghostModeEnabled,
             onChanged: (v) {
@@ -346,55 +337,6 @@ class _ToggleRow extends StatelessWidget {
               child: Text(label,
                   style: TextStyle(
                       fontSize: 14,
-                      color: isDark ? Colors.white : Colors.black87)),
-            ),
-            const SizedBox(width: 12),
-            AyuToggle(
-              value: value,
-              onChanged: onChanged,
-              isMaterial: useMaterial,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _GhostMasterToggle extends StatelessWidget {
-  final String label;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-  final bool isDark;
-  final bool useMaterial;
-
-  const _GhostMasterToggle({
-    required this.label,
-    required this.value,
-    required this.onChanged,
-    required this.isDark,
-    this.useMaterial = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () => onChanged(!value),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
-        child: Row(
-          children: [
-            Icon(
-              Icons.visibility_off,
-              size: 20,
-              color: value ? context.palette.windowBgActive : (isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999)),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(label,
-                  style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
                       color: isDark ? Colors.white : Colors.black87)),
             ),
             const SizedBox(width: 12),
