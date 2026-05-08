@@ -1,10 +1,12 @@
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import '../theme/telegram_palette.dart';
 import 'package:provider/provider.dart';
 
+import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 import 'ayu_section_builder.dart';
 import 'ayu_toggle.dart';
@@ -334,20 +336,95 @@ class _AvatarCornersSectionState extends State<_AvatarCornersSection> {
   }
 }
 
-class _AvatarCornersPreview extends StatelessWidget {
+class _AvatarCornersPreview extends StatefulWidget {
   final int corners;
   final bool isDark;
 
   const _AvatarCornersPreview({required this.corners, required this.isDark});
 
   @override
+  State<_AvatarCornersPreview> createState() => _AvatarCornersPreviewState();
+}
+
+class _AvatarCornersPreviewState extends State<_AvatarCornersPreview> {
+  Uint8List? _userpicBytes;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserpic();
+  }
+
+  Future<void> _loadUserpic() async {
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+    final account = appState.activeAccount;
+    if (account == null) {
+      setState(() => _loading = false);
+      return;
+    }
+    try {
+      final channelId = await engine.resolveUsername(account.id, 'AyuGramReleases');
+      if (channelId == null || !mounted) {
+        setState(() => _loading = false);
+        return;
+      }
+      final avatarPath = await engine.downloadSingleAvatar(account.id, channelId);
+      if (avatarPath == null || !mounted) {
+        setState(() => _loading = false);
+        return;
+      }
+      final file = File(avatarPath);
+      if (await file.exists()) {
+        final bytes = await file.readAsBytes();
+        if (mounted) setState(() { _userpicBytes = bytes; _loading = false; });
+      } else {
+        if (mounted) setState(() => _loading = false);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     const photoSize = 46.0;
-    final avatarRadius = photoSize / 2 * (corners / 23.0);
-    final bgColor = isDark ? const Color(0xFF182533) : const Color(0xFFF1F1F1);
-    final nameColor = isDark ? Colors.white : Colors.black87;
+    final avatarRadius = photoSize / 2 * (widget.corners / 23.0);
+    final bgColor = widget.isDark ? const Color(0xFF182533) : const Color(0xFFF1F1F1);
+    final nameColor = widget.isDark ? Colors.white : Colors.black87;
     final previewColor =
-        isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
+        widget.isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
+
+    Widget avatarContent;
+    if (_userpicBytes != null) {
+      avatarContent = Image.memory(
+        _userpicBytes!,
+        width: photoSize,
+        height: photoSize,
+        fit: BoxFit.cover,
+      );
+    } else {
+      // EmptyUserpic fallback: colored circle with channel initial
+      // Color derived from channel name hash, matching Telegram's palette
+      const colors = [
+        Color(0xFFE17076), Color(0xFF7BC862), Color(0xFF65AADD),
+        Color(0xFFEE7AE6), Color(0xFF6EC9CB), Color(0xFFFAA774),
+        Color(0xFFA695E7), Color(0xFFED9B9B),
+      ];
+      final colorIdx = 'AyuGramReleases'.hashCode.abs() % colors.length;
+      avatarContent = Container(
+        width: photoSize,
+        height: photoSize,
+        color: colors[colorIdx],
+        alignment: Alignment.center,
+        child: const Text('A',
+            style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w500)),
+      );
+    }
 
     return GestureDetector(
       onTap: () => Process.run('xdg-open', ['https://t.me/AyuGramReleases']),
@@ -367,10 +444,7 @@ class _AvatarCornersPreview extends StatelessWidget {
                 child: SizedBox(
                   width: photoSize,
                   height: photoSize,
-                  child: CustomPaint(
-                    painter: _AyuGramAvatarPainter(),
-                    size: const Size(photoSize, photoSize),
-                  ),
+                  child: avatarContent,
                 ),
               ),
               const SizedBox(width: 12),
@@ -400,47 +474,6 @@ class _AvatarCornersPreview extends StatelessWidget {
       ),
     );
   }
-}
-
-class _AyuGramAvatarPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-    final gradient = const LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-      colors: [Color(0xFF9B59B6), Color(0xFF6C3483)],
-    );
-    canvas.drawRect(rect, Paint()..shader = gradient.createShader(rect));
-
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final scale = size.width / 46.0;
-    final paint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.fill;
-
-    final path = Path();
-    path.moveTo(cx + 12 * scale, cy - 2 * scale);
-    path.lineTo(cx - 4 * scale, cy + 10 * scale);
-    path.lineTo(cx - 1 * scale, cy + 4 * scale);
-    path.lineTo(cx + 5 * scale, cy + 8 * scale);
-    path.close();
-    canvas.drawPath(path, paint);
-
-    final path2 = Path();
-    path2.moveTo(cx - 14 * scale, cy - 1 * scale);
-    path2.lineTo(cx + 12 * scale, cy - 10 * scale);
-    path2.lineTo(cx + 12 * scale, cy - 2 * scale);
-    path2.lineTo(cx - 4 * scale, cy + 10 * scale);
-    path2.close();
-    canvas.drawPath(path2, Paint()
-      ..color = Colors.white.withValues(alpha: 0.85)
-      ..style = PaintingStyle.fill);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _MonoFontRow extends StatelessWidget {

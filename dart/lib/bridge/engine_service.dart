@@ -2463,6 +2463,22 @@ class EngineService {
     }
   }
 
+  Future<String?> downloadSingleAvatar(String accountId, String chatId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'DownloadSingleAvatar', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return data['path'] as String?;
+    } catch (e) {
+      Debug.error('ENGINE', 'downloadSingleAvatar failed', e);
+      return null;
+    }
+  }
+
   Future<UserProfile?> getUserProfile(String accountId, String userId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

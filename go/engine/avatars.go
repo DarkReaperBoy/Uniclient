@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -92,6 +93,27 @@ func (e *Engine) DownloadPendingAvatars(accountID string) {
 		}
 		e.updateAvatarPath(accountID, chatID, destPath)
 	}
+}
+
+func (e *Engine) DownloadSingleAvatar(accountID, chatID string) (string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return "", fmt.Errorf("account not found or not connected: %s", accountID)
+	}
+	dl, ok := acc.Core.(avatarDownloader)
+	if !ok {
+		return "", fmt.Errorf("platform does not support avatar download")
+	}
+	avatarDir := filepath.Join(e.mediaDir, accountID, "avatars")
+	os.MkdirAll(avatarDir, 0o755)
+	destPath := filepath.Join(avatarDir, chatID+".jpg")
+	if _, err := os.Stat(destPath); err == nil {
+		return destPath, nil
+	}
+	if err := dl.DownloadChatAvatar(chatID, destPath); err != nil {
+		return "", err
+	}
+	return destPath, nil
 }
 
 // updateAvatarPath sets the avatar_path for a chat and emits an update event.
