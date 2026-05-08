@@ -86,6 +86,7 @@ class AyuSectionBuilder {
     required bool isExpanded,
     required List<AyuNestedCheckboxItem> children,
     ValueChanged<bool>? onMasterToggle,
+    bool? masterValue,
   }) {
     _children.add(_AyuCollapsibleToggle(
       label: label,
@@ -94,6 +95,7 @@ class AyuSectionBuilder {
       useMaterial: useMaterial,
       children: children,
       onMasterToggle: onMasterToggle,
+      masterValue: masterValue,
     ));
   }
 
@@ -372,6 +374,7 @@ class _AyuCollapsibleToggle extends StatefulWidget {
   final bool useMaterial;
   final List<AyuNestedCheckboxItem> children;
   final ValueChanged<bool>? onMasterToggle;
+  final bool? masterValue;
 
   const _AyuCollapsibleToggle({
     required this.label,
@@ -380,6 +383,7 @@ class _AyuCollapsibleToggle extends StatefulWidget {
     this.useMaterial = false,
     required this.children,
     this.onMasterToggle,
+    this.masterValue,
   });
 
   @override
@@ -406,6 +410,7 @@ class _AyuCollapsibleToggleState extends State<_AyuCollapsibleToggle> {
     final anyChecked = widget.children.any((c) => c.value);
     final allChecked = widget.children.every((c) => c.value);
     final hasMaster = widget.onMasterToggle != null;
+    final toggleValue = widget.masterValue ?? allChecked;
     final accentColor = widget.isDark
         ? const Color(0xFF6AB2F2)
         : const Color(0xFF3390EC);
@@ -444,7 +449,7 @@ class _AyuCollapsibleToggleState extends State<_AyuCollapsibleToggle> {
                 if (hasMaster) ...[
                   const SizedBox(width: 12),
                   AyuToggle(
-                    value: allChecked,
+                    value: toggleValue,
                     onChanged: (v) => widget.onMasterToggle!(v),
                     isMaterial: widget.useMaterial,
                   ),

@@ -54,7 +54,16 @@ void main() {
 
   // §51.7: Parse -ghost CLI flag.
   if (!kIsWeb) {
-    final args = Platform.executableArguments;
+    var args = Platform.executableArguments;
+    if (Platform.isLinux) {
+      try {
+        final raw = File('/proc/self/cmdline').readAsBytesSync();
+        args = String.fromCharCodes(raw)
+            .split('\x00')
+            .where((s) => s.isNotEmpty)
+            .toList();
+      } catch (_) {}
+    }
     if (args.contains('-ghost') || args.contains('--ghost')) {
       _cliGhostFlag = true;
     }
