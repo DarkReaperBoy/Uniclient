@@ -102,14 +102,6 @@
 
 ## §51 — Ghost Mode
 
-- [ ] spec §51.2.1 "Ghost Mode collapsible toggle": The ghost sub-toggles use checkboxes inside `AnimatedSize` which is correct, but the master toggle uses `_GhostMasterToggle` as a separate widget rather than a standard collapsible parent toggle — the visual style differs from spec (spec says "collapsible parent toggle labeled Ghost Mode")
-- [ ] spec §51.2.2 "Schedule Messages — mutually exclusive with Read on Interact": Spec §51.2.2 says toggles #6 and #7 are mutually exclusive (enabling one disables the other). Code in `ghost_settings_page.dart` does not enforce mutual exclusivity — both `markReadAfterAction` and `useScheduledMessages` can be ON simultaneously
-- [ ] spec §51.3 "Account picker — GlobalAction custom menu item": The `_GlobalSettingsAvatar` uses a purple gradient circle with "GS" text which matches the spec's description. However, the account picker does not show a toast notification on switch as spec requires ("Switched to same settings for all accounts." / "Switched to individual settings for each account.") — code uses `SnackBar` instead of the spec's toast
-- [ ] spec §51.4 "Settings screen layout — navigation path": Spec says the ghost settings page is `AyuGhost` section reached via AyuMain > "AyuGram" category button. The code navigates to `GhostSettingsPage` with the app bar title "AyuGram" which is correct, but the page title should be blank per spec (AyuGhost section has no dedicated title bar text; the subsection title "Ghost essentials" is inline)
-- [ ] spec §51.5 "Drawer — LRead and SRead toggle buttons": Drawer does not render LRead / SRead toggle buttons at runtime. Only the visibility settings (`showLReadToggleInDrawer`, `showSReadToggleInDrawer`) exist in `ayu_other_page.dart`
-- [ ] spec §51.7 "Command-line -ghost flag": No support for `-ghost` launch argument that forces all ghost settings on at startup
-- [ ] spec §51.8 "Toast notifications": Ghost mode toggle toast uses `showTelegramToast` in the code which is correct, but the spec's toasts `ayu_GhostModeEnabled` / `ayu_GhostModeDisabled` should match. Verified the strings match ("Ghost Mode turned on" / "Ghost Mode turned off")
-
 ## §52 — Anti-Recall & Message History
 
 - [ ] spec §52.1 "Settings — semiTransparentDeletedMessages": Setting exists as `semiTransparentDeleted` in `ayu_chats_page.dart` as a toggle in the Messages section, but spec §52.1 says it should be under "Spy Essentials" subsection. It is implemented on the Chats page instead of the Ghost/AyuGram page
