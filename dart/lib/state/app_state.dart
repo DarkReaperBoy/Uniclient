@@ -26,7 +26,8 @@ class GhostModeAccountSettings {
   bool sendOfflinePacketAfterOnline;
   bool markReadAfterAction;
   bool useScheduledMessages;
-  bool sendWithoutSound;
+  int sendWithoutSound; // 0=Never, 1=InGhostMode, 2=Always
+  bool suggestGhostModeBeforeViewingStory;
   bool sendReadMessagesLocked;
   bool sendReadStoriesLocked;
   bool sendOnlinePacketsLocked;
@@ -41,7 +42,8 @@ class GhostModeAccountSettings {
     this.sendOfflinePacketAfterOnline = false,
     this.markReadAfterAction = true,
     this.useScheduledMessages = false,
-    this.sendWithoutSound = false,
+    this.sendWithoutSound = 0,
+    this.suggestGhostModeBeforeViewingStory = true,
     this.sendReadMessagesLocked = false,
     this.sendReadStoriesLocked = false,
     this.sendOnlinePacketsLocked = false,
@@ -56,22 +58,40 @@ class GhostModeAccountSettings {
       (sendUploadProgressLocked || !sendUploadProgress) &&
       (sendOfflinePacketAfterOnlineLocked || sendOfflinePacketAfterOnline);
 
-  factory GhostModeAccountSettings.fromJson(Map<String, dynamic> j) =>
-      GhostModeAccountSettings(
-        sendReadMessages: j['sendReadMessages'] as bool? ?? true,
-        sendReadStories: j['sendReadStories'] as bool? ?? true,
-        sendOnlinePackets: j['sendOnlinePackets'] as bool? ?? true,
-        sendUploadProgress: j['sendUploadProgress'] as bool? ?? true,
-        sendOfflinePacketAfterOnline: j['sendOfflinePacketAfterOnline'] as bool? ?? false,
-        markReadAfterAction: j['markReadAfterAction'] as bool? ?? true,
-        useScheduledMessages: j['useScheduledMessages'] as bool? ?? false,
-        sendWithoutSound: j['sendWithoutSound'] as bool? ?? false,
-        sendReadMessagesLocked: j['sendReadMessagesLocked'] as bool? ?? false,
-        sendReadStoriesLocked: j['sendReadStoriesLocked'] as bool? ?? false,
-        sendOnlinePacketsLocked: j['sendOnlinePacketsLocked'] as bool? ?? false,
-        sendUploadProgressLocked: j['sendUploadProgressLocked'] as bool? ?? false,
-        sendOfflinePacketAfterOnlineLocked: j['sendOfflinePacketAfterOnlineLocked'] as bool? ?? false,
-      );
+  bool get shouldSendWithoutSound {
+    switch (sendWithoutSound) {
+      case 0: return false;
+      case 1: return ghostModeActive;
+      case 2: return true;
+      default: return false;
+    }
+  }
+
+  factory GhostModeAccountSettings.fromJson(Map<String, dynamic> j) {
+    final rawSendWithoutSound = j['sendWithoutSound'];
+    int sendWithoutSoundValue;
+    if (rawSendWithoutSound is bool) {
+      sendWithoutSoundValue = rawSendWithoutSound ? 2 : 0;
+    } else {
+      sendWithoutSoundValue = (rawSendWithoutSound as int?) ?? 0;
+    }
+    return GhostModeAccountSettings(
+      sendReadMessages: j['sendReadMessages'] as bool? ?? true,
+      sendReadStories: j['sendReadStories'] as bool? ?? true,
+      sendOnlinePackets: j['sendOnlinePackets'] as bool? ?? true,
+      sendUploadProgress: j['sendUploadProgress'] as bool? ?? true,
+      sendOfflinePacketAfterOnline: j['sendOfflinePacketAfterOnline'] as bool? ?? false,
+      markReadAfterAction: j['markReadAfterAction'] as bool? ?? true,
+      useScheduledMessages: j['useScheduledMessages'] as bool? ?? false,
+      sendWithoutSound: sendWithoutSoundValue,
+      suggestGhostModeBeforeViewingStory: j['suggestGhostModeBeforeViewingStory'] as bool? ?? true,
+      sendReadMessagesLocked: j['sendReadMessagesLocked'] as bool? ?? false,
+      sendReadStoriesLocked: j['sendReadStoriesLocked'] as bool? ?? false,
+      sendOnlinePacketsLocked: j['sendOnlinePacketsLocked'] as bool? ?? false,
+      sendUploadProgressLocked: j['sendUploadProgressLocked'] as bool? ?? false,
+      sendOfflinePacketAfterOnlineLocked: j['sendOfflinePacketAfterOnlineLocked'] as bool? ?? false,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
         'sendReadMessages': sendReadMessages,
@@ -82,6 +102,7 @@ class GhostModeAccountSettings {
         'markReadAfterAction': markReadAfterAction,
         'useScheduledMessages': useScheduledMessages,
         'sendWithoutSound': sendWithoutSound,
+        'suggestGhostModeBeforeViewingStory': suggestGhostModeBeforeViewingStory,
         'sendReadMessagesLocked': sendReadMessagesLocked,
         'sendReadStoriesLocked': sendReadStoriesLocked,
         'sendOnlinePacketsLocked': sendOnlinePacketsLocked,
@@ -262,7 +283,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _collapseSimilarChannels = true;
   bool _hideSimilarChannelsTab = false;
   bool _disableNotifyDelay = false;
-  bool _filterZalgo = true;
+  bool _filterZalgo = false;
   bool _improveLinkPreviews = false;
   int _showPeerId = 2; // 0=Hide, 1=Telegram API, 2=Bot API
   bool _spoofClientAsAndroid = false;
@@ -503,7 +524,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get sendOfflinePacketAfterOnline => _ghostSettings.sendOfflinePacketAfterOnline;
   bool get markReadAfterAction => _ghostSettings.markReadAfterAction;
   bool get useScheduledMessages => _ghostSettings.useScheduledMessages;
-  bool get sendWithoutSound => _ghostSettings.sendWithoutSound;
+  int get sendWithoutSound => _ghostSettings.sendWithoutSound;
+  bool get shouldSendWithoutSound => _ghostSettings.shouldSendWithoutSound;
   bool get sendReadMessagesLocked => _ghostSettings.sendReadMessagesLocked;
   bool get sendReadStoriesLocked => _ghostSettings.sendReadStoriesLocked;
   bool get sendOnlinePacketsLocked => _ghostSettings.sendOnlinePacketsLocked;
@@ -713,7 +735,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   void setWideMultiplier(double v) {
     v = (v * 20).round() / 20.0; // snap to 0.05 increments
-    v = v.clamp(1.0, 4.0);
+    v = v.clamp(0.5, 4.0);
     if ((_wideMultiplier - v).abs() < 0.001) return;
     _wideMultiplier = v;
     notifyListeners();
@@ -894,6 +916,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
     if (!changed) return;
+    if (v) {
+      _engine.markAsOnline();
+    }
     _syncGhostToEngine();
     notifyListeners();
     _saveWindowPrefs();
@@ -938,7 +963,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final s = _ensureGhostSettings();
     if (s.sendUploadProgress == v) return;
     s.sendUploadProgress = v;
-    _engine.updateConfig(sendTyping: v);
+    _engine.updateConfig(sendUploadProgress: v);
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -978,11 +1003,22 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _saveWindowPrefs();
   }
 
-  void setSendWithoutSound(bool v) {
+  void setSendWithoutSound(int v) {
     final s = _ensureGhostSettings();
     if (s.sendWithoutSound == v) return;
     s.sendWithoutSound = v;
-    _engine.updateConfig(sendWithoutSound: v);
+    _engine.updateConfig(sendWithoutSound: s.shouldSendWithoutSound);
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  bool get suggestGhostModeBeforeViewingStory =>
+      _ghostSettings.suggestGhostModeBeforeViewingStory;
+
+  void setSuggestGhostModeBeforeViewingStory(bool v) {
+    final s = _ensureGhostSettings();
+    if (s.suggestGhostModeBeforeViewingStory == v) return;
+    s.suggestGhostModeBeforeViewingStory = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -1160,7 +1196,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _collapseSimilarChannels = true;
     _hideSimilarChannelsTab = false;
     _disableNotifyDelay = false;
-    _filterZalgo = true;
+    _filterZalgo = false;
     _improveLinkPreviews = false;
     _showPeerId = 2;
     _spoofClientAsAndroid = false;
@@ -1212,13 +1248,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final s = _ghostSettings;
     _engine.updateConfig(
       sendReadReceipts: s.sendReadMessages,
-      sendTyping: s.sendUploadProgress,
+      sendUploadProgress: s.sendUploadProgress,
       sendReadStories: s.sendReadStories,
       sendOnlinePackets: s.sendOnlinePackets,
       sendOfflineAfterOnline: s.sendOfflinePacketAfterOnline,
       markReadAfterAction: s.markReadAfterAction,
       useScheduledMessages: s.useScheduledMessages,
-      sendWithoutSound: s.sendWithoutSound,
+      sendWithoutSound: s.shouldSendWithoutSound,
     );
   }
 
@@ -2599,6 +2635,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _roundDockIcon = data['roundDockIcon'] as bool? ?? false;
       _spellcheckerEnabled = data['spellcheckerEnabled'] as bool? ?? true;
       _spellcheckerAutoDownload = data['spellcheckerAutoDownload'] as bool? ?? true;
+      _screenReaderOptimized = data['screenReaderOptimized'] as bool? ?? false;
       _autoUpdateEnabled = data['autoUpdateEnabled'] as bool? ?? true;
       _installBetaVersions = data['installBetaVersions'] as bool? ?? false;
       _downloadPathMode = data['downloadPathMode'] as int? ?? 0;
@@ -2630,7 +2667,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       // §25.15 AyuGram prefs
       _bubbleRadius = (data['bubbleRadius'] as int?) ?? 16;
       _removeTail = data['removeTail'] as bool? ?? false;
-      _materialSwitches = data['materialSwitches'] as bool? ?? false;
+      _materialSwitches = data['materialSwitches'] as bool? ?? true;
       final oldAvatarRadius = data['avatarCornerRadius'] as int?;
       _avatarCorners = (data['avatarCorners'] as int?) ??
           (oldAvatarRadius != null ? (oldAvatarRadius * 23 / 50).round().clamp(0, 23) : 23);
@@ -2736,7 +2773,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _collapseSimilarChannels = data['collapseSimilarChannels'] as bool? ?? true;
       _hideSimilarChannelsTab = data['hideSimilarChannelsTab'] as bool? ?? false;
       _disableNotifyDelay = data['disableNotifyDelay'] as bool? ?? false;
-      _filterZalgo = data['filterZalgo'] as bool? ?? true;
+      _filterZalgo = data['filterZalgo'] as bool? ?? false;
       _improveLinkPreviews = data['improveLinkPreviews'] as bool? ?? false;
       _showPeerId = data['showPeerId'] as int? ?? 2;
       _spoofClientAsAndroid = data['spoofClientAsAndroid'] as bool? ?? false;
@@ -2827,6 +2864,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'roundDockIcon': _roundDockIcon,
         'spellcheckerEnabled': _spellcheckerEnabled,
         'spellcheckerAutoDownload': _spellcheckerAutoDownload,
+        'screenReaderOptimized': _screenReaderOptimized,
         'autoUpdateEnabled': _autoUpdateEnabled,
         'installBetaVersions': _installBetaVersions,
         'downloadPathMode': _downloadPathMode,

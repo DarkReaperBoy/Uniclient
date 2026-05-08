@@ -3132,6 +3132,12 @@ class EngineService {
     );
   }
 
+  void markAsOnline() {
+    try {
+      _callRaw('__engine', 'MarkAsOnline', Uint8List(0));
+    } catch (_) {}
+  }
+
   void updateConfig({
     String? theme,
     String? accentColor,
@@ -3141,6 +3147,7 @@ class EngineService {
     int? maxCacheSize,
     bool? sendReadReceipts,
     bool? sendTyping,
+    bool? sendUploadProgress,
     bool? sendReadStories,
     bool? sendOnlinePackets,
     bool? sendOfflineAfterOnline,
@@ -3165,6 +3172,10 @@ class EngineService {
     if (sendTyping != null) {
       req.sendTyping = sendTyping;
       req.hasSendTyping_9 = true;
+    }
+    if (sendUploadProgress != null) {
+      req.sendUploadProgress = sendUploadProgress;
+      req.hasSendUploadProgress_29 = true;
     }
     if (sendReadStories != null) {
       req.sendReadStories = sendReadStories;

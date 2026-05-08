@@ -1423,6 +1423,8 @@ const EngineUpdateConfigRequest$json = {
     {'1': 'has_use_scheduled_messages', '3': 25, '4': 1, '5': 8, '10': 'hasUseScheduledMessages'},
     {'1': 'send_without_sound', '3': 26, '4': 1, '5': 8, '10': 'sendWithoutSound'},
     {'1': 'has_send_without_sound', '3': 27, '4': 1, '5': 8, '10': 'hasSendWithoutSound'},
+    {'1': 'send_upload_progress', '3': 28, '4': 1, '5': 8, '10': 'sendUploadProgress'},
+    {'1': 'has_send_upload_progress', '3': 29, '4': 1, '5': 8, '10': 'hasSendUploadProgress'},
   ],
 };
 

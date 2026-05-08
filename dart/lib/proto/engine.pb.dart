@@ -7550,6 +7550,8 @@ class EngineUpdateConfigRequest extends $pb.GeneratedMessage {
     $core.bool? hasUseScheduledMessages_25,
     $core.bool? sendWithoutSound,
     $core.bool? hasSendWithoutSound_27,
+    $core.bool? sendUploadProgress,
+    $core.bool? hasSendUploadProgress_29,
   }) {
     final $result = create();
     if (theme != null) {
@@ -7633,6 +7635,12 @@ class EngineUpdateConfigRequest extends $pb.GeneratedMessage {
     if (hasSendWithoutSound_27 != null) {
       $result.hasSendWithoutSound_27 = hasSendWithoutSound_27;
     }
+    if (sendUploadProgress != null) {
+      $result.sendUploadProgress = sendUploadProgress;
+    }
+    if (hasSendUploadProgress_29 != null) {
+      $result.hasSendUploadProgress_29 = hasSendUploadProgress_29;
+    }
     return $result;
   }
   EngineUpdateConfigRequest._() : super();
@@ -7667,6 +7675,8 @@ class EngineUpdateConfigRequest extends $pb.GeneratedMessage {
     ..aOB(25, _omitFieldNames ? '' : 'hasUseScheduledMessages')
     ..aOB(26, _omitFieldNames ? '' : 'sendWithoutSound')
     ..aOB(27, _omitFieldNames ? '' : 'hasSendWithoutSound')
+    ..aOB(28, _omitFieldNames ? '' : 'sendUploadProgress')
+    ..aOB(29, _omitFieldNames ? '' : 'hasSendUploadProgress')
     ..hasRequiredFields = false
   ;
 
@@ -7935,6 +7945,24 @@ class EngineUpdateConfigRequest extends $pb.GeneratedMessage {
   $core.bool hasHasSendWithoutSound_27() => $_has(26);
   @$pb.TagNumber(27)
   void clearHasSendWithoutSound_27() => clearField(27);
+
+  @$pb.TagNumber(28)
+  $core.bool get sendUploadProgress => $_getBF(27);
+  @$pb.TagNumber(28)
+  set sendUploadProgress($core.bool v) { $_setBool(27, v); }
+  @$pb.TagNumber(28)
+  $core.bool hasSendUploadProgress() => $_has(27);
+  @$pb.TagNumber(28)
+  void clearSendUploadProgress() => clearField(28);
+
+  @$pb.TagNumber(29)
+  $core.bool get hasSendUploadProgress_29 => $_getBF(28);
+  @$pb.TagNumber(29)
+  set hasSendUploadProgress_29($core.bool v) { $_setBool(28, v); }
+  @$pb.TagNumber(29)
+  $core.bool hasHasSendUploadProgress_29() => $_has(28);
+  @$pb.TagNumber(29)
+  void clearHasSendUploadProgress_29() => clearField(29);
 }
 
 class EngineFolderInfo extends $pb.GeneratedMessage {

@@ -678,6 +678,8 @@ message EngineUpdateConfigRequest {
   bool has_use_scheduled_messages  = 25;
   bool send_without_sound          = 26;
   bool has_send_without_sound      = 27;
+  bool send_upload_progress        = 28;
+  bool has_send_upload_progress    = 29;
 }
 
 // ═══════════════════════════════════════════════════════════════════════

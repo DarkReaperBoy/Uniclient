@@ -35,6 +35,7 @@ type AppConfig struct {
 	// Privacy / Ghost Mode
 	SendReadReceipts       bool `json:"send_read_receipts"`
 	SendTyping             bool `json:"send_typing"`
+	SendUploadProgress     bool `json:"send_upload_progress"`
 	SendReadStories        bool `json:"send_read_stories"`
 	SendOnlinePackets      bool `json:"send_online_packets"`
 	SendOfflineAfterOnline bool `json:"send_offline_after_online"`
@@ -60,9 +61,10 @@ func DefaultConfig() AppConfig {
 		ProxyConfig:      ProxyConfig{Type: "none", Host: "127.0.0.1", Port: "1080"},
 		DNSOverrides:     make(map[string]string),
 		DNSFallback:      true,
-		SendReadReceipts:  true,
-		SendTyping:        true,
-		SendReadStories:   true,
+		SendReadReceipts:   true,
+		SendTyping:         true,
+		SendUploadProgress: true,
+		SendReadStories:    true,
 		SendOnlinePackets: true,
 		NotifyDMs:        true,
 		NotifyGroups:     true,

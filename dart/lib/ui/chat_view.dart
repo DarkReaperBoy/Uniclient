@@ -2080,7 +2080,7 @@ class _ChatViewState extends State<ChatView>
     final isShift = HardwareKeyboard.instance.logicalKeysPressed.contains(LogicalKeyboardKey.shiftLeft) ||
         HardwareKeyboard.instance.logicalKeysPressed.contains(LogicalKeyboardKey.shiftRight);
     final ghostSchedule = appState.useScheduledMessages ? 0x7FFFFFFE : 0;
-    final silent = appState.sendWithoutSound;
+    final silent = appState.shouldSendWithoutSound;
 
     if (isShift) {
       final engine = context.read<EngineService>();
@@ -15477,7 +15477,7 @@ class _SendButtonState extends State<_SendButton>
     final box = context.findRenderObject() as RenderBox;
     final pos = box.localToGlobal(Offset(0, -4));
 
-    final silentDefault = context.read<AppState>().sendWithoutSound;
+    final silentDefault = context.read<AppState>().shouldSendWithoutSound;
     showTelegramMenu<String>(
       context: context,
       position: pos,

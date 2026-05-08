@@ -1193,6 +1193,10 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			v := req.SendTyping
 			changes.SendTyping = &v
 		}
+		if req.HasSendUploadProgress {
+			v := req.SendUploadProgress
+			changes.SendUploadProgress = &v
+		}
 		if req.HasSendReadStories {
 			v := req.SendReadStories
 			changes.SendReadStories = &v
@@ -1230,6 +1234,23 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			changes.NotifyMentionsOnly = &v
 		}
 		return nil, e.UpdateConfigFromBridge(changes)
+
+	case "MarkAsOnline":
+		type statusUpdater interface {
+			UpdateStatus(online bool) error
+		}
+		mu.RLock()
+		entries := make([]coreEntry, 0, len(registry))
+		for _, entry := range registry {
+			entries = append(entries, entry)
+		}
+		mu.RUnlock()
+		for _, entry := range entries {
+			if su, ok := entry.instance.(statusUpdater); ok {
+				su.UpdateStatus(true)
+			}
+		}
+		return nil, nil
 
 	// ── Create Channel ──
 

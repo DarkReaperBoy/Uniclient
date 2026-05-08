@@ -5572,6 +5572,8 @@ type EngineUpdateConfigRequest struct {
 	HasUseScheduledMessages   bool `protobuf:"varint,25,opt,name=has_use_scheduled_messages,json=hasUseScheduledMessages,proto3" json:"has_use_scheduled_messages,omitempty"`
 	SendWithoutSound          bool `protobuf:"varint,26,opt,name=send_without_sound,json=sendWithoutSound,proto3" json:"send_without_sound,omitempty"`
 	HasSendWithoutSound       bool `protobuf:"varint,27,opt,name=has_send_without_sound,json=hasSendWithoutSound,proto3" json:"has_send_without_sound,omitempty"`
+	SendUploadProgress        bool `protobuf:"varint,28,opt,name=send_upload_progress,json=sendUploadProgress,proto3" json:"send_upload_progress,omitempty"`
+	HasSendUploadProgress     bool `protobuf:"varint,29,opt,name=has_send_upload_progress,json=hasSendUploadProgress,proto3" json:"has_send_upload_progress,omitempty"`
 	unknownFields             protoimpl.UnknownFields
 	sizeCache                 protoimpl.SizeCache
 }
@@ -5791,6 +5793,20 @@ func (x *EngineUpdateConfigRequest) GetSendWithoutSound() bool {
 func (x *EngineUpdateConfigRequest) GetHasSendWithoutSound() bool {
 	if x != nil {
 		return x.HasSendWithoutSound
+	}
+	return false
+}
+
+func (x *EngineUpdateConfigRequest) GetSendUploadProgress() bool {
+	if x != nil {
+		return x.SendUploadProgress
+	}
+	return false
+}
+
+func (x *EngineUpdateConfigRequest) GetHasSendUploadProgress() bool {
+	if x != nil {
+		return x.HasSendUploadProgress
 	}
 	return false
 }
@@ -12687,7 +12703,8 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x19send_offline_after_online\x18\x0e \x01(\bR\x16sendOfflineAfterOnline\x123\n" +
 	"\x16mark_read_after_action\x18\x0f \x01(\bR\x13markReadAfterAction\x124\n" +
 	"\x16use_scheduled_messages\x18\x10 \x01(\bR\x14useScheduledMessages\x12,\n" +
-	"\x12send_without_sound\x18\x11 \x01(\bR\x10sendWithoutSound\"\xec\t\n" +
+	"\x12send_without_sound\x18\x11 \x01(\bR\x10sendWithoutSound\"\xd7\n" +
+	"\n" +
 	"\x19EngineUpdateConfigRequest\x12\x14\n" +
 	"\x05theme\x18\x01 \x01(\tR\x05theme\x12!\n" +
 	"\faccent_color\x18\x02 \x01(\tR\vaccentColor\x12\x1d\n" +
@@ -12719,7 +12736,9 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x16use_scheduled_messages\x18\x18 \x01(\bR\x14useScheduledMessages\x12;\n" +
 	"\x1ahas_use_scheduled_messages\x18\x19 \x01(\bR\x17hasUseScheduledMessages\x12,\n" +
 	"\x12send_without_sound\x18\x1a \x01(\bR\x10sendWithoutSound\x123\n" +
-	"\x16has_send_without_sound\x18\x1b \x01(\bR\x13hasSendWithoutSound\"\xbf\x03\n" +
+	"\x16has_send_without_sound\x18\x1b \x01(\bR\x13hasSendWithoutSound\x120\n" +
+	"\x14send_upload_progress\x18\x1c \x01(\bR\x12sendUploadProgress\x127\n" +
+	"\x18has_send_upload_progress\x18\x1d \x01(\bR\x15hasSendUploadProgress\"\xbf\x03\n" +
 	"\x10EngineFolderInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x19\n" +

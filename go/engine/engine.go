@@ -275,6 +275,7 @@ type ConfigChanges struct {
 	// Use pointers for booleans so zero-value (false) is distinguishable from "not set".
 	SendReadReceipts       *bool
 	SendTyping             *bool
+	SendUploadProgress     *bool
 	SendReadStories        *bool
 	SendOnlinePackets      *bool
 	SendOfflineAfterOnline *bool
@@ -312,6 +313,9 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	}
 	if changes.SendTyping != nil {
 		e.config.SendTyping = *changes.SendTyping
+	}
+	if changes.SendUploadProgress != nil {
+		e.config.SendUploadProgress = *changes.SendUploadProgress
 	}
 	if changes.SendReadStories != nil {
 		e.config.SendReadStories = *changes.SendReadStories
