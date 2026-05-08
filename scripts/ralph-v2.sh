@@ -753,36 +753,9 @@ Item: $CURRENT_ITEM"
     log "  Layer 1: Comparing Dart files against AyuGram source..."
 
     # Get all auditable dart files: UI + state + bridge + theme (skip generated protos)
-    mapfile -t ALL_DART_FILES < <(find "$PROJECT_ROOT/dart/lib/ui" "$PROJECT_ROOT/dart/lib/state" "$PROJECT_ROOT/dart/lib/bridge" "$PROJECT_ROOT/dart/lib/theme" -name "*.dart" -type f 2>/dev/null | grep -v '/proto/' | sort)
-
-    # ── Optimization: filter files worth auditing ──
-    DART_FILES=()
-    SKIPPED_TINY=0
-    SKIPPED_UNCHANGED=0
-    LAST_AUDIT_TAG="audit-pre-cycle-$((AUDIT_CYCLE - 1))"
-
-    for dart_file in "${ALL_DART_FILES[@]}"; do
-      # Skip tiny files (<50 lines — re-exports, barrel files, stubs)
-      line_count=$(wc -l < "$dart_file" 2>/dev/null || echo 0)
-      if [[ $line_count -lt 50 ]]; then
-        SKIPPED_TINY=$((SKIPPED_TINY + 1))
-        continue
-      fi
-
-      # On cycle 2+, only audit files that changed since last audit
-      if [[ $AUDIT_CYCLE -gt 1 ]] && git -C "$PROJECT_ROOT" rev-parse "$LAST_AUDIT_TAG" &>/dev/null; then
-        relative_path="${dart_file#$PROJECT_ROOT/}"
-        if ! git -C "$PROJECT_ROOT" diff --name-only "$LAST_AUDIT_TAG"..HEAD -- "$relative_path" 2>/dev/null | grep -q .; then
-          SKIPPED_UNCHANGED=$((SKIPPED_UNCHANGED + 1))
-          continue
-        fi
-      fi
-
-      DART_FILES+=("$dart_file")
-    done
-
+    mapfile -t DART_FILES < <(find "$PROJECT_ROOT/dart/lib/ui" "$PROJECT_ROOT/dart/lib/state" "$PROJECT_ROOT/dart/lib/bridge" "$PROJECT_ROOT/dart/lib/theme" -name "*.dart" -type f 2>/dev/null | grep -v '/proto/' | sort)
     NUM_FILES=${#DART_FILES[@]}
-    log "  📂 Auditing $NUM_FILES files (skipped: $SKIPPED_TINY tiny, $SKIPPED_UNCHANGED unchanged)"
+    log "  📂 Auditing ALL $NUM_FILES files (ui + state + bridge + theme)"
 
     rm -f "$PROJECT_ROOT/checklist/audit_chunk_"*.md "$PROJECT_ROOT/checklist/audit_journey_"*.md
 
@@ -828,7 +801,7 @@ Item: $CURRENT_ITEM"
     done
 
     log ""
-    log "  📊 Layer 1: $SUCCESSFUL_CHUNKS/$NUM_FILES audited, $FAILED_CHUNKS failed, $SKIPPED_TINY tiny-skipped, $SKIPPED_UNCHANGED unchanged-skipped"
+    log "  📊 Layer 1: $SUCCESSFUL_CHUNKS/$NUM_FILES audited, $FAILED_CHUNKS failed"
     [[ $FAILED_CHUNKS -gt 0 ]] && log "  ⚠️  $FAILED_CHUNKS files failed (partial-failure — continuing)"
 
     # ── LAYER 2: Journey-based visual audit (if app builds) ──
