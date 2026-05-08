@@ -102,13 +102,6 @@
 
 ## §51 — Ghost Mode
 
-## §52 — Anti-Recall & Message History
-
-- [ ] spec §52.2-52.4 "Deletion/Edit interception flow": No actual deletion or edit interception implementation exists in the Dart codebase. There is no mechanism to preserve deleted messages or capture pre-edit text. The `saveDeletedMessages` and `saveMessagesHistory` toggles in `ghost_settings_page.dart` are persisted but have no functional backend wiring
-- [ ] spec §52.5 "Deleted Messages Viewer": No "View deleted messages" section panel or chat-list context menu action. No `MessageHistory` equivalent widget exists
-- [ ] spec §52.4 "Edit History Viewer": No "Edits history" context menu item or section panel for viewing edit revisions
-- [ ] spec §52.6 "Database Storage": No SQLite `ayudata.db` or equivalent local storage for preserved deleted/edited messages
-- [ ] spec §52.7 "Context Menu — Edits history / Hide message / Read until here / Burn media": None of these AyuGram-specific context menu actions are implemented in the message bubble context menu
 
 ## §53 — Forward Enhancements
 
