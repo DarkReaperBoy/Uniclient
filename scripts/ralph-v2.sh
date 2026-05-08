@@ -412,45 +412,67 @@ build_audit_prompt() {
   local dart_basename
   dart_basename=$(basename "$dart_file" .dart)
   cat <<PROMPT_END
-You are an autonomous UI auditor. Your job: compare ONE Flutter Dart file against the
-real AyuGram Desktop (Telegram Desktop fork) C++ source code and find every discrepancy.
+You are an autonomous auditor. Your job: read ONE Dart file, find the matching AyuGram
+Desktop C++ source, and report EVERY discrepancy — visual, behavioral, AND wiring.
 
 DART FILE TO AUDIT: $dart_file
-Read this file COMPLETELY.
+Read this file COMPLETELY. Every line.
 
 AYUGRAM SOURCE (GROUND TRUTH): $AYUGRAM_UI/
-Your job:
-1. Read the Dart file above
-2. Figure out what UI area it implements (chat list? message bubbles? settings? header?)
-3. Find the MATCHING AyuGram C++ source files:
-   - Search: find $AYUGRAM_UI/ -name "*.style" -o -name "*.cpp" -o -name "*.h" | xargs grep -l "keyword"
-   - .style files have exact pixel values: dialogsRowHeight: 62px, photoSize: 46px, etc.
-   - .cpp files have behavior: how widgets are created, laid out, respond to events
-   - .h files have structure: class definitions, enums, constants
-4. Compare the Dart implementation against the AyuGram source line by line
-5. Report every discrepancy
+Steps:
+1. Read the Dart file completely
+2. Figure out what it implements
+3. Find matching AyuGram source:
+   - find $AYUGRAM_UI/ -name "*.style" -o -name "*.cpp" -o -name "*.h" | xargs grep -l "keyword"
+4. Compare line by line
 
-Create a SECTION HEADING for this file, then list all issues.
-EVERY item MUST cite BOTH the AyuGram source file AND our Dart file so the
-implementer knows exactly where to look on both sides:
+CHECK ALL OF THESE — not just visuals:
 
-## $dart_basename — [short description of what this file does]
+**PLACEHOLDERS & STUBS (most important):**
+- onTap: () {} — empty callback that does nothing
+- TODO/FIXME/HACK comments
+- Hardcoded fake data (mock messages, dummy users, static lists)
+- SnackBar("coming soon") or similar fake feedback
+- Functions that return early or throw "not implemented"
+- Features that LOOK functional but aren't wired to the engine/bridge
 
-- [ ] [CRITICAL] description (AyuGram has X, our code has Y) — \`$(basename "$dart_file")\` ← \`AyuGram/path/to/source.style:lineN\`
+**BACKEND WIRING:**
+- Does the UI actually call the engine (bridge.call) for the feature it displays?
+- Are API responses actually used, or is the UI showing cached/stale/fake data?
+- Do state changes from the engine (events) actually update the UI?
+- Group chats: do sender names come from real user data or are they missing/hardcoded?
+- Media: are images actually downloaded and displayed, or just showing placeholders?
+- Calls: is the call UI wired to real call engine methods, or is it purely cosmetic?
+
+**VISUAL ACCURACY (compare to AyuGram .style files):**
+- Dimensions, colors, fonts, padding, margins
+- Layout structure and nesting
+- Responsive behavior at different widths
+
+**BEHAVIORAL ACCURACY (compare to AyuGram .cpp files):**
+- User interactions: tap, long-press, swipe, scroll, drag
+- State transitions: what happens when you tap X?
+- Context menus: which items appear and what do they do?
+- Error/empty/loading states
+
+OUTPUT FORMAT — EVERY item cites BOTH files:
+
+## $dart_basename — [short description]
+
+- [ ] [CRITICAL] description — \`$(basename "$dart_file"):lineN\` ← \`AyuGram/path/to/source.style:lineN\`
 - [ ] [MAJOR] description — \`$(basename "$dart_file"):lineN\` ← \`AyuGram/path/to/file.cpp:lineN\`
 
-SEVERITY (proportional — Weber's Law):
-- CRITICAL: >25% deviation on small elements, element missing, interaction broken, placeholder/TODO
-- MAJOR: >10% proportional deviation, wrong behavior, wrong state, wrong order
-- Skip MINOR (<10%) and COSMETIC (<5%)
+SEVERITY:
+- CRITICAL: placeholder/stub, feature not wired to backend, element missing, >25% deviation
+- MAJOR: wrong behavior, data not flowing, >10% deviation, wrong state
+- Skip MINOR and COSMETIC
 
 RULES:
-- AyuGram C++ source is the ONLY authority. Do NOT reference any spec/markdown file.
-- EVERY checklist item MUST have BOTH file citations: our dart file AND the AyuGram source file.
-- Be specific: "AyuGram st::dialogsRowHeight = 62px but ChatListRow height is 64" not "wrong size"
-- Check: dimensions, colors, fonts, padding, margins, behavior, missing features, TODO stubs, empty callbacks
-- If the Dart file has features AyuGram doesn't — that's fine, skip those
-- If AyuGram has features the Dart file is missing — that's a CRITICAL finding
+- AyuGram C++ source is the ONLY authority
+- EVERY item MUST cite BOTH files with line numbers
+- Placeholders and broken wiring are ALWAYS CRITICAL — a button that does nothing is worse than a button that's 2px off
+- If a UI element exists but isn't connected to the engine, that's CRITICAL
+- If data should come from the backend but is hardcoded/faked, that's CRITICAL
 
 Write findings to /home/nako/Documents/uniclient/checklist/audit_chunk_${chunk_id}.md
 If no issues: write "# ${dart_basename} — No issues found"
@@ -719,10 +741,10 @@ Item: $CURRENT_ITEM"
     update_progress "audit" "cycle $AUDIT_CYCLE" "Layer 1: per-file code comparison"
     log "  Layer 1: Comparing each Dart UI file against AyuGram source..."
 
-    # Get all UI dart files (skip generated protos, models, bridge)
-    mapfile -t DART_FILES < <(find "$PROJECT_ROOT/dart/lib/ui" -name "*.dart" -type f | sort)
+    # Get all auditable dart files: UI + state + bridge + theme (skip generated protos)
+    mapfile -t DART_FILES < <(find "$PROJECT_ROOT/dart/lib/ui" "$PROJECT_ROOT/dart/lib/state" "$PROJECT_ROOT/dart/lib/bridge" "$PROJECT_ROOT/dart/lib/theme" -name "*.dart" -type f 2>/dev/null | grep -v '/proto/' | sort)
     NUM_FILES=${#DART_FILES[@]}
-    log "  📂 Found $NUM_FILES Dart UI files to audit"
+    log "  📂 Found $NUM_FILES Dart files to audit (ui + state + bridge + theme)"
 
     rm -f "$PROJECT_ROOT/checklist/audit_chunk_"*.md "$PROJECT_ROOT/checklist/audit_journey_"*.md
 
