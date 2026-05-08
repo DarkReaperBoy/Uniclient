@@ -89,20 +89,6 @@
 
 ## §43 — Read Receipts Detail
 
-## §44 — Spoiler Animation
-
-- [ ] spec §44.1 "Text spoiler rendering": spec says text behind spoiler is drawn at `opacity = 1 - spoilerOpacity` for cross-fade; `SpoilerTilePainter` draws particle overlay at `opacity = 1 - revealProgress` and the text below is expected to be drawn separately by the caller — particle overlay is correct, but the text cross-fade depends on the message_bubble integration
-- [ ] spec §44.3 "Particle counts": spec says text spoiler = 9000 particles, image = 3000; code uses `count = isText ? 9000 : 3000` — verified OK in `spoiler_animation.dart:138`
-- [ ] spec §44.3 "Frame count and duration": spec says 60 frames at 33ms (~30fps); code uses `_kFrameCount = 60` with `33ms` frame step — verified OK
-- [ ] spec §44.3 "Canvas size": spec says 128dp; code uses `_kCanvasSize = 128.0` — verified OK
-- [ ] spec §44.3 "Sprite variants": spec says 5 variants with size variation; code uses `_kSpriteVariants = 5` with correct size variation logic — verified OK
-- [ ] spec §44.4 "Reveal duration": spec says reveal animation over 200ms (`fadeWrapDuration`); the `SpoilerTilePainter` accepts `revealProgress` parameter but the 200ms duration must be driven by the caller — `spoiler_animation.dart:266`
-- [ ] spec §44.5 "Compose field spoiler": spec says `FieldSpoilerOverlay` with cursor-based 50% opacity (`kSpoilerHiddenOpacity = 0.5`); code provides `SpoilerAnimationMixin` but does not implement compose-field-specific cursor-based opacity reduction — `spoiler_animation.dart`
-- [ ] spec §44.6 "Spoiler in notifications": spec says spoiler chars replaced with U+259A; code implements `_applySpoiler` using `_spoilerBlock = '▚'` correctly, and `_maskLoginCodes` with the matching regex — verified OK in `notification_types.dart:199-329`
-- [ ] spec §44.7 "Auto-pause timeout": spec says `kAutoPauseTimeout = 1000ms`; code uses `_kAutoPauseTimeoutMs = 1000` — verified OK
-- [ ] spec §44.7 "Color cache capacity": spec says `kDefaultSpoilerCacheCapacity = 24`; code defines `_kColorCacheCapacity = 24` but does not implement the actual per-color cache (the `SpoilerTilePainter` uses `ColorFilter.mode` instead of pre-cached colorized sprite sheets) — `spoiler_animation.dart:19`
-- [ ] spec §44.7 "Power saving": spec says `kChatSpoiler` flag pauses animations; code reads `AppState.kPowerSavingChatSpoiler` and sets `powerSavingPaused` — verified OK
-- [ ] spec §44.8 "Image spoiler darken alpha": spec says `kImageSpoilerDarkenAlpha = 32`; code uses `Color.fromRGBO(0, 0, 0, (32 / 255) * opacity)` — verified OK in `spoiler_animation.dart:289`
 
 ## §45 — Custom Emoji Rendering
 
