@@ -107,12 +107,7 @@
 
 ## §54 — AyuGram UI Customization
 
-- [ ] spec §54.1 "Avatar Corners — live preview": `_AvatarCornersPreview` renders a static placeholder ("A" letter, purple background) instead of the actual AyuGramReleases channel userpic fetched via `contacts.resolveUsername`. The preview does not resolve a real userpic as spec requires — `ayu_appearance_page.dart`
-- [ ] spec §54.3 "Wide Messages Multiplier — slider range": Spec says valid range is 0.5-4.0. Code uses `min: 1.0, max: 4.0, divisions: 60` — missing the 0.5-1.0 range. Fix: `min: 0.5, max: 4.0, divisions: 70` — `ayu_chats_page.dart` (_WideMultiplierSlider)
-- [ ] spec §54.9 "Message Field Button Toggles — wiring": Seven message field button toggles exist in `ayu_chats_page.dart` (Attach, Commands, TTL, Emoji, Voice, Gift, AI Editor) but their state is not consumed by the actual compose area to show/hide buttons. The toggles persist settings but the compose area does not read them
-- [ ] spec §54.10 "App Icon — icon picker": `_AppIconPicker` in `ayu_appearance_page.dart` renders colored squares with Material icons (28px) instead of actual app icon image previews. The 12 icon themes are listed correctly but need real image assets rendered at 64px
-- [ ] spec §54.10a "IconPicker — resolved layout": Spec says `iconPickerIconSize` = 64px. Code renders 28px Material icons inside colored containers. Fix: use Image.asset() at 64px for each icon theme's preview image
-- [ ] spec §54.12 "Settings Page Structure": The "AyuGram" category button navigates to `GhostSettingsPage` (ghost + spy only). Spec maps the button to `AyuGhost` (ghost + spy + other). Drawer/Tray Elements placement is now fixed (moved to Appearance). Remaining fix: make the "AyuGram" entry include "other" settings or create an AyuGhostPage wrapper — `ayugram_settings_screen.dart`
+- [ ] spec §54.1 "Avatar Corners — live preview": `_AvatarCornersPreview` renders a static placeholder (custom AyuGram painter, purple gradient with white icon) instead of the actual AyuGramReleases channel userpic fetched via `contacts.resolveUsername`. The preview does not resolve a real userpic as spec requires — `ayu_appearance_page.dart`
 
 ## §55 — Channel & Group Statistics
 
@@ -160,4 +155,3 @@
 - [ ] The collapsible toggle in `ayu_section_builder.dart` does not implement a master toggle that sets all sub-checkboxes — it only shows/hides nested checkboxes. Spec §51.2.1 says the master toggle calls `setGhostModeEnabled(bool)` which flips all five core toggles
 - [ ] No `-ghost` command-line flag support for launch-time ghost mode activation
 - [ ] Statistics page infrastructure (`StatsChartWidget`, all 5 chart types, tooltip, footer, pie zoom, server zoom, filter buttons, FPS-adaptive animation) is fully built but never wired to any navigation entry point
-- [ ] The AyuGram settings page structure partially mismatches spec §54.12: Drawer/Tray Elements are under "Other" instead of "Appearance"; the "AyuGram" category maps to ghost-only instead of ghost+spy+other
