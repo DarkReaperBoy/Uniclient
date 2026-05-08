@@ -1,5 +1,13 @@
 import 'package:flutter/widgets.dart';
 
-Widget buildWebDropZone({required Widget child, void Function(List<String> names)? onDrop}) {
+import 'web_drop.dart';
+
+Widget buildWebDropZone({
+  required Widget child,
+  void Function()? onDragEnter,
+  void Function()? onDragLeave,
+  void Function(Offset localPosition)? onDragUpdate,
+  void Function(List<WebDroppedFile> files)? onDrop,
+}) {
   return child;
 }

@@ -4145,13 +4145,70 @@ class _ChatViewState extends State<ChatView>
     if (kIsWeb) {
       return buildWebDropZone(
         child: child,
-        onDrop: (names) async {
-          if (names.isEmpty) return;
-          final result = await FilePicker.platform.pickFiles(allowMultiple: true);
-          if (result == null || result.files.isEmpty) return;
-          final paths = result.files.where((f) => f.path != null).map((f) => f.path!).toList();
+        onDragEnter: () {
+          if (_isVoiceRecording) return;
+          final chat = context.read<ChatState>().activeChat;
+          if (!_canSendFiles(chat)) return;
+          setState(() {
+            _isDragOver = true;
+            _dragLayout = _DragZoneLayout.photoFiles;
+          });
+          _dragOverlayAnimCtrl.forward();
+        },
+        onDragLeave: () {
+          setState(() {
+            _isDragOver = false;
+            _dragHoveredCard = 0;
+          });
+          _dragOverlayAnimCtrl.reverse();
+        },
+        onDragUpdate: (localPos) {
+          if (!_isDragOver) return;
+          final box = context.findRenderObject() as RenderBox?;
+          if (box == null) return;
+          final w = box.size.width;
+          final h = box.size.height;
+          const mT = 10.0, mB = 10.0;
+          const pL = 20.0, pT = 10.0, pR = 20.0, pB = 10.0;
+          int newCard = 0;
+          final isSingle = _dragLayout == _DragZoneLayout.files ||
+              _dragLayout == _DragZoneLayout.image;
+          if (isSingle) {
+            if (localPos.dx >= pL && localPos.dx <= w - pR &&
+                localPos.dy >= mT + pT && localPos.dy <= h - mB - pB) {
+              newCard = _dragLayout == _DragZoneLayout.files ? 1 : 2;
+            }
+          } else {
+            final half = h / 2;
+            if (localPos.dx >= pL && localPos.dx <= w - pR) {
+              if (localPos.dy >= mT + pT && localPos.dy <= half - mB - pB) {
+                newCard = 1;
+              } else if (localPos.dy >= half + mT + pT && localPos.dy <= h - mB - pB) {
+                newCard = 2;
+              }
+            }
+          }
+          if (newCard != _dragHoveredCard) {
+            setState(() => _dragHoveredCard = newCard);
+          }
+        },
+        onDrop: (files) async {
+          final droppedCard = _dragHoveredCard;
+          setState(() {
+            _isDragOver = false;
+            _dragHoveredCard = 0;
+          });
+          _dragOverlayAnimCtrl.value = 0;
+          if (droppedCard == 0 || files.isEmpty) return;
+          final chat = context.read<ChatState>().activeChat;
+          if (!_canSendFiles(chat)) return;
+          final layout = _classifyWebDropFiles(files);
+          if (layout == _DragZoneLayout.none) return;
+          final asDocuments = droppedCard == 1;
+          final paths = await _writeWebDroppedFiles(files);
           if (paths.isNotEmpty) {
-            _uploadFiles(context.read<ChatState>(), paths);
+            _uploadFiles(context.read<ChatState>(), paths,
+                overrideSendAsDocuments: asDocuments);
           }
         },
       );
@@ -16963,6 +17020,45 @@ _DragZoneLayout _classifyDragFiles(List<String> paths) {
   if (allSmallImages) return _DragZoneLayout.photoFiles;
   if (allMedia) return _DragZoneLayout.mediaFiles;
   return _DragZoneLayout.files;
+}
+
+_DragZoneLayout _classifyWebDropFiles(List<WebDroppedFile> files) {
+  if (files.isEmpty) return _DragZoneLayout.none;
+  const imageTypes = {'image/jpeg', 'image/png', 'image/bmp', 'image/webp', 'image/tiff', 'image/heic', 'image/heif'};
+  const videoTypes = {'video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska', 'video/webm'};
+  bool allSmallImages = true;
+  bool allMedia = true;
+  for (final f in files) {
+    if (f.size > _kMaxDragFileSize) return _DragZoneLayout.none;
+    final mime = f.mimeType.toLowerCase();
+    if (mime == 'image/gif') {
+      allSmallImages = false;
+    } else if (imageTypes.contains(mime)) {
+      if (f.size > _kSmallImageSizeLimit) allSmallImages = false;
+    } else {
+      allSmallImages = false;
+      if (!videoTypes.contains(mime)) {
+        allMedia = false;
+      }
+    }
+  }
+  if (allSmallImages) return _DragZoneLayout.photoFiles;
+  if (allMedia) return _DragZoneLayout.mediaFiles;
+  return _DragZoneLayout.files;
+}
+
+Future<List<String>> _writeWebDroppedFiles(List<WebDroppedFile> files) async {
+  final paths = <String>[];
+  final tempDir = Directory.systemTemp;
+  final ts = DateTime.now().millisecondsSinceEpoch;
+  for (var i = 0; i < files.length; i++) {
+    final f = files[i];
+    final safeName = f.name.replaceAll(RegExp(r'[^\w.\-]'), '_');
+    final path = '${tempDir.path}/uniclient_drop_${ts}_${i}_$safeName';
+    await File(path).writeAsBytes(f.bytes);
+    paths.add(path);
+  }
+  return paths;
 }
 
 /// §48 drag-and-drop file overlay. Four layout states with text-only cards.

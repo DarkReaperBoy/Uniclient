@@ -1,25 +1,53 @@
+import 'dart:async';
 import 'dart:js_interop';
+import 'dart:typed_data';
 
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:web/web.dart' as web;
 
-Widget buildWebDropZone({required Widget child, void Function(List<String> names)? onDrop}) {
-  return _WebDropZone(onDrop: onDrop, child: child);
+import 'web_drop.dart';
+
+Widget buildWebDropZone({
+  required Widget child,
+  void Function()? onDragEnter,
+  void Function()? onDragLeave,
+  void Function(Offset localPosition)? onDragUpdate,
+  void Function(List<WebDroppedFile> files)? onDrop,
+}) {
+  return _WebDropZone(
+    onDragEnter: onDragEnter,
+    onDragLeave: onDragLeave,
+    onDragUpdate: onDragUpdate,
+    onDrop: onDrop,
+    child: child,
+  );
 }
 
 class _WebDropZone extends StatefulWidget {
   final Widget child;
-  final void Function(List<String> names)? onDrop;
+  final void Function()? onDragEnter;
+  final void Function()? onDragLeave;
+  final void Function(Offset localPosition)? onDragUpdate;
+  final void Function(List<WebDroppedFile> files)? onDrop;
 
-  const _WebDropZone({required this.child, this.onDrop});
+  const _WebDropZone({
+    required this.child,
+    this.onDragEnter,
+    this.onDragLeave,
+    this.onDragUpdate,
+    this.onDrop,
+  });
 
   @override
   State<_WebDropZone> createState() => _WebDropZoneState();
 }
 
 class _WebDropZoneState extends State<_WebDropZone> {
-  bool _dragOver = false;
+  bool _active = false;
+  int _enterCount = 0;
 
+  late final JSFunction _onDragEnter;
   late final JSFunction _onDragOver;
   late final JSFunction _onDrop;
   late final JSFunction _onDragLeave;
@@ -27,11 +55,13 @@ class _WebDropZoneState extends State<_WebDropZone> {
   @override
   void initState() {
     super.initState();
+    _onDragEnter = _handleDragEnter.toJS;
     _onDragOver = _handleDragOver.toJS;
     _onDrop = _handleDrop.toJS;
     _onDragLeave = _handleDragLeave.toJS;
 
     final body = web.document.body!;
+    body.addEventListener('dragenter', _onDragEnter);
     body.addEventListener('dragover', _onDragOver);
     body.addEventListener('drop', _onDrop);
     body.addEventListener('dragleave', _onDragLeave);
@@ -40,55 +70,101 @@ class _WebDropZoneState extends State<_WebDropZone> {
   @override
   void dispose() {
     final body = web.document.body!;
+    body.removeEventListener('dragenter', _onDragEnter);
     body.removeEventListener('dragover', _onDragOver);
     body.removeEventListener('drop', _onDrop);
     body.removeEventListener('dragleave', _onDragLeave);
     super.dispose();
   }
 
+  void _handleDragEnter(web.Event event) {
+    event.preventDefault();
+    _enterCount++;
+    if (!_active) {
+      _active = true;
+      widget.onDragEnter?.call();
+    }
+  }
+
   void _handleDragOver(web.Event event) {
     event.preventDefault();
-    if (!_dragOver) setState(() => _dragOver = true);
+    final de = event as web.DragEvent;
+    if (de.dataTransfer != null) {
+      de.dataTransfer!.dropEffect = 'copy';
+    }
+    final box = context.findRenderObject() as RenderBox?;
+    if (box != null) {
+      final globalPos = Offset(de.clientX.toDouble(), de.clientY.toDouble());
+      final localPos = box.globalToLocal(globalPos);
+      widget.onDragUpdate?.call(localPos);
+    }
   }
 
   void _handleDragLeave(web.Event event) {
-    if (_dragOver) setState(() => _dragOver = false);
+    _enterCount--;
+    if (_enterCount <= 0) {
+      _enterCount = 0;
+      if (_active) {
+        _active = false;
+        widget.onDragLeave?.call();
+      }
+    }
   }
 
   void _handleDrop(web.Event event) {
     event.preventDefault();
-    setState(() => _dragOver = false);
+    _enterCount = 0;
+    _active = false;
 
     final de = event as web.DragEvent;
     final dt = de.dataTransfer;
     if (dt == null) return;
 
-    final fileNames = <String>[];
     final files = dt.files;
+    if (files.length == 0) return;
+
+    final webFiles = <web.File>[];
     for (var i = 0; i < files.length; i++) {
-      fileNames.add(files.item(i)!.name);
+      webFiles.add(files.item(i)!);
     }
-    if (fileNames.isNotEmpty) {
-      widget.onDrop?.call(fileNames);
+
+    _readFiles(webFiles);
+  }
+
+  Future<void> _readFiles(List<web.File> webFiles) async {
+    final results = <WebDroppedFile>[];
+    for (final wf in webFiles) {
+      try {
+        final bytes = await _readFileBytes(wf);
+        results.add(WebDroppedFile(
+          name: wf.name,
+          size: wf.size,
+          mimeType: wf.type,
+          bytes: bytes,
+        ));
+      } catch (_) {
+        // Skip files that can't be read.
+      }
     }
+    if (results.isNotEmpty) {
+      widget.onDrop?.call(results);
+    }
+  }
+
+  Future<Uint8List> _readFileBytes(web.File file) {
+    final completer = Completer<Uint8List>();
+    final reader = web.FileReader();
+    reader.onload = (web.Event event) {
+      final result = reader.result as JSArrayBuffer;
+      completer.complete(result.toDart.asUint8List());
+    }.toJS;
+    reader.onerror = (web.Event event) {
+      completer.completeError(Exception('Failed to read file: ${file.name}'));
+    }.toJS;
+    reader.readAsArrayBuffer(file);
+    return completer.future;
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        child,
-        if (_dragOver)
-          Positioned.fill(
-            child: IgnorePointer(
-              child: ColoredBox(
-                color: const Color(0x3340a7e3),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget get child => widget.child;
+  Widget build(BuildContext context) => widget.child;
 }
