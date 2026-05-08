@@ -739,16 +739,43 @@ Item: $CURRENT_ITEM"
 
     # ── LAYER 1: Per-file audit (Dart vs AyuGram, parallel Sonnet) ─
     update_progress "audit" "cycle $AUDIT_CYCLE" "Layer 1: per-file code comparison"
-    log "  Layer 1: Comparing each Dart UI file against AyuGram source..."
+    log "  Layer 1: Comparing Dart files against AyuGram source..."
 
     # Get all auditable dart files: UI + state + bridge + theme (skip generated protos)
-    mapfile -t DART_FILES < <(find "$PROJECT_ROOT/dart/lib/ui" "$PROJECT_ROOT/dart/lib/state" "$PROJECT_ROOT/dart/lib/bridge" "$PROJECT_ROOT/dart/lib/theme" -name "*.dart" -type f 2>/dev/null | grep -v '/proto/' | sort)
+    mapfile -t ALL_DART_FILES < <(find "$PROJECT_ROOT/dart/lib/ui" "$PROJECT_ROOT/dart/lib/state" "$PROJECT_ROOT/dart/lib/bridge" "$PROJECT_ROOT/dart/lib/theme" -name "*.dart" -type f 2>/dev/null | grep -v '/proto/' | sort)
+
+    # ── Optimization: filter files worth auditing ──
+    DART_FILES=()
+    SKIPPED_TINY=0
+    SKIPPED_UNCHANGED=0
+    LAST_AUDIT_TAG="audit-pre-cycle-$((AUDIT_CYCLE - 1))"
+
+    for dart_file in "${ALL_DART_FILES[@]}"; do
+      # Skip tiny files (<50 lines — re-exports, barrel files, stubs)
+      line_count=$(wc -l < "$dart_file" 2>/dev/null || echo 0)
+      if [[ $line_count -lt 50 ]]; then
+        SKIPPED_TINY=$((SKIPPED_TINY + 1))
+        continue
+      fi
+
+      # On cycle 2+, only audit files that changed since last audit
+      if [[ $AUDIT_CYCLE -gt 1 ]] && git -C "$PROJECT_ROOT" rev-parse "$LAST_AUDIT_TAG" &>/dev/null; then
+        relative_path="${dart_file#$PROJECT_ROOT/}"
+        if ! git -C "$PROJECT_ROOT" diff --name-only "$LAST_AUDIT_TAG"..HEAD -- "$relative_path" 2>/dev/null | grep -q .; then
+          SKIPPED_UNCHANGED=$((SKIPPED_UNCHANGED + 1))
+          continue
+        fi
+      fi
+
+      DART_FILES+=("$dart_file")
+    done
+
     NUM_FILES=${#DART_FILES[@]}
-    log "  📂 Found $NUM_FILES Dart files to audit (ui + state + bridge + theme)"
+    log "  📂 Auditing $NUM_FILES files (skipped: $SKIPPED_TINY tiny, $SKIPPED_UNCHANGED unchanged)"
 
     rm -f "$PROJECT_ROOT/checklist/audit_chunk_"*.md "$PROJECT_ROOT/checklist/audit_journey_"*.md
 
-    BATCH_SIZE=6
+    BATCH_SIZE=8
     PIDS=()
     CHUNK_ID=0
     SUCCESSFUL_CHUNKS=0
@@ -759,7 +786,7 @@ Item: $CURRENT_ITEM"
       CHUNK_FILE="$ITER_LOG_DIR/audit_c${AUDIT_CYCLE}_${dart_basename}.log"
       PROMPT="$(build_audit_prompt "$dart_file" "$CHUNK_ID")"
 
-      log "    [$CHUNK_ID/$NUM_FILES] $dart_basename.dart"
+      log "    [$((CHUNK_ID + 1))/$NUM_FILES] $dart_basename.dart ($(wc -l < "$dart_file") lines)"
 
       (
         set +e
@@ -790,7 +817,7 @@ Item: $CURRENT_ITEM"
     done
 
     log ""
-    log "  📊 Layer 1: $SUCCESSFUL_CHUNKS/$NUM_FILES files audited, $FAILED_CHUNKS failed"
+    log "  📊 Layer 1: $SUCCESSFUL_CHUNKS/$NUM_FILES audited, $FAILED_CHUNKS failed, $SKIPPED_TINY tiny-skipped, $SKIPPED_UNCHANGED unchanged-skipped"
     [[ $FAILED_CHUNKS -gt 0 ]] && log "  ⚠️  $FAILED_CHUNKS files failed (partial-failure — continuing)"
 
     # ── LAYER 2: Journey-based visual audit (if app builds) ──
