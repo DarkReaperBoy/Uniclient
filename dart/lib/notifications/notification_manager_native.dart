@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:ffi' as ffi;
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dbus/dbus.dart';
+import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
@@ -10,6 +12,24 @@ import 'package:path/path.dart' as p;
 import '../utils/debug.dart';
 import 'notification_manager.dart';
 import 'notification_types.dart';
+
+late final _setenvFn = () {
+  final libc = ffi.DynamicLibrary.open('libc.so.6');
+  return libc.lookupFunction<
+      ffi.Int32 Function(ffi.Pointer<Utf8>, ffi.Pointer<Utf8>, ffi.Int32),
+      int Function(ffi.Pointer<Utf8>, ffi.Pointer<Utf8>, int)>('setenv');
+}();
+
+void _setEnv(String key, String value) {
+  final keyPtr = key.toNativeUtf8(allocator: malloc);
+  final valuePtr = value.toNativeUtf8(allocator: malloc);
+  try {
+    _setenvFn(keyPtr, valuePtr, 1);
+  } finally {
+    malloc.free(keyPtr);
+    malloc.free(valuePtr);
+  }
+}
 
 typedef NotificationActionCallback = void Function(
     String accountId, String chatId, String action);
@@ -123,7 +143,7 @@ class NativeManager extends NotificationManager {
 
   @override
   bool get handlesSound =>
-      _capabilities.contains('sound-file') && !_inhibited;
+      _capabilities.contains('sound') && !_inhibited;
 
   String defaultSoundPath = '';
   final CachedUserpics _userpicCache = CachedUserpics();
@@ -144,6 +164,7 @@ class NativeManager extends NotificationManager {
   StreamSubscription<DBusSignal>? _actionSub;
   StreamSubscription<DBusSignal>? _closedSub;
   StreamSubscription<DBusSignal>? _replySub;
+  StreamSubscription<DBusSignal>? _activationTokenSub;
 
   NativeManager() {
     if (!kIsWeb && Platform.isLinux) {
@@ -181,9 +202,12 @@ class NativeManager extends NotificationManager {
           replySignature: DBusSignature('ssss'),
         );
         final specVersion = infoResult.returnValues[3].asString();
-        if (specVersion.compareTo('1.1') >= 0) {
+        final specParts = specVersion.split('.');
+        final specMajor = int.tryParse(specParts.isNotEmpty ? specParts[0] : '0') ?? 0;
+        final specMinor = int.tryParse(specParts.length > 1 ? specParts[1] : '0') ?? 0;
+        if (specMajor > 1 || (specMajor == 1 && specMinor >= 2)) {
           _imageDataKey = 'image-data';
-        } else if (specVersion.compareTo('1.0') >= 0) {
+        } else if (specMajor == 1 && specMinor == 1) {
           _imageDataKey = 'image_data';
         } else {
           _imageDataKey = 'icon_data';
@@ -233,6 +257,13 @@ class NativeManager extends NotificationManager {
         ).listen(_onNotificationReplied);
       }
 
+      _activationTokenSub = DBusSignalStream(
+        _dbus!,
+        interface: 'org.freedesktop.Notifications',
+        name: 'ActivationToken',
+        path: notifPath,
+      ).listen(_onActivationToken);
+
       _ready = true;
       Debug.log('NOTIF', 'Linux DBus backend initialized');
     } catch (e) {
@@ -261,9 +292,15 @@ class NativeManager extends NotificationManager {
   }
 
   void _onNotificationClosed(DBusSignal signal) {
-    if (signal.values.isEmpty) return;
+    if (signal.values.length < 2) return;
     final nativeId = signal.values[0].asUint32();
-    _removeNativeId(nativeId);
+    final reason = signal.values[1].asUint32();
+    // Only drop tracking when user dismissed (reason 2). For expired/programmatic
+    // close, keep the reference so clearForChat can later call CloseNotification
+    // to remove it from notification history.
+    if (reason == 2) {
+      _removeNativeId(nativeId);
+    }
   }
 
   void _onNotificationReplied(DBusSignal signal) {
@@ -276,6 +313,15 @@ class NativeManager extends NotificationManager {
     Debug.log('NOTIF', 'Reply: "$replyText" for ${data.chatTitle}');
     onReply?.call(data.accountId, data.chatId, data.messageId, replyText);
     _removeNativeId(nativeId);
+  }
+
+  void _onActivationToken(DBusSignal signal) {
+    if (signal.values.length < 2) return;
+    final nativeId = signal.values[0].asUint32();
+    final token = signal.values[1].asString();
+    if (_nativeIdToData.containsKey(nativeId)) {
+      _setEnv('XDG_ACTIVATION_TOKEN', token);
+    }
   }
 
   void _removeNativeId(int nativeId) {
@@ -299,24 +345,43 @@ class NativeManager extends NotificationManager {
 
     final contextKey = '${data.accountId}:${data.chatId}';
 
-    final actions = <DBusValue>[
-      DBusString('default'),
-      DBusString('Open'),
-      DBusString('mail-mark-read'),
-      DBusString('Mark as Read'),
-    ];
-    final hideReply = shouldHideReplyButton(data, settings);
-    if (_capabilities.contains('inline-reply') && !hideReply) {
+    final actions = <DBusValue>[];
+    if (_capabilities.contains('actions')) {
       actions.addAll([
-        DBusString('inline-reply'),
-        DBusString('Reply'),
+        DBusString('default'),
+        DBusString('Open'),
       ]);
+      if (!data.hideMarkAsRead) {
+        actions.addAll([
+          DBusString('mail-mark-read'),
+          DBusString('Mark as Read'),
+        ]);
+      }
+      final hideReply = shouldHideReplyButton(data, settings);
+      if (_capabilities.contains('inline-reply') && !hideReply) {
+        actions.addAll([
+          DBusString('inline-reply'),
+          DBusString('Reply'),
+        ]);
+      }
     }
 
     final hints = <DBusValue, DBusValue>{
       DBusString('category'): DBusVariant(DBusString('im.received')),
       DBusString('urgency'): DBusVariant(DBusByte(1)),
     };
+
+    if (_capabilities.contains('action-icons')) {
+      hints[DBusString('action-icons')] = DBusVariant(DBusBoolean(true));
+    }
+
+    if (_capabilities.contains('x-canonical-append')) {
+      hints[DBusString('x-canonical-append')] =
+          DBusVariant(DBusString('true'));
+    }
+
+    hints[DBusString('desktop-entry')] =
+        DBusVariant(DBusString('uniclient'));
 
     final forceHideDetails = !settings.previewName && !settings.previewText;
     if (!forceHideDetails && data.avatarPath.isNotEmpty) {
@@ -332,7 +397,7 @@ class NativeManager extends NotificationManager {
         !_inhibited &&
         !data.isSilent &&
         !data.soundNone &&
-        _capabilities.contains('sound-file')) {
+        _capabilities.contains('sound')) {
       final soundPath = data.soundDocumentPath.isNotEmpty
           ? data.soundDocumentPath
           : defaultSoundPath;
@@ -364,7 +429,7 @@ class NativeManager extends NotificationManager {
           DBusString(_buildBody(data)),
           DBusArray(DBusSignature('s'), actions),
           DBusDict(DBusSignature('s'), DBusSignature('v'), hints),
-          DBusInt32(5000),
+          DBusInt32(-1),
         ],
         replySignature: DBusSignature('u'),
       );
@@ -382,10 +447,23 @@ class NativeManager extends NotificationManager {
   }
 
   String _buildBody(NotificationData data) {
+    if (_capabilities.contains('body-markup')) {
+      if (data.subtitle.isNotEmpty) {
+        return '<b>${_escapeHtml(data.subtitle)}</b>\n${_escapeHtml(data.text)}';
+      }
+      return _escapeHtml(data.text);
+    }
     if (data.subtitle.isNotEmpty) {
       return '${data.subtitle}: ${data.text}';
     }
     return data.text;
+  }
+
+  static String _escapeHtml(String text) {
+    return text
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;');
   }
 
   Future<DBusStruct?> _buildImageHint(String avatarPath) async {
@@ -543,6 +621,7 @@ class NativeManager extends NotificationManager {
     _actionSub?.cancel();
     _closedSub?.cancel();
     _replySub?.cancel();
+    _activationTokenSub?.cancel();
     clearAll();
     _userpicCache.dispose();
     _dbus?.close();

@@ -59,6 +59,7 @@ class NotificationData {
   final String sublistPeerName;
   final String topicRootId;
   final String sublistPeerId;
+  final bool hideMarkAsRead;
 
   const NotificationData({
     required this.accountId,
@@ -108,6 +109,7 @@ class NotificationData {
     this.sublistPeerName = '',
     this.topicRootId = '',
     this.sublistPeerId = '',
+    this.hideMarkAsRead = false,
   });
 
   NotificationData copyWith({
@@ -158,6 +160,7 @@ class NotificationData {
     String? sublistPeerName,
     String? topicRootId,
     String? sublistPeerId,
+    bool? hideMarkAsRead,
   }) {
     return NotificationData(
       accountId: accountId ?? this.accountId,
@@ -207,6 +210,7 @@ class NotificationData {
       sublistPeerName: sublistPeerName ?? this.sublistPeerName,
       topicRootId: topicRootId ?? this.topicRootId,
       sublistPeerId: sublistPeerId ?? this.sublistPeerId,
+      hideMarkAsRead: hideMarkAsRead ?? this.hideMarkAsRead,
     );
   }
 }
