@@ -16785,6 +16785,7 @@ String _formatTime12h(DateTime dt) {
 enum _DragZoneLayout { files, photoFiles, mediaFiles, image, none }
 
 const _kMaxDragFileSize = 4 * 1024 * 1024 * 1024; // 4 GB (kFileSizePremiumLimit)
+const _kSmallImageSizeLimit = 10 * 1024 * 1024; // 10 MB (Images::kReadBytesLimit)
 
 /// §48.4 classify dragged files: reject null data, forward data, non-local
 /// URLs, directories, files >4GB. GIFs are MediaFiles not PhotoFiles.
@@ -16799,9 +16800,10 @@ _DragZoneLayout _classifyDragFiles(List<String> paths) {
     if (p.startsWith('http://') || p.startsWith('https://') || p.startsWith('ftp://')) {
       return _DragZoneLayout.none;
     }
+    int size;
     try {
       if (FileSystemEntity.isDirectorySync(p)) return _DragZoneLayout.none;
-      final size = File(p).lengthSync();
+      size = File(p).lengthSync();
       if (size > _kMaxDragFileSize) return _DragZoneLayout.none;
     } catch (_) {
       return _DragZoneLayout.none;
@@ -16809,7 +16811,9 @@ _DragZoneLayout _classifyDragFiles(List<String> paths) {
     final ext = p.contains('.') ? '.${p.split('.').last.toLowerCase()}' : '';
     if (ext == gifExt) {
       allSmallImages = false; // GIFs are media, not photos
-    } else if (!imageExts.contains(ext)) {
+    } else if (imageExts.contains(ext)) {
+      if (size > _kSmallImageSizeLimit) allSmallImages = false;
+    } else {
       allSmallImages = false;
       if (!videoExts.contains(ext)) {
         allMedia = false;
