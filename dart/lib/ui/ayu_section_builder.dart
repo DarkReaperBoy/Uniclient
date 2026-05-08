@@ -85,12 +85,15 @@ class AyuSectionBuilder {
     required String label,
     required bool isExpanded,
     required List<AyuNestedCheckboxItem> children,
+    ValueChanged<bool>? onMasterToggle,
   }) {
     _children.add(_AyuCollapsibleToggle(
       label: label,
       isExpanded: isExpanded,
       isDark: isDark,
+      useMaterial: useMaterial,
       children: children,
+      onMasterToggle: onMasterToggle,
     ));
   }
 
@@ -366,13 +369,17 @@ class _AyuCollapsibleToggle extends StatefulWidget {
   final String label;
   final bool isExpanded;
   final bool isDark;
+  final bool useMaterial;
   final List<AyuNestedCheckboxItem> children;
+  final ValueChanged<bool>? onMasterToggle;
 
   const _AyuCollapsibleToggle({
     required this.label,
     required this.isExpanded,
     required this.isDark,
+    this.useMaterial = false,
     required this.children,
+    this.onMasterToggle,
   });
 
   @override
@@ -397,6 +404,8 @@ class _AyuCollapsibleToggleState extends State<_AyuCollapsibleToggle> {
   @override
   Widget build(BuildContext context) {
     final anyChecked = widget.children.any((c) => c.value);
+    final allChecked = widget.children.every((c) => c.value);
+    final hasMaster = widget.onMasterToggle != null;
     final accentColor = widget.isDark
         ? const Color(0xFF6AB2F2)
         : const Color(0xFF3390EC);
@@ -418,7 +427,7 @@ class _AyuCollapsibleToggleState extends State<_AyuCollapsibleToggle> {
                               color: widget.isDark
                                   ? Colors.white
                                   : Colors.black87)),
-                      if (anyChecked) ...[
+                      if (!hasMaster && anyChecked) ...[
                         const SizedBox(width: 8),
                         Container(
                           width: 8,
@@ -432,11 +441,19 @@ class _AyuCollapsibleToggleState extends State<_AyuCollapsibleToggle> {
                     ],
                   ),
                 ),
-                Icon(
-                  _open ? Icons.expand_less : Icons.expand_more,
-                  size: 20,
-                  color: accentColor,
-                ),
+                if (hasMaster) ...[
+                  const SizedBox(width: 12),
+                  AyuToggle(
+                    value: allChecked,
+                    onChanged: (v) => widget.onMasterToggle!(v),
+                    isMaterial: widget.useMaterial,
+                  ),
+                ] else
+                  Icon(
+                    _open ? Icons.expand_less : Icons.expand_more,
+                    size: 20,
+                    color: accentColor,
+                  ),
               ],
             ),
           ),

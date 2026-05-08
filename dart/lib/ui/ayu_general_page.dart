@@ -62,6 +62,10 @@ class AyuGeneralPage extends StatelessWidget {
       label: 'Disable Similar Channels',
       isExpanded: appState.collapseSimilarChannels ||
           appState.hideSimilarChannelsTab,
+      onMasterToggle: (v) {
+        appState.setCollapseSimilarChannels(v);
+        appState.setHideSimilarChannelsTab(v);
+      },
       children: [
         AyuNestedCheckboxItem(
           label: 'Collapse Similar Channels',
@@ -143,6 +147,10 @@ class AyuGeneralPage extends StatelessWidget {
       label: 'Bigger Window',
       isExpanded: appState.increaseContentHeight ||
           appState.increaseContentWidth,
+      onMasterToggle: (v) {
+        appState.setIncreaseContentHeight(v);
+        appState.setIncreaseContentWidth(v);
+      },
       children: [
         AyuNestedCheckboxItem(
           label: 'Increase Content Height',

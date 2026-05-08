@@ -33,6 +33,11 @@ class AyuChatsPage extends StatelessWidget {
       isExpanded: !appState.showChannelReactions ||
           !appState.showGroupReactions ||
           !appState.showPrivateChatReactions,
+      onMasterToggle: (hideAll) {
+        appState.setShowChannelReactions(!hideAll);
+        appState.setShowGroupReactions(!hideAll);
+        appState.setShowPrivateChatReactions(!hideAll);
+      },
       children: [
         AyuNestedCheckboxItem(
           label: 'Hide in channels',
