@@ -3727,8 +3727,10 @@ class _ChatViewState extends State<ChatView>
   String _botStartLabel(ChatState chatState) {
     final token = chatState.botStartToken;
     if (token.isNotEmpty) {
-      final prefix = token.length > 20 ? token.substring(0, 20) : token;
-      return 'START ($prefix...)';
+      if (token.length > 20) {
+        return 'START (${token.substring(0, 20)}...)';
+      }
+      return 'START ($token)';
     }
     return 'START';
   }
@@ -4778,7 +4780,7 @@ class _ChatViewState extends State<ChatView>
           else if (chat.isBlocked)
             _FallbackComposeButton(
               label: chat.isBot ? 'RESTART' : 'UNBLOCK',
-              color: const Color(0xFFdf3f40),
+              color: context.palette.attentionButtonFg,
               onTap: () => chatState.unblockUser(chat.accountId, chat.chatId),
             )
           else if (_isBotStartVisible(chat, chatState))
@@ -4811,6 +4813,7 @@ class _ChatViewState extends State<ChatView>
             _WriteRestrictionBar(
               restrictionType: chat.writeRestrictionType,
               restrictionText: chat.writeRestrictionText,
+              boostsToLift: chat.boostsToLift,
             )
           // §47: DM premium restriction — user requires premium to be messaged.
           else if (_dmPremiumRequired && chat.type == ChatType.dm)
@@ -9141,10 +9144,12 @@ class _ChatIntroWidgetState extends State<_ChatIntroWidget> {
 class _WriteRestrictionBar extends StatelessWidget {
   final int restrictionType;
   final String restrictionText;
+  final int boostsToLift;
 
   const _WriteRestrictionBar({
     required this.restrictionType,
     required this.restrictionText,
+    this.boostsToLift = 0,
   });
 
   @override
@@ -9153,6 +9158,16 @@ class _WriteRestrictionBar extends StatelessWidget {
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF17212b) : const Color(0xFFffffff);
+
+    if (restrictionType == 1 && boostsToLift > 0) {
+      return _FallbackComposeButton(
+        label: 'BOOST THIS GROUP TO SEND MESSAGES',
+        color: context.palette.windowActiveTextFg,
+        onTap: () {
+          showTelegramToast(context, 'Boost this group to unlock sending messages.');
+        },
+      );
+    }
 
     if (restrictionType == 3) {
       return Container(
@@ -9434,11 +9449,6 @@ class _JoinChannelButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accentColor = isDark
-        ? const Color(0xFF6ab3f3)
-        : const Color(0xFF168acd);
-
     String label;
     if (chat.type == ChatType.channel) {
       label = 'JOIN CHANNEL';
@@ -9450,7 +9460,7 @@ class _JoinChannelButton extends StatelessWidget {
 
     return _FallbackComposeButton(
       label: label,
-      color: accentColor,
+      color: context.palette.windowActiveTextFg,
       onTap: () => chatState.joinChannel(chat.accountId, chat.chatId),
     );
   }
@@ -13191,7 +13201,10 @@ class _ComposeAreaState extends State<_ComposeArea>
 
   void _doSend() {
     if (widget.slowmodeSeconds > 0 && widget.controller.text.length > _kMaxMessageLength) {
-      showTelegramToast(context, 'Message is too long for slow mode.');
+      showTelegramToast(context,
+        "This text is too long to send as one message. "
+        "Slow mode is active. You can't send more than one message at once.",
+        multiline: true);
       return;
     }
     if (_silentMode && widget.onSendSilent != null) {
@@ -15312,6 +15325,21 @@ class _SendButtonState extends State<_SendButton>
   static bool _isForbiddable(SendButtonType type) =>
       type == SendButtonType.record || type == SendButtonType.round;
 
+  static int _parseSlowmodeSeconds(String text) {
+    final parts = text.split(':');
+    if (parts.length != 2) return 0;
+    return (int.tryParse(parts[0]) ?? 0) * 60 + (int.tryParse(parts[1]) ?? 0);
+  }
+
+  static String _formatSlowmodeWords(int seconds) {
+    if (seconds <= 0) return '0 seconds';
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    if (m > 0 && s > 0) return '$m ${m == 1 ? "minute" : "minutes"} $s ${s == 1 ? "second" : "seconds"}';
+    if (m > 0) return '$m ${m == 1 ? "minute" : "minutes"}';
+    return '$s ${s == 1 ? "second" : "seconds"}';
+  }
+
   Color _colorFor(SendButtonType type) {
     if (widget.disabled) {
       return context.palette.historyComposeIconFg;
@@ -15515,7 +15543,7 @@ class _SendButtonState extends State<_SendButton>
               : (isForbidden || isSlowmode)
               ? Semantics(
                   label: isSlowmode && widget.slowmodeText != null
-                      ? 'Slowmode: ${widget.slowmodeText}'
+                      ? 'Slow Mode is active. You can send your next message in ${_formatSlowmodeWords(_parseSlowmodeSeconds(widget.slowmodeText!))}.'
                       : 'Restricted',
                   child: GestureDetector(
                     onTap: _onTap,

@@ -223,6 +223,7 @@ class ChatInfo {
   final bool isForum;
   final int writeRestrictionType;
   final String writeRestrictionText;
+  final int boostsToLift;
   final bool notJoined;
   final bool joinRequest;
   final bool canPost;
@@ -273,6 +274,7 @@ class ChatInfo {
     this.isForum = false,
     this.writeRestrictionType = 0,
     this.writeRestrictionText = '',
+    this.boostsToLift = 0,
     this.notJoined = false,
     this.joinRequest = false,
     this.canPost = false,
@@ -324,6 +326,7 @@ class ChatInfo {
     isForum: j['is_forum'] as bool? ?? false,
     writeRestrictionType: j['write_restriction_type'] as int? ?? 0,
     writeRestrictionText: j['write_restriction_text'] as String? ?? '',
+    boostsToLift: j['boosts_to_lift'] as int? ?? 0,
     notJoined: j['not_joined'] as bool? ?? false,
     joinRequest: j['join_request'] as bool? ?? false,
     canPost: j['can_post'] as bool? ?? false,
