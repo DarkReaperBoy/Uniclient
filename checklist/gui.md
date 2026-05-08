@@ -98,19 +98,6 @@
 
 
 
-## §49 — Scroll Behaviors
-
-- [ ] spec §49.1 "Infinite scroll preload": spec says preload triggers at 3 viewport heights from edge, fetching 50 messages per page (30 for first load); needs verification in chat_view.dart scroll logic
-- [ ] spec §49.2 "Jump-to-date": spec says clicking sticky date header opens `CalendarBox`; code likely has a date click handler — needs verification
-- [ ] spec §49.3 "Jump-to-message highlight": spec says highlight effect: 400ms fade in, optional 400ms hold + 200ms collapse, 2000ms fade out; needs verification of highlight animation in chat_view.dart
-- [ ] spec §49.4 "Unread marker": code has `_UnreadBar` widget at chat_view.dart:7331 — exists, needs verification of positioning and destruction logic
-- [ ] spec §49.5 "Scroll-to-bottom button": spec says 52x62px hit area, down-arrow circular button, shown when scrolled up >480px, 150ms slide animation; code has a jump-down button (chat_view.dart:10447) — needs verification of exact dimensions and threshold
-- [ ] spec §49.5 "Unread badge on scroll button": spec says unread count shown in 22px circle badge; needs verification
-- [ ] spec §49.6 "New message auto-scroll": spec says own messages always scroll to bottom, incoming only if already at bottom; needs verification
-- [ ] spec §49.8 "Smooth scrolling duration": spec says 240ms with sineInOut for short scroll, easeOutCubic for long scroll; needs verification
-- [ ] spec §49.9 "Scroll-to-mention button": spec says "@" icon button shown when unread mentions exist, stacked above scroll-to-bottom with 4px gap; code has mention button at chat_view.dart:10547 — needs verification of stacking
-- [ ] spec §49.10 "Scroll-to-reaction button": spec says heart icon button for unread reactions stacked above mentions; needs verification
-- [ ] spec §49.13 "Sticky date header": spec says date header fades in over 200ms, auto-hides after 1000ms; needs verification of timing constants
 # Audit: §50-§57 AyuGram Features & Appendices
 
 ## §50 — Streamer Mode & Read Toggles
