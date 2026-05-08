@@ -97,14 +97,6 @@
 
 
 
-## §48 — Drag-and-Drop File Overlay
-
-- [ ] spec §48.1 "Drop zone appearance": spec says rounded rectangle with `boxBg` background, `boxRoundShadow` shadow, main text 27px semibold, subtext 19px semibold; code has a `_DragOverlay` widget in chat_view.dart — needs verification of exact dimensions and text sizes
-- [ ] spec §48.2 "Two-zone layout": spec defines Files/PhotoFiles/MediaFiles/Image states with top/bottom split for two-zone mode; needs verification of zone classification logic
-- [ ] spec §48.4 "File type detection": spec says `ComputeMimeDataState` classifies dragged content; needs verification that the Dart equivalent properly classifies file types
-- [ ] spec §48.5 "Animation": spec says `_a_opacity` fades in/out over 200ms; code has `_dragOverlayAnimCtrl` AnimationController — needs verification of duration
-- [ ] spec §48.7 "No icons": spec says drop zones are text-only (no icons); needs verification
-- [ ] spec §48.9 "Disabled state": spec says drag overlay does not appear if user cannot send any file type; needs verification of permission check
 
 ## §49 — Scroll Behaviors
 
