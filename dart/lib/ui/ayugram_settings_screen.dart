@@ -6,6 +6,7 @@ import '../theme/telegram_palette.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
+import '../theme/theme_tokens.dart';
 import 'ayu_appearance_page.dart';
 import 'ayu_chats_page.dart';
 import 'ayu_filters_page.dart';
@@ -61,15 +62,13 @@ class AyuGramSettingsScreen extends StatelessWidget {
       body: ListView(
         padding: EdgeInsets.zero,
         children: [
-          // Logo widget (§54.17): settingsCloudPasswordIconSize (96px),
-          // shows currently selected app icon theme
           Center(
             child: Container(
-              width: 100,
-              height: 100,
+              width: TgTokens.settingsCloudPasswordIconSize,
+              height: TgTokens.settingsCloudPasswordIconSize,
               decoration: BoxDecoration(
                 color: logoColor,
-                borderRadius: BorderRadius.circular(50),
+                borderRadius: BorderRadius.circular(TgTokens.settingsCloudPasswordIconSize / 2),
               ),
               child: Center(
                 child: Icon(

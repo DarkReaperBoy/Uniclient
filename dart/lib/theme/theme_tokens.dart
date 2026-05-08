@@ -97,6 +97,7 @@ abstract final class TgTokens {
 
   // §56.7 — settings/settings.style — settings panels
 
+  static const double settingsCloudPasswordIconSize = 100;
   static const double settingsPhotoTop = 8;
   static const double settingsPhotoBottom = 16;
   static const double settingsAccentColorSize = 24;
