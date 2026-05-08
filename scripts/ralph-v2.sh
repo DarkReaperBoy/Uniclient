@@ -430,12 +430,14 @@ Your job:
 4. Compare the Dart implementation against the AyuGram source line by line
 5. Report every discrepancy
 
-Create a SECTION HEADING for this file, then list all issues:
+Create a SECTION HEADING for this file, then list all issues.
+EVERY item MUST cite BOTH the AyuGram source file AND our Dart file so the
+implementer knows exactly where to look on both sides:
 
 ## $dart_basename — [short description of what this file does]
 
-- [ ] [CRITICAL] description (AyuGram has X, our code has Y) — \`$(basename "$dart_file")\`
-- [ ] [MAJOR] description — \`$(basename "$dart_file")\`
+- [ ] [CRITICAL] description (AyuGram has X, our code has Y) — \`$(basename "$dart_file")\` ← \`AyuGram/path/to/source.style:lineN\`
+- [ ] [MAJOR] description — \`$(basename "$dart_file"):lineN\` ← \`AyuGram/path/to/file.cpp:lineN\`
 
 SEVERITY (proportional — Weber's Law):
 - CRITICAL: >25% deviation on small elements, element missing, interaction broken, placeholder/TODO
@@ -444,6 +446,7 @@ SEVERITY (proportional — Weber's Law):
 
 RULES:
 - AyuGram C++ source is the ONLY authority. Do NOT reference any spec/markdown file.
+- EVERY checklist item MUST have BOTH file citations: our dart file AND the AyuGram source file.
 - Be specific: "AyuGram st::dialogsRowHeight = 62px but ChatListRow height is 64" not "wrong size"
 - Check: dimensions, colors, fonts, padding, margins, behavior, missing features, TODO stubs, empty callbacks
 - If the Dart file has features AyuGram doesn't — that's fine, skip those
