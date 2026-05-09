@@ -259,12 +259,6 @@ Theme preview widget renders a mock Telegram UI showing dialogs and chat areas. 
 
 ## Critical Issues
 
-- [ ] **[CRITICAL]** Dialogs panel width is 260px, should be 312px — `theme_preview.dart:36` ← `media_view.style:themePreviewDialogsWidth` + `window_theme_preview.cpp:223`
-  - This is a 52px deviation that breaks the layout aspect ratio and misrepresents the actual Telegram Desktop UI proportions
-  - AyuGram uses `st::themePreviewDialogsWidth` which is defined as 312px in media_view.style
-  - Dart hardcodes 260px, causing the entire preview to be horizontally misaligned
-  - **Impact**: User sees wrong aspect ratio for dialogs panel (narrower than actual)
-
 ---
 
 ## Major Issues
