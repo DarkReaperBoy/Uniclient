@@ -464,10 +464,6 @@ All these controls exist in AppState but are not exposed in the UI.
 
 # call_panel — Audit Findings
 
-## call_panel — Controls not wired to engine
-
-- [ ] [CRITICAL] Camera toggle handler never calls the engine — `_onCameraTap` checks permission then exits with only a comment; no engine call to enable/disable camera — `call_panel.dart:217-221` ← `calls/calls_panel.cpp:419-423` (`_call->toggleCameraSharing(!_call->isSharingCamera())`)
-
 ## call_panel — Fingerprint emoji table wrong
 
 - [ ] [CRITICAL] Encryption fingerprint uses a wrong, custom 100-emoji table — AyuGram defines a specific 329-entry table (the canonical Telegram fingerprint emoji set) from which emojis are picked by `value % kEmojiCount` using the SHA-256 of the encryption key; the Dart widget uses a 100-emoji set of modern face/animal emojis chosen randomly — `call_panel.dart:1099-1120` ← `calls/calls_emoji_fingerprint.cpp:34-89,121,165`
