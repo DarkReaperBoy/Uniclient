@@ -6,7 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../bridge/engine_service.dart';
 import '../data/ayu_filter.dart';
+import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../theme/theme.dart';
 import '../state/chat_state.dart';
@@ -164,67 +166,14 @@ class AyuFiltersPage extends StatelessWidget {
 
   void _showSelectChatDialog(BuildContext context, AppState appState) {
     final chatState = context.read<ChatState>();
-    final chats = chatState.chats;
-    if (chats.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No chats loaded')),
-      );
-      return;
-    }
     final isDark = Theme.of(context).brightness == Brightness.dark;
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF1B2836) : Colors.white,
-        title: Text('Select Chat',
-            style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w600,
-                color: isDark ? Colors.white : Colors.black87)),
-        content: SizedBox(
-          width: 300,
-          height: 400,
-          child: ListView.builder(
-            itemCount: chats.length,
-            itemBuilder: (_, i) {
-              final chat = chats[i];
-              return ListTile(
-                title: Text(chat.title,
-                    style: TextStyle(
-                        fontSize: 14,
-                        color: isDark ? Colors.white : Colors.black87)),
-                subtitle: Text(chat.chatId,
-                    style: TextStyle(
-                        fontSize: 12,
-                        color: isDark
-                            ? const Color(0xFF6D7F8F)
-                            : const Color(0xFF999999))),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => ChangeNotifierProvider.value(
-                      value: appState,
-                      child: _AyuFiltersListScreen(
-                        mode: _FiltersListMode.perDialog,
-                        dialogTitle: chat.title,
-                        dialogId: chat.chatId,
-                      ),
-                    ),
-                  ));
-                },
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Cancel',
-                style: TextStyle(color: isDark
-                    ? const Color(0xFF6AB2F2)
-                    : const Color(0xFF3390EC))),
-          ),
-        ],
+      builder: (ctx) => _SelectChatDialog(
+        chatState: chatState,
+        appState: appState,
+        isDark: isDark,
+        parentContext: context,
       ),
     );
   }
@@ -297,6 +246,176 @@ class AyuFiltersPage extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SelectChatDialog extends StatefulWidget {
+  final ChatState chatState;
+  final AppState appState;
+  final bool isDark;
+  final BuildContext parentContext;
+
+  const _SelectChatDialog({
+    required this.chatState,
+    required this.appState,
+    required this.isDark,
+    required this.parentContext,
+  });
+
+  @override
+  State<_SelectChatDialog> createState() => _SelectChatDialogState();
+}
+
+class _SelectChatDialogState extends State<_SelectChatDialog> {
+  final _searchController = TextEditingController();
+  List<ChatInfo> _results = [];
+  bool _hasQuery = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _results = widget.chatState.chats;
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    final query = _searchController.text.trim();
+    if (query.isEmpty) {
+      setState(() {
+        _results = widget.chatState.chats;
+        _hasQuery = false;
+      });
+      return;
+    }
+    setState(() => _hasQuery = true);
+    final engineResults = widget.chatState.searchChats(query);
+    if (engineResults.isNotEmpty) {
+      setState(() => _results = engineResults);
+    } else {
+      final lower = query.toLowerCase();
+      setState(() {
+        _results = widget.chatState.chats
+            .where((c) =>
+                c.title.toLowerCase().contains(lower) ||
+                c.chatId.contains(lower))
+            .toList();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accentColor =
+        widget.isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
+    return AlertDialog(
+      backgroundColor: widget.isDark ? const Color(0xFF1B2836) : Colors.white,
+      title: Text('Select Chat',
+          style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w600,
+              color: widget.isDark ? Colors.white : Colors.black87)),
+      contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+      content: SizedBox(
+        width: 300,
+        height: 440,
+        child: Column(
+          children: [
+            TextField(
+              controller: _searchController,
+              autofocus: true,
+              style: TextStyle(
+                  fontSize: 14,
+                  color: widget.isDark ? Colors.white : Colors.black87),
+              decoration: InputDecoration(
+                hintText: 'Search chats...',
+                hintStyle: TextStyle(
+                    color: widget.isDark
+                        ? const Color(0xFF6D7F8F)
+                        : const Color(0xFF999999)),
+                prefixIcon: Icon(Icons.search,
+                    size: 20,
+                    color: widget.isDark
+                        ? const Color(0xFF6D7F8F)
+                        : const Color(0xFF999999)),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8)),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(
+                      color: widget.isDark
+                          ? const Color(0xFF3A4A5A)
+                          : const Color(0xFFCBCBCB)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: accentColor),
+                ),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: _results.isEmpty
+                  ? Center(
+                      child: Text(
+                          _hasQuery ? 'No chats found' : 'No chats loaded',
+                          style: TextStyle(
+                              fontSize: 13,
+                              color: widget.isDark
+                                  ? const Color(0xFF6D7F8F)
+                                  : const Color(0xFF999999))))
+                  : ListView.builder(
+                      itemCount: _results.length,
+                      itemBuilder: (_, i) {
+                        final chat = _results[i];
+                        return ListTile(
+                          title: Text(chat.title,
+                              style: TextStyle(
+                                  fontSize: 14,
+                                  color: widget.isDark
+                                      ? Colors.white
+                                      : Colors.black87)),
+                          subtitle: Text(chat.chatId,
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: widget.isDark
+                                      ? const Color(0xFF6D7F8F)
+                                      : const Color(0xFF999999))),
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            Navigator.of(widget.parentContext)
+                                .push(MaterialPageRoute(
+                              builder: (_) => ChangeNotifierProvider.value(
+                                value: widget.appState,
+                                child: _AyuFiltersListScreen(
+                                  mode: _FiltersListMode.perDialog,
+                                  dialogTitle: chat.title,
+                                  dialogId: chat.chatId,
+                                ),
+                              ),
+                            ));
+                          },
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text('Cancel', style: TextStyle(color: accentColor)),
+        ),
+      ],
     );
   }
 }
@@ -800,7 +919,7 @@ class _AddExclusionButton extends StatelessWidget {
   }
 }
 
-class _ShadowBanRow extends StatelessWidget {
+class _ShadowBanRow extends StatefulWidget {
   final int id;
   final bool isDark;
   final VoidCallback onDelete;
@@ -812,6 +931,58 @@ class _ShadowBanRow extends StatelessWidget {
   });
 
   @override
+  State<_ShadowBanRow> createState() => _ShadowBanRowState();
+}
+
+class _ShadowBanRowState extends State<_ShadowBanRow> {
+  String? _resolvedName;
+  bool _attempted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolvePeerName();
+  }
+
+  void _resolvePeerName() {
+    final chatState = context.read<ChatState>();
+    final idStr = widget.id.toString();
+    for (final chat in chatState.chats) {
+      if (chat.chatId == idStr || chat.chatId.endsWith(idStr)) {
+        if (mounted) setState(() { _resolvedName = chat.title; _attempted = true; });
+        return;
+      }
+    }
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isNotEmpty) {
+      engine.getUserProfile(accountId, idStr).then((profile) {
+        if (mounted) {
+          setState(() {
+            _resolvedName = profile?.displayName;
+            _attempted = true;
+          });
+        }
+      });
+    } else {
+      if (mounted) setState(() => _attempted = true);
+    }
+  }
+
+  String get _displayName {
+    if (_resolvedName != null && _resolvedName!.isNotEmpty) return _resolvedName!;
+    return 'UNKNOWN (ID: ${widget.id})';
+  }
+
+  String get _avatarLetter {
+    if (_resolvedName != null && _resolvedName!.isNotEmpty) {
+      return _resolvedName![0].toUpperCase();
+    }
+    return 'U';
+  }
+
+  @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: () {
@@ -819,7 +990,7 @@ class _ShadowBanRow extends StatelessWidget {
         showMenu<String>(
           context: context,
           position: pos,
-          color: isDark ? const Color(0xFF1B2836) : Colors.white,
+          color: widget.isDark ? const Color(0xFF1B2836) : Colors.white,
           items: [
             PopupMenuItem(
               value: 'delete',
@@ -831,7 +1002,7 @@ class _ShadowBanRow extends StatelessWidget {
             ),
           ],
         ).then((v) {
-          if (v == 'delete') onDelete();
+          if (v == 'delete') widget.onDelete();
         });
       },
       child: Padding(
@@ -839,23 +1010,23 @@ class _ShadowBanRow extends StatelessWidget {
         child: Row(children: [
           CircleAvatar(
             radius: 23,
-            backgroundColor: context.palette.peerUserpicBg(_colorRemap[id.abs() % 7]),
-            child: const Text('U',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white)),
+            backgroundColor: context.palette.peerUserpicBg(_colorRemap[widget.id.abs() % 7]),
+            child: Text(_avatarLetter,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white)),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('User $id',
+                Text(_displayName,
                     style: TextStyle(
                         fontSize: 14, fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.white : Colors.black87)),
-                Text('ID: $id',
+                        color: widget.isDark ? Colors.white : Colors.black87)),
+                Text('ID: ${widget.id}',
                     style: TextStyle(
                         fontSize: 12,
-                        color: isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999))),
+                        color: widget.isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999))),
               ],
             ),
           ),
@@ -897,7 +1068,7 @@ class _RegexEditBoxState extends State<_RegexEditBox> {
     super.initState();
     _textController = TextEditingController(text: widget.filter?.text ?? '');
     _enabled = widget.filter?.enabled ?? true;
-    _caseInsensitive = widget.filter?.caseInsensitive ?? false;
+    _caseInsensitive = widget.filter?.caseInsensitive ?? true;
     _reversed = widget.filter?.reversed ?? false;
     _textController.addListener(() {
       if (_error != null) setState(() => _error = null);
@@ -942,22 +1113,44 @@ class _RegexEditBoxState extends State<_RegexEditBox> {
 
     final appState = context.read<AppState>();
     final engine = appState.filterEngine;
+    final isNew = widget.filter == null;
+    final filterId = widget.filter?.id ?? _generateUuidV4();
     final filter = RegexFilter(
-      id: widget.filter?.id ?? _generateUuidV4(),
+      id: filterId,
       text: text,
       enabled: _enabled,
       caseInsensitive: _caseInsensitive,
       reversed: _reversed,
-      dialogId: widget.dialogId ?? widget.filter?.dialogId,
+      dialogId: widget.filter?.dialogId,
     );
 
-    if (widget.filter != null) {
+    if (!isNew) {
       engine.updateFilter(filter);
     } else {
       engine.addFilter(filter);
     }
     appState.saveFilterEngine();
-    Navigator.of(context).pop();
+
+    final dialogId = widget.dialogId;
+    if (isNew && dialogId != null && filter.isShared) {
+      final messenger = ScaffoldMessenger.of(context);
+      Navigator.of(context).pop();
+      messenger.showSnackBar(SnackBar(
+        content: const Text('Filter added. Tap to restrict to this dialog.'),
+        action: SnackBarAction(
+          label: 'Restrict',
+          onPressed: () {
+            engine.addExclusion(RegexFilterExclusion(
+              dialogId: dialogId,
+              filterId: filterId,
+            ));
+            appState.saveFilterEngine();
+          },
+        ),
+      ));
+    } else {
+      Navigator.of(context).pop();
+    }
   }
 
   @override
@@ -985,7 +1178,7 @@ class _RegexEditBoxState extends State<_RegexEditBox> {
               maxLines: null,
               style: TextStyle(fontSize: 14, color: isDark ? Colors.white : Colors.black87),
               decoration: InputDecoration(
-                hintText: 'Regular expression',
+                hintText: 'Regular expression (ECMAScript syntax)',
                 hintStyle: TextStyle(
                     color: isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999)),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
@@ -1195,15 +1388,45 @@ class _ImportFiltersBoxState extends State<_ImportFiltersBox> {
       final exclusions = (parsed['exclusions'] as List<dynamic>?)
           ?.map((e) => RegexFilterExclusion.fromJson(e as Map<String, dynamic>))
           .toList() ?? [];
+      final removeFilterIds = (parsed['removeFiltersById'] as List<dynamic>?)
+          ?.map((e) => e.toString())
+          .toList() ?? [];
+      final removeExclusions = (parsed['removeExclusions'] as List<dynamic>?)
+          ?.map((e) => RegexFilterExclusion.fromJson(e as Map<String, dynamic>))
+          .toList() ?? [];
 
-      if (filters.isEmpty && exclusions.isEmpty) {
+      final engine = appState.filterEngine;
+      int newCount = 0;
+      int updatedCount = 0;
+      for (final f in filters) {
+        final existing = engine.filters.where((ef) => ef.id == f.id);
+        if (existing.isNotEmpty) {
+          updatedCount++;
+        } else {
+          newCount++;
+        }
+      }
+      final newExclCount = exclusions.where((e) =>
+          !engine.exclusions.contains(e)).length;
+
+      if (newCount == 0 && updatedCount == 0 && newExclCount == 0 &&
+          removeFilterIds.isEmpty && removeExclusions.isEmpty) {
         messenger.showSnackBar(
           const SnackBar(content: Text('No changes')),
         );
         return;
       }
 
-      final engine = appState.filterEngine;
+      if (!mounted) return;
+      final confirmed = await _showImportConfirmation(
+        newFilters: newCount,
+        updatedFilters: updatedCount,
+        removedFilters: removeFilterIds.length,
+        newExclusions: newExclCount,
+        removedExclusions: removeExclusions.length,
+      );
+      if (confirmed != true) return;
+
       for (final f in filters) {
         final existing = engine.filters.where((ef) => ef.id == f.id);
         if (existing.isNotEmpty) {
@@ -1215,10 +1438,18 @@ class _ImportFiltersBoxState extends State<_ImportFiltersBox> {
       for (final e in exclusions) {
         engine.addExclusion(e);
       }
+      for (final id in removeFilterIds) {
+        engine.deleteFilter(id);
+      }
+      for (final e in removeExclusions) {
+        engine.deleteExclusion(e.dialogId, e.filterId);
+      }
       appState.saveFilterEngine();
 
+      final total = newCount + updatedCount;
       messenger.showSnackBar(
-        SnackBar(content: Text('Imported ${filters.length} filter${filters.length != 1 ? "s" : ""}')),
+        SnackBar(content: Text('Imported $total filter${total != 1 ? "s" : ""}'
+            '${removeFilterIds.isNotEmpty ? ', removed ${removeFilterIds.length}' : ''}')),
       );
     } on FormatException {
       messenger.showSnackBar(
@@ -1227,12 +1458,90 @@ class _ImportFiltersBoxState extends State<_ImportFiltersBox> {
     }
   }
 
+  Future<bool?> _showImportConfirmation({
+    required int newFilters,
+    required int updatedFilters,
+    required int removedFilters,
+    required int newExclusions,
+    required int removedExclusions,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accentColor =
+        isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subtitleColor =
+        isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
+
+    final lines = <String>[];
+    if (newFilters > 0) lines.add('$newFilters new filter${newFilters != 1 ? "s" : ""}');
+    if (updatedFilters > 0) lines.add('$updatedFilters updated filter${updatedFilters != 1 ? "s" : ""}');
+    if (removedFilters > 0) lines.add('$removedFilters removed filter${removedFilters != 1 ? "s" : ""}');
+    if (newExclusions > 0) lines.add('$newExclusions new exclusion${newExclusions != 1 ? "s" : ""}');
+    if (removedExclusions > 0) lines.add('$removedExclusions removed exclusion${removedExclusions != 1 ? "s" : ""}');
+
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1B2836) : Colors.white,
+        title: Text('Import filters',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('The following changes will be applied:',
+                style: TextStyle(fontSize: 14, color: subtitleColor)),
+            const SizedBox(height: 12),
+            for (final line in lines)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  children: [
+                    Text('•  ', style: TextStyle(fontSize: 14, color: textColor)),
+                    Expanded(child: Text(line,
+                        style: TextStyle(fontSize: 14, color: textColor))),
+                  ],
+                ),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text('Cancel', style: TextStyle(color: accentColor)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text('Import', style: TextStyle(color: accentColor)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _doExport(AppState appState, ScaffoldMessengerState messenger) async {
     final engine = appState.filterEngine;
+    final peers = <Map<String, dynamic>>[];
+    for (final f in engine.filters) {
+      if (f.dialogId != null && f.dialogId!.isNotEmpty) {
+        if (!peers.any((p) => p['id'] == f.dialogId)) {
+          peers.add({'id': f.dialogId});
+        }
+      }
+    }
+    for (final e in engine.exclusions) {
+      if (!peers.any((p) => p['id'] == e.dialogId)) {
+        peers.add({'id': e.dialogId});
+      }
+    }
+
     final exportData = {
       'version': 2,
       'filters': engine.filters.map((f) => f.toJson()).toList(),
       'exclusions': engine.exclusions.map((e) => e.toJson()).toList(),
+      'removeFiltersById': <String>[],
+      'removeExclusions': <Map<String, dynamic>>[],
+      'peers': peers,
     };
     final jsonText = const JsonEncoder.withIndent('  ').convert(exportData);
 
