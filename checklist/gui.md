@@ -472,7 +472,6 @@ All these controls exist in AppState but are not exposed in the UI.
 
 ## chat_view — Placeholders, broken backend wiring, and behavioral inaccuracies
 
-- [ ] [CRITICAL] `_PinnedBar` `onClose` at call-site only sets `_pinnedBarDismissed = true` (in-memory, resets on restart) — should call engine to either unpin the message (if user has pin rights) or call `HidePinnedBar` (which persists via `session.settings().setHiddenPinnedMessageId()`) — `chat_view.dart:4510` ← `AyuGram/history/history_widget.cpp:9475` (`hidePinnedMessage()` branches on `canPinMessages()` to call `ToggleMessagePinned` or `HidePinnedBar`)
 
 # color_picker_box — Color picker dialog vs AyuGram ColorEditor
 

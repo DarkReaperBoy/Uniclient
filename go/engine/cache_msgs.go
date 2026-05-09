@@ -149,7 +149,7 @@ func (e *Engine) GetPinnedMessages(accountID, chatID string) ([]CachedMessage, e
 	rows, err := e.db.Query(
 		`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
 		        content_text, content_raw, content_rich, timestamp, edited_at,
-		        status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, is_service, has_media, grouped_id, is_deleted, deleted_at
+		        status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, is_service, has_media, grouped_id, no_forwards, is_deleted, deleted_at
 		 FROM messages
 		 WHERE account_id = ? AND chat_id = ? AND is_pinned = 1
 		 ORDER BY timestamp DESC`, accountID, chatID)
