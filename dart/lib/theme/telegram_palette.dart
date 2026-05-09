@@ -558,6 +558,38 @@ class TelegramPalette {
   final Color premiumButtonFg;
   final Color premiumIconBg3;
 
+  // Group Call
+  final Color groupCallBg;
+  final Color groupCallActiveFg;
+  final Color groupCallMembersBg;
+  final Color groupCallMembersBgOver;
+  final Color groupCallMembersBgRipple;
+  final Color groupCallMembersFg;
+  final Color groupCallMemberActiveIcon;
+  final Color groupCallMemberActiveStatus;
+  final Color groupCallMemberInactiveIcon;
+  final Color groupCallMemberInactiveStatus;
+  final Color groupCallMemberMutedIcon;
+  final Color groupCallMemberNotJoinedStatus;
+  final Color groupCallIconFg;
+  final Color groupCallLive1;
+  final Color groupCallLive2;
+  final Color groupCallMuted1;
+  final Color groupCallMuted2;
+  final Color groupCallForceMutedBar1;
+  final Color groupCallForceMutedBar2;
+  final Color groupCallForceMutedBar3;
+  final Color groupCallForceMuted1;
+  final Color groupCallForceMuted2;
+  final Color groupCallForceMuted3;
+  final Color groupCallMenuBg;
+  final Color groupCallMenuBgOver;
+  final Color groupCallMenuBgRipple;
+  final Color groupCallLeaveBg;
+  final Color groupCallLeaveBgRipple;
+  final Color groupCallVideoTextFg;
+  final Color groupCallVideoSubTextFg;
+
   const TelegramPalette({
     required this.windowBg,
     required this.windowBgOver,
@@ -1063,6 +1095,36 @@ class TelegramPalette {
     required this.importantTooltipFgLink,
     required this.premiumButtonFg,
     required this.premiumIconBg3,
+    required this.groupCallBg,
+    required this.groupCallActiveFg,
+    required this.groupCallMembersBg,
+    required this.groupCallMembersBgOver,
+    required this.groupCallMembersBgRipple,
+    required this.groupCallMembersFg,
+    required this.groupCallMemberActiveIcon,
+    required this.groupCallMemberActiveStatus,
+    required this.groupCallMemberInactiveIcon,
+    required this.groupCallMemberInactiveStatus,
+    required this.groupCallMemberMutedIcon,
+    required this.groupCallMemberNotJoinedStatus,
+    required this.groupCallIconFg,
+    required this.groupCallLive1,
+    required this.groupCallLive2,
+    required this.groupCallMuted1,
+    required this.groupCallMuted2,
+    required this.groupCallForceMutedBar1,
+    required this.groupCallForceMutedBar2,
+    required this.groupCallForceMutedBar3,
+    required this.groupCallForceMuted1,
+    required this.groupCallForceMuted2,
+    required this.groupCallForceMuted3,
+    required this.groupCallMenuBg,
+    required this.groupCallMenuBgOver,
+    required this.groupCallMenuBgRipple,
+    required this.groupCallLeaveBg,
+    required this.groupCallLeaveBgRipple,
+    required this.groupCallVideoTextFg,
+    required this.groupCallVideoSubTextFg,
   });
 
   bool get isDark {
@@ -1144,10 +1206,10 @@ class TelegramPalette {
     _ => dayAccents,
   };
 
-  // ── §25.17.2 Colorize exclusion list — 63 tokens that never change with accent ──
+  // ── §25.17.2 Colorize exclusion list — tokens that never change with accent ──
   static const kColorizeIgnoredKeys = <String>{
     'boxTextFgGood', 'boxTextFgError',
-    'callIconFg',
+    'callIconFg', 'callArrowFg', 'callArrowMissedFg',
     'historyPeer1NameFg', 'historyPeer1NameFgSelected', 'historyPeer1UserpicBg',
     'historyPeer2NameFg', 'historyPeer2NameFgSelected', 'historyPeer2UserpicBg',
     'historyPeer3NameFg', 'historyPeer3NameFgSelected', 'historyPeer3UserpicBg',
@@ -1159,6 +1221,9 @@ class TelegramPalette {
     'historyPeer1UserpicBg2', 'historyPeer2UserpicBg2', 'historyPeer3UserpicBg2',
     'historyPeer4UserpicBg2', 'historyPeer5UserpicBg2', 'historyPeer6UserpicBg2',
     'historyPeer7UserpicBg2', 'historyPeer8UserpicBg2',
+    'historyCallArrowFg', 'historyCallArrowMissedFg',
+    'historyCallArrowInFg', 'historyCallArrowInMissedFg',
+    'historyCallArrowOutFg', 'historyCallArrowOutMissedFg',
     'msgFile1Bg', 'msgFile1BgDark', 'msgFile1BgOver', 'msgFile1BgSelected',
     'msgFile2Bg', 'msgFile2BgDark', 'msgFile2BgOver', 'msgFile2BgSelected',
     'msgFile3Bg', 'msgFile3BgDark', 'msgFile3BgOver', 'msgFile3BgSelected',
@@ -1169,6 +1234,28 @@ class TelegramPalette {
     'settingsIconBg5', 'settingsIconBg6', 'settingsIconBg8', 'settingsIconBgArchive',
     'premiumButtonBg1', 'premiumButtonBg2', 'premiumButtonBg3',
     'premiumIconBg1', 'premiumIconBg2',
+    'trayCounterBg', 'trayCounterBgMute', 'trayCounterFg',
+    'trayCounterBgMacInvert', 'trayCounterFgMacInvert',
+    'paymentsTipActive',
+    'botKbPrimaryBg', 'botKbDangerBg', 'botKbSuccessBg',
+    'botKbInlinePrimaryBg', 'botKbInlineDangerBg', 'botKbInlineSuccessBg',
+    'mapPointDrop', 'mapPointDot',
+    'youtubePlayIconBg', 'youtubePlayIconFg',
+    'videoPlayIconBg', 'videoPlayIconFg',
+    'stickerPanPremium1', 'stickerPanPremium2',
+    'groupCallBg', 'groupCallActiveFg',
+    'groupCallMembersBg', 'groupCallMembersBgOver', 'groupCallMembersBgRipple',
+    'groupCallMembersFg', 'groupCallMemberActiveIcon', 'groupCallMemberActiveStatus',
+    'groupCallMemberInactiveIcon', 'groupCallMemberInactiveStatus',
+    'groupCallMemberMutedIcon', 'groupCallMemberNotJoinedStatus',
+    'groupCallIconFg',
+    'groupCallLive1', 'groupCallLive2',
+    'groupCallMuted1', 'groupCallMuted2',
+    'groupCallForceMutedBar1', 'groupCallForceMutedBar2', 'groupCallForceMutedBar3',
+    'groupCallForceMuted1', 'groupCallForceMuted2', 'groupCallForceMuted3',
+    'groupCallMenuBg', 'groupCallMenuBgOver', 'groupCallMenuBgRipple',
+    'groupCallLeaveBg', 'groupCallLeaveBgRipple',
+    'groupCallVideoTextFg', 'groupCallVideoSubTextFg',
   };
 
   // ── §25.4.3 HSL Colorizer (spec §25.4.3 + §25.17.1) ──
@@ -1713,6 +1800,36 @@ class TelegramPalette {
       importantTooltipFgLink: s(importantTooltipFgLink),
       premiumButtonFg: premiumButtonFg,
       premiumIconBg3: premiumIconBg3,
+      groupCallBg: groupCallBg,
+      groupCallActiveFg: groupCallActiveFg,
+      groupCallMembersBg: groupCallMembersBg,
+      groupCallMembersBgOver: groupCallMembersBgOver,
+      groupCallMembersBgRipple: groupCallMembersBgRipple,
+      groupCallMembersFg: groupCallMembersFg,
+      groupCallMemberActiveIcon: groupCallMemberActiveIcon,
+      groupCallMemberActiveStatus: groupCallMemberActiveStatus,
+      groupCallMemberInactiveIcon: groupCallMemberInactiveIcon,
+      groupCallMemberInactiveStatus: groupCallMemberInactiveStatus,
+      groupCallMemberMutedIcon: groupCallMemberMutedIcon,
+      groupCallMemberNotJoinedStatus: groupCallMemberNotJoinedStatus,
+      groupCallIconFg: groupCallIconFg,
+      groupCallLive1: groupCallLive1,
+      groupCallLive2: groupCallLive2,
+      groupCallMuted1: groupCallMuted1,
+      groupCallMuted2: groupCallMuted2,
+      groupCallForceMutedBar1: groupCallForceMutedBar1,
+      groupCallForceMutedBar2: groupCallForceMutedBar2,
+      groupCallForceMutedBar3: groupCallForceMutedBar3,
+      groupCallForceMuted1: groupCallForceMuted1,
+      groupCallForceMuted2: groupCallForceMuted2,
+      groupCallForceMuted3: groupCallForceMuted3,
+      groupCallMenuBg: groupCallMenuBg,
+      groupCallMenuBgOver: groupCallMenuBgOver,
+      groupCallMenuBgRipple: groupCallMenuBgRipple,
+      groupCallLeaveBg: groupCallLeaveBg,
+      groupCallLeaveBgRipple: groupCallLeaveBgRipple,
+      groupCallVideoTextFg: groupCallVideoTextFg,
+      groupCallVideoSubTextFg: groupCallVideoSubTextFg,
 
     );
 
@@ -2173,6 +2290,36 @@ class TelegramPalette {
       importantTooltipFgLink: this.importantTooltipFgLink,
       premiumButtonFg: this.premiumButtonFg,
       premiumIconBg3: this.premiumIconBg3,
+      groupCallBg: this.groupCallBg,
+      groupCallActiveFg: this.groupCallActiveFg,
+      groupCallMembersBg: this.groupCallMembersBg,
+      groupCallMembersBgOver: this.groupCallMembersBgOver,
+      groupCallMembersBgRipple: this.groupCallMembersBgRipple,
+      groupCallMembersFg: this.groupCallMembersFg,
+      groupCallMemberActiveIcon: this.groupCallMemberActiveIcon,
+      groupCallMemberActiveStatus: this.groupCallMemberActiveStatus,
+      groupCallMemberInactiveIcon: this.groupCallMemberInactiveIcon,
+      groupCallMemberInactiveStatus: this.groupCallMemberInactiveStatus,
+      groupCallMemberMutedIcon: this.groupCallMemberMutedIcon,
+      groupCallMemberNotJoinedStatus: this.groupCallMemberNotJoinedStatus,
+      groupCallIconFg: this.groupCallIconFg,
+      groupCallLive1: this.groupCallLive1,
+      groupCallLive2: this.groupCallLive2,
+      groupCallMuted1: this.groupCallMuted1,
+      groupCallMuted2: this.groupCallMuted2,
+      groupCallForceMutedBar1: this.groupCallForceMutedBar1,
+      groupCallForceMutedBar2: this.groupCallForceMutedBar2,
+      groupCallForceMutedBar3: this.groupCallForceMutedBar3,
+      groupCallForceMuted1: this.groupCallForceMuted1,
+      groupCallForceMuted2: this.groupCallForceMuted2,
+      groupCallForceMuted3: this.groupCallForceMuted3,
+      groupCallMenuBg: this.groupCallMenuBg,
+      groupCallMenuBgOver: this.groupCallMenuBgOver,
+      groupCallMenuBgRipple: this.groupCallMenuBgRipple,
+      groupCallLeaveBg: this.groupCallLeaveBg,
+      groupCallLeaveBgRipple: this.groupCallLeaveBgRipple,
+      groupCallVideoTextFg: this.groupCallVideoTextFg,
+      groupCallVideoSubTextFg: this.groupCallVideoSubTextFg,
 
     );
   }
@@ -2184,7 +2331,7 @@ class TelegramPalette {
       final ratio = (fgL > bgL)
           ? (fgL + 0.05) / (bgL + 0.05)
           : (bgL + 0.05) / (fgL + 0.05);
-      if (ratio >= 3.0) return fg;
+      if (ratio >= 4.5) return fg;
       final hsv = HSVColor.fromColor(fg);
       return HSVColor.fromAHSV(
         hsv.alpha,
@@ -2612,6 +2759,36 @@ class TelegramPalette {
       importantTooltipFgLink: importantTooltipFgLink,
       premiumButtonFg: premiumButtonFg,
       premiumIconBg3: premiumIconBg3,
+      groupCallBg: groupCallBg,
+      groupCallActiveFg: groupCallActiveFg,
+      groupCallMembersBg: groupCallMembersBg,
+      groupCallMembersBgOver: groupCallMembersBgOver,
+      groupCallMembersBgRipple: groupCallMembersBgRipple,
+      groupCallMembersFg: groupCallMembersFg,
+      groupCallMemberActiveIcon: groupCallMemberActiveIcon,
+      groupCallMemberActiveStatus: groupCallMemberActiveStatus,
+      groupCallMemberInactiveIcon: groupCallMemberInactiveIcon,
+      groupCallMemberInactiveStatus: groupCallMemberInactiveStatus,
+      groupCallMemberMutedIcon: groupCallMemberMutedIcon,
+      groupCallMemberNotJoinedStatus: groupCallMemberNotJoinedStatus,
+      groupCallIconFg: groupCallIconFg,
+      groupCallLive1: groupCallLive1,
+      groupCallLive2: groupCallLive2,
+      groupCallMuted1: groupCallMuted1,
+      groupCallMuted2: groupCallMuted2,
+      groupCallForceMutedBar1: groupCallForceMutedBar1,
+      groupCallForceMutedBar2: groupCallForceMutedBar2,
+      groupCallForceMutedBar3: groupCallForceMutedBar3,
+      groupCallForceMuted1: groupCallForceMuted1,
+      groupCallForceMuted2: groupCallForceMuted2,
+      groupCallForceMuted3: groupCallForceMuted3,
+      groupCallMenuBg: groupCallMenuBg,
+      groupCallMenuBgOver: groupCallMenuBgOver,
+      groupCallMenuBgRipple: groupCallMenuBgRipple,
+      groupCallLeaveBg: groupCallLeaveBg,
+      groupCallLeaveBgRipple: groupCallLeaveBgRipple,
+      groupCallVideoTextFg: groupCallVideoTextFg,
+      groupCallVideoSubTextFg: groupCallVideoSubTextFg,
     );
   }
 
@@ -2812,8 +2989,8 @@ class TelegramPalette {
     mediaviewPlaybackActiveOver: Color(0xFFFFFFFF),
 
     // Intro / Login
-    introCoverTopBg: Color(0xFF0F89D0),
-    introCoverBottomBg: Color(0xFF39B0F0),
+    introCoverTopBg: Color(0xFF2B2242),
+    introCoverBottomBg: Color(0xFF2B2242),
     introCoverIconsFg: Color(0xFF5EC6FF),
     introCoverPlaneTrace: Color(0x695EC6FF),
     introCoverPlaneTop: Color(0xFFFFFFFF),
@@ -2821,8 +2998,8 @@ class TelegramPalette {
     // Scrollbar
     scrollBarBg: Color(0x53000000),
     scrollBarBgOver: Color(0x7A000000),
-    scrollBg: Color(0x00000000),
-    scrollBgOver: Color(0x1A000000),
+    scrollBg: Color(0x1A000000),
+    scrollBgOver: Color(0x2C000000),
 
     // Boxes
     boxBg: Color(0xFFFFFFFF),
@@ -2859,11 +3036,11 @@ class TelegramPalette {
     menuBgRipple: Color(0xFFE5E5E5),
     menuIconFg: Color(0xFF999999),
     menuIconFgOver: Color(0xFF8A8A8A),
-    menuSeparatorFg: Color(0xFFE5E5E5),
+    menuSeparatorFg: Color(0xFFF1F1F1),
 
     // Main Menu
     mainMenuBg: Color(0xFFFFFFFF),
-    mainMenuCoverBg: Color(0xFF40A7E3),
+    mainMenuCoverBg: Color(0xFF419FD9),
     mainMenuCoverFg: Color(0xFFFFFFFF),
 
     // Settings Icons
@@ -3167,6 +3344,38 @@ class TelegramPalette {
     premiumButtonFg: Color(0xFFFFFFFF),
     premiumIconBg3: Color(0xFF4ACD43),
 
+    // Group Call
+    groupCallBg: Color(0xFF1A2026),
+    groupCallActiveFg: Color(0xFF4DB8FF),
+    groupCallMembersBg: Color(0xFF2C333D),
+    groupCallMembersBgOver: Color(0xFF323A45),
+    groupCallMembersBgRipple: Color(0xFF39424F),
+    groupCallMembersFg: Color(0xFFFFFFFF),
+    groupCallMemberActiveIcon: Color(0xFF8DEB90),
+    groupCallMemberActiveStatus: Color(0xFF8DEB90),
+    groupCallMemberInactiveIcon: Color(0xFF84888F),
+    groupCallMemberInactiveStatus: Color(0xFF61C0FF),
+    groupCallMemberMutedIcon: Color(0xFFED7372),
+    groupCallMemberNotJoinedStatus: Color(0xFF91979E),
+    groupCallIconFg: Color(0xFFFFFFFF),
+    groupCallLive1: Color(0xFF0DCC39),
+    groupCallLive2: Color(0xFF0BB6BD),
+    groupCallMuted1: Color(0xFF0992EF),
+    groupCallMuted2: Color(0xFF16CCFB),
+    groupCallForceMutedBar1: Color(0xFFC65493),
+    groupCallForceMutedBar2: Color(0xFF7A6AF1),
+    groupCallForceMutedBar3: Color(0xFF5F95E8),
+    groupCallForceMuted1: Color(0xFF4F9CFF),
+    groupCallForceMuted2: Color(0xFF9B52E9),
+    groupCallForceMuted3: Color(0xFFEB5353),
+    groupCallMenuBg: Color(0xFF292D33),
+    groupCallMenuBgOver: Color(0xFF343940),
+    groupCallMenuBgRipple: Color(0xFF3A4047),
+    groupCallLeaveBg: Color(0x7FF75C5C),
+    groupCallLeaveBgRipple: Color(0x9EF75C5C),
+    groupCallVideoTextFg: Color(0xE0FFFFFF),
+    groupCallVideoSubTextFg: Color(0xC0FFFFFF),
+
   );
 
   // ── Night / Tinted (§25.3.3) ──
@@ -3362,8 +3571,8 @@ class TelegramPalette {
     mediaviewPlaybackActiveOver: Color(0xFFFFFFFF),
 
     // Intro / Login
-    introCoverTopBg: Color(0xFF0F89D0),
-    introCoverBottomBg: Color(0xFF39B0F0),
+    introCoverTopBg: Color(0xFF2B2242),
+    introCoverBottomBg: Color(0xFF2B2242),
     introCoverIconsFg: Color(0xFF5EC6FF),
     introCoverPlaneTrace: Color(0x695EC6FF),
     introCoverPlaneTop: Color(0xFFFFFFFF),
@@ -3717,6 +3926,38 @@ class TelegramPalette {
     premiumButtonFg: Color(0xFFFFFFFF),
     premiumIconBg3: Color(0xFF4ACD43),
 
+    // Group Call
+    groupCallBg: Color(0xFF1A2026),
+    groupCallActiveFg: Color(0xFF4DB8FF),
+    groupCallMembersBg: Color(0xFF2C333D),
+    groupCallMembersBgOver: Color(0xFF323A45),
+    groupCallMembersBgRipple: Color(0xFF39424F),
+    groupCallMembersFg: Color(0xFFFFFFFF),
+    groupCallMemberActiveIcon: Color(0xFF8DEB90),
+    groupCallMemberActiveStatus: Color(0xFF8DEB90),
+    groupCallMemberInactiveIcon: Color(0xFF84888F),
+    groupCallMemberInactiveStatus: Color(0xFF61C0FF),
+    groupCallMemberMutedIcon: Color(0xFFED7372),
+    groupCallMemberNotJoinedStatus: Color(0xFF91979E),
+    groupCallIconFg: Color(0xFFFFFFFF),
+    groupCallLive1: Color(0xFF0DCC39),
+    groupCallLive2: Color(0xFF0BB6BD),
+    groupCallMuted1: Color(0xFF0992EF),
+    groupCallMuted2: Color(0xFF16CCFB),
+    groupCallForceMutedBar1: Color(0xFFC65493),
+    groupCallForceMutedBar2: Color(0xFF7A6AF1),
+    groupCallForceMutedBar3: Color(0xFF5F95E8),
+    groupCallForceMuted1: Color(0xFF4F9CFF),
+    groupCallForceMuted2: Color(0xFF9B52E9),
+    groupCallForceMuted3: Color(0xFFEB5353),
+    groupCallMenuBg: Color(0xFF292D33),
+    groupCallMenuBgOver: Color(0xFF343940),
+    groupCallMenuBgRipple: Color(0xFF3A4047),
+    groupCallLeaveBg: Color(0x7FF75C5C),
+    groupCallLeaveBgRipple: Color(0x9EF75C5C),
+    groupCallVideoTextFg: Color(0xE0FFFFFF),
+    groupCallVideoSubTextFg: Color(0xC0FFFFFF),
+
   );
 
   // ── Classic Day (§25.3.1) ──
@@ -3892,15 +4133,15 @@ class TelegramPalette {
     mediaviewPlaybackActive: Color(0xFFC7C7C7),
     mediaviewPlaybackInactive: Color(0xFF252525),
     mediaviewPlaybackActiveOver: Color(0xFFFFFFFF),
-    introCoverTopBg: Color(0xFF0F89D0),
-    introCoverBottomBg: Color(0xFF39B0F0),
+    introCoverTopBg: Color(0xFF2B2242),
+    introCoverBottomBg: Color(0xFF2B2242),
     introCoverIconsFg: Color(0xFF5EC6FF),
     introCoverPlaneTrace: Color(0x695EC6FF),
     introCoverPlaneTop: Color(0xFFFFFFFF),
     scrollBarBg: Color(0x53000000),
     scrollBarBgOver: Color(0x7A000000),
-    scrollBg: Color(0x00000000),
-    scrollBgOver: Color(0x1A000000),
+    scrollBg: Color(0x1A000000),
+    scrollBgOver: Color(0x2C000000),
     boxBg: Color(0xFFFFFFFF),
     boxTextFg: Color(0xFF000000),
     boxTitleFg: Color(0xFF404040),
@@ -3929,9 +4170,9 @@ class TelegramPalette {
     menuBgRipple: Color(0xFFE5E5E5),
     menuIconFg: Color(0xFF999999),
     menuIconFgOver: Color(0xFF8A8A8A),
-    menuSeparatorFg: Color(0xFFE5E5E5),
+    menuSeparatorFg: Color(0xFFF1F1F1),
     mainMenuBg: Color(0xFFFFFFFF),
-    mainMenuCoverBg: Color(0xFF40A7E3),
+    mainMenuCoverBg: Color(0xFF419FD9),
     mainMenuCoverFg: Color(0xFFFFFFFF),
     settingsIconBg1: Color(0xFF5BBB6F),
     settingsIconBg2: Color(0xFFEC7577),
@@ -4229,6 +4470,38 @@ class TelegramPalette {
     premiumButtonFg: Color(0xFFFFFFFF),
     premiumIconBg3: Color(0xFF4ACD43),
 
+    // Group Call
+    groupCallBg: Color(0xFF1A2026),
+    groupCallActiveFg: Color(0xFF4DB8FF),
+    groupCallMembersBg: Color(0xFF2C333D),
+    groupCallMembersBgOver: Color(0xFF323A45),
+    groupCallMembersBgRipple: Color(0xFF39424F),
+    groupCallMembersFg: Color(0xFFFFFFFF),
+    groupCallMemberActiveIcon: Color(0xFF8DEB90),
+    groupCallMemberActiveStatus: Color(0xFF8DEB90),
+    groupCallMemberInactiveIcon: Color(0xFF84888F),
+    groupCallMemberInactiveStatus: Color(0xFF61C0FF),
+    groupCallMemberMutedIcon: Color(0xFFED7372),
+    groupCallMemberNotJoinedStatus: Color(0xFF91979E),
+    groupCallIconFg: Color(0xFFFFFFFF),
+    groupCallLive1: Color(0xFF0DCC39),
+    groupCallLive2: Color(0xFF0BB6BD),
+    groupCallMuted1: Color(0xFF0992EF),
+    groupCallMuted2: Color(0xFF16CCFB),
+    groupCallForceMutedBar1: Color(0xFFC65493),
+    groupCallForceMutedBar2: Color(0xFF7A6AF1),
+    groupCallForceMutedBar3: Color(0xFF5F95E8),
+    groupCallForceMuted1: Color(0xFF4F9CFF),
+    groupCallForceMuted2: Color(0xFF9B52E9),
+    groupCallForceMuted3: Color(0xFFEB5353),
+    groupCallMenuBg: Color(0xFF292D33),
+    groupCallMenuBgOver: Color(0xFF343940),
+    groupCallMenuBgRipple: Color(0xFF3A4047),
+    groupCallLeaveBg: Color(0x7FF75C5C),
+    groupCallLeaveBgRipple: Color(0x9EF75C5C),
+    groupCallVideoTextFg: Color(0xE0FFFFFF),
+    groupCallVideoSubTextFg: Color(0xC0FFFFFF),
+
   );
 
   // ── Night Green (§25.3.4) ──
@@ -4403,8 +4676,8 @@ class TelegramPalette {
     mediaviewPlaybackActive: Color(0xFFC7C7C7),
     mediaviewPlaybackInactive: Color(0xFF252525),
     mediaviewPlaybackActiveOver: Color(0xFFFFFFFF),
-    introCoverTopBg: Color(0xFF0F89D0),
-    introCoverBottomBg: Color(0xFF39B0F0),
+    introCoverTopBg: Color(0xFF2B2242),
+    introCoverBottomBg: Color(0xFF2B2242),
     introCoverIconsFg: Color(0xFF5EC6FF),
     introCoverPlaneTrace: Color(0x695EC6FF),
     introCoverPlaneTop: Color(0xFFFFFFFF),
@@ -4739,6 +5012,38 @@ class TelegramPalette {
     importantTooltipFgLink: Color(0xFF4DB8FF),
     premiumButtonFg: Color(0xFFFFFFFF),
     premiumIconBg3: Color(0xFF4ACD43),
+
+    // Group Call
+    groupCallBg: Color(0xFF1A2026),
+    groupCallActiveFg: Color(0xFF4DB8FF),
+    groupCallMembersBg: Color(0xFF2C333D),
+    groupCallMembersBgOver: Color(0xFF323A45),
+    groupCallMembersBgRipple: Color(0xFF39424F),
+    groupCallMembersFg: Color(0xFFFFFFFF),
+    groupCallMemberActiveIcon: Color(0xFF8DEB90),
+    groupCallMemberActiveStatus: Color(0xFF8DEB90),
+    groupCallMemberInactiveIcon: Color(0xFF84888F),
+    groupCallMemberInactiveStatus: Color(0xFF61C0FF),
+    groupCallMemberMutedIcon: Color(0xFFED7372),
+    groupCallMemberNotJoinedStatus: Color(0xFF91979E),
+    groupCallIconFg: Color(0xFFFFFFFF),
+    groupCallLive1: Color(0xFF0DCC39),
+    groupCallLive2: Color(0xFF0BB6BD),
+    groupCallMuted1: Color(0xFF0992EF),
+    groupCallMuted2: Color(0xFF16CCFB),
+    groupCallForceMutedBar1: Color(0xFFC65493),
+    groupCallForceMutedBar2: Color(0xFF7A6AF1),
+    groupCallForceMutedBar3: Color(0xFF5F95E8),
+    groupCallForceMuted1: Color(0xFF4F9CFF),
+    groupCallForceMuted2: Color(0xFF9B52E9),
+    groupCallForceMuted3: Color(0xFFEB5353),
+    groupCallMenuBg: Color(0xFF292D33),
+    groupCallMenuBgOver: Color(0xFF343940),
+    groupCallMenuBgRipple: Color(0xFF3A4047),
+    groupCallLeaveBg: Color(0x7FF75C5C),
+    groupCallLeaveBgRipple: Color(0x9EF75C5C),
+    groupCallVideoTextFg: Color(0xE0FFFFFF),
+    groupCallVideoSubTextFg: Color(0xC0FFFFFF),
 
   );
 }
