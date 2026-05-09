@@ -12025,6 +12025,7 @@ type ActiveSession struct {
 	Hash            int64  `json:"hash"`
 	Device          string `json:"device"`
 	Platform        string `json:"platform"`
+	SystemName      string `json:"system_name"`
 	AppName         string `json:"app_name"`
 	AppVersion      string `json:"app_version"`
 	IP              string `json:"ip"`
@@ -12033,6 +12034,8 @@ type ActiveSession struct {
 	DateActive      int    `json:"date_active"`
 	IsCurrent       bool   `json:"is_current"`
 	PasswordPending bool   `json:"password_pending"`
+	ApiID           int    `json:"api_id"`
+	OfficialApp     bool   `json:"official_app"`
 }
 
 // GetActiveSessions returns all active login sessions.
@@ -12054,6 +12057,7 @@ func (t *TelegramCore) GetActiveSessions() ([]ActiveSession, error) {
 			Hash:            a.Hash,
 			Device:          a.DeviceModel,
 			Platform:        a.SystemVersion,
+			SystemName:      a.Platform,
 			AppName:         a.AppName,
 			AppVersion:      a.AppVersion,
 			IP:              a.IP,
@@ -12062,6 +12066,8 @@ func (t *TelegramCore) GetActiveSessions() ([]ActiveSession, error) {
 			DateActive:      a.DateActive,
 			IsCurrent:       a.Current,
 			PasswordPending: a.PasswordPending,
+			ApiID:           a.APIID,
+			OfficialApp:     a.OfficialApp,
 		})
 	}
 	return sessions, nil
@@ -22818,6 +22824,7 @@ func (t *TelegramCore) GetSessions() ([]Session, error) {
 			ID:              strconv.FormatInt(s.Hash, 10),
 			Device:          s.Device,
 			Platform:        s.Platform,
+			System:          s.SystemName,
 			AppName:         s.AppName,
 			AppVersion:      s.AppVersion,
 			IP:              s.IP,
@@ -22825,6 +22832,8 @@ func (t *TelegramCore) GetSessions() ([]Session, error) {
 			LastActive:      time.Unix(int64(s.DateActive), 0),
 			IsCurrent:       s.IsCurrent,
 			PasswordPending: s.PasswordPending,
+			ApiID:           s.ApiID,
+			OfficialApp:     s.OfficialApp,
 		})
 	}
 	return result, nil

@@ -48,35 +48,76 @@ const _kRed2 = Color(0xFFD45050);
 const _kPink1 = Color(0xFFCB79D2);
 const _kPink2 = Color(0xFFBF5EBF);
 
-_DeviceInfo _classifyDevice(String device, String platform, String appName) {
+_DeviceInfo _classifyDevice(String device, String platform, String appName, {int? apiId, String? system}) {
   final d = device.toLowerCase();
-  final p = platform.toLowerCase();
-  final a = appName.toLowerCase();
+  final p = (system ?? '').toLowerCase();
+  final s = platform.toLowerCase();
 
-  if (a.contains('chrome')) return const _DeviceInfo(_DeviceType.chrome, _kPink1, _kPink2, Icons.language);
-  if (a.contains('edge')) return const _DeviceInfo(_DeviceType.edge, _kPink1, _kPink2, Icons.language);
-  if (a.contains('firefox')) return const _DeviceInfo(_DeviceType.firefox, _kPink1, _kPink2, Icons.language);
-  if (a.contains('safari')) return const _DeviceInfo(_DeviceType.safari, _kPink1, _kPink2, Icons.language);
-  if (a.contains('web') || p.contains('web')) return const _DeviceInfo(_DeviceType.web, _kPink1, _kPink2, Icons.language);
+  const kDesktop = {2040, 17349, 611335};
+  const kMac = {2834};
+  const kAndroid = {5, 6, 24, 1026, 1083, 2458, 2521, 21724};
+  const kiOS = {1, 7, 10840, 16352};
+  const kWeb = {2496, 739222, 1025907};
 
-  if (d.contains('iphone') || p.contains('ios') && !d.contains('ipad')) {
+  _DeviceInfo? detectBrowser() {
+    if (d.contains('edg/') || d.contains('edgios/') || d.contains('edga/')) {
+      return const _DeviceInfo(_DeviceType.edge, _kPink1, _kPink2, Icons.language);
+    } else if (d.contains('chrome')) {
+      return const _DeviceInfo(_DeviceType.chrome, _kPink1, _kPink2, Icons.language);
+    } else if (d.contains('safari')) {
+      return const _DeviceInfo(_DeviceType.safari, _kPink1, _kPink2, Icons.language);
+    } else if (d.contains('firefox')) {
+      return const _DeviceInfo(_DeviceType.firefox, _kPink1, _kPink2, Icons.language);
+    }
+    return null;
+  }
+
+  _DeviceInfo? detectDesktop() {
+    if (p.contains('windows') || s.contains('windows')) {
+      return const _DeviceInfo(_DeviceType.windows, _kGreen1, _kGreen2, Icons.desktop_windows);
+    } else if (p.contains('macos') || s.contains('macos')) {
+      return const _DeviceInfo(_DeviceType.mac, _kGreen1, _kGreen2, Icons.desktop_mac);
+    } else if (p.contains('ubuntu') || s.contains('ubuntu') || p.contains('unity') || s.contains('unity')) {
+      return const _DeviceInfo(_DeviceType.ubuntu, _kOrange1, _kOrange2, Icons.desktop_windows);
+    } else if (p.contains('linux') || s.contains('linux')) {
+      return const _DeviceInfo(_DeviceType.linux, _kPurple1, _kPurple2, Icons.desktop_windows);
+    }
+    return null;
+  }
+
+  if (apiId != null) {
+    if (kAndroid.contains(apiId)) {
+      return const _DeviceInfo(_DeviceType.android, _kRed1, _kRed2, Icons.phone_android);
+    } else if (kDesktop.contains(apiId)) {
+      return detectDesktop() ?? const _DeviceInfo(_DeviceType.linux, _kPurple1, _kPurple2, Icons.desktop_windows);
+    } else if (kMac.contains(apiId)) {
+      return const _DeviceInfo(_DeviceType.mac, _kGreen1, _kGreen2, Icons.desktop_mac);
+    } else if (kWeb.contains(apiId)) {
+      return detectBrowser() ?? const _DeviceInfo(_DeviceType.web, _kPink1, _kPink2, Icons.language);
+    }
+  }
+
+  if (d.contains('chromebook')) {
+    return const _DeviceInfo(_DeviceType.other, _kGreen1, _kGreen2, Icons.devices);
+  }
+  final browser = detectBrowser();
+  if (browser != null) return browser;
+  if (d.contains('iphone')) {
     return const _DeviceInfo(_DeviceType.iphone, _kCyan1, _kCyan2, Icons.phone_iphone);
   }
-  if (d.contains('ipad')) return const _DeviceInfo(_DeviceType.ipad, _kCyan1, _kCyan2, Icons.tablet_mac);
-  if (d.contains('android') || p.contains('android')) {
+  if (d.contains('ipad')) {
+    return const _DeviceInfo(_DeviceType.ipad, _kCyan1, _kCyan2, Icons.tablet_mac);
+  }
+  if (apiId != null && kiOS.contains(apiId)) {
+    return const _DeviceInfo(_DeviceType.iphone, _kCyan1, _kCyan2, Icons.phone_iphone);
+  }
+  final desktop = detectDesktop();
+  if (desktop != null) return desktop;
+  if (p.contains('android') || s.contains('android')) {
     return const _DeviceInfo(_DeviceType.android, _kRed1, _kRed2, Icons.phone_android);
   }
-  if (d.contains('ubuntu') || p.contains('ubuntu')) {
-    return const _DeviceInfo(_DeviceType.ubuntu, _kOrange1, _kOrange2, Icons.desktop_windows);
-  }
-  if (p.contains('linux') || d.contains('linux')) {
-    return const _DeviceInfo(_DeviceType.linux, _kPurple1, _kPurple2, Icons.desktop_windows);
-  }
-  if (d.contains('mac') || p.contains('macos')) {
-    return const _DeviceInfo(_DeviceType.mac, _kGreen1, _kGreen2, Icons.desktop_mac);
-  }
-  if (d.contains('windows') || p.contains('windows')) {
-    return const _DeviceInfo(_DeviceType.windows, _kGreen1, _kGreen2, Icons.desktop_windows);
+  if (p.contains('ios') || s.contains('ios')) {
+    return const _DeviceInfo(_DeviceType.iphone, _kCyan1, _kCyan2, Icons.phone_iphone);
   }
   return const _DeviceInfo(_DeviceType.other, _kGreen1, _kGreen2, Icons.devices);
 }
@@ -132,7 +173,13 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
   }
 
   List<Map<String, dynamic>> get _otherSessions {
-    return _sessions.where((s) => s['is_current'] != true && s['password_pending'] != true).toList();
+    final list = _sessions.where((s) => s['is_current'] != true && s['password_pending'] != true).toList();
+    list.sort((a, b) {
+      final aDate = a['last_active'] as String? ?? '';
+      final bDate = b['last_active'] as String? ?? '';
+      return bDate.compareTo(aDate);
+    });
+    return list;
   }
 
   List<Map<String, dynamic>> get _incompleteSessions {
@@ -427,7 +474,9 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     final location = session['location'] as String? ?? '';
     final lastActive = session['last_active'] as String? ?? '';
     final systemStr = session['system'] as String? ?? platform;
-    final info = _classifyDevice(rawDevice, platform, appName);
+    final apiId = session['api_id'] as int?;
+    final officialApp = session['official_app'] == true;
+    final info = _classifyDevice(rawDevice, platform, appName, apiId: apiId, system: systemStr);
 
     final appStr = appVersion.isNotEmpty ? '$appName $appVersion' : appName;
     final fullDate = isCurrent ? 'online' : _formatFullDate(lastActive);
@@ -449,7 +498,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const SizedBox(height: 18),
-              _DeviceUserpic(info: info, size: 70),
+              _DeviceUserpic(info: info, size: 70, animate: true),
               const SizedBox(height: 7),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -492,6 +541,14 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                   textColor: textColor,
                   subtextColor: subtextColor,
                 ),
+              _SessionInfoRow(
+                icon: Icons.info_outline,
+                iconColor: iconColor,
+                label: 'Official App',
+                value: officialApp ? 'Yes' : 'No',
+                textColor: textColor,
+                subtextColor: subtextColor,
+              ),
               if (ip.isNotEmpty)
                 _SessionInfoRow(
                   icon: Icons.language,
@@ -843,7 +900,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
           child: Text(
-            'Interrupted login attempts and sessions on other devices that haven\'t been confirmed will appear here.',
+            'The official Telegram app is available for Android, iPhone, iPad, Windows, macOS and Linux.',
             style: TextStyle(color: subtextColor, fontSize: 13),
           ),
         ),
@@ -889,18 +946,10 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
 
   Widget _buildEmptyPlaceholder(Color subtextColor) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 40),
-      child: Center(
-        child: Column(
-          children: [
-            Icon(Icons.security, size: 48, color: subtextColor.withValues(alpha: 0.5)),
-            const SizedBox(height: 16),
-            Text(
-              'No other active sessions',
-              style: TextStyle(color: subtextColor, fontSize: 14),
-            ),
-          ],
-        ),
+      padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
+      child: Text(
+        'You can log in to Telegram from other mobile, tablet and desktop devices, using the same phone number. All your data will be instantly synchronized.',
+        style: TextStyle(color: subtextColor, fontSize: 13),
       ),
     );
   }
@@ -934,20 +983,23 @@ class _SessionRow extends StatelessWidget {
         ? customDeviceName!
         : rawDevice;
     final platform = session['platform'] as String? ?? '';
+    final systemStr = session['system'] as String? ?? '';
     final appName = session['app_name'] as String? ?? '';
     final appVersion = session['app_version'] as String? ?? '';
     final ip = session['ip'] as String? ?? '';
     final location = session['location'] as String? ?? '';
     final lastActive = session['last_active'] as String? ?? '';
-    final info = _classifyDevice(rawDevice, platform, appName);
+    final apiId = session['api_id'] as int?;
+    final info = _classifyDevice(rawDevice, platform, appName, apiId: apiId, system: systemStr);
 
     final statusParts = <String>[];
     if (appName.isNotEmpty) statusParts.add(appName);
     if (appVersion.isNotEmpty) statusParts.add(appVersion);
     final status = statusParts.join(' ');
 
+    final locationOrIp = location.isNotEmpty ? location : ip;
     final locationParts = <String>[];
-    if (location.isNotEmpty) locationParts.add(location);
+    if (locationOrIp.isNotEmpty) locationParts.add(locationOrIp);
     final dateStr = formatDate(lastActive);
     if (dateStr.isNotEmpty) locationParts.add(dateStr);
     final locationLine = locationParts.join(' · ');
@@ -1021,27 +1073,72 @@ class _SessionRow extends StatelessWidget {
   }
 }
 
-class _DeviceUserpic extends StatelessWidget {
+class _DeviceUserpic extends StatefulWidget {
   final _DeviceInfo info;
   final double size;
+  final bool animate;
 
-  const _DeviceUserpic({required this.info, required this.size});
+  const _DeviceUserpic({required this.info, required this.size, this.animate = false});
+
+  @override
+  State<_DeviceUserpic> createState() => _DeviceUserpicState();
+}
+
+class _DeviceUserpicState extends State<_DeviceUserpic> with SingleTickerProviderStateMixin {
+  AnimationController? _controller;
+  Animation<double>? _scaleAnim;
+  Animation<double>? _fadeAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.animate) {
+      _controller = AnimationController(
+        duration: const Duration(milliseconds: 600),
+        vsync: this,
+      );
+      _scaleAnim = Tween<double>(begin: 0.6, end: 1.0).animate(
+        CurvedAnimation(parent: _controller!, curve: Curves.elasticOut),
+      );
+      _fadeAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
+        CurvedAnimation(parent: _controller!, curve: const Interval(0.0, 0.5, curve: Curves.easeIn)),
+      );
+      _controller!.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
+    Widget child = Container(
+      width: widget.size,
+      height: widget.size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [info.gradientTop, info.gradientBottom],
+          colors: [widget.info.gradientTop, widget.info.gradientBottom],
         ),
       ),
-      child: Icon(info.icon, color: Colors.white, size: size * 0.52),
+      child: Icon(widget.info.icon, color: Colors.white, size: widget.size * 0.52),
     );
+    if (_controller != null) {
+      child = AnimatedBuilder(
+        animation: _controller!,
+        builder: (context, child) => Opacity(
+          opacity: _fadeAnim!.value,
+          child: Transform.scale(scale: _scaleAnim!.value, child: child),
+        ),
+        child: child,
+      );
+    }
+    return child;
   }
 }
 
