@@ -826,7 +826,8 @@ class _UniClientAppState extends State<UniClientApp>
               'perTopic' => ExportMode.perTopic,
               _ => ExportMode.full,
             };
-            showExportPanel(navCtx, ExportTarget(mode: mode));
+            final appState = context.read<AppState>();
+            showExportPanel(navCtx, ExportTarget(mode: mode, accountId: appState.activeAccountId));
           }
 
         case 'showPeerShortInfo':

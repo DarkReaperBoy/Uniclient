@@ -1102,12 +1102,13 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         iconColor: iconColor,
         hoverBg: hoverBg,
         onTap: () {
+          final accountId = appState.activeAccountId;
           Navigator.of(context).popUntil((route) => route.isFirst);
           Future.delayed(const Duration(milliseconds: 150), () {
             if (!context.mounted) return;
             showExportPanel(
               context,
-              const ExportTarget(mode: ExportMode.full),
+              ExportTarget(mode: ExportMode.full, accountId: accountId),
             );
           });
         },
