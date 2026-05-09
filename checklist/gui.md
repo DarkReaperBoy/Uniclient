@@ -300,30 +300,6 @@ Theme preview widget renders a mock Telegram UI showing dialogs and chat areas. 
 
 # admin_tools — Placeholders, missing wiring, and behavioral inaccuracies
 
-## _EditPeerInfoBox
-
-- [ ] [CRITICAL] "Set Photo" and "Set Video" menu items do nothing — `_showPhotoMenu` handler at `admin_tools.dart:308` only handles `'remove'`; `value == 'set'` and `value == 'set_video'` branches are absent. No file picker is opened, no `editChatPhoto` / `setChatPhoto` engine call is made. Photo upload is completely non-functional. ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:806` (uploads via `StickersBox` / `photos::UploadProfilePhoto`)
-
-- [ ] [CRITICAL] Photo removal only updates local state — `_avatarRemoved = true` is set at `admin_tools.dart:310` but `_onSave()` at `admin_tools.dart:599` never calls any engine method to remove the photo. `engine.removeChatPhoto` / `editChatPhoto(null)` does not exist in `engine_service.dart` and is never called. Removing the photo visually resets the UI but the server photo is unchanged. ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:2843` (sends `MTPchannels_EditPhoto`)
-
-- [ ] [CRITICAL] "Discussion Group / Linked Channel" row is an empty stub — `admin_tools.dart:379`: `onTap: () {}`. AyuGram opens `EditDiscussionLinkBox` which calls `channels.GetGroupsForDiscussion` then lets the user pick a discussion group. No engine method for this exists and no dialog is shown. ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:901` (`Controller::showEditDiscussionLinkBox`)
-
-- [ ] [CRITICAL] "Visible History" row is an empty stub — `admin_tools.dart:388`: `onTap: () {}`. AyuGram opens `EditPeerHistoryVisibilityBox` and saves via `channels.TogglePreHistoryHidden`. No engine method exists in `engine_service.dart`. ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1330` (`Controller::fillHistoryVisibilityButton`)
-
-- [ ] [CRITICAL] "Topics" row is an empty stub — `admin_tools.dart:397`: `onTap: () {}`. While `engine.toggleForum` exists in engine_service (`engine_service.dart:1847`), the Topics row never calls it. ← `AyuGram/boxes/peers/toggle_topics_box.cpp`
-
-- [ ] [CRITICAL] "Auto-Translation" toggle is an empty stub with hardcoded OFF state — `admin_tools.dart:408`: `onTap: () {}`. The `_EditRow` with `isToggle: true` renders `Switch(value: false, ...)` always at `admin_tools.dart:1382`. Neither the current auto-translate state is loaded from the engine, nor is any toggle call made. No `toggleAutoTranslate` method exists in `engine_service.dart`. ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1213` (`Controller::fillAutoTranslateButton`)
-
-- [ ] [CRITICAL] "Sign Messages" toggle is an empty stub with hardcoded OFF state — `admin_tools.dart:416`: `onTap: () {}`. Same `Switch(value: false)` issue. Current sign-messages state is not loaded, toggle is never called. No `toggleSignMessages` exists in `engine_service.dart`. ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1286`
-
-- [ ] [CRITICAL] "Add Stickers" row is an empty stub — `admin_tools.dart:563`: `onTap: () {}`. AyuGram opens `StickersBox` to pick a sticker set and saves via `channels.SetStickers`. No engine method for setting a group sticker set exists in `engine_service.dart`. ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:829` (`createStickersEdit`)
-
-- [ ] [MAJOR] `_EditRow` with `isToggle: true` always renders `Switch(value: false, ...)` — `admin_tools.dart:1382`. Both the Auto-Translation and Sign Messages rows use `isToggle: true` but the switch is hardcoded to `false` and never reflects real state. Even if the group has sign messages enabled, the toggle always shows OFF. ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:1286` (reads `channel->addsSignature()`)
-
-- [ ] [MAJOR] `_EditPeerInfoBoxState._descCtrl` is pre-filled from `getUserProfile` instead of `getChatFullInfo` — `admin_tools.dart:71`. For groups/channels, the description lives in `ChatFull.about`, not in a user profile bio. Calling `getUserProfile` on a group/channel ID may silently fail or return wrong data. ← `AyuGram/boxes/peers/edit_peer_info_box.cpp` (reads `peer->asChannel()->about()` from channel full)
-
-- [ ] [MAJOR] Description save skips when field is empty — `admin_tools.dart:615`: `if (newDesc.isNotEmpty)` means you cannot clear an existing description by emptying the field. AyuGram always sends the description on save, even if empty string, to allow clearing it. ← `AyuGram/boxes/peers/edit_peer_info_box.cpp:saveDescription()` (unconditional save)
-
 ## _EditAdminBox
 
 - [ ] [CRITICAL] Existing admin rights are never loaded when editing an existing admin — `_EditAdminBoxState.initState()` at `admin_tools.dart:2074` always initializes all flags to `enabled = true` regardless of the member's current rights. When opening the box for an existing admin, all permissions appear fully granted. No engine call fetches the current admin's actual rights. No `getMemberAdminRights` method exists in `engine_service.dart`. ← `AyuGram/boxes/peers/edit_participant_box.cpp` (loads existing rights from `participant->adminRights()`)
