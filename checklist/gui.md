@@ -307,10 +307,6 @@ Theme preview widget renders a mock Telegram UI showing dialogs and chat areas. 
 
 ## _AdminLogScreen / _AdminLogFilterDialog
 
-- [ ] [CRITICAL] Admin log filter checkboxes are completely ignored — `_AdminLogFilterDialog._checks` map is built and shown at `admin_tools.dart:3292`, but the `onApply` callback at `admin_tools.dart:3354` just calls `_loadEvents()` without passing any filter flags. `engine.getAdminLogEvents(...)` signature at `engine_service.dart:2054` has no `filters` parameter, so filter selections are never sent to the backend. Every "Apply" reloads all events regardless of checked filters. ← `AyuGram/history/admin_log/history_admin_log_inner.cpp:456` (`applyFilter` sends `MTPChannelAdminLogEventsFilter` flags)
-
-- [ ] [MAJOR] Admin log date badge `_currentDateLabel` is updated only in `_buildDateSeparator` (called during build) but read in the floating overlay — `admin_tools.dart:2965`. During scroll the label may be stale because `_currentDateLabel` is only updated when the list rebuilds, not on every scroll tick. The badge shows the wrong date while scrolling. ← `AyuGram/history/admin_log/history_admin_log_inner.cpp` (date label updated in scroll handler)
-
 ## _MemberTabBody
 
 - [ ] [CRITICAL] "Add to Banned / Add Exception / Add Admin" button is a toast-only stub — `admin_tools.dart:4796`: `showTelegramToast(ctx, 'Select a user...')`. No user-picker dialog is opened. Clicking "Add Admin" or "Add Exception" in the member tabs shows a toast instead of a contact/search selector. ← `AyuGram/boxes/peers/edit_participants_box.cpp` (opens `AddParticipantsBoxController` or `AddBotToGroupBoxController`)
