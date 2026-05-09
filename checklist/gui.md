@@ -470,25 +470,7 @@ All these controls exist in AppState but are not exposed in the UI.
 
 # chat_settings_screen — Audit Findings
 
-- [ ] [CRITICAL] `_useSystemAccent` checkbox updates only local state — never calls `appState.setSystemAccent()` or any engine method; toggling it has zero effect — `chat_settings_screen.dart:234` ← `settings/sections/settings_chat.cpp:2544-2548` (`settings.setSystemAccentColorEnabled(checked)`)
-
-- [ ] [CRITICAL] `_fontFamily` is local state only — `_ChooseFontBox` calls `onFontSelected` which does `setState(() => _fontFamily = f)` but never persists to `appState` or any engine call; font is reset on every rebuild — `chat_settings_screen.dart:307` ← `settings/sections/settings_chat.cpp:2875-2879` (`settings->setCustomFontFamily(chosen); Local::writeSettings(); Core::Restart()`)
-
-- [ ] [CRITICAL] Cloud theme `'edit'` context menu item is an empty stub — `case 'edit': break;` does nothing; AyuGram should open a theme editor — `chat_settings_screen.dart:1969-1970` ← `settings/sections/settings_chat.cpp:876-890` (cloud theme edit flow)
-
-- [ ] [CRITICAL] Cloud theme `'delete'` shows fake toast without any engine call — `showTelegramToast(context, 'Theme deleted')` runs with no `engine.deleteCloudTheme(...)` invocation; theme is never actually deleted — `chat_settings_screen.dart:1993-1997` ← `settings/sections/settings_chat.cpp:876-890`
-
-- [ ] [CRITICAL] "My Stickers" and "Emoji Sets" navigation buttons are missing from `_StickersEmojiSection` — `_StickerNavButton` widget class is defined but never instantiated anywhere in `_StickersEmojiSection.build()`; AyuGram has two nav buttons after the checkboxes — `chat_settings_screen.dart:2693-2789` ← `settings/sections/settings_chat.cpp:1553-1582` (`stickersButton` → `StickersBox`, `emojiSetsButton` → `ManageSetsBox`)
-
-- [ ] [MAJOR] "Double-click React" option has no reaction chooser — Dart shows a static `Icon(Icons.favorite)` as trailing; AyuGram adds a `buttonRight` circle button that opens `ReactionsSettingsBox` so the user can pick which reaction to use — `chat_settings_screen.dart:3011-3015` ← `settings/sections/settings_chat.cpp:1676-1766`
-
-- [ ] [MAJOR] Font selection in `_ChooseFontBox` is not applied — pressing "Apply" calls `widget.onFontSelected(_selected)` which sets local state but there is no `Core::Restart()` equivalent or any mechanism to actually switch the app font — `chat_settings_screen.dart:1750` ← `settings/sections/settings_chat.cpp:2877-2878`
-
-- [ ] [MAJOR] `_SettingsCheckbox` uses `vertical: 6` padding instead of spec's 10px — `EdgeInsets.symmetric(vertical: 6)` vs `settingsCheckboxPadding: margins(22px, 10px, 10px, 10px)`; affects Tile Background and Adaptive Layout checkboxes — `chat_settings_screen.dart:2313` ← `settings/sections/settings_chat.cpp` style `settingsCheckboxPadding`
-
-- [ ] [MAJOR] "Choose from gallery" opens OS file picker instead of Telegram's background browser — `_pickFromGallery()` calls `FilePicker.platform.pickFiles(type: FileType.image)` (local file); AyuGram's gallery opens `Box<BackgroundBox>(controller)` — a full Telegram wallpaper browser with online content — `chat_settings_screen.dart:101-104` ← `settings/sections/settings_chat.cpp:476-478`
-
-- [ ] [MAJOR] Background thumbnail shows no radial loading indicator — `_ChatBackgroundSection` renders the thumbnail statically; AyuGram's `BackgroundRow` has a `Ui::RadialAnimation` that displays while a wallpaper is downloading/applying — `chat_settings_screen.dart:2163-2184` ← `settings/sections/settings_chat.cpp:494-542`
+- [ ] [MAJOR] Font selection in `_ChooseFontBox` is not applied — `appState.customFontFamily = f` persists the preference but `AppTheme.fromPalette()` in `dart/lib/theme/theme.dart:104` hardcodes `fontFamily: 'Inter'`; fix: add `fontFamily` param to `fromPalette`, pass `appState.customFontFamily` from `main.dart:1886` — `chat_settings_screen.dart:1750` ← `settings/sections/settings_chat.cpp:2877-2878`
 
 # chat_switch_overlay — Audit Findings
 
