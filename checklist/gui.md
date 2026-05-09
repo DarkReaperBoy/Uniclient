@@ -315,12 +315,6 @@ Theme preview widget renders a mock Telegram UI showing dialogs and chat areas. 
 
 # advanced_settings_screen — Audit Findings
 
-## Major: Behavior
-
-- [ ] [MAJOR] "Update UniClient" button calls `exit(0)` instead of applying a downloaded update and restarting — AyuGram calls `Core::checkReadyUpdate()` before exit so the updater applies the patch on next launch — `advanced_settings_screen.dart:246` ← `settings_advanced.cpp:1481` (`Core::checkReadyUpdate()`)
-
-- [ ] [MAJOR] Window close behavior radio options include label "Quit Telegram" — should say "Quit UniClient" or "Quit" — `advanced_settings_screen.dart:532` ← `settings_advanced.cpp:398` (`tr::lng_settings_quit_on_close`)
-
 # bridge_stub — No issues found
 
 ## Summary
