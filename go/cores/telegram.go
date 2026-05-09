@@ -62,6 +62,11 @@ type TelegramCore struct {
 	ctx     context.Context
 	cancel  context.CancelFunc
 
+	// Pre-auth API — available during auth flow (before t.api is set).
+	// Used for resending OTP codes and requesting password recovery mid-auth.
+	preAuthAPI    *tg.Client
+	authPhoneHash string
+
 	// Config
 	apiID         int
 	apiHash       string
@@ -718,6 +723,11 @@ func (t *TelegramCore) Authenticate(cfg AuthConfig) error {
 				}
 				authFlow.signUpCh = t.authSignUpCh
 				authFlow.signUpReady = t.authSignUpReady
+				authFlow.core = t
+
+				t.mu.Lock()
+				t.preAuthAPI = api
+				t.mu.Unlock()
 
 				flow := auth.NewFlow(authFlow, auth.SendCodeOptions{})
 				authErr := t.client.Auth().IfNecessary(ctx, flow)
@@ -747,6 +757,8 @@ func (t *TelegramCore) Authenticate(cfg AuthConfig) error {
 			t.api = api
 			t.sender = sndr
 			t.authed = true
+			t.preAuthAPI = nil
+			t.authPhoneHash = ""
 			t.mu.Unlock()
 
 			// Cache self user info for SenderName population
@@ -934,6 +946,64 @@ func (t *TelegramCore) SubmitSignUp(firstName, lastName string) error {
 	case <-time.After(30 * time.Second):
 		return fmt.Errorf("%w: signup timed out", ErrAuth)
 	}
+}
+
+// ResendOTPCode requests a new authentication code during an active auth flow.
+func (t *TelegramCore) ResendOTPCode() error {
+	t.mu.RLock()
+	api := t.preAuthAPI
+	hash := t.authPhoneHash
+	phone := t.phone
+	t.mu.RUnlock()
+	if api == nil || hash == "" {
+		return fmt.Errorf("no auth flow in progress")
+	}
+	_, err := api.AuthResendCode(t.ctx, &tg.AuthResendCodeRequest{
+		PhoneNumber:   phone,
+		PhoneCodeHash: hash,
+	})
+	return err
+}
+
+// RequestRecoveryDuringAuth requests password recovery email during 2FA auth step.
+func (t *TelegramCore) RequestRecoveryDuringAuth() (string, error) {
+	t.mu.RLock()
+	api := t.preAuthAPI
+	t.mu.RUnlock()
+	if api == nil {
+		return "", fmt.Errorf("no auth flow in progress")
+	}
+	result, err := api.AuthRequestPasswordRecovery(t.ctx)
+	if err != nil {
+		return "", err
+	}
+	return result.EmailPattern, nil
+}
+
+// ResetPasswordDuringAuth initiates a password reset (7-day wait) during 2FA auth step.
+func (t *TelegramCore) ResetPasswordDuringAuth() (map[string]interface{}, error) {
+	t.mu.RLock()
+	api := t.preAuthAPI
+	t.mu.RUnlock()
+	if api == nil {
+		return nil, fmt.Errorf("no auth flow in progress")
+	}
+	result, err := api.AccountResetPassword(t.ctx)
+	if err != nil {
+		return nil, err
+	}
+	resp := map[string]interface{}{}
+	switch v := result.(type) {
+	case *tg.AccountResetPasswordOk:
+		resp["status"] = "ok"
+	case *tg.AccountResetPasswordRequestedWait:
+		resp["status"] = "wait"
+		resp["until_date"] = v.UntilDate
+	case *tg.AccountResetPasswordFailedWait:
+		resp["status"] = "failed"
+		resp["until_date"] = v.RetryDate
+	}
+	return resp, nil
 }
 
 func isContextErr(err error) bool {
@@ -11766,6 +11836,7 @@ type telegramAuthFlow struct {
 	password string
 
 	lastPassword string // stored for SRP_ID_INVALID retry
+	core         *TelegramCore
 
 	// Interactive channels (nil if pre-provided)
 	codeCh      chan string
@@ -11799,12 +11870,16 @@ func (f *telegramAuthFlow) Password(ctx context.Context) (string, error) {
 	return "", fmt.Errorf("2FA password required but not provided")
 }
 
-func (f *telegramAuthFlow) Code(ctx context.Context, _ *tg.AuthSentCode) (string, error) {
+func (f *telegramAuthFlow) Code(ctx context.Context, sentCode *tg.AuthSentCode) (string, error) {
+	if sentCode != nil && f.core != nil {
+		f.core.mu.Lock()
+		f.core.authPhoneHash = sentCode.PhoneCodeHash
+		f.core.mu.Unlock()
+	}
 	if f.code != "" {
 		return f.code, nil
 	}
 	if f.codeCh != nil {
-		// Signal that OTP code is needed
 		close(f.codeReady)
 		select {
 		case code := <-f.codeCh:

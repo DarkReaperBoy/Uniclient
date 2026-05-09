@@ -409,6 +409,21 @@ func advanceTelegram(flow *authFlow, input string, base *AuthState) (*AuthState,
 		base.TimeoutSecs = 60
 		return base, nil
 	case AuthStateOTP:
+		if input == "__resend_code" {
+			tc, ok := flow.core.(*cores.TelegramCore)
+			if !ok {
+				return nil, fmt.Errorf("expected TelegramCore for OTP resend")
+			}
+			if err := tc.ResendOTPCode(); err != nil {
+				return nil, fmt.Errorf("resend code: %w", err)
+			}
+			base.State = AuthStateOTP
+			base.CodeLength = 5
+			base.SentTo = "Telegram"
+			base.TimeoutSecs = 60
+			base.CanResend = true
+			return base, nil
+		}
 		flow.collected["otp"] = input
 		// For Telegram user mode, use the interactive SubmitOTP method.
 		if flow.collected["method"] != "bot_token" {
@@ -443,6 +458,41 @@ func advanceTelegram(flow *authFlow, input string, base *AuthState) (*AuthState,
 		}
 		return tryAuth(flow, base)
 	case AuthState2FA:
+		if input == "__request_recovery" {
+			tc, ok := flow.core.(*cores.TelegramCore)
+			if !ok {
+				return nil, fmt.Errorf("expected TelegramCore for recovery request")
+			}
+			emailPattern, err := tc.RequestRecoveryDuringAuth()
+			if err != nil {
+				return nil, fmt.Errorf("recovery request: %w", err)
+			}
+			base.State = AuthState2FA
+			base.Label = "Two-Factor Password"
+			base.HasRecovery = true
+			base.SentTo = emailPattern
+			return base, nil
+		}
+		if input == "__reset_account" {
+			tc, ok := flow.core.(*cores.TelegramCore)
+			if !ok {
+				return nil, fmt.Errorf("expected TelegramCore for account reset")
+			}
+			result, err := tc.ResetPasswordDuringAuth()
+			if err != nil {
+				return nil, fmt.Errorf("reset account: %w", err)
+			}
+			base.State = AuthState2FA
+			base.Label = "Two-Factor Password"
+			if status, ok := result["status"].(string); ok && status == "wait" {
+				base.Message = "password_reset_requested"
+			} else if status == "ok" {
+				base.Message = "password_reset_done"
+			} else {
+				base.Message = "password_reset_failed"
+			}
+			return base, nil
+		}
 		flow.collected["2fa"] = input
 		// For Telegram user mode, use the interactive Submit2FA method.
 		if flow.collected["method"] != "bot_token" {

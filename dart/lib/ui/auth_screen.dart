@@ -165,14 +165,13 @@ class _AuthScreenState extends State<AuthScreen>
               },
               child: const Text('Edit Phone Number'),
             ),
-            if (authState.currentAuth?.canResend ?? false)
-              TextButton(
-                onPressed: () {
-                  Navigator.of(ctx).pop();
-                  authState.switchToMethod('phone');
-                },
-                child: const Text('Resend Code'),
-              ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                authState.submitInput('__resend_code');
+              },
+              child: const Text('Resend Code'),
+            ),
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
               child: const Text('OK'),
@@ -379,6 +378,7 @@ class _AuthScreenState extends State<AuthScreen>
 
   void _showResetAccountDialog(BuildContext context) {
     final theme = Theme.of(context);
+    final authState = context.read<AuthState>();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -397,17 +397,36 @@ class _AuthScreenState extends State<AuthScreen>
           TextButton(
             onPressed: () async {
               Navigator.of(ctx).pop();
-              final auth = context.read<AuthState>().currentAuth;
-              if (auth == null) return;
-              try {
-                final engine = context.read<EngineService>();
-                await engine.resetPassword(auth.accountId);
-              } catch (_) {}
+              await authState.submitInput('__reset_account');
+              if (!mounted) return;
+              final msg = authState.currentAuth?.message ?? '';
+              if (msg == 'password_reset_requested') {
+                _showResetConfirmation(context, 'Password reset requested. Your password will be removed after the waiting period.');
+              } else if (msg == 'password_reset_done') {
+                _showResetConfirmation(context, 'Password has been reset. You can now log in without a password.');
+              } else if (authState.error != null) {
+                _showResetConfirmation(context, 'Reset failed: ${authState.error}');
+              }
             },
             style: TextButton.styleFrom(
               foregroundColor: theme.colorScheme.error,
             ),
             child: const Text('Reset Account'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showResetConfirmation(BuildContext context, String message) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
           ),
         ],
       ),
@@ -793,10 +812,7 @@ class _AuthScreenState extends State<AuthScreen>
 
   void _handleForgotPassword(AuthStateData data, AuthState authState) async {
     if (data.hasRecovery) {
-      try {
-        final engine = context.read<EngineService>();
-        await engine.requestPasswordRecovery(data.accountId);
-      } catch (_) {}
+      await authState.submitInput('__request_recovery');
       if (!mounted) return;
       setState(() {
         _isRecoveryMode = true;
@@ -1006,6 +1022,7 @@ class _AuthScreenState extends State<AuthScreen>
             },
             timeoutSecs: data.timeoutSecs,
             onDidntGetCode: () => _showDidntGetCodeDialog(authState),
+            onResendCode: () => authState.submitInput('__resend_code'),
           )
         else
           AnimatedBuilder(
@@ -1312,27 +1329,27 @@ class _CoverGradient extends StatelessWidget {
         child: Stack(
           children: [
             Positioned(
-              left: -20,
+              left: 10,
+              top: 30,
+              child: Icon(
+                Icons.chat_bubble_outline_rounded,
+                size: 70,
+                color: Colors.white.withValues(alpha: 0.12),
+              ),
+            ),
+            Positioned(
+              right: 10,
               top: 40,
               child: Icon(
-                Icons.message_rounded,
+                Icons.forum_outlined,
                 size: 60,
                 color: Colors.white.withValues(alpha: 0.12),
               ),
             ),
             Positioned(
-              right: -10,
-              top: 60,
-              child: Icon(
-                Icons.send_rounded,
-                size: 50,
-                color: Colors.white.withValues(alpha: 0.12),
-              ),
-            ),
-            Positioned(
-              top: 50,
-              left: 0,
-              right: 0,
+              left: 50,
+              top: 46,
+              right: 50,
               child: Center(
                 child: Icon(
                   Icons.send_rounded,
@@ -1342,7 +1359,7 @@ class _CoverGradient extends StatelessWidget {
               ),
             ),
             const Positioned(
-              top: 126,
+              top: 136,
               left: 0,
               right: 0,
               child: Text(
@@ -1350,24 +1367,24 @@ class _CoverGradient extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 22,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w600,
                   color: Colors.white,
                   letterSpacing: 0.2,
                 ),
               ),
             ),
             Positioned(
-              top: 158,
+              top: 174,
               left: 24,
               right: 24,
               child: Text(
                 'A universal messaging client',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 15,
                   fontWeight: FontWeight.w400,
                   color: Colors.white.withValues(alpha: 0.7),
-                  height: 1.4,
+                  height: 24 / 15,
                 ),
               ),
             ),
@@ -1387,6 +1404,7 @@ class _OtpCodeInput extends StatefulWidget {
   final ValueChanged<String> onComplete;
   final int timeoutSecs;
   final VoidCallback? onDidntGetCode;
+  final VoidCallback? onResendCode;
 
   const _OtpCodeInput({
     required this.digitCount,
@@ -1394,6 +1412,7 @@ class _OtpCodeInput extends StatefulWidget {
     required this.onComplete,
     this.timeoutSecs = 0,
     this.onDidntGetCode,
+    this.onResendCode,
   });
 
   @override
@@ -1525,6 +1544,7 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
         if (_callSecondsLeft <= 0) {
           t.cancel();
           _calling = true;
+          widget.onResendCode?.call();
         }
       });
     });
@@ -1836,7 +1856,7 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
           const SizedBox(height: 16),
           _calling
               ? TextButton(
-                  onPressed: widget.onDidntGetCode,
+                  onPressed: widget.onResendCode ?? widget.onDidntGetCode,
                   style: TextButton.styleFrom(
                     padding: EdgeInsets.zero,
                     minimumSize: Size.zero,
