@@ -312,7 +312,6 @@ Theme preview widget renders a mock Telegram UI showing dialogs and chat areas. 
 
 ## _InviteLinksBox
 
-- [ ] [MAJOR] "Share" button copies to clipboard instead of sharing — `admin_tools.dart:3776` and `admin_tools.dart:4179`: both Share buttons call `Clipboard.setData(...)` with toast "Link copied to clipboard". On desktop this is acceptable but on mobile it should open the share sheet. No platform share intent is used. ← `AyuGram/boxes/peers/edit_peer_invite_links.cpp` (uses `QApplication::clipboard` on desktop, share sheet on mobile)
 
 # advanced_settings_screen — Audit Findings
 
