@@ -14730,6 +14730,85 @@ func (t *TelegramCore) TogglePeerTranslations(chatID string, disabled bool) erro
 	return err
 }
 
+// SetGroupStickerSet sets a sticker set for a supergroup by short name.
+func (t *TelegramCore) SetGroupStickerSet(chatID, shortName string) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	peer, err := t.resolvePeer(chatID); if err != nil { return err }
+	ch, ok := peer.(*tg.PeerChannel); if !ok { return fmt.Errorf("not a channel") }
+	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
+	var stickerSet tg.InputStickerSetClass
+	if shortName == "" {
+		stickerSet = &tg.InputStickerSetEmpty{}
+	} else {
+		stickerSet = &tg.InputStickerSetShortName{ShortName: shortName}
+	}
+	_, err = t.api.ChannelsSetStickers(t.ctx, &tg.ChannelsSetStickersRequest{
+		Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash}, Stickerset: stickerSet,
+	}); return err
+}
+
+// SetDiscussionGroup links or unlinks a discussion group to/from a channel.
+func (t *TelegramCore) SetDiscussionGroup(broadcastID, groupID string) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+
+	var broadcastInput tg.InputChannelClass
+	if broadcastID != "" {
+		peer, err := t.resolvePeer(broadcastID); if err != nil { return err }
+		ch, ok := peer.(*tg.PeerChannel); if !ok { return fmt.Errorf("broadcast is not a channel") }
+		hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
+		broadcastInput = &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash}
+	} else {
+		broadcastInput = &tg.InputChannelEmpty{}
+	}
+
+	var groupInput tg.InputChannelClass
+	if groupID != "" {
+		peer, err := t.resolvePeer(groupID); if err != nil { return err }
+		ch, ok := peer.(*tg.PeerChannel); if !ok { return fmt.Errorf("group is not a channel/supergroup") }
+		hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
+		groupInput = &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash}
+	} else {
+		groupInput = &tg.InputChannelEmpty{}
+	}
+
+	_, err := t.api.ChannelsSetDiscussionGroup(t.ctx, &tg.ChannelsSetDiscussionGroupRequest{
+		Broadcast: broadcastInput, Group: groupInput,
+	}); return err
+}
+
+// GetDiscussionGroups returns groups available for linking as discussion groups.
+func (t *TelegramCore) GetDiscussionGroups() ([]map[string]interface{}, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return nil, ErrAuth }
+	result, err := t.api.ChannelsGetGroupsForDiscussion(t.ctx)
+	if err != nil { return nil, err }
+	var groups []map[string]interface{}
+	var chats []tg.ChatClass
+	switch v := result.(type) {
+	case *tg.MessagesChats:
+		chats = v.Chats
+	case *tg.MessagesChatsSlice:
+		chats = v.Chats
+	}
+	for _, chat := range chats {
+		switch c := chat.(type) {
+		case *tg.Channel:
+			groups = append(groups, map[string]interface{}{
+				"id":    fmt.Sprintf("-100%d", c.ID),
+				"title": c.Title,
+			})
+		case *tg.Chat:
+			groups = append(groups, map[string]interface{}{
+				"id":    fmt.Sprintf("-%d", c.ID),
+				"title": c.Title,
+			})
+		}
+	}
+	return groups, nil
+}
+
 // ToggleNoForwards enables or disables forwarding restrictions in a chat.
 func (t *TelegramCore) ToggleNoForwards(chatID string, enabled bool) error {
 	inputPeer, unlock, err := t.withPeer(chatID)

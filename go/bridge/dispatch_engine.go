@@ -1741,6 +1741,41 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.DeleteChannelPhoto(params.AccountID, params.ChatID)
 
+	case "SetGroupStickerSet":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			ShortName string `json:"short_name"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SetGroupStickerSet(params.AccountID, params.ChatID, params.ShortName)
+
+	case "SetDiscussionGroup":
+		var params struct {
+			AccountID   string `json:"account_id"`
+			BroadcastID string `json:"broadcast_id"`
+			GroupID     string `json:"group_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SetDiscussionGroup(params.AccountID, params.BroadcastID, params.GroupID)
+
+	case "GetDiscussionGroups":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		groups, err := e.GetDiscussionGroups(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(groups)
+
 	// ── Create Group ──
 
 	case "CreateGroup":

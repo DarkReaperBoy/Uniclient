@@ -515,17 +515,119 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
 
   Future<void> _showLinkedChatDialog() async {
     final engine = context.read<EngineService>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final subTextColor = isDark ? Colors.white70 : Colors.black54;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final accentColor = PaletteProvider.of(context).windowBgActive;
+
     try {
       final linkedId = await engine.getLinkedChatId(
         widget.chat.accountId,
         widget.chat.chatId,
       );
       if (!mounted) return;
-      if (linkedId.isNotEmpty) {
-        showTelegramToast(context, 'Linked chat: $linkedId');
-      } else {
-        showTelegramToast(context, 'No linked ${_isChannel ? "discussion group" : "channel"} set');
+
+      List<Map<String, dynamic>> groups = [];
+      if (_isChannel) {
+        try {
+          groups = await engine.getDiscussionGroups(widget.chat.accountId);
+        } catch (_) {}
       }
+      if (!mounted) return;
+
+      showDialog(
+        context: context,
+        builder: (ctx) {
+          return AlertDialog(
+            backgroundColor: bgColor,
+            title: Text(
+              _isChannel ? 'Discussion Group' : 'Linked Channel',
+              style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600),
+            ),
+            content: SizedBox(
+              width: 300,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (linkedId.isNotEmpty) ...[
+                    Text('Currently linked:', style: TextStyle(color: subTextColor, fontSize: 13)),
+                    const SizedBox(height: 4),
+                    Text(linkedId, style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w500)),
+                    const SizedBox(height: 12),
+                  ] else
+                    Text(
+                      'No ${_isChannel ? "discussion group" : "channel"} linked.',
+                      style: TextStyle(color: subTextColor, fontSize: 14),
+                    ),
+                  if (_isChannel && groups.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Text('Available groups:', style: TextStyle(color: subTextColor, fontSize: 13)),
+                    const SizedBox(height: 4),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 200),
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: groups.length,
+                        itemBuilder: (_, i) {
+                          final g = groups[i];
+                          final gId = g['id'] as String? ?? '';
+                          final gTitle = g['title'] as String? ?? 'Untitled';
+                          final isLinked = gId == linkedId;
+                          return ListTile(
+                            dense: true,
+                            title: Text(gTitle, style: TextStyle(color: textColor, fontSize: 14)),
+                            trailing: isLinked
+                                ? Icon(Icons.check_circle, color: accentColor, size: 20)
+                                : null,
+                            onTap: () async {
+                              Navigator.pop(ctx);
+                              try {
+                                await engine.setDiscussionGroup(
+                                  widget.chat.accountId,
+                                  widget.chat.chatId,
+                                  gId,
+                                );
+                                if (mounted) showTelegramToast(context, 'Discussion group set to "$gTitle"');
+                              } catch (e) {
+                                if (mounted) showTelegramToast(context, 'Failed: $e');
+                              }
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              if (linkedId.isNotEmpty)
+                TextButton(
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+                    try {
+                      await engine.setDiscussionGroup(
+                        widget.chat.accountId,
+                        _isChannel ? widget.chat.chatId : '',
+                        _isChannel ? '' : widget.chat.chatId,
+                      );
+                      if (mounted) showTelegramToast(context, 'Discussion group unlinked');
+                    } catch (e) {
+                      if (mounted) showTelegramToast(context, 'Failed to unlink: $e');
+                    }
+                  },
+                  child: Text('Unlink', style: TextStyle(color: Colors.red.shade400)),
+                ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('Close', style: TextStyle(color: subTextColor)),
+              ),
+            ],
+          );
+        },
+      );
     } catch (e) {
       if (mounted) showTelegramToast(context, 'Failed to load: $e');
     }
@@ -825,11 +927,25 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
             child: Text('Cancel', style: TextStyle(color: subTextColor)),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
+            onPressed: () async {
               final name = ctrl.text.trim();
-              if (name.isNotEmpty) {
-                showTelegramToast(context, 'Sticker set "$name" will be set for this group');
+              if (name.isEmpty) return;
+              Navigator.pop(ctx);
+              final shortName = name
+                  .replaceAll(RegExp(r'https?://t\.me/addstickers/'), '')
+                  .replaceAll(RegExp(r'https?://telegram\.me/addstickers/'), '')
+                  .trim();
+              if (shortName.isEmpty) return;
+              final engine = context.read<EngineService>();
+              try {
+                await engine.setGroupStickerSet(
+                  widget.chat.accountId,
+                  widget.chat.chatId,
+                  shortName,
+                );
+                if (mounted) showTelegramToast(context, 'Sticker set applied');
+              } catch (e) {
+                if (mounted) showTelegramToast(context, 'Failed to set sticker set: $e');
               }
             },
             child: Text('Add', style: TextStyle(color: accentColor, fontWeight: FontWeight.w500)),

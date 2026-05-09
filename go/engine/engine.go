@@ -1346,6 +1346,48 @@ func (e *Engine) DeleteChannelPhoto(accountID, chatID string) error {
 	return fmt.Errorf("platform does not support channel photo deletion")
 }
 
+func (e *Engine) SetGroupStickerSet(accountID, chatID, shortName string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type setter interface {
+		SetGroupStickerSet(chatID, shortName string) error
+	}
+	if s, ok := acc.Core.(setter); ok {
+		return s.SetGroupStickerSet(chatID, shortName)
+	}
+	return fmt.Errorf("platform does not support group sticker set")
+}
+
+func (e *Engine) SetDiscussionGroup(accountID, broadcastID, groupID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type setter interface {
+		SetDiscussionGroup(broadcastID, groupID string) error
+	}
+	if s, ok := acc.Core.(setter); ok {
+		return s.SetDiscussionGroup(broadcastID, groupID)
+	}
+	return fmt.Errorf("platform does not support discussion group linking")
+}
+
+func (e *Engine) GetDiscussionGroups(accountID string) ([]map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type provider interface {
+		GetDiscussionGroups() ([]map[string]interface{}, error)
+	}
+	if p, ok := acc.Core.(provider); ok {
+		return p.GetDiscussionGroups()
+	}
+	return nil, fmt.Errorf("platform does not support discussion groups")
+}
+
 func (e *Engine) GetExportedChatInvites(accountID, chatID string, revoked bool) ([]map[string]interface{}, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

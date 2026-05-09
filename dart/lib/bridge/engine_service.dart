@@ -2266,6 +2266,37 @@ class EngineService {
     await _callAsync('__engine', 'DeleteChannelPhoto', Uint8List.fromList(payload));
   }
 
+  Future<void> setGroupStickerSet(String accountId, String chatId, String shortName) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'short_name': shortName,
+    }));
+    await _callAsync('__engine', 'SetGroupStickerSet', Uint8List.fromList(payload));
+  }
+
+  Future<void> setDiscussionGroup(String accountId, String broadcastId, String groupId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'broadcast_id': broadcastId,
+      'group_id': groupId,
+    }));
+    await _callAsync('__engine', 'SetDiscussionGroup', Uint8List.fromList(payload));
+  }
+
+  Future<List<Map<String, dynamic>>> getDiscussionGroups(String accountId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+    }));
+    final respBytes = await _callAsync('__engine', 'GetDiscussionGroups', Uint8List.fromList(payload));
+    if (respBytes.isEmpty) return [];
+    final decoded = json.decode(utf8.decode(respBytes));
+    if (decoded is List) {
+      return decoded.cast<Map<String, dynamic>>();
+    }
+    return [];
+  }
+
   Future<void> forwardMessage(String accountId, String chatId, String msgId, String toChatId, {
     bool dropAuthor = false,
     bool dropCaptions = false,
