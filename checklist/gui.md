@@ -467,24 +467,6 @@ All these controls exist in AppState but are not exposed in the UI.
 
 # calls_screen — Audit Findings
 
-## Critical Stubs & Broken Backend Wiring
-
-- [ ] [CRITICAL] `_CallHistoryRow` primary `onTap: () {}` is a complete stub — clicking a call history row does nothing. AyuGram's `BoxController::rowClicked` navigates to the peer's chat history at the exact call message ID (`window->showPeerHistory(peer, ClearStack, itemId)`). — `calls_screen.dart:1933` ← `AyuGram/calls/calls_box_controller.cpp:600-610`
-
-- [ ] [CRITICAL] "Share Link" button in `_ConferenceCallLinkBox` calls `Navigator.of(context).pop()` — just closes the dialog instead of invoking the OS share sheet with the link. — `calls_screen.dart:1483` ← `AyuGram/calls/calls_box_controller.cpp:800` (PrepareCreateCallBox wires invite link to share)
-
-- [ ] [CRITICAL] "Join this call yourself" link calls `Navigator.of(context).pop()` — closes dialog without joining the conference call. Should trigger `engine.joinGroupCall` or equivalent to actually enter the call the user just created. — `calls_screen.dart:1518` ← `AyuGram/calls/calls_box_controller.cpp:800-802`
-
-- [ ] [CRITICAL] "Open system sound preferences" row has empty `onTap: () {}`. AyuGram calls `Platform::OpenSystemSettings(SystemSettingsType::Audio)` which launches the OS audio settings (pavucontrol on Linux, System Preferences on Mac). — `calls_screen.dart:2224` ← `AyuGram/settings/sections/settings_calls.cpp:411-425`
-
-- [ ] [CRITICAL] Device picker in `_showDevicePicker` only lists `['Default']` — hardcoded, never queries the engine for real audio or video devices. The engine has no `getAudioDevices`/`getVideoDevices`/`getCameraDevices` method at all, making the entire Output/Input/Camera device selection UI non-functional. — `calls_screen.dart:2241` ← `AyuGram/settings/sections/settings_calls.cpp:57-70` (uses `Core::App().mediaDevices().devicesValue(type)` for live device list)
-
-- [ ] [CRITICAL] `_acceptCalls` toggle stores only local state (`bool _acceptCalls = true`) and is never persisted or sent to any engine method. AyuGram calls `authorizations->toggleCallsDisabledHere(!value)` which makes an `account.updateDeviceLocked` API call. Toggling the switch here has zero effect on actual incoming call delivery. — `calls_screen.dart:2109,2211` ← `AyuGram/settings/sections/settings_calls.cpp:392-408`
-
-- [ ] [CRITICAL] `_useSameDevices` toggle stores only local state and is never persisted. AyuGram reads `settings->callPlaybackDeviceId().isEmpty() && settings->callCaptureDeviceId().isEmpty()` as the initial state and on toggle calls `settings->setCallPlaybackDeviceId/setCallCaptureDeviceId` with `Core::App().saveSettingsDelayed()`. No engine call wires this setting. — `calls_screen.dart:2108,2182` ← `AyuGram/settings/sections/settings_calls.cpp:245-275`
-
-- [ ] [CRITICAL] `_outputDevice`, `_inputDevice`, `_cameraDevice` fields are local state never saved to settings or sent to the engine. Selecting a device in the picker updates the label only; the actual audio routing is unchanged. There is no `engine.setOutputDevice`/`setInputDevice`/`setCameraDevice` call anywhere in the file. — `calls_screen.dart:2105-2107,2150-2200` ← `AyuGram/settings/sections/settings_calls.cpp:83-89,104-112`
-
 ## Major Issues
 
 - [ ] [MAJOR] `_InputLevelMeter` uses a fake looping animation (`level: _controller.value * 0.35`) instead of real microphone capture. AyuGram instantiates `Webrtc::AudioInputTester` with the selected capture device, polls it every `kMicTestUpdateInterval` ms via `base::Timer`, and feeds the real PCM level into the meter. — `calls_screen.dart:2559` ← `AyuGram/settings/sections/settings_calls.cpp:113-151`
