@@ -159,31 +159,7 @@ See message_bubble.dart lines 4098, 4108, 4497 and keyboard_shortcuts.dart lines
 
 # ayu_forward — Forward state machine and intelligent chunking
 
-- [ ] [CRITICAL] `isMessageRestricted` omits `unsupportedTTL` check — C++ `isAyuForwardNeeded` guards on `item->unsupportedTTL()` as a separate condition from `item->media()->ttlSeconds()` (self-destruct timer messages that the client doesn't support), but Dart collapses both into `msg.ttlSeconds > 0`; messages with `_unsupportedTTL > 0` and no media TTL take the native forward path instead of resend-as-own, which will fail — `ayu_forward.dart:101` ← `ayu_forward.cpp:227`
-
-- [ ] [MAJOR] Sender-level AyuNoForwards check (`isFullAyuForwardNeeded`) absent — C++ top-level gate in `ApiWrap::forwardMessages` checks `item->from()->isAyuNoForwards()` BEFORE the per-message chunking; if true it forces the entire batch through `forwardMessages` (full resend-as-own) bypassing `intelligentForward`; Dart has no sender-level check — `isChatRestricted` only covers `chat.noForwards` (the peer side of the same check) but ignores the sender side entirely, so messages sent by a restricted sender will incorrectly try native forward — `ayu_forward.dart:106` ← `ayu_forward.cpp:233-235`, `apiwrap.cpp:3487`
-
-- [ ] [MAJOR] `_groupByAlbum` breaks chronological message order in resend-as-own path — non-album messages are appended to `groups` inline, then all album groups are appended at the end via `groups.addAll(albumMap.values)`; for a sequence [A, B1, B2, C] where B1+B2 share an album the Dart sends [[A], [C], [B1,B2]] instead of [[A], [B1,B2], [C]]; C++ `prepareMedia` advances the outer loop index `i` to consume consecutive album members in-place, preserving order — `ayu_forward.dart:156-164` ← `ayu_forward.cpp:137-148`
-
-- [ ] [MAJOR] `statusText` conflates `preparing` and `sending` phases — Dart maps both `AyuForwardPhase.preparing` and `AyuForwardPhase.sending` to the identical string `'Forwarding messages'`; C++ emits a distinct `tr::ayu_AyuForwardStatusPreparing` during `State::Preparing` and `tr::ayu_AyuForwardStatusForwarding` only during `State::Sending`; users see no indication that the operation is in a pre-send preparation stage — `ayu_forward.dart:33-35` ← `ayu_forward.cpp:84-89`
-
 # chat_state — State Management Audit
-
-- [ ] [CRITICAL] `togglePinSavedSublist` has explicit "TBD" comment — only mutates local lists, never calls engine; `MTPmessages_ToggleSavedDialogPin` is never issued — `chat_state.dart:1188` ← `AyuGram/window/window_peer_menu.cpp:469`
-
-- [ ] [CRITICAL] `markSavedSublistRead` is a stub — body is only `notifyListeners()`, no backend call; AyuGram calls `SavedSublist::readTillEnd()` which sends `messages.readHistory` — `chat_state.dart:1211` ← `AyuGram/data/data_saved_sublist.cpp:285`
-
-- [ ] [CRITICAL] `deleteSavedSublist` removes items from local lists only — never calls engine; AyuGram sends `MTPmessages_DeleteSavedHistory` via `ApiWrap::deleteSublistHistory` — `chat_state.dart:1215` ← `AyuGram/apiwrap.cpp:1469`
-
-- [ ] [CRITICAL] `reorderPinnedChats` mutates in-memory `_pinnedChatOrders` only — drag-to-reorder never persists; AyuGram sends `MTPmessages_ReorderPinnedDialogs` with `f_force` flag — `chat_state.dart:1695` ← `AyuGram/apiwrap.cpp:397`
-
-- [ ] [CRITICAL] `reorderFolders` mutates local `_folders` list only — never persists order to server; AyuGram sends `MTPmessages_UpdateDialogFiltersOrder` — `chat_state.dart:811` ← `AyuGram/data/data_chat_filters.cpp:913`
-
-- [ ] [MAJOR] Folder filter collapses contacts, non-contacts, and bots into a single "any DM" branch with comment "We can't distinguish contact/non-contact/bot yet"; AyuGram uses `user->isContact()` and `Flag::Bots` to filter each category separately — `chat_state.dart:700` ← `AyuGram/data/data_chat_filters.cpp:350`
-
-- [ ] [MAJOR] `_autoPreloadForumTopics` and `loadMoreForumTopics` always call `getForumTopics(accountId, chatId)` with no offset parameter — pagination never advances beyond the first batch; AyuGram uses offset-based `requestTopics` — `chat_state.dart:1007` ← `AyuGram/data/data_forum.cpp` (`Forum::requestTopics`)
-
-- [ ] [MAJOR] Saved Messages chat detected by string comparison `chat.title == 'Saved Messages'` — fragile and wrong for non-English locales; AyuGram uses `peer->isSelf()` identity check — `chat_state.dart:891` ← `AyuGram/dialogs/dialogs_inner_widget.cpp:3672`
 
 # bridge_ffi.dart — Audit Report
 
