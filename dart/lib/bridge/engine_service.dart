@@ -1498,6 +1498,20 @@ class EngineService {
     }
   }
 
+  // ── Confcall size limit ──
+
+  Future<int> getConfcallSizeLimit(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetConfcallSizeLimit', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return 200;
+      final m = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return (m['limit'] as num?)?.toInt() ?? 200;
+    } catch (_) {
+      return 200;
+    }
+  }
+
   // ── Group calls ──
 
   /// Get active group call info for a chat, or null if no active call.

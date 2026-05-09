@@ -1153,6 +1153,22 @@ func (e *Engine) GetPaidMessagesConfig(accountID string) (int64, int32, float64,
 	return g.GetPaidMessagesConfig()
 }
 
+type confcallSizeLimitGetter interface {
+	GetConfcallSizeLimit() (int, error)
+}
+
+func (e *Engine) GetConfcallSizeLimit(accountID string) (int, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return 200, fmt.Errorf("account %q not connected", accountID)
+	}
+	g, ok := acc.Core.(confcallSizeLimitGetter)
+	if !ok {
+		return 200, nil
+	}
+	return g.GetConfcallSizeLimit()
+}
+
 type cloudThemesFetcher interface {
 	GetCloudThemes() ([]cores.CloudThemeInfo, error)
 }

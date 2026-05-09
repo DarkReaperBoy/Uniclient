@@ -17365,6 +17365,27 @@ func (t *TelegramCore) SetMessagesPrivacy(option string, chargeStars int64) erro
 	return err
 }
 
+func (t *TelegramCore) GetConfcallSizeLimit() (int, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return 200, ErrAuth }
+	result, err := t.api.HelpGetAppConfig(t.ctx, 0)
+	if err != nil { return 200, nil }
+	cfg, ok := result.(*tg.HelpAppConfig)
+	if !ok { return 200, nil }
+	if jv := cfg.Config; jv != nil {
+		if obj, ok2 := jv.(*tg.JSONObject); ok2 {
+			for _, kv := range obj.Value {
+				if kv.Key == "groupcall_video_participants_max" {
+					if n, ok3 := kv.Value.(*tg.JSONNumber); ok3 {
+						return int(n.Value), nil
+					}
+				}
+			}
+		}
+	}
+	return 200, nil
+}
+
 func (t *TelegramCore) GetPaidMessagesConfig() (maxStars int64, commissionPermille int32, withdrawRate float64, err error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return 0, 0, 0, ErrAuth }

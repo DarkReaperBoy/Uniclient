@@ -2738,6 +2738,21 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.SetMessagesPrivacy(params.AccountID, params.Option, params.ChargeStars)
 
+	case "GetConfcallSizeLimit":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		limit, err := e.GetConfcallSizeLimit(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]interface{}{
+			"limit": limit,
+		})
+
 	case "GetPaidMessagesConfig":
 		var params struct {
 			AccountID string `json:"account_id"`

@@ -710,7 +710,7 @@ class _CreateCallButtonState extends State<_CreateCallButton>
   late final AnimationController _highlightController;
   late final Animation<double> _highlightAnim;
 
-  static const _confcallSizeLimit = 200;
+  int _confcallSizeLimit = 200;
 
   @override
   void initState() {
@@ -727,6 +727,16 @@ class _CreateCallButtonState extends State<_CreateCallButton>
       Future.delayed(const Duration(milliseconds: 400), () {
         if (mounted) _highlightController.forward();
       });
+    }
+    _loadConfcallSizeLimit();
+  }
+
+  Future<void> _loadConfcallSizeLimit() async {
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    final limit = await engine.getConfcallSizeLimit(accountId);
+    if (mounted && limit != _confcallSizeLimit) {
+      setState(() => _confcallSizeLimit = limit);
     }
   }
 
@@ -872,12 +882,22 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
 
-  static const _confcallSizeLimit = 200;
+  int _confcallSizeLimit = 200;
 
   @override
   void initState() {
     super.initState();
     _loadContacts();
+    _loadConfcallSizeLimit();
+  }
+
+  Future<void> _loadConfcallSizeLimit() async {
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    final limit = await engine.getConfcallSizeLimit(accountId);
+    if (mounted && limit != _confcallSizeLimit) {
+      setState(() => _confcallSizeLimit = limit);
+    }
   }
 
   @override
@@ -2657,38 +2677,95 @@ class _InputLevelMeter extends StatefulWidget {
 class _InputLevelMeterState extends State<_InputLevelMeter>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
+  Process? _captureProcess;
+  double _currentLevel = 0.0;
+  double _targetLevel = 0.0;
+  bool _capturing = false;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 800),
-    )..repeat(reverse: true);
+      duration: const Duration(milliseconds: 100),
+    )..addListener(_onTick);
+    _startCapture();
+  }
+
+  void _onTick() {
+    if (!mounted) return;
+    setState(() {
+      _currentLevel = _currentLevel + (_targetLevel - _currentLevel) * 0.3;
+    });
+  }
+
+  Future<void> _startCapture() async {
+    if (!Platform.isLinux && !Platform.isMacOS) return;
+    final candidates = Platform.isLinux
+        ? [
+            ['parec', '--raw', '--format=s16le', '--rate=16000', '--channels=1'],
+            ['pw-record', '--rate', '16000', '--channels', '1', '--format', 's16', '-'],
+          ]
+        : [
+            ['rec', '-t', 'raw', '-b', '16', '-r', '16000', '-c', '1', '-e', 'signed-integer', '-'],
+          ];
+    for (final candidate in candidates) {
+      try {
+        _captureProcess = await Process.start(candidate[0], candidate.sublist(1));
+        break;
+      } catch (_) {
+        continue;
+      }
+    }
+    if (_captureProcess == null) return;
+    try {
+      _capturing = true;
+      _controller.repeat();
+      _captureProcess!.stdout.listen(
+        (data) {
+          if (!mounted || data.length < 2) return;
+          double peak = 0;
+          for (int i = 0; i < data.length - 1; i += 2) {
+            int sample = data[i] | (data[i + 1] << 8);
+            if (sample >= 32768) sample -= 65536;
+            final abs = sample.abs() / 32768.0;
+            if (abs > peak) peak = abs;
+          }
+          _targetLevel = peak.clamp(0.0, 1.0);
+        },
+        onError: (_) => _stopCapture(),
+        onDone: _stopCapture,
+      );
+      _captureProcess!.stderr.drain<void>();
+    } catch (_) {
+      _capturing = false;
+    }
+  }
+
+  void _stopCapture() {
+    _capturing = false;
+    _captureProcess?.kill();
+    _captureProcess = null;
   }
 
   @override
   void dispose() {
+    _stopCapture();
     _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) {
-        return CustomPaint(
-          size: const Size(double.infinity, 18),
-          painter: _LevelMeterPainter(
-            level: _controller.value * 0.35,
-            activeColor: widget.accentColor,
-            inactiveColor: widget.isDark
-                ? const Color(0xFF3B4654)
-                : const Color(0xFFD8D8D8),
-          ),
-        );
-      },
+    return CustomPaint(
+      size: const Size(double.infinity, 18),
+      painter: _LevelMeterPainter(
+        level: _capturing ? _currentLevel : 0.0,
+        activeColor: widget.accentColor,
+        inactiveColor: widget.isDark
+            ? const Color(0xFF3B4654)
+            : const Color(0xFFD8D8D8),
+      ),
     );
   }
 }
