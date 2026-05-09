@@ -464,23 +464,9 @@ All these controls exist in AppState but are not exposed in the UI.
 
 # ayu_filters_page — Audit Findings
 
-- [ ] [CRITICAL] `_ShadowBanRow` hardcodes "User $id" as display name instead of resolving the actual peer name from session data — `ayu_filters_page.dart:851` ← `per_dialog_filter.cpp:35-40` (`PerDialogFiltersListRow::generateName()` calls `getPeerFromDialogId()` and falls back to `"UNKNOWN (ID: %1)"` only when peer is unresolved)
-
-- [ ] [CRITICAL] `_ShadowBanRow` always shows the letter 'U' in the avatar (`const Text('U', ...)`) — never attempts peer lookup for a real userpic — `ayu_filters_page.dart:843` ← `per_dialog_filter.cpp:43-58` (`generatePaintUserpicCallback` calls `getPeerFromDialogId` and only falls back to empty userpic with 'U' when the peer cannot be resolved at all)
-
-- [ ] [CRITICAL] Import applies changes immediately without showing the confirmation/summary dialog — AyuGram shows `MakeConfirmBox` with a full change summary (new filters count, removed filters, updated filters, new exclusions, removed exclusions, dialogs to resolve) before applying anything — `ayu_filters_page.dart:1183-1218` ← `filters_utils.cpp:417-432`
-
-- [ ] [CRITICAL] Import does not process `removeFiltersById`, `removeExclusions`, or `peers` fields from the backup JSON — only adds filters and exclusions, cannot sync deletions or resolve peer hints — `ayu_filters_page.dart:1192-1218` ← `filters_utils.cpp:786-855`
-
-- [ ] [CRITICAL] Export JSON is missing `removeFiltersById`, `removeExclusions`, and `peers` fields — AyuGram always emits all five top-level keys (`version`, `filters`, `exclusions`, `removeFiltersById`, `removeExclusions`, `peers`) for cross-version compatibility — `ayu_filters_page.dart:1232-1237` ← `filters_utils.cpp:457-530`
-
-- [ ] [MAJOR] New filter `caseInsensitive` defaults to `false` — AyuGram defaults `caseInsensitive = true` for every new filter — `ayu_filters_page.dart:900` ← `edit_filter.cpp:143`
-
 - [ ] [MAJOR] Regex validation uses Dart's built-in `RegExp` engine — AyuGram validates and executes with the ICU `icu::RegexPattern::compile` engine (supports full ICU regex including lookaheads, Unicode categories, etc.) — a pattern accepted by Dart `RegExp` may be rejected by the ICU engine at runtime and vice versa — `ayu_filters_page.dart:913-921` ← `edit_filter.cpp:57-99`
 
 - [ ] [MAJOR] Select-chat dialog only iterates `chatState.chats` (locally cached list) — AyuGram uses `Window::ShowChooseRecipientBox` with `InlineBots::PeerType` flags (Bot | Group | Broadcast) enabling full peer search with network resolution for any peer — `ayu_filters_page.dart:165-230` ← `settings_filters.cpp:196-217`
-
-- [ ] [MAJOR] After saving a new shared filter from within a per-dialog context, AyuGram shows an action toast ("Shown in [dialog]? Tap to restrict") letting the user immediately scope the new filter to that dialog — not implemented in Dart — `ayu_filters_page.dart:933-960` ← `edit_filter.cpp:220-239`
 
 # ayugram_settings_screen — Audit Findings
 
