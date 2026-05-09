@@ -249,15 +249,25 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
                   context: context,
                   builder: (ctx) => AlertDialog(
                     title: const Text('Update UniClient'),
-                    content: const Text('The app will close to apply the update. You will need to restart it manually.'),
+                    content: Text('Download version $_latestVersion from GitHub and replace the current binary.\n\nThe releases page will open in your browser.'),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.of(ctx).pop(),
                         child: const Text('Cancel'),
                       ),
                       TextButton(
-                        onPressed: () => exit(0),
-                        child: const Text('Close and Update'),
+                        onPressed: () {
+                          Process.run('xdg-open', ['https://github.com/DarkReaperBoy/uniclient/releases/tag/v$_latestVersion']);
+                          Navigator.of(ctx).pop();
+                        },
+                        child: const Text('Open Downloads'),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Process.run('xdg-open', ['https://github.com/DarkReaperBoy/uniclient/releases/tag/v$_latestVersion']);
+                          exit(0);
+                        },
+                        child: const Text('Open & Close App'),
                       ),
                     ],
                   ),
