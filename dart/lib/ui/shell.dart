@@ -376,7 +376,7 @@ class _UniClientShellState extends State<UniClientShell>
           Positioned.fill(
             child: ChatSwitchOverlay(
               chats: history,
-              initialIndex: 1,
+              initialIndex: 0,
               onChosen: (chat) {
                 setState(() => _chatSwitchActive = false);
                 chatState.openChat(chat);

@@ -1,22 +1,25 @@
 import 'dart:convert';
 import 'dart:io' show File;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 
 import '../models/engine_models.dart';
+import '../state/chat_state.dart';
 import '../theme/theme.dart';
 import 'chat_list_row.dart' show SavedMessagesUserpic;
 
 const _cellWidth = 72.0;
 const _cellHeight = 104.0;
-const _userpicSize = 46.0;
+const _userpicSize = 56.0;
 const _userpicTop = 8.0;
 const _nameSkip = 6.0;
 const _selectLineWidth = 3.0;
 const _panelMargin = 16.0;
 const _panelPadding = 12.0;
-const _panelRadius = 12.0;
+const _panelRadius = 6.0;
 const _maxPerRow = 7;
 const _maxRows = 3;
 
@@ -32,7 +35,7 @@ class ChatSwitchOverlay extends StatefulWidget {
   const ChatSwitchOverlay({
     super.key,
     required this.chats,
-    this.initialIndex = 1,
+    this.initialIndex = 0,
     required this.onChosen,
     required this.onRemove,
     required this.onCancel,
@@ -47,6 +50,7 @@ class _ChatSwitchOverlayState extends State<ChatSwitchOverlay> {
   late List<ChatInfo> _list;
   int _shownPerRow = 1;
   int _shownRows = 1;
+  final Map<String, Uint8List> _avatarCache = {};
 
   @override
   void initState() {
@@ -54,11 +58,50 @@ class _ChatSwitchOverlayState extends State<ChatSwitchOverlay> {
     _list = List.of(widget.chats);
     _selected = widget.initialIndex.clamp(0, _list.length - 1);
     HardwareKeyboard.instance.addHandler(_handleHardwareKey);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _listenToChatState();
+    });
+  }
+
+  void _listenToChatState() {
+    final chatState = context.read<ChatState>();
+    chatState.addListener(_onChatStateChanged);
+  }
+
+  void _onChatStateChanged() {
+    if (!mounted) return;
+    final chatState = context.read<ChatState>();
+    final currentIds = chatState.chats.map((c) => c.chatId).toSet();
+    final removed = _list.where((c) => !currentIds.contains(c.chatId)).toList();
+    if (removed.isEmpty) return;
+    setState(() {
+      for (final chat in removed) {
+        final idx = _list.indexOf(chat);
+        if (idx < 0) continue;
+        _list.removeAt(idx);
+        if (_selected > idx) {
+          _selected--;
+        } else if (_selected == idx) {
+          if (_list.isEmpty) {
+            widget.onCancel();
+            return;
+          }
+          _selected = _selected.clamp(0, _list.length - 1);
+        }
+      }
+      if (_list.isEmpty) {
+        widget.onCancel();
+      }
+    });
   }
 
   @override
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_handleHardwareKey);
+    try {
+      final chatState = context.read<ChatState>();
+      chatState.removeListener(_onChatStateChanged);
+    } catch (_) {}
     super.dispose();
   }
 
@@ -83,12 +126,20 @@ class _ChatSwitchOverlayState extends State<ChatSwitchOverlay> {
       }
       return true;
     }
-    if (key == LogicalKeyboardKey.arrowRight || key == LogicalKeyboardKey.arrowDown) {
+    if (key == LogicalKeyboardKey.arrowRight) {
       _moveNext();
       return true;
     }
-    if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowUp) {
+    if (key == LogicalKeyboardKey.arrowLeft) {
       _movePrev();
+      return true;
+    }
+    if (key == LogicalKeyboardKey.arrowDown) {
+      _moveDown();
+      return true;
+    }
+    if (key == LogicalKeyboardKey.arrowUp) {
+      _moveUp();
       return true;
     }
     if (key == LogicalKeyboardKey.keyQ) {
@@ -108,20 +159,39 @@ class _ChatSwitchOverlayState extends State<ChatSwitchOverlay> {
 
   void _moveNext() {
     if (_list.isEmpty) return;
-    final visible = _shownPerRow * _shownRows;
+    final count = _shownCount;
     setState(() {
-      _selected = (_selected + 1) % visible.clamp(1, _list.length);
+      _selected = (_selected + 1) % count;
     });
   }
 
   void _movePrev() {
     if (_list.isEmpty) return;
-    final visible = _shownPerRow * _shownRows;
-    final max = visible.clamp(1, _list.length);
+    final count = _shownCount;
     setState(() {
-      _selected = (_selected - 1 + max) % max;
+      _selected = (_selected - 1 + count) % count;
     });
   }
+
+  void _moveDown() {
+    if (_list.isEmpty) return;
+    final count = _shownCount;
+    setState(() {
+      final now = _selected + _shownPerRow;
+      _selected = (now >= count) ? (now - count) : now;
+    });
+  }
+
+  void _moveUp() {
+    if (_list.isEmpty) return;
+    final count = _shownCount;
+    setState(() {
+      final now = _selected - _shownPerRow;
+      _selected = (now < 0) ? (count + now) : now;
+    });
+  }
+
+  int get _shownCount => (_shownPerRow * _shownRows).clamp(1, _list.length);
 
   void _removeSelected() {
     if (_list.isEmpty || _selected >= _list.length) return;
@@ -145,6 +215,10 @@ class _ChatSwitchOverlayState extends State<ChatSwitchOverlay> {
     widget.onChosen(_list[_selected]);
   }
 
+  Uint8List _decodeAvatar(String base64Str) {
+    return _avatarCache.putIfAbsent(base64Str, () => base64Decode(base64Str));
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_list.length < 2) {
@@ -164,30 +238,48 @@ class _ChatSwitchOverlayState extends State<ChatSwitchOverlay> {
         final availWidth = constraints.maxWidth - _panelMargin * 2 - _panelPadding * 2;
         final canPerRow = (availWidth / _cellWidth).floor().clamp(1, _list.length);
 
-        int rows, perRow;
-        if (canPerRow > 14) {
-          rows = 1;
-        } else if (canPerRow > 12) {
-          rows = 2;
-        } else {
-          rows = 3;
+        final count = _list.length;
+        final canRows = (canPerRow > 2 * 7)
+            ? 1
+            : (canPerRow > 3 * 4)
+                ? 2
+                : 3;
+
+        var rows = (count + canPerRow - 1) ~/ canPerRow;
+        if (rows > canRows) rows = canRows;
+        var perRow = count ~/ rows;
+        if (perRow > canPerRow) perRow = canPerRow;
+
+        if (rows > 2) {
+          if (perRow * 2 > rows * 4) {
+            rows = 2;
+          } else if (perRow > 4) {
+            perRow = 4;
+          }
         }
-
-        final total = _list.length;
-        if (rows > 1 && total <= canPerRow) rows = 1;
-        if (rows > 2 && total <= canPerRow * 2) rows = 2;
+        if (rows > 1) {
+          if (perRow > rows * 7) {
+            rows = 1;
+          } else if (perRow > 7) {
+            perRow = 7;
+          }
+        }
         rows = rows.clamp(1, _maxRows);
-
-        perRow = (total / rows).ceil().clamp(1, canPerRow);
-        if (rows > 1 && perRow > _maxPerRow) perRow = _maxPerRow;
-        if (rows > 2 && perRow > 4) perRow = 4;
+        if (perRow < 1) perRow = 1;
 
         _shownPerRow = perRow;
         _shownRows = rows;
 
-        final visible = (perRow * rows).clamp(1, total);
+        final visible = (perRow * rows).clamp(1, count);
         final innerW = perRow * _cellWidth;
-        final innerH = rows * _cellHeight;
+
+        if (_selected >= visible) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && _selected >= visible) {
+              setState(() => _selected = visible - 1);
+            }
+          });
+        }
 
         return GestureDetector(
           onTap: widget.onCancel,
@@ -225,6 +317,10 @@ class _ChatSwitchOverlayState extends State<ChatSwitchOverlay> {
                           accentColor: accentColor,
                           nameColor: nameColor,
                           isDark: isDark,
+                          decodedAvatar: chat.avatarPath.isNotEmpty &&
+                                  !chat.avatarPath.startsWith('/')
+                              ? _decodeAvatar(chat.avatarPath)
+                              : null,
                         ),
                       ),
                     );
@@ -245,6 +341,7 @@ class _ChatSwitchCell extends StatelessWidget {
   final Color accentColor;
   final Color nameColor;
   final bool isDark;
+  final Uint8List? decodedAvatar;
 
   const _ChatSwitchCell({
     required this.chat,
@@ -252,6 +349,7 @@ class _ChatSwitchCell extends StatelessWidget {
     required this.accentColor,
     required this.nameColor,
     required this.isDark,
+    this.decodedAvatar,
   });
 
   @override
@@ -262,7 +360,7 @@ class _ChatSwitchCell extends StatelessWidget {
       height: _cellHeight,
       decoration: selected
           ? BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(6),
               border: Border.all(color: accentColor, width: _selectLineWidth),
             )
           : null,
@@ -294,23 +392,27 @@ class _ChatSwitchCell extends StatelessWidget {
   }
 
   Widget _buildAvatar(TelegramPalette palette) {
-    final isSaved = chat.title == 'Saved Messages' && chat.type == ChatType.dm;
-
-    if (isSaved) {
+    if (chat.isSelf) {
       return const SavedMessagesUserpic(size: _userpicSize);
     }
 
     if (chat.avatarPath.isNotEmpty) {
-      final isBase64 = !chat.avatarPath.startsWith('/');
+      if (decodedAvatar != null) {
+        return ClipOval(
+          child: SizedBox(
+            width: _userpicSize,
+            height: _userpicSize,
+            child: Image.memory(decodedAvatar!,
+                width: _userpicSize, height: _userpicSize, fit: BoxFit.cover),
+          ),
+        );
+      }
       return ClipOval(
         child: SizedBox(
           width: _userpicSize,
           height: _userpicSize,
-          child: isBase64
-              ? Image.memory(base64Decode(chat.avatarPath),
-                  width: _userpicSize, height: _userpicSize, fit: BoxFit.cover)
-              : Image.file(File(chat.avatarPath),
-                  width: _userpicSize, height: _userpicSize, fit: BoxFit.cover),
+          child: Image.file(File(chat.avatarPath),
+              width: _userpicSize, height: _userpicSize, fit: BoxFit.cover),
         ),
       );
     }
