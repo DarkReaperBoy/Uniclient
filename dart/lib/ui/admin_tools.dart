@@ -4744,8 +4744,12 @@ class _LinkInfoBox extends StatelessWidget {
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: () {
-                          Clipboard.setData(ClipboardData(text: link.link));
-                          showTelegramToast(context, 'Link copied to clipboard');
+                          if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+                            Share.share(link.link);
+                          } else {
+                            Clipboard.setData(ClipboardData(text: link.link));
+                            showTelegramToast(context, 'Link copied to clipboard');
+                          }
                         },
                         icon: const Icon(Icons.share, size: 18),
                         label: const Text('Share'),
