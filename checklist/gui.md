@@ -467,11 +467,6 @@ All these controls exist in AppState but are not exposed in the UI.
 
 # calls_screen — Audit Findings
 
-## Major Issues
-
-- [ ] [MAJOR] `_InputLevelMeter` uses a fake looping animation (`level: _controller.value * 0.35`) instead of real microphone capture. AyuGram instantiates `Webrtc::AudioInputTester` with the selected capture device, polls it every `kMicTestUpdateInterval` ms via `base::Timer`, and feeds the real PCM level into the meter. — `calls_screen.dart:2559` ← `AyuGram/settings/sections/settings_calls.cpp:113-151`
-
-- [ ] [MAJOR] `_confcallSizeLimit` is hardcoded to `200` in two places. AyuGram reads the limit from `controller->session().appConfig().confcallSizeLimit()` which is a server-side value fetched from `help.getAppConfig`. If the server raises or lowers the limit, the Dart UI will be wrong. — `calls_screen.dart:711,873` ← `AyuGram/calls/calls_box_controller.cpp:785-787`
 
 # chat_export — Backend wiring is entirely simulated; no engine calls
 
@@ -485,9 +480,6 @@ All these controls exist in AppState but are not exposed in the UI.
 
 - [ ] [CRITICAL] `_bringPanelToFront` is a `// no-op` stub — AyuGram calls `_panel->showAndActivate()` when the user taps the top-bar during processing — `chat_export.dart:690-692` ← `export_view_panel_controller.cpp:163-167` (`activatePanel()` → `_panel->showAndActivate()`)
 
-- [ ] [MAJOR] Default settings mismatch: Dart initialises `_botChats = false`, `_stories = true`, `_profileMusic = true`, `_privateChannels = false`, `_publicGroups = false`, `_publicChannels = false` — AyuGram defaults (`Settings::DefaultTypes()`) include `PersonalInfo | Userpics | Contacts | Stories | ProfileMusic | PersonalChats | PrivateGroups` — meaning `_stories` and `_profileMusic` match but `_contacts` should default to `true` (it does), while `_privateChannels` and `_publicGroups`/`_publicChannels` correctly default to `false`; however `_sessions = false` and `_otherData = false` are correct — the only mismatch is `_botChats = false` while AyuGram `DefaultFullChats()` includes `PersonalChats | BotChats` (fullChats field governs "export full messages", not types, so this is not a direct mismatch but types do not include `BotChats` in defaults either — this is actually correct) — `chat_export.dart:302-329` ← `export_settings.h:105-118`
-
-- [ ] [MAJOR] Default media size limit is `sizeLimit = 8 * 1024 * 1024` (8 MB = index 7 in the slider, 0-based) in AyuGram; Dart uses `_sizeSliderPos = 7` which maps to `_sizeLimitMB` returning `8` MB — this appears correct, but the slider range is `0..99` in Dart and `kSizeValueCount` in AyuGram — `kSizeValueCount` is never defined in the files read, so the slider upper bound may differ — `chat_export.dart:325` ← `export_view_settings.cpp:89-112`
 
 - [ ] [MAJOR] `_openExportFolder` uses `Process.run('xdg-open', [path])` which launches asynchronously and ignores errors — AyuGram uses `File::ShowInFolder(finished->path)` which is the platform-specific "reveal in file manager" call; more importantly, the Dart code opens the folder on button press in the completed phase, but the folder path it opens is `_exportLocation` (the user-chosen destination), which was never actually written to because no real export ran — `chat_export.dart:542-551` ← `export_view_panel_controller.cpp:327-331`
 
