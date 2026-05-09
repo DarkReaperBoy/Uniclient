@@ -268,16 +268,6 @@ Theme preview widget renders a mock Telegram UI showing dialogs and chat areas. 
 
 ## Minor/Cosmetic Issues
 
-- [ ] **[MINOR]** Message types are simplified (no photo bubbles, no audio waveforms, no service bubbles) — `theme_preview.dart:275-327` ← `window_theme_preview.cpp:382-401`
-  - AyuGram demo includes: photo bubbles, audio bubbles with waveforms, date service bubbles
-  - Dart demo includes: only text bubbles with replies and check marks
-  - **Note**: This may be intentional simplification for preview purposes; the Dart implementation works but shows fewer message types
-
-- [ ] **[MINOR]** Sample data differs (intentional) — `theme_preview.dart:81-114` ← `window_theme_preview.cpp:344-376`
-  - Dart sample names: "Paul", "Saved Messages", "Design Team", "Alice Cooper", etc.
-  - AyuGram sample names: "Eva Summer", "Alexandra Smith", "Mike Apple", "Evening Club", etc.
-  - **Note**: OK — preview sample data can differ, not a bug
-
 ---
 
 ## Design Observations
