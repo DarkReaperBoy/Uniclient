@@ -302,8 +302,6 @@ Theme preview widget renders a mock Telegram UI showing dialogs and chat areas. 
 
 ## _EditAdminBox
 
-- [ ] [MAJOR] "Promoted by" link in admin box never renders and taps do nothing — `showEditAdminBox()` never passes `promotedBy: member.promotedBy` at any call site (admin_tools.dart:5583, info_panel.dart:5736, chat_view.dart:2617), so `widget.promotedBy` is always null, the section is never built, and the tap handler fix is dead code. Fix: pass `promotedBy: member.promotedBy` at all three call sites. ← `AyuGram/boxes/peers/edit_participant_box.cpp` (shows `PrepareShortInfoBox` for promoter)
-
 ## _EditRestrictedBox
 
 - [ ] [CRITICAL] Existing banned rights are not loaded for the specific member — `_EditRestrictedBoxState._loadDefaults()` at `admin_tools.dart:1501` calls `engine.getDefaultBannedRights(...)` (group defaults) instead of fetching the individual member's current banned rights. When editing a restricted user, the UI shows group defaults, not what that user is actually banned from. ← `AyuGram/boxes/peers/edit_participant_box.cpp` (loads from `participant->bannedRights()`)
