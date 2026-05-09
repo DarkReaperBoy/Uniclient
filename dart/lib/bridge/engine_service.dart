@@ -1612,6 +1612,19 @@ class EngineService {
     }
   }
 
+  Future<void> toggleScreenSharing(String accountId, String callId, bool enabled) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'call_id': callId,
+      'enabled': enabled,
+    }));
+    try {
+      await _callAsync('__engine', 'ToggleScreenSharing', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'toggleScreenSharing failed', e);
+    }
+  }
+
   Future<String?> startCall(String accountId, String chatId, {bool video = false}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

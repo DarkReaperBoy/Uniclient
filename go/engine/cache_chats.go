@@ -1562,6 +1562,29 @@ func (e *Engine) ToggleCamera(accountID, callID string, enabled bool) error {
 	return acc.Core.ToggleCamera(callID, enabled)
 }
 
+type GroupCallScreenSharer interface {
+	StartGroupCallScreenShare(callID string) error
+	StopGroupCallScreenShare(callID string) error
+}
+
+func (e *Engine) ToggleScreenSharing(accountID, callID string, enabled bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	ss, ok := acc.Core.(GroupCallScreenSharer)
+	if !ok {
+		return fmt.Errorf("screen sharing not supported for this platform")
+	}
+	if enabled {
+		return ss.StartGroupCallScreenShare(callID)
+	}
+	return ss.StopGroupCallScreenShare(callID)
+}
+
 type BroadcastStatsGetter interface {
 	GetBroadcastStats(chatID string) (map[string]interface{}, error)
 }

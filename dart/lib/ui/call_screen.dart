@@ -1,8 +1,13 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
+import 'package:dbus/dbus.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../bridge/engine_service.dart';
+import '../state/app_state.dart';
 import '../theme/telegram_palette.dart';
 
 import '../models/engine_models.dart';
@@ -1109,12 +1114,23 @@ void showGroupCallPanel(
                     }
                     onToggleMute?.call();
                   },
-                  onToggleVideo: onToggleVideo,
+                  onToggleVideo: () {
+                    final engine = sbCtx.read<EngineService>();
+                    final accountId = sbCtx.read<AppState>().activeAccountId;
+                    final callId = info.callId;
+                    if (callId.isEmpty) return;
+                    engine.toggleCamera(accountId, callId, true);
+                    onToggleVideo?.call();
+                  },
                   onToggleScreenShare: () async {
-                    final source = await showScreenShareChooser(ctx);
+                    final source = await showScreenShareChooser(sbCtx);
                     if (source != null) {
-                      debugPrint(
-                          'ENGINE: Screen share selected: ${source.id} (${source.name})');
+                      final engine = sbCtx.read<EngineService>();
+                      final accountId = sbCtx.read<AppState>().activeAccountId;
+                      final callId = info.callId;
+                      if (callId.isNotEmpty) {
+                        await engine.toggleScreenSharing(accountId, callId, true);
+                      }
                     }
                   },
                   onOpenMenu: () {
@@ -1926,22 +1942,142 @@ class ScreenShareSource {
   final String id;
   final String name;
   final bool isScreen;
-  final String? thumbnailPath;
 
   const ScreenShareSource({
     required this.id,
     required this.name,
     required this.isScreen,
-    this.thumbnailPath,
   });
 }
 
-Future<ScreenShareSource?> showScreenShareChooser(BuildContext context) {
+Future<ScreenShareSource?> showScreenShareChooser(BuildContext context) async {
+  if (Platform.isLinux) {
+    final portalResult = await _tryPortalScreenCast();
+    if (portalResult != null) return portalResult;
+  }
+  if (!context.mounted) return null;
   return showDialog<ScreenShareSource>(
     context: context,
     barrierColor: Colors.black54,
     builder: (ctx) => const _ScreenShareChooserDialog(),
   );
+}
+
+Future<ScreenShareSource?> _tryPortalScreenCast() async {
+  final client = DBusClient.session();
+  try {
+    final object = DBusRemoteObject(
+      client,
+      name: 'org.freedesktop.portal.Desktop',
+      path: DBusObjectPath('/org/freedesktop/portal/desktop'),
+    );
+
+    final uniqueName = client.uniqueName;
+    if (uniqueName.isEmpty) return null;
+    final senderName = uniqueName.substring(1).replaceAll('.', '_');
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final token = 'uc_$ts';
+    final sessionToken = 'uc_s_$ts';
+
+    final createReqPath = DBusObjectPath(
+        '/org/freedesktop/portal/desktop/request/$senderName/$token');
+    final createCompleter = Completer<DBusSignal>();
+    final createSub = DBusSignalStream(
+      client,
+      interface: 'org.freedesktop.portal.Request',
+      name: 'Response',
+      path: createReqPath,
+    ).listen(createCompleter.complete);
+
+    await object.callMethod(
+      'org.freedesktop.portal.ScreenCast', 'CreateSession',
+      [DBusDict(DBusSignature('s'), DBusSignature('v'), {
+        DBusString('handle_token'): DBusVariant(DBusString(token)),
+        DBusString('session_handle_token'): DBusVariant(DBusString(sessionToken)),
+      })],
+      replySignature: DBusSignature('o'),
+    );
+
+    final createSig = await createCompleter.future.timeout(const Duration(seconds: 5));
+    await createSub.cancel();
+    if ((createSig.values[0] as DBusUint32).value != 0) return null;
+
+    final createOpts = createSig.values[1] as DBusDict;
+    final sessionHandle = ((createOpts.children[DBusString('session_handle')]
+        as DBusVariant).value as DBusObjectPath);
+
+    final selToken = 'uc_sel_$ts';
+    final selReqPath = DBusObjectPath(
+        '/org/freedesktop/portal/desktop/request/$senderName/$selToken');
+    final selCompleter = Completer<DBusSignal>();
+    final selSub = DBusSignalStream(
+      client,
+      interface: 'org.freedesktop.portal.Request',
+      name: 'Response',
+      path: selReqPath,
+    ).listen(selCompleter.complete);
+
+    await object.callMethod(
+      'org.freedesktop.portal.ScreenCast', 'SelectSources',
+      [sessionHandle, DBusDict(DBusSignature('s'), DBusSignature('v'), {
+        DBusString('types'): DBusVariant(DBusUint32(3)),
+        DBusString('multiple'): DBusVariant(DBusBoolean(false)),
+        DBusString('handle_token'): DBusVariant(DBusString(selToken)),
+      })],
+      replySignature: DBusSignature('o'),
+    );
+
+    final selSig = await selCompleter.future.timeout(const Duration(seconds: 120));
+    await selSub.cancel();
+    if ((selSig.values[0] as DBusUint32).value != 0) return null;
+
+    final startToken = 'uc_st_$ts';
+    final startReqPath = DBusObjectPath(
+        '/org/freedesktop/portal/desktop/request/$senderName/$startToken');
+    final startCompleter = Completer<DBusSignal>();
+    final startSub = DBusSignalStream(
+      client,
+      interface: 'org.freedesktop.portal.Request',
+      name: 'Response',
+      path: startReqPath,
+    ).listen(startCompleter.complete);
+
+    await object.callMethod(
+      'org.freedesktop.portal.ScreenCast', 'Start',
+      [sessionHandle, DBusString(''), DBusDict(DBusSignature('s'), DBusSignature('v'), {
+        DBusString('handle_token'): DBusVariant(DBusString(startToken)),
+      })],
+      replySignature: DBusSignature('o'),
+    );
+
+    final startSig = await startCompleter.future.timeout(const Duration(seconds: 120));
+    await startSub.cancel();
+    if ((startSig.values[0] as DBusUint32).value != 0) return null;
+
+    final startOpts = startSig.values[1] as DBusDict;
+    final streamsVar = startOpts.children[DBusString('streams')] as DBusVariant;
+    final streams = streamsVar.value as DBusArray;
+    if (streams.children.isEmpty) return null;
+
+    final first = streams.children.first as DBusStruct;
+    final nodeId = (first.children[0] as DBusUint32).value;
+    final props = first.children[1] as DBusDict;
+    final srcTypeVar = props.children[DBusString('source_type')];
+    final srcType = srcTypeVar is DBusVariant
+        ? (srcTypeVar.value as DBusUint32).value
+        : 1;
+    final isScreen = srcType == 1;
+
+    return ScreenShareSource(
+      id: 'pipewire:$nodeId',
+      name: isScreen ? 'Screen' : 'Window',
+      isScreen: isScreen,
+    );
+  } catch (_) {
+    return null;
+  } finally {
+    await client.close();
+  }
 }
 
 class _ScreenShareChooserDialog extends StatefulWidget {
@@ -1986,92 +2122,53 @@ class _ScreenShareChooserDialogState
 
   static Future<List<ScreenShareSource>> _enumerateWindows() async {
     if (!Platform.isLinux) return [];
-
-    final sessionType = Platform.environment['XDG_SESSION_TYPE'] ?? '';
-
-    if (sessionType == 'wayland') {
-      try {
-        final result =
-            await Process.run('kdotool', ['search', '--name', '']);
-        if (result.exitCode == 0) {
-          final uuids = (result.stdout as String)
-              .trim()
-              .split('\n')
-              .where((l) => l.isNotEmpty)
-              .toList();
-          final sources = <ScreenShareSource>[];
-          for (final uuid in uuids) {
-            try {
-              final nr = await Process.run(
-                  'kdotool', ['getwindowname', uuid]);
-              final name = nr.exitCode == 0
-                  ? (nr.stdout as String).trim()
-                  : 'Window';
-              if (name.isNotEmpty) {
-                sources.add(ScreenShareSource(
-                    id: uuid, name: name, isScreen: false));
-              }
-            } catch (_) {}
-          }
-          return sources;
-        }
-      } catch (_) {}
-    }
-
+    final client = DBusClient.session();
     try {
-      final result = await Process.run('wmctrl', ['-l']);
-      if (result.exitCode == 0) {
-        final lines = (result.stdout as String).trim().split('\n');
-        return lines.where((l) => l.isNotEmpty).map((line) {
-          final parts = line.split(RegExp(r'\s+'));
-          final id = parts.isNotEmpty ? parts[0] : '';
-          final name = parts.length >= 4
-              ? parts.sublist(3).join(' ')
-              : 'Unknown Window';
-          return ScreenShareSource(
-              id: id, name: name, isScreen: false);
-        }).toList();
+      final object = DBusRemoteObject(
+        client,
+        name: 'org.kde.KWin',
+        path: DBusObjectPath('/KWin'),
+      );
+      final result = await object.callMethod(
+        'org.kde.KWin', 'queryWindowInfo', [],
+      );
+      final windows = <ScreenShareSource>[];
+      for (final v in result.returnValues) {
+        if (v is DBusArray) {
+          for (final item in v.children) {
+            final dict = item as DBusDict;
+            final caption = (dict.children[DBusString('caption')] as DBusVariant?)
+                ?.value.toString() ?? 'Window';
+            final uuid = (dict.children[DBusString('uuid')] as DBusVariant?)
+                ?.value.toString() ?? '';
+            if (caption.isNotEmpty && uuid.isNotEmpty) {
+              windows.add(ScreenShareSource(
+                  id: uuid, name: caption, isScreen: false));
+            }
+          }
+        }
       }
+      if (windows.isNotEmpty) return windows;
     } catch (_) {}
-
+    finally {
+      await client.close();
+    }
     return [];
   }
 
   static Future<List<ScreenShareSource>> _enumerateScreens() async {
-    if (!Platform.isLinux) {
-      return [
-        const ScreenShareSource(
-            id: 'screen:0', name: 'Full Screen', isScreen: true),
-      ];
+    final displays = ui.PlatformDispatcher.instance.displays;
+    if (displays.isNotEmpty) {
+      return displays.map((d) {
+        final w = d.size.width ~/ d.devicePixelRatio;
+        final h = d.size.height ~/ d.devicePixelRatio;
+        return ScreenShareSource(
+          id: 'screen:${d.id}',
+          name: 'Screen ${d.id} (${w}x$h)',
+          isScreen: true,
+        );
+      }).toList();
     }
-
-    try {
-      final result =
-          await Process.run('xrandr', ['--listmonitors']);
-      if (result.exitCode == 0) {
-        final lines = (result.stdout as String).trim().split('\n');
-        final sources = <ScreenShareSource>[];
-        for (final line in lines.skip(1)) {
-          if (line.trim().isEmpty) continue;
-          final match =
-              RegExp(r'(\d+):\s+\+?\*?(\S+)\s+(\d+)/\d+x(\d+)')
-                  .firstMatch(line);
-          if (match != null) {
-            final idx = match.group(1)!;
-            final name = match.group(2)!;
-            final w = match.group(3)!;
-            final h = match.group(4)!;
-            sources.add(ScreenShareSource(
-              id: 'screen:$idx',
-              name: '$name (${w}x$h)',
-              isScreen: true,
-            ));
-          }
-        }
-        if (sources.isNotEmpty) return sources;
-      }
-    } catch (_) {}
-
     return [
       const ScreenShareSource(
           id: 'screen:0', name: 'Full Screen', isScreen: true),
@@ -2080,11 +2177,22 @@ class _ScreenShareChooserDialogState
 
   static Future<bool> _checkPipeWire() async {
     if (!Platform.isLinux) return false;
+    final client = DBusClient.session();
     try {
-      final result = await Process.run('pgrep', ['-x', 'pipewire']);
-      return result.exitCode == 0;
+      final object = DBusRemoteObject(
+        client,
+        name: 'org.freedesktop.portal.Desktop',
+        path: DBusObjectPath('/org/freedesktop/portal/desktop'),
+      );
+      await object.getProperty(
+        'org.freedesktop.portal.ScreenCast', 'AvailableSourceTypes',
+        signature: DBusSignature('u'),
+      );
+      return true;
     } catch (_) {
       return false;
+    } finally {
+      await client.close();
     }
   }
 
@@ -2393,23 +2501,13 @@ class _ScreenSourceThumb extends StatelessWidget {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(5),
-              child: source.thumbnailPath != null &&
-                      File(source.thumbnailPath!).existsSync()
-                  ? Image.file(
-                      File(source.thumbnailPath!),
-                      fit: BoxFit.cover,
-                      width: _kThumbW,
-                      height: _kThumbH,
-                    )
-                  : Center(
-                      child: Icon(
-                        source.isScreen
-                            ? Icons.monitor
-                            : Icons.web_asset,
-                        color: const Color(0x60FFFFFF),
-                        size: 48,
-                      ),
-                    ),
+              child: Center(
+                child: Icon(
+                  source.isScreen ? Icons.monitor : Icons.web_asset,
+                  color: const Color(0x60FFFFFF),
+                  size: 48,
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 6),
