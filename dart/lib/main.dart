@@ -1883,8 +1883,8 @@ class _UniClientAppState extends State<UniClientApp>
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      theme: AppTheme.fromPalette(palette),
-      darkTheme: AppTheme.fromPalette(palette),
+      theme: AppTheme.fromPalette(palette, fontFamily: appState.customFontFamily),
+      darkTheme: AppTheme.fromPalette(palette, fontFamily: appState.customFontFamily),
       themeMode: ThemeMode.light,
       builder: (context, navigator) {
         final scaleFactor = appState.uiScaleFactor;

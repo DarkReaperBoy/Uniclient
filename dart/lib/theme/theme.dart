@@ -96,12 +96,12 @@ class AppSizes {
 }
 
 class AppTheme {
-  static ThemeData fromPalette(TelegramPalette p) {
+  static ThemeData fromPalette(TelegramPalette p, {String fontFamily = 'Inter'}) {
     final isDark = p.isDark;
     return ThemeData(
       useMaterial3: true,
       brightness: isDark ? Brightness.dark : Brightness.light,
-      fontFamily: 'Inter',
+      fontFamily: fontFamily,
       colorScheme: isDark
           ? ColorScheme.dark(
               primary: p.windowBgActive,
