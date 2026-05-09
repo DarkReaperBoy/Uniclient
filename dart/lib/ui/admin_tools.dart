@@ -5586,6 +5586,7 @@ class _MemberRow extends StatelessWidget {
             chatId: chatId,
             member: member,
             isChannel: isChannel,
+            promotedBy: member.promotedBy,
           ).then((changed) {
             if (changed == true) onRefresh();
           });

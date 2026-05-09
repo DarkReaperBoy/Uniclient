@@ -2623,6 +2623,7 @@ class _ChatViewState extends State<ChatView>
               displayName: senderName,
             ),
             isChannel: chat.type == ChatType.channel,
+            promotedBy: null,
           );
         }
       case 'restrict':

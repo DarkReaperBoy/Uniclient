@@ -5739,6 +5739,7 @@ class _MemberRow extends StatelessWidget {
             chatId: chatId,
             member: member,
             isChannel: chatId.startsWith('-100'),
+            promotedBy: member.promotedBy,
           );
         case 'demote':
           engine.demoteAdmin(accountId, chatId, member.userId).catchError((e) {
