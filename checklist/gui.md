@@ -472,31 +472,7 @@ All these controls exist in AppState but are not exposed in the UI.
 
 ## chat_view — Placeholders, broken backend wiring, and behavioral inaccuracies
 
-- [ ] [CRITICAL] `_stopAndSendRecording()` resets UI state but never calls any engine method to send the recorded voice or video-round message — the recording is silently discarded — `chat_view.dart:13245` ← `AyuGram/history/view/controls/history_view_compose_controls.cpp` (voice recording pipeline calls `session().api().sendVoiceNote()`)
-
 - [ ] [CRITICAL] `_PinnedBar` `onClose` at call-site only sets `_pinnedBarDismissed = true` (in-memory, resets on restart) — should call engine to either unpin the message (if user has pin rights) or call `HidePinnedBar` (which persists via `session.settings().setHiddenPinnedMessageId()`) — `chat_view.dart:4510` ← `AyuGram/history/history_widget.cpp:9475` (`hidePinnedMessage()` branches on `canPinMessages()` to call `ToggleMessagePinned` or `HidePinnedBar`)
-
-# choose_datetime_box — Calendar / ScheduleMessage / TimePicker audit
-
-- [ ] [CRITICAL] Calendar title is static text with no click handler — AyuGram's `CalendarBox::Title` is an `AbstractButton` that, when clicked, opens a dual-drum month/year picker (`FillMonthYearPicker`) letting the user jump to any month/year instantly. The Dart renders the title as a plain string via `TelegramBox(title: ...)` with no `onTap` — the entire month/year jump feature is absent — `choose_datetime_box.dart:241` ← `AyuGram/Telegram/SourceFiles/ui/boxes/calendar_box.cpp:1216-1231`
-
-- [ ] [CRITICAL] Long-press on prev/next nav arrows should jump to min/max date (after `kJumpDelay = 700ms`), not continuously scroll through months. AyuGram's `jumpAfterDelay` fires a timer after 700ms and calls `jump()` which moves to `_context->minDayIndex()` / `_context->maxDayIndex()`. The Dart's `_startFastJump` fires every 150ms and repeatedly calls `_prevMonth()` / `_nextMonth()` — completely different semantics — `choose_datetime_box.dart:154-163,251-262` ← `AyuGram/Telegram/SourceFiles/ui/boxes/calendar_box.cpp:1319-1337`
-
-- [ ] [CRITICAL] Arrow-key behavior in CalendarBox is wrong. AyuGram's `keyPressEvent` maps `Left/Up/PageUp` → previous month and `Right/Down/PageDown` → next month. The Dart's `_handleKey` maps arrows to per-day focus movement (-1/+1/−7/+7 days) — a behavior that does not exist in AyuGram at all — `choose_datetime_box.dart:166-192` ← `AyuGram/Telegram/SourceFiles/ui/boxes/calendar_box.cpp:1510-1530`
-
-- [ ] [MAJOR] Calendar week start is hardcoded Monday (`_weekDays = ['Mo','Tu','We','Th','Fr','Sa','Su']`). AyuGram uses `QLocale().firstDayOfWeek()` to determine the locale's first day of week and shifts all columns accordingly via `DayOfWeekIndex()`. A user in a locale where the week starts on Sunday will see wrong column alignment — `choose_datetime_box.dart:27,235-236` ← `AyuGram/Telegram/SourceFiles/ui/boxes/calendar_box.cpp:299-300,374-396`
-
-- [ ] [MAJOR] Calendar missing ripple animations on day cells. AyuGram creates a `RippleAnimation::EllipseMask` on mouse-press for each cell (stored in `_ripples` map), painted over the cell on every frame until the ripple drains. The Dart has only hover state (`_hovering` bool), no press ripple — `choose_datetime_box.dart:438-488` ← `AyuGram/Telegram/SourceFiles/ui/boxes/calendar_box.cpp:978-1010,875-884`
-
-- [ ] [MAJOR] Calendar missing scroll-based infinite month navigation. AyuGram's `CalendarBox` wraps an `Inner` in a `ScrollArea`; scrolling past the visible rows automatically advances the month via `processScroll()`. The Dart shows a fixed 6-row grid with no scroll area — the user can only navigate months via the arrow buttons — `choose_datetime_box.dart:296-371` ← `AyuGram/Telegram/SourceFiles/ui/boxes/calendar_box.cpp:1234-1239,1409-1429`
-
-- [ ] [MAJOR] Minimum schedule time buffer not enforced. AyuGram enforces `kMinimalSchedule = 10` seconds: the `collect()` lambda rejects any datetime where `result < min()`, where `min()` defaults to `base::unixtime::now() + 10`. The Dart's `_validateTime` only checks `dt.isBefore(DateTime.now())` — a datetime exactly at "now" is accepted, allowing a schedule 0–9 seconds in the past by the time the server processes it — `choose_datetime_box.dart:604-616` ← `AyuGram/Telegram/SourceFiles/ui/boxes/choose_date_time.cpp:28,110-112,208-210`
-
-- [ ] [MAJOR] Non-premium repeat-period tap is silently ignored instead of showing a premium upsell. AyuGram's `ChooseRepeatPeriod` takes a `filter` callback; when `locked` is true (non-premium), the caller sets a filter that shows the premium preview box on click. The Dart sets `onTap: widget.isPremium ? _showRepeatMenu : null` — the tap does nothing for non-premium users, no upsell — `choose_datetime_box.dart:846` ← `AyuGram/Telegram/SourceFiles/ui/boxes/choose_date_time.cpp:286-294,322-325`
-
-- [ ] [MAJOR] TimePickerBox initial-index selection uses exact `indexOf` match only. AyuGram's `TimePickerBox` uses `ranges::lower_bound` plus distance-to-nearest to snap to the closest value when `startValue` is between two list items. The Dart falls back to index 0 when the value is not found exactly — `choose_datetime_box.dart:919-921` ← `AyuGram/Telegram/SourceFiles/ui/boxes/time_picker_box.cpp:49-60`
-
-- [ ] [MAJOR] Date field should open calendar on focus, not only on tap. AyuGram wires `state->day->focusedChanges()` so that the calendar opens whenever the day field receives focus (keyboard tab, click, etc.). The Dart wraps the date field in a `GestureDetector(onTap: _openCalendar)` — focus via keyboard or programmatic `requestFocus()` does not open the calendar — `choose_datetime_box.dart:775-776` ← `AyuGram/Telegram/SourceFiles/ui/boxes/choose_date_time.cpp:173-196`
 
 # color_picker_box — Color picker dialog vs AyuGram ColorEditor
 
