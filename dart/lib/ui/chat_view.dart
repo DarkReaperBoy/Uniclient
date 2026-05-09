@@ -4430,6 +4430,7 @@ class _ChatViewState extends State<ChatView>
                         child: _ChatTopBar(
                           chat: chat,
                           typingUser: chatState.typingUserFor(chat.chatId),
+                          typingAction: chatState.typingActionFor(chat.chatId),
                           isOnline: chatState.isChatOnline(chat),
                           lastSeen: chatState.chatLastSeen(chat),
                           showBackButton: widget.showBackButton,
@@ -5556,6 +5557,7 @@ class _ForwardDragBackButtonState extends State<_ForwardDragBackButton> {
 class _ChatTopBar extends StatelessWidget {
   final ChatInfo chat;
   final String? typingUser;
+  final String typingAction;
   final bool isOnline;
   final ({String kind, int lastSeenMs}) lastSeen;
   final bool showBackButton;
@@ -5620,6 +5622,7 @@ class _ChatTopBar extends StatelessWidget {
   const _ChatTopBar({
     required this.chat,
     this.typingUser,
+    this.typingAction = 'typing',
     this.isOnline = false,
     this.lastSeen = (kind: '', lastSeenMs: 0),
     required this.showBackButton,
@@ -6388,6 +6391,7 @@ class _ChatTopBar extends StatelessWidget {
                       if (isTyping)
                         _TopBarTypingDots(
                           userName: typingUser!,
+                          action: typingAction,
                           color: subtitleColor ?? theme.colorScheme.primary,
                         )
                       else if (subtitle.isNotEmpty)
@@ -6797,9 +6801,10 @@ class _TopBarWarningBadge extends StatelessWidget {
 
 class _TopBarTypingDots extends StatefulWidget {
   final String userName;
+  final String action;
   final Color color;
 
-  const _TopBarTypingDots({required this.userName, required this.color});
+  const _TopBarTypingDots({required this.userName, this.action = 'typing', required this.color});
 
   @override
   State<_TopBarTypingDots> createState() => _TopBarTypingDotsState();
@@ -6808,6 +6813,24 @@ class _TopBarTypingDots extends StatefulWidget {
 class _TopBarTypingDotsState extends State<_TopBarTypingDots>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
+
+  static String _actionLabel(String action) {
+    switch (action) {
+      case 'record_video': return 'recording video';
+      case 'upload_video': return 'sending video';
+      case 'record_audio': return 'recording voice';
+      case 'upload_audio': return 'sending audio';
+      case 'upload_photo': return 'sending photo';
+      case 'upload_document': return 'sending file';
+      case 'geo_location': return 'choosing location';
+      case 'choose_contact': return 'choosing contact';
+      case 'game_play': return 'playing game';
+      case 'record_round': return 'recording video message';
+      case 'upload_round': return 'sending video message';
+      case 'choose_sticker': return 'choosing sticker';
+      default: return 'typing';
+    }
+  }
 
   @override
   void initState() {
@@ -6835,7 +6858,7 @@ class _TopBarTypingDotsState extends State<_TopBarTypingDots>
       children: [
         Flexible(
           child: Text(
-            '${widget.userName} is typing',
+            '${widget.userName} is ${_actionLabel(widget.action)}',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: style,

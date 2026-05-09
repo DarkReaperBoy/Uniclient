@@ -789,6 +789,7 @@ class _ChatListPanelState extends State<ChatListPanel>
                                   onSecondaryTap: (pos) =>
                                       _showChatContextMenu(context, chat, pos),
                                   isForwardHovered: isForwardHovered,
+                                  onTopicTap: (topic) => chatState.openTopic(topic),
                                   onStoryTap: chat.storyCount > 0
                                       ? () => _openStories(context, chat)
                                       : null,
@@ -800,6 +801,7 @@ class _ChatListPanelState extends State<ChatListPanel>
                                 isOnline: chatState.isChatOnline(chat),
                                 isNarrow: widget.collapsed,
                                 typingUser: chatState.typingUserFor(chat.chatId),
+                                typingAction: chatState.typingActionFor(chat.chatId),
                                 onTap: () => chatState.openChat(chat),
                                 onSecondaryTap: (pos) =>
                                     _showChatContextMenu(context, chat, pos),
@@ -1211,6 +1213,7 @@ class _ChatListPanelState extends State<ChatListPanel>
         chatState.activeChat?.accountId == chat.accountId;
     final isOnline = chatState.isChatOnline(chat);
     final typingUser = chatState.typingUserFor(chat.chatId);
+    final typingAction = chatState.typingActionFor(chat.chatId);
 
     _reorderOverlay = OverlayEntry(
       builder: (_) => Positioned(
@@ -1230,6 +1233,7 @@ class _ChatListPanelState extends State<ChatListPanel>
                 isOnline: isOnline,
                 isNarrow: widget.collapsed,
                 typingUser: typingUser,
+                typingAction: typingAction,
                 onTap: () {},
               ),
             ),

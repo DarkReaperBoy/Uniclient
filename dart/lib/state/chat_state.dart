@@ -28,7 +28,7 @@ class ChatState extends ChangeNotifier {
   bool _hasMoreMessages = true;
   bool _isFirstLoad = true;
   DateTime? _jumpedUntil; // suppress polling refresh until this time
-  final Map<String, String> _typingUsers = {}; // chatId → userName
+  final Map<String, ({String name, String action})> _typingUsers = {}; // chatId → (name, action)
   final Map<String, bool> _onlineUsers = {}; // "accountId:chatId" → isOnline (DMs only)
   // "accountId:userId" → (kind, lastSeenMs) for DM subtitle text.
   final Map<String, ({String kind, int lastSeenMs})> _userLastSeen = {};
@@ -222,7 +222,8 @@ class ChatState extends ChangeNotifier {
   /// Active channel/topic within a topic-type group. Null = default/all.
   String? get activeChannelId => _activeChannelId;
 
-  String? typingUserFor(String chatId) => _typingUsers[chatId];
+  String? typingUserFor(String chatId) => _typingUsers[chatId]?.name;
+  String typingActionFor(String chatId) => _typingUsers[chatId]?.action ?? 'typing';
 
   ReplyKeyboardData? get activeReplyKeyboard {
     for (int i = _messages.length - 1; i >= 0; i--) {
@@ -2267,13 +2268,14 @@ class ChatState extends ChangeNotifier {
       final uid = int.tryParse(event.userId);
       if (uid != null && _appState.isShadowBanned(uid)) return;
     }
-    _typingUsers[event.chatId] = event.userName.isNotEmpty ? event.userName : event.userId;
+    final name = event.userName.isNotEmpty ? event.userName : event.userId;
+    _typingUsers[event.chatId] = (name: name, action: event.action);
     notifyListeners();
 
     // Clear typing after 6s (guard against notifyListeners after dispose).
     Future.delayed(const Duration(seconds: 6), () {
       if (_disposed) return;
-      if (_typingUsers[event.chatId] == (event.userName.isNotEmpty ? event.userName : event.userId)) {
+      if (_typingUsers[event.chatId]?.name == name) {
         _typingUsers.remove(event.chatId);
         notifyListeners();
       }

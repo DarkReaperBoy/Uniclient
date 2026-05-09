@@ -101,6 +101,7 @@ type TypingEvent struct {
 	ChatID   string `json:"chat_id"`
 	UserID   string `json:"user_id"`
 	UserName string `json:"user_name,omitempty"`
+	Action   string `json:"action,omitempty"`
 }
 
 type UserStatusEvent struct {
@@ -232,6 +233,7 @@ func (e *Engine) handleUpdate(accountID string, u cores.Update) {
 			e.emitEvent(EventTyping, accountID, TypingEvent{
 				ChatID: u.ChatID,
 				UserID: u.UserID,
+				Action: u.Action,
 			})
 		}
 

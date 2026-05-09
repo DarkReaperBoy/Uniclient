@@ -636,7 +636,98 @@ func (t *TelegramCore) initClient() {
 		})
 		return nil
 	})
+	dispatcher.OnUserTyping(func(ctx context.Context, e tg.Entities, u *tg.UpdateUserTyping) error {
+		action := tgActionString(u.Action)
+		if action == "cancel" {
+			return nil
+		}
+		t.fireUpdate(Update{
+			Type:     UpdateTyping,
+			ChatID:   strconv.FormatInt(u.UserID, 10),
+			UserID:   strconv.FormatInt(u.UserID, 10),
+			Action:   action,
+			Platform: tgPlatform,
+		})
+		return nil
+	})
+	dispatcher.OnChatUserTyping(func(ctx context.Context, e tg.Entities, u *tg.UpdateChatUserTyping) error {
+		action := tgActionString(u.Action)
+		if action == "cancel" {
+			return nil
+		}
+		var userID string
+		switch p := u.FromID.(type) {
+		case *tg.PeerUser:
+			userID = strconv.FormatInt(p.UserID, 10)
+		default:
+			return nil
+		}
+		t.fireUpdate(Update{
+			Type:     UpdateTyping,
+			ChatID:   strconv.FormatInt(u.ChatID, 10),
+			UserID:   userID,
+			Action:   action,
+			Platform: tgPlatform,
+		})
+		return nil
+	})
+	dispatcher.OnChannelUserTyping(func(ctx context.Context, e tg.Entities, u *tg.UpdateChannelUserTyping) error {
+		action := tgActionString(u.Action)
+		if action == "cancel" {
+			return nil
+		}
+		var userID string
+		switch p := u.FromID.(type) {
+		case *tg.PeerUser:
+			userID = strconv.FormatInt(p.UserID, 10)
+		default:
+			return nil
+		}
+		t.fireUpdate(Update{
+			Type:     UpdateTyping,
+			ChatID:   "-100" + strconv.FormatInt(u.ChannelID, 10),
+			UserID:   userID,
+			Action:   action,
+			Platform: tgPlatform,
+		})
+		return nil
+	})
 	// following the tgcalls protocol spec in docs/tgcalls_protocol.md
+}
+
+func tgActionString(a tg.SendMessageActionClass) string {
+	switch a.(type) {
+	case *tg.SendMessageTypingAction:
+		return "typing"
+	case *tg.SendMessageRecordVideoAction:
+		return "record_video"
+	case *tg.SendMessageUploadVideoAction:
+		return "upload_video"
+	case *tg.SendMessageRecordAudioAction:
+		return "record_audio"
+	case *tg.SendMessageUploadAudioAction:
+		return "upload_audio"
+	case *tg.SendMessageUploadPhotoAction:
+		return "upload_photo"
+	case *tg.SendMessageUploadDocumentAction:
+		return "upload_document"
+	case *tg.SendMessageGeoLocationAction:
+		return "geo_location"
+	case *tg.SendMessageChooseContactAction:
+		return "choose_contact"
+	case *tg.SendMessageGamePlayAction:
+		return "game_play"
+	case *tg.SendMessageRecordRoundAction:
+		return "record_round"
+	case *tg.SendMessageUploadRoundAction:
+		return "upload_round"
+	case *tg.SendMessageChooseStickerAction:
+		return "choose_sticker"
+	case *tg.SendMessageCancelAction:
+		return "cancel"
+	default:
+		return "typing"
+	}
 }
 
 // Authenticate connects to Telegram and authenticates as a bot or user.

@@ -208,6 +208,7 @@ class ChatInfo {
   final bool isUnreadMark;
   final int unreadMentionCount;
   final int unreadReactionCount;
+  final int unreadPollCount;
   final bool isContact;
   final bool isBlocked;
   final bool isVerified;
@@ -262,6 +263,7 @@ class ChatInfo {
     this.isUnreadMark = false,
     this.unreadMentionCount = 0,
     this.unreadReactionCount = 0,
+    this.unreadPollCount = 0,
     this.isVerified = false,
     this.isScam = false,
     this.isFake = false,
@@ -315,6 +317,7 @@ class ChatInfo {
     isUnreadMark: j['unread_mark'] as bool? ?? false,
     unreadMentionCount: j['unread_mention_count'] as int? ?? 0,
     unreadReactionCount: j['unread_reaction_count'] as int? ?? 0,
+    unreadPollCount: j['unread_poll_count'] as int? ?? 0,
     isVerified: j['is_verified'] as bool? ?? false,
     isScam: j['is_scam'] as bool? ?? false,
     isFake: j['is_fake'] as bool? ?? false,
@@ -1879,12 +1882,14 @@ class TypingEvent {
   final String chatId;
   final String userId;
   final String userName;
-  const TypingEvent({this.chatId = '', this.userId = '', this.userName = ''});
+  final String action;
+  const TypingEvent({this.chatId = '', this.userId = '', this.userName = '', this.action = 'typing'});
 
   factory TypingEvent.fromJson(Map<String, dynamic> j) => TypingEvent(
     chatId: j['chat_id'] as String? ?? '',
     userId: j['user_id'] as String? ?? '',
     userName: j['user_name'] as String? ?? '',
+    action: j['action'] as String? ?? 'typing',
   );
 }
 

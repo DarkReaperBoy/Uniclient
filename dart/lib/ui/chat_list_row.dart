@@ -35,6 +35,7 @@ class ChatListRow extends StatelessWidget {
   final bool isOnline;
   final bool isNarrow;
   final String? typingUser;
+  final String typingAction;
   final VoidCallback onTap;
   final ValueChanged<Offset>? onSecondaryTap;
   final VoidCallback? onStoryTap;
@@ -49,6 +50,7 @@ class ChatListRow extends StatelessWidget {
     this.isOnline = false,
     this.isNarrow = false,
     this.typingUser,
+    this.typingAction = 'typing',
     required this.onTap,
     this.onSecondaryTap,
     this.isForwardHovered = false,
@@ -97,9 +99,14 @@ class ChatListRow extends StatelessWidget {
               : palette.dialogsRippleBg,
           child: _HoverBuilder(
             builder: (_, isHovered) {
-              final badgeBg = isActive
-                  ? (chat.isMuted ? palette.dialogsUnreadBgMutedActive : palette.dialogsUnreadBgActive)
-                  : (chat.isMuted ? palette.dialogsUnreadBgMuted : palette.dialogsUnreadBg);
+              final Color badgeBg;
+              if (isActive) {
+                badgeBg = chat.isMuted ? palette.dialogsUnreadBgMutedActive : palette.dialogsUnreadBgActive;
+              } else if (isHovered) {
+                badgeBg = chat.isMuted ? palette.dialogsUnreadBgMutedOver : palette.dialogsUnreadBgOver;
+              } else {
+                badgeBg = chat.isMuted ? palette.dialogsUnreadBgMuted : palette.dialogsUnreadBg;
+              }
               final badgeText = isActive ? palette.dialogsUnreadFgActive : palette.dialogsUnreadFg;
 
               // Spec §1: Collapsed/avatar-only mode — column width 0 (only
@@ -286,6 +293,14 @@ class ChatListRow extends StatelessWidget {
                               isNarrow: isNarrow,
                             ),
                           ],
+                          if (chat.unreadPollCount > 0) ...[
+                            const SizedBox(width: 5),
+                            _ThreeStateBadgeIcon(
+                              icon: Icons.poll,
+                              color: badgeBg,
+                              isNarrow: isNarrow,
+                            ),
+                          ],
                         ],
                       ),
                     ],
@@ -306,6 +321,7 @@ class ChatListRow extends StatelessWidget {
     if (typingUser != null) {
       return _TypingDotsIndicator(
         userName: typingUser!,
+        action: typingAction,
         color: palette.dialogsTextFgService,
       );
     }
@@ -981,9 +997,7 @@ class _ChatAvatar extends StatelessWidget {
 
   bool get _hasStories => chat.storyCount > 0;
 
-  /// Saved Messages: identified by title + DM type (spec §31.1).
-  bool get _isSavedMessages =>
-      chat.title == 'Saved Messages' && chat.type == ChatType.dm;
+  bool get _isSavedMessages => chat.isSelf;
 
   @override
   Widget build(BuildContext context) {
@@ -1053,12 +1067,14 @@ class _ChatAvatar extends StatelessWidget {
               )
             else
               avatar,
-            // Online dot at bottom-right.
-            if (isOnline && !_hasStories)
+            if (!_hasStories)
               Positioned(
                 right: -3,
                 bottom: -3,
-                child: Container(
+                child: AnimatedOpacity(
+                  opacity: isOnline ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 150),
+                  child: Container(
                   width: 18,
                   height: 18,
                   decoration: BoxDecoration(
@@ -1073,6 +1089,7 @@ class _ChatAvatar extends StatelessWidget {
                       width: 3,
                     ),
                   ),
+                ),
                 ),
               ),
           ],
@@ -1230,9 +1247,41 @@ class _StoriesRingPainter extends CustomPainter {
 /// Spec §2: replaces preview text with animated dots.
 class _TypingDotsIndicator extends StatefulWidget {
   final String userName;
+  final String action;
   final Color color;
 
-  const _TypingDotsIndicator({required this.userName, required this.color});
+  const _TypingDotsIndicator({required this.userName, this.action = 'typing', required this.color});
+
+  static String _actionLabel(String action) {
+    switch (action) {
+      case 'record_video':
+        return 'recording video';
+      case 'upload_video':
+        return 'sending video';
+      case 'record_audio':
+        return 'recording voice';
+      case 'upload_audio':
+        return 'sending audio';
+      case 'upload_photo':
+        return 'sending photo';
+      case 'upload_document':
+        return 'sending file';
+      case 'geo_location':
+        return 'choosing location';
+      case 'choose_contact':
+        return 'choosing contact';
+      case 'game_play':
+        return 'playing game';
+      case 'record_round':
+        return 'recording video message';
+      case 'upload_round':
+        return 'sending video message';
+      case 'choose_sticker':
+        return 'choosing sticker';
+      default:
+        return 'typing';
+    }
+  }
 
   @override
   State<_TypingDotsIndicator> createState() => _TypingDotsIndicatorState();
@@ -1264,7 +1313,7 @@ class _TypingDotsIndicatorState extends State<_TypingDotsIndicator>
       children: [
         Flexible(
           child: Text(
-            '${widget.userName} typing',
+            '${widget.userName} ${_TypingDotsIndicator._actionLabel(widget.action)}',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
@@ -1711,6 +1760,7 @@ class ForumChatListRow extends StatelessWidget {
   final VoidCallback onTap;
   final ValueChanged<Offset>? onSecondaryTap;
   final VoidCallback? onStoryTap;
+  final ValueChanged<ForumTopic>? onTopicTap;
   final bool isForwardHovered;
 
   const ForumChatListRow({
@@ -1722,6 +1772,7 @@ class ForumChatListRow extends StatelessWidget {
     required this.onTap,
     this.onSecondaryTap,
     this.onStoryTap,
+    this.onTopicTap,
     this.isForwardHovered = false,
   });
 
@@ -1821,7 +1872,7 @@ class ForumChatListRow extends StatelessWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  fontSize: 14,
+                                  fontSize: 13,
                                   fontWeight: FontWeight.w600,
                                   color: nameColor,
                                 ),
@@ -1839,6 +1890,54 @@ class ForumChatListRow extends StatelessWidget {
                                 color: isActive ? palette.dialogsTextFgActive : palette.dialogsDateFg,
                               ),
                             ),
+                            if (chat.unreadCount > 0) ...[
+                              const SizedBox(width: 8),
+                              _UnreadBadge(
+                                count: chat.unreadCount,
+                                bgColor: isActive
+                                    ? (chat.isMuted ? palette.dialogsUnreadBgMutedActive : palette.dialogsUnreadBgActive)
+                                    : (chat.isMuted ? palette.dialogsUnreadBgMuted : palette.dialogsUnreadBg),
+                                textColor: isActive ? palette.dialogsUnreadFgActive : palette.dialogsUnreadFg,
+                              ),
+                            ] else if (chat.isUnreadMark) ...[
+                              const SizedBox(width: 8),
+                              _UnreadDot(bgColor: isActive
+                                  ? (chat.isMuted ? palette.dialogsUnreadBgMutedActive : palette.dialogsUnreadBgActive)
+                                  : (chat.isMuted ? palette.dialogsUnreadBgMuted : palette.dialogsUnreadBg)),
+                            ] else if (chat.isPinned) ...[
+                              const SizedBox(width: 8),
+                              Icon(Icons.push_pin, size: 14, color: mutedColor),
+                            ],
+                            if (chat.unreadMentionCount > 0) ...[
+                              const SizedBox(width: 5),
+                              _ThreeStateBadgeIcon(
+                                icon: Icons.alternate_email,
+                                color: isActive
+                                    ? (chat.isMuted ? palette.dialogsUnreadBgMutedActive : palette.dialogsUnreadBgActive)
+                                    : (chat.isMuted ? palette.dialogsUnreadBgMuted : palette.dialogsUnreadBg),
+                                isNarrow: false,
+                              ),
+                            ],
+                            if (chat.unreadReactionCount > 0) ...[
+                              const SizedBox(width: 5),
+                              _ThreeStateBadgeIcon(
+                                icon: Icons.favorite,
+                                color: isActive
+                                    ? (chat.isMuted ? palette.dialogsUnreadBgMutedActive : palette.dialogsUnreadBgActive)
+                                    : (chat.isMuted ? palette.dialogsUnreadBgMuted : palette.dialogsUnreadBg),
+                                isNarrow: false,
+                              ),
+                            ],
+                            if (chat.unreadPollCount > 0) ...[
+                              const SizedBox(width: 5),
+                              _ThreeStateBadgeIcon(
+                                icon: Icons.poll,
+                                color: isActive
+                                    ? (chat.isMuted ? palette.dialogsUnreadBgMutedActive : palette.dialogsUnreadBgActive)
+                                    : (chat.isMuted ? palette.dialogsUnreadBgMuted : palette.dialogsUnreadBg),
+                                isNarrow: false,
+                              ),
+                            ],
                           ],
                         ),
                         const SizedBox(height: 4),
@@ -1854,6 +1953,7 @@ class ForumChatListRow extends StatelessWidget {
                           _TopicJumpBubble(
                             topic: unreadFrontTopic,
                             isActive: isActive,
+                            onTap: onTopicTap != null ? () => onTopicTap!(unreadFrontTopic) : null,
                           ),
                       ],
                     ),
@@ -1967,8 +2067,9 @@ class _TopicsPreview extends StatelessWidget {
 class _TopicJumpBubble extends StatelessWidget {
   final ForumTopic topic;
   final bool isActive;
+  final VoidCallback? onTap;
 
-  const _TopicJumpBubble({required this.topic, required this.isActive});
+  const _TopicJumpBubble({required this.topic, required this.isActive, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -1980,7 +2081,9 @@ class _TopicJumpBubble extends StatelessWidget {
         ? palette.dialogsUnreadFgActive
         : palette.dialogsUnreadFg;
 
-    return Container(
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
       padding: const EdgeInsets.fromLTRB(8, 3, 8, 3),
       decoration: BoxDecoration(
         color: bg,
@@ -2005,6 +2108,7 @@ class _TopicJumpBubble extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 }

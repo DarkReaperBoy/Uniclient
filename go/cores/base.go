@@ -555,6 +555,7 @@ type Update struct {
 	LastSeenKind string            `json:"last_seen_kind,omitempty"`
 	LastSeen     *time.Time        `json:"last_seen,omitempty"`
 	Verification *VerificationInfo `json:"verification,omitempty"`
+	Action       string            `json:"action,omitempty"` // typing action: "typing", "record_video", "upload_photo", etc.
 	ConnState    string            `json:"conn_state,omitempty"` // "connected", "disconnected", "reconnecting"
 	Platform     string            `json:"platform"`
 }
