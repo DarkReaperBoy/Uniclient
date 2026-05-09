@@ -2301,6 +2301,11 @@ func (c *IRCCore) SetCallMuted(_ string, _ bool) error {
 	return fmt.Errorf("%w: irc does not support calls", ErrNotSupported)
 }
 
+// ToggleCamera toggles the camera on/off for an active call.
+func (c *IRCCore) ToggleCamera(_ string, _ bool) error {
+	return fmt.Errorf("%w: irc does not support calls", ErrNotSupported)
+}
+
 // ---------------------------------------------------------------------------
 // Core interface — Profile
 // ---------------------------------------------------------------------------

@@ -8029,6 +8029,40 @@ func (t *TelegramCore) SetCallMuted(callID string, muted bool) error {
 	return nil
 }
 
+func (t *TelegramCore) ToggleCamera(callID string, enabled bool) error {
+	cid, err := strconv.ParseInt(callID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid call ID: %w", err)
+	}
+
+	t.mu.Lock()
+	call := t.activeCalls[cid]
+	if call != nil {
+		call.isVideo = enabled
+	}
+	t.mu.Unlock()
+
+	if call == nil {
+		return fmt.Errorf("no active call %s", callID)
+	}
+
+	videoState := "inactive"
+	if enabled {
+		videoState = "active"
+	}
+	screencastState := "inactive"
+	if call.screenActive {
+		screencastState = "active"
+	}
+	t.sendCallSignaling(call, tgMediaState{
+		Type:            "MediaState",
+		Muted:           call.muted,
+		VideoState:      videoState,
+		ScreencastState: screencastState,
+	})
+	return nil
+}
+
 // AcceptCall accepts an incoming call and establishes the WebRTC connection.
 func (t *TelegramCore) AcceptCall(callID string) (*CallSession, error) {
 	t.mu.RLock()

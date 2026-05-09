@@ -640,6 +640,8 @@ type Core interface {
 	EndCall(callID string) error
 	// SetCallMuted mutes or unmutes the local microphone in a call.
 	SetCallMuted(callID string, muted bool) error
+	// ToggleCamera enables or disables the camera in a call.
+	ToggleCamera(callID string, enabled bool) error
 
 	// GetProfile returns the profile information for a user.
 	GetProfile(userID string) (*User, error)

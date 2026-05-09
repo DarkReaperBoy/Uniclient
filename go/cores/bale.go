@@ -2082,6 +2082,11 @@ func (b *BaleCore) SetCallMuted(callID string, muted bool) error {
 	return nil
 }
 
+// ToggleCamera toggles the camera on/off for an active call.
+func (b *BaleCore) ToggleCamera(_ string, _ bool) error {
+	return fmt.Errorf("%w: bale does not support camera toggle", ErrNotSupported)
+}
+
 // --- Core Interface: Profile ---
 
 // GetProfile retrieves profile information for the given user.

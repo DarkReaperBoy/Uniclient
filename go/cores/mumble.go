@@ -4302,6 +4302,11 @@ func (c *MumbleCore) SetCallMuted(callID string, muted bool) error {
 	return c.SelfMute(muted)
 }
 
+// ToggleCamera toggles the camera on/off for an active call.
+func (c *MumbleCore) ToggleCamera(_ string, _ bool) error {
+	return fmt.Errorf("%w: mumble does not support camera toggle", ErrNotSupported)
+}
+
 // ── Profile ──
 
 // GetProfile returns user information for the given session ID.

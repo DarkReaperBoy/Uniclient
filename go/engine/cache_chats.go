@@ -1551,6 +1551,17 @@ func (e *Engine) SetCallMuted(accountID, callID string, muted bool) error {
 	return acc.Core.SetCallMuted(callID, muted)
 }
 
+func (e *Engine) ToggleCamera(accountID, callID string, enabled bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	return acc.Core.ToggleCamera(callID, enabled)
+}
+
 type BroadcastStatsGetter interface {
 	GetBroadcastStats(chatID string) (map[string]interface{}, error)
 }

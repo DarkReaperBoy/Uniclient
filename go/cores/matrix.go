@@ -1316,6 +1316,11 @@ func (m *MatrixCore) SetCallMuted(callID string, muted bool) error {
 	return nil
 }
 
+// ToggleCamera toggles the camera on/off for an active call.
+func (m *MatrixCore) ToggleCamera(_ string, _ bool) error {
+	return fmt.Errorf("%w: matrix does not support camera toggle", ErrNotSupported)
+}
+
 // SetCallAudioSource sets a callback that provides Opus frames to send (called every 20ms).
 // If nil, silence is sent. The callback must return a complete Opus frame or nil for silence.
 func (m *MatrixCore) SetCallAudioSource(callID string, source func() []byte) error {

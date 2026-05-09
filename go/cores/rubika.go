@@ -2639,6 +2639,11 @@ func (r *RubikaCore) SetCallMuted(callID string, muted bool) error {
 	return nil
 }
 
+// ToggleCamera toggles the camera on/off for an active call.
+func (r *RubikaCore) ToggleCamera(_ string, _ bool) error {
+	return fmt.Errorf("%w: rubika does not support camera toggle", ErrNotSupported)
+}
+
 // joinVoiceChatWebRTC creates a WebRTC PeerConnection, joins the voice chat,
 // and starts background heartbeat/updates loops.
 func (r *RubikaCore) joinVoiceChatWebRTC(chatGUID string, vcID string) (*CallSession, error) {

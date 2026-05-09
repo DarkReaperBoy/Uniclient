@@ -1745,6 +1745,11 @@ func (d *DeltaChatCore) SetCallMuted(callID string, muted bool) error {
 	return nil
 }
 
+// ToggleCamera toggles the camera on/off for an active call.
+func (d *DeltaChatCore) ToggleCamera(_ string, _ bool) error {
+	return fmt.Errorf("%w: deltachat does not support camera toggle", ErrNotSupported)
+}
+
 // GetCallInfo returns info about an active call.
 func (d *DeltaChatCore) GetCallInfo(callID string) (*CallSession, error) {
 	d.callsMu.RLock()

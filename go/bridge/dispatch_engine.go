@@ -3641,6 +3641,20 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, nil
 
+	case "ToggleCamera":
+		var params struct {
+			AccountID string `json:"account_id"`
+			CallID    string `json:"call_id"`
+			Enabled   bool   `json:"enabled"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.ToggleCamera(params.AccountID, params.CallID, params.Enabled); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
 	case "StartCall":
 		var params struct {
 			AccountID string `json:"account_id"`

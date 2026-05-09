@@ -2556,6 +2556,11 @@ func (c *XMPPCore) SetCallMuted(callID string, muted bool) error {
 	return fmt.Errorf("%w: xmpp does not support call muting", ErrNotSupported)
 }
 
+// ToggleCamera toggles the camera on/off for an active call.
+func (c *XMPPCore) ToggleCamera(_ string, _ bool) error {
+	return fmt.Errorf("%w: xmpp does not support camera toggle", ErrNotSupported)
+}
+
 // ---------------------------------------------------------------------------
 // Core interface — Profile
 // ---------------------------------------------------------------------------

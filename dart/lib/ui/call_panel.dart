@@ -236,7 +236,13 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
   Future<void> _onCameraTap() async {
     final ok = await requestPermissionOrFail(context, PermissionType.camera);
     if (!ok || !mounted) return;
-    setState(() => _isCameraOn = !_isCameraOn);
+    final callId = widget.info.callId;
+    if (callId.isEmpty) return;
+    final newCameraOn = !_isCameraOn;
+    setState(() => _isCameraOn = newCameraOn);
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    await engine.toggleCamera(accountId, callId, newCameraOn);
   }
 
   Future<void> _onMuteTap() async {

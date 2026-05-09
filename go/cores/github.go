@@ -953,6 +953,11 @@ func (g *GitHubCore) SetCallMuted(_ string, _ bool) error {
 	return fmt.Errorf("%w: github does not support calls", ErrNotSupported)
 }
 
+// ToggleCamera toggles the camera on/off for an active call.
+func (g *GitHubCore) ToggleCamera(_ string, _ bool) error {
+	return fmt.Errorf("%w: github does not support calls", ErrNotSupported)
+}
+
 // ════════════════════════════════════════════════════════════════════════════════
 // Core Interface: Profile
 // ════════════════════════════════════════════════════════════════════════════════

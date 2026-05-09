@@ -3482,6 +3482,11 @@ func (t *TeamSpeakCore) SetCallMuted(_ string, _ bool) error {
 	return fmt.Errorf("%w: teamspeak does not support calls", ErrNotSupported)
 }
 
+// ToggleCamera toggles the camera on/off for an active call.
+func (t *TeamSpeakCore) ToggleCamera(_ string, _ bool) error {
+	return fmt.Errorf("%w: teamspeak does not support calls", ErrNotSupported)
+}
+
 // ──────────────────────────── Core Interface: Profile ────────────────────────────
 
 // GetProfile returns detailed client information for the given user ID.
