@@ -16935,7 +16935,29 @@ func (t *TelegramCore) GetParticipantInfo(chatID, userID string) (*User, error) 
 	if err != nil { return nil, err }
 	t.cacheEntities(result.Users, result.Chats)
 	for _, u := range result.Users {
-		if user, ok := u.(*tg.User); ok && user.ID == uid { return t.convertUser(user), nil }
+		if user, ok := u.(*tg.User); ok && user.ID == uid {
+			cu := t.convertUser(user)
+			if bp, ok := result.Participant.(*tg.ChannelParticipantBanned); ok {
+				br := bp.BannedRights
+				cu.BannedRights = map[string]bool{
+					"send_plain":     br.SendPlain,
+					"send_photos":    br.SendPhotos,
+					"send_videos":    br.SendVideos,
+					"send_roundvideos": br.SendRoundvideos,
+					"send_audios":    br.SendAudios,
+					"send_voices":    br.SendVoices,
+					"send_docs":      br.SendDocs,
+					"send_stickers":  br.SendStickers,
+					"embed_links":    br.EmbedLinks,
+					"send_polls":     br.SendPolls,
+					"invite_users":   br.InviteUsers,
+					"manage_topics":  br.ManageTopics,
+					"pin_messages":   br.PinMessages,
+					"change_info":    br.ChangeInfo,
+				}
+			}
+			return cu, nil
+		}
 	}
 	return nil, ErrNotFound
 }

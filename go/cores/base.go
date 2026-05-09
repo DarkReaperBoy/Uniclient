@@ -162,6 +162,7 @@ type User struct {
 	PersonalChannelName    string `json:"personal_channel_name,omitempty"`
 	VoiceMessagesForbidden bool   `json:"voice_messages_forbidden,omitempty"`
 	ContactRequirePremium  bool   `json:"contact_require_premium,omitempty"`
+	BannedRights           map[string]bool `json:"banned_rights,omitempty"`
 }
 
 // Dialog represents a conversation (DM, group, channel, or topic) in the chat list.
