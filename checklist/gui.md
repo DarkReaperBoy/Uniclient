@@ -474,27 +474,7 @@ All these controls exist in AppState but are not exposed in the UI.
 
 - [ ] [CRITICAL] `_stopAndSendRecording()` resets UI state but never calls any engine method to send the recorded voice or video-round message — the recording is silently discarded — `chat_view.dart:13245` ← `AyuGram/history/view/controls/history_view_compose_controls.cpp` (voice recording pipeline calls `session().api().sendVoiceNote()`)
 
-- [ ] [CRITICAL] `_addFilter()` saves dialog with a toast "Filter added" but never calls any engine or local storage to actually persist the regex filter — `chat_view.dart:2349` ← `AyuGram/ayu/ui/context_menu/context_menu.cpp:946` (`controller->show(Settings::RegexEditBox(&filter, …))` opens persistent edit dialog with save callbacks to `AyuDatabase`)
-
-- [ ] [CRITICAL] `_ComposeAiBoxState._submit()` for `_AiMode.style` and `_AiMode.fix` is a hard stub that always sets an error message "Style/Fix mode requires Telegram Premium with Cocoon AI" — no engine call is made — `chat_view.dart:20708` ← `AyuGram/ayu/features/translator/ayu_translator.cpp:44` (real translate/rewrite uses `messages.translateText` API)
-
-- [ ] [CRITICAL] `_BotReplyKeyboard` always calls `onButtonPressed(btn.text)` regardless of `btn.type` — buttons with `type == 'request_contact'` should open a contact-share confirmation dialog, `type == 'request_location'` should request GPS permission and share location, `type == 'request_poll'` should open a poll creation flow — `chat_view.dart:8778` ← `AyuGram/api/api_bot.cpp:391` (`shareContact` for contact type) and `AyuGram/api/api_bot.cpp:399` (`PeerMenuCreatePoll` for request_poll type)
-
-- [ ] [CRITICAL] `_WriteRestrictionBar` "BOOST THIS GROUP TO SEND MESSAGES" button shows a toast instead of opening the channel boost panel — `chat_view.dart:9307` ← `AyuGram/chat_helpers/message_field.cpp:1347` (`window->resolveBoostState(peer->asChannel(), boosts)` navigates to the real boost screen)
-
-- [ ] [CRITICAL] `_WriteRestrictionBar` "Unlock" button for Premium restriction shows a snackbar instead of navigating to the Telegram Premium subscription flow — `chat_view.dart:9363` ← `AyuGram/history/history_widget.cpp:7491` (`PremiumRequiredSendRestriction` opens the premium paywall)
-
 - [ ] [CRITICAL] `_PinnedBar` `onClose` at call-site only sets `_pinnedBarDismissed = true` (in-memory, resets on restart) — should call engine to either unpin the message (if user has pin rights) or call `HidePinnedBar` (which persists via `session.settings().setHiddenPinnedMessageId()`) — `chat_view.dart:4510` ← `AyuGram/history/history_widget.cpp:9475` (`hidePinnedMessage()` branches on `canPinMessages()` to call `ToggleMessagePinned` or `HidePinnedBar`)
-
-- [ ] [CRITICAL] `_GroupCallBar` `onJoin` at line 4488 calls `chatState.joinGroupCall()` only — bypasses permission check and never opens the group call panel — the correct path at line 4433 does `requestCallPermissions` + `showGroupCallPanel` — `chat_view.dart:4488` ← `AyuGram/history/history_widget.cpp` (group call join shows the voice chat UI panel)
-
-- [ ] [CRITICAL] `_showScheduledMenu` shows a menu with "Create Poll" and "Create To-do List" options but the returned `Future` has no `.then()` handler — selecting either item does nothing — `chat_view.dart:6020` ← `AyuGram/history/history_widget.cpp` (`_scheduledMenu` items trigger `showCreatePollBox` and `showCreateTodoListBox`)
-
-- [ ] [MAJOR] Top-bar menu "Mark as Unread" is never executed — the `'read'` case handler at line 5747 only marks as read when `chat.unreadCount > 0` and silently does nothing when the label shows "Mark as Unread" — `chat_view.dart:5747` ← `AyuGram/window/window_peer_menu.cpp:697` (`changeDialogUnreadMark(history, true)` is called for the unread direction)
-
-- [ ] [MAJOR] `_StarGiftCard` has no `GestureDetector`/`onTap` — tapping a gift card in `_StarGiftSheet` does nothing; selecting a gift should open a purchase confirmation — `chat_view.dart:18161` ← `AyuGram/boxes/star_gift_box.cpp:2370` (`strong->show(Box(GiftBox, strong, peer, …))` opens the purchase flow on selection)
-
-- [ ] [MAJOR] `EngineService` has no `sendVoice`, `sendAudioFile`, or `sendVideoNote` methods — voice/video-round recording is entirely UI-only with no backend send path — `dart/lib/bridge/engine_service.dart` (no such method exists) ← `AyuGram/history/view/controls/history_view_compose_controls.cpp` (voice recording finalize calls real MTProto upload+send)
 
 # choose_datetime_box — Calendar / ScheduleMessage / TimePicker audit
 
