@@ -371,19 +371,7 @@ This is a well-implemented fallback bridge that correctly documents its stub sta
 
 # auth_screen — Auth Screen Audit
 
-- [ ] [CRITICAL] Reset Account confirm button is a no-op — pops dialog but makes no engine/backend call to actually delete the account — `auth_screen.dart:372-374` ← `intro_widget.cpp:547` (`MTPaccount_DeleteAccount`)
-
-- [ ] [CRITICAL] "Forgot Password" → recovery mode toggle sets `_isRecoveryMode = true` locally but never calls `MTPauth_RequestPasswordRecovery` to actually send the recovery email to the user — `auth_screen.dart:764-766` ← `intro_password_check.cpp:307-312`
-
-- [ ] [CRITICAL] OTP call-back countdown reaches zero and sets `_calling = true` locally, showing "Calling..." indefinitely, but never fires any resend/call API request through the engine — `auth_screen.dart:1444-1446` ← `intro_code.cpp:307-313` (`MTPauth_ResendCode`)
-
-- [ ] [CRITICAL] "Didn't get the code?" dialog shows static informational text only — "Edit Phone Number" goes back to phone, "OK" closes; no resend code is triggered. AyuGram wires this to `MTPauth_ResendCode` — `auth_screen.dart:137-175` ← `intro_code.cpp:440-454`
-
 - [ ] [CRITICAL] Signup avatar bytes are picked and stored in `_signupAvatarBytes` but `authState.submitInput('$firstName\n$lastName')` never includes or uploads them; photo is silently dropped — `auth_screen.dart:127` ← `intro_signup.cpp:30-34` (UserpicButton handles upload)
-
-- [ ] [MAJOR] `_CoverGradient` renders only a single offset send-icon and gradient; AyuGram cover requires: title label at `introCoverTitleTop=136px`, description label at `introCoverDescriptionTop=174px`, left scatter icon (`introLeft`), and right scatter icon (`introRight`) — `auth_screen.dart:1255-1298` ← `intro.style:38,47,16-17`
-
-- [ ] [MAJOR] Language picker dialog calls `addRecentLanguage` and closes, but never applies the selected language to the UI — no equivalent of `Lang::CurrentCloudManager().switchToLanguage()` is called — `auth_screen.dart:2049-2052` ← `intro_widget.cpp:282`
 
 # ayu_appearance_page — Audit Findings
 
@@ -411,7 +399,6 @@ This is a well-implemented fallback bridge that correctly documents its stub sta
 
 - [ ] [MAJOR] Avatar corners preview status text is "Preview of avatar corners" in Dart but must be "Better late than never" per C++ — `ayu_appearance_page.dart:464` ← `avatar_corners_preview.cpp:77`
 
-- [ ] [MAJOR] Avatar corners preview height is hardcoded to 62 px in Dart but C++ derives it from `st::defaultDialogRow.height` (a theme-aware style constant) — `ayu_appearance_page.dart:434` ← `avatar_corners_preview.cpp:35`
 
 # ayu_chats_page — Audit Findings
 
