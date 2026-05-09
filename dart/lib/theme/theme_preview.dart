@@ -630,7 +630,7 @@ class _ThemePreviewPainter extends CustomPainter {
     // Background
     canvas.drawRect(
       Rect.fromLTWH(left, composeY, chatWidth, _composeHeight),
-      Paint()..color = palette.historyComposeAreaBg,
+      Paint()..color = palette.historyReplyBg,
     );
 
     // Top border
@@ -650,7 +650,7 @@ class _ThemePreviewPainter extends CustomPainter {
         left + fieldLeft, composeY + 7, chatWidth - fieldLeft - fieldRight, 32);
     canvas.drawRRect(
       RRect.fromRectAndRadius(fieldRect, const Radius.circular(16)),
-      Paint()..color = palette.historyReplyBg,
+      Paint()..color = palette.historyComposeAreaBg,
     );
 
     // Placeholder text
@@ -658,22 +658,34 @@ class _ThemePreviewPainter extends CustomPainter {
         palette.historyComposeAreaFg.withValues(alpha: 0.5), FontWeight.normal);
 
     // Emoji button (right of field, before record button)
+    // AyuGram: fills emoji area with historyComposeAreaBg, draws icon, then circle outline
     final emojiX = left + chatWidth - 88;
     final emojiCY = composeY + _composeHeight / 2;
+    canvas.drawRect(
+      Rect.fromLTWH(emojiX, composeY, 44, _composeHeight),
+      Paint()..color = palette.historyComposeAreaBg,
+    );
     final emojiPaint = Paint()
       ..color = palette.historyComposeIconFg
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
-    // Smiley face circle
     canvas.drawCircle(Offset(emojiX + 11, emojiCY), 9, emojiPaint);
-    // Eyes
     canvas.drawCircle(Offset(emojiX + 7.5, emojiCY - 2.5), 1.2, Paint()..color = palette.historyComposeIconFg);
     canvas.drawCircle(Offset(emojiX + 14.5, emojiCY - 2.5), 1.2, Paint()..color = palette.historyComposeIconFg);
-    // Smile arc
     final smilePath = Path()
       ..addArc(Rect.fromCenter(center: Offset(emojiX + 11, emojiCY - 0.5), width: 10, height: 10),
           0.3, math.pi * 0.4);
     canvas.drawPath(smilePath, emojiPaint..strokeWidth = 1.2);
+    // Circle outline around emoji icon (AyuGram: historyEmojiCircleFg + drawEllipse)
+    final circlePaint = Paint()
+      ..color = palette.historyComposeIconFg.withValues(alpha: 0.35)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(emojiX + 11, emojiCY), width: 23, height: 23),
+      circlePaint,
+    );
 
     // Record button (microphone icon, rightmost 44px zone)
     final micX = left + chatWidth - 34;
