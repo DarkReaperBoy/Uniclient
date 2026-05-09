@@ -219,7 +219,6 @@ The `bridge_ffi.dart` file is a well-implemented FFI bridge that correctly:
 
 ## Issues
 
-- [ ] [MAJOR] Five token names used throughout the file do not exist anywhere in AyuGram source or `colors.palette`: `outlineButtonOutlineFg`, `dialogsForwardBg`, `dialogsForwardFg`, `mainMenuCoverFg`, `profileOtherAdminStarFg`. Verified with `grep -rn` across all of `/home/nako/Documents/AyuGramDesktop/Telegram/` returning no matches. These are invented — if the real Telegram Desktop ever exposes these palette entries, the names may clash or diverge — `telegram_palette.dart:45,75-76,221-224,261-268` ← `AyuGram/Telegram/lib_ui/ui/colors.palette` (absent)
 
 # theme_file.dart audit
 
