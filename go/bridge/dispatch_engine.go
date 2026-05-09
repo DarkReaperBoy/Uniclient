@@ -4076,6 +4076,9 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
+		if peers == nil {
+			peers = []engine.ChatInfo{}
+		}
 		return json.Marshal(peers)
 
 	case "RemoveSavedReactionTag":

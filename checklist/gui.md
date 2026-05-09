@@ -468,29 +468,6 @@ All these controls exist in AppState but are not exposed in the UI.
 # calls_screen — Audit Findings
 
 
-
-# chat_list_panel — Audit Findings
-
-## chat_list_panel — Stub actions, wrong methods, fake data
-
-- [ ] [CRITICAL] "Edit Folder" context menu item is a `break` stub — pressing it does nothing. `showEditFolderBox` is already imported at line 23 and used elsewhere (line 4136); the handler just needs `showEditFolderBox(context, folder!)` — `chat_list_panel.dart:2324` ← `AyuGramDesktop/Telegram/SourceFiles/dialogs/dialogs_inner_widget.cpp` (tab context-menu opens filter editor)
-
-- [ ] [CRITICAL] "Edit Folders" context menu item is a `break` stub — pressing it does nothing. Should navigate to `FoldersSettingsScreen` (exists at `folders_settings_screen.dart:92`) — `chat_list_panel.dart:2330` ← `AyuGramDesktop/Telegram/SourceFiles/dialogs/dialogs_inner_widget.cpp` (tab context-menu "setup filters" navigates to filters screen)
-
-- [ ] [CRITICAL] Drag-to-filter drop handler only calls `debugPrint` and never adds the chat to the folder. The drop at `_onReorderPointerUp` resolves `folderId` correctly but then discards it with a debug print instead of calling an engine method — `chat_list_panel.dart:1075` ← `AyuGramDesktop/Telegram/SourceFiles/dialogs/dialogs_inner_widget.cpp` (drag-to-filter drop adds chat to folder via `chatFilters().editFilter(…)`)
-
-- [ ] [CRITICAL] "Public Posts" search tab does not perform a real search. It only filters the already-loaded local chat list to channels (`results.where((c) => c.type == ChatType.channel)`). In Telegram Desktop this tab triggers `messages.searchPosts` — a separate API call that returns messages across all public channels — `chat_list_panel.dart:494-496` ← `AyuGramDesktop/Telegram/SourceFiles/dialogs/dialogs_search_posts.cpp:172` (`PostsSearch::requestSearch` calls `MTPresult messages.SearchGlobal` / `messages.search` with posts flag)
-
-- [ ] [CRITICAL] `_TopPeersStrip` uses fake data. It builds top-peers from the locally cached DM chat list sorted by `lastMsgTime`. Real top peers come from `contacts.getTopPeers` (server-ranked by frequency). The local sort produces a different (wrong) list — `chat_list_panel.dart:2452-2458` ← `AyuGramDesktop/Telegram/SourceFiles/data/components/top_peers.cpp:186` (`TopPeers::request` calls `MTPcontacts_GetTopPeers`)
-
-- [ ] [CRITICAL] `SwipeAction.read` swipe calls `chatState.markRead()` — the no-argument method that reads the currently **active** chat's last message, not the swiped chat. Should call `chatState.markChatRead(chat.accountId, chat.chatId)` — `chat_list_panel.dart:933-934` ← `AyuGramDesktop/Telegram/SourceFiles/window/window_peer_menu.cpp:693` (`MarkAsReadThread(thread)` called on the specific thread, not the active one)
-
-- [ ] [CRITICAL] `SwipeAction.unread` swipe calls `chatState.markRead()` — marks the active chat as **read** instead of marking the swiped chat as unread. There is no `markChatUnread` method in `ChatState`; this entire action is unwired — `chat_list_panel.dart:935-936` ← `AyuGramDesktop/Telegram/SourceFiles/window/window_peer_menu.cpp:697` (`changeDialogUnreadMark(history, true)` marks the specific dialog as unread)
-
-- [ ] [CRITICAL] Context menu "Mark as Unread" action does nothing. The `case 'read':` handler only fires when `chat.unreadCount > 0` (mark as read path). When `unreadCount == 0` the menu label shows "Mark as Unread" but the if-guard skips execution — there is no else branch to call `changeDialogUnreadMark` — `chat_list_panel.dart:1417-1420` ← `AyuGramDesktop/Telegram/SourceFiles/window/window_peer_menu.cpp:697` (`changeDialogUnreadMark(history, true)`)
-
-- [ ] [CRITICAL] Reaction tag context menu "Remove tag" action is silently dropped. The `.then()` handler only checks for `'edit'` and `'filter'`; `'remove'` falls through with no call. No `removeSavedReactionTag` method exists in `ChatState` — `chat_list_panel.dart:5301-5307` ← `AyuGramDesktop/Telegram/SourceFiles/dialogs/dialogs_search_tags.h` (`SearchTags` handles tag removal via `messages.removeSavedReactionTag` RPC)
-
 # chat_list_row — Audit findings
 
 - [ ] [CRITICAL] `_isSavedMessages` detected by hardcoded English title string `'Saved Messages'`; breaks for any non-English locale or user-renamed chat — `chat_list_row.dart:985` ← `AyuGramDesktop/SourceFiles/data/data_peer.cpp:1606` (`isSelf()`)

@@ -96,7 +96,8 @@ func (e *Engine) SearchChats(query string, limit int) ([]ChatInfo, error) {
 		        c.slowmode_seconds, c.slowmode_next_send_date,
 		        c.stars_to_send, c.ttl_period, c.emoji_status_id,
 		        c.story_count, c.has_unread_story, c.is_forum,
-		        c.write_restriction_type, c.write_restriction_text
+		        c.write_restriction_type, c.write_restriction_text,
+		        c.not_joined, c.join_request, c.can_post, c.is_admin, c.no_forwards
 		 FROM chats c
 		 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
 		 WHERE c.title LIKE '%' || ? || '%'
