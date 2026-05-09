@@ -468,24 +468,6 @@ All these controls exist in AppState but are not exposed in the UI.
 # calls_screen — Audit Findings
 
 
-# chat_export — Backend wiring is entirely simulated; no engine calls
-
-- [ ] [CRITICAL] `_startExport` runs a fake `Timer.periodic` loop that simulates progress with hardcoded speed increments — it never calls `AccountInitTakeoutSession`, never reads from the Go bridge, and produces no real export data — `chat_export.dart:677-688` ← `export_view_panel_controller.cpp:204-207` (`_process->startExport(*_settings, PrepareEnvironment(_session))`)
-
-- [ ] [CRITICAL] `_skipCurrentFile` advances the local step index in the Dart widget only — it never calls `_process->skipFile(randomId)` on the backend, so files cannot actually be skipped — `chat_export.dart:766-774` ← `export_view_panel_controller.cpp:314-317` (`_process->skipFile(randomId)`)
-
-- [ ] [CRITICAL] Progress tracking (`_tickExport`, `_totalFiles`, `_totalSizeBytes`) is fully fabricated: `step.progress` advances by a deterministic formula `0.02 + 0.01 * _currentStepIndex`, file count increments by `10 + _currentStepIndex * 5`, and size grows by `(512 + _currentStepIndex * 256) * 1024` — none of these values come from the engine — `chat_export.dart:717-739` ← `export_controller.cpp:100-108` (real counters: `_messagesWritten`, `_userpicsWritten`, `_storiesWritten`, etc.)
-
-
-- [ ] [MAJOR] `_openExportFolder` uses `Process.run('xdg-open', [path])` which launches asynchronously and ignores errors — AyuGram uses `File::ShowInFolder(finished->path)` which is the platform-specific "reveal in file manager" call; more importantly, the Dart code opens the folder on button press in the completed phase, but the folder path it opens is `_exportLocation` (the user-chosen destination), which was never actually written to because no real export ran — `chat_export.dart:542-551` ← `export_view_panel_controller.cpp:327-331`
-
-- [ ] [MAJOR] The `skipFile` button is shown after a 5-second timer identical to AyuGram's `kShowSkipFileTimeout = 5 * crl::time(1000)`, but the skip action advances a local progress counter instead of passing a `randomId` to the backend — in AyuGram, `skipFileClicks` emits the `_fileRandomId` of the current row which is a real server-assigned ID — `chat_export.dart:756-763` ← `export_view_progress.cpp:284-287` (`return _skipFile->entity()->clicks() | rpl::map([=] { return _fileRandomId; })`)
-
-- [ ] [MAJOR] The completed phase shows "Total files: N" and "Total size: X" where both values were incremented by the fake timer loop — these numbers are meaningless since no real export ran — `chat_export.dart:2076-2080` ← `export_view_panel_controller.cpp:326-330` (real completion: `FinishedState` with actual `path`)
-
-- [ ] [MAJOR] `_exportLocation` is saved to a local JSON file via `_saveExportSettings()` but AyuGram persists settings through `_session->local().writeExportSettings(settings)` (MTProto account storage) — the two persistence mechanisms are not equivalent; on reinstall or account switch the local JSON path will be stale or missing — `chat_export.dart:487-519` ← `export_view_panel_controller.cpp:417-429`
-
-- [ ] [MAJOR] `_triggerTakeoutInvalidError`, `_triggerTakeoutInitDelayError`, `_triggerDiskError`, and `_triggerGenericApiError` are dead code — no engine event wires into them because the export is fully simulated; they will never be called in normal app flow — `chat_export.dart:777-824`
 
 # chat_list_panel — Audit Findings
 
