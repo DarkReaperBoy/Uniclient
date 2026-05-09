@@ -470,8 +470,6 @@ All these controls exist in AppState but are not exposed in the UI.
 
 # chat_settings_screen — Audit Findings
 
-- [ ] [MAJOR] Font selection in `_ChooseFontBox` is not applied — `appState.customFontFamily = f` persists the preference but `AppTheme.fromPalette()` in `dart/lib/theme/theme.dart:104` hardcodes `fontFamily: 'Inter'`; fix: add `fontFamily` param to `fromPalette`, pass `appState.customFontFamily` from `main.dart:1886` — `chat_settings_screen.dart:1750` ← `settings/sections/settings_chat.cpp:2877-2878`
-
 # chat_switch_overlay — Audit Findings
 
 ## chat_switch_overlay — Account/chat switch overlay (Ctrl+Tab)
