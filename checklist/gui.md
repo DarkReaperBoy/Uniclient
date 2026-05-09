@@ -464,10 +464,6 @@ All these controls exist in AppState but are not exposed in the UI.
 
 # call_panel — Audit Findings
 
-## call_panel — Fingerprint emoji table wrong
-
-- [ ] [CRITICAL] Encryption fingerprint uses a wrong, custom 100-emoji table — AyuGram defines a specific 329-entry table (the canonical Telegram fingerprint emoji set) from which emojis are picked by `value % kEmojiCount` using the SHA-256 of the encryption key; the Dart widget uses a 100-emoji set of modern face/animal emojis chosen randomly — `call_panel.dart:1099-1120` ← `calls/calls_emoji_fingerprint.cpp:34-89,121,165`
-
 ## call_panel — Call duration not synced from engine
 
 - [ ] [MAJOR] Call duration timer resets to 0 on every state transition to `active` — the Dart widget runs `_durationSeconds = 0` on each `active` state start and counts seconds locally; it should read the actual elapsed call time from the engine so resuming a call mid-session shows the correct duration — `call_panel.dart:192-198` ← `calls/calls_panel.cpp:460-463` (`_call` provides `getWaitingSoundPeakValue` / duration; `updateDurationText` reads from call object)
