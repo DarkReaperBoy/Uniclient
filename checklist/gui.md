@@ -468,24 +468,6 @@ All these controls exist in AppState but are not exposed in the UI.
 # calls_screen — Audit Findings
 
 
-# chat_list_row — Audit findings
-
-- [ ] [CRITICAL] `_isSavedMessages` detected by hardcoded English title string `'Saved Messages'`; breaks for any non-English locale or user-renamed chat — `chat_list_row.dart:985` ← `AyuGramDesktop/SourceFiles/data/data_peer.cpp:1606` (`isSelf()`)
-
-- [ ] [CRITICAL] `_TopicJumpBubble` has no `onTap`; tapping it falls through to `ForumChatListRow.onTap` which opens the whole forum — never navigates to the specific unread topic as AyuGram does via `pressedTopicJumpRootId` — `chat_list_row.dart:1967` ← `AyuGramDesktop/SourceFiles/dialogs/dialogs_inner_widget.cpp:5236`
-
-- [ ] [CRITICAL] Poll unread badge entirely absent — `ChatListRow` only renders mention and reaction icon badges; AyuGram renders a third badge for `badgesState.poll` — `chat_list_row.dart:280` ← `AyuGramDesktop/SourceFiles/dialogs/ui/dialogs_layout.cpp:273`
-
-- [ ] [CRITICAL] `_TypingDotsIndicator` hardcodes the label `"${userName} typing"` for every send-action type; AyuGram renders 10+ distinct strings (RecordVoice, UploadPhoto, UploadVideo, RecordRound, ChooseSticker, etc.) from `SendActionPainter` — `chat_list_row.dart:1267` ← `AyuGramDesktop/SourceFiles/history/view/history_view_send_action.cpp:271`
-
-- [ ] [CRITICAL] `ForumChatListRow` row header has no unread-count badge, pinned icon, or mention/reaction/poll badges — the right column of the forum group row is empty; AyuGram's `RowPainter::Paint` applies the same badge painting path to forum rows — `chat_list_row.dart:1814` ← `AyuGramDesktop/SourceFiles/dialogs/ui/dialogs_layout.cpp:225`
-
-- [ ] [CRITICAL] `_HoverBuilder` tracks hover state but `isHovered` is never referenced inside the builder lambda — unread badge "Over" colors (`dialogsUnreadBgOver`, `dialogsUnreadBgMutedOver`) are never applied on hover — `chat_list_row.dart:99` ← `AyuGramDesktop/SourceFiles/dialogs/dialogs.style:76` (dialogsUnreadFont / Over states)
-
-- [ ] [MAJOR] Online badge shows/hides instantly; AyuGram animates it over `dialogsOnlineBadgeDuration: 150ms` — `chat_list_row.dart:1059` ← `AyuGramDesktop/SourceFiles/dialogs/dialogs_row.cpp:207`, `dialogs.style:148`
-
-- [ ] [MAJOR] `ForumChatListRow` forum-group title uses `fontSize: 14` while `ChatListRow` uses 13 — AyuGram's `forumDialogRow` inherits `defaultDialogRow` with no font-size override; both rows should use `semiboldFont` at the same size — `chat_list_row.dart:1825` ← `AyuGramDesktop/SourceFiles/dialogs/dialogs.style:107`
-
 # chat_settings_screen — Audit Findings
 
 - [ ] [CRITICAL] `_useSystemAccent` checkbox updates only local state — never calls `appState.setSystemAccent()` or any engine method; toggling it has zero effect — `chat_settings_screen.dart:234` ← `settings/sections/settings_chat.cpp:2544-2548` (`settings.setSystemAccentColorEnabled(checked)`)
