@@ -466,17 +466,7 @@ All these controls exist in AppState but are not exposed in the UI.
 
 ## call_panel — Controls not wired to engine
 
-- [ ] [CRITICAL] Mute button is an empty stub — `onTap: () {}` does nothing; no engine call to mute/unmute the microphone — `call_panel.dart:553` ← `calls/calls_panel.cpp:389-392` (`_call->setMuted(!_call->muted())`)
-
-- [ ] [CRITICAL] Add People button is an empty stub — `onTap: () {}` does nothing; should open invite/conference box — `call_panel.dart:558` ← `calls/calls_panel.cpp:425-457` (`Group::PrepareInviteBox` / `startOrJoinConferenceCall`)
-
-- [ ] [CRITICAL] Screen share handler never calls the engine — `_onScreenShareTap` selects a source then exits with only a comment; no engine call to start/stop sharing — `call_panel.dart:206-215` ← `calls/calls_panel.cpp:394-417` (`_call->toggleScreenSharing(deviceId, withAudio)`)
-
 - [ ] [CRITICAL] Camera toggle handler never calls the engine — `_onCameraTap` checks permission then exits with only a comment; no engine call to enable/disable camera — `call_panel.dart:217-221` ← `calls/calls_panel.cpp:419-423` (`_call->toggleCameraSharing(!_call->isSharingCamera())`)
-
-- [ ] [CRITICAL] `showCallPanel` wires `onAccept` to an empty lambda — the answer button does nothing instead of calling the engine to answer the incoming call — `call_panel.dart:1503` ← `calls/calls_panel.cpp:481-482` (`_call->answer()`)
-
-- [ ] [CRITICAL] Device selector menu result is always discarded — `showMenu<String>()` return value is never `.then()`'d, so selecting "Default Camera" or "Default Microphone" has no effect — `call_panel.dart:226-237` ← `calls/calls_panel.cpp:1044-1049` (`showDevicesMenu` → `setCameraDeviceId`)
 
 ## call_panel — Fingerprint emoji table wrong
 
