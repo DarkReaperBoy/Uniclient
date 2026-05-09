@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:share_plus/share_plus.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -968,7 +970,8 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
         if (result != null && result.inviteLink.isNotEmpty) {
           if (mounted) {
             Navigator.of(context).pop(true);
-            _showLinkBox(context, result.inviteLink, initial: true);
+            _showLinkBox(context, result.inviteLink,
+                initial: true, callId: result.callId);
           }
         } else if (result != null) {
           if (mounted) Navigator.of(context).pop(true);
@@ -996,7 +999,8 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
       if (result != null && result.inviteLink.isNotEmpty) {
         if (mounted) {
           Navigator.of(context).pop(true);
-          _showLinkBox(context, result.inviteLink, initial: true);
+          _showLinkBox(context, result.inviteLink,
+              initial: true, callId: result.callId);
         }
       } else {
         if (mounted) {
@@ -1013,16 +1017,22 @@ class _CreateCallBoxState extends State<_CreateCallBox> {
     }
   }
 
-  void _showLinkBox(BuildContext ctx, String link, {bool initial = false}) {
+  void _showLinkBox(BuildContext ctx, String link,
+      {bool initial = false, String callId = ''}) {
     final engine = ctx.read<EngineService>();
     final appState = ctx.read<AppState>();
+    final chatState = ctx.read<ChatState>();
     showDialog(
       context: ctx,
       builder: (c) => Provider<EngineService>.value(
         value: engine,
         child: ChangeNotifierProvider.value(
           value: appState,
-          child: _ConferenceCallLinkBox(link: link, initial: initial),
+          child: ChangeNotifierProvider.value(
+            value: chatState,
+            child: _ConferenceCallLinkBox(
+                link: link, initial: initial, callId: callId),
+          ),
         ),
       ),
     );
@@ -1383,10 +1393,12 @@ class _ReactivateHeader extends StatelessWidget {
 
 class _ConferenceCallLinkBox extends StatelessWidget {
   final String link;
+  final String callId;
   final bool initial;
 
   const _ConferenceCallLinkBox({
     required this.link,
+    this.callId = '',
     this.initial = false,
   });
 
@@ -1480,7 +1492,9 @@ class _ConferenceCallLinkBox extends StatelessWidget {
                     child: SizedBox(
                       height: 42,
                       child: OutlinedButton.icon(
-                        onPressed: () => Navigator.of(context).pop(),
+                        onPressed: () {
+                          Share.share(link);
+                        },
                         icon: const Icon(Icons.share, size: 18),
                         label: const Text('Share Link'),
                         style: OutlinedButton.styleFrom(
@@ -1515,7 +1529,17 @@ class _ConferenceCallLinkBox extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 GestureDetector(
-                  onTap: () => Navigator.of(context).pop(),
+                  onTap: () async {
+                    Navigator.of(context).pop();
+                    if (callId.isNotEmpty) {
+                      final engine = context.read<EngineService>();
+                      final accountId =
+                          context.read<AppState>().activeAccountId;
+                      try {
+                        await engine.joinGroupCall(accountId, callId);
+                      } catch (_) {}
+                    }
+                  },
                   child: Text(
                     'Join this call yourself',
                     style: TextStyle(
@@ -1930,7 +1954,16 @@ class _CallHistoryRowState extends State<_CallHistoryRow> {
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () {},
+        onTap: () {
+          final chatState = context.read<ChatState>();
+          chatState.openChatById(group.peerId);
+          final newestTimestamp = group.newest.timestamp * 1000;
+          Future.delayed(const Duration(milliseconds: 300), () {
+            chatState.jumpToMessage(newestTimestamp,
+                highlightMsgId: group.newest.msgId);
+          });
+          Navigator.of(context).pop();
+        },
         onSecondaryTapUp: (details) =>
             _showContextMenu(context, details.globalPosition),
         onLongPressStart: (details) =>
@@ -2102,16 +2135,91 @@ class _CallSettingsScreen extends StatefulWidget {
 }
 
 class _CallSettingsScreenState extends State<_CallSettingsScreen> {
-  String _outputDevice = 'Default';
-  String _inputDevice = 'Default';
-  String _cameraDevice = 'Default';
-  bool _useSameDevices = true;
-  bool _acceptCalls = true;
+  List<String> _outputDevices = ['Default'];
+  List<String> _inputDevices = ['Default'];
+  List<String> _cameraDevices = ['Default'];
+
+  @override
+  void initState() {
+    super.initState();
+    _enumerateDevices();
+  }
+
+  Future<void> _enumerateDevices() async {
+    if (Platform.isLinux) {
+      final sinks = await _pactlList('sink');
+      final sources = await _pactlList('source');
+      final cameras = await _v4l2List();
+      if (mounted) {
+        setState(() {
+          _outputDevices = ['Default', ...sinks];
+          _inputDevices = ['Default', ...sources];
+          _cameraDevices = ['Default', ...cameras];
+        });
+      }
+    }
+  }
+
+  Future<List<String>> _pactlList(String type) async {
+    try {
+      final result = await Process.run('pactl', ['list', '${type}s', 'short']);
+      if (result.exitCode != 0) return [];
+      final lines = (result.stdout as String).trim().split('\n');
+      final names = <String>[];
+      for (final line in lines) {
+        if (line.trim().isEmpty) continue;
+        final parts = line.split('\t');
+        if (parts.length >= 2) {
+          final name = parts[1];
+          if (type == 'source' && name.contains('.monitor')) continue;
+          final friendly = name
+              .replaceAll('alsa_output.', '')
+              .replaceAll('alsa_input.', '')
+              .replaceAll('.analog-stereo', ' (Analog Stereo)')
+              .replaceAll('.hdmi-stereo', ' (HDMI Stereo)')
+              .replaceAll('_', ' ');
+          names.add(friendly);
+        }
+      }
+      return names;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<String>> _v4l2List() async {
+    try {
+      final result =
+          await Process.run('v4l2-ctl', ['--list-devices']);
+      if (result.exitCode != 0) return [];
+      final lines = (result.stdout as String).trim().split('\n');
+      final names = <String>[];
+      for (final line in lines) {
+        final trimmed = line.trim();
+        if (trimmed.isEmpty) continue;
+        if (trimmed.endsWith(':')) {
+          names.add(trimmed.substring(0, trimmed.length - 1).trim());
+        }
+      }
+      return names;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  void _onAcceptCallsChanged(bool v) {
+    final appState = context.read<AppState>();
+    appState.setNotifAcceptCallsOnDevice(v);
+    final engine = context.read<EngineService>();
+    final accountId = appState.activeAccountId;
+    engine.accountUpdateDeviceLocked(accountId, v ? 0 : 1);
+  }
 
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final appState = context.watch<AppState>();
 
     final bgColor = p.boxBg;
     final textColor = p.boxTextFg;
@@ -2143,28 +2251,30 @@ class _CallSettingsScreenState extends State<_CallSettingsScreen> {
           _CallSettingsSectionHeader(label: 'Output', color: accentColor),
           _CallSettingsDeviceRow(
             icon: Icons.volume_up,
-            label: _outputDevice,
+            label: appState.callOutputDevice,
             textColor: textColor,
             subtextColor: subtextColor,
             isDark: isDark,
             onTap: () => _showDevicePicker(
               title: 'Output Device',
-              current: _outputDevice,
-              onSelected: (d) => setState(() => _outputDevice = d),
+              current: appState.callOutputDevice,
+              devices: _outputDevices,
+              onSelected: (d) => appState.setCallOutputDevice(d),
             ),
           ),
           Divider(height: 1, color: dividerColor, indent: 60),
           _CallSettingsSectionHeader(label: 'Input', color: accentColor),
           _CallSettingsDeviceRow(
             icon: Icons.mic,
-            label: _inputDevice,
+            label: appState.callInputDevice,
             textColor: textColor,
             subtextColor: subtextColor,
             isDark: isDark,
             onTap: () => _showDevicePicker(
               title: 'Input Device',
-              current: _inputDevice,
-              onSelected: (d) => setState(() => _inputDevice = d),
+              current: appState.callInputDevice,
+              devices: _inputDevices,
+              onSelected: (d) => appState.setCallInputDevice(d),
             ),
           ),
           Padding(
@@ -2175,11 +2285,11 @@ class _CallSettingsScreenState extends State<_CallSettingsScreen> {
           _CallSettingsSectionHeader(label: 'Call Devices', color: accentColor),
           _CallSettingsToggleRow(
             label: 'Use same devices for calls',
-            value: _useSameDevices,
+            value: appState.callUseSameDevices,
             textColor: textColor,
             accentColor: accentColor,
             isDark: isDark,
-            onChanged: (v) => setState(() => _useSameDevices = v),
+            onChanged: (v) => appState.setCallUseSameDevices(v),
           ),
           _CallSettingsInfoLabel(
             text: 'When enabled, calls use the same speaker and microphone '
@@ -2190,25 +2300,26 @@ class _CallSettingsScreenState extends State<_CallSettingsScreen> {
           _CallSettingsSectionHeader(label: 'Camera', color: accentColor),
           _CallSettingsDeviceRow(
             icon: Icons.videocam,
-            label: _cameraDevice,
+            label: appState.callCameraDevice,
             textColor: textColor,
             subtextColor: subtextColor,
             isDark: isDark,
             onTap: () => _showDevicePicker(
               title: 'Camera',
-              current: _cameraDevice,
-              onSelected: (d) => setState(() => _cameraDevice = d),
+              current: appState.callCameraDevice,
+              devices: _cameraDevices,
+              onSelected: (d) => appState.setCallCameraDevice(d),
             ),
           ),
           Divider(height: 1, color: dividerColor, indent: 60),
           _CallSettingsSectionHeader(label: 'Other', color: accentColor),
           _CallSettingsToggleRow(
             label: 'Accept incoming calls on this device',
-            value: _acceptCalls,
+            value: appState.notifAcceptCallsOnDevice,
             textColor: textColor,
             accentColor: accentColor,
             isDark: isDark,
-            onChanged: (v) => setState(() => _acceptCalls = v),
+            onChanged: _onAcceptCallsChanged,
           ),
           _CallSettingsInfoLabel(
             text:
@@ -2221,7 +2332,21 @@ class _CallSettingsScreenState extends State<_CallSettingsScreen> {
             label: 'Open system sound preferences',
             textColor: textColor,
             isDark: isDark,
-            onTap: () {},
+            onTap: () {
+              if (Platform.isLinux) {
+                Process.run('xdg-open', ['gnome-control-center://sound'])
+                    .catchError((_) {
+                  return Process.run('xdg-open', ['x-settings://sound']);
+                }).catchError((_) {
+                  return Process.run('pavucontrol', []);
+                });
+              } else if (Platform.isMacOS) {
+                Process.run('open',
+                    ['/System/Library/PreferencePanes/Sound.prefPane']);
+              } else if (Platform.isWindows) {
+                Process.run('control', ['mmsys.cpl', 'sounds']);
+              }
+            },
           ),
           const SizedBox(height: 24),
         ],
@@ -2232,13 +2357,13 @@ class _CallSettingsScreenState extends State<_CallSettingsScreen> {
   void _showDevicePicker({
     required String title,
     required String current,
+    required List<String> devices,
     required ValueChanged<String> onSelected,
   }) {
     final p = context.palette;
     final textColor = p.boxTextFg;
     final accentColor = p.windowBgActive;
     final bgColor = p.boxBg;
-    final devices = ['Default'];
 
     showDialog(
       context: context,

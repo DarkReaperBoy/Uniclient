@@ -1657,6 +1657,24 @@ class EngineService {
     }
   }
 
+  Future<bool> accountUpdateDeviceLocked(String accountId, int period) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'period': period,
+    }));
+    try {
+      final respBytes = await _callAsync(
+          accountId, 'AccountUpdateDeviceLocked', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return false;
+      final result =
+          json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return result['result'] as bool? ?? false;
+    } catch (e) {
+      Debug.error('ENGINE', 'accountUpdateDeviceLocked failed', e);
+      return false;
+    }
+  }
+
   Future<void> clearCallHistory(String accountId, {bool revoke = false}) async {
     final req = epb.EngineClearCallHistoryRequest()
       ..accountId = accountId
