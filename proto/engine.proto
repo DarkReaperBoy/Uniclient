@@ -183,6 +183,7 @@ message EngineChatInfo {
   bool   join_request             = 31;
   bool   can_post                 = 32;
   bool   no_forwards              = 33;
+  bool   is_self                  = 34;
 }
 
 message EngineGetChatListRequest {
@@ -351,6 +352,7 @@ message EngineCachedMessage {
   string grouped_id   = 32; // album group ID (messages with same ID form a media album)
   string media_remote_ref = 33; // document/file ID for sticker/GIF operations
   string media_extra      = 34; // encoded access hash + file reference
+  bool   sender_no_forwards = 35; // sender has no_forwards_peer flag
 }
 
 message EngineGetMessagesRequest {
@@ -1445,4 +1447,30 @@ message EngineSetUserNoForwardsFlagsRequest {
   string user_id        = 2;
   bool   my_enabled     = 3;
   bool   peer_enabled   = 4;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Reorder Pinned Dialogs / Dialog Filters
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineReorderPinnedDialogsRequest {
+  string account_id       = 1;
+  repeated string chat_ids = 2;
+}
+
+message EngineReorderDialogFiltersRequest {
+  string account_id         = 1;
+  repeated int32 filter_ids = 2;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Forum Topics with Pagination
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineGetForumTopicsWithOffsetRequest {
+  string account_id   = 1;
+  string chat_id      = 2;
+  int32  offset_date  = 3;
+  int32  offset_id    = 4;
+  int32  offset_topic = 5;
 }

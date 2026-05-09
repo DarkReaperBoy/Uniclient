@@ -68,6 +68,9 @@ type CachedMessage struct {
 	MediaDownloadState int    `json:"media_download_state,omitempty"`
 	MediaRemoteRef     string `json:"media_remote_ref,omitempty"`
 	MediaExtra         string `json:"media_extra,omitempty"`
+
+	// Derived at read time (not persisted in DB).
+	SenderNoForwards bool `json:"sender_no_forwards,omitempty"`
 }
 
 // GetMessages returns cached messages for a chat, paginated by timestamp.
@@ -110,6 +113,7 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs int64, limit int
 	e.populateMediaMetadata(msgs)
 	e.populateReplyPreviews(msgs)
 	e.populateAdminRanks(accountID, chatID, msgs)
+	e.populateSenderNoForwards(accountID, msgs)
 
 	// If cache has fewer messages than requested on initial load, fetch from
 	// core and cache. A few messages may have trickled in via the event stream
@@ -313,6 +317,44 @@ func (e *Engine) populateAdminRanks(accountID, chatID string, msgs []CachedMessa
 			// Also update the DB so future loads have the rank.
 			e.db.Exec(`UPDATE messages SET sender_rank = ? WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
 				rank, msgs[i].AccountID, msgs[i].ChatID, msgs[i].MsgID)
+		}
+	}
+}
+
+// populateSenderNoForwards sets SenderNoForwards on messages whose sender
+// has the no_forwards_peer flag enabled in the users table.
+func (e *Engine) populateSenderNoForwards(accountID string, msgs []CachedMessage) {
+	if len(msgs) == 0 {
+		return
+	}
+	// Collect unique sender IDs.
+	senderSet := make(map[string]struct{})
+	for _, m := range msgs {
+		if m.SenderID != "" {
+			senderSet[m.SenderID] = struct{}{}
+		}
+	}
+	if len(senderSet) == 0 {
+		return
+	}
+	// Query the users table for no_forwards_peer.
+	noFwdPeers := make(map[string]bool)
+	for sid := range senderSet {
+		var nfp int
+		err := e.db.QueryRow(
+			`SELECT no_forwards_peer FROM users WHERE account_id = ? AND user_id = ?`,
+			accountID, sid,
+		).Scan(&nfp)
+		if err == nil && nfp != 0 {
+			noFwdPeers[sid] = true
+		}
+	}
+	if len(noFwdPeers) == 0 {
+		return
+	}
+	for i := range msgs {
+		if noFwdPeers[msgs[i].SenderID] {
+			msgs[i].SenderNoForwards = true
 		}
 	}
 }

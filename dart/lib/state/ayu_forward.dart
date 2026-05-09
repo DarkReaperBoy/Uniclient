@@ -31,6 +31,7 @@ class ForwardProgress extends ChangeNotifier {
   String get statusText {
     switch (_phase) {
       case AyuForwardPhase.preparing:
+        return 'Preparing...';
       case AyuForwardPhase.sending:
         return 'Forwarding messages';
       case AyuForwardPhase.downloading:
@@ -98,6 +99,7 @@ class AyuForward {
 
   static bool isMessageRestricted(CachedMessage msg) {
     if (msg.isDeleted) return true;
+    if (msg.unsupportedTTL) return true;
     if (msg.ttlSeconds > 0) return true;
     if (msg.noForwards) return true;
     return false;
@@ -125,6 +127,10 @@ class AyuForward {
       return [ForwardChunk(ForwardMethod.resendAsOwn, messages)];
     }
 
+    if (messages.any((m) => m.senderNoForwards)) {
+      return [ForwardChunk(ForwardMethod.resendAsOwn, messages)];
+    }
+
     final chunks = <ForwardChunk>[];
     ForwardMethod? currentMethod;
     var currentMsgs = <CachedMessage>[];
@@ -147,20 +153,24 @@ class AyuForward {
   }
 
   /// Groups messages by their groupedId (album membership). Messages with the
-  /// same non-empty groupedId are batched together. Non-album messages get
-  /// their own single-element group.
+  /// same non-empty groupedId are batched together at the position of the first
+  /// occurrence. Non-album messages get their own single-element group.
+  /// Preserves chronological order (matches C++ prepareMedia).
   static List<List<CachedMessage>> _groupByAlbum(List<CachedMessage> messages) {
     final groups = <List<CachedMessage>>[];
     final albumMap = <String, List<CachedMessage>>{};
+    final seenAlbums = <String>{};
 
     for (final msg in messages) {
       if (msg.groupedId.isNotEmpty) {
         albumMap.putIfAbsent(msg.groupedId, () => []).add(msg);
+        if (seenAlbums.add(msg.groupedId)) {
+          groups.add(albumMap[msg.groupedId]!);
+        }
       } else {
         groups.add([msg]);
       }
     }
-    groups.addAll(albumMap.values);
     return groups;
   }
 
@@ -259,6 +269,7 @@ class AyuForward {
     ChatInfo sourceChat,
   ) {
     if (isChatRestricted(sourceChat)) return true;
+    if (messages.any((m) => m.senderNoForwards)) return true;
     return messages.any(isMessageRestricted);
   }
 }

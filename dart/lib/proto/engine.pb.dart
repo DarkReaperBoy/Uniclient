@@ -1453,6 +1453,7 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     $core.bool? joinRequest,
     $core.bool? canPost,
     $core.bool? noForwards,
+    $core.bool? isSelf,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -1554,6 +1555,9 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     if (noForwards != null) {
       $result.noForwards = noForwards;
     }
+    if (isSelf != null) {
+      $result.isSelf = isSelf;
+    }
     return $result;
   }
   EngineChatInfo._() : super();
@@ -1594,6 +1598,7 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     ..aOB(31, _omitFieldNames ? '' : 'joinRequest')
     ..aOB(32, _omitFieldNames ? '' : 'canPost')
     ..aOB(33, _omitFieldNames ? '' : 'noForwards')
+    ..aOB(34, _omitFieldNames ? '' : 'isSelf')
     ..hasRequiredFields = false
   ;
 
@@ -1914,6 +1919,15 @@ class EngineChatInfo extends $pb.GeneratedMessage {
   $core.bool hasNoForwards() => $_has(32);
   @$pb.TagNumber(33)
   void clearNoForwards() => clearField(33);
+
+  @$pb.TagNumber(34)
+  $core.bool get isSelf => $_getBF(33);
+  @$pb.TagNumber(34)
+  set isSelf($core.bool v) { $_setBool(33, v); }
+  @$pb.TagNumber(34)
+  $core.bool hasIsSelf() => $_has(33);
+  @$pb.TagNumber(34)
+  void clearIsSelf() => clearField(34);
 }
 
 class EngineGetChatListRequest extends $pb.GeneratedMessage {
@@ -3649,6 +3663,7 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
     ..aOS(32, _omitFieldNames ? '' : 'groupedId')
     ..aOS(33, _omitFieldNames ? '' : 'mediaRemoteRef')
     ..aOS(34, _omitFieldNames ? '' : 'mediaExtra')
+    ..aOB(35, _omitFieldNames ? '' : 'senderNoForwards')
     ..hasRequiredFields = false
   ;
 
@@ -3979,6 +3994,15 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
   $core.bool hasMediaExtra() => $_has(33);
   @$pb.TagNumber(34)
   void clearMediaExtra() => clearField(34);
+
+  @$pb.TagNumber(35)
+  $core.bool get senderNoForwards => $_getBF(34);
+  @$pb.TagNumber(35)
+  set senderNoForwards($core.bool v) { $_setBool(34, v); }
+  @$pb.TagNumber(35)
+  $core.bool hasSenderNoForwards() => $_has(34);
+  @$pb.TagNumber(35)
+  void clearSenderNoForwards() => clearField(35);
 }
 
 class EngineGetMessagesRequest extends $pb.GeneratedMessage {

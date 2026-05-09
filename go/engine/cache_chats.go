@@ -56,6 +56,7 @@ type ChatInfo struct {
 	CanPost              bool   `json:"can_post,omitempty"`
 	IsAdmin              bool   `json:"is_admin,omitempty"`
 	NoForwards           bool   `json:"no_forwards,omitempty"`
+	IsSelf               bool   `json:"is_self,omitempty"`
 }
 
 // chatTypeToInt converts cores.ChatType to DB integer.
@@ -101,7 +102,12 @@ func (e *Engine) GetUnifiedChatList(limit, offset int) ([]ChatInfo, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	return scanChats(rows)
+	chats, err := scanChats(rows)
+	if err != nil {
+		return nil, err
+	}
+	e.markSelfChats(chats)
+	return chats, nil
 }
 
 // GetChatList returns chats for a single account.
@@ -136,7 +142,39 @@ func (e *Engine) GetChatList(accountID string, archived bool, limit, offset int)
 		return nil, err
 	}
 	defer rows.Close()
-	return scanChats(rows)
+	chats, err := scanChats(rows)
+	if err != nil {
+		return nil, err
+	}
+	e.markSelfChats(chats)
+	return chats, nil
+}
+
+// markSelfChats sets IsSelf=true for DM chats where the chatID matches
+// the account's own user ID (i.e. "Saved Messages").
+func (e *Engine) markSelfChats(chats []ChatInfo) {
+	// Build map of accountID → selfUserID.
+	selfIDs := make(map[string]string)
+	e.accountsMu.RLock()
+	for id, acc := range e.accounts {
+		if acc.Core == nil {
+			continue
+		}
+		type selfIDer interface{ SelfUserID() string }
+		if s, ok := acc.Core.(selfIDer); ok {
+			if sid := s.SelfUserID(); sid != "" {
+				selfIDs[id] = sid
+			}
+		}
+	}
+	e.accountsMu.RUnlock()
+
+	for i := range chats {
+		c := &chats[i]
+		if c.Type == ChatTypeDMVal && c.ChatID == selfIDs[c.AccountID] {
+			c.IsSelf = true
+		}
+	}
 }
 
 func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
@@ -624,6 +662,79 @@ func (e *Engine) ToggleTopPeers(accountID string, enabled bool) error {
 	return err
 }
 
+// ToggleSavedDialogPin pins or unpins a saved dialog sublist.
+func (e *Engine) ToggleSavedDialogPin(accountID, peerID string, pinned bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	type savedDialogPinner interface {
+		ToggleSavedDialogPin(peerID string, pinned bool) error
+	}
+	p, ok := acc.Core.(savedDialogPinner)
+	if !ok {
+		return fmt.Errorf("platform does not support saved dialog pinning")
+	}
+	return p.ToggleSavedDialogPin(peerID, pinned)
+}
+
+// MarkSavedSublistRead marks a saved messages sublist as read.
+func (e *Engine) MarkSavedSublistRead(accountID, peerID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	return acc.Core.MarkAsRead(peerID, "")
+}
+
+// DeleteSavedSublistHistory deletes saved message history for a peer.
+func (e *Engine) DeleteSavedSublistHistory(accountID, peerID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	type savedHistoryDeleter interface {
+		DeleteSavedHistory(peerID string) error
+	}
+	d, ok := acc.Core.(savedHistoryDeleter)
+	if !ok {
+		return fmt.Errorf("platform does not support deleting saved history")
+	}
+	return d.DeleteSavedHistory(peerID)
+}
+
+// ReorderPinnedDialogs changes the display order of pinned chats.
+func (e *Engine) ReorderPinnedDialogs(accountID string, chatIDs []string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	type pinnedDialogReorderer interface {
+		ReorderPinnedDialogs(chatIDs []string) error
+	}
+	r, ok := acc.Core.(pinnedDialogReorderer)
+	if !ok {
+		return fmt.Errorf("platform does not support reordering pinned dialogs")
+	}
+	return r.ReorderPinnedDialogs(chatIDs)
+}
+
+// ReorderDialogFilters changes the display order of chat folders.
+func (e *Engine) ReorderDialogFilters(accountID string, filterIDs []int) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	type filterReorderer interface {
+		ReorderDialogFilters(ids []int) error
+	}
+	r, ok := acc.Core.(filterReorderer)
+	if !ok {
+		return fmt.Errorf("platform does not support reordering dialog filters")
+	}
+	return r.ReorderDialogFilters(filterIDs)
+}
+
 // PinChat sets the pinned state for a chat.
 func (e *Engine) PinChat(accountID, chatID string, pinned bool) error {
 	_, err := e.db.Exec(
@@ -684,6 +795,41 @@ func (e *Engine) GetForumTopics(accountID, chatID string) ([]cores.ForumTopic, e
 		}
 		if err := e.UpsertChat(accountID, ci); err != nil {
 			log.Printf("[engine] GetForumTopics: failed to cache topic %s: %v", t.ID, err)
+		}
+	}
+
+	return topics, nil
+}
+
+// GetForumTopicsWithOffset fetches forum topics with pagination offset parameters.
+func (e *Engine) GetForumTopicsWithOffset(accountID, chatID string, offsetDate, offsetID, offsetTopic int) ([]cores.ForumTopic, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+
+	type forumTopicOffsetGetter interface {
+		GetForumTopicsWithOffset(chatID string, limit, offsetDate, offsetID, offsetTopic int) ([]cores.ForumTopic, error)
+	}
+	ftg, ok := acc.Core.(forumTopicOffsetGetter)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support paginated forum topics")
+	}
+
+	topics, err := ftg.GetForumTopicsWithOffset(chatID, 100, offsetDate, offsetID, offsetTopic)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, t := range topics {
+		ci := cores.Dialog{
+			ID: t.ID, Type: cores.ChatTypeTopic, Title: t.Title,
+			UnreadCount: t.UnreadCount, IsPinned: t.IsPinned,
+			ParentID: t.ParentID, UnreadMentionCount: t.UnreadMentions,
+			UnreadReactionCount: t.UnreadReactions,
+		}
+		if err := e.UpsertChat(accountID, ci); err != nil {
+			log.Printf("[engine] GetForumTopicsWithOffset: failed to cache topic %s: %v", t.ID, err)
 		}
 	}
 

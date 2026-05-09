@@ -250,6 +250,44 @@ class EngineService {
     _callRaw('__engine', 'PinChat', req.writeToBuffer());
   }
 
+  void toggleSavedDialogPin(String accountId, String peerId, bool pinned) {
+    final req = epb.EnginePinChatRequest()
+      ..accountId = accountId
+      ..chatId = peerId
+      ..pinned = pinned;
+    _callRaw('__engine', 'ToggleSavedDialogPin', req.writeToBuffer());
+  }
+
+  void markSavedSublistRead(String accountId, String peerId) {
+    final req = epb.EngineMarkChatReadRequest()
+      ..accountId = accountId
+      ..chatId = peerId;
+    _callRaw('__engine', 'MarkSavedSublistRead', req.writeToBuffer());
+  }
+
+  void deleteSavedSublistHistory(String accountId, String peerId) {
+    final req = epb.EngineMarkChatReadRequest()
+      ..accountId = accountId
+      ..chatId = peerId;
+    _callRaw('__engine', 'DeleteSavedSublistHistory', req.writeToBuffer());
+  }
+
+  void reorderPinnedDialogs(String accountId, List<String> chatIds) {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_ids': chatIds,
+    }));
+    _callRaw('__engine', 'ReorderPinnedDialogs', Uint8List.fromList(payload));
+  }
+
+  void reorderDialogFilters(String accountId, List<int> filterIds) {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'filter_ids': filterIds,
+    }));
+    _callRaw('__engine', 'ReorderDialogFilters', Uint8List.fromList(payload));
+  }
+
   void archiveChat(String accountId, String chatId, bool archived) {
     final req = epb.EngineArchiveChatRequest()
       ..accountId = accountId
@@ -431,6 +469,24 @@ class EngineService {
       ..accountId = accountId
       ..chatId = chatId;
     final respBytes = await _callAsync('__engine', 'GetForumTopics', req.writeToBuffer());
+    if (respBytes.isEmpty) return [];
+    final resp = epb.EngineGetForumTopicsResponse.fromBuffer(respBytes);
+    return resp.topics.map(_forumTopicFromProto).toList();
+  }
+
+  Future<List<ForumTopic>> getForumTopicsWithOffset(
+    String accountId, String chatId,
+    {int offsetDate = 0, int offsetId = 0, int offsetTopic = 0}
+  ) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'offset_date': offsetDate,
+      'offset_id': offsetId,
+      'offset_topic': offsetTopic,
+    }));
+    final respBytes = await _callAsync(
+      '__engine', 'GetForumTopicsWithOffset', Uint8List.fromList(payload));
     if (respBytes.isEmpty) return [];
     final resp = epb.EngineGetForumTopicsResponse.fromBuffer(respBytes);
     return resp.topics.map(_forumTopicFromProto).toList();
@@ -3875,6 +3931,7 @@ class EngineService {
     joinRequest: p.joinRequest,
     canPost: p.canPost,
     noForwards: p.noForwards,
+    isSelf: p.isSelf,
   );
 
   static CachedMessage _cachedMsgFromProto(epb.EngineCachedMessage p) {
@@ -3923,6 +3980,8 @@ class EngineService {
       mediaSpoiler: _boolExtraFromRaw(contentRaw, 'media_spoiler'),
       mediaUnread: _boolExtraFromRaw(contentRaw, 'media_unread'),
       ttlSeconds: _intExtraFromRaw(contentRaw, 'ttl_seconds'),
+      unsupportedTTL: _boolExtraFromRaw(contentRaw, 'unsupported_ttl'),
+      senderNoForwards: p.senderNoForwards,
       altQualities: _altQualitiesFromRaw(contentRaw),
       views: _intFieldFromRaw(contentRaw, 'views'),
       forwards: _intFieldFromRaw(contentRaw, 'forwards'),
@@ -3979,6 +4038,7 @@ class EngineService {
       invoiceReceiptMsgId: _int64FieldFromRaw(contentRaw, 'invoice_receipt_msg_id'),
       invoicePhotoUrl: _topicFieldFromRaw(contentRaw, 'invoice_photo_url') ?? '',
       invoiceShippingRequested: _boolExtraFromRaw(contentRaw, 'invoice_shipping_requested'),
+      noForwards: _boolExtraFromRaw(contentRaw, 'no_forwards'),
       repliesCount: _int64FieldFromRaw(contentRaw, 'replies_count'),
       repliesChannelId: _topicFieldFromRaw(contentRaw, 'replies_channel_id') ?? '',
       repliesIsComments: _boolExtraFromRaw(contentRaw, 'replies_is_comments'),

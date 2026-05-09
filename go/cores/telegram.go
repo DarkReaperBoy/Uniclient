@@ -10024,6 +10024,13 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 		Platform:   tgPlatform,
 	}
 
+	if msg.Noforwards {
+		if m.Extra == nil {
+			m.Extra = make(map[string]interface{})
+		}
+		m.Extra["no_forwards"] = true
+	}
+
 	if gid, ok := msg.GetGroupedID(); ok && gid != 0 {
 		m.GroupedID = strconv.FormatInt(gid, 10)
 	}
@@ -10561,6 +10568,11 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 					m.Extra["wp_has_iv"] = true
 				}
 			}
+		case *tg.MessageMediaUnsupported:
+			if m.Extra == nil {
+				m.Extra = make(map[string]interface{})
+			}
+			m.Extra["unsupported_ttl"] = true
 		}
 	}
 
@@ -14721,6 +14733,80 @@ func (t *TelegramCore) GetForumTopics(chatID string, limit int) ([]ForumTopic, e
 	inputPeer, _ := t.toInputPeer(peer)
 	result, err := t.api.MessagesGetForumTopics(t.ctx, &tg.MessagesGetForumTopicsRequest{
 		Peer: inputPeer, Limit: limit,
+	})
+	if err != nil { return nil, err }
+
+	var canManageTopics, canDeleteMessages bool
+	for _, c := range result.Chats {
+		if ch, ok := c.(*tg.Channel); ok {
+			if rights, ok := ch.GetAdminRights(); ok {
+				canManageTopics = rights.ManageTopics
+				canDeleteMessages = rights.DeleteMessages
+			}
+			break
+		}
+	}
+
+	var topics []ForumTopic
+	for _, topic := range result.Topics {
+		ft, ok := topic.(*tg.ForumTopic)
+		if !ok {
+			continue
+		}
+		t.cacheForumTopic(chatID, ft.ID, ft.Title, ft.IconColor)
+
+		creatorID := ""
+		if ft.FromID != nil {
+			switch p := ft.FromID.(type) {
+			case *tg.PeerUser:
+				creatorID = strconv.FormatInt(p.UserID, 10)
+			case *tg.PeerChannel:
+				creatorID = strconv.FormatInt(p.ChannelID, 10)
+			case *tg.PeerChat:
+				creatorID = strconv.FormatInt(p.ChatID, 10)
+			}
+		}
+
+		isGeneral := ft.ID == 1
+		canEdit := ft.My || canManageTopics
+		topics = append(topics, ForumTopic{
+			ID:              strconv.Itoa(ft.ID),
+			Title:           ft.Title,
+			ColorID:         ft.IconColor,
+			IconEmojiID:     ft.IconEmojiID,
+			CreatorID:       creatorID,
+			CreationDate:    int64(ft.Date),
+			IsClosed:        ft.Closed,
+			IsHidden:        ft.Hidden,
+			IsMy:            ft.My,
+			IsPinned:        ft.Pinned,
+			UnreadCount:     ft.UnreadCount,
+			UnreadMentions:  ft.UnreadMentionsCount,
+			UnreadReactions: ft.UnreadReactionsCount,
+			TopMessageID:    strconv.Itoa(ft.TopMessage),
+			ReadInboxMaxID:  ft.ReadInboxMaxID,
+			ReadOutboxMaxID: ft.ReadOutboxMaxID,
+			ParentID:        chatID,
+			CanEdit:         canEdit,
+			CanDelete:       !isGeneral && (canDeleteMessages || ft.My),
+			CanToggleClosed: canEdit,
+			CanTogglePinned: canManageTopics,
+		})
+	}
+	return topics, nil
+}
+
+// GetForumTopicsWithOffset fetches forum topics with pagination offset parameters.
+func (t *TelegramCore) GetForumTopicsWithOffset(chatID string, limit, offsetDate, offsetID, offsetTopic int) ([]ForumTopic, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return nil, ErrAuth }
+	peer, err := t.resolvePeer(chatID); if err != nil { return nil, err }
+	if _, ok := peer.(*tg.PeerChannel); !ok { return nil, fmt.Errorf("not a channel") }
+	if limit <= 0 { limit = 20 }
+	inputPeer, _ := t.toInputPeer(peer)
+	result, err := t.api.MessagesGetForumTopics(t.ctx, &tg.MessagesGetForumTopicsRequest{
+		Peer: inputPeer, Limit: limit,
+		OffsetDate: offsetDate, OffsetID: offsetID, OffsetTopic: offsetTopic,
 	})
 	if err != nil { return nil, err }
 
@@ -20939,6 +21025,35 @@ func (t *TelegramCore) MessagesToggleSavedDialogPin(request *tg.MessagesToggleSa
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return false, ErrAuth }
 	return t.api.MessagesToggleSavedDialogPin(t.ctx, request)
+}
+
+// ToggleSavedDialogPin is a simple-parameter wrapper for the engine layer.
+// It resolves the peer from a string ID and calls MessagesToggleSavedDialogPin.
+func (t *TelegramCore) ToggleSavedDialogPin(peerID string, pinned bool) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	peer, err := t.resolvePeer(peerID)
+	if err != nil { return err }
+	inputPeer, _ := t.toInputPeer(peer)
+	_, err = t.api.MessagesToggleSavedDialogPin(t.ctx, &tg.MessagesToggleSavedDialogPinRequest{
+		Peer:   &tg.InputDialogPeer{Peer: inputPeer},
+		Pinned: pinned,
+	})
+	return err
+}
+
+// DeleteSavedHistory is a simple-parameter wrapper for the engine layer.
+// It resolves the peer from a string ID and calls MessagesDeleteSavedHistory.
+func (t *TelegramCore) DeleteSavedHistory(peerID string) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	peer, err := t.resolvePeer(peerID)
+	if err != nil { return err }
+	inputPeer, _ := t.toInputPeer(peer)
+	_, err = t.api.MessagesDeleteSavedHistory(t.ctx, &tg.MessagesDeleteSavedHistoryRequest{
+		Peer: inputPeer,
+	})
+	return err
 }
 
 // MessagesToggleStickerSets archives or unarchives sticker sets.

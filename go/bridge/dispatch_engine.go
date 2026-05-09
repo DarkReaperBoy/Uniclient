@@ -3679,6 +3679,74 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(graph)
 
+	// ── Saved Sublists ──
+
+	case "ToggleSavedDialogPin":
+		var req pb.EnginePinChatRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.ToggleSavedDialogPin(req.AccountId, req.ChatId, req.Pinned)
+
+	case "MarkSavedSublistRead":
+		var req pb.EngineMarkChatReadRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.MarkSavedSublistRead(req.AccountId, req.ChatId)
+
+	case "DeleteSavedSublistHistory":
+		var req pb.EngineMarkChatReadRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.DeleteSavedSublistHistory(req.AccountId, req.ChatId)
+
+	// ── Reorder ──
+
+	case "ReorderPinnedDialogs":
+		var params struct {
+			AccountID string   `json:"account_id"`
+			ChatIDs   []string `json:"chat_ids"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.ReorderPinnedDialogs(params.AccountID, params.ChatIDs)
+
+	case "ReorderDialogFilters":
+		var params struct {
+			AccountID string `json:"account_id"`
+			FilterIDs []int  `json:"filter_ids"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.ReorderDialogFilters(params.AccountID, params.FilterIDs)
+
+	// ── Forum Topics with Offset ──
+
+	case "GetForumTopicsWithOffset":
+		var params struct {
+			AccountID   string `json:"account_id"`
+			ChatID      string `json:"chat_id"`
+			OffsetDate  int    `json:"offset_date"`
+			OffsetID    int    `json:"offset_id"`
+			OffsetTopic int    `json:"offset_topic"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		topics, err := e.GetForumTopicsWithOffset(params.AccountID, params.ChatID, params.OffsetDate, params.OffsetID, params.OffsetTopic)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetForumTopicsResponse{}
+		for i := range topics {
+			resp.Topics = append(resp.Topics, forumTopicToProto(&topics[i]))
+		}
+		return proto.Marshal(resp)
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}
@@ -3914,6 +3982,7 @@ func chatInfoToProto(c *engine.ChatInfo) *pb.EngineChatInfo {
 		JoinRequest:          c.JoinRequest,
 		CanPost:              c.CanPost,
 		NoForwards:           c.NoForwards,
+		IsSelf:               c.IsSelf,
 	}
 }
 
@@ -3979,5 +4048,6 @@ func cachedMsgToProto(m *engine.CachedMessage) *pb.EngineCachedMessage {
 		GroupedId:          m.GroupedID,
 		MediaRemoteRef:     m.MediaRemoteRef,
 		MediaExtra:         m.MediaExtra,
+		SenderNoForwards:   m.SenderNoForwards,
 	}
 }

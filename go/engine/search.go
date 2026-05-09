@@ -103,5 +103,10 @@ func (e *Engine) SearchChats(query string, limit int) ([]ChatInfo, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	return scanChats(rows)
+	chats, err := scanChats(rows)
+	if err != nil {
+		return nil, err
+	}
+	e.markSelfChats(chats)
+	return chats, nil
 }

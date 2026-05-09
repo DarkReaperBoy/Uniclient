@@ -229,6 +229,7 @@ class ChatInfo {
   final bool canPost;
   final bool isAdmin;
   final bool noForwards;
+  final bool isSelf;
 
   const ChatInfo({
     required this.accountId,
@@ -280,6 +281,7 @@ class ChatInfo {
     this.canPost = false,
     this.isAdmin = false,
     this.noForwards = false,
+    this.isSelf = false,
   });
 
   factory ChatInfo.fromJson(Map<String, dynamic> j) => ChatInfo(
@@ -332,6 +334,7 @@ class ChatInfo {
     canPost: j['can_post'] as bool? ?? false,
     isAdmin: j['is_admin'] as bool? ?? false,
     noForwards: j['no_forwards'] as bool? ?? false,
+    isSelf: j['is_self'] as bool? ?? false,
   );
 
   /// Time as DateTime for display.
@@ -478,6 +481,12 @@ class CachedMessage {
   // Message-level forwarding restriction (AyuNoForwards flag).
   final bool noForwards;
 
+  // Unsupported TTL media (MessageMediaUnsupported with self-destruct timer).
+  final bool unsupportedTTL;
+
+  // Sender's AyuNoForwards flag (derived from users table, not persisted on message).
+  final bool senderNoForwards;
+
   // Album grouping (messages with same groupedId form a media album).
   final String groupedId;
 
@@ -623,6 +632,8 @@ class CachedMessage {
     this.viaBotName = '',
     this.mediaSpoiler = false,
     this.noForwards = false,
+    this.unsupportedTTL = false,
+    this.senderNoForwards = false,
     this.groupedId = '',
     this.views = 0,
     this.forwards = 0,
@@ -819,6 +830,8 @@ class CachedMessage {
     String? viaBotName,
     bool? mediaSpoiler,
     bool? noForwards,
+    bool? unsupportedTTL,
+    bool? senderNoForwards,
     String? groupedId,
     int? views,
     int? forwards,
@@ -929,6 +942,8 @@ class CachedMessage {
     viaBotName: viaBotName ?? this.viaBotName,
     mediaSpoiler: mediaSpoiler ?? this.mediaSpoiler,
     noForwards: noForwards ?? this.noForwards,
+    unsupportedTTL: unsupportedTTL ?? this.unsupportedTTL,
+    senderNoForwards: senderNoForwards ?? this.senderNoForwards,
     groupedId: groupedId ?? this.groupedId,
     views: views ?? this.views,
     forwards: forwards ?? this.forwards,

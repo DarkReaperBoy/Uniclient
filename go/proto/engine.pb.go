@@ -1147,6 +1147,7 @@ type EngineChatInfo struct {
 	JoinRequest          bool                   `protobuf:"varint,31,opt,name=join_request,json=joinRequest,proto3" json:"join_request,omitempty"`
 	CanPost              bool                   `protobuf:"varint,32,opt,name=can_post,json=canPost,proto3" json:"can_post,omitempty"`
 	NoForwards           bool                   `protobuf:"varint,33,opt,name=no_forwards,json=noForwards,proto3" json:"no_forwards,omitempty"`
+	IsSelf               bool                   `protobuf:"varint,34,opt,name=is_self,json=isSelf,proto3" json:"is_self,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -1408,6 +1409,13 @@ func (x *EngineChatInfo) GetCanPost() bool {
 func (x *EngineChatInfo) GetNoForwards() bool {
 	if x != nil {
 		return x.NoForwards
+	}
+	return false
+}
+
+func (x *EngineChatInfo) GetIsSelf() bool {
+	if x != nil {
+		return x.IsSelf
 	}
 	return false
 }
@@ -2605,6 +2613,7 @@ type EngineCachedMessage struct {
 	GroupedId          string `protobuf:"bytes,32,opt,name=grouped_id,json=groupedId,proto3" json:"grouped_id,omitempty"`                  // album group ID (messages with same ID form a media album)
 	MediaRemoteRef     string `protobuf:"bytes,33,opt,name=media_remote_ref,json=mediaRemoteRef,proto3" json:"media_remote_ref,omitempty"` // document/file ID for sticker/GIF operations
 	MediaExtra         string `protobuf:"bytes,34,opt,name=media_extra,json=mediaExtra,proto3" json:"media_extra,omitempty"`               // encoded access hash + file reference
+	SenderNoForwards   bool   `protobuf:"varint,35,opt,name=sender_no_forwards,json=senderNoForwards,proto3" json:"sender_no_forwards,omitempty"` // sender has no_forwards_peer flag
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -2875,6 +2884,13 @@ func (x *EngineCachedMessage) GetMediaExtra() string {
 		return x.MediaExtra
 	}
 	return ""
+}
+
+func (x *EngineCachedMessage) GetSenderNoForwards() bool {
+	if x != nil {
+		return x.SenderNoForwards
+	}
+	return false
 }
 
 type EngineGetMessagesRequest struct {

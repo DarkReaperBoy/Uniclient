@@ -700,12 +700,10 @@ class ChatState extends ChangeNotifier {
       if (folder.hasTypeFilters) {
         if (folder.groups && c.type == ChatType.group) return true;
         if (folder.channels && c.type == ChatType.channel) return true;
-        // For DMs: contacts, non_contacts, and bots all map to DM type.
-        // We can't distinguish contact/non-contact/bot yet, so include
-        // all DMs if any of these flags are set.
-        if (c.type == ChatType.dm &&
-            (folder.contacts || folder.nonContacts || folder.bots)) {
-          return true;
+        if (c.type == ChatType.dm) {
+          if (folder.bots && c.isBot) return true;
+          if (folder.contacts && c.isContact) return true;
+          if (folder.nonContacts && !c.isContact && !c.isBot) return true;
         }
       }
 
@@ -807,13 +805,19 @@ class ChatState extends ChangeNotifier {
     await loadFoldersForAccount(accountId);
   }
 
-  /// Reorder folders locally (drag-and-drop in folder sidebar).
+  /// Reorder folders (drag-and-drop in folder sidebar).
   void reorderFolders(int oldIndex, int newIndex) {
     if (oldIndex < 0 || oldIndex >= _folders.length) return;
     if (newIndex < 0 || newIndex > _folders.length) return;
     if (newIndex > oldIndex) newIndex--;
     final item = _folders.removeAt(oldIndex);
     _folders.insert(newIndex, item);
+    if (_foldersForAccount.isNotEmpty) {
+      _engine.reorderDialogFilters(
+        _foldersForAccount,
+        _folders.map((f) => int.tryParse(f.id) ?? 0).toList(),
+      );
+    }
     notifyListeners();
   }
 
@@ -888,7 +892,7 @@ class ChatState extends ChangeNotifier {
     if (chat.isForum && _forumParentChat?.chatId != chat.chatId) {
       _checkAndOpenForum(chat);
     }
-    if (chat.title == 'Saved Messages' && chat.type == ChatType.dm) {
+    if (chat.isSelf && chat.type == ChatType.dm) {
       openSavedSublists(chat.accountId);
     } else if (_isViewingSavedSublists) {
       closeSavedSublists();
@@ -1004,7 +1008,21 @@ class ChatState extends ChangeNotifier {
     if (_forumLoadingMore || !_forumHasMore) return;
     _forumLoadingMore = true;
     try {
-      final topics = await _engine.getForumTopics(chat.accountId, chat.chatId);
+      int offsetDate = 0;
+      int offsetId = 0;
+      int offsetTopic = 0;
+      if (_forumTopics.isNotEmpty) {
+        final last = _forumTopics.last;
+        offsetDate = last.creationDate;
+        offsetId = int.tryParse(last.topMessageId) ?? 0;
+        offsetTopic = int.tryParse(last.id) ?? 0;
+      }
+      final topics = await _engine.getForumTopicsWithOffset(
+        chat.accountId, chat.chatId,
+        offsetDate: offsetDate,
+        offsetId: offsetId,
+        offsetTopic: offsetTopic,
+      );
       if (chat == _forumParentChat) {
         final existingIds = _forumTopics.map((t) => t.id).toSet();
         for (final t in topics) {
@@ -1185,8 +1203,10 @@ class ChatState extends ChangeNotifier {
   }
 
   void togglePinSavedSublist(SavedSublistInfo sub) {
-    // Toggle pinned state locally — backend wiring (MessagesToggleSavedDialogPin) TBD.
     final wasPinned = sub.isPinned;
+    if (_savedSublistsAccountId.isNotEmpty) {
+      _engine.toggleSavedDialogPin(_savedSublistsAccountId, sub.peerId, !wasPinned);
+    }
     if (wasPinned) {
       _pinnedSublists.removeWhere((s) => s.peerId == sub.peerId);
       _regularSublists.insert(0, SavedSublistInfo(
@@ -1209,10 +1229,16 @@ class ChatState extends ChangeNotifier {
   }
 
   void markSavedSublistRead(SavedSublistInfo sub) {
+    if (_savedSublistsAccountId.isNotEmpty) {
+      _engine.markSavedSublistRead(_savedSublistsAccountId, sub.peerId);
+    }
     notifyListeners();
   }
 
   void deleteSavedSublist(SavedSublistInfo sub) {
+    if (_savedSublistsAccountId.isNotEmpty) {
+      _engine.deleteSavedSublistHistory(_savedSublistsAccountId, sub.peerId);
+    }
     _pinnedSublists.removeWhere((s) => s.peerId == sub.peerId);
     _regularSublists.removeWhere((s) => s.peerId == sub.peerId);
     if (_activeSublist?.peerId == sub.peerId) {
@@ -1699,6 +1725,7 @@ class ChatState extends ChangeNotifier {
     if (oldIndex == newIndex) return;
     final item = order.removeAt(oldIndex);
     order.insert(newIndex, item);
+    _engine.reorderPinnedDialogs(accountId, List<String>.from(order));
     notifyListeners();
   }
 
