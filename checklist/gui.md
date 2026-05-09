@@ -315,24 +315,6 @@ Theme preview widget renders a mock Telegram UI showing dialogs and chat areas. 
 
 # advanced_settings_screen — Audit Findings
 
-## Critical: Backend Wiring
-
-- [ ] [CRITICAL] `_AutoDownloadBox` Save button discards all changes — the "Save" button only calls `Navigator.of(context).pop()` and never writes `_photos`, `_files`, `_downloadLimit`, `_videoMessages`, `_videos`, `_gifs`, `_autoPlayLimit` to AppState or the engine — `advanced_settings_screen.dart:1462` ← `auto_download_box.cpp:211` (`_session->saveSettingsDelayed()`)
-
-- [ ] [CRITICAL] `_AutoDownloadBox` ignores persisted settings and always opens with hardcoded defaults (`_photos = true`, `_files = false`, `_videoMessages = true`, etc.) instead of reading current session auto-download settings — `advanced_settings_screen.dart:1326-1333` ← `auto_download_box.cpp:99` (`_session->settings().autoDownload()`)
-
-- [ ] [CRITICAL] `_LocalStorageBox` is entirely non-functional: `_tagSizes` is initialized to all-zeros and never populated from actual disk cache, so "All data" always shows "0 B", "Clear All" is permanently disabled, and the OK button discards all slider changes without writing to AppState or triggering any real cache eviction — `advanced_settings_screen.dart:1575,1703,1735-1743,1824` ← `settings_chat.cpp:1871` (`LocalStorageBox::Show(controller)`)
-
-- [ ] [CRITICAL] Proxy list is never loaded from AppState — `_proxies` is always initialized empty; any proxy entries added during a session are lost when the dialog is closed and reopened — `advanced_settings_screen.dart:2195` ← `connection_box.cpp` (ProxiesBoxController loads from `Core::App().settings().proxy()`)
-
-- [ ] [CRITICAL] Proxy IPv6 toggle (`_ipv6`) is hardcoded to `false` and never read from or written back to AppState when the dialog is accepted — `advanced_settings_screen.dart:2193` ← `core_settings_proxy.cpp:115` (IPv6 is serialized as part of proxy settings)
-
-- [ ] [CRITICAL] Proxy-for-calls toggle (`_proxyForCalls`) is hardcoded to `false` and never loaded from or persisted to AppState — `advanced_settings_screen.dart:2194` ← `core_settings_proxy.cpp` (proxyForCalls serialized with proxy state)
-
-- [ ] [CRITICAL] Proxy connectivity status is never tested — all entries permanently remain at `_ProxyStatus.checking` ("Checking...") with `pingMs = 0`; no ping or reachability check is performed — `advanced_settings_screen.dart:2167,2543` ← `connection_box.cpp:2279` (`ProxiesBoxController::refreshChecker()`)
-
-- [ ] [CRITICAL] Proxy QR code dialog shows a generic Material icon (`Icons.qr_code`) instead of a real generated QR code bitmap — the QR code feature is a visual stub — `advanced_settings_screen.dart:2732-2733` ← `connection_box.cpp:215` (actual QR image is generated and drawn)
-
 ## Major: Behavior
 
 - [ ] [MAJOR] "Update UniClient" button calls `exit(0)` instead of applying a downloaded update and restarting — AyuGram calls `Core::checkReadyUpdate()` before exit so the updater applies the patch on next launch — `advanced_settings_screen.dart:246` ← `settings_advanced.cpp:1481` (`Core::checkReadyUpdate()`)
