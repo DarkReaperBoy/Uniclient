@@ -30,6 +30,8 @@ dependencies:
   archive: ^4.0.2
   image: ^4.5.3
   share_plus: ^10.1.4
+  flutter_svg: ^2.0.10+1
+  url_launcher: ^6.3.1
 
 dev_dependencies:
   flutter_test:
@@ -53,3 +55,4 @@ flutter:
     - assets/icon/icon_64.png
     - assets/animations/
     - assets/icons/ayu/
+    - assets/icons/ayu/donates/

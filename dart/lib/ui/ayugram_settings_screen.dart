@@ -4,8 +4,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../theme/telegram_palette.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
+import '../state/chat_state.dart';
 import '../theme/theme_tokens.dart';
 import 'ayu_appearance_page.dart';
 import 'ayu_chats_page.dart';
@@ -63,18 +66,27 @@ class AyuGramSettingsScreen extends StatelessWidget {
         padding: EdgeInsets.zero,
         children: [
           Center(
-            child: Container(
-              width: TgTokens.settingsCloudPasswordIconSize,
-              height: TgTokens.settingsCloudPasswordIconSize,
-              decoration: BoxDecoration(
-                color: logoColor,
-                borderRadius: BorderRadius.circular(TgTokens.settingsCloudPasswordIconSize / 2),
-              ),
-              child: Center(
-                child: Icon(
-                  _iconForTheme(selectedIcon),
-                  size: 48,
-                  color: Colors.white,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(TgTokens.settingsCloudPasswordIconSize / 2),
+              child: Image.asset(
+                'assets/icons/ayu/$selectedIcon.png',
+                width: TgTokens.settingsCloudPasswordIconSize,
+                height: TgTokens.settingsCloudPasswordIconSize,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  width: TgTokens.settingsCloudPasswordIconSize,
+                  height: TgTokens.settingsCloudPasswordIconSize,
+                  decoration: BoxDecoration(
+                    color: logoColor,
+                    borderRadius: BorderRadius.circular(TgTokens.settingsCloudPasswordIconSize / 2),
+                  ),
+                  child: Center(
+                    child: Icon(
+                      _iconForTheme(selectedIcon),
+                      size: 48,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -126,7 +138,6 @@ class AyuGramSettingsScreen extends StatelessWidget {
             icon: Icons.emoji_emotions,
             iconBg: const Color(0xFF6B72D5),
             label: 'AyuGram',
-            subtitle: appState.ghostModeEnabled ? 'Ghost Mode active' : null,
             isDark: isDark,
             onTap: () => _pushPage(context, appState, const GhostSettingsPage()),
           ),
@@ -186,14 +197,14 @@ class AyuGramSettingsScreen extends StatelessWidget {
             label: 'Channel',
             rightLabel: '@ayugram',
             isDark: isDark,
-            onTap: () => _openUrl('https://t.me/ayugram'),
+            onTap: () => _navigateToPeer(context, 'ayugram'),
           ),
           _LinkButton(
             icon: Icons.forum,
             label: 'Chats',
             rightLabel: '@ayugramchat',
             isDark: isDark,
-            onTap: () => _openUrl('https://t.me/ayugramchat'),
+            onTap: () => _navigateToPeer(context, 'ayugramchat'),
           ),
           _LinkButton(
             icon: Icons.translate,
@@ -243,7 +254,26 @@ class AyuGramSettingsScreen extends StatelessWidget {
   }
 
   static void _openUrl(String url) {
-    Process.run('xdg-open', [url]);
+    launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  }
+
+  static void _navigateToPeer(BuildContext context, String username) {
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) {
+      _openUrl('https://t.me/$username');
+      return;
+    }
+    engine.resolveUsername(accountId, username).then((chatId) {
+      if (chatId != null && chatId.isNotEmpty && context.mounted) {
+        final chatState = context.read<ChatState>();
+        chatState.openChatById(chatId);
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      } else {
+        _openUrl('https://t.me/$username');
+      }
+    });
   }
 
   static String _appVersion() {
@@ -267,7 +297,6 @@ class _CategoryButton extends StatelessWidget {
   final IconData icon;
   final Color iconBg;
   final String label;
-  final String? subtitle;
   final bool isDark;
   final VoidCallback onTap;
 
@@ -275,7 +304,6 @@ class _CategoryButton extends StatelessWidget {
     required this.icon,
     required this.iconBg,
     required this.label,
-    this.subtitle,
     required this.isDark,
     required this.onTap,
   });
@@ -283,8 +311,6 @@ class _CategoryButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textColor = isDark ? Colors.white : Colors.black87;
-    final subtextColor =
-        isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -304,22 +330,10 @@ class _CategoryButton extends StatelessWidget {
             ),
             const SizedBox(width: SettingsStyle.iconGap),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label,
-                      style: TextStyle(
-                          fontSize: SettingsStyle.buttonFontSize,
-                          color: textColor)),
-                  if (subtitle != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(subtitle!,
-                          style:
-                              TextStyle(fontSize: 12, color: subtextColor)),
-                    ),
-                ],
-              ),
+              child: Text(label,
+                  style: TextStyle(
+                      fontSize: SettingsStyle.buttonFontSize,
+                      color: textColor)),
             ),
             Icon(Icons.chevron_right,
                 size: 20,

@@ -271,6 +271,7 @@ class _SelectChatDialogState extends State<_SelectChatDialog> {
   final _searchController = TextEditingController();
   List<ChatInfo> _results = [];
   bool _hasQuery = false;
+  bool _loading = false;
 
   @override
   void initState() {
@@ -291,22 +292,56 @@ class _SelectChatDialogState extends State<_SelectChatDialog> {
       setState(() {
         _results = widget.chatState.chats;
         _hasQuery = false;
+        _loading = false;
       });
       return;
     }
-    setState(() => _hasQuery = true);
+    setState(() {
+      _hasQuery = true;
+      _loading = true;
+    });
+
     final engineResults = widget.chatState.searchChats(query);
-    if (engineResults.isNotEmpty) {
-      setState(() => _results = engineResults);
-    } else {
-      final lower = query.toLowerCase();
-      setState(() {
-        _results = widget.chatState.chats
-            .where((c) =>
-                c.title.toLowerCase().contains(lower) ||
-                c.chatId.contains(lower))
-            .toList();
-      });
+    final lower = query.toLowerCase();
+    final localResults = widget.chatState.chats
+        .where((c) =>
+            c.title.toLowerCase().contains(lower) ||
+            c.chatId.contains(lower))
+        .toList();
+
+    final mergedIds = <String>{};
+    final merged = <ChatInfo>[];
+    for (final c in engineResults) {
+      if (mergedIds.add(c.chatId)) merged.add(c);
+    }
+    for (final c in localResults) {
+      if (mergedIds.add(c.chatId)) merged.add(c);
+    }
+
+    setState(() {
+      _results = merged;
+      _loading = false;
+    });
+
+    if (query.startsWith('@') && query.length > 1) {
+      final username = query.substring(1);
+      final engine = context.read<EngineService>();
+      final accountId = widget.appState.activeAccountId;
+      if (accountId.isNotEmpty) {
+        engine.resolveUsername(accountId, username).then((chatId) {
+          if (!mounted || _searchController.text.trim() != query) return;
+          if (chatId != null && chatId.isNotEmpty && !mergedIds.contains(chatId)) {
+            final resolved = ChatInfo(
+              chatId: chatId,
+              title: '@$username',
+              accountId: accountId,
+            );
+            setState(() {
+              _results = [resolved, ..._results];
+            });
+          }
+        });
+      }
     }
   }
 
@@ -363,7 +398,9 @@ class _SelectChatDialogState extends State<_SelectChatDialog> {
             ),
             const SizedBox(height: 8),
             Expanded(
-              child: _results.isEmpty
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _results.isEmpty
                   ? Center(
                       child: Text(
                           _hasQuery ? 'No chats found' : 'No chats loaded',
@@ -1062,6 +1099,7 @@ class _RegexEditBoxState extends State<_RegexEditBox> {
   late bool _caseInsensitive;
   late bool _reversed;
   String? _error;
+  String? _warning;
 
   @override
   void initState() {
@@ -1071,7 +1109,9 @@ class _RegexEditBoxState extends State<_RegexEditBox> {
     _caseInsensitive = widget.filter?.caseInsensitive ?? true;
     _reversed = widget.filter?.reversed ?? false;
     _textController.addListener(() {
-      if (_error != null) setState(() => _error = null);
+      if (_error != null || _warning != null) {
+        setState(() { _error = null; _warning = null; });
+      }
     });
   }
 
@@ -1081,10 +1121,16 @@ class _RegexEditBoxState extends State<_RegexEditBox> {
     super.dispose();
   }
 
+  static final _icuOnlyPatterns = RegExp(
+    r'\\[pP]\{|\\[pP][A-Z]|\\[QEGKk]|\[\[:');
+
   String? _validateRegex(String pattern) {
     if (pattern.isEmpty) return null;
     try {
       RegExp(pattern, caseSensitive: !_caseInsensitive);
+      if (_icuOnlyPatterns.hasMatch(pattern)) {
+        _warning = 'Uses ICU-specific syntax — may behave differently in AyuGram Desktop';
+      }
       return null;
     } on FormatException catch (e) {
       return e.message;
@@ -1105,10 +1151,14 @@ class _RegexEditBoxState extends State<_RegexEditBox> {
     final text = _textController.text.trim();
     if (text.isEmpty) return;
 
+    _warning = null;
     final err = _validateRegex(text);
     if (err != null) {
       setState(() => _error = err);
       return;
+    }
+    if (_warning != null) {
+      setState(() {});
     }
 
     final appState = context.read<AppState>();
@@ -1202,7 +1252,13 @@ class _RegexEditBoxState extends State<_RegexEditBox> {
                       child: Text(_error!,
                           style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.error)),
                     )
-                  : const SizedBox.shrink(),
+                  : _warning != null
+                      ? Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(_warning!,
+                              style: TextStyle(fontSize: 12, color: Colors.orange.shade700)),
+                        )
+                      : const SizedBox.shrink(),
             ),
             const SizedBox(height: 12),
             _CheckboxRow(

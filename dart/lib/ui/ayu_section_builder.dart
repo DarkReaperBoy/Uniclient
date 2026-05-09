@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../theme/telegram_palette.dart';
 
 import 'ayu_toggle.dart';
@@ -20,10 +21,10 @@ class AyuSectionBuilder {
 
   void addSectionTitle(String title) {
     _children.add(Padding(
-      padding: const EdgeInsets.fromLTRB(22, 14, 22, 6),
+      padding: const EdgeInsets.fromLTRB(22, 7, 10, 9),
       child: Text(title,
           style: TextStyle(
-              fontSize: 14, fontWeight: FontWeight.w500, color: _accentColor)),
+              fontSize: 14, fontWeight: FontWeight.w600, color: _accentColor)),
     ));
   }
 
@@ -100,31 +101,13 @@ class AyuSectionBuilder {
   }
 
   void addBetaBadge(String text) {
-    _children.add(Padding(
-      padding: const EdgeInsets.only(left: 22, bottom: 4),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFF9500),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(text,
-                style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white)),
-          ),
-        ],
-      ),
-    ));
+    // No-op: AyuGram has no standalone badge row. Use showBetaBadge on toggle rows instead.
   }
 
   void addSectionDivider() {
     _children.add(Column(
       children: [
+        const SizedBox(height: 7),
         Container(height: 1, color: _dividerColor),
         const SizedBox(height: 7),
       ],
@@ -154,12 +137,18 @@ class AyuNestedCheckboxItem {
   final String label;
   final bool value;
   final ValueChanged<bool> onChanged;
+  final bool Function()? lockGetter;
+  final ValueChanged<bool>? lockSetter;
 
   const AyuNestedCheckboxItem({
     required this.label,
     required this.value,
     required this.onChanged,
+    this.lockGetter,
+    this.lockSetter,
   });
+
+  bool get isLocked => lockGetter?.call() ?? false;
 }
 
 class _AyuSettingToggle extends StatelessWidget {
@@ -204,19 +193,22 @@ class _AyuSettingToggle extends StatelessWidget {
                       ),
                       if (showBetaBadge) ...[
                         const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 5, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFF9500),
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                          child: const Text('BETA',
-                              style: TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white)),
-                        ),
+                        Builder(builder: (context) {
+                          final badgeColor = context.palette.windowBgActive;
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 4, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: badgeColor,
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                            child: const Text('BETA',
+                                style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white)),
+                          );
+                        }),
                       ],
                     ],
                   ),
@@ -332,36 +324,59 @@ class _AyuChooseButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(label,
-                style: TextStyle(
-                    fontSize: 14,
-                    color: isDark ? Colors.white : Colors.black87)),
-          ),
-          const SizedBox(width: 12),
-          DropdownButton<int>(
-            value: value,
-            underline: const SizedBox.shrink(),
-            dropdownColor: isDark ? const Color(0xFF1B2836) : Colors.white,
-            style: TextStyle(
-              fontSize: 13,
-              color: isDark
-                  ? const Color(0xFF6AB2F2)
-                  : const Color(0xFF3390EC),
+    final accentColor =
+        isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
+    final currentLabel = items[value] ?? '';
+    return InkWell(
+      onTap: () => _showChoiceDialog(context),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(label,
+                  style: TextStyle(
+                      fontSize: 14,
+                      color: isDark ? Colors.white : Colors.black87)),
             ),
-            items: items.entries
-                .map(
-                    (e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
-                .toList(),
+            const SizedBox(width: 12),
+            Text(currentLabel,
+                style: TextStyle(fontSize: 13, color: accentColor)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showChoiceDialog(BuildContext context) {
+    final bgColor = isDark ? const Color(0xFF1B2836) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final accentColor =
+        isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bgColor,
+        title: Text(label,
+            style: TextStyle(
+                fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+        contentPadding: const EdgeInsets.only(top: 12, bottom: 8),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: items.entries.map((e) => RadioListTile<int>(
+            title: Text(e.value,
+                style: TextStyle(fontSize: 14, color: textColor)),
+            value: e.key,
+            groupValue: value,
+            activeColor: accentColor,
             onChanged: (v) {
-              if (v != null) onChanged(v);
+              if (v != null) {
+                onChanged(v);
+                Navigator.of(ctx).pop();
+              }
             },
-          ),
-        ],
+          )).toList(),
+        ),
       ),
     );
   }
@@ -407,9 +422,10 @@ class _AyuCollapsibleToggleState extends State<_AyuCollapsibleToggle> {
 
   @override
   Widget build(BuildContext context) {
-    final anyChecked = widget.children.any((c) => c.value);
-    final allChecked = widget.children.every((c) => c.value);
+    final checkedCount = widget.children.where((c) => c.value).length;
+    final totalCount = widget.children.length;
     final hasMaster = widget.onMasterToggle != null;
+    final allChecked = widget.children.every((c) => c.value);
     final toggleValue = widget.masterValue ?? allChecked;
     final accentColor = widget.isDark
         ? const Color(0xFF6AB2F2)
@@ -432,16 +448,13 @@ class _AyuCollapsibleToggleState extends State<_AyuCollapsibleToggle> {
                               color: widget.isDark
                                   ? Colors.white
                                   : Colors.black87)),
-                      if (!hasMaster && anyChecked) ...[
+                      if (!hasMaster && checkedCount > 0) ...[
                         const SizedBox(width: 8),
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: accentColor,
-                          ),
-                        ),
+                        Text('$checkedCount/$totalCount',
+                            style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: accentColor)),
                       ],
                     ],
                   ),
@@ -450,7 +463,14 @@ class _AyuCollapsibleToggleState extends State<_AyuCollapsibleToggle> {
                   const SizedBox(width: 12),
                   AyuToggle(
                     value: toggleValue,
-                    onChanged: (v) => widget.onMasterToggle!(v),
+                    onChanged: (v) {
+                      for (final child in widget.children) {
+                        if (!child.isLocked && child.value != v) {
+                          child.onChanged(v);
+                        }
+                      }
+                      widget.onMasterToggle!(v);
+                    },
                     isMaterial: widget.useMaterial,
                   ),
                 ] else
@@ -474,6 +494,8 @@ class _AyuCollapsibleToggleState extends State<_AyuCollapsibleToggle> {
                             value: item.value,
                             onChanged: item.onChanged,
                             isDark: widget.isDark,
+                            isLocked: item.isLocked,
+                            onLockToggle: item.lockSetter,
                           ))
                       .toList(),
                 )
@@ -489,45 +511,61 @@ class _NestedCheckbox extends StatelessWidget {
   final bool value;
   final ValueChanged<bool> onChanged;
   final bool isDark;
+  final bool isLocked;
+  final ValueChanged<bool>? onLockToggle;
 
   const _NestedCheckbox({
     required this.label,
     required this.value,
     required this.onChanged,
     required this.isDark,
+    this.isLocked = false,
+    this.onLockToggle,
   });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () => onChanged(!value),
-      child: Padding(
-        padding: const EdgeInsets.only(left: 44, right: 22, top: 6, bottom: 6),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 22,
-              height: 22,
-              child: Checkbox(
-                value: value,
-                onChanged: (v) => onChanged(v ?? false),
-                activeColor: isDark
-                    ? const Color(0xFF6AB2F2)
-                    : const Color(0xFF3390EC),
-                side: BorderSide(
-                  color: isDark
-                      ? const Color(0xFF5A6A78)
-                      : const Color(0xFFCBCBCB),
-                  width: 2,
+    return GestureDetector(
+      onTap: () {
+        if (HardwareKeyboard.instance.isShiftPressed && onLockToggle != null) {
+          onLockToggle!(!isLocked);
+        } else if (!isLocked) {
+          onChanged(!value);
+        }
+      },
+      child: Opacity(
+        opacity: isLocked ? 0.4 : 1.0,
+        child: Padding(
+          padding:
+              const EdgeInsets.only(left: 44, right: 22, top: 6, bottom: 6),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 22,
+                height: 22,
+                child: Checkbox(
+                  value: value,
+                  onChanged: isLocked
+                      ? null
+                      : (v) => onChanged(v ?? false),
+                  activeColor: isDark
+                      ? const Color(0xFF6AB2F2)
+                      : const Color(0xFF3390EC),
+                  side: BorderSide(
+                    color: isDark
+                        ? const Color(0xFF5A6A78)
+                        : const Color(0xFFCBCBCB),
+                    width: 2,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 13,
-                    color: isDark ? Colors.white : Colors.black87)),
-          ],
+              const SizedBox(width: 12),
+              Text(label,
+                  style: TextStyle(
+                      fontSize: 13,
+                      color: isDark ? Colors.white : Colors.black87)),
+            ],
+          ),
         ),
       ),
     );
