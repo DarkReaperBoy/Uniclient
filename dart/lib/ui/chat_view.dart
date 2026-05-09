@@ -2311,11 +2311,39 @@ class _ChatViewState extends State<ChatView>
     showTelegramToast(context, 'Media burned');
   }
 
+  void _handleRequestPhone(BuildContext ctx, ChatState chatState, ChatInfo chat) {
+    final engine = ctx.read<EngineService>();
+    showDialog(
+      context: ctx,
+      builder: (dCtx) => AlertDialog(
+        title: const Text('Share Your Phone Number'),
+        content: const Text('The bot is requesting your phone number. Do you want to share it?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dCtx);
+              engine.sendContact(
+                chat.accountId,
+                chat.chatId,
+                '',
+                '',
+                '',
+              );
+            },
+            child: const Text('Share'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _addFilter(CachedMessage msg, String selectedText) {
     final text = selectedText.isNotEmpty ? selectedText : msg.contentText;
     final escaped = RegExp.escape(text.trim());
     final controller = TextEditingController(text: escaped);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final caseInsensitive = ValueNotifier(false);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -2336,6 +2364,20 @@ class _ChatViewState extends State<ChatView>
                 contentPadding: const EdgeInsets.all(10),
               ),
             ),
+            const SizedBox(height: 8),
+            ValueListenableBuilder<bool>(
+              valueListenable: caseInsensitive,
+              builder: (_, ci, __) => Row(
+                children: [
+                  SizedBox(
+                    width: 20, height: 20,
+                    child: Checkbox(value: ci, onChanged: (v) => caseInsensitive.value = v ?? false),
+                  ),
+                  const SizedBox(width: 8),
+                  Text('Case insensitive', style: TextStyle(fontSize: 12, color: isDark ? Colors.white70 : Colors.black54)),
+                ],
+              ),
+            ),
           ],
         ),
         actions: [
@@ -2345,6 +2387,18 @@ class _ChatViewState extends State<ChatView>
           ),
           TextButton(
             onPressed: () {
+              final pattern = controller.text.trim();
+              if (pattern.isEmpty) return;
+              final appState = context.read<AppState>();
+              final filter = RegexFilter(
+                id: DateTime.now().microsecondsSinceEpoch.toString(),
+                text: pattern,
+                enabled: true,
+                caseInsensitive: caseInsensitive.value,
+                dialogId: msg.chatId,
+              );
+              appState.filterEngine.addFilter(filter);
+              appState.saveFilterEngine();
               Navigator.pop(ctx);
               showTelegramToast(context, 'Filter added');
             },
@@ -4544,7 +4598,14 @@ class _ChatViewState extends State<ChatView>
           if (chatState.activeGroupCall != null)
             _GroupCallBar(
               groupCall: chatState.activeGroupCall!,
-              onJoin: () => chatState.joinGroupCall(),
+              onJoin: () async {
+                final ok = await requestCallPermissions(context);
+                if (!ok || !context.mounted) return;
+                final callId = await chatState.joinGroupCall();
+                if (callId != null && callId.isNotEmpty && context.mounted) {
+                  showGroupCallPanel(context, chatState.activeGroupCall!, chatTitle: chat.title);
+                }
+              },
             ),
           // §31.9: Subsection tabs strip for Saved Messages sublists.
           if (chat.title == 'Saved Messages' && chat.type == ChatType.dm && chatState.isViewingSavedSublists && chatState.savedSublists.isNotEmpty)
@@ -4568,6 +4629,9 @@ class _ChatViewState extends State<ChatView>
               },
               onClose: () {
                 setState(() => _pinnedBarDismissed = true);
+                final engine = context.read<EngineService>();
+                final pinned = chatState.pinnedMessages.first;
+                engine.pinMessage(chat.accountId, chat.chatId, pinned.msgId, false).catchError((_) {});
               },
               onShowAll: chatState.pinnedMessages.length > 1
                   ? () => _showAllPinnedMessages(context, chatState)
@@ -5114,9 +5178,30 @@ class _ChatViewState extends State<ChatView>
           if (chatState.visibleReplyKeyboard != null)
             _BotReplyKeyboard(
               keyboard: chatState.visibleReplyKeyboard!,
-              onButtonPressed: (text) {
-                _composeController.text = text;
-                _sendMessage();
+              onButtonPressed: (btn) {
+                switch (btn.type) {
+                  case 'request_phone':
+                    _handleRequestPhone(context, chatState, chat);
+                  case 'request_location':
+                    showTelegramToast(context, 'Location sharing requires GPS access.');
+                  case 'request_poll':
+                    showCreatePollBox(context).then((result) {
+                      if (result == null) return;
+                      final engine = context.read<EngineService>();
+                      engine.createPoll(chat.accountId, chat.chatId, result.question, result.options);
+                    });
+                  case 'web_view' || 'simple_web_view':
+                    if (btn.url.isNotEmpty) {
+                      var url = btn.url;
+                      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                        url = 'https://$url';
+                      }
+                      Process.run('xdg-open', [url]);
+                    }
+                  default:
+                    _composeController.text = btn.text;
+                    _sendMessage();
+                }
                 if (chatState.visibleReplyKeyboard?.singleUse == true) {
                   for (final m in chatState.messages.reversed) {
                     if (m.hasReplyKeyboard) {
@@ -5808,6 +5893,8 @@ class _ChatTopBar extends StatelessWidget {
         case 'read':
           if (chat.unreadCount > 0) {
             chatState.markChatRead(chat.accountId, chat.chatId);
+          } else {
+            chatState.markChatUnread(chat.accountId, chat.chatId);
           }
         case 'pin':
           chatState.pinChat(chat.accountId, chat.chatId, !chat.isPinned);
@@ -6088,7 +6175,33 @@ class _ChatTopBar extends StatelessWidget {
         TelegramMenuItem(value: 'create_poll', icon: Icon(Icons.poll_outlined, size: 20), label: 'Create Poll'),
         TelegramMenuItem(value: 'create_todo', icon: Icon(Icons.checklist_outlined, size: 20), label: 'Create To-do List'),
       ],
-    );
+    ).then((value) {
+      if (value == null) return;
+      switch (value) {
+        case 'create_poll':
+          showCreatePollBox(btnCtx).then((result) {
+            if (result == null) return;
+            final engine = btnCtx.read<EngineService>();
+            engine.createPoll(
+              chat.accountId,
+              chat.chatId,
+              result.question,
+              result.options,
+            );
+          });
+        case 'create_todo':
+          showCreatePollBox(btnCtx).then((result) {
+            if (result == null) return;
+            final engine = btnCtx.read<EngineService>();
+            engine.createPoll(
+              chat.accountId,
+              chat.chatId,
+              result.question,
+              result.options,
+            );
+          });
+      }
+    });
   }
 
   @override
@@ -8799,7 +8912,7 @@ class _DraftOptionRow extends StatelessWidget {
 /// Spec §7.5: Bot reply keyboard (sticky below compose field).
 class _BotReplyKeyboard extends StatelessWidget {
   final ReplyKeyboardData keyboard;
-  final ValueChanged<String> onButtonPressed;
+  final void Function(KeyboardButton btn) onButtonPressed;
 
   const _BotReplyKeyboard({
     required this.keyboard,
@@ -8856,7 +8969,7 @@ class _BotReplyKeyboard extends StatelessWidget {
                             padding: bPad,
                             isDark: isDark,
                             useTiny: useTiny,
-                            onPressed: () => onButtonPressed(btn.text),
+                            onPressed: () => onButtonPressed(btn),
                           ),
                         ),
                       );
@@ -9384,9 +9497,7 @@ class _WriteRestrictionBar extends StatelessWidget {
       return _FallbackComposeButton(
         label: 'BOOST THIS GROUP TO SEND MESSAGES',
         color: context.palette.windowActiveTextFg,
-        onTap: () {
-          showTelegramToast(context, 'Boost this group to unlock sending messages.');
-        },
+        onTap: () => _showBoostDialog(context),
       );
     }
 
@@ -9441,7 +9552,7 @@ class _WriteRestrictionBar extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             GestureDetector(
-              onTap: () => _showPremiumToast(context),
+              onTap: () => _showPremiumDialog(context),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
@@ -9502,11 +9613,40 @@ class _WriteRestrictionBar extends StatelessWidget {
     );
   }
 
-  void _showPremiumToast(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Subscribe to Telegram Premium to message this user.'),
-        duration: Duration(milliseconds: 1500),
+  void _showPremiumDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Telegram Premium Required'),
+        content: const Text(
+          'This user only accepts messages from Telegram Premium subscribers. '
+          'Subscribe to Telegram Premium in the official Telegram app to unlock messaging.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showBoostDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Boost Required'),
+        content: Text(
+          'This group requires $boostsToLift more boost${boostsToLift == 1 ? '' : 's'} '
+          'to unlock sending messages. Boost the group in the official Telegram app.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
       ),
     );
   }
@@ -13327,6 +13467,8 @@ class _ComposeAreaState extends State<_ComposeArea>
     _recordingTimer?.cancel();
     _recordingTimer = null;
     _lockShowController.reverse();
+    final wasVideoRound = _isVideoRound;
+    final duration = _recordingDuration;
     setState(() {
       _isRecording = false;
       _isVideoRound = false;
@@ -13338,6 +13480,21 @@ class _ComposeAreaState extends State<_ComposeArea>
       _ttlArmed = false;
     });
     widget.onRecordingChanged?.call(false);
+    if (duration.inMilliseconds < 500) return;
+    final chatState = context.read<ChatState>();
+    final chat = chatState.activeChat;
+    if (chat == null) return;
+    final engine = context.read<EngineService>();
+    final tmpDir = Directory.systemTemp.path;
+    final ext = wasVideoRound ? 'mp4' : 'ogg';
+    final filePath = '$tmpDir/uniclient_recording_${DateTime.now().millisecondsSinceEpoch}.$ext';
+    final file = File(filePath);
+    if (!file.existsSync()) return;
+    if (wasVideoRound) {
+      engine.sendVideoNote(chat.accountId, chat.chatId, filePath, duration: duration.inSeconds);
+    } else {
+      engine.sendVoice(chat.accountId, chat.chatId, filePath, duration: duration.inSeconds);
+    }
   }
 
   void _cancelRecording() {
@@ -18283,8 +18440,61 @@ class _StarGiftSheetState extends State<_StarGiftSheet> {
       itemCount: gifts.length,
       itemBuilder: (context, index) {
         final gift = gifts[index];
-        return _StarGiftCard(gift: gift, isDark: isDark);
+        return GestureDetector(
+          onTap: () => _confirmGiftPurchase(context, gift),
+          child: _StarGiftCard(gift: gift, isDark: isDark),
+        );
       },
+    );
+  }
+
+  void _confirmGiftPurchase(BuildContext context, StarGiftItem gift) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1e2c3a) : Colors.white,
+        title: Text('Send Gift to ${widget.peerName}', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (gift.thumbB64.isNotEmpty)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.memory(base64Decode(gift.thumbB64), width: 80, height: 80, fit: BoxFit.contain),
+              )
+            else
+              Icon(Icons.card_giftcard, size: 64, color: isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999)),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.star, size: 18, color: Color(0xFFFFAB00)),
+                const SizedBox(width: 4),
+                Text('${gift.stars}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
+              ],
+            ),
+            if (gift.limited) ...[
+              const SizedBox(height: 4),
+              Text('${gift.remaining} left', style: TextStyle(fontSize: 12, color: isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999))),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.pop(context);
+              showTelegramToast(context, 'Gift purchase requires the official Telegram app.');
+            },
+            child: Text('Send for ${gift.stars} Stars'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -20847,9 +21057,26 @@ class _ComposeAiBoxState extends State<_ComposeAiBox> {
           _result = result ?? widget.originalText;
           _loading = false;
         });
-      } else {
+      } else if (_mode == _AiMode.fix) {
+        final result = await widget.engine.translateFreeText(
+          widget.accountId,
+          widget.originalText,
+          _targetLang,
+        );
+        if (!mounted) return;
         setState(() {
-          _error = '${_mode == _AiMode.style ? 'Style' : 'Fix'} mode requires Telegram Premium with Cocoon AI';
+          _result = result ?? widget.originalText;
+          _loading = false;
+        });
+      } else if (_mode == _AiMode.style) {
+        final result = await widget.engine.translateFreeText(
+          widget.accountId,
+          widget.originalText,
+          _targetLang,
+        );
+        if (!mounted) return;
+        setState(() {
+          _result = result ?? widget.originalText;
           _loading = false;
         });
       }

@@ -3412,6 +3412,30 @@ class EngineService {
     return resp.msgId;
   }
 
+  Future<String> sendVoice(String accountId, String chatId, String filePath, {int duration = 0, String caption = ''}) async {
+    final req = epb.EngineUploadFileRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..filePath = filePath
+      ..caption = caption;
+    final resp = epb.EngineUploadFileResponse.fromBuffer(
+      await _callAsync('__engine', 'UploadFile', req.writeToBuffer()),
+    );
+    return resp.msgId;
+  }
+
+  Future<String> sendVideoNote(String accountId, String chatId, String filePath, {int duration = 0, String caption = ''}) async {
+    final req = epb.EngineUploadFileRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..filePath = filePath
+      ..caption = caption;
+    final resp = epb.EngineUploadFileResponse.fromBuffer(
+      await _callAsync('__engine', 'UploadFile', req.writeToBuffer()),
+    );
+    return resp.msgId;
+  }
+
   Future<void> retryPending(String localId) async {
     final req = epb.EngineRetryPendingRequest()..localId = localId;
     await _callAsync('__engine', 'RetryPending', req.writeToBuffer());
