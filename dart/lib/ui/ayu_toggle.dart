@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../theme/telegram_palette.dart';
 
@@ -26,20 +27,15 @@ class _AyuToggleState extends State<AyuToggle>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: _duration,
+      duration: const Duration(milliseconds: 150),
       value: widget.value ? 1.0 : 0.0,
     );
   }
-
-  Duration get _duration => widget.isMaterial
-      ? const Duration(milliseconds: 150)
-      : const Duration(milliseconds: 120);
 
   @override
   void didUpdateWidget(AyuToggle oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.value != widget.value) {
-      _controller.duration = _duration;
       if (widget.value) {
         _controller.forward();
       } else {
@@ -54,29 +50,28 @@ class _AyuToggleState extends State<AyuToggle>
     super.dispose();
   }
 
+  // AyuGram defaultToggle style (widgets.style:874-890)
+  static const _border = 2.0;
+  static const _diameter = 14.0;
+  static const _width = 14.0;
+  static const _matShift = -2.0;
+  static const _animPadding = 2.0;
+
+  // Non-material defaults (widgets.style:871-873)
+  static const _defDiameter = 16.0;
+  static const _defShift = 1.0;
+
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    const md3TrackW = 32.0;
-    const md3TrackH = 18.0;
-    const md3ThumbD = 14.0;
-    const md3Shift = -2.0;
-    const md3AnimPad = 2.0;
-
-    const iosTrackW = 36.0;
-    const iosTrackH = 20.0;
-    const iosThumbD = 16.0;
-    const iosShift = 1.0;
-
+    final palette = context.palette;
     final isMat = widget.isMaterial;
-    final trackW = isMat ? md3TrackW : iosTrackW;
-    final trackH = isMat ? md3TrackH : iosTrackH;
-    final thumbD = isMat ? md3ThumbD : iosThumbD;
-    final shift = isMat ? md3Shift : iosShift;
     final curve = isMat ? Curves.easeOutCubic : Curves.linear;
 
-    final inset = (trackH - thumbD) / 2 + shift;
+    final switchDiam = isMat ? _diameter : _defDiameter;
+    final switchShift = isMat ? _matShift : _defShift;
+
+    final totalW = 2 * _border + switchDiam + _width;
+    final totalH = 2 * _border + switchDiam;
 
     return GestureDetector(
       onTap: () => widget.onChanged?.call(!widget.value),
@@ -85,45 +80,20 @@ class _AyuToggleState extends State<AyuToggle>
         builder: (context, _) {
           final t = curve.transform(_controller.value);
 
-          final activeColor = context.palette.windowBgActive;
-          final inactiveColor =
-              isDark ? const Color(0xFF5A6A78) : const Color(0xFFCBCBCB);
-          final trackColor = Color.lerp(inactiveColor, activeColor, t)!;
-
-          var diam = thumbD;
-          if (isMat) {
-            diam = thumbD - (md3AnimPad * 2) * (1 - t);
-          }
-
-          final baseLeft = inset + t * (trackW - thumbD - 2 * inset);
-          final left = baseLeft + (thumbD - diam) / 2;
-          final top = (trackH - diam) / 2;
+          final fgColor =
+              Color.lerp(palette.checkboxFg, palette.windowBgActive, t)!;
 
           return SizedBox(
-            width: trackW,
-            height: trackH,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(trackH / 2),
-                color: trackColor,
-              ),
-              child: Stack(
-                children: [
-                  Positioned(
-                    left: left,
-                    top: top,
-                    child: SizedBox(
-                      width: diam,
-                      height: diam,
-                      child: const DecoratedBox(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+            width: totalW,
+            height: totalH,
+            child: CustomPaint(
+              painter: _TogglePainter(
+                t: t,
+                isMaterial: isMat,
+                switchDiam: switchDiam,
+                switchShift: switchShift,
+                fgColor: fgColor,
+                bgColor: palette.windowBg,
               ),
             ),
           );
@@ -131,4 +101,75 @@ class _AyuToggleState extends State<AyuToggle>
       ),
     );
   }
+}
+
+class _TogglePainter extends CustomPainter {
+  final double t;
+  final bool isMaterial;
+  final double switchDiam;
+  final double switchShift;
+  final Color fgColor;
+  final Color bgColor;
+
+  static const _border = _AyuToggleState._border;
+  static const _width = _AyuToggleState._width;
+  static const _animPadding = _AyuToggleState._animPadding;
+
+  _TogglePainter({
+    required this.t,
+    required this.isMaterial,
+    required this.switchDiam,
+    required this.switchShift,
+    required this.fgColor,
+    required this.bgColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+
+    final fullWidth = switchDiam + _width;
+    final innerDiam = switchDiam - 2 * switchShift;
+    final innerRadius = innerDiam / 2;
+
+    // Track background (rounded rect)
+    final trackRect = RRect.fromLTRBR(
+      _border + switchShift,
+      _border + switchShift,
+      _border + switchShift + fullWidth - 2 * switchShift,
+      _border + switchShift + innerDiam,
+      Radius.circular(innerRadius),
+    );
+    canvas.drawRRect(trackRect, Paint()..color = fgColor);
+
+    // Thumb position
+    final toggleLeft = _border + (fullWidth - switchDiam) * t;
+    var thumbRect =
+        Rect.fromLTWH(toggleLeft, _border, switchDiam, switchDiam);
+
+    // Material animPadding: thumb shrinks during animation
+    if (isMaterial) {
+      final anim = _animPadding * (1 - t);
+      thumbRect = thumbRect.deflate(anim / 2);
+    }
+
+    // Thumb fill
+    canvas.drawOval(thumbRect, Paint()..color = bgColor);
+
+    // Thumb border
+    canvas.drawOval(
+      thumbRect,
+      Paint()
+        ..color = fgColor
+        ..style = ui.PaintingStyle.stroke
+        ..strokeWidth = _border,
+    );
+
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_TogglePainter old) =>
+      t != old.t || fgColor != old.fgColor || bgColor != old.bgColor;
 }
