@@ -611,7 +611,7 @@ class _ProfileCover extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: context.palette.mainMenuCoverFg,
+                      color: context.palette.windowFgActive,
                     ),
                   ),
                 ),
@@ -623,7 +623,7 @@ class _ProfileCover extends StatelessWidget {
                         ? Icons.workspace_premium
                         : Icons.verified,
                     size: 16,
-                    color: context.palette.mainMenuCoverFg,
+                    color: context.palette.windowFgActive,
                   ),
                 ],
                 // AyuGram/Extera badge equivalent: UniClient app icon badge.
@@ -668,7 +668,7 @@ class _ProfileCover extends StatelessWidget {
                       child: CustomPaint(
                         size: const Size(6, 6),
                         painter: _ChevronPainter(
-                          color: context.palette.mainMenuCoverFg.withValues(alpha: 0.7),
+                          color: context.palette.windowFgActive.withValues(alpha: 0.7),
                         ),
                       ),
                     ),
@@ -727,9 +727,9 @@ class _ProfileCover extends StatelessWidget {
         style: TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w400,
-          color: context.palette.mainMenuCoverFg,
+          color: context.palette.windowFgActive,
           decoration: TextDecoration.underline,
-          decorationColor: context.palette.mainMenuCoverFg.withValues(alpha: 0.7),
+          decorationColor: context.palette.windowFgActive.withValues(alpha: 0.7),
         ),
       ),
     );

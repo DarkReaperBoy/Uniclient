@@ -5539,7 +5539,7 @@ class _MemberRow extends StatelessWidget {
     final String? tagText = hasAdminTag
         ? (isOwner ? 'owner' : 'admin')
         : null;
-    final Color tagColor = isOwner ? palette.profileAdminStartFg : palette.profileOtherAdminStarFg;
+    final Color tagColor = palette.profileAdminStartFg;
 
     Widget row = SizedBox(
       height: 52,

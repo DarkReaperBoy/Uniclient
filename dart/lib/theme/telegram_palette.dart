@@ -42,7 +42,6 @@ class TelegramPalette {
   final Color attentionButtonFg;
   final Color attentionButtonBgOver;
   final Color attentionButtonBgRipple;
-  final Color outlineButtonOutlineFg;
 
   // ── §25.2.3 + §57.2 Dialog List ──
   final Color dialogsBg;
@@ -72,8 +71,6 @@ class TelegramPalette {
   final Color dialogsVerifiedIconBg;
   final Color dialogsVerifiedIconFg;
   final Color dialogsArchiveFg;
-  final Color dialogsForwardBg;
-  final Color dialogsForwardFg;
 
   // ── §57.3 Top Bar ──
   final Color topBarBg;
@@ -220,7 +217,6 @@ class TelegramPalette {
   final Color profileVerifiedCheckBg;
   final Color profileVerifiedCheckFg;
   final Color profileAdminStartFg;
-  final Color profileOtherAdminStarFg;
 
   // ── §57.10 Sidebar (Folders Rail) ──
   final Color sideBarBg;
@@ -245,7 +241,6 @@ class TelegramPalette {
   // ── Main Menu / Hamburger ──
   final Color mainMenuBg;
   final Color mainMenuCoverBg;
-  final Color mainMenuCoverFg;
 
   // ── Settings Icon Backgrounds (colorize-excluded) ──
   final Color settingsIconBg1;
@@ -627,7 +622,6 @@ class TelegramPalette {
     required this.attentionButtonFg,
     required this.attentionButtonBgOver,
     required this.attentionButtonBgRipple,
-    required this.outlineButtonOutlineFg,
     required this.dialogsBg,
     required this.dialogsBgOver,
     required this.dialogsBgActive,
@@ -655,8 +649,6 @@ class TelegramPalette {
     required this.dialogsVerifiedIconBg,
     required this.dialogsVerifiedIconFg,
     required this.dialogsArchiveFg,
-    required this.dialogsForwardBg,
-    required this.dialogsForwardFg,
     required this.topBarBg,
     required this.msgInBg,
     required this.msgInBgSelected,
@@ -781,7 +773,6 @@ class TelegramPalette {
     required this.profileVerifiedCheckBg,
     required this.profileVerifiedCheckFg,
     required this.profileAdminStartFg,
-    required this.profileOtherAdminStarFg,
     required this.sideBarBg,
     required this.sideBarBgActive,
     required this.sideBarBgRipple,
@@ -800,7 +791,6 @@ class TelegramPalette {
     required this.menuSeparatorFg,
     required this.mainMenuBg,
     required this.mainMenuCoverBg,
-    required this.mainMenuCoverFg,
     required this.settingsIconBg1,
     required this.settingsIconBg2,
     required this.settingsIconBg3,
@@ -1328,7 +1318,6 @@ class TelegramPalette {
       attentionButtonFg: s(attentionButtonFg),
       attentionButtonBgOver: s(attentionButtonBgOver),
       attentionButtonBgRipple: s(attentionButtonBgRipple),
-      outlineButtonOutlineFg: s(outlineButtonOutlineFg),
       dialogsBg: s(dialogsBg),
       dialogsBgOver: s(dialogsBgOver),
       dialogsBgActive: s(dialogsBgActive),
@@ -1356,8 +1345,6 @@ class TelegramPalette {
       dialogsVerifiedIconBg: s(dialogsVerifiedIconBg),
       dialogsVerifiedIconFg: s(dialogsVerifiedIconFg),
       dialogsArchiveFg: s(dialogsArchiveFg),
-      dialogsForwardBg: s(dialogsForwardBg),
-      dialogsForwardFg: s(dialogsForwardFg),
       topBarBg: s(topBarBg),
       msgInBg: s(msgInBg),
       msgInBgSelected: s(msgInBgSelected),
@@ -1485,7 +1472,6 @@ class TelegramPalette {
       profileVerifiedCheckBg: s(profileVerifiedCheckBg),
       profileVerifiedCheckFg: s(profileVerifiedCheckFg),
       profileAdminStartFg: s(profileAdminStartFg),
-      profileOtherAdminStarFg: s(profileOtherAdminStarFg),
       sideBarBg: s(sideBarBg),
       sideBarBgActive: s(sideBarBgActive),
       sideBarBgRipple: s(sideBarBgRipple),
@@ -1504,7 +1490,6 @@ class TelegramPalette {
       menuSeparatorFg: s(menuSeparatorFg),
       mainMenuBg: s(mainMenuBg),
       mainMenuCoverBg: s(mainMenuCoverBg),
-      mainMenuCoverFg: s(mainMenuCoverFg),
       // §25.4.3 Exclusion: settings icon backgrounds
       settingsIconBg1: settingsIconBg1,
       settingsIconBg2: settingsIconBg2,
@@ -1881,7 +1866,6 @@ class TelegramPalette {
       lightButtonFgOver: this.lightButtonFgOver,
       attentionButtonFg: this.attentionButtonFg, attentionButtonBgOver: this.attentionButtonBgOver,
       attentionButtonBgRipple: this.attentionButtonBgRipple,
-      outlineButtonOutlineFg: this.outlineButtonOutlineFg,
       dialogsBg: this.dialogsBg, dialogsBgOver: this.dialogsBgOver,
       dialogsBgActive: this.dialogsBgActive, dialogsRippleBg: this.dialogsRippleBg,
       dialogsRippleBgActive: this.dialogsRippleBgActive, dialogsNameFg: this.dialogsNameFg,
@@ -1899,7 +1883,6 @@ class TelegramPalette {
       dialogsVerifiedIconBg: this.dialogsVerifiedIconBg,
       dialogsVerifiedIconFg: this.dialogsVerifiedIconFg,
       dialogsArchiveFg: this.dialogsArchiveFg,
-      dialogsForwardBg: this.dialogsForwardBg, dialogsForwardFg: this.dialogsForwardFg,
       topBarBg: this.topBarBg,
       msgInBg: this.msgInBg, msgInBgSelected: this.msgInBgSelected,
       msgOutBg: this.msgOutBg, msgOutBgSelected: this.msgOutBgSelected,
@@ -1988,7 +1971,6 @@ class TelegramPalette {
       profileVerifiedCheckBg: this.profileVerifiedCheckBg,
       profileVerifiedCheckFg: this.profileVerifiedCheckFg,
       profileAdminStartFg: this.profileAdminStartFg,
-      profileOtherAdminStarFg: this.profileOtherAdminStarFg,
       sideBarBg: this.sideBarBg, sideBarBgActive: this.sideBarBgActive,
       sideBarBgRipple: this.sideBarBgRipple, sideBarTextFg: this.sideBarTextFg,
       sideBarTextFgActive: this.sideBarTextFgActive,
@@ -1999,7 +1981,6 @@ class TelegramPalette {
       menuIconFg: this.menuIconFg, menuIconFgOver: this.menuIconFgOver,
       menuSeparatorFg: this.menuSeparatorFg,
       mainMenuBg: this.mainMenuBg, mainMenuCoverBg: this.mainMenuCoverBg,
-      mainMenuCoverFg: this.mainMenuCoverFg,
       settingsIconBg1: this.settingsIconBg1, settingsIconBg2: this.settingsIconBg2,
       settingsIconBg3: this.settingsIconBg3, settingsIconBg4: this.settingsIconBg4,
       settingsIconBg5: this.settingsIconBg5, settingsIconBg6: this.settingsIconBg6,
@@ -2360,7 +2341,6 @@ class TelegramPalette {
       lightButtonFgOver: lightButtonFgOver,
       attentionButtonFg: attentionButtonFg, attentionButtonBgOver: attentionButtonBgOver,
       attentionButtonBgRipple: attentionButtonBgRipple,
-      outlineButtonOutlineFg: outlineButtonOutlineFg,
       dialogsBg: dialogsBg, dialogsBgOver: dialogsBgOver,
       dialogsBgActive: dialogsBgActive, dialogsRippleBg: dialogsRippleBg,
       dialogsRippleBgActive: dialogsRippleBgActive,
@@ -2381,7 +2361,6 @@ class TelegramPalette {
       dialogsVerifiedIconBg: dialogsVerifiedIconBg,
       dialogsVerifiedIconFg: fix(dialogsVerifiedIconFg, dialogsVerifiedIconBg),
       dialogsArchiveFg: dialogsArchiveFg,
-      dialogsForwardBg: dialogsForwardBg, dialogsForwardFg: dialogsForwardFg,
       topBarBg: topBarBg,
       msgInBg: msgInBg, msgInBgSelected: msgInBgSelected,
       msgOutBg: msgOutBg, msgOutBgSelected: msgOutBgSelected,
@@ -2458,7 +2437,6 @@ class TelegramPalette {
       profileVerifiedCheckBg: profileVerifiedCheckBg,
       profileVerifiedCheckFg: profileVerifiedCheckFg,
       profileAdminStartFg: profileAdminStartFg,
-      profileOtherAdminStarFg: profileOtherAdminStarFg,
       sideBarBg: sideBarBg, sideBarBgActive: sideBarBgActive,
       sideBarBgRipple: sideBarBgRipple,
       sideBarTextFg: sideBarTextFg, sideBarTextFgActive: sideBarTextFgActive,
@@ -2469,7 +2447,6 @@ class TelegramPalette {
       menuIconFg: menuIconFg, menuIconFgOver: menuIconFgOver,
       menuSeparatorFg: menuSeparatorFg,
       mainMenuBg: mainMenuBg, mainMenuCoverBg: mainMenuCoverBg,
-      mainMenuCoverFg: mainMenuCoverFg,
       settingsIconBg1: settingsIconBg1, settingsIconBg2: settingsIconBg2,
       settingsIconBg3: settingsIconBg3, settingsIconBg4: settingsIconBg4,
       settingsIconBg5: settingsIconBg5, settingsIconBg6: settingsIconBg6,
@@ -2838,7 +2815,6 @@ class TelegramPalette {
     attentionButtonFg: Color(0xFFD14E4E),
     attentionButtonBgOver: Color(0xFFFCDFDE),
     attentionButtonBgRipple: Color(0xFFF4C3C2),
-    outlineButtonOutlineFg: Color(0xFF40A7E3),
 
     // Dialogs
     dialogsBg: Color(0xFFFFFFFF),
@@ -2868,8 +2844,6 @@ class TelegramPalette {
     dialogsVerifiedIconBg: Color(0xFF40A7E3),
     dialogsVerifiedIconFg: Color(0xFFFFFFFF),
     dialogsArchiveFg: Color(0xFF525252),
-    dialogsForwardBg: Color(0xFF419FD9),
-    dialogsForwardFg: Color(0xFFFFFFFF),
 
     // Top Bar
     topBarBg: Color(0xFFFFFFFF),
@@ -3016,7 +2990,6 @@ class TelegramPalette {
     profileVerifiedCheckBg: Color(0xFF40A7E3),
     profileVerifiedCheckFg: Color(0xFFFFFFFF),
     profileAdminStartFg: Color(0xFF40A7E3),
-    profileOtherAdminStarFg: Color(0xFF999999),
 
     // Sidebar
     sideBarBg: Color(0xFF293A4C),
@@ -3041,7 +3014,6 @@ class TelegramPalette {
     // Main Menu
     mainMenuBg: Color(0xFFFFFFFF),
     mainMenuCoverBg: Color(0xFF419FD9),
-    mainMenuCoverFg: Color(0xFFFFFFFF),
 
     // Settings Icons
     settingsIconBg1: Color(0xFF5BBB6F),
@@ -3420,7 +3392,6 @@ class TelegramPalette {
     attentionButtonFg: Color(0xFFEC3942),
     attentionButtonBgOver: Color(0x64592A2A),
     attentionButtonBgRipple: Color(0x64683232),
-    outlineButtonOutlineFg: Color(0xFF3983C3),
 
     // Dialogs
     dialogsBg: Color(0xFF17212B),
@@ -3450,8 +3421,6 @@ class TelegramPalette {
     dialogsVerifiedIconBg: Color(0xFF6AB3F3),
     dialogsVerifiedIconFg: Color(0xFF17212B),
     dialogsArchiveFg: Color(0xFF708499),
-    dialogsForwardBg: Color(0xFF2B5278),
-    dialogsForwardFg: Color(0xFFFFFFFF),
 
     // Top Bar
     topBarBg: Color(0xFF17212B),
@@ -3598,7 +3567,6 @@ class TelegramPalette {
     profileVerifiedCheckBg: Color(0xFF5288C1),
     profileVerifiedCheckFg: Color(0xFFFFFFFF),
     profileAdminStartFg: Color(0xFF62A9E6),
-    profileOtherAdminStarFg: Color(0xFF708499),
 
     // Sidebar
     sideBarBg: Color(0xFF0E1621),
@@ -3623,7 +3591,6 @@ class TelegramPalette {
     // Main Menu
     mainMenuBg: Color(0xFF17212B),
     mainMenuCoverBg: Color(0xFF5288C1),
-    mainMenuCoverFg: Color(0xFFFFFFFF),
 
     // Settings Icons (same across all themes — colorize-excluded)
     settingsIconBg1: Color(0xFF5BBB6F),
@@ -3999,7 +3966,6 @@ class TelegramPalette {
     attentionButtonFg: Color(0xFFD14E4E),
     attentionButtonBgOver: Color(0xFFFCDFDE),
     attentionButtonBgRipple: Color(0xFFF4C3C2),
-    outlineButtonOutlineFg: Color(0xFF40A7E3),
     dialogsBg: Color(0xFFFFFFFF),
     dialogsBgOver: Color(0xFFF1F1F1),
     dialogsBgActive: Color(0xFF419FD9),
@@ -4027,8 +3993,6 @@ class TelegramPalette {
     dialogsVerifiedIconBg: Color(0xFF40A7E3),
     dialogsVerifiedIconFg: Color(0xFFFFFFFF),
     dialogsArchiveFg: Color(0xFF525252),
-    dialogsForwardBg: Color(0xFF419FD9),
-    dialogsForwardFg: Color(0xFFFFFFFF),
     topBarBg: Color(0xFFFFFFFF),
     // Classic Day: green-tinted outgoing bubbles
     msgInBg: Color(0xFFFFFFFF),
@@ -4154,7 +4118,6 @@ class TelegramPalette {
     profileVerifiedCheckBg: Color(0xFF40A7E3),
     profileVerifiedCheckFg: Color(0xFFFFFFFF),
     profileAdminStartFg: Color(0xFF40A7E3),
-    profileOtherAdminStarFg: Color(0xFF999999),
     sideBarBg: Color(0xFF293A4C),
     sideBarBgActive: Color(0xFF17212B),
     sideBarBgRipple: Color(0xFF1E2B38),
@@ -4173,7 +4136,6 @@ class TelegramPalette {
     menuSeparatorFg: Color(0xFFF1F1F1),
     mainMenuBg: Color(0xFFFFFFFF),
     mainMenuCoverBg: Color(0xFF419FD9),
-    mainMenuCoverFg: Color(0xFFFFFFFF),
     settingsIconBg1: Color(0xFF5BBB6F),
     settingsIconBg2: Color(0xFFEC7577),
     settingsIconBg3: Color(0xFF43A4DF),
@@ -4543,7 +4505,6 @@ class TelegramPalette {
     attentionButtonFg: Color(0xFFEC3942),
     attentionButtonBgOver: Color(0x64592A2A),
     attentionButtonBgRipple: Color(0x64683232),
-    outlineButtonOutlineFg: Color(0xFF3FC1B0),
     dialogsBg: Color(0xFF282E33),
     dialogsBgOver: Color(0xFF313B43),
     dialogsBgActive: Color(0xFF009687),
@@ -4571,8 +4532,6 @@ class TelegramPalette {
     dialogsVerifiedIconBg: Color(0xFF4BE1C3),
     dialogsVerifiedIconFg: Color(0xFF282E33),
     dialogsArchiveFg: Color(0xFF82868A),
-    dialogsForwardBg: Color(0xFF009687),
-    dialogsForwardFg: Color(0xFFFFFFFF),
     topBarBg: Color(0xFF282E33),
     msgInBg: Color(0xFF33393F),
     msgInBgSelected: Color(0xFF009687),
@@ -4697,7 +4656,6 @@ class TelegramPalette {
     profileVerifiedCheckBg: Color(0xFF3FC1B0),
     profileVerifiedCheckFg: Color(0xFFFFFFFF),
     profileAdminStartFg: Color(0xFF3FC1B0),
-    profileOtherAdminStarFg: Color(0xFF82868A),
     sideBarBg: Color(0xFF1E2226),
     sideBarBgActive: Color(0xFF282E33),
     sideBarBgRipple: Color(0xFF252A2F),
@@ -4716,7 +4674,6 @@ class TelegramPalette {
     menuSeparatorFg: Color(0xFF3F4850),
     mainMenuBg: Color(0xFF282E33),
     mainMenuCoverBg: Color(0xFF3FC1B0),
-    mainMenuCoverFg: Color(0xFFFFFFFF),
     settingsIconBg1: Color(0xFF5BBB6F),
     settingsIconBg2: Color(0xFFEC7577),
     settingsIconBg3: Color(0xFF43A4DF),
