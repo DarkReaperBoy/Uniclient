@@ -3178,6 +3178,30 @@ class EngineService {
     }
   }
 
+  Future<List<Map<String, dynamic>>> getWallpapers(String accountId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetWallpapers', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return [];
+      final data = json.decode(utf8.decode(respBytes));
+      if (data == null) return [];
+      return (data as List).cast<Map<String, dynamic>>();
+    } catch (e) {
+      Debug.error('ENGINE', 'getWallpapers failed', e);
+      return [];
+    }
+  }
+
+  Future<void> deleteCloudTheme(String accountId, int themeId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'theme_id': themeId,
+    }));
+    await _callAsync('__engine', 'DeleteCloudTheme', Uint8List.fromList(payload));
+  }
+
   Future<void> uploadProfilePhoto(String accountId, String filePath) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

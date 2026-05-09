@@ -1188,6 +1188,44 @@ func (e *Engine) GetCloudThemes(accountID string) ([]cores.CloudThemeInfo, error
 	return f.GetCloudThemes()
 }
 
+type wallpapersFetcher interface {
+	GetWallpapers() ([]cores.WallpaperInfo, error)
+}
+
+func (e *Engine) GetWallpapers(accountID string) ([]cores.WallpaperInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	f, ok := acc.Core.(wallpapersFetcher)
+	if !ok {
+		return nil, nil
+	}
+	return f.GetWallpapers()
+}
+
+type cloudThemeDeleter interface {
+	DeleteCloudTheme(themeID int64) error
+}
+
+func (e *Engine) DeleteCloudTheme(accountID string, themeID int64) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	d, ok := acc.Core.(cloudThemeDeleter)
+	if !ok {
+		return fmt.Errorf("core does not support cloud theme deletion")
+	}
+	return d.DeleteCloudTheme(themeID)
+}
+
 type chatThemesFetcher interface {
 	GetChatThemesList() ([]cores.ChatThemeInfo, error)
 }

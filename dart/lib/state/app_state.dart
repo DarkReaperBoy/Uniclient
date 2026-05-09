@@ -245,8 +245,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _chatSuggestStickersByEmoji = true;
   bool _chatLoopAnimatedStickers = true;
   String _chatDoubleClickAction = 'reply';
+  String _chatDoubleClickReaction = '❤️';
   bool _chatShowReplyButton = true;
   bool _chatShowReactionButton = true;
+  bool _useSystemAccent = false;
+  String _customFontFamily = 'Inter';
   String _appIcon = '';
   bool _simpleQuotes = false;
   bool _semiTransparentDeleted = false;
@@ -2055,10 +2058,16 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   set chatLoopAnimatedStickers(bool v) { if (_chatLoopAnimatedStickers != v) { _chatLoopAnimatedStickers = v; _saveWindowPrefs(); notifyListeners(); } }
   String get chatDoubleClickAction => _chatDoubleClickAction;
   set chatDoubleClickAction(String v) { if (_chatDoubleClickAction != v) { _chatDoubleClickAction = v; _saveWindowPrefs(); notifyListeners(); } }
+  String get chatDoubleClickReaction => _chatDoubleClickReaction;
+  set chatDoubleClickReaction(String v) { if (_chatDoubleClickReaction != v) { _chatDoubleClickReaction = v; _saveWindowPrefs(); notifyListeners(); } }
   bool get chatShowReplyButton => _chatShowReplyButton;
   set chatShowReplyButton(bool v) { if (_chatShowReplyButton != v) { _chatShowReplyButton = v; _saveWindowPrefs(); notifyListeners(); } }
   bool get chatShowReactionButton => _chatShowReactionButton;
   set chatShowReactionButton(bool v) { if (_chatShowReactionButton != v) { _chatShowReactionButton = v; _saveWindowPrefs(); notifyListeners(); } }
+  bool get useSystemAccent => _useSystemAccent;
+  set useSystemAccent(bool v) { if (_useSystemAccent != v) { _useSystemAccent = v; _saveWindowPrefs(); notifyListeners(); } }
+  String get customFontFamily => _customFontFamily;
+  set customFontFamily(String v) { if (_customFontFamily != v) { _customFontFamily = v; _saveWindowPrefs(); notifyListeners(); } }
 
   bool get recordVideoMessages => _recordVideoMessages;
   set recordVideoMessages(bool value) {
@@ -2820,8 +2829,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _chatSuggestStickersByEmoji = data['chatSuggestStickersByEmoji'] as bool? ?? true;
       _chatLoopAnimatedStickers = data['chatLoopAnimatedStickers'] as bool? ?? true;
       _chatDoubleClickAction = data['chatDoubleClickAction'] as String? ?? 'reply';
+      _chatDoubleClickReaction = data['chatDoubleClickReaction'] as String? ?? '❤️';
       _chatShowReplyButton = data['chatShowReplyButton'] as bool? ?? true;
       _chatShowReactionButton = data['chatShowReactionButton'] as bool? ?? true;
+      _useSystemAccent = data['useSystemAccent'] as bool? ?? false;
+      _customFontFamily = data['customFontFamily'] as String? ?? 'Inter';
       _appIcon = data['appIcon'] as String? ?? '';
       _simpleQuotes = data['simpleQuotes'] as bool? ?? false;
       _semiTransparentDeleted = data['semiTransparentDeleted'] as bool? ?? false;
@@ -3045,8 +3057,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'chatSuggestStickersByEmoji': _chatSuggestStickersByEmoji,
         'chatLoopAnimatedStickers': _chatLoopAnimatedStickers,
         'chatDoubleClickAction': _chatDoubleClickAction,
+        'chatDoubleClickReaction': _chatDoubleClickReaction,
         'chatShowReplyButton': _chatShowReplyButton,
         'chatShowReactionButton': _chatShowReactionButton,
+        'useSystemAccent': _useSystemAccent,
+        'customFontFamily': _customFontFamily,
         'appIcon': _appIcon,
         'simpleQuotes': _simpleQuotes,
         'semiTransparentDeleted': _semiTransparentDeleted,

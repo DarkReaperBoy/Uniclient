@@ -18749,6 +18749,20 @@ func (t *TelegramCore) GetCloudThemes() ([]CloudThemeInfo, error) {
 	return result, nil
 }
 
+func (t *TelegramCore) DeleteCloudTheme(themeID int64) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+	theme := &tg.InputTheme{ID: themeID}
+	_, err := t.api.AccountSaveTheme(t.ctx, &tg.AccountSaveThemeRequest{
+		Theme:  theme,
+		Unsave: true,
+	})
+	return err
+}
+
 // AccountGetTmpPassword generates a temporary password for payments.
 func (t *TelegramCore) AccountGetTmpPassword(request *tg.AccountGetTmpPasswordRequest) (*tg.AccountTmpPassword, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
@@ -20084,6 +20098,68 @@ type CloudThemeInfo struct {
 	SentColor   int    `json:"sent_color"`
 	RecvColor   int    `json:"recv_color"`
 	IsDark      bool   `json:"is_dark"`
+}
+
+type WallpaperInfo struct {
+	ID       int64  `json:"id"`
+	Slug     string `json:"slug"`
+	Pattern  bool   `json:"pattern"`
+	Dark     bool   `json:"dark"`
+	Default  bool   `json:"default"`
+	Colors   []int  `json:"colors,omitempty"`
+	Rotation int    `json:"rotation"`
+	Blurred  bool   `json:"blurred"`
+}
+
+func (t *TelegramCore) GetWallpapers() ([]WallpaperInfo, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	resp, err := t.api.AccountGetWallPapers(t.ctx, 0)
+	if err != nil {
+		return nil, err
+	}
+	wps, ok := resp.(*tg.AccountWallPapers)
+	if !ok {
+		return nil, nil
+	}
+	var result []WallpaperInfo
+	for _, wpClass := range wps.Wallpapers {
+		wp, ok := wpClass.(*tg.WallPaper)
+		if !ok {
+			continue
+		}
+		info := WallpaperInfo{
+			ID:      wp.ID,
+			Slug:    wp.Slug,
+			Pattern: wp.Pattern,
+			Dark:    wp.Dark,
+			Default: wp.Default,
+		}
+		if wp.Flags.Has(2) {
+			s := wp.Settings
+			var colors []int
+			if s.Flags.Has(0) {
+				colors = append(colors, s.BackgroundColor)
+			}
+			if s.Flags.Has(4) {
+				colors = append(colors, s.SecondBackgroundColor)
+			}
+			if s.Flags.Has(5) {
+				colors = append(colors, s.ThirdBackgroundColor)
+			}
+			if s.Flags.Has(6) {
+				colors = append(colors, s.FourthBackgroundColor)
+			}
+			info.Colors = colors
+			info.Rotation = s.Rotation
+			info.Blurred = s.Blur
+		}
+		result = append(result, info)
+	}
+	return result, nil
 }
 
 type ChatThemeInfo struct {

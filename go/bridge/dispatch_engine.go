@@ -2783,6 +2783,32 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(themes)
 
+	case "GetWallpapers":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		wallpapers, err := e.GetWallpapers(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(wallpapers)
+
+	case "DeleteCloudTheme":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ThemeID   int64  `json:"theme_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.DeleteCloudTheme(params.AccountID, params.ThemeID); err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]bool{"ok": true})
+
 	case "GetChatThemes":
 		var params struct {
 			AccountID string `json:"account_id"`

@@ -28,10 +28,8 @@ class ChatSettingsScreen extends StatefulWidget {
 }
 
 class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
-  bool _useSystemAccent = false;
   int _selfColorId = -1;
   bool _colorLoaded = false;
-  String _fontFamily = 'Inter';
   List<CloudThemeInfo> _cloudThemes = [];
   bool _cloudThemesLoaded = false;
   bool _showAllCloudThemes = false;
@@ -98,10 +96,42 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   }
 
   Future<void> _pickFromGallery() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.image,
+    final appState = context.read<AppState>();
+    final account = appState.activeAccount;
+    if (account == null) return;
+    final engine = context.read<EngineService>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final wallpapers = await engine.getWallpapers(account.id);
+    if (!mounted) return;
+
+    final selected = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: isDark ? const Color(0xFF17212B) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+      ),
+      builder: (ctx) => _WallpaperBrowser(
+        wallpapers: wallpapers,
+        isDark: isDark,
+      ),
     );
-    await _applyPickedWallpaper(result);
+
+    if (selected != null && mounted) {
+      final colors = (selected['colors'] as List<dynamic>?)?.cast<int>() ?? [];
+      if (colors.isNotEmpty) {
+        final bgColors = colors.map((c) => Color(0xFF000000 | (c & 0xFFFFFF))).toList();
+        final rotation = selected['rotation'] as int? ?? 0;
+        appState.setWallpaper(WallpaperData(
+          type: bgColors.length > 1 ? WallpaperType.gradient : WallpaperType.solid,
+          backgroundColors: bgColors,
+          gradientRotation: rotation,
+          tiled: _tileBackground,
+        ));
+        setState(() {});
+      }
+    }
   }
 
   Future<void> _pickFromFile() async {
@@ -231,8 +261,14 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                   width: 20,
                   height: 20,
                   child: Checkbox(
-                    value: _useSystemAccent,
-                    onChanged: (v) => setState(() => _useSystemAccent = v ?? false),
+                    value: appState.useSystemAccent,
+                    onChanged: (v) {
+                      final enabled = v ?? false;
+                      appState.useSystemAccent = enabled;
+                      if (enabled) {
+                        appState.updateAccentColor('#40a7e3');
+                      }
+                    },
                     activeColor: accentColor,
                     side: BorderSide(color: subtextColor, width: 1.5),
                     shape: RoundedRectangleBorder(
@@ -303,8 +339,8 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
           ),
           _FontFamilyRow(
             isDark: isDark,
-            currentFont: _fontFamily,
-            onFontChanged: (f) => setState(() => _fontFamily = f),
+            currentFont: appState.customFontFamily,
+            onFontChanged: (f) => appState.customFontFamily = f,
           ),
           const SizedBox(height: 7),
           Container(height: 1, color: dividerColor),
@@ -373,12 +409,14 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             accentColor: currentAccent,
             sendBy: _sendBy,
             doubleClickAction: appState.chatDoubleClickAction,
+            doubleClickReaction: appState.chatDoubleClickReaction,
             showReplyButton: appState.chatShowReplyButton,
             showReactionButton: appState.chatShowReactionButton,
             onSendByChanged: (v) {
               appState.sendBy = v;
             },
             onDoubleClickActionChanged: (v) => appState.chatDoubleClickAction = v,
+            onDoubleClickReactionChanged: (v) => appState.chatDoubleClickReaction = v,
             onShowReplyButtonChanged: (v) => appState.chatShowReplyButton = v,
             onShowReactionButtonChanged: (v) => appState.chatShowReactionButton = v,
           ),
@@ -1967,7 +2005,15 @@ class _CloudThemeCardState extends State<_CloudThemeCard> {
           Clipboard.setData(ClipboardData(text: link));
           showTelegramToast(context, 'Link copied');
         case 'edit':
-          break;
+          final palette = context.palette;
+          Navigator.of(context).push(
+            settingsPageRoute(
+              ThemeEditorScreen(
+                palette: palette,
+                onPaletteChanged: (_) {},
+              ),
+            ),
+          );
         case 'delete':
           _showDeleteConfirmation();
       }
@@ -1991,9 +2037,19 @@ class _CloudThemeCardState extends State<_CloudThemeCard> {
             child: Text('Cancel', style: TextStyle(color: widget.accentColor)),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(ctx);
-              showTelegramToast(context, 'Theme deleted');
+              try {
+                final appState = context.read<AppState>();
+                final account = appState.activeAccount;
+                if (account != null) {
+                  final engine = context.read<EngineService>();
+                  await engine.deleteCloudTheme(account.id, widget.theme.id);
+                }
+                if (mounted) showTelegramToast(context, 'Theme deleted');
+              } catch (e) {
+                if (mounted) showTelegramToast(context, 'Failed to delete theme');
+              }
             },
             child: Text('Delete', style: TextStyle(color: isDark ? const Color(0xFFE53935) : const Color(0xFFDD4B39))),
           ),
@@ -2114,7 +2170,7 @@ class _CloudThemeRadio extends StatelessWidget {
 
 // ── §14.6.4: Chat Background section ──
 
-class _ChatBackgroundSection extends StatelessWidget {
+class _ChatBackgroundSection extends StatefulWidget {
   final bool isDark;
   final bool tileBackground;
   final bool adaptiveLayout;
@@ -2138,7 +2194,56 @@ class _ChatBackgroundSection extends StatelessWidget {
   });
 
   @override
+  State<_ChatBackgroundSection> createState() => _ChatBackgroundSectionState();
+}
+
+class _ChatBackgroundSectionState extends State<_ChatBackgroundSection>
+    with SingleTickerProviderStateMixin {
+  bool _loading = false;
+  late AnimationController _loadingController;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadingController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+  }
+
+  @override
+  void didUpdateWidget(_ChatBackgroundSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.wallpaper != widget.wallpaper && _loading) {
+      setState(() => _loading = false);
+      _loadingController.stop();
+      _loadingController.reset();
+    }
+  }
+
+  @override
+  void dispose() {
+    _loadingController.dispose();
+    super.dispose();
+  }
+
+  void _onPickGallery() {
+    setState(() => _loading = true);
+    _loadingController.repeat();
+    widget.onPickGallery();
+  }
+
+  void _onPickFile() {
+    setState(() => _loading = true);
+    _loadingController.repeat();
+    widget.onPickFile();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    final wallpaper = widget.wallpaper;
+    final accentColor = widget.accentColor;
     final thumbBg = isDark ? const Color(0xFF0E1621) : const Color(0xFFDFE7EB);
     final thumbRecv = isDark ? const Color(0xFF24292E) : const Color(0xFFFFFFFF);
     final thumbSent = isDark ? const Color(0xFF265E8C) : const Color(0xFFEEFFDE);
@@ -2154,34 +2259,61 @@ class _ChatBackgroundSection extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 76,
-                height: 76,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  color: thumbBg,
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: wallpaper.imageBytes != null
-                      ? Image.memory(
-                          wallpaper.imageBytes!,
-                          width: 76,
-                          height: 76,
-                          fit: BoxFit.cover,
-                          gaplessPlayback: true,
-                        )
-                      : CustomPaint(
-                          size: const Size(76, 76),
-                          painter: _BackgroundThumbPainter(
-                            background: wallpaper.backgroundColors.isNotEmpty
-                                ? wallpaper.backgroundColors.first
-                                : thumbBg,
-                            receivedBubble: thumbRecv,
-                            sentBubble: thumbSent,
+              Stack(
+                children: [
+                  Container(
+                    width: 76,
+                    height: 76,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      color: thumbBg,
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: wallpaper.imageBytes != null
+                          ? Image.memory(
+                              wallpaper.imageBytes!,
+                              width: 76,
+                              height: 76,
+                              fit: BoxFit.cover,
+                              gaplessPlayback: true,
+                            )
+                          : CustomPaint(
+                              size: const Size(76, 76),
+                              painter: _BackgroundThumbPainter(
+                                background: wallpaper.backgroundColors.isNotEmpty
+                                    ? wallpaper.backgroundColors.first
+                                    : thumbBg,
+                                receivedBubble: thumbRecv,
+                                sentBubble: thumbSent,
+                              ),
+                            ),
+                    ),
+                  ),
+                  if (_loading)
+                    Positioned.fill(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          color: Colors.black26,
+                        ),
+                        child: Center(
+                          child: AnimatedBuilder(
+                            animation: _loadingController,
+                            builder: (context, child) => SizedBox(
+                              width: 32,
+                              height: 32,
+                              child: CircularProgressIndicator(
+                                value: _loadingController.value,
+                                strokeWidth: 3,
+                                color: accentColor,
+                              ),
+                            ),
                           ),
                         ),
-                ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(width: 14),
               Column(
@@ -2189,7 +2321,7 @@ class _ChatBackgroundSection extends StatelessWidget {
                 children: [
                   const SizedBox(height: 8),
                   GestureDetector(
-                    onTap: onPickGallery,
+                    onTap: _onPickGallery,
                     child: Text(
                       'Choose from gallery',
                       style: TextStyle(fontSize: 14, color: accentColor),
@@ -2197,7 +2329,7 @@ class _ChatBackgroundSection extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   GestureDetector(
-                    onTap: onPickFile,
+                    onTap: _onPickFile,
                     child: Text(
                       'Choose from file',
                       style: TextStyle(fontSize: 14, color: accentColor),
@@ -2210,17 +2342,97 @@ class _ChatBackgroundSection extends StatelessWidget {
           const SizedBox(height: 12),
           _SettingsCheckbox(
             label: 'Tile Background',
-            value: tileBackground,
+            value: widget.tileBackground,
             isDark: isDark,
-            onChanged: onTileChanged,
+            onChanged: widget.onTileChanged,
           ),
           if (isWide)
             _SettingsCheckbox(
               label: 'Adaptive Layout for Wide Screens',
-              value: adaptiveLayout,
+              value: widget.adaptiveLayout,
               isDark: isDark,
-              onChanged: onAdaptiveChanged,
+              onChanged: widget.onAdaptiveChanged,
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WallpaperBrowser extends StatelessWidget {
+  final List<Map<String, dynamic>> wallpapers;
+  final bool isDark;
+
+  const _WallpaperBrowser({required this.wallpapers, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final colorWallpapers = wallpapers.where((w) {
+      final colors = w['colors'] as List<dynamic>?;
+      return colors != null && colors.isNotEmpty;
+    }).toList();
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.3,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (ctx, scrollController) => Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Text('Choose Wallpaper',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+                const Spacer(),
+                IconButton(
+                  icon: Icon(Icons.close, color: subtextColor),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: colorWallpapers.isEmpty
+                ? Center(child: Text('No wallpapers available', style: TextStyle(color: subtextColor)))
+                : GridView.builder(
+                    controller: scrollController,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      crossAxisSpacing: 8,
+                      mainAxisSpacing: 8,
+                    ),
+                    itemCount: colorWallpapers.length,
+                    itemBuilder: (ctx, i) {
+                      final wp = colorWallpapers[i];
+                      final colors = (wp['colors'] as List<dynamic>).cast<int>();
+                      final flutterColors = colors.map((c) => Color(0xFF000000 | (c & 0xFFFFFF))).toList();
+                      final rotation = wp['rotation'] as int? ?? 0;
+
+                      return GestureDetector(
+                        onTap: () => Navigator.pop(ctx, wp),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            gradient: flutterColors.length > 1
+                                ? LinearGradient(
+                                    colors: flutterColors,
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    transform: GradientRotation(rotation * 3.14159 / 180),
+                                  )
+                                : null,
+                            color: flutterColors.length == 1 ? flutterColors.first : null,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
         ],
       ),
     );
@@ -2310,7 +2522,7 @@ class _SettingsCheckbox extends StatelessWidget {
     return InkWell(
       onTap: () => onChanged(!value),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
           children: [
             SizedBox(
@@ -2785,6 +2997,19 @@ class _StickersEmojiSection extends StatelessWidget {
           isDark: isDark,
           onChanged: onLoopAnimatedStickersChanged,
         ),
+        const SizedBox(height: 4),
+        _StickerNavButton(
+          icon: Icons.sticky_note_2_outlined,
+          label: 'My Stickers',
+          isDark: isDark,
+          onTap: () => _showInstalledPacks(context, isDark, 'stickers'),
+        ),
+        _StickerNavButton(
+          icon: Icons.emoji_emotions_outlined,
+          label: 'Emoji Sets',
+          isDark: isDark,
+          onTap: () => _showInstalledPacks(context, isDark, 'emoji'),
+        ),
       ],
     );
   }
@@ -2858,6 +3083,96 @@ class _StickerCheckbox extends StatelessWidget {
   }
 }
 
+void _showInstalledPacks(BuildContext context, bool isDark, String type) {
+  final appState = context.read<AppState>();
+  final account = appState.activeAccount;
+  if (account == null) return;
+  final engine = context.read<EngineService>();
+  final bgColor = isDark ? const Color(0xFF17212B) : Colors.white;
+  final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+  final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+  final accentColor = context.palette.windowBgActive;
+  final title = type == 'stickers' ? 'My Stickers' : 'Emoji Sets';
+
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: bgColor,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+    ),
+    builder: (ctx) => DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.3,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (ctx, scrollController) => Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Text(title, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+                const Spacer(),
+                IconButton(
+                  icon: Icon(Icons.close, color: subtextColor),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: FutureBuilder<List<StickerPackSummary>>(
+              future: engine.getInstalledStickerPacks(account.id),
+              builder: (ctx, snap) {
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return Center(child: CircularProgressIndicator(color: accentColor));
+                }
+                final packs = snap.data ?? [];
+                if (packs.isEmpty) {
+                  return Center(
+                    child: Text('No ${type == 'stickers' ? 'sticker packs' : 'emoji sets'} installed',
+                      style: TextStyle(color: subtextColor)),
+                  );
+                }
+                return ListView.builder(
+                  controller: scrollController,
+                  itemCount: packs.length,
+                  itemBuilder: (ctx, i) {
+                    final pack = packs[i];
+                    return ListTile(
+                      leading: pack.stickers.isNotEmpty && pack.stickers.first.fileId.isNotEmpty
+                          ? Container(
+                              width: 40, height: 40,
+                              decoration: BoxDecoration(
+                                color: isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Center(child: Text(pack.stickers.first.emoji, style: const TextStyle(fontSize: 24))),
+                            )
+                          : Container(
+                              width: 40, height: 40,
+                              decoration: BoxDecoration(
+                                color: isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Icon(Icons.sticky_note_2, color: subtextColor),
+                            ),
+                      title: Text(pack.title, style: TextStyle(color: textColor, fontSize: 14)),
+                      subtitle: Text('${pack.count} ${type == 'stickers' ? 'stickers' : 'emoji'}',
+                        style: TextStyle(color: subtextColor, fontSize: 12)),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 class _StickerNavButton extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -2920,10 +3235,12 @@ class _MessagesSection extends StatelessWidget {
   final Color accentColor;
   final String sendBy;
   final String doubleClickAction;
+  final String doubleClickReaction;
   final bool showReplyButton;
   final bool showReactionButton;
   final ValueChanged<String> onSendByChanged;
   final ValueChanged<String> onDoubleClickActionChanged;
+  final ValueChanged<String> onDoubleClickReactionChanged;
   final ValueChanged<bool> onShowReplyButtonChanged;
   final ValueChanged<bool> onShowReactionButtonChanged;
 
@@ -2932,10 +3249,12 @@ class _MessagesSection extends StatelessWidget {
     required this.accentColor,
     required this.sendBy,
     required this.doubleClickAction,
+    required this.doubleClickReaction,
     required this.showReplyButton,
     required this.showReactionButton,
     required this.onSendByChanged,
     required this.onDoubleClickActionChanged,
+    required this.onDoubleClickReactionChanged,
     required this.onShowReplyButtonChanged,
     required this.onShowReactionButtonChanged,
   });
@@ -3008,10 +3327,10 @@ class _MessagesSection extends StatelessWidget {
           isDark: isDark,
           accentColor: accentColor,
           onChanged: onDoubleClickActionChanged,
-          trailing: Icon(
-            Icons.favorite,
-            size: 18,
-            color: const Color(0xFFE53935),
+          trailing: _ReactionChooserButton(
+            currentReaction: doubleClickReaction,
+            isDark: isDark,
+            onReactionSelected: onDoubleClickReactionChanged,
           ),
         ),
         const SizedBox(height: 4),
@@ -3147,6 +3466,90 @@ class _MessageCheckbox extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ReactionChooserButton extends StatelessWidget {
+  final String currentReaction;
+  final bool isDark;
+  final ValueChanged<String> onReactionSelected;
+
+  static const _defaultReactions = ['❤️', '👍', '👎', '🔥', '🎉', '😢', '💩', '👏', '😂', '🤔', '🤯', '😱'];
+
+  const _ReactionChooserButton({
+    required this.currentReaction,
+    required this.isDark,
+    required this.onReactionSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => _showReactionPicker(context),
+      child: Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1),
+        ),
+        alignment: Alignment.center,
+        child: Text(currentReaction, style: const TextStyle(fontSize: 16)),
+      ),
+    );
+  }
+
+  void _showReactionPicker(BuildContext context) {
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: bgColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Choose Reaction',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: textColor)),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _defaultReactions.map((emoji) {
+                  final isSelected = emoji == currentReaction;
+                  return GestureDetector(
+                    onTap: () {
+                      onReactionSelected(emoji);
+                      Navigator.pop(ctx);
+                    },
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isSelected
+                            ? (isDark ? const Color(0xFF2B5278) : const Color(0xFFE3F2FD))
+                            : (isDark ? const Color(0xFF232E3C) : const Color(0xFFF5F5F5)),
+                        border: isSelected
+                            ? Border.all(color: context.palette.windowBgActive, width: 2)
+                            : null,
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(emoji, style: const TextStyle(fontSize: 22)),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
         ),
       ),
     );
