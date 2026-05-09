@@ -17,7 +17,10 @@ class GroupCallPanel extends StatefulWidget {
   final bool isRecording;
   final bool isSelfMuted;
   final bool isForceMuted;
+  final bool isRaisedHand;
   final bool isRtmp;
+  final bool isCanManage;
+  final DateTime? callStartTime;
   final VoidCallback? onLeave;
   final VoidCallback? onToggleMute;
   final VoidCallback? onToggleVideo;
@@ -32,7 +35,10 @@ class GroupCallPanel extends StatefulWidget {
     this.isRecording = false,
     this.isSelfMuted = false,
     this.isForceMuted = false,
+    this.isRaisedHand = false,
     this.isRtmp = false,
+    this.isCanManage = false,
+    this.callStartTime,
     this.onLeave,
     this.onToggleMute,
     this.onToggleVideo,
@@ -44,7 +50,7 @@ class GroupCallPanel extends StatefulWidget {
   static const wideModeThreshold = 600.0;
   static const minWidth = 380.0;
   static const defaultWidth = 720.0;
-  static const defaultHeight = 540.0;
+  static const defaultHeight = 520.0;
   static const sidebarWidth = 260.0;
 
   @override
@@ -55,10 +61,14 @@ class _GroupCallPanelState extends State<GroupCallPanel>
     with TickerProviderStateMixin {
   Timer? _durationTimer;
   int _durationSeconds = 0;
+  late DateTime _callStartTime;
 
   @override
   void initState() {
     super.initState();
+    _callStartTime = widget.callStartTime ?? DateTime.now();
+    _durationSeconds = DateTime.now().difference(_callStartTime).inSeconds;
+    if (_durationSeconds < 0) _durationSeconds = 0;
     _startDurationTimer();
   }
 
@@ -71,7 +81,13 @@ class _GroupCallPanelState extends State<GroupCallPanel>
   void _startDurationTimer() {
     _durationTimer?.cancel();
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _durationSeconds++);
+      if (mounted) {
+        setState(() {
+          _durationSeconds =
+              DateTime.now().difference(_callStartTime).inSeconds;
+          if (_durationSeconds < 0) _durationSeconds = 0;
+        });
+      }
     });
   }
 
@@ -82,7 +98,9 @@ class _GroupCallPanelState extends State<GroupCallPanel>
   }
 
   MuteButtonState get _muteState {
-    if (widget.isForceMuted) return MuteButtonState.forceMuted;
+    if (widget.isForceMuted || widget.isRaisedHand) {
+      return MuteButtonState.forceMuted;
+    }
     if (widget.isSelfMuted) return MuteButtonState.muted;
     return MuteButtonState.unmuted;
   }
@@ -143,7 +161,7 @@ class _GroupCallPanelState extends State<GroupCallPanel>
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '$count participant${count == 1 ? '' : 's'}',
+                  '$count participant${count == 1 ? '' : 's'} · ${_formatDuration(_durationSeconds)}',
                   style: const TextStyle(
                     color: Color(0xAAFFFFFF),
                     fontSize: 13,
@@ -633,7 +651,8 @@ class _BlobPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_BlobPainter old) => true;
+  bool shouldRepaint(_BlobPainter old) =>
+      old.level != level || old.radius != radius || old.color != color;
 }
 
 class _RecordingDot extends StatefulWidget {
@@ -666,7 +685,7 @@ class _RecordingDotState extends State<_RecordingDot>
       animation: _controller,
       builder: (context, child) {
         return Opacity(
-          opacity: 0.3 + 0.7 * _controller.value,
+          opacity: 0.6 + 0.4 * _controller.value,
           child: Container(
             width: 6,
             height: 6,
@@ -714,10 +733,10 @@ class _BigMuteButtonState extends State<_BigMuteButton>
     with SingleTickerProviderStateMixin {
   static const _circleSize = 42.0;
   static const _iconSize = 36.0;
-  static const _blobMinRadius = 28.0;
-  static const _blobMaxRadius = 33.0;
-  static const _minorScale = 0.545;
-  static const _majorScale = 0.605;
+  static const _minorBlobMinRadius = 64.0;
+  static const _minorBlobMaxRadius = 74.0;
+  static const _majorBlobMinRadius = 67.0;
+  static const _majorBlobMaxRadius = 77.0;
   static const _pulsePeriodMs = 430;
 
   static const _greenColor = Color(0xFF4DC920);
@@ -790,15 +809,51 @@ class _BigMuteButtonState extends State<_BigMuteButton>
     super.dispose();
   }
 
+  void _handleTap(BuildContext context) {
+    if (widget.state == MuteButtonState.forceMuted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You are muted by an admin'),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    widget.onTap?.call();
+  }
+
+  String get _label {
+    switch (widget.state) {
+      case MuteButtonState.unmuted:
+        return 'Mute';
+      case MuteButtonState.muted:
+        return 'Unmute';
+      case MuteButtonState.forceMuted:
+        return 'Raise Hand';
+    }
+  }
+
+  IconData get _icon {
+    switch (widget.state) {
+      case MuteButtonState.unmuted:
+        return Icons.mic;
+      case MuteButtonState.muted:
+        return Icons.mic_off;
+      case MuteButtonState.forceMuted:
+        return Icons.back_hand_outlined;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final color = _stateColor;
-    final blobSize = _blobMaxRadius * 2 + 8;
+    final blobSize = _majorBlobMaxRadius * 2 + 8;
     final level = _pulseLevel;
     final showBlob = widget.state == MuteButtonState.unmuted && level > 0.001;
 
     return GestureDetector(
-      onTap: widget.onTap,
+      onTap: () => _handleTap(context),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -811,13 +866,13 @@ class _BigMuteButtonState extends State<_BigMuteButton>
                 if (showBlob)
                   CustomPaint(
                     size: Size(blobSize, blobSize),
-                    painter: _BlobPainter(
+                    painter: _BigMuteBlobPainter(
                       majorBlob: _majorBlob,
                       minorBlob: _minorBlob,
-                      radius: _blobMinRadius +
-                          (_blobMaxRadius - _blobMinRadius) * level,
-                      majorScale: _majorScale,
-                      minorScale: _minorScale,
+                      minorRadius: _minorBlobMinRadius +
+                          (_minorBlobMaxRadius - _minorBlobMinRadius) * level,
+                      majorRadius: _majorBlobMinRadius +
+                          (_majorBlobMaxRadius - _majorBlobMinRadius) * level,
                       color: color,
                       level: level,
                     ),
@@ -833,9 +888,7 @@ class _BigMuteButtonState extends State<_BigMuteButton>
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 200),
                     child: Icon(
-                      widget.state == MuteButtonState.unmuted
-                          ? Icons.mic
-                          : Icons.mic_off,
+                      _icon,
                       key: ValueKey(widget.state),
                       color: Colors.white,
                       size: _iconSize,
@@ -849,8 +902,8 @@ class _BigMuteButtonState extends State<_BigMuteButton>
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 200),
             child: Text(
-              widget.state == MuteButtonState.unmuted ? 'Mute' : 'Unmute',
-              key: ValueKey(widget.state == MuteButtonState.unmuted),
+              _label,
+              key: ValueKey(widget.state),
               style: const TextStyle(color: Color(0xAAFFFFFF), fontSize: 11),
             ),
           ),
@@ -858,6 +911,70 @@ class _BigMuteButtonState extends State<_BigMuteButton>
       ),
     );
   }
+}
+
+class _BigMuteBlobPainter extends CustomPainter {
+  final _BlobState majorBlob;
+  final _BlobState minorBlob;
+  final double minorRadius;
+  final double majorRadius;
+  final Color color;
+  final double level;
+
+  _BigMuteBlobPainter({
+    required this.majorBlob,
+    required this.minorBlob,
+    required this.minorRadius,
+    required this.majorRadius,
+    required this.color,
+    required this.level,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (level < 0.001) return;
+
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final alpha = (level * 180).round().clamp(0, 180);
+
+    final majorPaint = Paint()
+      ..color = color.withAlpha(alpha ~/ 2)
+      ..style = PaintingStyle.fill;
+    final majorVerts = majorBlob.getVertices(majorRadius, cx, cy);
+    canvas.drawPath(_smoothPath(majorVerts), majorPaint);
+
+    final minorPaint = Paint()
+      ..color = color.withAlpha(alpha)
+      ..style = PaintingStyle.fill;
+    final minorVerts = minorBlob.getVertices(minorRadius, cx, cy);
+    canvas.drawPath(_smoothPath(minorVerts), minorPaint);
+  }
+
+  Path _smoothPath(List<Offset> points) {
+    if (points.length < 3) return Path();
+    final path = Path();
+    final n = points.length;
+    path.moveTo(
+      (points[n - 1].dx + points[0].dx) / 2,
+      (points[n - 1].dy + points[0].dy) / 2,
+    );
+    for (var i = 0; i < n; i++) {
+      final next = (i + 1) % n;
+      final midX = (points[i].dx + points[next].dx) / 2;
+      final midY = (points[i].dy + points[next].dy) / 2;
+      path.quadraticBezierTo(points[i].dx, points[i].dy, midX, midY);
+    }
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldRepaint(_BigMuteBlobPainter old) =>
+      old.level != level ||
+      old.minorRadius != minorRadius ||
+      old.majorRadius != majorRadius ||
+      old.color != color;
 }
 
 class _GroupCallControlButton extends StatelessWidget {
@@ -930,17 +1047,28 @@ class _GroupCallActionButton extends StatelessWidget {
   }
 }
 
-void showGroupCallPanel(BuildContext context, GroupCallInfo info,
-    {String chatTitle = '',
-    bool isRecording = false,
-    bool isSelfMuted = false,
-    bool isForceMuted = false,
-    Widget? videoViewport}) {
+void showGroupCallPanel(
+  BuildContext context,
+  GroupCallInfo info, {
+  String chatTitle = '',
+  bool isRecording = false,
+  bool isSelfMuted = false,
+  bool isForceMuted = false,
+  bool isRaisedHand = false,
+  bool isCanManage = false,
+  DateTime? callStartTime,
+  VoidCallback? onToggleMute,
+  VoidCallback? onToggleVideo,
+  Widget? videoViewport,
+}) {
   showDialog(
     context: context,
     barrierDismissible: false,
     barrierColor: Colors.black54,
     builder: (ctx) {
+      var selfMuted = isSelfMuted;
+      var forceMuted = isForceMuted;
+      var raisedHand = isRaisedHand;
       final mq = MediaQuery.of(ctx);
       final screenW = mq.size.width;
       final screenH = mq.size.height;
@@ -952,18 +1080,127 @@ void showGroupCallPanel(BuildContext context, GroupCallInfo info,
           height: h,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: GroupCallPanel(
-              info: info,
-              chatTitle: chatTitle,
-              isRecording: isRecording,
-              isSelfMuted: isSelfMuted,
-              isForceMuted: isForceMuted,
-              videoViewport: videoViewport,
-              onLeave: () => Navigator.of(ctx).pop(),
-              onToggleScreenShare: () => showScreenShareChooser(ctx),
+            child: StatefulBuilder(
+              builder: (sbCtx, setSbState) {
+                return GroupCallPanel(
+                  info: info,
+                  chatTitle: chatTitle,
+                  isRecording: isRecording,
+                  isSelfMuted: selfMuted,
+                  isForceMuted: forceMuted,
+                  isRaisedHand: raisedHand,
+                  isCanManage: isCanManage,
+                  callStartTime: callStartTime,
+                  videoViewport: videoViewport,
+                  onLeave: () {
+                    if (isCanManage) {
+                      _showLeaveOrEndDialog(ctx, () {
+                        Navigator.of(ctx).pop();
+                      });
+                    } else {
+                      Navigator.of(ctx).pop();
+                    }
+                  },
+                  onToggleMute: () {
+                    if (forceMuted && !raisedHand) {
+                      setSbState(() => raisedHand = true);
+                    } else if (!forceMuted) {
+                      setSbState(() => selfMuted = !selfMuted);
+                    }
+                    onToggleMute?.call();
+                  },
+                  onToggleVideo: onToggleVideo,
+                  onToggleScreenShare: () async {
+                    final source = await showScreenShareChooser(ctx);
+                    if (source != null) {
+                      debugPrint(
+                          'ENGINE: Screen share selected: ${source.id} (${source.name})');
+                    }
+                  },
+                  onOpenMenu: () {
+                    _showGroupCallMenu(ctx);
+                  },
+                );
+              },
             ),
           ),
         ),
+      );
+    },
+  );
+}
+
+void _showGroupCallMenu(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: const Color(0xFF1E2530),
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+    ),
+    builder: (ctx) {
+      return SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.volume_up, color: Colors.white70),
+              title: const Text('Sound', style: TextStyle(color: Colors.white)),
+              onTap: () => Navigator.pop(ctx),
+            ),
+            ListTile(
+              leading:
+                  const Icon(Icons.person_add, color: Colors.white70),
+              title: const Text('Invite members',
+                  style: TextStyle(color: Colors.white)),
+              onTap: () => Navigator.pop(ctx),
+            ),
+            ListTile(
+              leading:
+                  const Icon(Icons.settings, color: Colors.white70),
+              title: const Text('Settings',
+                  style: TextStyle(color: Colors.white)),
+              onTap: () => Navigator.pop(ctx),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+void _showLeaveOrEndDialog(BuildContext context, VoidCallback onLeave) {
+  showDialog(
+    context: context,
+    builder: (ctx) {
+      return AlertDialog(
+        backgroundColor: const Color(0xFF1E2530),
+        title: const Text('Leave voice chat',
+            style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'Do you want to leave the voice chat or end it for everyone?',
+          style: TextStyle(color: Color(0xCCFFFFFF)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              onLeave();
+            },
+            child: const Text('Leave'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              onLeave();
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('End for all'),
+          ),
+        ],
       );
     },
   );
@@ -980,9 +1217,12 @@ class MinimisedCallBar extends StatefulWidget {
   final List<GroupCallParticipant> participants;
   final bool isSelfMuted;
   final bool isForceMuted;
+  final bool isRaisedHand;
   final bool isConnecting;
+  final bool isCanManage;
   final int signalQuality;
   final DateTime? callStartTime;
+  final double audioLevel;
   final VoidCallback? onToggleMute;
   final VoidCallback? onHangup;
   final VoidCallback? onTap;
@@ -995,9 +1235,12 @@ class MinimisedCallBar extends StatefulWidget {
     this.participants = const [],
     this.isSelfMuted = false,
     this.isForceMuted = false,
+    this.isRaisedHand = false,
     this.isConnecting = false,
+    this.isCanManage = false,
     this.signalQuality = 4,
     this.callStartTime,
+    this.audioLevel = 0.0,
     this.onToggleMute,
     this.onHangup,
     this.onTap,
@@ -1081,7 +1324,9 @@ class _MinimisedCallBarState extends State<MinimisedCallBar>
     if (widget.isPersonalCall) {
       return (widget.isSelfMuted) ? _CallBarState.muted : _CallBarState.active;
     }
-    if (widget.isForceMuted) return _CallBarState.forceMuted;
+    if (widget.isForceMuted || widget.isRaisedHand) {
+      return _CallBarState.forceMuted;
+    }
     if (widget.isSelfMuted) return _CallBarState.muted;
     return _CallBarState.active;
   }
@@ -1125,29 +1370,33 @@ class _MinimisedCallBarState extends State<MinimisedCallBar>
   @override
   Widget build(BuildContext context) {
     final isPersonal = widget.isPersonalCall;
+    final showBlobs = !isPersonal && !widget.isConnecting;
 
-    return AnimatedBuilder(
-      animation: _gradientAnim,
-      builder: (context, child) {
-        final fromColors = _gradientColors(_fromState, isPersonal);
-        final toColors = _gradientColors(_toState, isPersonal);
-        final t = Curves.easeInOut.transform(_gradientAnim.value);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AnimatedBuilder(
+          animation: _gradientAnim,
+          builder: (context, child) {
+            final fromColors = _gradientColors(_fromState, isPersonal);
+            final toColors = _gradientColors(_toState, isPersonal);
+            final t = Curves.easeInOut.transform(_gradientAnim.value);
 
-        final maxLen = math.max(fromColors.length, toColors.length);
-        final interpolated = List.generate(maxLen, (i) {
-          final fc = fromColors[i.clamp(0, fromColors.length - 1)];
-          final tc = toColors[i.clamp(0, toColors.length - 1)];
-          return Color.lerp(fc, tc, t)!;
-        });
+            final maxLen = math.max(fromColors.length, toColors.length);
+            final interpolated = List.generate(maxLen, (i) {
+              final fc = fromColors[i.clamp(0, fromColors.length - 1)];
+              final tc = toColors[i.clamp(0, toColors.length - 1)];
+              return Color.lerp(fc, tc, t)!;
+            });
 
-        return Container(
-          height: MinimisedCallBar.height,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(colors: interpolated),
-          ),
-          child: child,
-        );
-      },
+            return Container(
+              height: MinimisedCallBar.height,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: interpolated),
+              ),
+              child: child,
+            );
+          },
       child: Material(
         color: Colors.transparent,
         child: Stack(
@@ -1232,15 +1481,139 @@ class _MinimisedCallBarState extends State<MinimisedCallBar>
                   ),
                   const SizedBox(width: 10),
                 ],
-                _CallBarHangupButton(onTap: widget.onHangup),
+                _CallBarHangupButton(
+                  onTap: widget.onHangup,
+                  isCanManage: widget.isCanManage,
+                ),
                 const SizedBox(width: 12),
               ],
             ),
           ],
         ),
       ),
+    ),
+    if (showBlobs)
+      _LinearBlobsBar(level: widget.audioLevel),
+    ],
     );
   }
+}
+
+class _LinearBlobsBar extends StatefulWidget {
+  final double level;
+
+  const _LinearBlobsBar({this.level = 0.0});
+
+  static const _height = 3.0;
+  static const _blobCount = 3;
+  static const _segments = [5, 7, 8];
+
+  @override
+  State<_LinearBlobsBar> createState() => _LinearBlobsBarState();
+}
+
+class _LinearBlobsBarState extends State<_LinearBlobsBar>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ticker;
+  late List<List<double>> _blobRadii;
+  late List<List<double>> _blobTargets;
+  final _rng = math.Random(42);
+
+  @override
+  void initState() {
+    super.initState();
+    _blobRadii = List.generate(
+      _LinearBlobsBar._blobCount,
+      (b) => List.generate(
+        _LinearBlobsBar._segments[b],
+        (_) => 0.8 + _rng.nextDouble() * 0.4,
+      ),
+    );
+    _blobTargets = List.generate(
+      _LinearBlobsBar._blobCount,
+      (b) => List.generate(
+        _LinearBlobsBar._segments[b],
+        (_) => 0.8 + _rng.nextDouble() * 0.4,
+      ),
+    );
+    _ticker = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    )..addListener(_onTick);
+    _ticker.repeat();
+  }
+
+  void _onTick() {
+    for (var b = 0; b < _LinearBlobsBar._blobCount; b++) {
+      for (var i = 0; i < _LinearBlobsBar._segments[b]; i++) {
+        _blobRadii[b][i] += (_blobTargets[b][i] - _blobRadii[b][i]) * 0.1;
+        if ((_blobRadii[b][i] - _blobTargets[b][i]).abs() < 0.01) {
+          _blobTargets[b][i] = 0.7 + _rng.nextDouble() * 0.6;
+        }
+      }
+    }
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: const Size(double.infinity, _LinearBlobsBar._height),
+      painter: _LinearBlobsPainter(
+        blobRadii: _blobRadii,
+        level: widget.level,
+      ),
+    );
+  }
+}
+
+class _LinearBlobsPainter extends CustomPainter {
+  final List<List<double>> blobRadii;
+  final double level;
+
+  _LinearBlobsPainter({required this.blobRadii, required this.level});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final colors = [
+      const Color(0xFF52CE5B).withAlpha(60),
+      const Color(0xFF00B151).withAlpha(40),
+      const Color(0xFF4DC920).withAlpha(30),
+    ];
+
+    for (var b = 0; b < blobRadii.length; b++) {
+      final segments = blobRadii[b];
+      final segW = size.width / segments.length;
+      final paint = Paint()
+        ..color = colors[b]
+        ..style = PaintingStyle.fill;
+
+      final path = Path();
+      path.moveTo(0, size.height);
+
+      for (var i = 0; i < segments.length; i++) {
+        final x = (i + 0.5) * segW;
+        final h = size.height * segments[i] * (0.3 + level * 0.7);
+        final y = size.height - h.clamp(0.0, size.height);
+        if (i == 0) {
+          path.lineTo(0, y);
+        }
+        path.lineTo(x, y);
+      }
+      path.lineTo(size.width, size.height);
+      path.close();
+      canvas.drawPath(path, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_LinearBlobsPainter old) => true;
 }
 
 class _CallBarMuteButton extends StatelessWidget {
@@ -1256,13 +1629,27 @@ class _CallBarMuteButton extends StatelessWidget {
     this.onTap,
   });
 
+  void _handleTap(BuildContext context) {
+    if (isForceMuted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You are muted by an admin'),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    onTap?.call();
+  }
+
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       width: 41,
       height: 38,
       child: InkWell(
-        onTap: isForceMuted ? null : onTap,
+        onTap: () => _handleTap(context),
         borderRadius: BorderRadius.circular(16),
         splashColor: Colors.white24,
         child: AnimatedBuilder(
@@ -1495,8 +1882,17 @@ class _ParticipantAvatar extends StatelessWidget {
 
 class _CallBarHangupButton extends StatelessWidget {
   final VoidCallback? onTap;
+  final bool isCanManage;
 
-  const _CallBarHangupButton({this.onTap});
+  const _CallBarHangupButton({this.onTap, this.isCanManage = false});
+
+  void _handleTap(BuildContext context) {
+    if (isCanManage) {
+      _showLeaveOrEndDialog(context, () => onTap?.call());
+    } else {
+      onTap?.call();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1504,7 +1900,7 @@ class _CallBarHangupButton extends StatelessWidget {
       width: 41,
       height: 38,
       child: InkWell(
-        onTap: onTap,
+        onTap: () => _handleTap(context),
         borderRadius: BorderRadius.circular(16),
         splashColor: Colors.white24,
         child: const Center(
