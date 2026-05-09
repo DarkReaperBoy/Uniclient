@@ -464,13 +464,6 @@ All these controls exist in AppState but are not exposed in the UI.
 
 # call_screen — Group call panel, minimised call bar, screen-share chooser
 
-- [ ] [CRITICAL] `showGroupCallPanel` passes `onToggleMute`, `onToggleVideo`, `onOpenMenu` as `null` — all three callbacks are unset, so the mute button, video button, and menu button in the panel do nothing — `call_screen.dart:933-970` ← `calls/group/calls_group_panel.cpp:573-601` (mute), `:755` (video), `:535` (hangup wiring)
-
-- [ ] [CRITICAL] Screen-share result is never forwarded to the engine — `showGroupCallPanel` calls `showScreenShareChooser(ctx)` without `await` and discards the returned `ScreenShareSource?`; no FFI bridge call for `toggleScreenSharing` is ever made — `call_screen.dart:963` ← `calls/group/calls_group_panel.cpp:367-374` (`_call->toggleScreenSharing(deviceId, withAudio)`)
-
-- [ ] [CRITICAL] Desktop-capture enumeration uses ad-hoc shell commands instead of tgcalls `DesktopCaptureSourceManager` — Dart calls `xrandr`, `wmctrl`, `kdotool` via `Process.run`; AyuGram calls `tgcalls::DesktopCaptureSourceManager(Type::Screen)` and `tgcalls::DesktopCaptureSourceManager(Type::Window)` — `call_screen.dart:1591-1693` ← `calls/group/ui/desktop_capture_choose_source.cpp:451-504`
-
-- [ ] [CRITICAL] Screen-share thumbnails are static file paths, not live video frames — AyuGram creates a `tgcalls::DesktopCaptureSourceHelper` + `Webrtc::VideoTrack` per source and renders the live first frame; Dart shows a `FileImage(thumbnailPath)` or a placeholder icon with no live capture — `call_screen.dart:2000-2016` ← `calls/group/ui/desktop_capture_choose_source.cpp:133-246`
 
 # calls_screen — Audit Findings
 
