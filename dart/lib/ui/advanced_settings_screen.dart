@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../theme/telegram_palette.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../state/app_state.dart';
 import 'chat_export.dart';
@@ -243,7 +244,25 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
           child: SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: () => exit(0),
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Update UniClient'),
+                    content: const Text('The app will close to apply the update. You will need to restart it manually.'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        child: const Text('Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: () => exit(0),
+                        child: const Text('Close and Update'),
+                      ),
+                    ],
+                  ),
+                );
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: accentColor,
                 foregroundColor: Colors.white,
@@ -529,7 +548,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     final hoverBg =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
-    const labels = ['Run in background', 'Close to the taskbar', 'Quit Telegram'];
+    const labels = ['Run in background', 'Close to the taskbar', 'Quit'];
     return [
       for (var i = 0; i < labels.length; i++)
         _AdvancedRadioRow(
@@ -1332,6 +1351,34 @@ class _AutoDownloadBoxState extends State<_AutoDownloadBox> {
   bool _gifs = true;
   double _autoPlayLimit = 50;
 
+  @override
+  void initState() {
+    super.initState();
+    final appState = context.read<AppState>();
+    final settings = appState.getAutoDownloadForSource(widget.source);
+    _photos = settings['photos'] as bool? ?? true;
+    _files = settings['files'] as bool? ?? false;
+    _downloadLimit = (settings['downloadLimit'] as num?)?.toDouble() ?? 10;
+    _videoMessages = settings['videoMessages'] as bool? ?? true;
+    _videos = settings['videos'] as bool? ?? true;
+    _gifs = settings['gifs'] as bool? ?? true;
+    _autoPlayLimit = (settings['autoPlayLimit'] as num?)?.toDouble() ?? 50;
+  }
+
+  void _save() {
+    final appState = context.read<AppState>();
+    appState.setAutoDownloadSettings(widget.source, {
+      'photos': _photos,
+      'files': _files,
+      'downloadLimit': _downloadLimit,
+      'videoMessages': _videoMessages,
+      'videos': _videos,
+      'gifs': _gifs,
+      'autoPlayLimit': _autoPlayLimit,
+    });
+    Navigator.of(context).pop();
+  }
+
   static const _sizeSteps = <double>[
     0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500,
     1024, 1536, 2048, 3072, 4096, 5120, 7168, 8192,
@@ -1459,7 +1506,7 @@ class _AutoDownloadBoxState extends State<_AutoDownloadBox> {
                   ),
                   const SizedBox(width: 8),
                   TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: _save,
                     child: Text('Save',
                         style: TextStyle(color: accentColor, fontSize: 14)),
                   ),
@@ -1549,6 +1596,7 @@ class _LocalStorageBoxState extends State<_LocalStorageBox> {
   int _totalSizeIdx = 9;
   int _mediaSizeIdx = 8;
   int _timeLimitIdx = 15;
+  bool _scanning = true;
 
   static const _totalSizeSteps = <int>[
     200, 500, 1024, 2048, 3072, 4096, 5120, 6144,
@@ -1572,7 +1620,134 @@ class _LocalStorageBoxState extends State<_LocalStorageBox> {
     'Video Messages', 'Animations', 'Media Cache',
   ];
 
+  static const _imageExts = {'.jpg', '.jpeg', '.png', '.webp', '.bmp'};
+  static const _stickerExts = {'.tgs', '.webm'};
+  static const _voiceExts = {'.ogg', '.oga'};
+  static const _videoMsgExts = {'.mp4'};
+  static const _animExts = {'.gif', '.lottie'};
+
   final _tagSizes = List<int>.filled(6, 0);
+
+  @override
+  void initState() {
+    super.initState();
+    final appState = context.read<AppState>();
+    _totalSizeIdx = _findClosestIdx(_totalSizeSteps, appState.localStorageTotalLimit);
+    _mediaSizeIdx = _findClosestIdx(_mediaSizeSteps, appState.localStorageMediaLimit);
+    _timeLimitIdx = appState.localStorageTimeLimit.clamp(0, _timeLimitLabels.length - 1);
+    _scanCacheDir();
+  }
+
+  int _findClosestIdx(List<int> steps, int value) {
+    for (var i = 0; i < steps.length; i++) {
+      if (steps[i] >= value || steps[i] == 0) return i;
+    }
+    return steps.length - 1;
+  }
+
+  Future<void> _scanCacheDir() async {
+    final cacheDir = context.read<AppState>().cacheDir;
+    if (cacheDir.isEmpty) {
+      if (mounted) setState(() => _scanning = false);
+      return;
+    }
+    final dir = Directory(cacheDir);
+    if (!await dir.exists()) {
+      if (mounted) setState(() => _scanning = false);
+      return;
+    }
+    final sizes = List<int>.filled(6, 0);
+    try {
+      await for (final entity in dir.list(recursive: true)) {
+        if (entity is! File) continue;
+        final size = await entity.length();
+        final ext = entity.path.split('.').last.toLowerCase();
+        final dotExt = '.$ext';
+        if (_imageExts.contains(dotExt)) {
+          sizes[0] += size;
+        } else if (_stickerExts.contains(dotExt)) {
+          sizes[1] += size;
+        } else if (_voiceExts.contains(dotExt)) {
+          sizes[2] += size;
+        } else if (_videoMsgExts.contains(dotExt) && entity.path.contains('video_message')) {
+          sizes[3] += size;
+        } else if (_animExts.contains(dotExt)) {
+          sizes[4] += size;
+        } else {
+          sizes[5] += size;
+        }
+      }
+    } catch (_) {}
+    if (!mounted) return;
+    setState(() {
+      for (var i = 0; i < 6; i++) _tagSizes[i] = sizes[i];
+      _scanning = false;
+    });
+  }
+
+  void _clearTag(int tagIdx) async {
+    final cacheDir = context.read<AppState>().cacheDir;
+    if (cacheDir.isEmpty) return;
+    final dir = Directory(cacheDir);
+    if (!await dir.exists()) return;
+
+    final extsForTag = switch (tagIdx) {
+      0 => _imageExts,
+      1 => _stickerExts,
+      2 => _voiceExts,
+      3 => _videoMsgExts,
+      4 => _animExts,
+      _ => <String>{},
+    };
+
+    try {
+      await for (final entity in dir.list(recursive: true)) {
+        if (entity is! File) continue;
+        final ext = '.${entity.path.split('.').last.toLowerCase()}';
+        if (tagIdx == 5) {
+          if (!_imageExts.contains(ext) && !_stickerExts.contains(ext) &&
+              !_voiceExts.contains(ext) && !_animExts.contains(ext) &&
+              !(ext == '.mp4' && entity.path.contains('video_message'))) {
+            await entity.delete();
+          }
+        } else if (tagIdx == 3) {
+          if (ext == '.mp4' && entity.path.contains('video_message')) {
+            await entity.delete();
+          }
+        } else if (extsForTag.contains(ext)) {
+          await entity.delete();
+        }
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _tagSizes[tagIdx] = 0);
+  }
+
+  void _clearAll() async {
+    final cacheDir = context.read<AppState>().cacheDir;
+    if (cacheDir.isEmpty) return;
+    final dir = Directory(cacheDir);
+    if (!await dir.exists()) return;
+    try {
+      await for (final entity in dir.list(recursive: true)) {
+        if (entity is File) await entity.delete();
+      }
+    } catch (_) {}
+    if (mounted) {
+      setState(() {
+        for (var i = 0; i < _tagSizes.length; i++) _tagSizes[i] = 0;
+      });
+    }
+  }
+
+  void _saveAndClose() {
+    final appState = context.read<AppState>();
+    appState.setLocalStorageLimits(
+      totalLimit: _totalSizeSteps[_totalSizeIdx],
+      mediaLimit: _mediaSizeSteps[_mediaSizeIdx],
+      timeLimit: _timeLimitIdx,
+    );
+    Navigator.of(context).pop();
+  }
 
   String _formatMb(int mb) {
     if (mb == 0) return '∞';
@@ -1693,6 +1868,11 @@ class _LocalStorageBoxState extends State<_LocalStorageBox> {
             const SizedBox(height: 4),
             for (var i = 0; i < _tagNames.length; i++)
               _tagRow(i, textColor, subtextColor, clearColor),
+            if (_scanning)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+              ),
             const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.fromLTRB(22, 0, 22, 16),
@@ -1700,7 +1880,7 @@ class _LocalStorageBoxState extends State<_LocalStorageBox> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: _saveAndClose,
                     child: Text('OK',
                         style: TextStyle(color: accentColor, fontSize: 14)),
                   ),
@@ -1733,15 +1913,7 @@ class _LocalStorageBoxState extends State<_LocalStorageBox> {
               ),
             ),
             TextButton(
-              onPressed: _totalDataSize > 0
-                  ? () {
-                      setState(() {
-                        for (var i = 0; i < _tagSizes.length; i++) {
-                          _tagSizes[i] = 0;
-                        }
-                      });
-                    }
-                  : null,
+              onPressed: _totalDataSize > 0 ? _clearAll : null,
               child: Text('Clear All',
                   style: TextStyle(
                     fontSize: 13,
@@ -1821,7 +1993,7 @@ class _LocalStorageBoxState extends State<_LocalStorageBox> {
               const SizedBox(width: 8),
               InkWell(
                 borderRadius: BorderRadius.circular(4),
-                onTap: () => setState(() => _tagSizes[tagIdx] = 0),
+                onTap: () => _clearTag(tagIdx),
                 child: Padding(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -2201,6 +2373,25 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
     super.initState();
     final appState = context.read<AppState>();
     _mode = _ProxyMode.values[appState.proxyMode.clamp(0, 2)];
+    _ipv6 = appState.proxyIpv6;
+    _proxyForCalls = appState.proxyForCalls;
+    for (final m in appState.proxyList) {
+      _proxies.add(_ProxyEntry(
+        type: _ProxyType.values.firstWhere(
+          (t) => t.name == (m['type'] as String? ?? 'socks5'),
+          orElse: () => _ProxyType.socks5,
+        ),
+        host: m['host'] as String? ?? '',
+        port: m['port'] as int? ?? 0,
+        username: m['username'] as String? ?? '',
+        password: m['password'] as String? ?? '',
+        secret: m['secret'] as String? ?? '',
+      ));
+    }
+    if (_proxies.isNotEmpty && _mode == _ProxyMode.custom) {
+      _selectedIndex = 0;
+    }
+    _checkAllProxies();
   }
 
   void _syncToAppState() {
@@ -2211,6 +2402,52 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
         ? _proxies[_selectedIndex].typeLabel
         : '';
     appState.setProxyMode(_mode.index, proxyType);
+    appState.setProxyIpv6(_ipv6);
+    appState.setProxyForCalls(_proxyForCalls);
+    appState.setProxyList(_proxies
+        .where((p) => !p.deleted)
+        .map((p) => {
+              'type': p.type.name,
+              'host': p.host,
+              'port': p.port,
+              'username': p.username,
+              'password': p.password,
+              'secret': p.secret,
+            })
+        .toList());
+  }
+
+  Future<void> _checkAllProxies() async {
+    for (var i = 0; i < _proxies.length; i++) {
+      if (_proxies[i].deleted) continue;
+      _checkProxy(i);
+    }
+  }
+
+  Future<void> _checkProxy(int index) async {
+    if (index < 0 || index >= _proxies.length) return;
+    final proxy = _proxies[index];
+    final sw = Stopwatch()..start();
+    try {
+      final socket = await Socket.connect(
+        proxy.host,
+        proxy.port,
+        timeout: const Duration(seconds: 5),
+      );
+      sw.stop();
+      socket.destroy();
+      if (!mounted) return;
+      setState(() {
+        proxy.status = _ProxyStatus.available;
+        proxy.pingMs = sw.elapsedMilliseconds;
+      });
+    } on SocketException {
+      if (!mounted) return;
+      setState(() => proxy.status = _ProxyStatus.unavailable);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => proxy.status = _ProxyStatus.unavailable);
+    }
   }
 
   @override
@@ -2317,7 +2554,10 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
 
             // IPv6 checkbox
             InkWell(
-              onTap: () => setState(() => _ipv6 = !_ipv6),
+              onTap: () {
+                setState(() => _ipv6 = !_ipv6);
+                _syncToAppState();
+              },
               hoverColor: hoverBg,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(22, 8, 22, 5),
@@ -2328,7 +2568,10 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
                       height: 22,
                       child: Checkbox(
                         value: _ipv6,
-                        onChanged: (v) => setState(() => _ipv6 = v ?? false),
+                        onChanged: (v) {
+                          setState(() => _ipv6 = v ?? false);
+                          _syncToAppState();
+                        },
                         activeColor: accentColor,
                         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         visualDensity: VisualDensity.compact,
@@ -2360,8 +2603,10 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
               curve: Curves.easeOutCubic,
               child: showCallsToggle
                   ? InkWell(
-                      onTap: () =>
-                          setState(() => _proxyForCalls = !_proxyForCalls),
+                      onTap: () {
+                          setState(() => _proxyForCalls = !_proxyForCalls);
+                          _syncToAppState();
+                        },
                       hoverColor: hoverBg,
                       child: Padding(
                         padding: SettingsStyle.noIconPadding,
@@ -2376,8 +2621,10 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
                             ),
                             Switch(
                               value: _proxyForCalls,
-                              onChanged: (v) =>
-                                  setState(() => _proxyForCalls = v),
+                              onChanged: (v) {
+                                  setState(() => _proxyForCalls = v);
+                                  _syncToAppState();
+                              },
                               activeColor: accentColor,
                               materialTapTargetSize:
                                   MaterialTapTargetSize.shrinkWrap,
@@ -2694,8 +2941,10 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
         _showQrDialog(p);
       case 'delete':
         setState(() => _proxies[index].deleted = true);
+        _syncToAppState();
       case 'restore':
         setState(() => _proxies[index].deleted = false);
+        _syncToAppState();
     }
   }
 
@@ -2728,8 +2977,13 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Center(
-                  child: Icon(Icons.qr_code, size: 120, color: Colors.black54),
+                child: Center(
+                  child: QrImageView(
+                    data: url,
+                    version: QrVersions.auto,
+                    size: 160,
+                    backgroundColor: Colors.white,
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -2770,6 +3024,7 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
         _mode = _ProxyMode.custom;
       });
       _syncToAppState();
+      _checkProxy(_proxies.length - 1);
     }
   }
 
@@ -2780,6 +3035,8 @@ class _ProxiesBoxState extends State<_ProxiesBox> {
     );
     if (result != null && mounted) {
       setState(() => _proxies[index] = result);
+      _syncToAppState();
+      _checkProxy(index);
     }
   }
 

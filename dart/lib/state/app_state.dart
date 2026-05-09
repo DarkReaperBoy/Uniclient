@@ -162,6 +162,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _askDownloadPath = false;
   int _proxyMode = 0; // 0=disabled, 1=system, 2=custom
   String _selectedProxyType = ''; // e.g. 'SOCKS5', 'HTTP', 'MTPROTO'
+  bool _proxyIpv6 = false;
+  bool _proxyForCalls = false;
+  List<Map<String, dynamic>> _proxyList = [];
+  Map<String, Map<String, dynamic>> _autoDownloadSettings = {};
+  String _cacheDir = '';
+  int _localStorageTotalLimit = 8192; // MB
+  int _localStorageMediaLimit = 4096; // MB
+  int _localStorageTimeLimit = 15; // index into time labels
   List<Map<String, dynamic>> _recentDownloads = [];
   Map<String, bool> _experimentalFlags = {};
   bool _editingTheme = false;
@@ -447,6 +455,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get askDownloadPath => _askDownloadPath;
   int get proxyMode => _proxyMode;
   String get selectedProxyType => _selectedProxyType;
+  bool get proxyIpv6 => _proxyIpv6;
+  bool get proxyForCalls => _proxyForCalls;
+  List<Map<String, dynamic>> get proxyList => List.unmodifiable(_proxyList);
+  Map<String, Map<String, dynamic>> get autoDownloadSettings => Map.unmodifiable(_autoDownloadSettings);
+  String get cacheDir => _cacheDir;
+  int get localStorageTotalLimit => _localStorageTotalLimit;
+  int get localStorageMediaLimit => _localStorageMediaLimit;
+  int get localStorageTimeLimit => _localStorageTimeLimit;
   List<Map<String, dynamic>> get recentDownloads => List.unmodifiable(_recentDownloads);
 
   // §25.15 AyuGram getters
@@ -1767,6 +1783,52 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _saveWindowPrefs();
   }
 
+  void setProxyIpv6(bool v) {
+    if (_proxyIpv6 == v) return;
+    _proxyIpv6 = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setProxyForCalls(bool v) {
+    if (_proxyForCalls == v) return;
+    _proxyForCalls = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setProxyList(List<Map<String, dynamic>> list) {
+    _proxyList = list;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setAutoDownloadSettings(String source, Map<String, dynamic> settings) {
+    _autoDownloadSettings[source] = settings;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  Map<String, dynamic> getAutoDownloadForSource(String source) {
+    return _autoDownloadSettings[source] ?? {
+      'photos': true,
+      'files': false,
+      'downloadLimit': 10.0,
+      'videoMessages': true,
+      'videos': true,
+      'gifs': true,
+      'autoPlayLimit': 50.0,
+    };
+  }
+
+  void setLocalStorageLimits({int? totalLimit, int? mediaLimit, int? timeLimit}) {
+    if (totalLimit != null) _localStorageTotalLimit = totalLimit;
+    if (mediaLimit != null) _localStorageMediaLimit = mediaLimit;
+    if (timeLimit != null) _localStorageTimeLimit = timeLimit;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
   void addRecentDownload(String fileName, String filePath, int sizeBytes) {
     _recentDownloads.insert(0, {
       'name': fileName,
@@ -2127,6 +2189,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }) async {
     try {
       _configDir = configDir;
+      _cacheDir = cacheDir;
       await _engine.init(
         configDir: configDir,
         cacheDir: cacheDir,
@@ -2643,6 +2706,17 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _askDownloadPath = data['askDownloadPath'] as bool? ?? false;
       _proxyMode = data['proxyMode'] as int? ?? 0;
       _selectedProxyType = data['selectedProxyType'] as String? ?? '';
+      _proxyIpv6 = data['proxyIpv6'] as bool? ?? false;
+      _proxyForCalls = data['proxyForCalls'] as bool? ?? false;
+      final pList = data['proxyList'] as List<dynamic>?;
+      if (pList != null) _proxyList = pList.cast<Map<String, dynamic>>();
+      final adSettings = data['autoDownloadSettings'] as Map<String, dynamic>?;
+      if (adSettings != null) {
+        _autoDownloadSettings = adSettings.map((k, v) => MapEntry(k, (v as Map<String, dynamic>)));
+      }
+      _localStorageTotalLimit = data['localStorageTotalLimit'] as int? ?? 8192;
+      _localStorageMediaLimit = data['localStorageMediaLimit'] as int? ?? 4096;
+      _localStorageTimeLimit = data['localStorageTimeLimit'] as int? ?? 15;
       final dl = data['recentDownloads'] as List<dynamic>?;
       if (dl != null) _recentDownloads = dl.cast<Map<String, dynamic>>();
       final expFlags = data['experimentalFlags'] as Map<String, dynamic>?;
@@ -2872,6 +2946,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'askDownloadPath': _askDownloadPath,
         'proxyMode': _proxyMode,
         'selectedProxyType': _selectedProxyType,
+        'proxyIpv6': _proxyIpv6,
+        'proxyForCalls': _proxyForCalls,
+        'proxyList': _proxyList,
+        'autoDownloadSettings': _autoDownloadSettings,
+        'localStorageTotalLimit': _localStorageTotalLimit,
+        'localStorageMediaLimit': _localStorageMediaLimit,
+        'localStorageTimeLimit': _localStorageTimeLimit,
         'recentDownloads': _recentDownloads,
         'showTranslateButton': _showTranslateButton,
         'translateEntireChats': _translateEntireChats,
