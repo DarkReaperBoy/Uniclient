@@ -470,30 +470,6 @@ All these controls exist in AppState but are not exposed in the UI.
 
 # chat_settings_screen — Audit Findings
 
-# chat_switch_overlay — Audit Findings
-
-## chat_switch_overlay — Account/chat switch overlay (Ctrl+Tab)
-
-- [ ] [CRITICAL] Arrow Up/Down keys navigate linearly (prev/next) instead of row-based (±shownPerRow). AyuGram: Up → `_selected - _shownPerRow` (wrapping), Down → `_selected + _shownPerRow` (wrapping). Dart maps both arrowDown and arrowRight to `_moveNext()` and both arrowUp and arrowLeft to `_movePrev()`, which is completely wrong for multi-row grids. — `chat_switch_overlay.dart:86-93` ← `window/window_chat_switch_process.cpp:267-272`
-
-- [ ] [CRITICAL] Layout algorithm missing two row-reduction safety conditions. AyuGram: when `_shownRows > 2` and `_shownPerRow * 2 > _shownRows * 4`, reduces rows to 2. When `_shownRows > 1` and `_shownPerRow > _shownRows * 7`, reduces rows to 1. Dart only clamps perRow (≤7 for rows>1, ≤4 for rows>2) but never reduces row count based on these ratio conditions, producing wrong grid shapes in certain screen widths. — `chat_switch_overlay.dart:177-183` ← `window/window_chat_switch_process.cpp:440-453`
-
-- [ ] [CRITICAL] Panel background border-radius is 12px but AyuGram uses `boxRadius = 6px`. 100% deviation exceeds threshold. — `chat_switch_overlay.dart:19,201` ← `ui/lib_ui/ui/layers/layers.style:38` (`boxRadius: 6px`)
-
-- [ ] [CRITICAL] Selection highlight border-radius is 8px but AyuGram uses `st::boxRadius = 6px` (33% deviation). — `chat_switch_overlay.dart:265` ← `window/window_chat_switch_process.cpp:194,200` + `lib_ui/ui/layers/layers.style:38`
-
-- [ ] [CRITICAL] Saved Messages detection uses hardcoded English string `'Saved Messages'` — will produce wrong result for any non-English locale or custom-named Saved Messages. AyuGram uses `peer->isSelf()` (identity check, locale-independent). — `chat_switch_overlay.dart:297` ← `window/window_chat_switch_process.cpp:133`
-
-- [ ] [CRITICAL] `_shownPerRow` and `_shownRows` are mutated directly during `build()` (lines 185–186) without `setState()`. These fields drive keyboard navigation in `_moveNext`/`_movePrev`. If Flutter calls `build()` between a layout change and a key event, navigation uses stale counts; if a key event arrives before first build, both are 1 (initialised at declaration). — `chat_switch_overlay.dart:185-186` ← `window/window_chat_switch_process.cpp:439,454` (C++ recalculates in `layout()`, a separate method triggered synchronously before any input handling)
-
-- [ ] [MAJOR] Userpic size is 46px but AyuGram style specifies 56px (`chatSwitchUserpic.size: 56px`). 18% deviation. — `chat_switch_overlay.dart:13` ← `window/window.style:355`
-
-- [ ] [MAJOR] Initial selection starts at `initialIndex = 1` (second chat) by default. AyuGram always places the currently opened thread at index 0 and selects it (`_selected = 0`), so the first Tab press moves to index 1. Dart skips the opened-chat selection entirely, making Shift+Tab from the overlay wrap to the last entry instead of returning to the current chat. — `chat_switch_overlay.dart:35,55` ← `window/window_chat_switch_process.cpp:331`
-
-- [ ] [MAJOR] `base64Decode(chat.avatarPath)` executes synchronously on the UI thread inside `build()` on every rebuild. For large avatars (multi-KB base64) this causes frame jank. Should decode once and cache, or use `compute()`/`Isolate.run`. — `chat_switch_overlay.dart:310` ← (performance; AyuGram loads userpics asynchronously via `Ui::UserpicButton` reactive updates at `window/window_chat_switch_process.cpp:114-141`)
-
-- [ ] [MAJOR] No thread-destruction tracking. AyuGram subscribes to `thread->asTopic()->destroyed()` / `thread->asSublist()->destroyed()` and auto-removes entries when the underlying thread is deleted mid-session. Dart's list is a snapshot taken at widget creation; destroyed topics/sublists stay visible until the overlay is dismissed and reopened. — `chat_switch_overlay.dart:54` ← `window/window_chat_switch_process.cpp:357-368`
-
 ## chat_view — Placeholders, broken backend wiring, and behavioral inaccuracies
 
 - [ ] [CRITICAL] `_stopAndSendRecording()` resets UI state but never calls any engine method to send the recorded voice or video-round message — the recording is silently discarded — `chat_view.dart:13245` ← `AyuGram/history/view/controls/history_view_compose_controls.cpp` (voice recording pipeline calls `session().api().sendVoiceNote()`)
