@@ -2,6 +2,9 @@ package engine
 
 import (
 	"database/sql"
+	"fmt"
+
+	"uniclient/cores"
 )
 
 // SearchResult represents a message found via FTS5 search.
@@ -109,4 +112,38 @@ func (e *Engine) SearchChats(query string, limit int) ([]ChatInfo, error) {
 	}
 	e.markSelfChats(chats)
 	return chats, nil
+}
+
+func (e *Engine) SearchGlobalChats(accountID, query string, limit int) ([]ChatInfo, error) {
+	if query == "" {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	type globalSearcher interface {
+		SearchGlobal(query string, opts cores.PaginationOpts) ([]cores.Dialog, error)
+	}
+	gs, ok := acc.Core.(globalSearcher)
+	if !ok {
+		return e.SearchChats(query, limit)
+	}
+	dialogs, err := gs.SearchGlobal(query, cores.PaginationOpts{Limit: limit})
+	if err != nil {
+		return e.SearchChats(query, limit)
+	}
+	var result []ChatInfo
+	for _, d := range dialogs {
+		result = append(result, ChatInfo{
+			AccountID: accountID,
+			ChatID:    d.ID,
+			Title:     d.Title,
+			Type:      chatTypeToInt(d.Type),
+		})
+	}
+	return result, nil
 }

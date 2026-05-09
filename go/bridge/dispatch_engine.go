@@ -4043,6 +4043,67 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return data, nil
 
+	case "MarkChatUnread":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.MarkChatUnread(params.AccountID, params.ChatID)
+
+	case "AddChatToFolder":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			FolderID  string `json:"folder_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.AddChatToFolder(params.AccountID, params.ChatID, params.FolderID)
+
+	case "GetTopPeers":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Limit     int    `json:"limit"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		peers, err := e.GetTopPeers(params.AccountID, params.Limit)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(peers)
+
+	case "RemoveSavedReactionTag":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Emoji     string `json:"emoji"`
+			CustomID  int64  `json:"custom_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.RemoveSavedReactionTag(params.AccountID, params.Emoji, params.CustomID)
+
+	case "SearchGlobalChats":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Query     string `json:"query"`
+			Limit     int    `json:"limit"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		chats, err := e.SearchGlobalChats(params.AccountID, params.Query, params.Limit)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(chats)
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}

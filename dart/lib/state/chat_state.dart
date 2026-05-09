@@ -1840,6 +1840,27 @@ class ChatState extends ChangeNotifier {
     loadChats();
   }
 
+  void markChatUnread(String accountId, String chatId) {
+    _engine.markChatUnread(accountId, chatId);
+    loadChats();
+  }
+
+  void addChatToFolder(String accountId, String chatId, String folderId) {
+    _engine.addChatToFolder(accountId, chatId, folderId);
+  }
+
+  void removeSavedReactionTag(String accountId, {String emoji = '', int customId = 0}) {
+    _engine.removeSavedReactionTag(accountId, emoji: emoji, customId: customId);
+  }
+
+  List<ChatInfo> getTopPeers(String accountId, {int limit = 20}) {
+    return _engine.getTopPeers(accountId, limit: limit);
+  }
+
+  List<ChatInfo> searchGlobalChats(String accountId, String query, {int limit = 20}) {
+    return _engine.searchGlobalChats(accountId, query, limit: limit);
+  }
+
   // ── Search ──
 
   List<SearchResult> searchMessages(String query, {String accountId = ''}) {

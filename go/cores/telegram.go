@@ -13577,6 +13577,115 @@ func (t *TelegramCore) DeleteFolder(filterID int) error {
 	return err
 }
 
+func (t *TelegramCore) AddChatToFolder(chatID string, folderID int) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+
+	result, err := t.api.MessagesGetDialogFilters(t.ctx)
+	if err != nil {
+		return fmt.Errorf("get dialog filters: %w", err)
+	}
+
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return fmt.Errorf("resolve peer %s: %w", chatID, err)
+	}
+	inputPeer, _ := t.toInputPeer(peer)
+
+	for _, f := range result.GetFilters() {
+		switch filter := f.(type) {
+		case *tg.DialogFilter:
+			if filter.ID != folderID {
+				continue
+			}
+			for _, p := range filter.IncludePeers {
+				if inputPeerToID(p) == chatID {
+					return nil
+				}
+			}
+			filter.IncludePeers = append(filter.IncludePeers, inputPeer)
+			filter.SetFlags()
+			_, err = t.api.MessagesUpdateDialogFilter(t.ctx, &tg.MessagesUpdateDialogFilterRequest{
+				ID: folderID, Filter: filter,
+			})
+			return err
+		case *tg.DialogFilterChatlist:
+			if filter.ID != folderID {
+				continue
+			}
+			for _, p := range filter.IncludePeers {
+				if inputPeerToID(p) == chatID {
+					return nil
+				}
+			}
+			filter.IncludePeers = append(filter.IncludePeers, inputPeer)
+			filter.SetFlags()
+			_, err = t.api.MessagesUpdateDialogFilter(t.ctx, &tg.MessagesUpdateDialogFilterRequest{
+				ID: folderID, Filter: filter,
+			})
+			return err
+		}
+	}
+	return fmt.Errorf("folder %d not found", folderID)
+}
+
+func (t *TelegramCore) GetTopPeersList(limit int) ([]string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	result, err := t.api.ContactsGetTopPeers(t.ctx, &tg.ContactsGetTopPeersRequest{
+		Correspondents: true, Limit: limit,
+	})
+	if err != nil {
+		return nil, err
+	}
+	tp, ok := result.(*tg.ContactsTopPeers)
+	if !ok {
+		return nil, nil
+	}
+	t.cacheEntities(tp.Users, tp.Chats)
+	var peerIDs []string
+	for _, cat := range tp.Categories {
+		for _, p := range cat.Peers {
+			switch peer := p.Peer.(type) {
+			case *tg.PeerUser:
+				peerIDs = append(peerIDs, strconv.FormatInt(peer.UserID, 10))
+			case *tg.PeerChat:
+				peerIDs = append(peerIDs, strconv.FormatInt(peer.ChatID, 10))
+			case *tg.PeerChannel:
+				peerIDs = append(peerIDs, strconv.FormatInt(peer.ChannelID, 10))
+			}
+		}
+	}
+	return peerIDs, nil
+}
+
+func (t *TelegramCore) RemoveSavedReactionTag(emoji string, customID int64) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+	req := &tg.MessagesUpdateSavedReactionTagRequest{}
+	if customID != 0 {
+		req.Reaction = &tg.ReactionCustomEmoji{DocumentID: customID}
+	} else if emoji != "" {
+		req.Reaction = &tg.ReactionEmoji{Emoticon: emoji}
+	} else {
+		return fmt.Errorf("either emoji or custom_id must be provided")
+	}
+	_, err := t.api.MessagesUpdateSavedReactionTag(t.ctx, req)
+	return err
+}
+
 // ResolveUsername resolves a @username to a peer and caches the result.
 func (t *TelegramCore) ResolveUsername(username string) (string, error) {
 	t.mu.RLock()

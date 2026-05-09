@@ -20,7 +20,8 @@ import 'popup_menu.dart';
 import 'confirm_box.dart';
 import 'contacts_screen.dart' show showContactsBox;
 import 'edit_forum_topic_box.dart';
-import 'folders_settings_screen.dart' show showEditFolderBox;
+import 'folders_settings_screen.dart' show showEditFolderBox, FoldersSettingsScreen;
+import 'settings_style.dart';
 import 'shell.dart';
 import 'story_editor.dart';
 import 'telegram_toast.dart';
@@ -492,7 +493,12 @@ class _ChatListPanelState extends State<ChatListPanel>
             return results.where((c) => c.type == ChatType.channel).toList();
         }
       case _SearchTab.publicPosts:
-        // Only channels (public posts).
+        final appState = context.read<AppState>();
+        final globalResults = chatState.searchGlobalChats(
+          appState.activeAccountId,
+          _searchController.text,
+        );
+        if (globalResults.isNotEmpty) return globalResults;
         return results.where((c) => c.type == ChatType.channel).toList();
       case _SearchTab.thisPeer:
         // Only results matching the currently active chat.
@@ -931,9 +937,9 @@ class _ChatListPanelState extends State<ChatListPanel>
       case SwipeAction.unpin:
         chatState.pinChat(chat.accountId, chat.chatId, false);
       case SwipeAction.read:
-        chatState.markRead();
+        chatState.markChatRead(chat.accountId, chat.chatId);
       case SwipeAction.unread:
-        chatState.markRead();
+        chatState.markChatUnread(chat.accountId, chat.chatId);
       case SwipeAction.archive:
         chatState.archiveChat(chat.accountId, chat.chatId, true);
       case SwipeAction.unarchive:
@@ -1072,7 +1078,9 @@ class _ChatListPanelState extends State<ChatListPanel>
       final folderId = FilterColumn.folderIdAt(tabIdx);
       if (folderId != null && _reorderPinnedIdx! < _buildNonArchived.length) {
         final chat = _buildNonArchived[_reorderPinnedIdx!];
-        debugPrint('[DRAG-TO-FILTER] Drop chat ${chat.chatId} on folder $folderId');
+        final appState = context.read<AppState>();
+        final chatState = context.read<ChatState>();
+        chatState.addChatToFolder(appState.activeAccountId, chat.chatId, folderId);
       }
       _cancelDragToFilter();
       _cancelReorder();
@@ -1417,6 +1425,8 @@ class _ChatListPanelState extends State<ChatListPanel>
         case 'read':
           if (chat.unreadCount > 0) {
             chatState.markChatRead(chat.accountId, chat.chatId);
+          } else {
+            chatState.markChatUnread(chat.accountId, chat.chatId);
           }
         case 'archive':
           chatState.archiveChat(chat.accountId, chat.chatId, !chat.isArchived);
@@ -2322,13 +2332,17 @@ class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
       if (value == null) return;
       switch (value) {
         case 'edit':
-          break;
+          if (folder != null) {
+            showEditFolderBox(context, folder);
+          }
         case 'delete':
           if (folder != null) {
             widget.chatState.deleteFolder(appState.activeAccountId, folder.id);
           }
         case 'setup':
-          break;
+          Navigator.of(context).push(
+            settingsPageRoute(const FoldersSettingsScreen()),
+          );
       }
     });
   }
@@ -2448,14 +2462,18 @@ class _TopPeersStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    // Filter to DM chats only, sort by most recent message.
-    final dmChats = chats
-        .where((c) => c.type == ChatType.dm && !c.isArchived)
-        .toList()
-      ..sort((a, b) => b.lastMsgTime.compareTo(a.lastMsgTime));
+    final chatState = context.read<ChatState>();
+    final appState = context.read<AppState>();
 
-    // Show up to 20 top peers.
-    final topPeers = dmChats.take(20).toList();
+    // Use server-ranked top peers; fall back to local DM sort.
+    var topPeers = chatState.getTopPeers(appState.activeAccountId, limit: 20);
+    if (topPeers.isEmpty) {
+      final dmChats = chats
+          .where((c) => c.type == ChatType.dm && !c.isArchived)
+          .toList()
+        ..sort((a, b) => b.lastMsgTime.compareTo(a.lastMsgTime));
+      topPeers = dmChats.take(20).toList();
+    }
     if (topPeers.isEmpty) return const SizedBox.shrink();
 
     final theme = Theme.of(context);
@@ -5303,6 +5321,13 @@ class _SearchTagsStrip extends StatelessWidget {
         _showEditTagDialog(context, tag);
       } else if (action == 'filter') {
         chatState.toggleReactionTag(tag);
+      } else if (action == 'remove') {
+        final appState = context.read<AppState>();
+        chatState.removeSavedReactionTag(
+          appState.activeAccountId,
+          emoji: tag.emoji,
+          customId: tag.customId,
+        );
       }
     });
   }

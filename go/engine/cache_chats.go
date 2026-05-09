@@ -503,6 +503,22 @@ func (e *Engine) MarkChatRead(accountID, chatID, upToMsgID string) error {
 	return nil
 }
 
+func (e *Engine) MarkChatUnread(accountID, chatID string) error {
+	e.db.Exec(
+		"UPDATE chats SET unread_mark = 1 WHERE account_id = ? AND chat_id = ?",
+		accountID, chatID)
+	if acc, ok := e.getAccount(accountID); ok && acc.Core != nil {
+		type unreadMarker interface {
+			MarkUnread(chatID string, unread bool) error
+		}
+		if um, ok := acc.Core.(unreadMarker); ok {
+			um.MarkUnread(chatID, true)
+		}
+	}
+	e.emitChatUpdate(accountID, chatID)
+	return nil
+}
+
 // SaveDraft persists draft text for a chat.
 func (e *Engine) SaveDraft(accountID, chatID, text string) error {
 	_, err := e.db.Exec(
@@ -1168,6 +1184,74 @@ func (e *Engine) CreateFolderInviteLink(accountID string, folderID int, title st
 		return lc.ExportChatlistInvite(folderID, title, peerIDs)
 	}
 	return "", fmt.Errorf("core does not support folder invite links")
+}
+
+func (e *Engine) AddChatToFolder(accountID, chatID, folderID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	type chatToFolderAdder interface {
+		AddChatToFolder(chatID string, folderID int) error
+	}
+	fid, err := strconv.Atoi(folderID)
+	if err != nil {
+		return fmt.Errorf("invalid folder ID %q: %w", folderID, err)
+	}
+	if adder, ok := acc.Core.(chatToFolderAdder); ok {
+		return adder.AddChatToFolder(chatID, fid)
+	}
+	return fmt.Errorf("core does not support adding chats to folders")
+}
+
+func (e *Engine) GetTopPeers(accountID string, limit int) ([]ChatInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	type topPeersLister interface {
+		GetTopPeersList(limit int) ([]string, error)
+	}
+	lister, ok := acc.Core.(topPeersLister)
+	if !ok {
+		return nil, nil
+	}
+	peerIDs, err := lister.GetTopPeersList(limit)
+	if err != nil {
+		return nil, err
+	}
+	var result []ChatInfo
+	for _, pid := range peerIDs {
+		rows, err := e.db.Query(
+			`SELECT c.account_id, c.chat_id, c.type, c.title, c.avatar_path,
+			        c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
+			        c.last_msg_is_outgoing, c.last_msg_status, c.last_msg_media_type, c.last_msg_thumb_b64,
+			        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
+			        c.draft_text, c.member_count, c.parent_id,
+			        COALESCE(u.is_bot, 0), COALESCE(u.is_contact, 0), COALESCE(u.is_blocked, 0),
+			        c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
+			        c.is_verified, c.is_scam, c.is_fake,
+			        c.slowmode_seconds, c.slowmode_next_send_date,
+			        c.stars_to_send, c.ttl_period, c.emoji_status_id,
+			        c.story_count, c.has_unread_story, c.is_forum,
+			        c.write_restriction_type, c.write_restriction_text,
+			        c.not_joined, c.join_request, c.can_post, c.is_admin, c.no_forwards
+			 FROM chats c
+			 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
+			 WHERE c.account_id = ? AND c.chat_id = ?`, accountID, pid)
+		if err != nil {
+			continue
+		}
+		chats, err := scanChats(rows)
+		rows.Close()
+		if err == nil && len(chats) > 0 {
+			result = append(result, chats[0])
+		}
+	}
+	return result, nil
 }
 
 // EditFolderInviteLink modifies which peers are included in a folder invite link.

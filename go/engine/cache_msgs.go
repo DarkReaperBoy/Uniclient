@@ -1196,6 +1196,21 @@ func (e *Engine) RenameSavedReactionTag(accountID, emoji string, customID int64,
 	return renamer.RenameSavedReactionTag(emoji, customID, title)
 }
 
+type SavedReactionTagRemover interface {
+	RemoveSavedReactionTag(emoji string, customID int64) error
+}
+
+func (e *Engine) RemoveSavedReactionTag(accountID, emoji string, customID int64) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if remover, ok := acc.Core.(SavedReactionTagRemover); ok {
+		return remover.RemoveSavedReactionTag(emoji, customID)
+	}
+	return fmt.Errorf("platform does not support reaction tag removal")
+}
+
 type RecentStickersFetcher interface {
 	GetRecentStickers() ([]cores.StickerInfo, error)
 }

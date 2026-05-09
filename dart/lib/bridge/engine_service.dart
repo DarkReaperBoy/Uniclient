@@ -471,6 +471,55 @@ class EngineService {
     _callRaw('__engine', 'MarkChatRead', req.writeToBuffer());
   }
 
+  void markChatUnread(String accountId, String chatId) {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+    }));
+    _callRaw('__engine', 'MarkChatUnread', Uint8List.fromList(payload));
+  }
+
+  void addChatToFolder(String accountId, String chatId, String folderId) {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'folder_id': folderId,
+    }));
+    _callRaw('__engine', 'AddChatToFolder', Uint8List.fromList(payload));
+  }
+
+  List<ChatInfo> getTopPeers(String accountId, {int limit = 20}) {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'limit': limit,
+    }));
+    final respBytes = _callRaw('__engine', 'GetTopPeers', Uint8List.fromList(payload));
+    if (respBytes.isEmpty) return [];
+    final list = json.decode(utf8.decode(respBytes)) as List<dynamic>;
+    return list.map((e) => ChatInfo.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  void removeSavedReactionTag(String accountId, {String emoji = '', int customId = 0}) {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'emoji': emoji,
+      'custom_id': customId,
+    }));
+    _callRaw('__engine', 'RemoveSavedReactionTag', Uint8List.fromList(payload));
+  }
+
+  List<ChatInfo> searchGlobalChats(String accountId, String query, {int limit = 20}) {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'query': query,
+      'limit': limit,
+    }));
+    final respBytes = _callRaw('__engine', 'SearchGlobalChats', Uint8List.fromList(payload));
+    if (respBytes.isEmpty) return [];
+    final list = json.decode(utf8.decode(respBytes)) as List<dynamic>;
+    return list.map((e) => ChatInfo.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
   void readMessageContents(String accountId, String msgId) {
     final req = epb.EngineMarkChatReadRequest()
       ..accountId = accountId
