@@ -6,6 +6,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../bridge/engine_service.dart';
+import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/telegram_palette.dart';
@@ -281,11 +283,12 @@ class _ExportPanelDialog extends StatefulWidget {
 enum _ExportFormat { html, json, htmlAndJson }
 
 class _ExportStepInfo {
-  final String label;
+  String label;
   double progress;
   String info;
+  double opacity;
 
-  _ExportStepInfo({required this.label, this.progress = 0.0, this.info = ''});
+  _ExportStepInfo({required this.label, this.progress = 0.0, this.info = '', this.opacity = 1.0});
 }
 
 class _ExportPanelDialogState extends State<_ExportPanelDialog>
@@ -351,13 +354,18 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   bool _showBottomShadow = true;
 
   List<_ExportStepInfo> _exportSteps = [];
-  Timer? _exportTimer;
   Timer? _skipFileTimer;
   Timer? _saveSettingsTimer;
   bool _showSkipFile = false;
   int _currentStepIndex = 0;
   int _totalFiles = 0;
   int _totalSizeBytes = 0;
+  int _fileRandomId = 0;
+  String _exportPath = '';
+
+  StreamSubscription<ExportProgressEvent>? _progressSub;
+  StreamSubscription<ExportErrorEvent>? _errorSub;
+  StreamSubscription<ExportCompleteEvent>? _completeSub;
 
   _ExportErrorType _errorType = _ExportErrorType.genericApi;
   String _errorDetail = '';
@@ -423,6 +431,36 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     WidgetsBinding.instance.addObserver(this);
     _scrollController.addListener(_updateShadows);
     _loadExportSettings();
+    _loadEngineSettings();
+  }
+
+  void _loadEngineSettings() {
+    final accountId = widget.target.accountId;
+    if (accountId == null || accountId.isEmpty) return;
+    final engine = context.read<EngineService>();
+    engine.loadExportSettings(accountId).then((data) {
+      if (!mounted || data.isEmpty) return;
+      setState(() {
+        _personalInfo = (data['personalInfo'] as bool?) ?? _personalInfo;
+        _contacts = (data['contacts'] as bool?) ?? _contacts;
+        _stories = (data['stories'] as bool?) ?? _stories;
+        _profileMusic = (data['profileMusic'] as bool?) ?? _profileMusic;
+        _personalChats = (data['personalChats'] as bool?) ?? _personalChats;
+        _botChats = (data['botChats'] as bool?) ?? _botChats;
+        _privateGroups = (data['privateGroups'] as bool?) ?? _privateGroups;
+        _privateChannels = (data['privateChannels'] as bool?) ?? _privateChannels;
+        _publicGroups = (data['publicGroups'] as bool?) ?? _publicGroups;
+        _publicChannels = (data['publicChannels'] as bool?) ?? _publicChannels;
+        _exportLocation = (data['exportLocation'] as String?) ?? _exportLocation;
+        final fmt = data['format'] as String?;
+        if (fmt != null) {
+          _format = _ExportFormat.values.firstWhere(
+            (e) => e.name == fmt,
+            orElse: () => _format,
+          );
+        }
+      });
+    }).catchError((_) {});
   }
 
   void _updateShadows() {
@@ -484,38 +522,45 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     } catch (_) {}
   }
 
+  Map<String, dynamic> get _settingsMap => {
+    'personalInfo': _personalInfo,
+    'contacts': _contacts,
+    'stories': _stories,
+    'profileMusic': _profileMusic,
+    'personalChats': _personalChats,
+    'botChats': _botChats,
+    'privateGroups': _privateGroups,
+    'privateChannels': _privateChannels,
+    'publicGroups': _publicGroups,
+    'publicChannels': _publicChannels,
+    'privateGroupsOnlyMy': _privateGroupsOnlyMy,
+    'privateChannelsOnlyMy': _privateChannelsOnlyMy,
+    'publicGroupsOnlyMy': _publicGroupsOnlyMy,
+    'publicChannelsOnlyMy': _publicChannelsOnlyMy,
+    'mediaPhotos': _mediaPhotos,
+    'mediaVideo': _mediaVideo,
+    'mediaVoice': _mediaVoice,
+    'mediaVideoMessage': _mediaVideoMessage,
+    'mediaSticker': _mediaSticker,
+    'mediaGif': _mediaGif,
+    'mediaFile': _mediaFile,
+    'sizeSliderPos': _sizeSliderPos,
+    'sessions': _sessions,
+    'otherData': _otherData,
+    'format': _format.name,
+    'exportLocation': _exportLocation,
+  };
+
   void _saveExportSettings() {
+    final accountId = widget.target.accountId;
+    if (accountId != null && accountId.isNotEmpty) {
+      final engine = context.read<EngineService>();
+      engine.saveExportSettings(accountId, _settingsMap).catchError((_) {});
+    }
     final path = _exportSettingsPath;
     if (path.isEmpty) return;
     try {
-      File(path).writeAsStringSync(jsonEncode({
-        'personalInfo': _personalInfo,
-        'contacts': _contacts,
-        'stories': _stories,
-        'profileMusic': _profileMusic,
-        'personalChats': _personalChats,
-        'botChats': _botChats,
-        'privateGroups': _privateGroups,
-        'privateChannels': _privateChannels,
-        'publicGroups': _publicGroups,
-        'publicChannels': _publicChannels,
-        'privateGroupsOnlyMy': _privateGroupsOnlyMy,
-        'privateChannelsOnlyMy': _privateChannelsOnlyMy,
-        'publicGroupsOnlyMy': _publicGroupsOnlyMy,
-        'publicChannelsOnlyMy': _publicChannelsOnlyMy,
-        'mediaPhotos': _mediaPhotos,
-        'mediaVideo': _mediaVideo,
-        'mediaVoice': _mediaVoice,
-        'mediaVideoMessage': _mediaVideoMessage,
-        'mediaSticker': _mediaSticker,
-        'mediaGif': _mediaGif,
-        'mediaFile': _mediaFile,
-        'sizeSliderPos': _sizeSliderPos,
-        'sessions': _sessions,
-        'otherData': _otherData,
-        'format': _format.name,
-        'exportLocation': _exportLocation,
-      }));
+      File(path).writeAsStringSync(jsonEncode(_settingsMap));
     } catch (_) {}
   }
 
@@ -540,19 +585,23 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   }
 
   void _openExportFolder() {
-    final path = _exportLocation.isNotEmpty ? _exportLocation : _defaultExportLocation;
+    final path = _exportPath.isNotEmpty
+        ? _exportPath
+        : (_exportLocation.isNotEmpty ? _exportLocation : _defaultExportLocation);
     if (Platform.isLinux) {
-      Process.run('xdg-open', [path]);
+      Process.run('xdg-open', [path]).ignore();
     } else if (Platform.isMacOS) {
-      Process.run('open', [path]);
+      Process.run('open', [path]).ignore();
     } else if (Platform.isWindows) {
-      Process.run('explorer', [path]);
+      Process.run('explorer', [path]).ignore();
     }
   }
 
   @override
   void dispose() {
-    _exportTimer?.cancel();
+    _progressSub?.cancel();
+    _errorSub?.cancel();
+    _completeSub?.cancel();
     _skipFileTimer?.cancel();
     if (_saveSettingsTimer?.isActive ?? false) {
       _saveSettingsTimer!.cancel();
@@ -583,7 +632,13 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     if (_phase == ExportPhase.processing) {
       final confirmed = await _showStopConfirmation();
       if (confirmed && mounted) {
-        _exportTimer?.cancel();
+        final accountId = widget.target.accountId;
+        if (accountId != null && accountId.isNotEmpty) {
+          context.read<EngineService>().cancelExport(accountId);
+        }
+        _progressSub?.cancel();
+        _errorSub?.cancel();
+        _completeSub?.cancel();
         _skipFileTimer?.cancel();
         context.read<ChatState>().stopExportBar();
         _closePanel();
@@ -675,20 +730,148 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   }
 
   void _startExport() {
+    final accountId = widget.target.accountId;
+    if (accountId == null || accountId.isEmpty) return;
+
     _exportSteps = _buildExportStepList();
     _currentStepIndex = 0;
     _showSkipFile = false;
     _totalFiles = 0;
     _totalSizeBytes = 0;
+    _exportPath = '';
     setState(() => _phase = ExportPhase.processing);
     context.read<ChatState>().startExportBar(onTap: _bringPanelToFront);
-    _exportTimer =
-        Timer.periodic(const Duration(milliseconds: 100), _tickExport);
     _resetSkipFileTimer();
+
+    final engine = context.read<EngineService>();
+
+    _progressSub?.cancel();
+    _progressSub = engine.onExportProgress
+        .where((e) => e.accountId == accountId)
+        .listen(_onExportProgress);
+
+    _errorSub?.cancel();
+    _errorSub = engine.onExportError
+        .where((e) => e.accountId == accountId)
+        .listen(_onExportError);
+
+    _completeSub?.cancel();
+    _completeSub = engine.onExportComplete
+        .where((e) => e.accountId == accountId)
+        .listen(_onExportComplete);
+
+    final exportLocation = _exportLocation.isNotEmpty
+        ? _exportLocation
+        : _defaultExportLocation;
+
+    engine.startExport(accountId, {
+      'personal_info': _personalInfo,
+      'contacts': _contacts,
+      'stories': _stories,
+      'profile_music': _profileMusic,
+      'personal_chats': _personalChats,
+      'bot_chats': _botChats,
+      'private_groups': _privateGroups,
+      'private_channels': _privateChannels,
+      'public_groups': _publicGroups,
+      'public_channels': _publicChannels,
+      'media_photos': _mediaPhotos,
+      'media_video': _mediaVideo,
+      'media_voice': _mediaVoice,
+      'media_video_message': _mediaVideoMessage,
+      'media_sticker': _mediaSticker,
+      'media_gif': _mediaGif,
+      'media_file': _mediaFile,
+      'size_limit_mb': _sizeLimitMB,
+      'format': _format.name,
+      'export_location': exportLocation,
+      'chat_id': widget.target.chatId ?? '',
+      'topic_root_id': widget.target.topicRootId ?? 0,
+      'sessions': _sessions,
+      'other_data': _otherData,
+    }).catchError((e) {
+      if (mounted) {
+        _triggerGenericApiError(0, 'StartExport', e.toString());
+      }
+    });
+  }
+
+  void _onExportProgress(ExportProgressEvent event) {
+    if (!mounted) return;
+    final stepLabel = event.step;
+    final stepIdx = event.stepIndex;
+    final totalSteps = event.totalSteps;
+    final progress = event.progress;
+
+    if (stepIdx >= 0 && totalSteps > 0) {
+      while (_exportSteps.length < totalSteps) {
+        _exportSteps.add(_ExportStepInfo(label: 'Step ${_exportSteps.length + 1}'));
+      }
+      if (stepIdx < _exportSteps.length) {
+        _exportSteps[stepIdx].label = stepLabel;
+        if (progress >= 0) {
+          _exportSteps[stepIdx].progress = progress.clamp(0.0, 1.0);
+        }
+        _exportSteps[stepIdx].info = event.info;
+        if (progress >= 1.0) {
+          _exportSteps[stepIdx].opacity = 0.5;
+        }
+        _currentStepIndex = stepIdx;
+      }
+    } else {
+      final existing = _exportSteps.indexWhere((s) => s.label == stepLabel);
+      if (existing >= 0) {
+        if (progress >= 0) {
+          _exportSteps[existing].progress = progress.clamp(0.0, 1.0);
+        }
+        _exportSteps[existing].info = event.info;
+        _currentStepIndex = existing;
+      }
+    }
+
+    _totalFiles = event.totalFiles;
+    _totalSizeBytes = event.totalSizeBytes;
+    _fileRandomId = event.fileRandomId;
+    _showSkipFile = false;
+    _resetSkipFileTimer();
+
+    _syncExportBar();
+    setState(() {});
+  }
+
+  void _onExportError(ExportErrorEvent event) {
+    if (!mounted) return;
+    switch (event.errorType) {
+      case 'takeout_invalid':
+        _triggerTakeoutInvalidError();
+      case 'takeout_delay':
+        _triggerTakeoutInitDelayError(
+          event.hoursRemaining,
+          DateTime.fromMillisecondsSinceEpoch(event.availableAtMs),
+        );
+      case 'disk_io':
+        _triggerDiskError(event.path);
+      default:
+        _triggerGenericApiError(event.code, event.errorName, event.description);
+    }
+  }
+
+  void _onExportComplete(ExportCompleteEvent event) {
+    if (!mounted) return;
+    _progressSub?.cancel();
+    _errorSub?.cancel();
+    _completeSub?.cancel();
+    _skipFileTimer?.cancel();
+    _exportPath = event.exportPath;
+    _totalFiles = event.totalFiles;
+    _totalSizeBytes = event.totalSizeBytes;
+    setState(() => _phase = ExportPhase.completed);
+    context.read<ChatState>().stopExportBar();
   }
 
   void _bringPanelToFront() {
-    // no-op — panel is already a dialog in the overlay
+    _ExportPanelController.close();
+    _ExportPanelController.show(context, widget.target);
   }
 
   List<_ExportStepInfo> _buildExportStepList() {
@@ -714,30 +897,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     return steps;
   }
 
-  void _tickExport(Timer timer) {
-    if (_currentStepIndex >= _exportSteps.length) {
-      timer.cancel();
-      _skipFileTimer?.cancel();
-      setState(() => _phase = ExportPhase.completed);
-      context.read<ChatState>().stopExportBar();
-      return;
-    }
-    final step = _exportSteps[_currentStepIndex];
-    final speed = 0.02 + 0.01 * _currentStepIndex;
-    step.progress = (step.progress + speed).clamp(0.0, 1.0);
-    if (step.progress < 1.0) {
-      step.info = '${(step.progress * 100).toInt()}%';
-    } else {
-      step.info = 'Done';
-      _totalFiles += 10 + _currentStepIndex * 5;
-      _totalSizeBytes += (512 + _currentStepIndex * 256) * 1024;
-      _currentStepIndex++;
-      _showSkipFile = false;
-      _resetSkipFileTimer();
-    }
-    _syncExportBar();
-    setState(() {});
-  }
+  // Progress is now driven by engine events via _onExportProgress
 
   void _syncExportBar() {
     if (_currentStepIndex >= _exportSteps.length) return;
@@ -764,20 +924,31 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   }
 
   void _skipCurrentFile() {
+    final accountId = widget.target.accountId;
+    if (accountId == null || accountId.isEmpty) return;
+
     if (_currentStepIndex < _exportSteps.length) {
       _exportSteps[_currentStepIndex].progress = 1.0;
       _exportSteps[_currentStepIndex].info = 'Skipped';
-      _currentStepIndex++;
+      _exportSteps[_currentStepIndex].opacity = 0.5;
       _showSkipFile = false;
       _resetSkipFileTimer();
       setState(() {});
     }
+
+    context.read<EngineService>().skipExportFile(accountId, _fileRandomId);
+  }
+
+  void _cleanupExportSubscriptions() {
+    _progressSub?.cancel();
+    _errorSub?.cancel();
+    _completeSub?.cancel();
+    _skipFileTimer?.cancel();
+    context.read<ChatState>().stopExportBar();
   }
 
   void _triggerTakeoutInvalidError() {
-    _exportTimer?.cancel();
-    _skipFileTimer?.cancel();
-    context.read<ChatState>().stopExportBar();
+    _cleanupExportSubscriptions();
     _showExportInformBox(
       'Sorry, your data export session has expired, please try again.',
     );
@@ -785,9 +956,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
 
   void _triggerTakeoutInitDelayError(
       int hoursRemaining, DateTime availableAt) {
-    _exportTimer?.cancel();
-    _skipFileTimer?.cancel();
-    context.read<ChatState>().stopExportBar();
+    _cleanupExportSubscriptions();
     const months = [
       'January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December'
@@ -802,9 +971,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   }
 
   void _triggerDiskError(String path) {
-    _exportTimer?.cancel();
-    _skipFileTimer?.cancel();
-    context.read<ChatState>().stopExportBar();
+    _cleanupExportSubscriptions();
     setState(() {
       _phase = ExportPhase.error;
       _errorType = _ExportErrorType.diskIo;
@@ -813,9 +980,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
   }
 
   void _triggerGenericApiError(int code, String type, String description) {
-    _exportTimer?.cancel();
-    _skipFileTimer?.cancel();
-    context.read<ChatState>().stopExportBar();
+    _cleanupExportSubscriptions();
     setState(() {
       _phase = ExportPhase.error;
       _errorType = _ExportErrorType.genericApi;
@@ -1901,81 +2066,82 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
     final linkColor =
         context.palette.windowBgActive;
 
-    final visibleSteps = <_ExportStepInfo>[];
-    if (_exportSteps.isNotEmpty) {
-      final activeIdx =
-          _currentStepIndex.clamp(0, _exportSteps.length - 1);
-      final startIdx = (activeIdx - 2).clamp(0, _exportSteps.length);
-      for (var i = startIdx;
-          i <= activeIdx && i < _exportSteps.length;
-          i++) {
-        visibleSteps.add(_exportSteps[i]);
-      }
-    }
+    final visibleSteps = _exportSteps;
 
     return Column(
       children: [
         const SizedBox(height: 10),
-        for (final step in visibleSteps)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(22, 5, 22, 5),
-            child: SizedBox(
-              height: 30,
-              child: Column(
-                children: [
-                  Expanded(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            step.label,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: textColor,
+        Expanded(
+          child: ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              for (final step in visibleSteps)
+                AnimatedOpacity(
+                  opacity: step.opacity,
+                  duration: const Duration(milliseconds: 300),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(22, 5, 22, 5),
+                    child: SizedBox(
+                      height: 30,
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    step.label,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: textColor,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  step.info,
+                                  style: TextStyle(
+                                      fontSize: 14, color: subtextColor),
+                                ),
+                              ],
                             ),
-                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          step.info,
-                          style: TextStyle(
-                              fontSize: 14, color: subtextColor),
-                        ),
-                      ],
+                          SizedBox(
+                            height: 3,
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                return Stack(
+                                  children: [
+                                    Container(
+                                      width: constraints.maxWidth,
+                                      height: 3,
+                                      color: inactiveFg,
+                                    ),
+                                    AnimatedContainer(
+                                      duration:
+                                          const Duration(milliseconds: 200),
+                                      curve: Curves.easeInOut,
+                                      width: constraints.maxWidth *
+                                          step.progress,
+                                      height: 3,
+                                      color: activeFg,
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  SizedBox(
-                    height: 3,
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        return Stack(
-                          children: [
-                            Container(
-                              width: constraints.maxWidth,
-                              height: 3,
-                              color: inactiveFg,
-                            ),
-                            AnimatedContainer(
-                              duration:
-                                  const Duration(milliseconds: 200),
-                              curve: Curves.easeInOut,
-                              width: constraints.maxWidth *
-                                  step.progress,
-                              height: 3,
-                              color: activeFg,
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
+                ),
+            ],
           ),
+        ),
         SizedBox(
           height: 28,
           child: AnimatedOpacity(
@@ -2016,7 +2182,7 @@ class _ExportPanelDialogState extends State<_ExportPanelDialog>
             ),
           ),
         ),
-        const Spacer(),
+        const SizedBox(height: 16),
         Padding(
           padding: const EdgeInsets.only(bottom: 30),
           child: SizedBox(

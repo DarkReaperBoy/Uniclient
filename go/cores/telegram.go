@@ -18273,6 +18273,30 @@ func (t *TelegramCore) AccountFinishTakeoutSession(request *tg.AccountFinishTake
 	return t.api.AccountFinishTakeoutSession(t.ctx, request)
 }
 
+// InitTakeout starts a takeout session with simple Go types (no gotd imports needed by caller).
+func (t *TelegramCore) InitTakeout(contacts, msgUsers, msgChats, msgMegagroups, msgChannels, files bool, fileMaxSizeBytes int64) (int64, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return 0, ErrAuth }
+	req := &tg.AccountInitTakeoutSessionRequest{}
+	if contacts { req.SetContacts(true) }
+	if msgUsers { req.SetMessageUsers(true) }
+	if msgChats { req.SetMessageChats(true) }
+	if msgMegagroups { req.SetMessageMegagroups(true) }
+	if msgChannels { req.SetMessageChannels(true) }
+	if files { req.SetFiles(true); req.SetFileMaxSize(fileMaxSizeBytes) }
+	result, err := t.api.AccountInitTakeoutSession(t.ctx, req)
+	if err != nil { return 0, err }
+	return result.ID, nil
+}
+
+// FinishTakeout ends the current takeout session.
+func (t *TelegramCore) FinishTakeout() error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	_, err := t.api.AccountFinishTakeoutSession(t.ctx, &tg.AccountFinishTakeoutSessionRequest{})
+	return err
+}
+
 // AccountGetAllSecureValues returns all stored Telegram Passport secure values.
 func (t *TelegramCore) AccountGetAllSecureValues() ([]tg.SecureValue, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()

@@ -38,6 +38,9 @@ class EngineService {
   final _downloadCompleteController = StreamController<DownloadCompleteEvent>.broadcast();
   final _userStatusController = StreamController<UserStatusEvent>.broadcast();
   final _groupCallStateController = StreamController<GroupCallStateEvent>.broadcast();
+  final _exportProgressController = StreamController<ExportProgressEvent>.broadcast();
+  final _exportErrorController = StreamController<ExportErrorEvent>.broadcast();
+  final _exportCompleteController = StreamController<ExportCompleteEvent>.broadcast();
   StreamSubscription<Uint8List>? _bridgeEventSub;
 
   Stream<AuthStateEvent> get onAuthState => _authStateController.stream;
@@ -55,6 +58,9 @@ class EngineService {
   Stream<DownloadCompleteEvent> get onDownloadComplete => _downloadCompleteController.stream;
   Stream<UserStatusEvent> get onUserStatus => _userStatusController.stream;
   Stream<GroupCallStateEvent> get onGroupCallState => _groupCallStateController.stream;
+  Stream<ExportProgressEvent> get onExportProgress => _exportProgressController.stream;
+  Stream<ExportErrorEvent> get onExportError => _exportErrorController.stream;
+  Stream<ExportCompleteEvent> get onExportComplete => _exportCompleteController.stream;
 
   bool get isInitialized => _initialized;
 
@@ -2082,6 +2088,50 @@ class EngineService {
     return data['link'] as String? ?? '';
   }
 
+  // ── Data Export ──
+
+  Future<void> startExport(String accountId, Map<String, dynamic> settings) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      ...settings,
+    }));
+    await _callAsync('__engine', 'StartExport', Uint8List.fromList(payload));
+  }
+
+  Future<void> skipExportFile(String accountId, int randomId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'random_id': randomId,
+    }));
+    await _callAsync('__engine', 'SkipExportFile', Uint8List.fromList(payload));
+  }
+
+  Future<void> cancelExport(String accountId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+    }));
+    await _callAsync('__engine', 'CancelExport', Uint8List.fromList(payload));
+  }
+
+  Future<void> saveExportSettings(String accountId, Map<String, dynamic> settings) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'settings': settings,
+    }));
+    await _callAsync('__engine', 'SaveExportSettings', Uint8List.fromList(payload));
+  }
+
+  Future<Map<String, dynamic>> loadExportSettings(String accountId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+    }));
+    final respBytes = await _callAsync('__engine', 'LoadExportSettings', Uint8List.fromList(payload));
+    if (respBytes.isEmpty) return {};
+    return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+  }
+
+  // ── Chat Invite Links ──
+
   Future<List<Map<String, dynamic>>> getExportedChatInvites(String accountId, String chatId, {bool revoked = false}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
@@ -4074,6 +4124,24 @@ class EngineService {
             accountId: event['account_id'] as String? ?? '',
             info: GroupCallInfo.fromJson(data),
           ));
+        }
+
+      case 'export_progress':
+        if (data is Map<String, dynamic>) {
+          _exportProgressController.add(ExportProgressEvent.fromJson(data,
+            accountId: event['account_id'] as String? ?? ''));
+        }
+
+      case 'export_error':
+        if (data is Map<String, dynamic>) {
+          _exportErrorController.add(ExportErrorEvent.fromJson(data,
+            accountId: event['account_id'] as String? ?? ''));
+        }
+
+      case 'export_complete':
+        if (data is Map<String, dynamic>) {
+          _exportCompleteController.add(ExportCompleteEvent.fromJson(data,
+            accountId: event['account_id'] as String? ?? ''));
         }
     }
   }

@@ -79,6 +79,9 @@ type Engine struct {
 	saveDeletedMessages    bool
 	saveMessagesHistory    bool
 	saveForBots            bool
+
+	exportMu sync.RWMutex
+	exports  map[string]*exportState
 }
 
 // Init initializes the engine: opens vault+DB, loads accounts, starts connections.

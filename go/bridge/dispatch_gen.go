@@ -18704,7 +18704,13 @@ func dispatchTelegram(c *cores.TelegramCore, method string, payload []byte) ([]b
 	// Skipped: AccountDeleteSecureValue (complex external types)
 	// Skipped: AccountDisablePeerConnectedBot (complex external types)
 	// Skipped: AccountEditBusinessChatLink (complex external types)
-	// Skipped: AccountFinishTakeoutSession (complex external types)
+	case "AccountFinishTakeoutSession":
+		err := c.FinishTakeout()
+		if err != nil { return nil, err }
+		resp := &pbcores.TelegramAccountFinishTakeoutSessionResponse{
+			Result_1: true,
+		}
+		return proto.Marshal(resp)
 	case "AccountGetAllSecureValues":
 		r1, err := c.AccountGetAllSecureValues()
 		if err != nil { return nil, err }
@@ -18911,7 +18917,27 @@ func dispatchTelegram(c *cores.TelegramCore, method string, payload []byte) ([]b
 			Result_1: anyToBytes(r1),
 		}
 		return proto.Marshal(resp)
-	// Skipped: AccountInitTakeoutSession (complex external types)
+	case "AccountInitTakeoutSession":
+		var req pbcores.TelegramAccountInitTakeoutSessionRequest
+		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
+		var params struct {
+			Contacts        bool  `json:"contacts"`
+			MessageUsers    bool  `json:"message_users"`
+			MessageChats    bool  `json:"message_chats"`
+			MessageMegagroups bool `json:"message_megagroups"`
+			MessageChannels bool  `json:"message_channels"`
+			Files           bool  `json:"files"`
+			FileMaxSize     int64 `json:"file_max_size"`
+		}
+		if len(req.Request) > 0 {
+			json.Unmarshal(req.Request, &params)
+		}
+		r1, err := c.InitTakeout(params.Contacts, params.MessageUsers, params.MessageChats, params.MessageMegagroups, params.MessageChannels, params.Files, params.FileMaxSize)
+		if err != nil { return nil, err }
+		resp := &pbcores.TelegramAccountInitTakeoutSessionResponse{
+			Result_1: anyToBytes(map[string]int64{"id": r1}),
+		}
+		return proto.Marshal(resp)
 	// Skipped: AccountInstallTheme (complex external types)
 	// Skipped: AccountInstallWallPaper (complex external types)
 	case "AccountInvalidateSignInCodes":

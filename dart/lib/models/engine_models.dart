@@ -2028,6 +2028,101 @@ class GroupCallStateEvent {
   });
 }
 
+// ── Export events ──
+
+class ExportProgressEvent {
+  final String accountId;
+  final String step;
+  final int stepIndex;
+  final int totalSteps;
+  final double progress;
+  final String info;
+  final int totalFiles;
+  final int totalSizeBytes;
+  final int fileRandomId;
+  final String fileName;
+
+  const ExportProgressEvent({
+    this.accountId = '',
+    this.step = '',
+    this.stepIndex = 0,
+    this.totalSteps = 0,
+    this.progress = 0.0,
+    this.info = '',
+    this.totalFiles = 0,
+    this.totalSizeBytes = 0,
+    this.fileRandomId = 0,
+    this.fileName = '',
+  });
+
+  factory ExportProgressEvent.fromJson(Map<String, dynamic> j, {String accountId = ''}) => ExportProgressEvent(
+    accountId: accountId,
+    step: j['step'] as String? ?? '',
+    stepIndex: j['step_index'] as int? ?? 0,
+    totalSteps: j['total_steps'] as int? ?? 0,
+    progress: (j['progress'] as num?)?.toDouble() ?? 0.0,
+    info: j['info'] as String? ?? '',
+    totalFiles: j['total_files'] as int? ?? 0,
+    totalSizeBytes: j['total_size_bytes'] as int? ?? 0,
+    fileRandomId: j['file_random_id'] as int? ?? 0,
+    fileName: j['file_name'] as String? ?? '',
+  );
+}
+
+class ExportErrorEvent {
+  final String accountId;
+  final String errorType;
+  final int code;
+  final String errorName;
+  final String description;
+  final String path;
+  final int hoursRemaining;
+  final int availableAtMs;
+
+  const ExportErrorEvent({
+    this.accountId = '',
+    this.errorType = '',
+    this.code = 0,
+    this.errorName = '',
+    this.description = '',
+    this.path = '',
+    this.hoursRemaining = 0,
+    this.availableAtMs = 0,
+  });
+
+  factory ExportErrorEvent.fromJson(Map<String, dynamic> j, {String accountId = ''}) => ExportErrorEvent(
+    accountId: accountId,
+    errorType: j['error_type'] as String? ?? '',
+    code: j['code'] as int? ?? 0,
+    errorName: j['error_name'] as String? ?? '',
+    description: j['description'] as String? ?? '',
+    path: j['path'] as String? ?? '',
+    hoursRemaining: j['hours_remaining'] as int? ?? 0,
+    availableAtMs: j['available_at_ms'] as int? ?? 0,
+  );
+}
+
+class ExportCompleteEvent {
+  final String accountId;
+  final String exportPath;
+  final int totalFiles;
+  final int totalSizeBytes;
+
+  const ExportCompleteEvent({
+    this.accountId = '',
+    this.exportPath = '',
+    this.totalFiles = 0,
+    this.totalSizeBytes = 0,
+  });
+
+  factory ExportCompleteEvent.fromJson(Map<String, dynamic> j, {String accountId = ''}) => ExportCompleteEvent(
+    accountId: accountId,
+    exportPath: j['export_path'] as String? ?? '',
+    totalFiles: j['total_files'] as int? ?? 0,
+    totalSizeBytes: j['total_size_bytes'] as int? ?? 0,
+  );
+}
+
 class PersonalCallInfo {
   final String callId;
   final String peerId;

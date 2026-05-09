@@ -3984,6 +3984,65 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(resp)
 
+	// ── Data Export ──
+
+	case "StartExport":
+		var params engine.ExportSettings
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.StartExport(params.AccountID, params); err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]bool{"ok": true})
+
+	case "SkipExportFile":
+		var params struct {
+			AccountID string `json:"account_id"`
+			RandomID  uint64 `json:"random_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		e.SkipExportFile(params.AccountID, params.RandomID)
+		return json.Marshal(map[string]bool{"ok": true})
+
+	case "CancelExport":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		e.CancelExport(params.AccountID)
+		return json.Marshal(map[string]bool{"ok": true})
+
+	case "SaveExportSettings":
+		var params struct {
+			AccountID string          `json:"account_id"`
+			Settings  json.RawMessage `json:"settings"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.SaveExportSettings(params.AccountID, params.Settings); err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]bool{"ok": true})
+
+	case "LoadExportSettings":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		data, err := e.LoadExportSettings(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return data, nil
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}

@@ -29,6 +29,9 @@ const (
 	EventIncomingCall    = "incoming_call"
 	EventCallState       = "call_state"
 	EventGroupCallState  = "group_call_state"
+	EventExportProgress  = "export_progress"
+	EventExportError     = "export_error"
+	EventExportComplete  = "export_complete"
 )
 
 // EngineEvent is the envelope for all events pushed to Dart.
