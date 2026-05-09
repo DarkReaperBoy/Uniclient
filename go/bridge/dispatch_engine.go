@@ -3,6 +3,7 @@ package bridge
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -1502,16 +1503,17 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	case "GetAdminLogEvents":
 		var params struct {
-			AccountID string `json:"account_id"`
-			ChatID    string `json:"chat_id"`
-			Limit     int    `json:"limit"`
-			Query     string `json:"query"`
-			MaxID     int64  `json:"max_id"`
+			AccountID string          `json:"account_id"`
+			ChatID    string          `json:"chat_id"`
+			Limit     int             `json:"limit"`
+			Query     string          `json:"query"`
+			MaxID     int64           `json:"max_id"`
+			Filters   map[string]bool `json:"filters"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		events, err := e.GetAdminLogEvents(params.AccountID, params.ChatID, params.Limit, params.Query, params.MaxID)
+		events, err := e.GetAdminLogEvents(params.AccountID, params.ChatID, params.Limit, params.Query, params.MaxID, params.Filters)
 		if err != nil {
 			return nil, err
 		}
@@ -1647,6 +1649,97 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			return nil, err
 		}
 		return nil, nil
+
+	case "TogglePreHistoryHidden":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Hidden    bool   `json:"hidden"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.TogglePreHistoryHidden(params.AccountID, params.ChatID, params.Hidden)
+
+	case "ToggleSignatures":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Enabled   bool   `json:"enabled"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.ToggleSignatures(params.AccountID, params.ChatID, params.Enabled)
+
+	case "TogglePeerTranslations":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Disabled  bool   `json:"disabled"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.TogglePeerTranslations(params.AccountID, params.ChatID, params.Disabled)
+
+	case "GetFullChatInfo":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		dialog, err := e.GetFullChat(params.AccountID, params.ChatID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(dialog)
+
+	case "GetParticipantInfo":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			UserID    string `json:"user_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		user, err := e.GetParticipantInfo(params.AccountID, params.ChatID, params.UserID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(user)
+
+	case "EditChannelPhoto":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			FilePath  string `json:"file_path"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		var photoData []byte
+		if params.FilePath != "" {
+			var readErr error
+			photoData, readErr = os.ReadFile(params.FilePath)
+			if readErr != nil {
+				return nil, readErr
+			}
+		}
+		return nil, e.EditChannelPhoto(params.AccountID, params.ChatID, photoData)
+
+	case "DeleteChannelPhoto":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.DeleteChannelPhoto(params.AccountID, params.ChatID)
 
 	// ── Create Group ──
 

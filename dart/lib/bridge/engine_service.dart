@@ -2113,6 +2113,7 @@ class EngineService {
     int limit = 20,
     String query = '',
     int maxId = 0,
+    Map<String, bool>? filters,
   }) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
@@ -2120,6 +2121,7 @@ class EngineService {
       'limit': limit,
       'query': query,
       'max_id': maxId,
+      if (filters != null) 'filters': filters,
     }));
     final resp = await _callAsync('__engine', 'GetAdminLogEvents', Uint8List.fromList(payload));
     if (resp.isEmpty) return [];
@@ -2197,6 +2199,71 @@ class EngineService {
       'enabled': enabled,
     }));
     await _callAsync('__engine', 'ToggleAntiSpam', Uint8List.fromList(payload));
+  }
+
+  Future<void> togglePeerTranslations(String accountId, String chatId, bool disabled) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'disabled': disabled,
+    }));
+    await _callAsync('__engine', 'TogglePeerTranslations', Uint8List.fromList(payload));
+  }
+
+  Future<void> togglePreHistoryHidden(String accountId, String chatId, bool hidden) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'hidden': hidden,
+    }));
+    await _callAsync('__engine', 'TogglePreHistoryHidden', Uint8List.fromList(payload));
+  }
+
+  Future<void> toggleSignatures(String accountId, String chatId, bool enabled) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'enabled': enabled,
+    }));
+    await _callAsync('__engine', 'ToggleSignatures', Uint8List.fromList(payload));
+  }
+
+  Future<Map<String, dynamic>> getFullChatInfo(String accountId, String chatId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+    }));
+    final respBytes = await _callAsync('__engine', 'GetFullChatInfo', Uint8List.fromList(payload));
+    if (respBytes.isEmpty) return {};
+    return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getParticipantInfo(String accountId, String chatId, String userId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'user_id': userId,
+    }));
+    final respBytes = await _callAsync('__engine', 'GetParticipantInfo', Uint8List.fromList(payload));
+    if (respBytes.isEmpty) return {};
+    return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+  }
+
+  Future<void> editChannelPhoto(String accountId, String chatId, String filePath) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'file_path': filePath,
+    }));
+    await _callAsync('__engine', 'EditChannelPhoto', Uint8List.fromList(payload));
+  }
+
+  Future<void> deleteChannelPhoto(String accountId, String chatId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+    }));
+    await _callAsync('__engine', 'DeleteChannelPhoto', Uint8List.fromList(payload));
   }
 
   Future<void> forwardMessage(String accountId, String chatId, String msgId, String toChatId, {

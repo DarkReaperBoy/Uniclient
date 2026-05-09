@@ -19683,7 +19683,7 @@ func dispatchTelegram(c *cores.TelegramCore, method string, payload []byte) ([]b
 	case "GetAdminLog":
 		var req pbcores.TelegramGetAdminLogRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		events, err := c.GetAdminLogEvents(req.ChatId, int(req.Limit), "", 0)
+		events, err := c.GetAdminLogEvents(req.ChatId, int(req.Limit), "", 0, nil)
 		if err != nil { return nil, err }
 		resp := &pbcores.TelegramGetAdminLogResponse{
 			Result_1: int64(len(events)),

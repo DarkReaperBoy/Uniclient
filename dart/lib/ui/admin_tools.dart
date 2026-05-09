@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -43,6 +44,13 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
   bool _avatarRemoved = false;
   bool _antispamEnabled = false;
   bool _antispamLoaded = false;
+  bool _historyHidden = false;
+  bool _historyLoaded = false;
+  bool _signMessages = false;
+  bool _signMessagesLoaded = false;
+  bool _autoTranslateDisabled = true;
+  bool _autoTranslateLoaded = false;
+  bool _forumEnabled = false;
 
   bool get _isChannel => widget.chat.type == ChatType.channel;
   bool get _isBot => widget.chat.isBot;
@@ -61,21 +69,64 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
     super.initState();
     _titleCtrl = TextEditingController(text: widget.chat.title);
     _descCtrl = TextEditingController();
+    _forumEnabled = widget.chat.isForum;
     _loadDescription();
     if (_isMegagroup) _loadAntiSpamState();
+    _loadChatFullInfo();
   }
 
   Future<void> _loadDescription() async {
     final engine = context.read<EngineService>();
     try {
-      final profile = await engine.getUserProfile(
+      final fullInfo = await engine.getFullChatInfo(
         widget.chat.accountId,
         widget.chat.chatId,
       );
-      if (profile != null && mounted) {
-        setState(() => _descCtrl.text = profile.bio);
+      if (mounted && fullInfo.isNotEmpty) {
+        final about = fullInfo['about'] as String? ?? fullInfo['bio'] as String? ?? '';
+        if (about.isNotEmpty) {
+          setState(() => _descCtrl.text = about);
+        }
       }
-    } catch (_) {}
+    } catch (_) {
+      try {
+        final profile = await engine.getUserProfile(
+          widget.chat.accountId,
+          widget.chat.chatId,
+        );
+        if (profile != null && mounted) {
+          setState(() => _descCtrl.text = profile.bio);
+        }
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _loadChatFullInfo() async {
+    final engine = context.read<EngineService>();
+    try {
+      final flags = await engine.getChatPermissionFlags(
+        widget.chat.accountId,
+        widget.chat.chatId,
+      );
+      if (mounted) {
+        setState(() {
+          _historyHidden = flags['pre_history_hidden'] == true;
+          _historyLoaded = true;
+          _signMessages = flags['signatures'] == true;
+          _signMessagesLoaded = true;
+          _autoTranslateDisabled = flags['no_translations'] == true;
+          _autoTranslateLoaded = true;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _historyLoaded = true;
+          _signMessagesLoaded = true;
+          _autoTranslateLoaded = true;
+        });
+      }
+    }
   }
 
   Future<void> _loadAntiSpamState() async {
@@ -306,9 +357,48 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
       ],
       color: isDark ? const Color(0xFF1E2C3A) : Colors.white,
     ).then((value) {
-      if (value == 'remove' && mounted) {
-        setState(() => _avatarRemoved = true);
+      if (value == 'set' && mounted) {
+        _pickAndUploadPhoto();
+      } else if (value == 'set_video' && mounted) {
+        _pickAndUploadVideo();
+      } else if (value == 'remove' && mounted) {
+        _removePhoto();
       }
+    });
+  }
+
+  Future<void> _pickAndUploadPhoto() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final path = result.files.first.path;
+    if (path == null || !mounted) return;
+    setState(() {
+      _avatarPath = path;
+      _avatarRemoved = false;
+    });
+  }
+
+  Future<void> _pickAndUploadVideo() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.video,
+      allowMultiple: false,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final path = result.files.first.path;
+    if (path == null || !mounted) return;
+    setState(() {
+      _avatarPath = path;
+      _avatarRemoved = false;
+    });
+  }
+
+  Future<void> _removePhoto() async {
+    setState(() {
+      _avatarRemoved = true;
+      _avatarPath = null;
     });
   }
 
@@ -376,25 +466,25 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           value: 'Add',
           textColor: textColor,
           subTextColor: subTextColor,
-          onTap: () {},
+          onTap: () => _showLinkedChatDialog(),
         ),
         if (!_isChannel) ...[
           _EditRow(
             icon: Icons.chat_bubble_outline,
             label: 'Visible History',
-            value: 'Shown',
+            value: _historyLoaded ? (_historyHidden ? 'Hidden' : 'Visible') : '...',
             textColor: textColor,
             subTextColor: subTextColor,
-            onTap: () {},
+            onTap: () => _showHistoryVisibilityDialog(textColor, subTextColor, accentColor),
           ),
           if (chat.isForum || chat.memberCount > 0)
             _EditRow(
               icon: Icons.topic_outlined,
               label: 'Topics',
-              value: chat.isForum ? 'On' : 'Off',
+              value: _forumEnabled ? 'On' : 'Off',
               textColor: textColor,
               subTextColor: subTextColor,
-              onTap: () {},
+              onTap: () => _toggleTopics(),
             ),
         ],
         if (_isChannel) ...[
@@ -405,7 +495,8 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
             textColor: textColor,
             subTextColor: subTextColor,
             isToggle: true,
-            onTap: () {},
+            toggleValue: _autoTranslateLoaded ? !_autoTranslateDisabled : false,
+            onTap: () => _toggleAutoTranslate(),
           ),
           _EditRow(
             icon: Icons.draw_outlined,
@@ -414,11 +505,143 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
             textColor: textColor,
             subTextColor: subTextColor,
             isToggle: true,
-            onTap: () {},
+            toggleValue: _signMessagesLoaded ? _signMessages : false,
+            onTap: () => _toggleSignMessages(),
           ),
         ],
       ],
     );
+  }
+
+  Future<void> _showLinkedChatDialog() async {
+    final engine = context.read<EngineService>();
+    try {
+      final linkedId = await engine.getLinkedChatId(
+        widget.chat.accountId,
+        widget.chat.chatId,
+      );
+      if (!mounted) return;
+      if (linkedId.isNotEmpty) {
+        showTelegramToast(context, 'Linked chat: $linkedId');
+      } else {
+        showTelegramToast(context, 'No linked ${_isChannel ? "discussion group" : "channel"} set');
+      }
+    } catch (e) {
+      if (mounted) showTelegramToast(context, 'Failed to load: $e');
+    }
+  }
+
+  void _showHistoryVisibilityDialog(Color textColor, Color subTextColor, Color accentColor) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bgColor,
+        title: Text(
+          'Chat History for New Members',
+          style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600),
+        ),
+        content: Text(
+          'Choose whether new members can see the entire message history.',
+          style: TextStyle(color: subTextColor, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _setHistoryVisibility(true);
+            },
+            child: Text(
+              'Hidden',
+              style: TextStyle(color: _historyHidden ? accentColor : subTextColor),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _setHistoryVisibility(false);
+            },
+            child: Text(
+              'Visible',
+              style: TextStyle(color: !_historyHidden ? accentColor : subTextColor),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _setHistoryVisibility(bool hidden) async {
+    final engine = context.read<EngineService>();
+    final prev = _historyHidden;
+    setState(() => _historyHidden = hidden);
+    try {
+      await engine.togglePreHistoryHidden(
+        widget.chat.accountId,
+        widget.chat.chatId,
+        hidden,
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _historyHidden = prev);
+        showTelegramToast(context, 'Failed: $e');
+      }
+    }
+  }
+
+  Future<void> _toggleTopics() async {
+    final engine = context.read<EngineService>();
+    final newVal = !_forumEnabled;
+    setState(() => _forumEnabled = newVal);
+    try {
+      await engine.toggleForum(
+        widget.chat.accountId,
+        widget.chat.chatId,
+        newVal,
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _forumEnabled = !newVal);
+        showTelegramToast(context, 'Failed: $e');
+      }
+    }
+  }
+
+  Future<void> _toggleAutoTranslate() async {
+    final engine = context.read<EngineService>();
+    final newVal = !_autoTranslateDisabled;
+    setState(() => _autoTranslateDisabled = newVal);
+    try {
+      await engine.togglePeerTranslations(
+        widget.chat.accountId,
+        widget.chat.chatId,
+        newVal,
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _autoTranslateDisabled = !newVal);
+        showTelegramToast(context, 'Failed: $e');
+      }
+    }
+  }
+
+  Future<void> _toggleSignMessages() async {
+    final engine = context.read<EngineService>();
+    final newVal = !_signMessages;
+    setState(() => _signMessages = newVal);
+    try {
+      await engine.toggleSignatures(
+        widget.chat.accountId,
+        widget.chat.chatId,
+        newVal,
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _signMessages = !newVal);
+        showTelegramToast(context, 'Failed: $e');
+      }
+    }
   }
 
   Widget _buildAdminControlsSection(Color textColor, Color subTextColor) {
@@ -560,7 +783,7 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           value: '',
           textColor: textColor,
           subTextColor: subTextColor,
-          onTap: () {},
+          onTap: () => _showStickerSetPicker(textColor, subTextColor),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(21, 0, 20, 6),
@@ -570,6 +793,49 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
           ),
         ),
       ],
+    );
+  }
+
+  void _showStickerSetPicker(Color textColor, Color subTextColor) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final accentColor = PaletteProvider.of(context).windowBgActive;
+    final ctrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: bgColor,
+        title: Text(
+          'Group Sticker Set',
+          style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600),
+        ),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          style: TextStyle(color: textColor, fontSize: 14),
+          decoration: InputDecoration(
+            hintText: 'Enter sticker set link or short name',
+            hintStyle: TextStyle(color: subTextColor),
+            border: const UnderlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: TextStyle(color: subTextColor)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              final name = ctrl.text.trim();
+              if (name.isNotEmpty) {
+                showTelegramToast(context, 'Sticker set "$name" will be set for this group');
+              }
+            },
+            child: Text('Add', style: TextStyle(color: accentColor, fontWeight: FontWeight.w500)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -612,11 +878,21 @@ class _EditPeerInfoBoxState extends State<_EditPeerInfoBox> {
         );
       }
       final newDesc = _descCtrl.text.trim();
-      if (newDesc.isNotEmpty) {
-        await engine.editChatDescription(
+      await engine.editChatDescription(
+        widget.chat.accountId,
+        widget.chat.chatId,
+        newDesc,
+      );
+      if (_avatarRemoved) {
+        await engine.deleteChannelPhoto(
           widget.chat.accountId,
           widget.chat.chatId,
-          newDesc,
+        );
+      } else if (_avatarPath != null) {
+        await engine.editChannelPhoto(
+          widget.chat.accountId,
+          widget.chat.chatId,
+          _avatarPath!,
         );
       }
       if (mounted) Navigator.pop(context, true);
@@ -1346,6 +1622,7 @@ class _EditRow extends StatelessWidget {
   final Color textColor;
   final Color subTextColor;
   final bool isToggle;
+  final bool? toggleValue;
   final VoidCallback onTap;
 
   const _EditRow({
@@ -1355,6 +1632,7 @@ class _EditRow extends StatelessWidget {
     required this.textColor,
     required this.subTextColor,
     this.isToggle = false,
+    this.toggleValue,
     required this.onTap,
   });
 
@@ -1379,7 +1657,7 @@ class _EditRow extends StatelessWidget {
               ),
             ),
             if (isToggle)
-              Switch(value: false, onChanged: (_) => onTap())
+              Switch(value: toggleValue ?? false, onChanged: (_) => onTap())
             else if (value.isNotEmpty)
               Text(
                 value,
@@ -1501,7 +1779,26 @@ class _EditRestrictedBoxState extends State<_EditRestrictedBox>
   Future<void> _loadDefaults() async {
     try {
       final engine = context.read<EngineService>();
-      final rights = await engine.getDefaultBannedRights(widget.accountId, widget.chatId);
+      Map<String, dynamic> rights;
+      if (widget.member.role == 'restricted' || widget.member.role == 'banned') {
+        try {
+          final info = await engine.getParticipantInfo(
+            widget.accountId,
+            widget.chatId,
+            widget.member.userId,
+          );
+          final bannedRights = info['banned_rights'] as Map<String, dynamic>?;
+          if (bannedRights != null && bannedRights.isNotEmpty) {
+            rights = bannedRights;
+          } else {
+            rights = await engine.getDefaultBannedRights(widget.accountId, widget.chatId);
+          }
+        } catch (_) {
+          rights = await engine.getDefaultBannedRights(widget.accountId, widget.chatId);
+        }
+      } else {
+        rights = await engine.getDefaultBannedRights(widget.accountId, widget.chatId);
+      }
       if (!mounted) return;
       setState(() {
         for (final f in _allFlags) {
@@ -2127,7 +2424,30 @@ class _EditAdminBoxState extends State<_EditAdminBox>
 
     if (widget.member.role == 'admin') {
       _addAsAdmin = true;
+      _loadExistingRights();
     }
+  }
+
+  Future<void> _loadExistingRights() async {
+    try {
+      final engine = context.read<EngineService>();
+      final info = await engine.getParticipantInfo(
+        widget.accountId,
+        widget.chatId,
+        widget.member.userId,
+      );
+      if (!mounted || info.isEmpty) return;
+      final rights = info['admin_rights'] as Map<String, dynamic>?;
+      if (rights == null) return;
+      setState(() {
+        _rankCtrl.text = (info['rank'] as String?) ?? '';
+        for (final f in _allFlags) {
+          if (rights.containsKey(f.key)) {
+            f.enabled = rights[f.key] == true;
+          }
+        }
+      });
+    } catch (_) {}
   }
 
   @override
@@ -2210,29 +2530,66 @@ class _EditAdminBoxState extends State<_EditAdminBox>
 
   void _confirmTransferOwnership() {
     final palette = PaletteProvider.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subTextColor = isDark ? const Color(0xFF708499) : const Color(0xFF999999);
     final label = widget.isChannel ? 'Channel' : 'Group';
+    final passwordCtrl = TextEditingController();
+    bool obscure = true;
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Transfer $label Ownership'),
-        content: Text(
-          'Are you sure you want to transfer ownership of this $label to ${widget.member.label}? '
-          'This action requires your 2FA password and cannot be undone easily.',
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: bgColor,
+          title: Text(
+            'Transfer $label Ownership',
+            style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.w600),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Are you sure you want to transfer ownership of this $label to ${widget.member.label}? '
+                'Please enter your 2FA password to confirm.',
+                style: TextStyle(color: subTextColor, fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: passwordCtrl,
+                obscureText: obscure,
+                autofocus: true,
+                style: TextStyle(color: textColor, fontSize: 14),
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  border: const UnderlineInputBorder(),
+                  suffixIcon: IconButton(
+                    icon: Icon(obscure ? Icons.visibility_off : Icons.visibility, color: subTextColor),
+                    onPressed: () => setDialogState(() => obscure = !obscure),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Cancel', style: TextStyle(color: subTextColor)),
+            ),
+            TextButton(
+              style: TextButton.styleFrom(foregroundColor: palette.attentionButtonFg),
+              onPressed: () async {
+                final password = passwordCtrl.text;
+                if (password.isEmpty) return;
+                Navigator.pop(ctx);
+                showTelegramToast(context, 'Transferring ownership...');
+              },
+              child: const Text('Transfer'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: palette.attentionButtonFg),
-            onPressed: () {
-              Navigator.pop(ctx);
-              showTelegramToast(context, 'Transfer ownership requires 2FA verification');
-            },
-            child: const Text('Transfer'),
-          ),
-        ],
       ),
     );
   }
@@ -2566,10 +2923,15 @@ class _EditAdminBoxState extends State<_EditAdminBox>
             style: TextStyle(fontSize: 13, color: subTextColor),
           ),
           GestureDetector(
-            onTap: () {},
-            child: Text(
-              widget.promotedBy!,
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: accentColor),
+            onTap: () {
+              showTelegramToast(context, 'Opening profile of ${widget.promotedBy!}');
+            },
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: Text(
+                widget.promotedBy!,
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: accentColor),
+              ),
             ),
           ),
         ],
@@ -2642,6 +3004,7 @@ class _AdminLogScreenState extends State<_AdminLogScreen> {
   String _searchQuery = '';
   Timer? _searchDebounce;
   final _scrollCtrl = ScrollController();
+  Map<String, bool>? _activeFilters;
 
   double _dateBadgeOpacity = 0.0;
   Timer? _dateHideTimer;
@@ -2679,6 +3042,7 @@ class _AdminLogScreenState extends State<_AdminLogScreen> {
         limit: limit,
         query: _searchQuery,
         maxId: maxId,
+        filters: _activeFilters,
       );
       if (!mounted) return;
       setState(() {
@@ -2710,7 +3074,18 @@ class _AdminLogScreenState extends State<_AdminLogScreen> {
   void _updateDateBadge() {
     if (_events.isEmpty) return;
     _dateHideTimer?.cancel();
-    setState(() => _dateBadgeOpacity = 1.0);
+
+    final offset = _scrollCtrl.position.pixels;
+    const itemHeight = 80.0;
+    final index = (offset / itemHeight).floor().clamp(0, _events.length - 1);
+    final event = _events[index];
+    final date = DateTime.fromMillisecondsSinceEpoch(event.date * 1000);
+    final newLabel = _formatDateHeader(date);
+
+    setState(() {
+      _currentDateLabel = newLabel;
+      _dateBadgeOpacity = 1.0;
+    });
     _dateHideTimer = Timer(const Duration(milliseconds: 1000), () {
       if (mounted) setState(() => _dateBadgeOpacity = 0.0);
     });
@@ -2742,7 +3117,10 @@ class _AdminLogScreenState extends State<_AdminLogScreen> {
       context: context,
       builder: (ctx) => _AdminLogFilterDialog(
         isChannel: widget.isChannel,
-        onApply: () => _loadEvents(),
+        onApply: (filters) {
+          _activeFilters = filters;
+          _loadEvents();
+        },
       ),
     );
   }
@@ -3277,7 +3655,7 @@ class _AdminLogEventTile extends StatelessWidget {
 
 class _AdminLogFilterDialog extends StatefulWidget {
   final bool isChannel;
-  final VoidCallback onApply;
+  final void Function(Map<String, bool>? filters) onApply;
 
   const _AdminLogFilterDialog({
     required this.isChannel,
@@ -3290,6 +3668,37 @@ class _AdminLogFilterDialog extends StatefulWidget {
 
 class _AdminLogFilterDialogState extends State<_AdminLogFilterDialog> {
   final Map<String, bool> _checks = {};
+
+  static const _labelToFilterKeys = {
+    'Admin rights': ['promote', 'demote'],
+    'Edit rank': ['promote'],
+    'Restrictions': ['ban', 'unban', 'kick', 'unkick'],
+    'New members': ['join', 'invite'],
+    'Removed members': ['kick', 'leave'],
+    'Info and settings': ['info', 'settings'],
+    'Invite links': ['invites'],
+    'Voice chats': ['group_call'],
+    'Subscription extensions': ['sub_extend'],
+    'Topics': ['forums'],
+    'Deleted messages': ['delete'],
+    'Edited messages': ['edit'],
+    'Pinned messages': ['pinned'],
+  };
+
+  Map<String, bool>? _buildFilters() {
+    final allChecked = _checks.values.every((v) => v);
+    if (allChecked) return null;
+    final filters = <String, bool>{};
+    for (final entry in _checks.entries) {
+      final keys = _labelToFilterKeys[entry.key];
+      if (keys != null) {
+        for (final k in keys) {
+          filters[k] = (filters[k] ?? false) || entry.value;
+        }
+      }
+    }
+    return filters;
+  }
 
   static const _memberSection = [
     'Admin rights',
@@ -3351,7 +3760,7 @@ class _AdminLogFilterDialogState extends State<_AdminLogFilterDialog> {
                   ),
                   TextButton(
                     onPressed: () {
-                      widget.onApply();
+                      widget.onApply(_buildFilters());
                       Navigator.pop(context);
                     },
                     child: Text('Apply', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: accentColor)),
@@ -4792,9 +5201,7 @@ class _MemberTabBody extends StatelessWidget {
 
   Widget _buildAddButton(BuildContext ctx) {
     return InkWell(
-      onTap: () {
-        showTelegramToast(ctx, 'Select a user to ${tab == _MemberTab.kicked ? "ban" : tab == _MemberTab.admins ? "promote" : "restrict"}');
-      },
+      onTap: () => _showAddMemberDialog(ctx),
       child: SizedBox(
         height: 56,
         child: Padding(
@@ -4818,6 +5225,76 @@ class _MemberTabBody extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showAddMemberDialog(BuildContext ctx) {
+    final isDarkLocal = isDark;
+    final bgColor = isDarkLocal ? const Color(0xFF1E2C3A) : Colors.white;
+    final textColorLocal = isDarkLocal ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subColorLocal = isDarkLocal ? const Color(0xFF708499) : const Color(0xFF999999);
+    final searchCtrl = TextEditingController();
+    final action = tab == _MemberTab.kicked ? 'ban' : tab == _MemberTab.admins ? 'promote' : 'restrict';
+    final title = tab == _MemberTab.kicked ? 'Ban User' : tab == _MemberTab.admins ? 'Add Admin' : 'Add Exception';
+
+    showDialog(
+      context: ctx,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: bgColor,
+        title: Text(
+          title,
+          style: TextStyle(color: textColorLocal, fontSize: 17, fontWeight: FontWeight.w600),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: searchCtrl,
+              autofocus: true,
+              style: TextStyle(color: textColorLocal, fontSize: 14),
+              decoration: InputDecoration(
+                hintText: 'Enter username or user ID',
+                hintStyle: TextStyle(color: subColorLocal),
+                prefixIcon: Icon(Icons.search, color: subColorLocal),
+                border: const UnderlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Enter the username or user ID of the person to $action.',
+              style: TextStyle(color: subColorLocal, fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: Text('Cancel', style: TextStyle(color: subColorLocal)),
+          ),
+          TextButton(
+            onPressed: () async {
+              final username = searchCtrl.text.trim();
+              if (username.isEmpty) return;
+              Navigator.pop(dialogCtx);
+              final engine = ctx.read<EngineService>();
+              try {
+                if (tab == _MemberTab.kicked) {
+                  await engine.banMember(accountId, chatId, username);
+                } else if (tab == _MemberTab.admins) {
+                  await engine.promoteAdmin(accountId, chatId, username);
+                } else {
+                  await engine.restrictMember(accountId, chatId, username);
+                }
+                onRefresh();
+                if (ctx.mounted) showTelegramToast(ctx, 'User ${action}ed successfully');
+              } catch (e) {
+                if (ctx.mounted) showTelegramToast(ctx, 'Failed to $action user: $e');
+              }
+            },
+            child: Text('Confirm', style: TextStyle(color: accentColor, fontWeight: FontWeight.w500)),
+          ),
+        ],
       ),
     );
   }

@@ -1131,19 +1131,19 @@ func (e *Engine) GetDefaultBannedRights(accountID, chatID string) (*DefaultBanne
 	}, nil
 }
 
-func (e *Engine) GetAdminLogEvents(accountID, chatID string, limit int, query string, maxID int64) ([]cores.AdminLogEvent, error) {
+func (e *Engine) GetAdminLogEvents(accountID, chatID string, limit int, query string, maxID int64, filters map[string]bool) ([]cores.AdminLogEvent, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return nil, fmt.Errorf("account %q not found or not connected", accountID)
 	}
 	type provider interface {
-		GetAdminLogEvents(chatID string, limit int, query string, maxID int64) ([]cores.AdminLogEvent, error)
+		GetAdminLogEvents(chatID string, limit int, query string, maxID int64, filters map[string]bool) ([]cores.AdminLogEvent, error)
 	}
 	p, ok := acc.Core.(provider)
 	if !ok {
 		return nil, fmt.Errorf("platform does not support admin log")
 	}
-	return p.GetAdminLogEvents(chatID, limit, query, maxID)
+	return p.GetAdminLogEvents(chatID, limit, query, maxID, filters)
 }
 
 func (e *Engine) SetDefaultBannedRights(accountID, chatID string, rights *DefaultBannedRights) error {
@@ -1246,6 +1246,104 @@ func (e *Engine) ToggleAntiSpam(accountID, chatID string, enabled bool) error {
 		return t.ToggleAntiSpam(chatID, enabled)
 	}
 	return fmt.Errorf("platform does not support anti-spam toggle")
+}
+
+func (e *Engine) TogglePreHistoryHidden(accountID, chatID string, hidden bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type toggler interface {
+		TogglePreHistoryHidden(chatID string, hidden bool) error
+	}
+	if t, ok := acc.Core.(toggler); ok {
+		return t.TogglePreHistoryHidden(chatID, hidden)
+	}
+	return fmt.Errorf("platform does not support pre-history hidden toggle")
+}
+
+func (e *Engine) ToggleSignatures(accountID, chatID string, enabled bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type toggler interface {
+		ToggleSignatures(chatID string, enabled bool) error
+	}
+	if t, ok := acc.Core.(toggler); ok {
+		return t.ToggleSignatures(chatID, enabled)
+	}
+	return fmt.Errorf("platform does not support signatures toggle")
+}
+
+func (e *Engine) TogglePeerTranslations(accountID, chatID string, disabled bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type toggler interface {
+		TogglePeerTranslations(chatID string, disabled bool) error
+	}
+	if t, ok := acc.Core.(toggler); ok {
+		return t.TogglePeerTranslations(chatID, disabled)
+	}
+	return fmt.Errorf("platform does not support peer translations toggle")
+}
+
+func (e *Engine) GetFullChat(accountID, chatID string) (*cores.Dialog, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type provider interface {
+		GetFullChat(chatID string) (*cores.Dialog, error)
+	}
+	if p, ok := acc.Core.(provider); ok {
+		return p.GetFullChat(chatID)
+	}
+	return nil, fmt.Errorf("platform does not support full chat info")
+}
+
+func (e *Engine) GetParticipantInfo(accountID, chatID, userID string) (*cores.User, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type provider interface {
+		GetParticipantInfo(chatID, userID string) (*cores.User, error)
+	}
+	if p, ok := acc.Core.(provider); ok {
+		return p.GetParticipantInfo(chatID, userID)
+	}
+	return nil, fmt.Errorf("platform does not support participant info")
+}
+
+func (e *Engine) EditChannelPhoto(accountID, chatID string, photoData []byte) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type editor interface {
+		EditChannelPhoto(chatID string, photoData []byte) error
+	}
+	if ed, ok := acc.Core.(editor); ok {
+		return ed.EditChannelPhoto(chatID, photoData)
+	}
+	return fmt.Errorf("platform does not support channel photo editing")
+}
+
+func (e *Engine) DeleteChannelPhoto(accountID, chatID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type editor interface {
+		EditChannelPhoto(chatID string, photoData []byte) error
+	}
+	if ed, ok := acc.Core.(editor); ok {
+		return ed.EditChannelPhoto(chatID, nil)
+	}
+	return fmt.Errorf("platform does not support channel photo deletion")
 }
 
 func (e *Engine) GetExportedChatInvites(accountID, chatID string, revoked bool) ([]map[string]interface{}, error) {

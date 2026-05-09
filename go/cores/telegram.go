@@ -12294,7 +12294,7 @@ type AdminLogEvent struct {
 	MsgText   string `json:"msg_text,omitempty"`
 }
 
-func (t *TelegramCore) GetAdminLogEvents(chatID string, limit int, query string, maxID int64) ([]AdminLogEvent, error) {
+func (t *TelegramCore) GetAdminLogEvents(chatID string, limit int, query string, maxID int64, filters map[string]bool) ([]AdminLogEvent, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed || t.api == nil {
@@ -12320,6 +12320,29 @@ func (t *TelegramCore) GetAdminLogEvents(chatID string, limit int, query string,
 		Q:       query,
 		Limit:   limit,
 		MaxID:   maxID,
+	}
+	if len(filters) > 0 {
+		f := tg.ChannelAdminLogEventsFilter{}
+		f.SetFlags()
+		if v, ok := filters["join"]; ok { f.Join = v }
+		if v, ok := filters["leave"]; ok { f.Leave = v }
+		if v, ok := filters["invite"]; ok { f.Invite = v }
+		if v, ok := filters["ban"]; ok { f.Ban = v }
+		if v, ok := filters["unban"]; ok { f.Unban = v }
+		if v, ok := filters["kick"]; ok { f.Kick = v }
+		if v, ok := filters["unkick"]; ok { f.Unkick = v }
+		if v, ok := filters["promote"]; ok { f.Promote = v }
+		if v, ok := filters["demote"]; ok { f.Demote = v }
+		if v, ok := filters["info"]; ok { f.Info = v }
+		if v, ok := filters["settings"]; ok { f.Settings = v }
+		if v, ok := filters["pinned"]; ok { f.Pinned = v }
+		if v, ok := filters["group_call"]; ok { f.GroupCall = v }
+		if v, ok := filters["invites"]; ok { f.Invites = v }
+		if v, ok := filters["edit"]; ok { f.Edit = v }
+		if v, ok := filters["delete"]; ok { f.Delete = v }
+		if v, ok := filters["forums"]; ok { f.Forums = v }
+		if v, ok := filters["sub_extend"]; ok { f.SubExtend = v }
+		req.SetEventsFilter(f)
 	}
 	result, err := t.api.ChannelsGetAdminLog(t.ctx, req)
 	if err != nil {
@@ -14694,6 +14717,17 @@ func (t *TelegramCore) TogglePreHistoryHidden(chatID string, hidden bool) error 
 	_, err = t.api.ChannelsTogglePreHistoryHidden(t.ctx, &tg.ChannelsTogglePreHistoryHiddenRequest{
 		Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash}, Enabled: hidden,
 	}); return err
+}
+
+// TogglePeerTranslations toggles auto-translation for a peer.
+func (t *TelegramCore) TogglePeerTranslations(chatID string, disabled bool) error {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil { return err }
+	defer unlock()
+	_, err = t.api.MessagesTogglePeerTranslations(t.ctx, &tg.MessagesTogglePeerTranslationsRequest{
+		Peer: inputPeer, Disabled: disabled,
+	})
+	return err
 }
 
 // ToggleNoForwards enables or disables forwarding restrictions in a chat.
