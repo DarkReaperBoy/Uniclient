@@ -263,16 +263,6 @@ Theme preview widget renders a mock Telegram UI showing dialogs and chat areas. 
 
 ## Major Issues
 
-- [ ] **[MAJOR]** Top bar missing three icon buttons (menu, call, search) — `theme_preview.dart:221-253` ← `window_theme_preview.cpp:534-542`
-  - AyuGram paints menu icon, call icon, search icon on the right side of top bar (line 537-542)
-  - Dart paints only avatar, title, and status — no icons
-  - **Impact**: Preview doesn't show the actual top bar UI (missing ~3 buttons), looks incomplete
-
-- [ ] **[MAJOR]** Compose area is simplified compared to AyuGram — `theme_preview.dart:438-470` ← `window_theme_preview.cpp:557-627`
-  - Missing emoji button with proper styling (Dart draws nothing, AyuGram draws emoji button + circle outline)
-  - Missing proper text field styling (AyuGram fills the field background, Dart just draws placeholder text)
-  - Missing send button animation icon (AyuGram uses Lottie animation, Dart simple arrow)
-  - **Impact**: Compose area looks oversimplified and doesn't match actual Telegram Desktop UI
 
 ---
 
