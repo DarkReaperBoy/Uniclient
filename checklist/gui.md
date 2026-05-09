@@ -309,7 +309,6 @@ Theme preview widget renders a mock Telegram UI showing dialogs and chat areas. 
 
 ## _MemberTabBody
 
-- [ ] [CRITICAL] "Add to Banned / Add Exception / Add Admin" button is a toast-only stub — `admin_tools.dart:4796`: `showTelegramToast(ctx, 'Select a user...')`. No user-picker dialog is opened. Clicking "Add Admin" or "Add Exception" in the member tabs shows a toast instead of a contact/search selector. ← `AyuGram/boxes/peers/edit_participants_box.cpp` (opens `AddParticipantsBoxController` or `AddBotToGroupBoxController`)
 
 ## _InviteLinksBox
 
