@@ -302,11 +302,7 @@ Theme preview widget renders a mock Telegram UI showing dialogs and chat areas. 
 
 ## _EditAdminBox
 
-- [ ] [CRITICAL] Existing admin rights are never loaded when editing an existing admin — `_EditAdminBoxState.initState()` at `admin_tools.dart:2074` always initializes all flags to `enabled = true` regardless of the member's current rights. When opening the box for an existing admin, all permissions appear fully granted. No engine call fetches the current admin's actual rights. No `getMemberAdminRights` method exists in `engine_service.dart`. ← `AyuGram/boxes/peers/edit_participant_box.cpp` (loads existing rights from `participant->adminRights()`)
-
-- [ ] [CRITICAL] Transfer Ownership is a toast-only stub — `admin_tools.dart:2231`: `showTelegramToast(context, 'Transfer ownership requires 2FA verification')`. AyuGram requires an actual 2FA password dialog flow to confirm transfer (`ChannelOwnershipTransfer::requestPassword`). The stub shows a toast and does nothing; ownership is never actually transferred. ← `AyuGram/boxes/peers/channel_ownership_transfer.cpp:79` (`requestPassword()`)
-
-- [ ] [MAJOR] "Promoted by" link in admin box taps do nothing — `admin_tools.dart:2569`: `onTap: () {}`. AyuGram navigates to the promoter's profile. ← `AyuGram/boxes/peers/edit_participant_box.cpp` (shows `PrepareShortInfoBox` for promoter)
+- [ ] [MAJOR] "Promoted by" link in admin box never renders and taps do nothing — `showEditAdminBox()` never passes `promotedBy: member.promotedBy` at any call site (admin_tools.dart:5583, info_panel.dart:5736, chat_view.dart:2617), so `widget.promotedBy` is always null, the section is never built, and the tap handler fix is dead code. Fix: pass `promotedBy: member.promotedBy` at all three call sites. ← `AyuGram/boxes/peers/edit_participant_box.cpp` (shows `PrepareShortInfoBox` for promoter)
 
 ## _EditRestrictedBox
 
