@@ -156,11 +156,6 @@ See message_bubble.dart lines 4098, 4108, 4497 and keyboard_shortcuts.dart lines
 
 # auth_state — Auth flow state manager
 
-- [ ] [CRITICAL] SRP_ID_INVALID silent-retry catch block is dead code — `auth_state.dart:101-117` ← `intro_password_check.cpp:169-178`
-  The catch at line 101 checks `errStr.contains('SRP_ID_INVALID')`, but `_engine.submitAuthInput()` (`engine_service.dart:137-143`) never throws for SRP errors — the Go engine wraps all errors as `AuthStateError` states returned as the proto response value, not as thrown exceptions. The SRP_ID_INVALID error arrives at line 97 as `result.error`, `_currentAuth = result` is assigned, and execution falls through to `notifyListeners()` at line 125. The catch block never executes. User sees the raw error state immediately with no retry. AyuGram's `handleSrpIdInvalid()` works correctly because it is invoked directly from `pwdSubmitFail()` as an MTP error callback, not from a try/catch around a future.
-
-- [ ] [CRITICAL] SRP retry calls `submitInput` with flow already in error state — `auth_state.dart:115` ← `intro_password_check.cpp:177` (`requestPasswordData`)
-  Even if the catch were somehow triggered, `await submitInput(input)` (line 115) calls `_engine.submitAuthInput(accountId, input)` again. But the Go flow state is now `AuthStateError` (set at `engine/auth.go:127`), so `advanceTelegram` hits the default branch and returns `fmt.Errorf("unexpected state error for telegram")` — another error state is returned, not a retry. AyuGram fixes this by calling `requestPasswordData()` first (cpp:177), which makes a fresh `MTPaccount_GetPassword` RPC to obtain a new SRP challenge ID before retrying `checkPasswordHash()`. The Dart retry has no equivalent refresh step and would fail unconditionally.
 
 # ayu_forward — Forward state machine and intelligent chunking
 
