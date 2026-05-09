@@ -12185,6 +12185,30 @@ func (t *TelegramCore) DemoteAdmin(chatID, userID string) error {
 	return t.PromoteAdmin(chatID, userID, tg.ChatAdminRights{})
 }
 
+// TransferChannelOwnership transfers channel/group ownership to another user.
+// Requires the current owner's 2FA password for verification.
+func (t *TelegramCore) TransferChannelOwnership(chatID, userID, password string) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	pw, err := t.api.AccountGetPassword(t.ctx)
+	if err != nil { return fmt.Errorf("get password params: %w", err) }
+	srpCheck, err := auth.PasswordHash([]byte(password), pw.SRPID, pw.SRPB, pw.SecureRandom, pw.CurrentAlgo)
+	if err != nil { return fmt.Errorf("SRP computation failed: %w", err) }
+	peer, err := t.resolvePeer(chatID)
+	if err != nil { return fmt.Errorf("resolve chat: %w", err) }
+	inputPeer, err := t.toInputPeer(peer)
+	if err != nil { return fmt.Errorf("convert to input peer: %w", err) }
+	uid, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil { return fmt.Errorf("invalid user ID: %w", err) }
+	inputUser := &tg.InputUser{UserID: uid, AccessHash: t.getCachedUserHash(uid)}
+	_, err = t.api.MessagesEditChatCreator(t.ctx, &tg.MessagesEditChatCreatorRequest{
+		Peer:     inputPeer,
+		UserID:   inputUser,
+		Password: srpCheck,
+	})
+	return err
+}
+
 // RestrictMember restricts a user from sending messages (until_date=0 means forever).
 func (t *TelegramCore) RestrictMember(chatID, userID string) error {
 	return t.RestrictUser(chatID, userID, tg.ChatBannedRights{

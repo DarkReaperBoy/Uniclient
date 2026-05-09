@@ -3,9 +3,11 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
@@ -13,6 +15,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../theme/telegram_palette.dart';
 import 'create_group_wizard.dart' show showEditPeerTypeBox;
+import 'info_panel.dart';
 import 'telegram_toast.dart';
 
 Future<bool?> showEditPeerInfoBox(
@@ -2701,6 +2704,21 @@ class _EditAdminBoxState extends State<_EditAdminBox>
                 if (password.isEmpty) return;
                 Navigator.pop(ctx);
                 showTelegramToast(context, 'Transferring ownership...');
+                try {
+                  final engine = context.read<EngineService>();
+                  await engine.transferChannelOwnership(
+                    widget.accountId,
+                    widget.chatId,
+                    widget.member.userId,
+                    password,
+                  );
+                  if (mounted) {
+                    showTelegramToast(context, 'Ownership transferred successfully');
+                    Navigator.of(context).pop(true);
+                  }
+                } catch (e) {
+                  if (mounted) showTelegramToast(context, 'Transfer failed: $e');
+                }
               },
               child: const Text('Transfer'),
             ),
@@ -3040,7 +3058,15 @@ class _EditAdminBoxState extends State<_EditAdminBox>
           ),
           GestureDetector(
             onTap: () {
-              showTelegramToast(context, 'Opening profile of ${widget.promotedBy!}');
+              final promoterId = widget.member.promotedByID;
+              if (promoterId.isNotEmpty && InfoPanel.pushUserProfileRequest != null) {
+                final promoterMember = MemberInfo(
+                  userId: promoterId,
+                  displayName: widget.promotedBy!,
+                );
+                InfoPanel.pushUserProfileRequest!(promoterMember);
+                Navigator.of(context).pop();
+              }
             },
             child: MouseRegion(
               cursor: SystemMouseCursors.click,
@@ -4298,8 +4324,7 @@ class _InviteLinksBoxState extends State<_InviteLinksBox> {
           Clipboard.setData(ClipboardData(text: link.link));
           showTelegramToast(context, 'Link copied');
         case 'share':
-          Clipboard.setData(ClipboardData(text: link.link));
-          showTelegramToast(context, 'Link copied to clipboard');
+          _shareLink(link.link);
         case 'qr':
           _showQrCodeDialog(link.link);
         case 'edit':
@@ -4310,6 +4335,15 @@ class _InviteLinksBoxState extends State<_InviteLinksBox> {
           _deleteLink(link);
       }
     });
+  }
+
+  void _shareLink(String link) {
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      Share.share(link);
+    } else {
+      Clipboard.setData(ClipboardData(text: link));
+      showTelegramToast(context, 'Link copied to clipboard');
+    }
   }
 
   void _showQrCodeDialog(String link) {
@@ -4418,10 +4452,7 @@ class _InviteLinksBoxState extends State<_InviteLinksBox> {
               ),
               IconButton(
                 icon: Icon(Icons.share, size: 20, color: palette.windowBgActive),
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: link.link));
-                  showTelegramToast(context, 'Link copied to clipboard');
-                },
+                onPressed: () => _shareLink(link.link),
               ),
               IconButton(
                 icon: Icon(Icons.qr_code, size: 20, color: palette.windowBgActive),

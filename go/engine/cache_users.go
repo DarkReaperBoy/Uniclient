@@ -697,6 +697,20 @@ func (e *Engine) DemoteAdmin(accountID, chatID, userID string) error {
 	return fmt.Errorf("platform does not support DemoteAdmin")
 }
 
+func (e *Engine) TransferChannelOwnership(accountID, chatID, userID, password string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type transferable interface {
+		TransferChannelOwnership(chatID, userID, password string) error
+	}
+	if t, ok := acc.Core.(transferable); ok {
+		return t.TransferChannelOwnership(chatID, userID, password)
+	}
+	return fmt.Errorf("platform does not support TransferChannelOwnership")
+}
+
 func (e *Engine) PromoteAdmin(accountID, chatID, userID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

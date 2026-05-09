@@ -271,6 +271,18 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.DemoteAdmin(req.AccountId, req.ChatId, req.UserId)
 
+	case "TransferChannelOwnership":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			UserID    string `json:"user_id"`
+			Password  string `json:"password"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.TransferChannelOwnership(params.AccountID, params.ChatID, params.UserID, params.Password)
+
 	case "PromoteAdmin":
 		var req pb.EnginePromoteAdminRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

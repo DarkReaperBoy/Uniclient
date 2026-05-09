@@ -365,6 +365,16 @@ class EngineService {
     await _callAsync('__engine', 'DemoteAdmin', req.writeToBuffer());
   }
 
+  Future<void> transferChannelOwnership(String accountId, String chatId, String userId, String password) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'user_id': userId,
+      'password': password,
+    }));
+    await _callAsync('__engine', 'TransferChannelOwnership', Uint8List.fromList(payload));
+  }
+
   Future<void> promoteAdmin(String accountId, String chatId, String userId) async {
     final req = epb.EnginePromoteAdminRequest()
       ..accountId = accountId
