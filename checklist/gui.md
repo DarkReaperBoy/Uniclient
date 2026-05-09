@@ -219,21 +219,7 @@ The `bridge_ffi.dart` file is a well-implemented FFI bridge that correctly:
 
 ## Issues
 
-- [ ] [CRITICAL] `scrollBg` is fully transparent (`Color(0x00000000)`) in both `dayBlue` and `classicDay`; should be `Color(0x1A000000)` per the palette default. The value that belongs in `scrollBg` (alpha=0x1A) was placed in `scrollBgOver` instead (alpha=0x1A vs correct 0x2C), so both are wrong — `scrollBg` gets alpha=0 (invisible), `scrollBgOver` gets the value that was meant for `scrollBg` — `telegram_palette.dart:2824-2825` ← `AyuGram/Telegram/lib_ui/ui/colors.palette:64-65`
-
-- [ ] [CRITICAL] `introCoverTopBg`/`introCoverBottomBg` use a blue gradient (`Color(0xFF0F89D0)` / `Color(0xFF39B0F0)`) in all four themes (dayBlue, night, classicDay, nightGreen) but the palette default is dark navy `#2B2242` for both. Both day and night themes share identical intro cover values which is wrong for night — `telegram_palette.dart:2815-2817,3365-3367` ← `AyuGram/Telegram/lib_ui/ui/colors.palette:171-173`
-
-- [ ] [MAJOR] `menuSeparatorFg: Color(0xFFE5E5E5)` in `dayBlue` (line 2862) and `classicDay` (line 3932) — palette defines it as `#f1f1f1` = `Color(0xFFF1F1F1)` (windowBgOver), but the Dart uses `Color(0xFFE5E5E5)` (= windowBgRipple). Separator appears visually darker than it should — `telegram_palette.dart:2862` ← `AyuGram/Telegram/lib_ui/ui/colors.palette:60`
-
-- [ ] [MAJOR] `mainMenuCoverBg: Color(0xFF40A7E3)` in `dayBlue` (line 2866) — palette defines it as `dialogsBgActive` which resolves to `#419fd9` = `Color(0xFF419FD9)`, not `windowBgActive` (`0xFF40A7E3`). Slightly wrong cover background — `telegram_palette.dart:2866` ← `AyuGram/Telegram/lib_ui/ui/colors.palette:496`
-
-- [ ] [MAJOR] `kColorizeIgnoredKeys` is an incomplete exclusion set. At least 20 tokens are passed without `s()` in `colorize()` (meaning they are excluded from accent shift) but are NOT listed in this set: `trayCounterBg`, `trayCounterBgMute`, `trayCounterFg`, `trayCounterBgMacInvert`, `trayCounterFgMacInvert`, `paymentsTipActive`, `callArrowFg`, `callArrowMissedFg`, `botKbPrimaryBg`, `botKbDangerBg`, `botKbSuccessBg`, `botKbInlinePrimaryBg`, `botKbInlineDangerBg`, `botKbInlineSuccessBg`, `mapPointDrop`, `mapPointDot`, `youtubePlayIconBg`, `youtubePlayIconFg`, `videoPlayIconBg`, `videoPlayIconFg`, `historyCallArrow*` (6 tokens), `stickerPanPremium1`, `stickerPanPremium2`. Any consumer relying on `kColorizeIgnoredKeys` to determine what changes with accent will get incorrect results — `telegram_palette.dart:1148-1172,1476-1481,1500-1504,1520-1521,1637-1640`
-
 - [ ] [MAJOR] Five token names used throughout the file do not exist anywhere in AyuGram source or `colors.palette`: `outlineButtonOutlineFg`, `dialogsForwardBg`, `dialogsForwardFg`, `mainMenuCoverFg`, `profileOtherAdminStarFg`. Verified with `grep -rn` across all of `/home/nako/Documents/AyuGramDesktop/Telegram/` returning no matches. These are invented — if the real Telegram Desktop ever exposes these palette entries, the names may clash or diverge — `telegram_palette.dart:45,75-76,221-224,261-268` ← `AyuGram/Telegram/lib_ui/ui/colors.palette` (absent)
-
-- [ ] [MAJOR] Entire group call color section (~20 tokens) is absent from the `TelegramPalette` class: `groupCallBg`, `groupCallActiveFg`, `groupCallMembersBg`, `groupCallMembersBgOver`, `groupCallMembersBgRipple`, `groupCallMembersFg`, `groupCallMemberActiveIcon`, `groupCallMemberActiveStatus`, `groupCallMemberInactiveIcon`, `groupCallMemberInactiveStatus`, `groupCallMemberMutedIcon`, `groupCallMemberNotJoinedStatus`, `groupCallIconFg`, `groupCallLive1/2`, `groupCallMuted1/2`, `groupCallForceMuted*`, `groupCallMenuBg`, `groupCallLeaveBg`, etc. Any group call UI must hardcode colors and cannot be themed — `telegram_palette.dart:5-559` ← `AyuGram/Telegram/lib_ui/ui/colors.palette:569-598`
-
-- [ ] [MAJOR] `_enforceContrast()` uses a contrast ratio threshold of `3.0` (line 2187) but WCAG AA minimum for normal text is 4.5:1. The function is applied to text-on-background pairs like `activeButtonFg/activeButtonBg`, `dialogsUnreadFg/dialogsUnreadBg`, `historyUnreadBarFg/historyUnreadBarBg`, and `sideBarBadgeFg/sideBarBadgeBg` after dark-theme accent colorization. Using 3.0 means readable contrast is not guaranteed for small text — `telegram_palette.dart:2187`
 
 # theme_file.dart audit
 
