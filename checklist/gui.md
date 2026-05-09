@@ -369,36 +369,6 @@ This ensures that:
 
 This is a well-implemented fallback bridge that correctly documents its stub status and fails fast with clear error messages if the conditional import system fails. No code changes required.
 
-# auth_screen — Auth Screen Audit
-
-- [ ] [CRITICAL] Signup avatar bytes are picked and stored in `_signupAvatarBytes` but `authState.submitInput('$firstName\n$lastName')` never includes or uploads them; photo is silently dropped — `auth_screen.dart:127` ← `intro_signup.cpp:30-34` (UserpicButton handles upload)
-
-# ayu_appearance_page — Audit Findings
-
-- [ ] [CRITICAL] Section order is wrong: App Icon section is placed last in Dart but must be first per C++ (`BuildAppIcon` is called first in `kMeta`) — `ayu_appearance_page.dart:188-193` ← `settings_appearance.cpp:387-388`
-
-- [ ] [CRITICAL] `hideNotificationBadge` toggle is placed under "Chat Folders" section in Dart but belongs inside `BuildAppIcon` (the App Icon section) in C++ — `ayu_appearance_page.dart:80-86` ← `settings_appearance.cpp:66-81`
-
-- [ ] [CRITICAL] Font selector shows a hardcoded list of 11 preset fonts instead of dynamically loading all system fonts via `QFontDatabase::families()` — users cannot select any installed font not in the preset list — `ayu_appearance_page.dart:564-568` ← `font_selector.cpp:204-219`
-
-- [ ] [CRITICAL] Font selector has no search/filter input — C++ uses `Ui::MultiSelect` with live full-text search across all font rows — `ayu_appearance_page.dart:592-695` ← `font_selector.cpp:894-939`
-
-- [ ] [CRITICAL] Font selector does not show a restart dialog after applying a font change — C++ calls `Core::Restart()` confirm box on save and on reset — `ayu_appearance_page.dart:697-700` ← `font_selector.cpp:857-869`
-
-- [ ] [CRITICAL] Font selector missing "Reset" button — C++ has `addLeftButton(tr::ayu_BoxActionReset(), ...)` that resets font to empty and triggers restart — `ayu_appearance_page.dart:673-689` ← `font_selector.cpp:871-888`
-
-- [ ] [CRITICAL] App icon picker renders icons with a `CustomPainter` drawing fake shapes instead of loading real icon preview images via `AyuAssets::loadPreview(iconName)` — visual output is completely incorrect — `ayu_appearance_page.dart:764-769` ← `icon_picker.cpp:117`
-
-- [ ] [CRITICAL] App icon picker does not apply the selected icon to the OS — C++ calls `applyIcon()` which updates the taskbar icon, system tray, and app icon via `Window::OverrideApplicationIcon` and `Core::App().refreshApplicationIcon()` — `ayu_appearance_page.dart:746` ← `icon_picker.cpp:42-52,177-181`
-
-- [ ] [CRITICAL] Avatar corners preview click opens `xdg-open` in a browser (Linux-only) instead of navigating to the channel in-app via `showPeerByLink` — `ayu_appearance_page.dart:430` ← `avatar_corners_preview.cpp:97-100`
-
-- [ ] [CRITICAL] Drawer elements order is wrong: C++ puts LRead (`showLReadToggleInDrawer`) and SRead (`showSReadToggleInDrawer`) before Night Mode and Ghost Mode; Dart reverses this, placing Night Mode/Ghost Mode at lines 153–163 then LRead/SRead at lines 165–175 — `ayu_appearance_page.dart:153-175` ← `settings_appearance.cpp:336-363`
-
-- [ ] [MAJOR] Avatar corners preview is missing the official badge icon (`st::dialogsExteraOfficialIcon`) that C++ draws next to the "AyuGram Releases" name — `ayu_appearance_page.dart:456-462` ← `avatar_corners_preview.cpp:72-73`
-
-- [ ] [MAJOR] Avatar corners preview status text is "Preview of avatar corners" in Dart but must be "Better late than never" per C++ — `ayu_appearance_page.dart:464` ← `avatar_corners_preview.cpp:77`
-
 
 # ayu_chats_page — Audit Findings
 
