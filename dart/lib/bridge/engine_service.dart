@@ -1546,6 +1546,59 @@ class EngineService {
     await _callAsync('__engine', 'SendCallRating', req.writeToBuffer());
   }
 
+  Future<String?> acceptCall(String accountId, String callId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'call_id': callId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'AcceptCall', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      final result = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return result['call_id'] as String?;
+    } catch (e) {
+      Debug.error('ENGINE', 'acceptCall failed', e);
+      return null;
+    }
+  }
+
+  Future<void> declineCall(String accountId, String callId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'call_id': callId,
+    }));
+    try {
+      await _callAsync('__engine', 'DeclineCall', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'declineCall failed', e);
+    }
+  }
+
+  Future<void> endCall(String accountId, String callId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'call_id': callId,
+    }));
+    try {
+      await _callAsync('__engine', 'EndCall', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'endCall failed', e);
+    }
+  }
+
+  Future<void> setCallMuted(String accountId, String callId, bool muted) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'call_id': callId,
+      'muted': muted,
+    }));
+    try {
+      await _callAsync('__engine', 'SetCallMuted', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'setCallMuted failed', e);
+    }
+  }
+
   Future<String?> startCall(String accountId, String chatId, {bool video = false}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

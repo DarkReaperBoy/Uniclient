@@ -3587,6 +3587,60 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, nil
 
+	case "AcceptCall":
+		var params struct {
+			AccountID string `json:"account_id"`
+			CallID    string `json:"call_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		callID, err := e.AcceptCall(params.AccountID, params.CallID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]string{"call_id": callID})
+
+	case "DeclineCall":
+		var params struct {
+			AccountID string `json:"account_id"`
+			CallID    string `json:"call_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.DeclineCall(params.AccountID, params.CallID); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
+	case "EndCall":
+		var params struct {
+			AccountID string `json:"account_id"`
+			CallID    string `json:"call_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.EndCall(params.AccountID, params.CallID); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
+	case "SetCallMuted":
+		var params struct {
+			AccountID string `json:"account_id"`
+			CallID    string `json:"call_id"`
+			Muted     bool   `json:"muted"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.SetCallMuted(params.AccountID, params.CallID, params.Muted); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
 	case "StartCall":
 		var params struct {
 			AccountID string `json:"account_id"`

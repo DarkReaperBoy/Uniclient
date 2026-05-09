@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../theme/telegram_palette.dart';
 import 'package:provider/provider.dart';
 
@@ -54,6 +55,8 @@ class CallPanelInfo {
   final bool isScreenSharing;
   final int signalQuality;
   final List<String> fingerprintEmoji;
+  final String callId;
+  final DateTime? callStartTime;
 
   const CallPanelInfo({
     required this.callerId,
@@ -67,6 +70,8 @@ class CallPanelInfo {
     this.isScreenSharing = false,
     this.signalQuality = -1,
     this.fingerprintEmoji = const [],
+    this.callId = '',
+    this.callStartTime,
   });
 }
 
@@ -107,6 +112,10 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
   Timer? _controlsHideTimer;
   int _durationSeconds = 0;
   bool _controlsVisible = true;
+  bool _isMuted = false;
+  bool _isCameraOn = false;
+  String _selectedCameraDevice = 'Default Camera';
+  String _selectedMicDevice = 'Default Microphone';
 
   static const _kHideControlsFullscreen = Duration(milliseconds: 5000);
   static const _kHideControlsMouseLeave = Duration(milliseconds: 2000);
@@ -190,10 +199,15 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
   }
 
   void _startDurationTimer() {
-    _durationSeconds = 0;
+    final startTime = widget.info.callStartTime ?? DateTime.now();
+    _durationSeconds = DateTime.now().difference(startTime).inSeconds;
     _durationTimer?.cancel();
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _durationSeconds++);
+      if (mounted) {
+        setState(() {
+          _durationSeconds = DateTime.now().difference(startTime).inSeconds;
+        });
+      }
     });
   }
 
@@ -204,36 +218,77 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
   }
 
   Future<void> _onScreenShareTap() async {
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    final callId = widget.info.callId;
+    if (callId.isEmpty) return;
+
     if (widget.info.isScreenSharing) {
-      // Stop sharing — no permission needed
+      await engine.endCall(accountId, callId);
       return;
     }
     final result = await showScreenShareChooser(context);
     if (result != null && mounted) {
-      // Screen share selected — source: result.source, audio: result.withAudio
+      await engine.startCall(accountId, widget.info.callerId, video: true);
     }
   }
 
   Future<void> _onCameraTap() async {
     final ok = await requestPermissionOrFail(context, PermissionType.camera);
     if (!ok || !mounted) return;
-    // Camera toggle proceeds
+    setState(() => _isCameraOn = !_isCameraOn);
   }
 
-  void _showDeviceSelectorMenu(BuildContext btnContext) {
+  Future<void> _onMuteTap() async {
+    final callId = widget.info.callId;
+    if (callId.isEmpty) return;
+    final newMuted = !_isMuted;
+    setState(() => _isMuted = newMuted);
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    await engine.setCallMuted(accountId, callId, newMuted);
+  }
+
+  Future<void> _onAddPeopleTap() async {
+    if (widget.info.state != CallPanelState.active) return;
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    final result = await engine.createConferenceCall(accountId);
+    if (result != null && mounted) {
+      showConfirmBox(
+        context,
+        title: 'Conference Call Created',
+        text: 'Share this link to invite others:\n${result.inviteLink}',
+        confirmText: 'Copy Link',
+        onConfirm: () {
+          Clipboard.setData(ClipboardData(text: result.inviteLink));
+        },
+      );
+    }
+  }
+
+  Future<void> _showDeviceSelectorMenu(BuildContext btnContext) async {
     final RenderBox box = btnContext.findRenderObject() as RenderBox;
     final offset = box.localToGlobal(Offset(box.size.width / 2, 0));
-    showMenu<String>(
+    final result = await showMenu<String>(
       context: btnContext,
       position: RelativeRect.fromLTRB(offset.dx - 100, offset.dy - 8, offset.dx + 100, offset.dy),
       items: [
         const PopupMenuItem(enabled: false, child: Text('Camera', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13))),
-        const PopupMenuItem(value: 'cam_default', child: Text('Default Camera', style: TextStyle(fontSize: 13))),
+        PopupMenuItem(value: 'cam_default', child: Text(_selectedCameraDevice, style: const TextStyle(fontSize: 13))),
         const PopupMenuDivider(),
         const PopupMenuItem(enabled: false, child: Text('Microphone', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13))),
-        const PopupMenuItem(value: 'mic_default', child: Text('Default Microphone', style: TextStyle(fontSize: 13))),
+        PopupMenuItem(value: 'mic_default', child: Text(_selectedMicDevice, style: const TextStyle(fontSize: 13))),
       ],
     );
+    if (result == null || !mounted) return;
+    setState(() {
+      if (result.startsWith('cam_')) {
+        _selectedCameraDevice = 'Default Camera';
+      } else if (result.startsWith('mic_')) {
+        _selectedMicDevice = 'Default Microphone';
+      }
+    });
   }
 
   void _extractDominantColors() {
@@ -535,8 +590,9 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
           onTap: _onScreenShareTap,
         ),
         _CallControlButton(
-          icon: Icons.videocam_outlined,
-          label: 'Camera',
+          icon: _isCameraOn ? Icons.videocam : Icons.videocam_off_outlined,
+          label: _isCameraOn ? 'Stop Video' : 'Camera',
+          isActive: _isCameraOn,
           onTap: _onCameraTap,
           showDeviceChevron: true,
           onDeviceChevronTap: _showDeviceSelectorMenu,
@@ -548,14 +604,15 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
           onTap: widget.onHangup,
         ),
         _CallControlButton(
-          icon: Icons.mic_off_outlined,
-          label: 'Mute',
-          onTap: () {},
+          icon: _isMuted ? Icons.mic_off : Icons.mic_outlined,
+          label: _isMuted ? 'Unmute' : 'Mute',
+          isActive: _isMuted,
+          onTap: _onMuteTap,
         ),
         _CallControlButton(
           icon: Icons.person_add_outlined,
           label: 'Add People',
-          onTap: () {},
+          onTap: _onAddPeopleTap,
         ),
       ],
     );
@@ -1097,26 +1154,65 @@ class _EncryptionFingerprintState extends State<_EncryptionFingerprint>
   static const _kTotalMs = 1200;
 
   static const _kEmojiTable = [
-    '\u{1F600}', '\u{1F603}', '\u{1F604}', '\u{1F601}', '\u{1F606}',
-    '\u{1F605}', '\u{1F923}', '\u{1F602}', '\u{1F642}', '\u{1F609}',
-    '\u{1F60A}', '\u{1F607}', '\u{1F970}', '\u{1F60D}', '\u{1F929}',
-    '\u{1F618}', '\u{1F60B}', '\u{1F61B}', '\u{1F61C}', '\u{1F92A}',
-    '\u{1F61D}', '\u{1F911}', '\u{1F917}', '\u{1F92D}', '\u{1F92B}',
-    '\u{1F914}', '\u{1F610}', '\u{1F60F}', '\u{1F644}', '\u{1F62C}',
-    '\u{1F634}', '\u{1F912}', '\u{1F922}', '\u{1F975}', '\u{1F976}',
-    '\u{1F974}', '\u{1F92F}', '\u{1F920}', '\u{1F973}', '\u{1F60E}',
-    '\u{1F913}', '\u{1F9D0}', '\u{1F615}', '\u{1F61F}', '\u{1F62E}',
-    '\u{1F632}', '\u{1F633}', '\u{1F97A}', '\u{1F628}', '\u{1F622}',
-    '\u{1F62D}', '\u{1F631}', '\u{1F624}', '\u{1F621}', '\u{1F480}',
-    '\u{1F4A9}', '\u{1F921}', '\u{1F47B}', '\u{1F47D}', '\u{1F916}',
-    '\u{1F63A}', '\u{1F638}', '\u{1F648}', '\u{1F649}', '\u{1F64A}',
-    '\u{1F4AF}', '\u{1F525}', '\u{1F4AB}', '\u{2B50}', '\u{1F31F}',
-    '\u{2728}', '\u{26A1}', '\u{1F308}', '\u{2600}', '\u{1F319}',
-    '\u{1F30E}', '\u{1FA90}', '\u{1F435}', '\u{1F436}', '\u{1F431}',
-    '\u{1F981}', '\u{1F42F}', '\u{1F434}', '\u{1F984}', '\u{1F42E}',
-    '\u{1F437}', '\u{1F438}', '\u{1F414}', '\u{1F427}', '\u{1F985}',
-    '\u{1F98B}', '\u{1F422}', '\u{1F40D}', '\u{1F419}', '\u{1F41F}',
-    '\u{1F42C}', '\u{1F433}', '\u{1F988}', '\u{1F40A}', '\u{1F34E}',
+    '\u{1F609}', '\u{1F60D}', '\u{1F61B}', '\u{1F62D}', '\u{1F631}', '\u{1F621}',
+    '\u{1F60E}', '\u{1F634}', '\u{1F635}', '\u{1F608}', '\u{1F62C}', '\u{1F607}',
+    '\u{1F60F}', '\u{1F46E}', '\u{1F477}', '\u{1F482}', '\u{1F476}', '\u{1F468}',
+    '\u{1F469}', '\u{1F474}', '\u{1F475}', '\u{1F63B}', '\u{1F63D}', '\u{1F640}',
+    '\u{1F47A}', '\u{1F648}', '\u{1F649}', '\u{1F64A}', '\u{1F480}', '\u{1F47D}',
+    '\u{1F4A9}', '\u{1F525}', '\u{1F4A5}', '\u{1F4A4}', '\u{1F442}', '\u{1F440}',
+    '\u{1F443}', '\u{1F445}', '\u{1F444}', '\u{1F44D}', '\u{1F44E}', '\u{1F44C}',
+    '\u{1F44A}', '\u{270C}', '\u{270B}', '\u{1F450}', '\u{1F446}', '\u{1F447}',
+    '\u{1F449}', '\u{1F448}', '\u{1F64F}', '\u{1F44F}', '\u{1F4AA}', '\u{1F6B6}',
+    '\u{1F3C3}', '\u{1F483}', '\u{1F46B}', '\u{1F46A}', '\u{1F46C}', '\u{1F46D}',
+    '\u{1F485}', '\u{1F3A9}', '\u{1F451}', '\u{1F452}', '\u{1F45F}', '\u{1F45E}',
+    '\u{1F460}', '\u{1F455}', '\u{1F457}', '\u{1F456}', '\u{1F459}', '\u{1F45C}',
+    '\u{1F453}', '\u{1F380}', '\u{1F484}', '\u{1F49B}', '\u{1F499}', '\u{1F49C}',
+    '\u{1F49A}', '\u{1F48D}', '\u{1F48E}', '\u{1F436}', '\u{1F43A}', '\u{1F431}',
+    '\u{1F42D}', '\u{1F439}', '\u{1F430}', '\u{1F438}', '\u{1F42F}', '\u{1F428}',
+    '\u{1F43B}', '\u{1F437}', '\u{1F42E}', '\u{1F417}', '\u{1F434}', '\u{1F411}',
+    '\u{1F418}', '\u{1F43C}', '\u{1F427}', '\u{1F425}', '\u{1F414}', '\u{1F40D}',
+    '\u{1F422}', '\u{1F41B}', '\u{1F41D}', '\u{1F41C}', '\u{1F41E}', '\u{1F40C}',
+    '\u{1F419}', '\u{1F41A}', '\u{1F41F}', '\u{1F42C}', '\u{1F40B}', '\u{1F410}',
+    '\u{1F40A}', '\u{1F42B}', '\u{1F340}', '\u{1F339}', '\u{1F33B}', '\u{1F341}',
+    '\u{1F33E}', '\u{1F344}', '\u{1F335}', '\u{1F334}', '\u{1F333}', '\u{1F31E}',
+    '\u{1F31A}', '\u{1F319}', '\u{1F30E}', '\u{1F30B}', '\u{26A1}', '\u{2614}',
+    '\u{2744}', '\u{26C4}', '\u{1F300}', '\u{1F308}', '\u{1F30A}', '\u{1F393}',
+    '\u{1F386}', '\u{1F383}', '\u{1F47B}', '\u{1F385}', '\u{1F384}', '\u{1F381}',
+    '\u{1F388}', '\u{1F52E}', '\u{1F3A5}', '\u{1F4F7}', '\u{1F4BF}', '\u{1F4BB}',
+    '\u{260E}', '\u{1F4E1}', '\u{1F4FA}', '\u{1F4FB}', '\u{1F509}', '\u{1F514}',
+    '\u{23F3}', '\u{23F0}', '\u{231A}', '\u{1F512}', '\u{1F511}', '\u{1F50E}',
+    '\u{1F4A1}', '\u{1F526}', '\u{1F50C}', '\u{1F50B}', '\u{1F6BF}', '\u{1F6BD}',
+    '\u{1F527}', '\u{1F528}', '\u{1F6AA}', '\u{1F6AC}', '\u{1F4A3}', '\u{1F52B}',
+    '\u{1F52A}', '\u{1F48A}', '\u{1F489}', '\u{1F4B0}', '\u{1F4B5}', '\u{1F4B3}',
+    '\u{2709}', '\u{1F4EB}', '\u{1F4E6}', '\u{1F4C5}', '\u{1F4C1}', '\u{2702}',
+    '\u{1F4CC}', '\u{1F4CE}', '\u{2712}', '\u{270F}', '\u{1F4D0}', '\u{1F4DA}',
+    '\u{1F52C}', '\u{1F52D}', '\u{1F3A8}', '\u{1F3AC}', '\u{1F3A4}', '\u{1F3A7}',
+    '\u{1F3B5}', '\u{1F3B9}', '\u{1F3BB}', '\u{1F3BA}', '\u{1F3B8}', '\u{1F47E}',
+    '\u{1F3AE}', '\u{1F0CF}', '\u{1F3B2}', '\u{1F3AF}', '\u{1F3C8}', '\u{1F3C0}',
+    '\u{26BD}', '\u{26BE}', '\u{1F3BE}', '\u{1F3B1}', '\u{1F3C9}', '\u{1F3B3}',
+    '\u{1F3C1}', '\u{1F3C7}', '\u{1F3C6}', '\u{1F3CA}', '\u{1F3C4}', '\u{2615}',
+    '\u{1F37C}', '\u{1F37A}', '\u{1F377}', '\u{1F374}', '\u{1F355}', '\u{1F354}',
+    '\u{1F35F}', '\u{1F357}', '\u{1F371}', '\u{1F35A}', '\u{1F35C}', '\u{1F361}',
+    '\u{1F373}', '\u{1F35E}', '\u{1F369}', '\u{1F366}', '\u{1F382}', '\u{1F370}',
+    '\u{1F36A}', '\u{1F36B}', '\u{1F36D}', '\u{1F36F}', '\u{1F34E}', '\u{1F34F}',
+    '\u{1F34A}', '\u{1F34B}', '\u{1F352}', '\u{1F347}', '\u{1F349}', '\u{1F353}',
+    '\u{1F351}', '\u{1F34C}', '\u{1F350}', '\u{1F34D}', '\u{1F346}', '\u{1F345}',
+    '\u{1F33D}', '\u{1F3E1}', '\u{1F3E5}', '\u{1F3E6}', '\u{26EA}', '\u{1F3F0}',
+    '\u{26FA}', '\u{1F3ED}', '\u{1F5FB}', '\u{1F5FD}', '\u{1F3A0}', '\u{1F3A1}',
+    '\u{26F2}', '\u{1F3A2}', '\u{1F6A2}', '\u{1F6A4}', '\u{2693}', '\u{1F680}',
+    '\u{2708}', '\u{1F681}', '\u{1F682}', '\u{1F68B}', '\u{1F68E}', '\u{1F68C}',
+    '\u{1F699}', '\u{1F697}', '\u{1F695}', '\u{1F69B}', '\u{1F6A8}', '\u{1F694}',
+    '\u{1F692}', '\u{1F691}', '\u{1F6B2}', '\u{1F6A0}', '\u{1F69C}', '\u{1F6A6}',
+    '\u{26A0}', '\u{1F6A7}', '\u{26FD}', '\u{1F3B0}', '\u{1F5FF}', '\u{1F3AA}',
+    '\u{1F3AD}',
+    '\u{1F1EF}\u{1F1F5}', '\u{1F1F0}\u{1F1F7}', '\u{1F1E9}\u{1F1EA}',
+    '\u{1F1E8}\u{1F1F3}', '\u{1F1FA}\u{1F1F8}', '\u{1F1EB}\u{1F1F7}',
+    '\u{1F1EA}\u{1F1F8}', '\u{1F1EE}\u{1F1F9}', '\u{1F1F7}\u{1F1FA}',
+    '\u{1F1EC}\u{1F1E7}',
+    '1\u{20E3}', '2\u{20E3}', '3\u{20E3}', '4\u{20E3}', '5\u{20E3}',
+    '6\u{20E3}', '7\u{20E3}', '8\u{20E3}', '9\u{20E3}', '0\u{20E3}',
+    '\u{1F51F}', '\u{2757}', '\u{2753}', '\u{2665}', '\u{2666}', '\u{1F4AF}',
+    '\u{1F517}', '\u{1F531}', '\u{1F534}', '\u{1F535}', '\u{1F536}', '\u{1F537}',
   ];
 
   @override
@@ -1484,10 +1580,11 @@ void showCallPanel(
     barrierDismissible: false,
     barrierColor: Colors.black54,
     builder: (ctx) {
+      final effectiveCallId = callId ?? info.callId;
       void closeAndRate() {
         Navigator.of(ctx).pop();
-        if (callId != null) {
-          showCallRatingDialog(context, callId: callId);
+        if (effectiveCallId.isNotEmpty) {
+          showCallRatingDialog(context, callId: effectiveCallId);
         }
       }
       return Center(
@@ -1499,9 +1596,29 @@ void showCallPanel(
             child: CallPanel(
               info: info,
               onClose: closeAndRate,
-              onDecline: () => Navigator.of(ctx).pop(),
-              onAccept: () {},
-              onHangup: closeAndRate,
+              onDecline: () {
+                if (effectiveCallId.isNotEmpty) {
+                  final engine = ctx.read<EngineService>();
+                  final accountId = ctx.read<AppState>().activeAccountId;
+                  engine.declineCall(accountId, effectiveCallId);
+                }
+                Navigator.of(ctx).pop();
+              },
+              onAccept: () {
+                if (effectiveCallId.isNotEmpty) {
+                  final engine = ctx.read<EngineService>();
+                  final accountId = ctx.read<AppState>().activeAccountId;
+                  engine.acceptCall(accountId, effectiveCallId);
+                }
+              },
+              onHangup: () {
+                if (effectiveCallId.isNotEmpty) {
+                  final engine = ctx.read<EngineService>();
+                  final accountId = ctx.read<AppState>().activeAccountId;
+                  engine.endCall(accountId, effectiveCallId);
+                }
+                closeAndRate();
+              },
               remoteVideoWidget: remoteVideoWidget,
               selfVideoWidget: selfVideoWidget,
             ),

@@ -1500,6 +1500,57 @@ func (e *Engine) GetCallHistory(accountID string, offsetID int, limit int) ([]Ca
 	return entries, nil
 }
 
+func (e *Engine) AcceptCall(accountID, callID string) (string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return "", fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return "", fmt.Errorf("account not connected: %s", accountID)
+	}
+	cs, err := acc.Core.AcceptCall(callID)
+	if err != nil {
+		return "", err
+	}
+	if cs == nil {
+		return "", fmt.Errorf("AcceptCall returned nil session")
+	}
+	return cs.ID, nil
+}
+
+func (e *Engine) DeclineCall(accountID, callID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	return acc.Core.DeclineCall(callID)
+}
+
+func (e *Engine) EndCall(accountID, callID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	return acc.Core.EndCall(callID)
+}
+
+func (e *Engine) SetCallMuted(accountID, callID string, muted bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	return acc.Core.SetCallMuted(callID, muted)
+}
+
 type BroadcastStatsGetter interface {
 	GetBroadcastStats(chatID string) (map[string]interface{}, error)
 }
