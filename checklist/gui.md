@@ -474,11 +474,7 @@ All these controls exist in AppState but are not exposed in the UI.
 
 - [ ] [CRITICAL] `_skipCurrentFile` advances the local step index in the Dart widget only — it never calls `_process->skipFile(randomId)` on the backend, so files cannot actually be skipped — `chat_export.dart:766-774` ← `export_view_panel_controller.cpp:314-317` (`_process->skipFile(randomId)`)
 
-- [ ] [CRITICAL] `AccountInitTakeoutSession` and `AccountFinishTakeoutSession` are both skipped in the bridge dispatch table with comment "complex external types" — the bridge layer has no callable entry point for starting or finishing a real takeout session — `go/bridge/dispatch_gen.go:18707` and `go/bridge/dispatch_gen.go:18914`
-
 - [ ] [CRITICAL] Progress tracking (`_tickExport`, `_totalFiles`, `_totalSizeBytes`) is fully fabricated: `step.progress` advances by a deterministic formula `0.02 + 0.01 * _currentStepIndex`, file count increments by `10 + _currentStepIndex * 5`, and size grows by `(512 + _currentStepIndex * 256) * 1024` — none of these values come from the engine — `chat_export.dart:717-739` ← `export_controller.cpp:100-108` (real counters: `_messagesWritten`, `_userpicsWritten`, `_storiesWritten`, etc.)
-
-- [ ] [CRITICAL] `_bringPanelToFront` is a `// no-op` stub — AyuGram calls `_panel->showAndActivate()` when the user taps the top-bar during processing — `chat_export.dart:690-692` ← `export_view_panel_controller.cpp:163-167` (`activatePanel()` → `_panel->showAndActivate()`)
 
 
 - [ ] [MAJOR] `_openExportFolder` uses `Process.run('xdg-open', [path])` which launches asynchronously and ignores errors — AyuGram uses `File::ShowInFolder(finished->path)` which is the platform-specific "reveal in file manager" call; more importantly, the Dart code opens the folder on button press in the completed phase, but the folder path it opens is `_exportLocation` (the user-chosen destination), which was never actually written to because no real export ran — `chat_export.dart:542-551` ← `export_view_panel_controller.cpp:327-331`
@@ -488,8 +484,6 @@ All these controls exist in AppState but are not exposed in the UI.
 - [ ] [MAJOR] The completed phase shows "Total files: N" and "Total size: X" where both values were incremented by the fake timer loop — these numbers are meaningless since no real export ran — `chat_export.dart:2076-2080` ← `export_view_panel_controller.cpp:326-330` (real completion: `FinishedState` with actual `path`)
 
 - [ ] [MAJOR] `_exportLocation` is saved to a local JSON file via `_saveExportSettings()` but AyuGram persists settings through `_session->local().writeExportSettings(settings)` (MTProto account storage) — the two persistence mechanisms are not equivalent; on reinstall or account switch the local JSON path will be stale or missing — `chat_export.dart:487-519` ← `export_view_panel_controller.cpp:417-429`
-
-- [ ] [MAJOR] The processing view shows only the last 3 steps (startIdx = activeIdx − 2) — AyuGram's `ProgressWidget` keeps all rows and fades out old ones using animated opacity, not a sliding window — `chat_export.dart:1906-1913` ← `export_view_progress.cpp:315-352` (all rows kept, old rows fade out)
 
 - [ ] [MAJOR] `_triggerTakeoutInvalidError`, `_triggerTakeoutInitDelayError`, `_triggerDiskError`, and `_triggerGenericApiError` are dead code — no engine event wires into them because the export is fully simulated; they will never be called in normal app flow — `chat_export.dart:777-824`
 
