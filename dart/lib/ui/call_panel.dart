@@ -111,6 +111,7 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
   Timer? _durationTimer;
   Timer? _controlsHideTimer;
   int _durationSeconds = 0;
+  DateTime? _callStartTime;
   bool _controlsVisible = true;
   bool _isMuted = false;
   bool _isCameraOn = false;
@@ -199,7 +200,8 @@ class _CallPanelState extends State<CallPanel> with TickerProviderStateMixin {
   }
 
   void _startDurationTimer() {
-    final startTime = widget.info.callStartTime ?? DateTime.now();
+    _callStartTime ??= widget.info.callStartTime ?? DateTime.now();
+    final startTime = _callStartTime!;
     _durationSeconds = DateTime.now().difference(startTime).inSeconds;
     _durationTimer?.cancel();
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
