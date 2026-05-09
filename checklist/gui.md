@@ -304,7 +304,6 @@ Theme preview widget renders a mock Telegram UI showing dialogs and chat areas. 
 
 ## _EditRestrictedBox
 
-- [ ] [CRITICAL] Existing banned rights are not loaded for the specific member — `_EditRestrictedBoxState._loadDefaults()` at `admin_tools.dart:1501` calls `engine.getDefaultBannedRights(...)` (group defaults) instead of fetching the individual member's current banned rights. When editing a restricted user, the UI shows group defaults, not what that user is actually banned from. ← `AyuGram/boxes/peers/edit_participant_box.cpp` (loads from `participant->bannedRights()`)
 
 ## _AdminLogScreen / _AdminLogFilterDialog
 
