@@ -81,6 +81,16 @@ class _AuthScreenState extends State<AuthScreen>
     super.dispose();
   }
 
+  static Future<void> _uploadSignupAvatar(
+      EngineService engine, String accountId, Uint8List bytes) async {
+    try {
+      final tmpFile = File('${Directory.systemTemp.path}/uniclient_signup_avatar.png');
+      await tmpFile.writeAsBytes(bytes);
+      await engine.uploadProfilePhoto(accountId, tmpFile.path);
+      try { await tmpFile.delete(); } catch (_) {}
+    } catch (_) {}
+  }
+
   static int _stepOrder(String s) => switch (s) {
     'choose' => 0,
     'qr' => 1,
@@ -125,6 +135,22 @@ class _AuthScreenState extends State<AuthScreen>
       if (firstName.isEmpty) return;
       final lastName = _lastNameController.text.trim();
       setState(() => _showErrorBorder = false);
+      if (_signupAvatarBytes != null) {
+        final avatarBytes = _signupAvatarBytes!;
+        final engine = context.read<EngineService>();
+        _signupAvatarBytes = null;
+        void onReady() {
+          final current = authState.currentAuth;
+          if (current?.state == 'ready') {
+            authState.removeListener(onReady);
+            final accountId = current?.accountId ?? '';
+            if (accountId.isNotEmpty) {
+              _uploadSignupAvatar(engine, accountId, avatarBytes);
+            }
+          }
+        }
+        authState.addListener(onReady);
+      }
       authState.submitInput('$firstName\n$lastName');
       return;
     }
@@ -249,23 +275,6 @@ class _AuthScreenState extends State<AuthScreen>
         _showResetButton = false;
         _passwordController.clear();
         _recoveryCodeController.clear();
-      }
-      if (_prevStep == 'signup' && currentStep == 'ready' && _signupAvatarBytes != null) {
-        final avatarBytes = _signupAvatarBytes!;
-        final accountId = data?.accountId ?? '';
-        _signupAvatarBytes = null;
-        if (accountId.isNotEmpty) {
-          WidgetsBinding.instance.addPostFrameCallback((_) async {
-            try {
-              final tmpFile = File('${Directory.systemTemp.path}/uniclient_signup_avatar.png');
-              await tmpFile.writeAsBytes(avatarBytes);
-              if (!mounted) return;
-              final engine = context.read<EngineService>();
-              await engine.uploadProfilePhoto(accountId, tmpFile.path);
-              try { await tmpFile.delete(); } catch (_) {}
-            } catch (_) {}
-          });
-        }
       }
     }
     if (currentStep.isNotEmpty) {

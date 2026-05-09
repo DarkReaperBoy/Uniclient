@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -8,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
+import '../state/chat_state.dart';
 import 'ayu_section_builder.dart';
 import 'ayu_toggle.dart';
 import 'confirm_box.dart';
@@ -25,12 +25,21 @@ class AyuAppearancePage extends StatelessWidget {
 
     b.addSkip();
 
-    b.addSettingToggle(
-      label: 'Material Design switches',
-      subtitle: 'Use Material-style toggle switches throughout',
-      value: appState.materialSwitches,
-      onChanged: (v) => appState.setMaterialSwitches(v),
-    );
+    b.addSectionTitle('App Icon');
+    b.addWidget(_AppIconPicker(
+      selectedIcon: appState.appIcon,
+      onChanged: (v) => appState.setAppIcon(v),
+      isDark: isDark,
+    ));
+    if (Platform.isWindows)
+      b.addSettingToggle(
+        label: 'Hide notification badge',
+        subtitle: 'Hides the unread count on the taskbar and tray icon',
+        value: appState.hideNotificationBadge,
+        onChanged: (v) => appState.setHideNotificationBadge(v),
+      );
+
+    b.addSectionDivider();
 
     b.addWidget(_AvatarCornersSection(
       corners: appState.avatarCorners,
@@ -40,6 +49,15 @@ class AyuAppearancePage extends StatelessWidget {
       isDark: isDark,
       useMaterial: appState.materialSwitches,
     ));
+
+    b.addSectionDivider();
+
+    b.addSettingToggle(
+      label: 'Material Design switches',
+      subtitle: 'Use Material-style toggle switches throughout',
+      value: appState.materialSwitches,
+      onChanged: (v) => appState.setMaterialSwitches(v),
+    );
 
     b.addSettingToggle(
       label: 'Disable custom backgrounds',
@@ -77,13 +95,6 @@ class AyuAppearancePage extends StatelessWidget {
       value: appState.hideAllChatsFolder,
       onChanged: (v) => appState.setHideAllChatsFolder(v),
     );
-    if (Platform.isWindows)
-      b.addSettingToggle(
-        label: 'Hide notification badge',
-        subtitle: 'Hides the unread count on the taskbar and tray icon',
-        value: appState.hideNotificationBadge,
-        onChanged: (v) => appState.setHideNotificationBadge(v),
-      );
 
     b.addSectionDivider();
 
@@ -151,18 +162,6 @@ class AyuAppearancePage extends StatelessWidget {
       onChanged: (v) => appState.setShowSavedMessagesInDrawer(v),
     );
     b.addSettingToggle(
-      label: 'Night Mode',
-      subtitle: 'Show Night Mode toggle in drawer',
-      value: appState.showDrawerThemeToggle,
-      onChanged: (v) => appState.setShowDrawerThemeToggle(v),
-    );
-    b.addSettingToggle(
-      label: 'Ghost Mode',
-      subtitle: 'Show Ghost Mode toggle in drawer',
-      value: appState.showGhostToggleInDrawer,
-      onChanged: (v) => appState.setShowGhostToggleInDrawer(v),
-    );
-    b.addSettingToggle(
       label: 'Read Receipts (LRead)',
       subtitle: 'Show Read Receipts toggle in drawer',
       value: appState.showLReadToggleInDrawer,
@@ -174,6 +173,18 @@ class AyuAppearancePage extends StatelessWidget {
       value: appState.showSReadToggleInDrawer,
       onChanged: (v) => appState.setShowSReadToggleInDrawer(v),
     );
+    b.addSettingToggle(
+      label: 'Night Mode',
+      subtitle: 'Show Night Mode toggle in drawer',
+      value: appState.showDrawerThemeToggle,
+      onChanged: (v) => appState.setShowDrawerThemeToggle(v),
+    );
+    b.addSettingToggle(
+      label: 'Ghost Mode',
+      subtitle: 'Show Ghost Mode toggle in drawer',
+      value: appState.showGhostToggleInDrawer,
+      onChanged: (v) => appState.setShowGhostToggleInDrawer(v),
+    );
     if (Platform.isWindows || Platform.isMacOS)
       b.addSettingToggle(
         label: 'Streamer Mode',
@@ -181,16 +192,6 @@ class AyuAppearancePage extends StatelessWidget {
         value: appState.showStreamerToggleInDrawer,
         onChanged: (v) => appState.setShowStreamerToggleInDrawer(v),
       );
-
-    b.addSectionDivider();
-
-    // App Icon
-    b.addSectionTitle('App Icon');
-    b.addWidget(_AppIconPicker(
-      selectedIcon: appState.appIcon,
-      onChanged: (v) => appState.setAppIcon(v),
-      isDark: isDark,
-    ));
 
     b.addSkip(24);
 
@@ -349,6 +350,7 @@ class _AvatarCornersPreview extends StatefulWidget {
 class _AvatarCornersPreviewState extends State<_AvatarCornersPreview> {
   Uint8List? _userpicBytes;
   bool _loading = true;
+  String? _channelId;
 
   @override
   void initState() {
@@ -370,6 +372,7 @@ class _AvatarCornersPreviewState extends State<_AvatarCornersPreview> {
         setState(() => _loading = false);
         return;
       }
+      _channelId = channelId;
       final avatarPath = await engine.downloadSingleAvatar(account.id, channelId);
       if (avatarPath == null || !mounted) {
         setState(() => _loading = false);
@@ -427,7 +430,11 @@ class _AvatarCornersPreviewState extends State<_AvatarCornersPreview> {
     }
 
     return GestureDetector(
-      onTap: () => Process.run('xdg-open', ['https://t.me/AyuGramReleases']),
+      onTap: () {
+        if (_channelId != null) {
+          context.read<ChatState>().openChatById(_channelId!);
+        }
+      },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 4),
         child: Container(
@@ -453,15 +460,27 @@ class _AvatarCornersPreviewState extends State<_AvatarCornersPreview> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('AyuGram Releases',
-                        style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: nameColor),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text('AyuGram Releases',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: nameColor),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis),
+                        ),
+                        const SizedBox(width: 3),
+                        Icon(Icons.verified,
+                            size: 15,
+                            color: widget.isDark
+                                ? const Color(0xFF6AB2F2)
+                                : const Color(0xFF3390EC)),
+                      ],
+                    ),
                     const SizedBox(height: 4),
-                    Text('Preview of avatar corners',
+                    Text('Better late than never',
                         style: TextStyle(fontSize: 13, color: previewColor),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis),
@@ -560,23 +579,67 @@ class _FontSelectorBox extends StatefulWidget {
 
 class _FontSelectorBoxState extends State<_FontSelectorBox> {
   late final TextEditingController _controller;
-
-  static const _presets = [
-    '', 'Cascadia Mono', 'JetBrains Mono', 'Fira Code',
-    'Source Code Pro', 'Inconsolata', 'Ubuntu Mono', 'Hack',
-    'Roboto Mono', 'IBM Plex Mono', 'Cousine',
-  ];
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+  List<String> _systemFonts = [];
+  bool _loadingFonts = true;
+  late String _selectedFont;
 
   @override
   void initState() {
     super.initState();
+    _selectedFont = widget.currentFont;
     _controller = TextEditingController(text: widget.currentFont);
+    _loadSystemFonts();
+  }
+
+  Future<void> _loadSystemFonts() async {
+    try {
+      if (Platform.isLinux) {
+        final result = await Process.run('fc-list', ['-f', '%{family}\n']);
+        if (result.exitCode == 0) {
+          final families = <String>{};
+          for (final line in (result.stdout as String).split('\n')) {
+            final trimmed = line.trim();
+            if (trimmed.isNotEmpty) {
+              for (final family in trimmed.split(',')) {
+                final f = family.trim();
+                if (f.isNotEmpty) families.add(f);
+              }
+            }
+          }
+          final sorted = families.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+          if (mounted) setState(() { _systemFonts = ['', ...sorted]; _loadingFonts = false; });
+          return;
+        }
+      }
+    } catch (_) {}
+    if (mounted) {
+      setState(() {
+        _systemFonts = [
+          '', 'Cascadia Mono', 'JetBrains Mono', 'Fira Code',
+          'Source Code Pro', 'Inconsolata', 'Ubuntu Mono', 'Hack',
+          'Roboto Mono', 'IBM Plex Mono', 'Cousine',
+        ];
+        _loadingFonts = false;
+      });
+    }
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _searchController.dispose();
     super.dispose();
+  }
+
+  List<String> get _filteredFonts {
+    if (_searchQuery.isEmpty) return _systemFonts;
+    return _systemFonts
+        .where((f) => f.isEmpty
+            ? 'default'.contains(_searchQuery)
+            : f.toLowerCase().contains(_searchQuery))
+        .toList();
   }
 
   @override
@@ -588,6 +651,7 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
         isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
     final subtitleColor =
         isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999);
+    final fonts = _filteredFonts;
 
     return Dialog(
       backgroundColor: bgColor,
@@ -605,14 +669,15 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: textColor)),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               TextField(
-                controller: _controller,
+                controller: _searchController,
                 autofocus: true,
                 style: TextStyle(fontSize: 14, color: textColor),
                 decoration: InputDecoration(
-                  hintText: 'Cascadia Mono',
+                  hintText: 'Search fonts...',
                   hintStyle: TextStyle(fontSize: 14, color: subtitleColor),
+                  prefixIcon: Icon(Icons.search, size: 18, color: subtitleColor),
                   isDense: true,
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
@@ -626,51 +691,65 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
                     borderSide: BorderSide(color: accentColor, width: 2),
                   ),
                 ),
-                onSubmitted: (_) => _save(),
+                onChanged: (v) => setState(() => _searchQuery = v.toLowerCase()),
               ),
               const SizedBox(height: 12),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 200),
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: _presets.length,
-                  itemBuilder: (ctx, i) {
-                    final font = _presets[i];
-                    final isSelected = _controller.text == font;
-                    final label =
-                        font.isEmpty ? 'Default (Cascadia Mono)' : font;
-                    return InkWell(
-                      onTap: () => setState(() => _controller.text = font),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(label,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontFamily:
-                                        font.isEmpty ? 'monospace' : font,
-                                    color:
-                                        isSelected ? accentColor : textColor,
-                                    fontWeight: isSelected
-                                        ? FontWeight.w600
-                                        : FontWeight.normal,
-                                  )),
-                            ),
-                            if (isSelected)
-                              Icon(Icons.check, size: 18, color: accentColor),
-                          ],
+              if (_loadingFonts)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20),
+                  child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                )
+              else
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 300),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: fonts.length,
+                    itemBuilder: (ctx, i) {
+                      final font = fonts[i];
+                      final isSelected = _selectedFont == font;
+                      final label =
+                          font.isEmpty ? 'Default (Cascadia Mono)' : font;
+                      return InkWell(
+                        onTap: () => setState(() {
+                          _selectedFont = font;
+                          _controller.text = font;
+                        }),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(label,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontFamily:
+                                          font.isEmpty ? 'monospace' : font,
+                                      color:
+                                          isSelected ? accentColor : textColor,
+                                      fontWeight: isSelected
+                                          ? FontWeight.w600
+                                          : FontWeight.normal,
+                                    )),
+                              ),
+                              if (isSelected)
+                                Icon(Icons.check, size: 18, color: accentColor),
+                            ],
+                          ),
                         ),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
-              ),
               const SizedBox(height: 8),
               Row(
-                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
+                  TextButton(
+                    onPressed: _reset,
+                    child: Text('Reset',
+                        style: TextStyle(fontSize: 13, color: accentColor)),
+                  ),
+                  const Spacer(),
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
                     child: Text('Cancel',
@@ -694,9 +773,52 @@ class _FontSelectorBoxState extends State<_FontSelectorBox> {
     );
   }
 
+  void _showRestartDialog(String fontValue) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accentColor =
+        isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Restart Required'),
+        content: const Text('The font change will be applied after restarting the app.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('Later', style: TextStyle(color: accentColor)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              exit(0);
+            },
+            child: Text('Restart Now',
+                style: TextStyle(fontWeight: FontWeight.w600, color: accentColor)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _save() {
-    widget.onSaved(_controller.text);
-    Navigator.of(context).pop();
+    final newFont = _selectedFont;
+    if (newFont != widget.currentFont) {
+      widget.onSaved(newFont);
+      Navigator.of(context).pop();
+      _showRestartDialog(newFont);
+    } else {
+      Navigator.of(context).pop();
+    }
+  }
+
+  void _reset() {
+    if (widget.currentFont.isNotEmpty) {
+      widget.onSaved('');
+      Navigator.of(context).pop();
+      _showRestartDialog('');
+    } else {
+      Navigator.of(context).pop();
+    }
   }
 }
 
@@ -716,16 +838,11 @@ class _AppIconPicker extends StatelessWidget {
     'bard', 'yaplus', 'win95', 'chibi', 'chibi2', 'extera2',
   ];
 
-  static const _iconColors = [
-    Color(0xFF40A7E3), Color(0xFF5288C1), Color(0xFF5865F2),
-    Color(0xFF1DB954), Color(0xFF6B72D5), Color(0xFF808080),
-    Color(0xFFE67E22), Color(0xFFCC3333), Color(0xFF008080),
-    Color(0xFFFF69B4), Color(0xFFDA70D6), Color(0xFF4169E1),
-  ];
-
   @override
   Widget build(BuildContext context) {
     final selected = selectedIcon.isEmpty ? 'default' : selectedIcon;
+    final accentColor =
+        isDark ? const Color(0xFF6AB2F2) : const Color(0xFF3390EC);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
       child: GridView.builder(
@@ -741,32 +858,44 @@ class _AppIconPicker extends StatelessWidget {
         itemBuilder: (ctx, i) {
           final name = _icons[i];
           final isSelected = name == selected;
-          final color = _iconColors[i % _iconColors.length];
           return GestureDetector(
-            onTap: () => onChanged(name == 'default' ? '' : name),
+            onTap: () {
+              final newIcon = name == 'default' ? '' : name;
+              onChanged(newIcon);
+              showConfirmBox(
+                context,
+                title: 'Restart Required',
+                text: 'The app icon will be applied after restarting.',
+                confirmText: 'Restart Now',
+                cancelText: 'Later',
+                onConfirm: () => exit(0),
+                onCancel: () {},
+              );
+            },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeOutCubic,
-              padding: const EdgeInsets.all(4),
+              padding: const EdgeInsets.all(2),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
                 border: isSelected
-                    ? Border.all(
-                        color: isDark
-                            ? const Color(0xFF6AB2F2)
-                            : const Color(0xFF3390EC),
-                        width: 2)
+                    ? Border.all(color: accentColor, width: 2)
                     : null,
               ),
-              child: SizedBox(
-                width: 64,
-                height: 64,
-                child: CustomPaint(
-                  painter: _AppIconThemePainter(
-                    themeName: name,
-                    color: color,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.asset(
+                  'assets/icons/ayu/$name.png',
+                  width: 64,
+                  height: 64,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    width: 64,
+                    height: 64,
+                    color: const Color(0xFF40A7E3),
+                    child: const Icon(Icons.image_not_supported,
+                        color: Colors.white, size: 24),
                   ),
-                  size: const Size(64, 64),
                 ),
               ),
             ),
@@ -775,218 +904,6 @@ class _AppIconPicker extends StatelessWidget {
       ),
     );
   }
-}
-
-class _AppIconThemePainter extends CustomPainter {
-  final String themeName;
-  final Color color;
-
-  _AppIconThemePainter({required this.themeName, required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-    final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(10));
-    canvas.drawRRect(rrect, Paint()..color = color);
-
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final paint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.fill;
-    final strokePaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0
-      ..strokeCap = StrokeCap.round;
-
-    switch (themeName) {
-      case 'discord':
-        _drawDiscord(canvas, cx, cy, size, paint);
-      case 'spotify':
-        _drawSpotify(canvas, cx, cy, size, strokePaint);
-      case 'extera' || 'extera2':
-        _drawExtera(canvas, cx, cy, size, paint);
-      case 'nothing':
-        _drawNothing(canvas, cx, cy, size, strokePaint);
-      case 'bard':
-        _drawBard(canvas, cx, cy, size, paint);
-      case 'yaplus':
-        _drawYaPlus(canvas, cx, cy, size, paint, strokePaint);
-      case 'win95':
-        _drawWin95(canvas, cx, cy, size, paint);
-      case 'chibi' || 'chibi2':
-        _drawChibi(canvas, cx, cy, size, paint);
-      case 'alt':
-        _drawAlt(canvas, cx, cy, size, paint);
-      default:
-        _drawDefault(canvas, cx, cy, size, paint);
-    }
-  }
-
-  void _drawDefault(Canvas canvas, double cx, double cy, Size size, Paint paint) {
-    final s = size.width / 64;
-    final path = Path();
-    path.moveTo(cx - 18 * s, cy);
-    path.lineTo(cx + 16 * s, cy - 14 * s);
-    path.lineTo(cx + 16 * s, cy - 4 * s);
-    path.lineTo(cx - 6 * s, cy + 14 * s);
-    path.close();
-    canvas.drawPath(path, paint);
-    final path2 = Path();
-    path2.moveTo(cx + 16 * s, cy - 4 * s);
-    path2.lineTo(cx - 6 * s, cy + 14 * s);
-    path2.lineTo(cx - 2 * s, cy + 5 * s);
-    path2.lineTo(cx + 6 * s, cy + 10 * s);
-    path2.close();
-    canvas.drawPath(path2, Paint()..color = Colors.white.withValues(alpha: 0.7));
-  }
-
-  void _drawAlt(Canvas canvas, double cx, double cy, Size size, Paint paint) {
-    final s = size.width / 64;
-    final path = Path();
-    path.moveTo(cx + 18 * s, cy);
-    path.lineTo(cx - 16 * s, cy - 14 * s);
-    path.lineTo(cx - 16 * s, cy - 4 * s);
-    path.lineTo(cx + 6 * s, cy + 14 * s);
-    path.close();
-    canvas.drawPath(path, paint);
-    final path2 = Path();
-    path2.moveTo(cx - 16 * s, cy - 4 * s);
-    path2.lineTo(cx + 6 * s, cy + 14 * s);
-    path2.lineTo(cx + 2 * s, cy + 5 * s);
-    path2.lineTo(cx - 6 * s, cy + 10 * s);
-    path2.close();
-    canvas.drawPath(path2, Paint()..color = Colors.white.withValues(alpha: 0.7));
-  }
-
-  void _drawDiscord(Canvas canvas, double cx, double cy, Size size, Paint paint) {
-    final s = size.width / 64;
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx, cy - 4 * s), width: 28 * s, height: 28 * s),
-      paint,
-    );
-    final band = RRect.fromRectAndRadius(
-      Rect.fromCenter(center: Offset(cx, cy + 12 * s), width: 22 * s, height: 8 * s),
-      Radius.circular(4 * s),
-    );
-    canvas.drawRRect(band, paint);
-  }
-
-  void _drawSpotify(Canvas canvas, double cx, double cy, Size size, Paint strokePaint) {
-    final s = size.width / 64;
-    final sp = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.0 * s
-      ..strokeCap = StrokeCap.round;
-    for (int i = 0; i < 3; i++) {
-      final yOff = (i - 1) * 9.0 * s;
-      final path = Path();
-      path.moveTo(cx - 14 * s, cy + yOff + 3 * s);
-      path.quadraticBezierTo(cx, cy + yOff - 6 * s, cx + 14 * s, cy + yOff + 3 * s);
-      canvas.drawPath(path, sp);
-    }
-  }
-
-  void _drawExtera(Canvas canvas, double cx, double cy, Size size, Paint paint) {
-    final s = size.width / 64;
-    _drawStar(canvas, cx, cy, 14 * s, 6 * s, 4, paint);
-    _drawStar(canvas, cx - 12 * s, cy - 10 * s, 6 * s, 3 * s, 4,
-        Paint()..color = Colors.white.withValues(alpha: 0.6));
-    _drawStar(canvas, cx + 10 * s, cy + 12 * s, 5 * s, 2.5 * s, 4,
-        Paint()..color = Colors.white.withValues(alpha: 0.5));
-  }
-
-  void _drawStar(Canvas canvas, double cx, double cy, double outer, double inner, int points, Paint paint) {
-    final path = Path();
-    for (int i = 0; i < points * 2; i++) {
-      final angle = (i * 3.14159265 / points) - 3.14159265 / 2;
-      final r = i.isEven ? outer : inner;
-      final x = cx + r * _cos(angle);
-      final y = cy + r * _sin(angle);
-      if (i == 0) { path.moveTo(x, y); } else { path.lineTo(x, y); }
-    }
-    path.close();
-    canvas.drawPath(path, paint);
-  }
-
-  void _drawNothing(Canvas canvas, double cx, double cy, Size size, Paint strokePaint) {
-    final s = size.width / 64;
-    final sp = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5 * s;
-    canvas.drawCircle(Offset(cx, cy), 16 * s, sp);
-    canvas.drawCircle(Offset(cx, cy), 4 * s, Paint()..color = Colors.white);
-  }
-
-  void _drawBard(Canvas canvas, double cx, double cy, Size size, Paint paint) {
-    final s = size.width / 64;
-    _drawStar(canvas, cx, cy, 18 * s, 8 * s, 4, paint);
-  }
-
-  void _drawYaPlus(Canvas canvas, double cx, double cy, Size size, Paint paint, Paint strokePaint) {
-    final s = size.width / 64;
-    final sp = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4.0 * s
-      ..strokeCap = StrokeCap.round;
-    canvas.drawLine(Offset(cx - 14 * s, cy), Offset(cx + 14 * s, cy), sp);
-    canvas.drawLine(Offset(cx, cy - 14 * s), Offset(cx, cy + 14 * s), sp);
-  }
-
-  void _drawWin95(Canvas canvas, double cx, double cy, Size size, Paint paint) {
-    final s = size.width / 64;
-    final gap = 2.0 * s;
-    final half = 11.0 * s;
-    final colors = [
-      const Color(0xFFFF0000), const Color(0xFF00FF00),
-      const Color(0xFF0000FF), const Color(0xFFFFFF00),
-    ];
-    final offsets = [
-      Offset(cx - half / 2 - gap / 2, cy - half / 2 - gap / 2),
-      Offset(cx + gap / 2, cy - half / 2 - gap / 2),
-      Offset(cx - half / 2 - gap / 2, cy + gap / 2),
-      Offset(cx + gap / 2, cy + gap / 2),
-    ];
-    for (int i = 0; i < 4; i++) {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(offsets[i].dx, offsets[i].dy, half, half),
-          Radius.circular(2 * s),
-        ),
-        Paint()..color = colors[i],
-      );
-    }
-  }
-
-  void _drawChibi(Canvas canvas, double cx, double cy, Size size, Paint paint) {
-    final s = size.width / 64;
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx, cy), width: 30 * s, height: 32 * s),
-      paint,
-    );
-    final eyePaint = Paint()..color = color;
-    canvas.drawCircle(Offset(cx - 6 * s, cy - 3 * s), 3 * s, eyePaint);
-    canvas.drawCircle(Offset(cx + 6 * s, cy - 3 * s), 3 * s, eyePaint);
-    final smile = Path();
-    smile.moveTo(cx - 5 * s, cy + 6 * s);
-    smile.quadraticBezierTo(cx, cy + 11 * s, cx + 5 * s, cy + 6 * s);
-    canvas.drawPath(smile, Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5 * s
-      ..strokeCap = StrokeCap.round);
-  }
-
-  static double _cos(double a) => math.cos(a);
-  static double _sin(double a) => math.sin(a);
-
-  @override
-  bool shouldRepaint(covariant _AppIconThemePainter oldDelegate) =>
-      oldDelegate.themeName != themeName || oldDelegate.color != color;
 }
 
 class _ToggleRow extends StatelessWidget {
