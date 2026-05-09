@@ -462,12 +462,6 @@ This is a well-implemented fallback bridge that correctly documents its stub sta
 
 All these controls exist in AppState but are not exposed in the UI.
 
-# call_panel — Audit Findings
-
-## call_panel — Call duration not synced from engine
-
-- [ ] [MAJOR] Call duration timer resets to 0 on every state transition to `active` — the Dart widget runs `_durationSeconds = 0` on each `active` state start and counts seconds locally; it should read the actual elapsed call time from the engine so resuming a call mid-session shows the correct duration — `call_panel.dart:192-198` ← `calls/calls_panel.cpp:460-463` (`_call` provides `getWaitingSoundPeakValue` / duration; `updateDurationText` reads from call object)
-
 # call_screen — Group call panel, minimised call bar, screen-share chooser
 
 - [ ] [CRITICAL] `showGroupCallPanel` passes `onToggleMute`, `onToggleVideo`, `onOpenMenu` as `null` — all three callbacks are unset, so the mute button, video button, and menu button in the panel do nothing — `call_screen.dart:933-970` ← `calls/group/calls_group_panel.cpp:573-601` (mute), `:755` (video), `:535` (hangup wiring)
@@ -477,26 +471,6 @@ All these controls exist in AppState but are not exposed in the UI.
 - [ ] [CRITICAL] Desktop-capture enumeration uses ad-hoc shell commands instead of tgcalls `DesktopCaptureSourceManager` — Dart calls `xrandr`, `wmctrl`, `kdotool` via `Process.run`; AyuGram calls `tgcalls::DesktopCaptureSourceManager(Type::Screen)` and `tgcalls::DesktopCaptureSourceManager(Type::Window)` — `call_screen.dart:1591-1693` ← `calls/group/ui/desktop_capture_choose_source.cpp:451-504`
 
 - [ ] [CRITICAL] Screen-share thumbnails are static file paths, not live video frames — AyuGram creates a `tgcalls::DesktopCaptureSourceHelper` + `Webrtc::VideoTrack` per source and renders the live first frame; Dart shows a `FileImage(thumbnailPath)` or a placeholder icon with no live capture — `call_screen.dart:2000-2016` ← `calls/group/ui/desktop_capture_choose_source.cpp:133-246`
-
-- [ ] [CRITICAL] `GroupCallPanel` duration counter always starts at 0, no call-start-time parameter — users joining an ongoing call see "00:00"; `MinimisedCallBar` has `callStartTime` but `GroupCallPanel` does not — `call_screen.dart:57,62-63` ← `calls/calls_top_bar.cpp:733-750` (duration from real `call->getDurationMs()`)
-
-- [ ] [CRITICAL] No blob animation below the minimised call bar — AyuGram's `TopBar::initBlobsUnder` creates `Ui::Paint::LinearBlobs` (3 blobs, segments 5/7/8) that render below the bar and react to `group->levelUpdates()`; Dart `MinimisedCallBar` has no such blob widget — `call_screen.dart:1012-1243` ← `calls/calls_top_bar.cpp:444-580`
-
-- [ ] [MAJOR] `GroupCallPanel` default height 540 px ≠ AyuGram `groupCallHeight: 520px` — `call_screen.dart:47` ← `calls/calls.style:546`
-
-- [ ] [MAJOR] `_BigMuteButton` blob radii are wrong — Dart uses `_blobMinRadius = 28`, `_blobMaxRadius = 33`; AyuGram style defines `callMuteMinorBlobMinRadius: 64px`, `callMuteMinorBlobMaxRadius: 74px`, `callMuteMajorBlobMinRadius: 67px`, `callMuteMajorBlobMaxRadius: 77px` — `call_screen.dart:717-718` ← `calls/calls.style:324-327`
-
-- [ ] [MAJOR] Force-muted tap shows no toast — AyuGram shows `tr::lng_group_call_force_muted_sub` toast when a force-muted user taps the mute button; Dart `_CallBarMuteButton` silently disables the tap with `onTap: isForceMuted ? null : onTap` and `_BigMuteButton` calls `widget.onTap` regardless of force-mute state — `call_screen.dart:1265` ← `calls/calls_top_bar.cpp:296-303`
-
-- [ ] [MAJOR] Hangup in group call bar has no admin leave-or-end dialog — AyuGram checks `group->canManage()` and shows `Group::LeaveBox` for admins; Dart `_CallBarHangupButton` always calls `onHangup` directly with no dialog — `call_screen.dart:1496-1519` ← `calls/calls_top_bar.cpp:424-439`
-
-- [ ] [MAJOR] `_CallBarState` has no `RaisedHand` case — AyuGram's `BarStateFromMuteState` maps `MuteState::RaisedHand` → `BarState::ForceMuted`; Dart `_resolveBarState()` has no raised-hand branch, so a raised-hand participant is incorrectly shown as active or muted — `call_screen.dart:1079-1087` ← `calls/calls_top_bar.cpp:61-74`
-
-- [ ] [MAJOR] Recording dot minimum opacity 0.3 ≠ AyuGram `kRecordingOpacity = 0.6` — Dart animates `0.3 + 0.7 * value` (range 0.3–1.0); AyuGram animates between `kRecordingOpacity (0.6)` and `1.0` — `call_screen.dart:669` ← `calls/group/calls_group_panel.cpp:80-81,1324-1327`
-
-- [ ] [MAJOR] `_BlobPainter.shouldRepaint` unconditionally returns `true` — repaints every vsync even when level/radius/blob state is unchanged; should compare fields — `call_screen.dart:636` ← (performance regression, no AyuGram equivalent)
-
-- [ ] [MAJOR] `_BigMuteButton` label shows "Unmute" for `forceMuted` state with no visual distinction — AyuGram's `CallMuteButton` shows a distinct "Raise Hand" / forced-mute type; Dart uses a simple ternary `unmuted ? 'Mute' : 'Unmute'` which gives force-muted users the same "Unmute" text as self-muted — `call_screen.dart:852-853` ← `calls/group/calls_group_panel.cpp:891-910`
 
 # calls_screen — Audit Findings
 
