@@ -16,7 +16,6 @@ import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart' as lottie;
 import 'package:provider/provider.dart';
 import 'package:record/record.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../bridge/engine_service.dart';
 import '../data/ayu_filter.dart';
@@ -58,16 +57,29 @@ import '../utils/web_drop.dart';
 
 final _hiddenPinnedMessages = <String>{};
 
+String get _hiddenPinsPath {
+  final home = Platform.environment['HOME'] ?? '/tmp';
+  final dataDir = Platform.environment['XDG_DATA_HOME'] ?? '$home/.local/share';
+  return '$dataDir/uniclient/hidden_pins.json';
+}
+
 Future<void> _loadHiddenPins() async {
-  final prefs = await SharedPreferences.getInstance();
-  final list = prefs.getStringList('hidden_pinned_messages');
-  if (list != null) _hiddenPinnedMessages.addAll(list);
+  try {
+    final file = File(_hiddenPinsPath);
+    if (await file.exists()) {
+      final data = jsonDecode(await file.readAsString());
+      if (data is List) _hiddenPinnedMessages.addAll(data.cast<String>());
+    }
+  } catch (_) {}
 }
 
 Future<void> _saveHiddenPin(String key) async {
   _hiddenPinnedMessages.add(key);
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.setStringList('hidden_pinned_messages', _hiddenPinnedMessages.toList());
+  try {
+    final file = File(_hiddenPinsPath);
+    await file.parent.create(recursive: true);
+    await file.writeAsString(jsonEncode(_hiddenPinnedMessages.toList()));
+  } catch (_) {}
 }
 
 bool _isPinnedHidden(String accountId, String chatId, String msgId) {
