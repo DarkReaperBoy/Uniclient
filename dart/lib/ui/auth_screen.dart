@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/auth_state.dart';
@@ -164,6 +165,14 @@ class _AuthScreenState extends State<AuthScreen>
               },
               child: const Text('Edit Phone Number'),
             ),
+            if (authState.currentAuth?.canResend ?? false)
+              TextButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  authState.switchToMethod('phone');
+                },
+                child: const Text('Resend Code'),
+              ),
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
               child: const Text('OK'),
@@ -241,6 +250,23 @@ class _AuthScreenState extends State<AuthScreen>
         _showResetButton = false;
         _passwordController.clear();
         _recoveryCodeController.clear();
+      }
+      if (_prevStep == 'signup' && currentStep == 'ready' && _signupAvatarBytes != null) {
+        final avatarBytes = _signupAvatarBytes!;
+        final accountId = data?.accountId ?? '';
+        _signupAvatarBytes = null;
+        if (accountId.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) async {
+            try {
+              final tmpFile = File('${Directory.systemTemp.path}/uniclient_signup_avatar.png');
+              await tmpFile.writeAsBytes(avatarBytes);
+              if (!mounted) return;
+              final engine = context.read<EngineService>();
+              await engine.uploadProfilePhoto(accountId, tmpFile.path);
+              try { await tmpFile.delete(); } catch (_) {}
+            } catch (_) {}
+          });
+        }
       }
     }
     if (currentStep.isNotEmpty) {
@@ -369,8 +395,14 @@ class _AuthScreenState extends State<AuthScreen>
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.of(ctx).pop();
+              final auth = context.read<AuthState>().currentAuth;
+              if (auth == null) return;
+              try {
+                final engine = context.read<EngineService>();
+                await engine.resetPassword(auth.accountId);
+              } catch (_) {}
             },
             style: TextButton.styleFrom(
               foregroundColor: theme.colorScheme.error,
@@ -759,8 +791,13 @@ class _AuthScreenState extends State<AuthScreen>
     );
   }
 
-  void _handleForgotPassword(AuthStateData data, AuthState authState) {
+  void _handleForgotPassword(AuthStateData data, AuthState authState) async {
     if (data.hasRecovery) {
+      try {
+        final engine = context.read<EngineService>();
+        await engine.requestPasswordRecovery(data.accountId);
+      } catch (_) {}
+      if (!mounted) return;
       setState(() {
         _isRecoveryMode = true;
         _showErrorBorder = false;
@@ -1260,7 +1297,6 @@ class _CoverGradient extends StatelessWidget {
   Widget build(BuildContext context) {
     final topColor = isDark ? const Color(0xFF1B3A4B) : const Color(0xFF0088CC);
     final bottomColor = isDark ? const Color(0xFF0D2637) : const Color(0xFF0066AA);
-    const iconSize = 80.0;
 
     return ClipRect(
       child: Container(
@@ -1276,17 +1312,62 @@ class _CoverGradient extends StatelessWidget {
         child: Stack(
           children: [
             Positioned(
-              top: 46,
+              left: -20,
+              top: 40,
+              child: Icon(
+                Icons.message_rounded,
+                size: 60,
+                color: Colors.white.withValues(alpha: 0.12),
+              ),
+            ),
+            Positioned(
+              right: -10,
+              top: 60,
+              child: Icon(
+                Icons.send_rounded,
+                size: 50,
+                color: Colors.white.withValues(alpha: 0.12),
+              ),
+            ),
+            Positioned(
+              top: 50,
               left: 0,
               right: 0,
               child: Center(
-                child: Transform.translate(
-                  offset: const Offset(-50, 0),
-                  child: Icon(
-                    Icons.send_rounded,
-                    size: iconSize,
-                    color: Colors.white.withValues(alpha: 0.9),
-                  ),
+                child: Icon(
+                  Icons.send_rounded,
+                  size: 60,
+                  color: Colors.white.withValues(alpha: 0.9),
+                ),
+              ),
+            ),
+            const Positioned(
+              top: 126,
+              left: 0,
+              right: 0,
+              child: Text(
+                'UniClient',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ),
+            Positioned(
+              top: 158,
+              left: 24,
+              right: 24,
+              child: Text(
+                'A universal messaging client',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  color: Colors.white.withValues(alpha: 0.7),
+                  height: 1.4,
                 ),
               ),
             ),
@@ -1754,15 +1835,23 @@ class _OtpCodeInputState extends State<_OtpCodeInput>
         if (widget.timeoutSecs > 0) ...[
           const SizedBox(height: 16),
           _calling
-              ? Text(
-                  'Calling...',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.primary,
+              ? TextButton(
+                  onPressed: widget.onDidntGetCode,
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    'Resend code',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.primary,
+                    ),
                   ),
                 )
               : _callSecondsLeft > 0
                   ? Text(
-                      'Telegram will call you in ${_callSecondsLeft ~/ 60}:${(_callSecondsLeft % 60).toString().padLeft(2, '0')}',
+                      'Resend code in ${_callSecondsLeft ~/ 60}:${(_callSecondsLeft % 60).toString().padLeft(2, '0')}',
                       style: theme.textTheme.bodySmall,
                     )
                   : const SizedBox.shrink(),
