@@ -720,8 +720,22 @@ func (t *TelegramCore) Authenticate(cfg AuthConfig) error {
 				authFlow.signUpReady = t.authSignUpReady
 
 				flow := auth.NewFlow(authFlow, auth.SendCodeOptions{})
-				if err := t.client.Auth().IfNecessary(ctx, flow); err != nil {
-					return fmt.Errorf("user auth: %w", err)
+				authErr := t.client.Auth().IfNecessary(ctx, flow)
+				if authErr != nil && strings.Contains(authErr.Error(), "SRP_ID_INVALID") && authFlow.lastPassword != "" {
+					// SRP challenge expired — fetch fresh params and retry once
+					if pwd, getErr := api.AccountGetPassword(ctx); getErr == nil {
+						if hash, hashErr := auth.PasswordHash(
+							[]byte(authFlow.lastPassword),
+							pwd.SRPID, pwd.SRPB, pwd.SecureRandom, pwd.CurrentAlgo,
+						); hashErr == nil {
+							if _, checkErr := api.AuthCheckPassword(ctx, hash); checkErr == nil {
+								authErr = nil
+							}
+						}
+					}
+				}
+				if authErr != nil {
+					return fmt.Errorf("user auth: %w", authErr)
 				}
 
 			default:
@@ -11739,6 +11753,8 @@ type telegramAuthFlow struct {
 	code     string
 	password string
 
+	lastPassword string // stored for SRP_ID_INVALID retry
+
 	// Interactive channels (nil if pre-provided)
 	codeCh      chan string
 	codeReady   chan struct{}
@@ -11754,6 +11770,7 @@ func (f *telegramAuthFlow) Phone(_ context.Context) (string, error) {
 
 func (f *telegramAuthFlow) Password(ctx context.Context) (string, error) {
 	if f.password != "" {
+		f.lastPassword = f.password
 		return f.password, nil
 	}
 	if f.pwdCh != nil {
@@ -11761,6 +11778,7 @@ func (f *telegramAuthFlow) Password(ctx context.Context) (string, error) {
 		close(f.pwdReady)
 		select {
 		case pw := <-f.pwdCh:
+			f.lastPassword = pw
 			return pw, nil
 		case <-ctx.Done():
 			return "", ctx.Err()
