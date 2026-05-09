@@ -3147,6 +3147,7 @@ class _AdminLogScreenState extends State<_AdminLogScreen> {
   Timer? _searchDebounce;
   final _scrollCtrl = ScrollController();
   Map<String, bool>? _activeFilters;
+  Map<String, bool>? _activeChecks;
 
   double _dateBadgeOpacity = 0.0;
   Timer? _dateHideTimer;
@@ -3218,8 +3219,10 @@ class _AdminLogScreenState extends State<_AdminLogScreen> {
     _dateHideTimer?.cancel();
 
     final offset = _scrollCtrl.position.pixels;
-    const itemHeight = 80.0;
-    final index = (offset / itemHeight).floor().clamp(0, _events.length - 1);
+    final maxExtent = _scrollCtrl.position.maxScrollExtent;
+    final index = maxExtent > 0
+        ? ((offset / maxExtent) * (_events.length - 1)).round().clamp(0, _events.length - 1)
+        : 0;
     final event = _events[index];
     final date = DateTime.fromMillisecondsSinceEpoch(event.date * 1000);
     final newLabel = _formatDateHeader(date);
@@ -3259,8 +3262,10 @@ class _AdminLogScreenState extends State<_AdminLogScreen> {
       context: context,
       builder: (ctx) => _AdminLogFilterDialog(
         isChannel: widget.isChannel,
-        onApply: (filters) {
+        initialChecks: _activeChecks,
+        onApply: (filters, checks) {
           _activeFilters = filters;
+          _activeChecks = checks;
           _loadEvents();
         },
       ),
@@ -3797,10 +3802,12 @@ class _AdminLogEventTile extends StatelessWidget {
 
 class _AdminLogFilterDialog extends StatefulWidget {
   final bool isChannel;
-  final void Function(Map<String, bool>? filters) onApply;
+  final Map<String, bool>? initialChecks;
+  final void Function(Map<String, bool>? filters, Map<String, bool> checks) onApply;
 
   const _AdminLogFilterDialog({
     required this.isChannel,
+    this.initialChecks,
     required this.onApply,
   });
 
@@ -3865,8 +3872,12 @@ class _AdminLogFilterDialogState extends State<_AdminLogFilterDialog> {
   @override
   void initState() {
     super.initState();
-    for (final s in [..._memberSection, ..._settingsSection, ..._messageSection]) {
-      _checks[s] = true;
+    if (widget.initialChecks != null) {
+      _checks.addAll(widget.initialChecks!);
+    } else {
+      for (final s in [..._memberSection, ..._settingsSection, ..._messageSection]) {
+        _checks[s] = true;
+      }
     }
   }
 
@@ -3902,7 +3913,7 @@ class _AdminLogFilterDialogState extends State<_AdminLogFilterDialog> {
                   ),
                   TextButton(
                     onPressed: () {
-                      widget.onApply(_buildFilters());
+                      widget.onApply(_buildFilters(), Map<String, bool>.from(_checks));
                       Navigator.pop(context);
                     },
                     child: Text('Apply', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: accentColor)),
