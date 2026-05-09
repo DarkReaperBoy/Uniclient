@@ -298,26 +298,6 @@ Theme preview widget renders a mock Telegram UI showing dialogs and chat areas. 
 - [x] [MAJOR] Fallback intensity value on URL parsing is 40 instead of 50: When parsing wallpaper URL, the default intensity if not in params is 40 (line 88), but should be 50 per AyuGram's kDefaultIntensity. This means legacy or partially-specified URLs will load with wrong intensity. — `wallpaper.dart:88` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_wall_paper.h:110, cpp:389`
 
 
-# active_sessions_screen — Audit Findings
-
-- [ ] [CRITICAL] `_classifyDevice` ignores `apiId` — AyuGram classifies devices primarily by `apiId` (e.g., apiIds {5,6,24,1026,1083,2458,2521,21724}→Android; {2040,17349,611335}→Desktop; {1,7,10840,16352}→iOS; {2496,739222,1025907}→Web), falling back to string matching only as a secondary check. Dart's `_classifyDevice` uses only string-matching on `device`/`platform`/`appName` and never reads `apiId` from the session map, producing wrong device icons/colors for all sessions where the device name lacks platform keywords (e.g., "Xiaomi Redmi" won't match "android") — `active_sessions_screen.dart:51-82` ← `AyuGram/settings/sections/settings_active_sessions.cpp:167-235`
-
-- [ ] [CRITICAL] Missing "Official App" row in session info box — AyuGram calls `AddSessionInfoRow(container, tr::ayu_SessionInfoOfficialApp(), data.officialApp ? tr::lng_box_yes : tr::lng_box_no, st::menuIconInfo)` in every session info box. Dart's `_showSessionInfoBox` (lines 416-559) shows Application / System / IP / Location rows but has no `officialApp` row, so users can't see whether a session is from an official client — `active_sessions_screen.dart:477-511` ← `AyuGram/settings/sections/settings_active_sessions.cpp:463-467`
-
-- [ ] [MAJOR] `_otherSessions` getter returns sessions in engine-delivery order — AyuGram explicitly sorts other sessions descending by `activeTime`: `ranges::sort(_data.list, std::greater<>(), &EntryData::activeTime)`. Dart's getter at line 134-136 applies no sort, so the most recently active session may appear anywhere in the list — `active_sessions_screen.dart:134-136` ← `AyuGram/settings/sections/settings_active_sessions.cpp:787`
-
-- [ ] [MAJOR] Chrome/Edge detection order is wrong — AyuGram's `detectBrowser()` checks `"edg/"`, `"edgios/"`, `"edga/"` strings before checking `"chrome"` because modern Edge Chromium user-agents contain "Chrome". Dart checks `a.contains('chrome')` at line 56 before `a.contains('edge')` at line 57, causing Edge sessions to be misclassified as Chrome (wrong icon and gradient color) — `active_sessions_screen.dart:56-58` ← `AyuGram/settings/sections/settings_active_sessions.cpp:179-191`
-
-- [ ] [MAJOR] Session row location line missing IP fallback — AyuGram's `LocationAndDate()` uses `entry.location.isEmpty() ? entry.ip : entry.location` so the list row always shows at least the IP address. Dart builds `locationLine` from `location` only (line 950-953); when `location` is empty the location segment is blank and only the date is shown — `active_sessions_screen.dart:949-953` ← `AyuGram/settings/sections/settings_active_sessions.cpp:160-165`
-
-- [ ] [MAJOR] Session info box big userpic missing Lottie animation — AyuGram's `GenerateUserpicBig()` loads a per-device-type `.lottie` file (`device_desktop_win.lottie`, `device_phone_android.lottie`, etc.) and plays it once the box is shown, giving the userpic animated life. Dart's `_DeviceUserpic` is a static gradient circle with a Material `IconData`; no animation is played — `active_sessions_screen.dart:1024-1045` ← `AyuGram/settings/sections/settings_active_sessions.cpp:297-322`
-
-- [ ] [MAJOR] Current session section header shows wrong text — AyuGram uses `tr::lng_sessions_header()` ("Current Session") as the subsection title at line 929-931. Dart shows the hardcoded string `'This device'` (line 694), which is a different label not matching the official Telegram UI — `active_sessions_screen.dart:694-699` ← `AyuGram/settings/sections/settings_active_sessions.cpp:929-931`
-
-- [ ] [MAJOR] `_buildOtherSessionsList` footer text is wrong — AyuGram shows `tr::lng_sessions_about_apps()` ("You can log in to Telegram from multiple platforms simultaneously") after the active sessions list. Dart shows `'Interrupted login attempts and sessions on other devices that haven't been confirmed will appear here.'` (line 846-847), which is the text for the incomplete-sessions section (`lng_sessions_incomplete_about`), not for active sessions — `active_sessions_screen.dart:843-851` ← `AyuGram/settings/sections/settings_active_sessions.cpp:990`
-
-- [ ] [MAJOR] Empty sessions state uses wrong widget — AyuGram renders `tr::lng_sessions_other_desc()` as a `Ui::FlatLabel` with `st::boxDividerLabel` style (a subdued inline text, no icon). Dart's `_buildEmptyPlaceholder` shows a large centered column with a `Icons.security` icon and "No other active sessions" text (lines 890-906), a completely different layout and different string — `active_sessions_screen.dart:890-906` ← `AyuGram/settings/sections/settings_active_sessions.cpp:1014-1021`
-
 # admin_tools — Placeholders, missing wiring, and behavioral inaccuracies
 
 ## _EditPeerInfoBox
