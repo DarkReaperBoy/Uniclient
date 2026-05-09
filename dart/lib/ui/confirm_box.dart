@@ -83,6 +83,7 @@ class TelegramBoxButton {
 
 class TelegramBox extends StatefulWidget {
   final String? title;
+  final Widget? titleWidget;
   final Widget? titleTrailing;
   final bool showClose;
   final bool wide;
@@ -95,6 +96,7 @@ class TelegramBox extends StatefulWidget {
   const TelegramBox({
     super.key,
     this.title,
+    this.titleWidget,
     this.titleTrailing,
     this.showClose = false,
     this.wide = false,
@@ -162,7 +164,7 @@ class _TelegramBoxState extends State<TelegramBox> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (widget.title != null) _buildTitleBar(p.boxTitleFg),
+              if (widget.title != null || widget.titleWidget != null) _buildTitleBar(p.boxTitleFg),
               Flexible(
                 child: ConstrainedBox(
                   constraints:
@@ -190,8 +192,8 @@ class _TelegramBoxState extends State<TelegramBox> {
               padding: const EdgeInsets.fromLTRB(24, 13, 0, 0),
               child: Align(
                 alignment: Alignment.topLeft,
-                child: Text(
-                  widget.title!,
+                child: widget.titleWidget ?? Text(
+                  widget.title ?? '',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,

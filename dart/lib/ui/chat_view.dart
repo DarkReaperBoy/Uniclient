@@ -15,6 +15,8 @@ import 'package:flutter/rendering.dart' show RenderAbstractViewport;
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart' as lottie;
 import 'package:provider/provider.dart';
+import 'package:record/record.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../bridge/engine_service.dart';
 import '../data/ayu_filter.dart';
@@ -53,6 +55,24 @@ import 'emoji_status_widget.dart';
 import 'choose_datetime_box.dart';
 import 'emoji_panel.dart';
 import '../utils/web_drop.dart';
+
+final _hiddenPinnedMessages = <String>{};
+
+Future<void> _loadHiddenPins() async {
+  final prefs = await SharedPreferences.getInstance();
+  final list = prefs.getStringList('hidden_pinned_messages');
+  if (list != null) _hiddenPinnedMessages.addAll(list);
+}
+
+Future<void> _saveHiddenPin(String key) async {
+  _hiddenPinnedMessages.add(key);
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setStringList('hidden_pinned_messages', _hiddenPinnedMessages.toList());
+}
+
+bool _isPinnedHidden(String accountId, String chatId, String msgId) {
+  return _hiddenPinnedMessages.contains('$accountId:$chatId:$msgId');
+}
 
 /// Chat column: top bar + message list + compose area.
 /// Spec §4 (top bar 54px), §5 (messages), §7 (compose).
@@ -382,6 +402,7 @@ class _ChatViewState extends State<ChatView>
   @override
   void initState() {
     super.initState();
+    _loadHiddenPins();
     _selectionAnimCtrl = AnimationController(
       duration: const Duration(milliseconds: 200),
       vsync: this,
@@ -4618,7 +4639,8 @@ class _ChatViewState extends State<ChatView>
               onLoadMore: () => chatState.loadMoreSavedSublists(),
             ),
           // Pinned message bar (if any pinned messages).
-          if (chatState.pinnedMessages.isNotEmpty && !_pinnedBarDismissed)
+          if (chatState.pinnedMessages.isNotEmpty && !_pinnedBarDismissed &&
+              !_isPinnedHidden(chat.accountId, chat.chatId, chatState.pinnedMessages.first.msgId))
             _PinnedBar(
               pinned: chatState.pinnedMessages.first,
               pinnedCount: chatState.pinnedMessages.length,
@@ -4628,10 +4650,14 @@ class _ChatViewState extends State<ChatView>
                 _jumpToAndHighlight(pinned.msgId, pinned.timestamp, reloadMessages: true);
               },
               onClose: () {
-                setState(() => _pinnedBarDismissed = true);
-                final engine = context.read<EngineService>();
                 final pinned = chatState.pinnedMessages.first;
-                engine.pinMessage(chat.accountId, chat.chatId, pinned.msgId, false).catchError((_) {});
+                if (chat.isAdmin) {
+                  final engine = context.read<EngineService>();
+                  engine.pinMessage(chat.accountId, chat.chatId, pinned.msgId, false).catchError((_) {});
+                } else {
+                  _saveHiddenPin('${chat.accountId}:${chat.chatId}:${pinned.msgId}');
+                }
+                setState(() => _pinnedBarDismissed = true);
               },
               onShowAll: chatState.pinnedMessages.length > 1
                   ? () => _showAllPinnedMessages(context, chatState)
@@ -13329,6 +13355,8 @@ class _ComposeAreaState extends State<_ComposeArea>
   Timer? _recordingTimer;
   Duration _recordingDuration = Duration.zero;
   bool _isRecordingLocked = false;
+  AudioRecorder? _audioRecorder;
+  String? _recordingFilePath;
   double _lockDragStartY = 0;
   double _lockDragStartX = 0;
   int _trackingPointerId = -1;
@@ -13401,6 +13429,8 @@ class _ComposeAreaState extends State<_ComposeArea>
     }
     widget.controller.removeListener(_onTextLengthChanged);
     widget.controller.removeListener(_scheduleUpdateFades);
+    _audioRecorder?.stop().catchError((_) {}).whenComplete(() => _audioRecorder?.dispose());
+    _audioRecorder = null;
     _scrollController.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -13410,6 +13440,9 @@ class _ComposeAreaState extends State<_ComposeArea>
   static const double _slideCancelThreshold = 100.0;
 
   void _startRecording(double startY, int pointerId, {bool videoRound = false, double startX = 0}) {
+    final ext = videoRound ? 'mp4' : 'ogg';
+    final filePath = '${Directory.systemTemp.path}/uniclient_recording_${DateTime.now().millisecondsSinceEpoch}.$ext';
+    _recordingFilePath = filePath;
     setState(() {
       _isRecording = true;
       _isVideoRound = videoRound;
@@ -13425,6 +13458,12 @@ class _ComposeAreaState extends State<_ComposeArea>
     widget.onRecordingChanged?.call(true);
     _lockShowController.forward(from: 0.0);
     GestureBinding.instance.pointerRouter.addGlobalRoute(_onGlobalPointerEvent);
+    _audioRecorder?.dispose();
+    _audioRecorder = AudioRecorder();
+    _audioRecorder!.start(
+      const RecordConfig(encoder: AudioEncoder.opus, numChannels: 1, sampleRate: 48000),
+      path: filePath,
+    ).catchError((_) {});
     _recordingTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
       if (_recordingStart != null) {
         setState(() {
@@ -13469,6 +13508,10 @@ class _ComposeAreaState extends State<_ComposeArea>
     _lockShowController.reverse();
     final wasVideoRound = _isVideoRound;
     final duration = _recordingDuration;
+    final filePath = _recordingFilePath;
+    final recorder = _audioRecorder;
+    _audioRecorder = null;
+    _recordingFilePath = null;
     setState(() {
       _isRecording = false;
       _isVideoRound = false;
@@ -13480,21 +13523,29 @@ class _ComposeAreaState extends State<_ComposeArea>
       _ttlArmed = false;
     });
     widget.onRecordingChanged?.call(false);
-    if (duration.inMilliseconds < 500) return;
+    if (duration.inMilliseconds < 500 || filePath == null) {
+      recorder?.stop().then((_) => recorder.dispose()).catchError((_) {});
+      return;
+    }
     final chatState = context.read<ChatState>();
     final chat = chatState.activeChat;
-    if (chat == null) return;
-    final engine = context.read<EngineService>();
-    final tmpDir = Directory.systemTemp.path;
-    final ext = wasVideoRound ? 'mp4' : 'ogg';
-    final filePath = '$tmpDir/uniclient_recording_${DateTime.now().millisecondsSinceEpoch}.$ext';
-    final file = File(filePath);
-    if (!file.existsSync()) return;
-    if (wasVideoRound) {
-      engine.sendVideoNote(chat.accountId, chat.chatId, filePath, duration: duration.inSeconds);
-    } else {
-      engine.sendVoice(chat.accountId, chat.chatId, filePath, duration: duration.inSeconds);
+    if (chat == null) {
+      recorder?.stop().then((_) => recorder.dispose()).catchError((_) {});
+      return;
     }
+    final engine = context.read<EngineService>();
+    recorder?.stop().then((stoppedPath) {
+      recorder.dispose();
+      final sendPath = stoppedPath ?? filePath;
+      if (!File(sendPath).existsSync()) return;
+      if (wasVideoRound) {
+        engine.sendVideoNote(chat.accountId, chat.chatId, sendPath, duration: duration.inSeconds);
+      } else {
+        engine.sendVoice(chat.accountId, chat.chatId, sendPath, duration: duration.inSeconds);
+      }
+    }).catchError((_) {
+      recorder.dispose();
+    });
   }
 
   void _cancelRecording() {
@@ -13505,6 +13556,14 @@ class _ComposeAreaState extends State<_ComposeArea>
       _trackingPointerId = -1;
     }
     _lockShowController.reverse();
+    final recorder = _audioRecorder;
+    final filePath = _recordingFilePath;
+    _audioRecorder = null;
+    _recordingFilePath = null;
+    recorder?.stop().then((_) {
+      recorder.dispose();
+      if (filePath != null) File(filePath).delete().catchError((_) {});
+    }).catchError((_) => recorder.dispose());
     setState(() {
       _isRecording = false;
       _isVideoRound = false;

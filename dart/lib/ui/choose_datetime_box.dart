@@ -19,12 +19,32 @@ const double _scheduleTimeWidth = 72;
 const double _scheduleAtSkip = 24;
 const double _scheduleDateTop = 38;
 const double _scheduleAtTop = 42;
+const int _kMinimalSchedule = 10;
+const int _kJumpDelay = 700;
 
 const _monthNames = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
-const _weekDays = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+
+const _weekDayNames = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+
+List<String> _localizedWeekDays() {
+  final firstDay = _localeFirstDayOfWeek();
+  return List.generate(7, (i) => _weekDayNames[((firstDay - 1) + i) % 7]);
+}
+
+int _localeFirstDayOfWeek() {
+  final locale = WidgetsBinding.instance.platformDispatcher.locale;
+  const sundayFirst = {'US', 'CA', 'JP', 'IL', 'KR', 'TW', 'PH', 'SA', 'AE', 'BH', 'EG', 'IQ', 'JO', 'KW', 'LY', 'OM', 'QA', 'SY', 'YE'};
+  if (sundayFirst.contains(locale.countryCode)) return 7;
+  return 1;
+}
+
+int _dayOfWeekIndex(int dartWeekday) {
+  final first = _localeFirstDayOfWeek();
+  return (7 + dartWeekday - first) % 7;
+}
 
 const Map<int, String> _repeatPeriods = {
   0: 'Never',
@@ -79,7 +99,7 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
   late int _month;
   late int _focusDay;
   DateTime? _selected;
-  Timer? _fastJumpTimer;
+  Timer? _jumpTimer;
 
   @override
   void initState() {
@@ -93,7 +113,7 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
 
   @override
   void dispose() {
-    _fastJumpTimer?.cancel();
+    _jumpTimer?.cancel();
     super.dispose();
   }
 
@@ -131,6 +151,38 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
     });
   }
 
+  void _goToDate(DateTime date) {
+    setState(() {
+      _year = date.year;
+      _month = date.month;
+      _focusDay = date.day;
+    });
+  }
+
+  void _jumpToMin() {
+    _goToDate(widget.minDate);
+  }
+
+  void _jumpToMax() {
+    _goToDate(widget.maxDate);
+  }
+
+  void _startJump(bool isPrev) {
+    _jumpTimer?.cancel();
+    _jumpTimer = Timer(const Duration(milliseconds: _kJumpDelay), () {
+      if (isPrev) {
+        _jumpToMin();
+      } else {
+        _jumpToMax();
+      }
+    });
+  }
+
+  void _cancelJump() {
+    _jumpTimer?.cancel();
+    _jumpTimer = null;
+  }
+
   void _clampFocusDay() {
     final maxDay = DateTime(_year, _month + 1, 0).day;
     if (_focusDay > maxDay) _focusDay = maxDay;
@@ -151,34 +203,26 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
     Navigator.of(context).pop(date);
   }
 
-  void _startFastJump(void Function() action) {
-    _fastJumpTimer?.cancel();
-    _fastJumpTimer = Timer.periodic(const Duration(milliseconds: 150), (_) {
-      action();
-    });
-  }
-
-  void _stopFastJump() {
-    _fastJumpTimer?.cancel();
-    _fastJumpTimer = null;
-  }
-
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
     final key = event.logicalKey;
-    if (key == LogicalKeyboardKey.arrowLeft) {
-      _moveFocus(-1);
+    if (key == LogicalKeyboardKey.arrowLeft ||
+        key == LogicalKeyboardKey.arrowUp ||
+        key == LogicalKeyboardKey.pageUp) {
+      _prevMonth();
       return KeyEventResult.handled;
-    } else if (key == LogicalKeyboardKey.arrowRight) {
-      _moveFocus(1);
+    } else if (key == LogicalKeyboardKey.arrowRight ||
+        key == LogicalKeyboardKey.arrowDown ||
+        key == LogicalKeyboardKey.pageDown) {
+      _nextMonth();
       return KeyEventResult.handled;
-    } else if (key == LogicalKeyboardKey.arrowUp) {
-      _moveFocus(-7);
+    } else if (key == LogicalKeyboardKey.home) {
+      _jumpToMin();
       return KeyEventResult.handled;
-    } else if (key == LogicalKeyboardKey.arrowDown) {
-      _moveFocus(7);
+    } else if (key == LogicalKeyboardKey.end) {
+      _jumpToMax();
       return KeyEventResult.handled;
     } else if (key == LogicalKeyboardKey.enter ||
         key == LogicalKeyboardKey.numpadEnter) {
@@ -191,31 +235,30 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
     return KeyEventResult.ignored;
   }
 
-  void _moveFocus(int delta) {
-    setState(() {
-      final newDay = _focusDay + delta;
-      final daysInMonth = DateTime(_year, _month + 1, 0).day;
-      if (newDay < 1) {
-        if (_canGoPrev()) {
-          _month--;
-          if (_month < 1) {
-            _month = 12;
-            _year--;
-          }
-          final prevDays = DateTime(_year, _month + 1, 0).day;
-          _focusDay = prevDays + newDay;
-        }
-      } else if (newDay > daysInMonth) {
-        if (_canGoNext()) {
-          _focusDay = newDay - daysInMonth;
-          _month++;
-          if (_month > 12) {
-            _month = 1;
-            _year++;
-          }
-        }
-      } else {
-        _focusDay = newDay;
+  void _onMonthScroll(PointerScrollEvent event) {
+    if (event.scrollDelta.dy > 0) {
+      _nextMonth();
+    } else if (event.scrollDelta.dy < 0) {
+      _prevMonth();
+    }
+  }
+
+  void _showMonthYearPicker() {
+    showTelegramBox<DateTime>(
+      context: context,
+      builder: (ctx) => _MonthYearPickerDialog(
+        currentYear: _year,
+        currentMonth: _month,
+        minDate: widget.minDate,
+        maxDate: widget.maxDate,
+      ),
+    ).then((result) {
+      if (result != null && mounted) {
+        setState(() {
+          _year = result.year;
+          _month = result.month;
+          _clampFocusDay();
+        });
       }
     });
   }
@@ -233,12 +276,31 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
 
     final daysInMonth = DateTime(_year, _month + 1, 0).day;
     final startWeekday = DateTime(_year, _month, 1).weekday;
-    final offset = startWeekday - 1;
+    final offset = _dayOfWeekIndex(startWeekday);
     final now = DateTime.now();
+    final weekDays = _localizedWeekDays();
 
     return TelegramBox(
       wide: true,
-      title: '${_monthNames[_month - 1]} $_year',
+      title: null,
+      titleWidget: GestureDetector(
+        onTap: _showMonthYearPicker,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '${_monthNames[_month - 1]} $_year',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+                color: textFg,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.arrow_drop_down, size: 20, color: textFg),
+          ],
+        ),
+      ),
       titleTrailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -247,18 +309,24 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
             enabled: _canGoPrev(),
             color: textFg,
             disabledColor: subtextFg,
-            onTap: _prevMonth,
-            onLongPressStart: () => _startFastJump(_prevMonth),
-            onLongPressEnd: _stopFastJump,
+            onTap: () {
+              _cancelJump();
+              _prevMonth();
+            },
+            onLongPressStart: () => _startJump(true),
+            onLongPressEnd: _cancelJump,
           ),
           _NavArrow(
             icon: Icons.chevron_right,
             enabled: _canGoNext(),
             color: textFg,
             disabledColor: subtextFg,
-            onTap: _nextMonth,
-            onLongPressStart: () => _startFastJump(_nextMonth),
-            onLongPressEnd: _stopFastJump,
+            onTap: () {
+              _cancelJump();
+              _nextMonth();
+            },
+            onLongPressStart: () => _startJump(false),
+            onLongPressEnd: _cancelJump,
           ),
           const SizedBox(width: 4),
         ],
@@ -267,44 +335,49 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
       content: Focus(
         autofocus: true,
         onKeyEvent: _handleKey,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: _calPadH),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                height: _daysRowH,
-                child: Row(
-                  children: _weekDays.map((d) {
-                    return SizedBox(
-                      width: _cellW,
-                      height: _daysRowH,
-                      child: Center(
-                        child: Text(
-                          d,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: subtextFg,
-                            fontWeight: FontWeight.w500,
+        child: Listener(
+          onPointerSignal: (event) {
+            if (event is PointerScrollEvent) _onMonthScroll(event);
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: _calPadH),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  height: _daysRowH,
+                  child: Row(
+                    children: weekDays.map((d) {
+                      return SizedBox(
+                        width: _cellW,
+                        height: _daysRowH,
+                        child: Center(
+                          child: Text(
+                            d,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: subtextFg,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
-                      ),
-                    );
-                  }).toList(),
+                      );
+                    }).toList(),
+                  ),
                 ),
-              ),
-              _buildDayGrid(
-                offset,
-                daysInMonth,
-                now,
-                textFg,
-                subtextFg,
-                accentFg,
-                hoverBg,
-                disabledFg,
-              ),
-              const SizedBox(height: 8),
-            ],
+                _buildDayGrid(
+                  offset,
+                  daysInMonth,
+                  now,
+                  textFg,
+                  subtextFg,
+                  accentFg,
+                  hoverBg,
+                  disabledFg,
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
         ),
       ),
@@ -368,6 +441,157 @@ class _CalendarBoxWidgetState extends State<_CalendarBoxWidget> {
     }
 
     return Column(mainAxisSize: MainAxisSize.min, children: rows);
+  }
+}
+
+// ─── MonthYearPicker — dual drum picker for jumping to any month/year ──────
+
+class _MonthYearPickerDialog extends StatefulWidget {
+  final int currentYear;
+  final int currentMonth;
+  final DateTime minDate;
+  final DateTime maxDate;
+
+  const _MonthYearPickerDialog({
+    required this.currentYear,
+    required this.currentMonth,
+    required this.minDate,
+    required this.maxDate,
+  });
+
+  @override
+  State<_MonthYearPickerDialog> createState() => _MonthYearPickerDialogState();
+}
+
+class _MonthYearPickerDialogState extends State<_MonthYearPickerDialog> {
+  late int _selectedMonth;
+  late int _selectedYear;
+  late FixedExtentScrollController _monthScrollCtrl;
+  late FixedExtentScrollController _yearScrollCtrl;
+
+  List<int> get _years {
+    final result = <int>[];
+    for (var y = widget.minDate.year; y <= widget.maxDate.year; y++) {
+      result.add(y);
+    }
+    return result;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedMonth = widget.currentMonth;
+    _selectedYear = widget.currentYear;
+    _monthScrollCtrl = FixedExtentScrollController(initialItem: _selectedMonth - 1);
+    final years = _years;
+    final yearIdx = years.indexOf(_selectedYear);
+    _yearScrollCtrl = FixedExtentScrollController(initialItem: yearIdx >= 0 ? yearIdx : 0);
+  }
+
+  @override
+  void dispose() {
+    _monthScrollCtrl.dispose();
+    _yearScrollCtrl.dispose();
+    super.dispose();
+  }
+
+  int _clampMonth(int month, int year) {
+    if (year == widget.minDate.year && month < widget.minDate.month) {
+      return widget.minDate.month;
+    }
+    if (year == widget.maxDate.year && month > widget.maxDate.month) {
+      return widget.maxDate.month;
+    }
+    return month;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textFg = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final dimFg = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final bandColor = context.palette.windowBgActive;
+    final years = _years;
+
+    return TelegramBox(
+      title: 'Jump to date',
+      scrollableContent: false,
+      onConfirm: () {
+        final month = _clampMonth(_selectedMonth, _selectedYear);
+        Navigator.of(context).pop(DateTime(_selectedYear, month));
+      },
+      content: SizedBox(
+        height: 200,
+        child: Row(
+          children: [
+            Expanded(
+              child: ListWheelScrollView.useDelegate(
+                controller: _monthScrollCtrl,
+                itemExtent: 40,
+                physics: const FixedExtentScrollPhysics(),
+                onSelectedItemChanged: (i) => setState(() => _selectedMonth = i + 1),
+                childDelegate: ListWheelChildBuilderDelegate(
+                  childCount: 12,
+                  builder: (ctx, i) {
+                    final isSelected = i + 1 == _selectedMonth;
+                    final isDisabled = (_selectedYear == widget.minDate.year && i + 1 < widget.minDate.month) ||
+                        (_selectedYear == widget.maxDate.year && i + 1 > widget.maxDate.month);
+                    return Center(
+                      child: Text(
+                        _monthNames[i],
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
+                          color: isDisabled ? dimFg.withValues(alpha: 0.4) : (isSelected ? textFg : dimFg),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+            Container(width: 1, height: 200, color: bandColor.withValues(alpha: 0.3)),
+            Expanded(
+              child: ListWheelScrollView.useDelegate(
+                controller: _yearScrollCtrl,
+                itemExtent: 40,
+                physics: const FixedExtentScrollPhysics(),
+                onSelectedItemChanged: (i) => setState(() => _selectedYear = years[i]),
+                childDelegate: ListWheelChildBuilderDelegate(
+                  childCount: years.length,
+                  builder: (ctx, i) {
+                    final isSelected = years[i] == _selectedYear;
+                    return Center(
+                      child: Text(
+                        '${years[i]}',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
+                          color: isSelected ? textFg : dimFg,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      buttons: [
+        TelegramBoxButton(
+          text: 'Cancel',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        TelegramBoxButton(
+          text: 'OK',
+          onPressed: () {
+            final month = _clampMonth(_selectedMonth, _selectedYear);
+            Navigator.of(context).pop(DateTime(_selectedYear, month));
+          },
+        ),
+      ],
+    );
   }
 }
 
@@ -471,14 +695,23 @@ class _DayCellState extends State<_DayCell> {
           width: _cellW,
           height: _cellH,
           child: Center(
-            child: Container(
-              width: _cellInner,
-              height: _cellInner,
-              decoration: decoration,
-              alignment: Alignment.center,
-              child: Text(
-                '${widget.day}',
-                style: TextStyle(fontSize: 13, color: fg),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: widget.onTap,
+                customBorder: const CircleBorder(),
+                splashColor: widget.accentColor.withValues(alpha: 0.2),
+                highlightColor: widget.accentColor.withValues(alpha: 0.1),
+                child: Container(
+                  width: _cellInner,
+                  height: _cellInner,
+                  decoration: decoration,
+                  alignment: Alignment.center,
+                  child: Text(
+                    '${widget.day}',
+                    style: TextStyle(fontSize: 13, color: fg),
+                  ),
+                ),
               ),
             ),
           ),
@@ -546,6 +779,7 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
   late TextEditingController _minuteController;
   late FocusNode _hourFocus;
   late FocusNode _minuteFocus;
+  late FocusNode _dateFocus;
   int _repeatPeriod = 0;
   bool _timeError = false;
   late AnimationController _shakeController;
@@ -563,6 +797,8 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
         TextEditingController(text: initial.minute.toString().padLeft(2, '0'));
     _hourFocus = FocusNode();
     _minuteFocus = FocusNode();
+    _dateFocus = FocusNode();
+    _dateFocus.addListener(_onDateFocusChanged);
 
     _shakeController = AnimationController(
       duration: const Duration(milliseconds: 150),
@@ -585,8 +821,16 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
     _minuteController.dispose();
     _hourFocus.dispose();
     _minuteFocus.dispose();
+    _dateFocus.removeListener(_onDateFocusChanged);
+    _dateFocus.dispose();
     _shakeController.dispose();
     super.dispose();
+  }
+
+  void _onDateFocusChanged() {
+    if (_dateFocus.hasFocus) {
+      _openCalendar();
+    }
   }
 
   DateTime get _combinedDateTime {
@@ -609,7 +853,8 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
       return false;
     }
     final dt = _combinedDateTime;
-    if (dt.isBefore(DateTime.now())) {
+    final minTime = DateTime.now().add(const Duration(seconds: _kMinimalSchedule));
+    if (dt.isBefore(minTime)) {
       _showTimeError();
       return false;
     }
@@ -675,7 +920,6 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
   }
 
   void _showRepeatMenu() {
-    if (!widget.isPremium) return;
     final box = context.findRenderObject() as RenderBox;
     final position = box.localToGlobal(Offset(0, box.size.height));
     showTelegramMenu<int>(
@@ -689,6 +933,19 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
         setState(() => _repeatPeriod = value);
       }
     });
+  }
+
+  void _onRepeatTap() {
+    if (widget.isPremium) {
+      _showRepeatMenu();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Subscribe to Telegram Premium to set repeat schedules.'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
   @override
@@ -772,22 +1029,25 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
                             _scrollDate(event.scrollDelta.dy > 0 ? -1 : 1);
                           }
                         },
-                        child: GestureDetector(
-                          onTap: _openCalendar,
-                          child: Container(
-                            width: _scheduleDateWidth,
-                            height: 30,
-                            decoration: BoxDecoration(
-                              color: fieldBg,
-                              border:
-                                  Border.all(color: fieldBorder, width: 1),
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              _formatDate(_selectedDate),
-                              style:
-                                  TextStyle(fontSize: 14, color: titleFg),
+                        child: Focus(
+                          focusNode: _dateFocus,
+                          child: GestureDetector(
+                            onTap: _openCalendar,
+                            child: Container(
+                              width: _scheduleDateWidth,
+                              height: 30,
+                              decoration: BoxDecoration(
+                                color: fieldBg,
+                                border:
+                                    Border.all(color: fieldBorder, width: 1),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                _formatDate(_selectedDate),
+                                style:
+                                    TextStyle(fontSize: 14, color: titleFg),
+                              ),
                             ),
                           ),
                         ),
@@ -843,7 +1103,7 @@ class _ChooseDateTimeDialogState extends State<_ChooseDateTimeDialog>
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
             child: GestureDetector(
-              onTap: widget.isPremium ? _showRepeatMenu : null,
+              onTap: _onRepeatTap,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -905,6 +1165,25 @@ const List<String> _defaultTimePickerLabels = [
   '1 month', '2 months', '3 months',
 ];
 
+int _lowerBoundIndex(List<int> values, int target) {
+  if (values.isEmpty) return 0;
+  var lo = 0;
+  var hi = values.length;
+  while (lo < hi) {
+    final mid = (lo + hi) ~/ 2;
+    if (values[mid] < target) {
+      lo = mid + 1;
+    } else {
+      hi = mid;
+    }
+  }
+  if (lo == 0) return 0;
+  if (lo >= values.length) return values.length - 1;
+  final leftDist = (target - values[lo - 1]).abs();
+  final rightDist = (values[lo] - target).abs();
+  return leftDist < rightDist ? lo - 1 : lo;
+}
+
 Future<int?> showTimePickerBox(
   BuildContext context, {
   String title = 'Auto-Delete Timer',
@@ -917,8 +1196,7 @@ Future<int?> showTimePickerBox(
   assert(v.length == l.length);
   int initialIndex = 0;
   if (initialValue != null) {
-    final idx = v.indexOf(initialValue);
-    if (idx >= 0) initialIndex = idx;
+    initialIndex = _lowerBoundIndex(v, initialValue);
   }
   return showTelegramBox<int>(
     context: context,
