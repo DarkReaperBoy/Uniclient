@@ -462,58 +462,6 @@ This is a well-implemented fallback bridge that correctly documents its stub sta
 
 All these controls exist in AppState but are not exposed in the UI.
 
-# ayu_filters_page — Audit Findings
-
-- [ ] [MAJOR] Regex validation uses Dart's built-in `RegExp` engine — AyuGram validates and executes with the ICU `icu::RegexPattern::compile` engine (supports full ICU regex including lookaheads, Unicode categories, etc.) — a pattern accepted by Dart `RegExp` may be rejected by the ICU engine at runtime and vice versa — `ayu_filters_page.dart:913-921` ← `edit_filter.cpp:57-99`
-
-- [ ] [MAJOR] Select-chat dialog only iterates `chatState.chats` (locally cached list) — AyuGram uses `Window::ShowChooseRecipientBox` with `InlineBots::PeerType` flags (Bot | Group | Broadcast) enabling full peer search with network resolution for any peer — `ayu_filters_page.dart:165-230` ← `settings_filters.cpp:196-217`
-
-# ayugram_settings_screen — Audit Findings
-
-- [ ] [CRITICAL] Logo renders Material icon stub instead of actual PNG/SVG app icon assets. C++ calls `AyuAssets::currentAppLogoPad()` which loads `:/gui/art/ayu/{name}/app.svg` or `app.png` from bundled resources and renders them into the logo area. Dart uses `_iconForTheme(selectedIcon)` (e.g. `Icons.send`, `Icons.headphones`) displayed in a solid-color circle — no real image asset is loaded at all. — `ayugram_settings_screen.dart:74-79` ← `ayu/ui/settings/settings_main.cpp:41-65` + `ayu/ui/ayu_logo.cpp:42-92`
-
-- [ ] [CRITICAL] Channel and Chat link buttons open an external browser (via `xdg-open`) instead of navigating to the peer within the app. C++ uses `controller->showPeerByLink(Window::PeerByLinkInfo{.usernameOrId = QString("ayugram")})` — the channel/group opens as an in-app chat. Dart calls `_openUrl('https://t.me/ayugram')` → `Process.run('xdg-open', [url])` which launches the system browser. — `ayugram_settings_screen.dart:189,196` ← `ayu/ui/settings/settings_main.cpp:149-164`
-
-- [ ] [CRITICAL] `_openUrl` uses `Process.run('xdg-open', [url])` which is Linux-only and silent-fails on Windows/macOS. C++ uses `QDesktopServices::openUrl()` which is cross-platform for all four external link buttons (Crowdin, Documentation, and the mis-wired Channel/Chat). — `ayugram_settings_screen.dart:245-247` ← `ayu/ui/settings/settings_main.cpp:172-184`
-
-- [ ] [MAJOR] AyuGram category button shows "Ghost Mode active" as a dynamic subtitle when ghost mode is on. The original C++ `addSectionButton` has no subtitle field — section buttons in `BuildCategories` display only their title. This is an invented UI element not present in the reference. — `ayugram_settings_screen.dart:129` ← `ayu/ui/settings/settings_main.cpp:103-107`
-
-# ayu_other_page — Audit Findings
-
-- [ ] [CRITICAL] All 5 crypto donation addresses are truncated to 8–9 characters, generating invalid QR codes and showing wrong addresses — `ayu_other_page.dart:38` (`UQA4i8U3`), `:46` (`bc1qdk6qq`), `:54` (`0x405589`), `:62` (`8ZHQpPxp`), `:70` (`TRpbajq3`) ← `settings_other.cpp:154-158` (full addresses: `UQA4i8U8vP3mYUZSV3KqDQEHPwmhninEqCkkKc7BITQ652de`, `bc1qdk6qq4mzq5yap3fpy0qau3246w3m3uwac9f0xd`, `0x405589857C8DFAb45B2027c68ad1e58877FDa347`, `8ZHQpPxpsdRjsWoBcF1dmvRM5dB6zEhJ3jMBFZjYfyHs`, `TRpbajq38qU8joThgAfKJLyEPbNjzsdPJ1`)
-
-- [ ] [CRITICAL] "Register URL Scheme" button is a stub — shows SnackBar("Done") but never calls any URL scheme registration; AyuGram calls `Core::Application::RegisterUrlScheme()` which registers `tg://` and `tdesktop://` schemes with the OS — `ayu_other_page.dart:100-105` ← `settings_other.cpp:204-207`
-
-- [ ] [CRITICAL] QR dialog missing copy-to-clipboard button — AyuGram's QR box has a full-width "Copy" button that copies the address to clipboard and shows a toast; Dart only shows `SelectableText` with no copy affordance — `ayu_other_page.dart:305-379` ← `donate_qr_box.cpp:148-158`
-
-- [ ] [CRITICAL] QR code missing crypto icon in the center — AyuGram renders the relevant SVG icon (e.g., `donates/ton.svg`) embedded at the center of the QR code via `MakeQrWithIcon`; Dart uses a plain `QrImageView` with no icon — `ayu_other_page.dart:344-353` ← `donate_qr_box.cpp:31-66`
-
-- [ ] [CRITICAL] Donate button icons are text/emoji placeholder characters (`'B'`, `'💎'`, `'₿'`, `'Ξ'`, `'S'`, `'T'`) — AyuGram loads real SVG icons from `:/gui/icons/ayu/donates/{name}.svg`; no SVG donation icon assets exist in `dart/assets/` — `ayu_other_page.dart:27-67` ← `settings_other.cpp:52-57`
-
-- [ ] [CRITICAL] "Contact support" link opens `tg://support` via `xdg-open` (system URL handler, likely opens another Telegram app or does nothing) — AyuGram intercepts `tg://support` internally via `HandleSupport` to show the `FillDonateInfoBox` (donation amounts from RC Manager, proof submission steps, badge info) — `ayu_other_page.dart:297` ← `ayu_url_handlers.cpp:133-142`
-
-- [ ] [MAJOR] QR dialog title shows the crypto name ("TON", "Bitcoin", etc.) instead of the proper "QR Code" title — `ayu_other_page.dart:332` ← `donate_qr_box.cpp:79` (`tr::lng_group_invite_context_qr()`)
-
-# ayu_section_builder — Audit Findings
-
-- [ ] [CRITICAL] `addBetaBadge(text)` is a standalone row widget unattached to any button — AyuGram's `AddBetaBadge` takes a `not_null<Button*>` and attaches the badge as a child widget INSIDE the button row, positioned right after the button text via `fullTextWidth()`. There is no standalone badge section in AyuGram. — `ayu_section_builder.dart:102-123` ← `AyuGram/ayu/ui/settings/settings_ayu_utils.cpp:47-75`
-
-- [ ] [CRITICAL] Beta badge background color is orange (`Color(0xFFFF9500)`) in both the standalone `addBetaBadge` and inline `showBetaBadge` toggle — AyuGram uses `p.setBrush(st::windowBgActive)` (accent blue). — `ayu_section_builder.dart:111,211` ← `AyuGram/ayu/ui/settings/settings_ayu_utils.cpp:62`
-
-- [ ] [CRITICAL] `_AyuChooseButton` uses an inline Flutter `DropdownButton<int>` — AyuGram renders a settings button with a right-aligned label showing the current selection, which on click opens a modal `SingleChoiceBox` dialog. These are entirely different interaction patterns. — `ayu_section_builder.dart:346-363` ← `AyuGram/ayu/ui/settings/settings_ayu_utils.cpp:494-536`
-
-- [ ] [MAJOR] `addSectionTitle` padding is `fromLTRB(22, 14, 22, 6)` — AyuGram `defaultSubsectionTitlePadding` is `margins(22px, 7px, 10px, 9px)` (top 7 not 14, right 10 not 22, bottom 9 not 6). Top padding is 2× too large, right padding is 2× too large. — `ayu_section_builder.dart:23` ← `AyuGram/Telegram/lib_ui/ui/layers/layers.style:155`
-
-- [ ] [MAJOR] `addSectionTitle` uses `FontWeight.w500` (medium) — AyuGram `defaultSubsectionTitle` uses `semibold` font weight. — `ayu_section_builder.dart:26` ← `AyuGram/Telegram/lib_ui/ui/layers/layers.style:149-151`
-
-- [ ] [MAJOR] `addSectionDivider` renders only `divider + skip` — AyuGram `AddSectionDivider` / `AyuSectionBuilder::addSectionDivider` uses `skip + divider + skip` (three items, with skip both before and after the divider line). — `ayu_section_builder.dart:125-132` ← `AyuGram/ayu/ui/settings/settings_ayu_utils.cpp:635-638` and `ayu_builder.cpp:263-267`
-
-- [ ] [MAJOR] Standalone `addBetaBadge` padding is `horizontal:6, vertical:2` — AyuGram `ayuBetaBadgePadding` is `margins(4px, 1px, 4px, 1px)`. Horizontal is 50% too large, vertical is 2× too large. — `ayu_section_builder.dart:109` ← `AyuGram/ayu/ui/ayu_styles.style:119`
-
-- [ ] [MAJOR] `_AyuCollapsibleToggle` shows a small 8×8 dot when any child is checked — AyuGram's collapsible toggle renders a dynamic `"N/M"` count label (bold, e.g. "3/5") appended to the button title, updating live as checkboxes change. — `ayu_section_builder.dart:435-444` ← `AyuGram/ayu/ui/settings/settings_ayu_utils.cpp:229-242`
-
-- [ ] [MAJOR] `_AyuCollapsibleToggle` and `AyuNestedCheckboxItem` have no lock support — AyuGram implements Shift+click per-checkbox locking: locked checkboxes are dimmed to 0.4 opacity and ignored by the master toggle. `AyuNestedCheckboxItem` is missing `lockGetter`/`lockSetter` fields entirely. — `ayu_section_builder.dart:153-162,370-388` ← `AyuGram/ayu/ui/settings/settings_ayu_utils.cpp:380-418`
-
 # ayu_toggle — Toggle switch widget audit
 
 ## Reference Implementation
