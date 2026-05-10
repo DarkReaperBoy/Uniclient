@@ -596,15 +596,6 @@ The Dart emoji_data.dart implements a hardcoded static emoji search database, wh
 
 ## Critical Issues
 
-- [ ] [CRITICAL] **Hardcoded static emoji list instead of server-sourced language packs** — `emoji_data.dart:1-642` ← `emoji_keywords.cpp:608-642`
-  - AyuGram loads emoji keywords from Telegram servers via `EmojiKeywords::query()` which pulls from multiple language packs (`_data` map at line 75 in emoji_keywords.h)
-  - Dart version hardcodes all 638 emojis with only English keywords into `kEmojiSuggestions`
-  - **Impact**: No multi-language support, keywords won't auto-update with server changes, user language preferences ignored
-
-- [ ] [CRITICAL] **No recent emoji prioritization** — `emoji_data.dart:650-680` ← `emoji_keywords.cpp:650-672 (PrioritizeRecent)`
-  - AyuGram ranks recently used emojis first via `PrioritizeRecent()` (line 650-672), which reads from `Core::App().settings().recentEmoji()`
-  - Dart `searchEmoji()` returns results in fixed order: exact → prefix → contains, ignoring frequency
-  - **Impact**: Users won't see their frequently-used emojis first; emoji suggestions don't adapt to user behavior
 
 ## Major Issues
 
