@@ -5,13 +5,12 @@ import 'package:flutter/services.dart';
 
 const double _kMenuMinWidth = 156.0;
 const double _kMenuMaxWidth = 300.0;
-const double _kCornerRadius = 8.0;
+const double _kCornerRadius = 6.0;
 const double _kShadowBlurRadius = 5.0;
 const Offset _kShadowOffset = Offset(0, 1);
 const double _kShadowOpacity = 0.25;
 const Duration _kOpenDuration = Duration(milliseconds: 200);
 const Duration _kCloseDuration = Duration(milliseconds: 150);
-const double _kScrollPaddingVertical = 8.0;
 
 Color _menuBg(Brightness b) =>
     b == Brightness.dark ? const Color(0xFF17212b) : const Color(0xFFffffff);
@@ -54,6 +53,8 @@ class TelegramMenuItem<T> {
   final bool isSeparator;
   final bool isAttention;
   final bool isDisabled;
+  final String? shortcut;
+  final List<TelegramMenuItem<T>>? submenu;
 
   const TelegramMenuItem({
     this.value,
@@ -64,6 +65,8 @@ class TelegramMenuItem<T> {
     this.isSeparator = false,
     this.isAttention = false,
     this.isDisabled = false,
+    this.shortcut,
+    this.submenu,
   });
 
   const TelegramMenuItem.separator()
@@ -74,7 +77,9 @@ class TelegramMenuItem<T> {
         iconColor = null,
         isSeparator = true,
         isAttention = false,
-        isDisabled = false;
+        isDisabled = false,
+        shortcut = null,
+        submenu = null;
 }
 
 class _TelegramMenuRoute<T> extends PopupRoute<T> {
@@ -198,6 +203,9 @@ class _TelegramMenuOverlayState<T> extends State<_TelegramMenuOverlay<T>> {
   Widget build(BuildContext context) {
     final bg = _menuBg(widget.brightness);
     final shadow = _shadowColor(widget.brightness);
+    final hasIcons =
+        widget.items.any((item) => !item.isSeparator && item.icon != null);
+    final scrollPadding = hasIcons ? 5.0 : 8.0;
 
     final menuContent = _TelegramMenuContent<T>(
       items: widget.items,
@@ -247,7 +255,7 @@ class _TelegramMenuOverlayState<T> extends State<_TelegramMenuOverlay<T>> {
                 final widthFactor =
                     0.5 + 0.5 * _panelCurve(widget.animation.value, 0.6);
                 final heightFactor =
-                    0.3 + 0.7 * _panelCurve(widget.animation.value, 0.9);
+                    0.45 + 0.55 * _panelCurve(widget.animation.value, 0.9);
                 final opacity =
                     (0.2 + 0.8 * _panelCurve(widget.animation.value, 0.3))
                         .clamp(0.0, 1.0);
@@ -280,8 +288,7 @@ class _TelegramMenuOverlayState<T> extends State<_TelegramMenuOverlay<T>> {
                 child: Material(
                   color: Colors.transparent,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        vertical: _kScrollPaddingVertical),
+                    padding: EdgeInsets.symmetric(vertical: scrollPadding),
                     child: menuChild,
                   ),
                 ),
@@ -392,6 +399,7 @@ class _TelegramMenuContent<T> extends StatefulWidget {
   final ValueChanged<T?> onSelected;
   final bool fullAttention;
   final Animation<double>? routeAnimation;
+  final VoidCallback? onEscape;
 
   const _TelegramMenuContent({
     required this.items,
@@ -399,6 +407,7 @@ class _TelegramMenuContent<T> extends StatefulWidget {
     required this.onSelected,
     this.fullAttention = false,
     this.routeAnimation,
+    this.onEscape,
   });
 
   @override
@@ -409,26 +418,132 @@ class _TelegramMenuContent<T> extends StatefulWidget {
 class _TelegramMenuContentState<T> extends State<_TelegramMenuContent<T>> {
   int _focusedIndex = -1;
   late final List<int> _selectableIndices;
+  final Map<int, GlobalKey> _itemKeys = {};
+  OverlayEntry? _submenuOverlay;
+  int _activeSubmenuIndex = -1;
 
   @override
   void initState() {
     super.initState();
     _selectableIndices = <int>[];
     for (int i = 0; i < widget.items.length; i++) {
-      if (!widget.items[i].isSeparator && !widget.items[i].isDisabled) _selectableIndices.add(i);
+      final item = widget.items[i];
+      if (!item.isSeparator && !item.isDisabled) _selectableIndices.add(i);
+      if (item.submenu != null) _itemKeys[i] = GlobalKey();
     }
     HardwareKeyboard.instance.addHandler(_handleRawKey);
   }
 
   @override
   void dispose() {
+    _hideSubmenu();
     HardwareKeyboard.instance.removeHandler(_handleRawKey);
     super.dispose();
   }
 
+  void _handleSelection(T? value) {
+    _hideSubmenu();
+    widget.onSelected(value);
+  }
+
+  void _showSubmenu(int index) {
+    if (!mounted) return;
+    if (_activeSubmenuIndex == index) return;
+    _hideSubmenu();
+
+    final items = widget.items[index].submenu!;
+    final key = _itemKeys[index];
+    if (key == null) return;
+
+    final box = key.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return;
+
+    final itemPos = box.localToGlobal(Offset.zero);
+    final itemSize = box.size;
+    final brightness = widget.brightness;
+    final hasIcons = items.any((i) => !i.isSeparator && i.icon != null);
+    final pad = hasIcons ? 5.0 : 8.0;
+    final bg = _menuBg(brightness);
+    final shadow = _shadowColor(brightness);
+
+    setState(() => _activeSubmenuIndex = index);
+
+    _submenuOverlay = OverlayEntry(
+      builder: (ctx) {
+        final screenSize = MediaQuery.of(ctx).size;
+        return CustomSingleChildLayout(
+          delegate: _MenuPositionDelegate(
+            position: Offset(itemPos.dx + itemSize.width, itemPos.dy - pad),
+            screenSize: screenSize,
+            margin: 8.0,
+          ),
+          child: IntrinsicWidth(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                minWidth: _kMenuMinWidth,
+                maxWidth: _kMenuMaxWidth,
+              ),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: bg,
+                  borderRadius: BorderRadius.circular(_kCornerRadius),
+                  boxShadow: [
+                    BoxShadow(
+                      color: shadow.withOpacity(_kShadowOpacity),
+                      blurRadius: _kShadowBlurRadius,
+                      offset: _kShadowOffset,
+                    ),
+                  ],
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: pad),
+                    child: _TelegramMenuContent<T>(
+                      items: items,
+                      brightness: brightness,
+                      onSelected: _handleSelection,
+                      onEscape: _hideSubmenu,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    Overlay.of(context).insert(_submenuOverlay!);
+  }
+
+  void _hideSubmenu() {
+    _submenuOverlay?.remove();
+    _submenuOverlay = null;
+    if (_activeSubmenuIndex >= 0) {
+      _activeSubmenuIndex = -1;
+      if (mounted) setState(() {});
+    }
+  }
+
   bool _handleRawKey(KeyEvent event) {
+    if (!mounted) return false;
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) return false;
     final key = event.logicalKey;
+
+    if (key == LogicalKeyboardKey.arrowLeft) {
+      if (_activeSubmenuIndex >= 0) {
+        _hideSubmenu();
+        return true;
+      }
+      if (widget.onEscape != null) {
+        widget.onEscape!();
+        return true;
+      }
+      return false;
+    }
+
+    if (_activeSubmenuIndex >= 0) return false;
 
     if (key == LogicalKeyboardKey.arrowDown) {
       _moveFocus(1);
@@ -438,15 +553,33 @@ class _TelegramMenuContentState<T> extends State<_TelegramMenuContent<T>> {
       _moveFocus(-1);
       return true;
     }
+    if (key == LogicalKeyboardKey.arrowRight) {
+      if (_focusedIndex >= 0 &&
+          _focusedIndex < widget.items.length &&
+          widget.items[_focusedIndex].submenu != null) {
+        _showSubmenu(_focusedIndex);
+        return true;
+      }
+      return false;
+    }
     if (key == LogicalKeyboardKey.enter ||
         key == LogicalKeyboardKey.numpadEnter) {
       if (_focusedIndex >= 0 && _focusedIndex < widget.items.length) {
-        widget.onSelected(widget.items[_focusedIndex].value);
+        final item = widget.items[_focusedIndex];
+        if (item.submenu != null) {
+          _showSubmenu(_focusedIndex);
+        } else {
+          _handleSelection(item.value);
+        }
       }
       return true;
     }
     if (key == LogicalKeyboardKey.escape) {
-      widget.onSelected(null);
+      if (widget.onEscape != null) {
+        widget.onEscape!();
+      } else {
+        _handleSelection(null);
+      }
       return true;
     }
     return false;
@@ -472,42 +605,51 @@ class _TelegramMenuContentState<T> extends State<_TelegramMenuContent<T>> {
         ? const Color(0xFF232f39)
         : const Color(0xFFf1f1f1);
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: List.generate(widget.items.length, (i) {
-        final item = widget.items[i];
-        if (item.isSeparator) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 5),
-            child: Container(
-              height: 1,
-              color: separatorColor,
-            ),
-          );
-        }
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: List.generate(widget.items.length, (i) {
+          final item = widget.items[i];
+          if (item.isSeparator) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              child: Container(
+                height: 1,
+                color: separatorColor,
+              ),
+            );
+          }
 
-        if (item.isDisabled) {
-          return _TelegramDisabledItem<T>(
+          if (item.isDisabled) {
+            return _TelegramDisabledItem<T>(
+              item: item,
+              brightness: widget.brightness,
+            );
+          }
+
+          return _TelegramRippleItem<T>(
+            key: _itemKeys[i],
             item: item,
             brightness: widget.brightness,
+            onSelected: _handleSelection,
+            fullAttention: widget.fullAttention,
+            routeAnimation: widget.routeAnimation,
+            isFocused: _focusedIndex == i,
+            isSubmenuActive: _activeSubmenuIndex == i,
+            onHover: (hovering) {
+              if (hovering) {
+                setState(() => _focusedIndex = i);
+                if (item.submenu != null) {
+                  _showSubmenu(i);
+                } else {
+                  _hideSubmenu();
+                }
+              }
+            },
           );
-        }
-
-        return _TelegramRippleItem<T>(
-          item: item,
-          brightness: widget.brightness,
-          onSelected: widget.onSelected,
-          fullAttention: widget.fullAttention,
-          routeAnimation: widget.routeAnimation,
-          isFocused: _focusedIndex == i,
-          onHover: (hovering) {
-            if (hovering) {
-              setState(() => _focusedIndex = i);
-            }
-          },
-        );
-      }),
+        }),
+      ),
     );
   }
 }
@@ -519,15 +661,18 @@ class _TelegramRippleItem<T> extends StatefulWidget {
   final bool fullAttention;
   final Animation<double>? routeAnimation;
   final bool isFocused;
+  final bool isSubmenuActive;
   final ValueChanged<bool>? onHover;
 
   const _TelegramRippleItem({
+    super.key,
     required this.item,
     required this.brightness,
     required this.onSelected,
     this.fullAttention = false,
     this.routeAnimation,
     this.isFocused = false,
+    this.isSubmenuActive = false,
     this.onHover,
   });
 
@@ -564,7 +709,11 @@ class _TelegramRippleItemState<T> extends State<_TelegramRippleItem<T>>
   }
 
   void _onTapUp(TapUpDetails _) {
-    widget.onSelected(widget.item.value);
+    if (widget.item.submenu != null) {
+      widget.onHover?.call(true);
+    } else {
+      widget.onSelected(widget.item.value);
+    }
     _rippleController.reverse();
   }
 
@@ -590,6 +739,12 @@ class _TelegramRippleItemState<T> extends State<_TelegramRippleItem<T>>
     final iconColorHover = isDark
         ? const Color(0xFFdcdcdc)
         : const Color(0xFF8a8a8a);
+    final shortcutColor = isDark
+        ? const Color(0xFF8d9ba4)
+        : const Color(0xFF999999);
+    final shortcutColorHover = isDark
+        ? const Color(0xFFa0b0b8)
+        : const Color(0xFF888888);
 
     final item = widget.item;
     final hasIcon = item.icon != null;
@@ -600,11 +755,13 @@ class _TelegramRippleItemState<T> extends State<_TelegramRippleItem<T>>
     final hasCustomColor = item.labelColor != null || item.iconColor != null ||
         item.isAttention;
     final anim = widget.routeAnimation;
+    final highlighted =
+        _hovering || widget.isFocused || widget.isSubmenuActive;
 
     Widget buildItemContent(double colorT) {
       final targetTextColor =
           item.labelColor ?? (useRedText ? attentionColor : textColor);
-      final isHighlighted = _hovering || widget.isFocused;
+      final isHighlighted = highlighted;
       final targetIconColor =
           item.iconColor ?? (item.isAttention
               ? attentionColor
@@ -616,34 +773,59 @@ class _TelegramRippleItemState<T> extends State<_TelegramRippleItem<T>>
           ? Color.lerp(iconColorResting, targetIconColor, colorT)!
           : targetIconColor;
 
-      return Stack(
-        clipBehavior: Clip.none,
+      return Row(
         children: [
-          if (hasIcon)
-            Positioned(
-              left: -54 + 15,
-              top: -8 + 5,
-              child: IconTheme(
-                data: IconThemeData(
-                  color: effectiveIconColor,
-                  size: 20,
+          Expanded(
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                if (hasIcon)
+                  Positioned(
+                    left: -54 + 15,
+                    top: -8 + 5,
+                    child: IconTheme(
+                      data: IconThemeData(
+                        color: effectiveIconColor,
+                        size: 20,
+                      ),
+                      child: item.icon!,
+                    ),
+                  ),
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Text(
+                    item.label,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.normal,
+                      color: effectiveTextColor,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                child: item.icon!,
-              ),
-            ),
-          Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: Text(
-              item.label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.normal,
-                color: effectiveTextColor,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              ],
             ),
           ),
+          if (item.shortcut != null) ...[
+            const SizedBox(width: 6),
+            Text(
+              item.shortcut!,
+              style: TextStyle(
+                fontSize: 13,
+                color: isHighlighted ? shortcutColorHover : shortcutColor,
+              ),
+            ),
+          ],
+          if (item.submenu != null) ...[
+            const SizedBox(width: 6),
+            CustomPaint(
+              size: const Size(5, 8),
+              painter: _SubmenuArrowPainter(
+                isHighlighted ? iconColorHover : iconColorResting,
+              ),
+            ),
+          ],
         ],
       );
     }
@@ -654,8 +836,6 @@ class _TelegramRippleItemState<T> extends State<_TelegramRippleItem<T>>
             builder: (context, _) => buildItemContent(anim.value),
           )
         : buildItemContent(1.0);
-
-    final highlighted = _hovering || widget.isFocused;
 
     return MouseRegion(
       onEnter: (_) {
@@ -721,34 +901,75 @@ class _TelegramDisabledItem<T> extends StatelessWidget {
         padding: hasIcon
             ? const EdgeInsets.only(left: 54, top: 8, right: 17, bottom: 8)
             : const EdgeInsets.only(left: 17, top: 8, right: 17, bottom: 7),
-        child: Stack(
-          clipBehavior: Clip.none,
+        child: Row(
           children: [
-            if (hasIcon)
-              Positioned(
-                left: -54 + 15,
-                top: -8 + 5,
-                child: IconTheme(
-                  data: IconThemeData(color: iconColor, size: 20),
-                  child: item.icon!,
-                ),
-              ),
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: Text(
-                item.label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.normal,
-                  color: textColor,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+            Expanded(
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  if (hasIcon)
+                    Positioned(
+                      left: -54 + 15,
+                      top: -8 + 5,
+                      child: IconTheme(
+                        data: IconThemeData(color: iconColor, size: 20),
+                        child: item.icon!,
+                      ),
+                    ),
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text(
+                      item.label,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.normal,
+                        color: textColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
             ),
+            if (item.shortcut != null) ...[
+              const SizedBox(width: 6),
+              Text(
+                item.shortcut!,
+                style: TextStyle(fontSize: 13, color: textColor),
+              ),
+            ],
+            if (item.submenu != null) ...[
+              const SizedBox(width: 6),
+              CustomPaint(
+                size: const Size(5, 8),
+                painter: _SubmenuArrowPainter(iconColor),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
+}
+
+class _SubmenuArrowPainter extends CustomPainter {
+  final Color color;
+  _SubmenuArrowPainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+    final path = Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width, size.height / 2)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_SubmenuArrowPainter old) => color != old.color;
 }
