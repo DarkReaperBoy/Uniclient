@@ -632,9 +632,6 @@ The Dart emoji_data.dart implements a hardcoded static emoji search database, wh
 
 # peer_short_info — Peer Short Info Box Audit
 
-- [ ] [CRITICAL] Status text for DM users is hardcoded to `'last seen recently'` — this is placeholder data, not from the engine. AyuGram computes live status via `Data::OnlineText(user, now)` with a timer that re-fires on `OnlineChangeTimeout` — `peer_short_info.dart:405` ← `prepare_short_info_box.cpp:253` (`Data::OnlineText(user, now)` + base::Timer)
-
-- [ ] [MAJOR] `additionalStatus` label absent — AyuGram shows a secondary status line on the cover ("Set by you" when viewing a personal photo, "Public photo" for the fallback) via `_additionalStatus` label positioned above the primary status. No equivalent exists in Dart — `peer_short_info.dart` (absent) ← `peer_short_info_box.cpp:427` (`applyAdditionalStatus`, `_additionalStatus.create`)
 
 # photo_crop_editor — Audit Findings
 
