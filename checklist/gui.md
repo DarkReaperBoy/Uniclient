@@ -569,69 +569,15 @@ The edit_mark_box is **functionally broken** — missing Cancel button, no input
 - Grouped messages won't be filtered correctly
 - Cache will leak memory over time
 
-# forum_topic_icon — Audit Findings
-
-- [ ] [CRITICAL] `_bubblePathD` coordinates don't match AyuGram SVG source — Dart uses slightly different control-point values throughout the entire path (e.g. first point `M42,4.42105263` vs AyuGram `M42,4.47368421`, `80.5789474` vs `80.5263158`, etc.), so the rendered bubble outline shape deviates from the spec — `forum_topic_icon.dart:123` ← `AyuGramDesktop/Telegram/Resources/art/topic_icons/blue.svg:18`
-
-- [ ] [CRITICAL] `extractTopicLetter` silently drops Chinese, Japanese and Korean topic titles — the `code > 0x2600` guard skips all code points above U+2600, which includes CJK Unified Ideographs (U+4E00+), Hiragana/Katakana (U+3040+) and Hangul (U+AC00+); AyuGram's `ExtractNonEmojiLetter` uses `Ui::Emoji::Find()` to skip only actual emoji codepoint sequences and accepts all `QChar::isLetterOrNumber()` values including CJK, so those topics show no letter overlay in Dart but do in AyuGram — `forum_topic_icon.dart:115` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_forum_topic.cpp:101`
-
-- [ ] [MAJOR] Default fallback palette is blue instead of gray — when `colorId` is not one of the six known values, Dart falls back to `topicIconPalettes[0x6FB9F0]` (blue), whereas AyuGram's `ForumTopicDefaultIcon()` returns `"gray"` causing it to load `gray.svg` (neutral gray gradient); topics with unrecognised color IDs render with wrong gradient — `forum_topic_icon.dart:58` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_forum_topic.cpp:71`
-
-# ghost_settings_page — Ghost Settings Page Audit
-
-- [ ] [CRITICAL] Account picker `onScopeChanged` callback silently drops the `userId` argument — selecting account A only calls `setUseGlobalGhostMode(false)` and ignores which account was chosen, so all ghost toggles always reflect the active/global account rather than the picker-selected account; AyuGram maintains a per-page `state->selectedUserId` that drives all lockable-toggle reads and writes — `ghost_settings_page.dart:60-69` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_ayu.cpp:283-346`
-
-- [ ] [MAJOR] No auto-migration from per-account to global settings when only one active account exists — AyuGram copies all per-account ghost settings to the global slot (userId=0) on section build when `activeCount <= 1 && !useGlobalGhostMode`; the Dart page is a `StatelessWidget` with no such initialization logic — `ghost_settings_page.dart:16` (absent) ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_ayu.cpp:319-337`
-
-- [ ] [MAJOR] No description hint below the Ghost Mode toggle explaining the shift-click/long-press to lock gesture — AyuGram renders `tr::ayu_GhostModeOptionShiftDescription` immediately after the collapsible ghost toggle; without it users have no way to discover the lock feature — `ghost_settings_page.dart:72-142` (absent) ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_ayu.cpp:427-430`
-
 # hamburger_drawer — Critical wiring errors, wrong LRead/SRead semantics, positional bugs
-
-- [ ] [CRITICAL] `showLReadToggleInDrawer` row is wired as a stateful `sendReadMessages` toggle (`_InlineToggle` + `setSendReadMessages()`), but in AyuGram it is a **one-shot "mark all chats read without sending receipts"** action: it temporarily disables `sendReadMessages`, calls `MarkAsReadChatList`, then restores the original value — it never persistently changes the setting — `hamburger_drawer.dart:371-379` ← `AyuGramDesktop/Telegram/SourceFiles/window/window_main_menu.cpp:767-782`
-
-- [ ] [CRITICAL] `showSReadToggleInDrawer` row is wired as a stateful `sendReadStories` toggle (`_InlineToggle` + `setSendReadStories()`), but in AyuGram it is a **one-shot "mark all chats read WITH receipts"** action that first shows a confirmation dialog, then temporarily enables `sendReadMessages`, calls `MarkAsReadChatList` with a 200 ms delay for forums, and restores — it is not a story-read toggle — `hamburger_drawer.dart:382-390` ← `AyuGramDesktop/Telegram/SourceFiles/window/window_main_menu.cpp:784-813`
 
 - [ ] [CRITICAL] `_FooterSection._openUrl` calls `Process.run('xdg-open', [url])` which is Linux-only; on Windows, macOS, and Android the call silently fails, making all footer links (UniClient repo, releases, About) non-functional on those platforms — `hamburger_drawer.dart:1565` ← `AyuGramDesktop/Telegram/SourceFiles/window/window_main_menu_helpers.cpp:41-53` (Qt handles cross-platform URL opening transparently)
 
-- [ ] [MAJOR] "Log Out" is always added to the account-row context menu regardless of whether the account is active, but in AyuGram `Log Out` is only added for **inactive** accounts (`if (!isActive)`) — logging out the active account from the switcher is not supported in the reference — `hamburger_drawer.dart:1013-1014` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_information.cpp:59-80`
-
-- [ ] [MAJOR] The entire lower half of the cover (from `mainMenuCoverNameTop = 84px` to `mainMenuCoverHeight = 134px`) is a single `ToggleAccountsButton` click target in AyuGram, so clicking the name or status text also toggles the account list; in the Dart only the 48×48 userpic and the 24×24 chevron widget are `GestureDetector` tap targets — the name and status text are not tappable — `hamburger_drawer.dart:597-650` ← `AyuGramDesktop/Telegram/SourceFiles/window/window_main_menu.cpp:934-948`
-
-- [ ] [MAJOR] Account-list toggle chevron is positioned at `right: 18, top: 18` (top-right corner, y ≈ 30 px from cover top), but `mainMenuTogglePosition: point(30px, 30px)` places it at `(width − 30, coverHeight − 30) = (width − 30, 104)` — 30 px above the bottom edge of the cover, adjacent to the status text, not in the top corner — `hamburger_drawer.dart:653-657` ← `AyuGramDesktop/Telegram/SourceFiles/window/window.style:165` + `window_main_menu.cpp:197-202`
-
-- [ ] [MAJOR] "New Group" and "New Channel" rows have no right-click handler; in AyuGram `AddMyChannelsBox()` wraps both buttons and adds a right-click popup listing the user's own groups/channels — `hamburger_drawer.dart:212-228` ← `AyuGramDesktop/Telegram/SourceFiles/window/window_main_menu_helpers.cpp:55-273`
-
-- [ ] [MAJOR] Menu-bot rows have no right-click handler; in AyuGram each bot button has a right-click popup with "Remove from Menu" (`bots->removeFromMenu()`) — `hamburger_drawer.dart:179-199` ← `AyuGramDesktop/Telegram/SourceFiles/window/window_main_menu_helpers.cpp:327-350`
-
-- [ ] [MAJOR] "Add Account" right-click context menu is triggered by any right-click; in AyuGram (non-debug builds) the Production/Test context menu requires **Alt+Shift + right-click** (`IsAltShift(clickModifiers())`); plain right-click is a no-op — `hamburger_drawer.dart:908-912` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_information.cpp:63-70`
-
-- [ ] [MAJOR] "Saved Messages" row silently does nothing when the chat is not yet present in `chatState.chats`; AyuGram calls `controller->showPeerHistory(controller->session().user())` which always works regardless of whether the history is in the dialog list — `hamburger_drawer.dart:255-264` ← `AyuGramDesktop/Telegram/SourceFiles/window/window_main_menu.cpp:759-765`
-
 # info_panel — Audit Findings
-
-- [ ] [CRITICAL] "Message" action button in DM cover has `onTap: null` — tapping it does nothing. AyuGram calls `window->showPeerHistory(peer->id, ...)` to navigate to the chat. — `info_panel.dart:823` ← `AyuGram/info/profile/info_profile_top_bar.cpp:780-784`
-
-- [ ] [CRITICAL] "Call" action button in DM cover has `onTap: null` — tapping it does nothing. AyuGram calls `Core::App().calls().startOutgoingCall(user, {})`. — `info_panel.dart:835` ← `AyuGram/info/profile/info_profile_top_bar.cpp:900-903`
-
-- [ ] [CRITICAL] "Boosts" menu item in stats menu is a dead stub — when selected, no navigation occurs. The `if (value == 'statistics')` branch handles stats but there is no `case 'boosts'` handler. AyuGram has a full separate `Info::Boosts` section (`info_boosts_widget.cpp`). — `info_panel.dart:1784-1799` ← `AyuGram/info/channel_statistics/boosts/info_boosts_widget.h`
-
-- [ ] [CRITICAL] `_ForumTopicsDialog` always initialises `_enabled = false` regardless of whether the group already has topics enabled. `chat.isForum` is available in `ChatInfo` but is never read in `initState`. Opening the dialog on a forum group shows "Topics: Off" incorrectly, and saving overwrites the real state. — `info_panel.dart:3092` ← `AyuGram/info/profile/info_profile_actions.cpp` (forum toggle reads live peer state)
-
-- [ ] [CRITICAL] `_PublicForwardRow.onTap` is an empty callback `onTap: () {}`. AyuGram's `PublicForwardsController::rowClicked` navigates to the forwarded message or story in the referenced peer. Tapping a public forward row in Dart does nothing. — `info_panel.dart:7437` ← `AyuGram/info/statistics/info_statistics_list_controllers.cpp:370-373`
 
 - [ ] [CRITICAL] `_MiniWaveformPainter` renders a static deterministic fake waveform using `rng = 42` constant and `(i * 42 + 17) % 13` — no actual audio waveform data from the message is used. Every voice message in shared media shows the same pattern. — `info_panel.dart:5001-5006` ← `AyuGram/info/media/info_media_list_widget.cpp` (renders real waveform bytes from message)
 
-- [ ] [MAJOR] `_SharedMediaSubPage._loadItems` fetches at most 200 items with a fixed `limit: 200` and no pagination cursor. Channels with thousands of photos will silently show only the first 200 with no "load more". AyuGram's `info_media_provider` uses incremental loading with scroll-triggered pagination. — `info_panel.dart:2266-2275`
-
-- [ ] [MAJOR] `_SharedMediaSection` (inline preview in chat info) uses a fixed `limit: 100` with no pagination. Same issue — large shared media sets truncated silently. — `info_panel.dart:3763-3776`
-
-- [ ] [MAJOR] `_MediaGrid` and `_MediaListView` render all items eagerly into a `Column` inside `SingleChildScrollView`. For large media sets this is an OOM/jank risk. AyuGram uses a virtualised list (`SliverList`/lazy delegates). — `info_panel.dart:4504-4537`, `4748-4762`
-
-- [ ] [MAJOR] `_UserProfilePage` (pushed when tapping a member) shows no shared media section. AyuGram's profile info for any peer includes a shared media count section (photos, videos, files, etc.). — `info_panel.dart:2168-2216` ← `AyuGram/info/profile/info_profile_inner_widget.cpp`
-
 - [ ] [MAJOR] Cover action buttons overflow fallback at line 840–843 is a stub: `// overflow popup placeholder — wired when call UI lands`. When more than 3 action buttons are needed the "More" button is shown but clicking it does nothing (empty callback). — `info_panel.dart:840-843`
-
-- [ ] [MAJOR] `_CommonGroupsRow` displays a count and a chevron but has no `onTap`. AyuGram navigates to a full common groups list when tapped. — `info_panel.dart:2839-2864` ← `AyuGram/info/profile/info_profile_actions.cpp` (common groups action)
 
 - [ ] [MAJOR] Public forwards list in `_MessageStatsPage` only shows the initial batch returned by `getMessageStats` — there is no infinite scroll / load-more. AyuGram's `PublicForwardsController::loadMoreRows` uses a paginated token API to load the full list. — `info_panel.dart:7267-7276` ← `AyuGram/info/statistics/info_statistics_list_controllers.cpp:342-348`
 
