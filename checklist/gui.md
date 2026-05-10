@@ -627,50 +627,6 @@ The Dart emoji_data.dart implements a hardcoded static emoji search database, wh
 
 **Comparison Complete**: Feature is functionally wired and working, but architectural differences (static vs. server-sourced, no recent tracking, no variants) may cause divergence as Telegram's emoji support evolves.
 
-# media_viewer — Stub actions, broken clipboard, missing engine wiring
-
-- [ ] [CRITICAL] `_viewStatistics` shows a toast instead of navigating to a statistics screen — `media_viewer.dart:2721` ← `media_view_overlay_widget.cpp:48` (includes `info_statistics_widget.h`)
-
-- [ ] [CRITICAL] `_showOcrResult` shows a toast instead of performing OCR and displaying an in-overlay text result; additionally `_ocrAvailable` is hardcoded `false` (line 2866) so the OCR button is permanently hidden — `media_viewer.dart:2868` ← `media_view_overlay_widget.cpp:3396` (`recognize()` toggles `_showRecognitionResults` overlay)
-
-- [ ] [CRITICAL] `_openDrawEditor` runs `xdg-open` to launch an external app instead of opening the in-app photo editor — `media_viewer.dart:2913` ← `media_view_overlay_widget.cpp:3405` (`requestDrawToReply()` launches the Editor module)
-
-- [ ] [CRITICAL] Story reply compose emoji picker button inserts a hardcoded '😊' instead of opening a real emoji/reaction picker — `media_viewer.dart:5239` ← (AyuGram opens emoji/reaction picker on tap)
-
-- [ ] [MAJOR] `_controlsAnim` calls `setState(() {})` in its `addListener` callback, forcing full widget-tree rebuilds on every animation frame (60 fps) — use `AnimatedBuilder` to scope repaints — `media_viewer.dart:374`
-
-# message_bubble — Audit Findings
-
-- [ ] [CRITICAL] Inline `request_location` shows toast "Location sharing requires GPS access" and `request_peer` shows toast "Peer selection requested" — neither opens a proper flow. `request_phone` (sends user phone) and `request_poll` (opens create-poll dialog) are now fixed. ← `history_view_message.cpp`
-
-- [ ] [CRITICAL] Location map is a fake placeholder — `_MapGridPainter.paint()` (`message_bubble.dart:4983–5018`) draws hardcoded grid lines and three diagonal "road" lines at fixed positions. No real map tile is fetched or rendered. ← `history_view_location.cpp:1` (uses `CloudImage` / static map tile via Telegram API)
-
-# my_profile_page — Profile/Edit Profile page audit
-
-- [ ] [CRITICAL] Status in photo area is hardcoded to the string `'online'` regardless of actual user status; AyuGram uses `StatusValue(self)` which calls `Data::OnlineText(user, now)` with a repeating timer to show real last-seen/online/offline text — `my_profile_page.dart:660` ← `AyuGram/settings/sections/settings_information.cpp:281-299`
-
-- [ ] [CRITICAL] Birthday footer "your contacts" link is an empty stub (`onTap: () {}`); in AyuGram both the contacts link and the manage link navigate to `edit_privacy_birthday` — `my_profile_page.dart:299` ← `AyuGram/settings/sections/settings_information.cpp:482-491`
-
-- [ ] [CRITICAL] Birthday footer text is static and never queries the actual privacy API; AyuGram calls `session->api().userPrivacy().reload(key)` and then conditionally shows `lng_settings_birthday_contacts` (visible to contacts) vs `lng_settings_birthday_about` (not-visible text) based on the live privacy rule — `my_profile_page.dart:288-340` ← `AyuGram/settings/sections/settings_information.cpp:468-491`
-
-- [ ] [CRITICAL] Personal channel clear/set operations do not update `_personalChannelName` state: after `engine.clearPersonalChannel()` or `engine.setPersonalChannel()` the row still displays the stale channel name because there is no `setState(()=>_personalChannelName=...)` and no callback wired back to the parent (unlike `_YourColorRow` which has `onColorChanged`) — `my_profile_page.dart:1019-1044` ← `AyuGram/settings/sections/settings_information.cpp:501-533`
-
-- [ ] [MAJOR] Bio input accepts and stores newlines (`maxLines: null`, no stripping); AyuGram explicitly strips newlines in the `assign` lambda (`bio->setText(text.replace('\n', ' '))`) even though the field is `InputField::Mode::MultiLine` — `my_profile_page.dart:534` ← `AyuGram/settings/sections/settings_information.cpp:673-678`
-
-# notification_popup — Notification Popup Widget Audit
-
-- [ ] [CRITICAL] `_Avatar` widget declares `avatarPath` field (line 661) but never uses it in `build()` — the image is never rendered; every notification always shows colour-initial fallback regardless of whether a real peer photo is available — `notification_popup.dart:659-703` ← `AyuGramDesktop/window/notifications_manager_default.cpp:919-926` (`_history->peer->paintUserpicLeft` / `manager()->hiddenUserpicPlaceholder()`)
-
-- [ ] [MAJOR] `_onReplyCancel` closes the reply field and starts a hide countdown (`notification_popup.dart:304-311`), but AyuGram's `replyCancel()` calls `unlinkHistoryInManager()`, which fully dismisses the notification immediately — `notification_popup.dart:304-311` ← `AyuGramDesktop/window/notifications_manager_default.cpp:791-793`
-
-- [ ] [MAJOR] HideAll button position is inverted for bottom corners: Dart places it at `size.height - _notifyDeltaY - _hideAllHeight` (43 px from screen edge, *below* all popups), but AyuGram places it at `lastShift` which for bottom-corner direction puts it *above* all popups — furthest from the corner — `notification_popup.dart:429-461` ← `AyuGramDesktop/window/notifications_manager_default.cpp:313-318` (`_hideAll->changeShift(lastShift)` with `Direction::Up`)
-
-- [ ] [MAJOR] `_recalcPositions()` unconditionally adds `_hideAllHeight + _notifyDeltaY` (43 px) to the starting shift for **all** corners, including top corners (`notification_popup.dart:328-329`). For top corners AyuGram places notifications at `notifyDeltaY=7` from the top edge; Dart places them at `50`, creating a 43 px empty gap — `notification_popup.dart:321-337` ← `AyuGramDesktop/window/notifications_manager_default.cpp:297-302` (`shift = st::notifyDeltaY`, no offset for HideAll)
-
-- [ ] [MAJOR] HideAll button renders with a static style and no hover state (`notification_popup.dart:440-461`); AyuGram uses `st::lightButtonBgOver`/`st::lightButtonFgOver` to change background and text colour on mouse-over — `notification_popup.dart:440-461` ← `AyuGramDesktop/window/notifications_manager_default.cpp:1330-1342` (`HideAllButton::paintEvent`, `_mouseOver ? st::lightButtonBgOver : st::lightButtonBg`)
-
-- [ ] [MAJOR] After reply send, Dart fast-hides only the replied popup (`_startFastHide`, `notification_popup.dart:301`); AyuGram calls `manager()->startAllHiding()` which starts a slow hide on **every** visible notification — `notification_popup.dart:296-302` ← `AyuGramDesktop/window/notifications_manager_default.cpp:1168-1176`
-
 # notifications_settings_screen — Backend wiring completely absent; stubs; state not loaded
 
 ## Critical — Backend disconnected
