@@ -3,8 +3,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 
 import '../models/engine_models.dart';
+import '../state/app_state.dart';
 import '../theme/telegram_palette.dart';
 
 // ─── §36.1 Box/Dialog Infrastructure Constants ───────────────────────────────
@@ -451,11 +453,24 @@ class _DeleteContent extends StatefulWidget {
 }
 
 class _DeleteContentState extends State<_DeleteContent> {
-  bool _revoke = false;
+  late bool _revokeDefault;
+  late bool _revoke;
   bool _revokeRemember = false;
   bool _banUser = false;
   bool _reportSpam = false;
   bool _deleteAll = false;
+  bool _initialized = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initialized) {
+      _initialized = true;
+      final appState = context.read<AppState>();
+      _revokeDefault = !appState.deleteOnlyForYouRemembered;
+      _revoke = _revokeDefault;
+    }
+  }
 
   String get _bodyText {
     final name = widget.peerName;
@@ -510,7 +525,9 @@ class _DeleteContentState extends State<_DeleteContent> {
         return 'Delete';
       case DeleteBoxMode.singleMessage:
       case DeleteBoxMode.bulkMessages:
-        final suffix = _deleteAll ? ' (...)' : '';
+        final suffix = _deleteAll && widget.messageCount > 0
+            ? ' (${widget.messageCount})'
+            : '';
         return 'Delete$suffix';
     }
   }
@@ -528,6 +545,10 @@ class _DeleteContentState extends State<_DeleteContent> {
   }
 
   void _confirm() {
+    if (_revokeRemember) {
+      final appState = context.read<AppState>();
+      appState.deleteOnlyForYouRemembered = !_revoke;
+    }
     Navigator.of(context).pop(DeleteConfirmResult(
       confirmed: true,
       revoke: _revoke,
@@ -538,11 +559,18 @@ class _DeleteContentState extends State<_DeleteContent> {
     ));
   }
 
+  bool get _showAutoDeleteLink =>
+      widget.mode == DeleteBoxMode.clearHistory &&
+      (widget.chatType == ChatType.dm ||
+       widget.chatType == ChatType.group ||
+       widget.chatType == ChatType.topic);
+
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
     final textFg = p.boxTextFg;
     final checkClr = p.windowBgActive;
+    final linkFg = p.windowActiveTextFg;
 
     return TelegramBox(
       onConfirm: _confirm,
@@ -581,7 +609,7 @@ class _DeleteContentState extends State<_DeleteContent> {
             const SizedBox(height: kBoxMediumSkip),
             _checkbox(_revokeLabel!, _revoke,
                 (v) => setState(() => _revoke = v ?? false), checkClr, textFg),
-            if (_revoke) ...[
+            if (_revoke != _revokeDefault) ...[
               const SizedBox(height: kBoxLittleSkip),
               Padding(
                 padding: const EdgeInsets.only(left: 28),
@@ -589,6 +617,26 @@ class _DeleteContentState extends State<_DeleteContent> {
                     (v) => setState(() => _revokeRemember = v ?? false), checkClr, textFg),
               ),
             ],
+          ],
+          if (_showAutoDeleteLink) ...[
+            const SizedBox(height: kBoxMediumSkip),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: GestureDetector(
+                onTap: () {
+                  Navigator.of(context).pop(const DeleteConfirmResult());
+                },
+                child: Text(
+                  'Enable auto-delete',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: linkFg,
+                    decoration: TextDecoration.underline,
+                    decorationColor: linkFg,
+                  ),
+                ),
+              ),
+            ),
           ],
         ],
       ),
@@ -888,8 +936,9 @@ Future<bool> requestPermissionOrFail(
     case PermissionStatus.granted:
       return true;
     case PermissionStatus.canRequest:
-      final recheck = await getPermissionStatus(type);
-      if (recheck == PermissionStatus.granted) return true;
+      // Desktop platforms (Linux/macOS/Windows) have no runtime permission
+      // request API — canRequest means the detection command failed. Show
+      // the settings dialog so the user can resolve it manually.
       onDenied?.call();
       if (context.mounted) {
         await showPermissionDeniedBox(context, type);
@@ -975,6 +1024,8 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
 
   Future<void> _loadSources() async {
     final sources = <ScreenShareSource>[];
+
+    // Enumerate monitors via xrandr
     try {
       final xrandr = await Process.run('xrandr', ['--listmonitors']);
       if (xrandr.exitCode == 0) {
@@ -1005,6 +1056,55 @@ class _ScreenShareChooserState extends State<_ScreenShareChooser> {
         name: 'Entire Screen',
         isScreen: true,
       ));
+    }
+
+    // Enumerate application windows via wmctrl
+    try {
+      final wmctrl = await Process.run('wmctrl', ['-l']);
+      if (wmctrl.exitCode == 0) {
+        final lines = (wmctrl.stdout as String).split('\n');
+        for (final line in lines) {
+          if (line.trim().isEmpty) continue;
+          final parts = line.split(RegExp(r'\s+'));
+          if (parts.length < 4) continue;
+          final windowId = parts[0];
+          final windowName = parts.sublist(3).join(' ').trim();
+          if (windowName.isEmpty || windowName == 'N/A') continue;
+          sources.add(ScreenShareSource(
+            id: 'window:$windowId',
+            name: windowName,
+          ));
+        }
+      }
+    } catch (_) {
+      // wmctrl not available — try xdotool as fallback
+      try {
+        final xdotool = await Process.run(
+          'xdotool', ['search', '--onlyvisible', '--name', ''],
+        );
+        if (xdotool.exitCode == 0) {
+          final windowIds = (xdotool.stdout as String)
+              .split('\n')
+              .where((l) => l.trim().isNotEmpty)
+              .toList();
+          for (final wid in windowIds) {
+            try {
+              final nameResult = await Process.run(
+                'xdotool', ['getwindowname', wid.trim()],
+              );
+              if (nameResult.exitCode == 0) {
+                final name = (nameResult.stdout as String).trim();
+                if (name.isNotEmpty) {
+                  sources.add(ScreenShareSource(
+                    id: 'window:$wid',
+                    name: name,
+                  ));
+                }
+              }
+            } catch (_) {}
+          }
+        }
+      } catch (_) {}
     }
 
     if (mounted) {
@@ -1189,15 +1289,16 @@ Future<String?> showReportReasonBox(
 
   return showTelegramBox<String>(
     context: context,
-    builder: (ctx) => _ReportReasonBox(title: title),
+    builder: (ctx) => _ReportReasonBox(title: title, target: target),
   );
 }
 
 class _ReportReasonBox extends StatelessWidget {
   final String title;
-  const _ReportReasonBox({required this.title});
+  final ReportTarget target;
+  const _ReportReasonBox({required this.title, required this.target});
 
-  static const _reasons = [
+  static const _allReasons = [
     ('Spam', 'spam', Icons.report_gmailerrorred_outlined),
     ('Fake Account', 'fake', Icons.person_off_outlined),
     ('Violence', 'violence', Icons.gavel_outlined),
@@ -1209,12 +1310,28 @@ class _ReportReasonBox extends StatelessWidget {
     ('Other', 'other', Icons.more_horiz),
   ];
 
+  List<(String, String, IconData)> get _filteredReasons {
+    return _allReasons.where((r) {
+      if (r.$2 == 'fake') {
+        return target == ReportTarget.channel ||
+            target == ReportTarget.group ||
+            target == ReportTarget.bot;
+      }
+      if (r.$2 == 'illegal_drugs' || r.$2 == 'personal_details') {
+        return target == ReportTarget.message ||
+            target == ReportTarget.story;
+      }
+      return true;
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
     final textFg = p.boxTextFg;
     final iconFg = p.windowSubTextFg;
     final hoverBg = p.windowBgOver;
+    final reasons = _filteredReasons;
 
     return TelegramBox(
       title: title,
@@ -1223,7 +1340,7 @@ class _ReportReasonBox extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          children: _reasons.map((r) {
+          children: reasons.map((r) {
             return InkWell(
               onTap: () => Navigator.of(context).pop(r.$2),
               hoverColor: hoverBg,

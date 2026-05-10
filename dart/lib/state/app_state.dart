@@ -349,6 +349,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Set<int> _shadowBanIds = {};
   final AyuFilterEngine filterEngine = AyuFilterEngine();
 
+  // Delete dialog: remember "delete for everyone" choice (AyuGram: rememberedDeleteMessageOnlyForYou)
+  bool _deleteOnlyForYouRemembered = false;
+
   // §54.15: Other settings.
   bool _crashReporting = true;
 
@@ -920,6 +923,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
     _saveWindowPrefs();
   }
+
+  bool get deleteOnlyForYouRemembered => _deleteOnlyForYouRemembered;
+  set deleteOnlyForYouRemembered(bool v) { if (_deleteOnlyForYouRemembered != v) { _deleteOnlyForYouRemembered = v; _saveWindowPrefs(); notifyListeners(); } }
 
   Future<void> _applyStreamerMode(bool enabled) async {
     if (Platform.isWindows) {
@@ -2937,6 +2943,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _replaceMarksWithIcons = data['replaceMarksWithIcons'] as bool? ?? true;
       _localPremium = data['localPremium'] as bool? ?? false;
       _disableAds = data['disableAds'] as bool? ?? true;
+      _deleteOnlyForYouRemembered = data['deleteOnlyForYouRemembered'] as bool? ?? false;
       _crashReporting = data['crashReporting'] as bool? ?? true;
       _filtersEnabled = data['filtersEnabled'] as bool? ?? false;
       _filtersEnabledInChats = data['filtersEnabledInChats'] as bool? ?? false;
@@ -3133,6 +3140,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'replaceMarksWithIcons': _replaceMarksWithIcons,
         'localPremium': _localPremium,
         'disableAds': _disableAds,
+        'deleteOnlyForYouRemembered': _deleteOnlyForYouRemembered,
         'crashReporting': _crashReporting,
         'filtersEnabled': _filtersEnabled,
         'filtersEnabledInChats': _filtersEnabledInChats,
