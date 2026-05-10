@@ -125,6 +125,9 @@ const _mediaTypeNames = <int, int>{
   6: 13,  // sticker → TYPE_STICKER
   7: 8,   // gif → TYPE_GIF
   8: 9,   // file → TYPE_FILE
+  9: 17,  // poll → TYPE_POLL
+  10: 4,  // location → TYPE_GEO
+  11: 12, // contact → TYPE_CONTACT
 };
 
 String _extractSingleText(CachedMessage msg) {
@@ -152,10 +155,17 @@ String _extractSingleText(CachedMessage msg) {
           }
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('FILTER: entity extraction failed for msg ${msg.msgId}: $e');
+    }
   }
 
   return buf.toString();
+}
+
+int _serviceMessageType(CachedMessage msg) {
+  if (msg.mediaType == 1) return 11; // service + photo → TYPE_ACTION_PHOTO
+  return 10; // TYPE_DATE (generic service)
 }
 
 String extractMatchBlob(CachedMessage msg, {List<CachedMessage>? groupMessages}) {
@@ -193,7 +203,8 @@ String extractMatchBlob(CachedMessage msg, {List<CachedMessage>? groupMessages})
   }
 
   if (msg.isService) {
-    buf.write('\n<type>10</type>');
+    final serviceType = _serviceMessageType(msg);
+    buf.write('\n<type>$serviceType</type>');
   } else {
     final typeId = _mediaTypeNames[msg.mediaType] ?? 0;
     if (typeId > 0) {
