@@ -629,69 +629,21 @@ The Dart emoji_data.dart implements a hardcoded static emoji search database, wh
 
 # media_viewer — Stub actions, broken clipboard, missing engine wiring
 
-- [ ] [CRITICAL] `_cancelDownload` shows a toast instead of calling an engine cancel method — `media_viewer.dart:2705` ← `media_view_overlay_widget.cpp:3274` (`_document->cancel()`)
-
-- [ ] [CRITICAL] `_showAttachedStickers` shows a toast instead of opening an attached-sticker-set picker — `media_viewer.dart:2709` ← `media_view_overlay_widget.cpp:3457` (`attachedStickers.requestAttachedStickerSets(window, _photo)`)
-
-- [ ] [CRITICAL] `_setAsUserpic` shows a toast without calling any engine API — `media_viewer.dart:2713` ← `media_view_overlay_widget.cpp:2151` (`peer->session().api().peerPhoto().set(peer, photo)`)
-
-- [ ] [CRITICAL] `_reportUserpic` shows a fake "Report sent" toast without opening a report dialog or calling any engine method — `media_viewer.dart:2717` ← `media_view_overlay_widget.cpp:2191` (`window->show(ReportProfilePhotoBox(peer, photo))`)
-
 - [ ] [CRITICAL] `_viewStatistics` shows a toast instead of navigating to a statistics screen — `media_viewer.dart:2721` ← `media_view_overlay_widget.cpp:48` (includes `info_statistics_widget.h`)
 
 - [ ] [CRITICAL] `_showOcrResult` shows a toast instead of performing OCR and displaying an in-overlay text result; additionally `_ocrAvailable` is hardcoded `false` (line 2866) so the OCR button is permanently hidden — `media_viewer.dart:2868` ← `media_view_overlay_widget.cpp:3396` (`recognize()` toggles `_showRecognitionResults` overlay)
 
-- [ ] [CRITICAL] `_copyImageToClipboard` copies the file path as plain text instead of the actual image bitmap — `media_viewer.dart:2675` ← `media_view_overlay_widget.cpp:3435` (`mime->setImageData(image)` / `_photoMedia->setToClipboard()`)
-
-- [ ] [CRITICAL] `_copyVideoFrame` copies the file path as plain text instead of extracting and copying the current video frame — `media_viewer.dart:2682` ← `media_view_overlay_widget.cpp:3431` (`transformedShownContent()` pixel capture)
-
 - [ ] [CRITICAL] `_openDrawEditor` runs `xdg-open` to launch an external app instead of opening the in-app photo editor — `media_viewer.dart:2913` ← `media_view_overlay_widget.cpp:3405` (`requestDrawToReply()` launches the Editor module)
 
-- [ ] [CRITICAL] Story reply compose "Attach file" button has empty `onTap: () {}` — `media_viewer.dart:5194` ← (AyuGram stories compose has full media attachment flow)
+- [ ] [CRITICAL] Story reply compose emoji picker button inserts a hardcoded '😊' instead of opening a real emoji/reaction picker — `media_viewer.dart:5239` ← (AyuGram opens emoji/reaction picker on tap)
 
-- [ ] [CRITICAL] Story reply compose emoji picker button has empty `onTap: () {}` — `media_viewer.dart:5239` ← (AyuGram opens emoji/reaction picker on tap)
-
-- [ ] [CRITICAL] `_handleAreaChannelPost` has a TODO comment and does nothing — `media_viewer.dart:5517` ← (AyuGram navigates to the channel message via deep link)
-
-- [ ] [CRITICAL] `_onSenderTap` just pops the navigator without navigating to the sender's peer info page — `media_viewer.dart:2501` ← `media_view_overlay_widget.cpp:7597` (`window->showPeerInfo(_from)`)
-
-- [ ] [CRITICAL] `_showAllMedia` just pops the media viewer instead of navigating to the shared-media overview — `media_viewer.dart:2701` ← `media_view_overlay_widget.cpp:3358` (`showMediaOverview()` opens the SharedMedia info page)
-
-- [ ] [CRITICAL] Story like button (`onLike`) only toggles local `_liked` state without calling any engine reaction API — `media_viewer.dart:6212` ← (AyuGram calls `stories->like()` / reaction API on the server)
-
-- [ ] [CRITICAL] Story emoji reaction (`onReaction`) only sets `_liked = true` locally without calling any engine reaction API — `media_viewer.dart:6213` ← (AyuGram sends reaction via `stories->sendReaction()`)
-
-- [ ] [CRITICAL] `_handleAreaReaction` only does `setState(() => _liked = true)` without calling any engine method — `media_viewer.dart:5504` ← (AyuGram sends reaction to server)
-
-- [ ] [CRITICAL] Stealth mode activation never calls an engine method: `widget.onActivate?.call()` where the callback is always `null` at every call site — `media_viewer.dart:6490` ← (AyuGram calls `_stories->activateStealthMode()` on confirmation)
-
-- [ ] [MAJOR] Default video volume is 0.8 but AyuGram uses 0.9 — `media_viewer.dart:328` ← `core_settings.h:123` (`kDefaultVolume = 0.9`)
-
-- [ ] [MAJOR] Three animation controllers (`_controlsAnim`, `_bufferSpinCtrl`, `_saveToastAnim`) each call `setState(() {})` in their `addListener` callbacks, forcing full widget-tree rebuilds on every animation frame (60 fps) instead of scoping repaints with `AnimatedBuilder` or `AnimatedOpacity` — `media_viewer.dart:374`, `402`, `409`
+- [ ] [MAJOR] `_controlsAnim` calls `setState(() {})` in its `addListener` callback, forcing full widget-tree rebuilds on every animation frame (60 fps) — use `AnimatedBuilder` to scope repaints — `media_viewer.dart:374`
 
 # message_bubble — Audit Findings
 
-- [ ] [CRITICAL] Poll voting never submitted to engine — `_onOptionTap` (line 7920–7943) only updates `_selectedIndices` / `_hasVoted` locally; no engine or chat_state method is called. `engine_service.dart` and `chat_state.dart` have zero poll-related methods. Multiple-choice polls have no "Vote" submit button at all — selected options can never be submitted. ← `api/api_polls.cpp:147` (`Polls::sendVotes()` → `MTPmessages_SendVote`)
-
-- [ ] [CRITICAL] Inline `switch_inline` button is a stub — `message_bubble.dart:9261` has `case 'switch_inline': break;` with no body. Should prefill the compose bar with `@bot_name <query>` and switch to inline query mode. ← `history_view_message.cpp` (ReplyMarkupClickHandler handles SwitchInlineQuery)
-
-- [ ] [CRITICAL] Inline `buy` button is a stub — `message_bubble.dart:9267` has `case 'buy': break;` with no body. Should open the invoice/payment flow. ← `history_view_invoice.cpp` (payment click handler)
-
-- [ ] [CRITICAL] Inline `user_profile` button is a stub — `message_bubble.dart:9284` has `case 'user_profile': break;` with no body. Should open the referenced user's profile. ← `history_view_message.cpp`
-
-- [ ] [CRITICAL] Inline `request_phone`, `request_location`, `request_poll`, `request_peer` buttons are all stubs — `message_bubble.dart:9286–9290` four `break` statements with no bodies. ← `history_view_message.cpp` (each has a distinct click handler in AyuGram)
-
-- [ ] [CRITICAL] Game "PLAY GAME" button uses wrong mechanism — `_GameCardState._onPlay()` (`message_bubble.dart:8621–8642`) searches for a pre-set `btn.url` on game buttons, which is always empty. The correct flow is to call `MTPmessages_GetBotCallbackAnswer` with the `f_game` flag and open the URL returned in the callback response. When no URL is found the code silently stalls for 15 seconds then resets the spinner. ← `api/api_bot.cpp:82–87` (isGame → `f_game` flag, URL returned from callback `data.vurl()`)
+- [ ] [CRITICAL] Inline `request_location` shows toast "Location sharing requires GPS access" and `request_peer` shows toast "Peer selection requested" — neither opens a proper flow. `request_phone` (sends user phone) and `request_poll` (opens create-poll dialog) are now fixed. ← `history_view_message.cpp`
 
 - [ ] [CRITICAL] Location map is a fake placeholder — `_MapGridPainter.paint()` (`message_bubble.dart:4983–5018`) draws hardcoded grid lines and three diagonal "road" lines at fixed positions. No real map tile is fetched or rendered. ← `history_view_location.cpp:1` (uses `CloudImage` / static map tile via Telegram API)
-
-- [ ] [CRITICAL] Contact card action buttons have no `onTap` — `_ContactIndicator._actionButton()` (`message_bubble.dart:5141–5153`) returns a plain `Text` widget inside an `Expanded`, with no `GestureDetector` or `InkWell`. "Send Message", "Add Contact", and "View Details" are purely cosmetic labels. ← `history_view_contact.cpp:57–77` (`SendMessageClickHandler` opens peer chat; `AddContactClickHandler` opens add-contact box)
-
-- [ ] [MAJOR] SVG `S`/`s` smooth cubic Bezier is wrong — `message_bubble.dart:6445–6452`: the first control point must be the reflection of the previous control point relative to the current position, but the code passes `cx, cy` (the *new endpoint*) as the first control, producing `path.cubicTo(cx, cy, x2, y2, cx, cy)` where both the first control and the endpoint are identical. All custom emoji paths containing `S`/`s` commands render as degenerate curves instead of smooth splines. ← SVG 1.1 spec §8.3.6; AyuGram uses Qt's `QPainterPath` which implements this correctly
-
-- [ ] [MAJOR] SVG `T`/`t` smooth quadratic Bezier is wrong — `message_bubble.dart:6461–6466`: should reflect the previous quadratic control point, but the code passes `cx, cy` (the endpoint) for both the control and endpoint arguments: `path.quadraticBezierTo(cx, cy, cx, cy)` — a degenerate curve equivalent to `lineTo(cx, cy)`. ← SVG 1.1 spec §8.3.7
-
-- [ ] [MAJOR] SVG `A` arc command stubbed as `lineTo` — `message_bubble.dart:6467–6470`: all five arc parameters (rx, ry, x-axis-rotation, large-arc-flag, sweep-flag) are consumed and discarded, then `path.lineTo(cx, cy)` draws a straight line to the endpoint. Emoji paths using elliptical arcs are visually wrong. ← SVG 1.1 spec §8.3.8; `A` is listed in `_commands` at line 6346 so it does appear in real emoji path data
 
 # my_profile_page — Profile/Edit Profile page audit
 
