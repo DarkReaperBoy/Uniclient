@@ -1726,13 +1726,38 @@ func (e *Engine) SendSticker(accountID, chatID, stickerID string) error {
 	return err
 }
 
+type PollOptions struct {
+	MultipleChoice bool
+	Anonymous      bool
+	Quiz           bool
+	CorrectOption  int
+	Solution       string
+}
+
 func (e *Engine) CreatePoll(accountID, chatID, question string, options []string) (string, error) {
+	return e.CreatePollEx(accountID, chatID, question, options, PollOptions{Anonymous: true})
+}
+
+func (e *Engine) CreatePollEx(accountID, chatID, question string, options []string, opts PollOptions) (string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
 		return "", fmt.Errorf("account not found: %s", accountID)
 	}
 	if acc.Core == nil {
 		return "", fmt.Errorf("account not connected: %s", accountID)
+	}
+	type pollCreatorEx interface {
+		CreatePollEx(chatID string, question string, options []string, multipleChoice, anonymous, quiz bool, correctOption int, solution string) (*cores.Message, error)
+	}
+	if pc, ok := acc.Core.(pollCreatorEx); ok && (opts.Quiz || opts.MultipleChoice || !opts.Anonymous) {
+		msg, err := pc.CreatePollEx(chatID, question, options, opts.MultipleChoice, opts.Anonymous, opts.Quiz, opts.CorrectOption, opts.Solution)
+		if err != nil {
+			return "", err
+		}
+		if msg != nil {
+			return msg.ID, nil
+		}
+		return "", nil
 	}
 	msg, err := acc.Core.CreatePoll(chatID, question, options)
 	if err != nil {

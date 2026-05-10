@@ -983,6 +983,48 @@ func (e *Engine) UpdateAccountUsername(accountID, username string) error {
 	return fmt.Errorf("platform does not support account username update")
 }
 
+func (e *Engine) GetAccountUsernames(accountID string) ([]cores.ChannelUsernameInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type getter interface {
+		GetAccountUsernames() ([]cores.ChannelUsernameInfo, error)
+	}
+	if g, ok := acc.Core.(getter); ok {
+		return g.GetAccountUsernames()
+	}
+	return nil, fmt.Errorf("platform does not support account usernames")
+}
+
+func (e *Engine) ToggleAccountUsername(accountID, username string, active bool) (bool, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return false, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type toggler interface {
+		ToggleAccountUsername(username string, active bool) (bool, error)
+	}
+	if t, ok := acc.Core.(toggler); ok {
+		return t.ToggleAccountUsername(username, active)
+	}
+	return false, fmt.Errorf("platform does not support account username toggle")
+}
+
+func (e *Engine) ReorderAccountUsernames(accountID string, order []string) (bool, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return false, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type reorderer interface {
+		ReorderAccountUsernames(order []string) (bool, error)
+	}
+	if r, ok := acc.Core.(reorderer); ok {
+		return r.ReorderAccountUsernames(order)
+	}
+	return false, fmt.Errorf("platform does not support account username reorder")
+}
+
 func (e *Engine) UpdateChannelUsername(accountID, chatID, username string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

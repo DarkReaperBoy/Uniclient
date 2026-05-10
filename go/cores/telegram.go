@@ -18572,6 +18572,49 @@ func (t *TelegramCore) AccountCheckUsername(username string) (bool, error) {
 	return t.api.AccountCheckUsername(t.ctx, username)
 }
 
+// GetAccountUsernames returns all usernames for the current account.
+func (t *TelegramCore) GetAccountUsernames() ([]ChannelUsernameInfo, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return nil, ErrAuth }
+	full, err := t.api.UsersGetFullUser(t.ctx, &tg.InputUserSelf{})
+	if err != nil { return nil, err }
+	var out []ChannelUsernameInfo
+	for _, u := range full.Users {
+		if user, ok := u.(*tg.User); ok && user.Self {
+			if unames, ok2 := user.GetUsernames(); ok2 {
+				for _, un := range unames {
+					out = append(out, ChannelUsernameInfo{
+						Username: un.Username,
+						Active:   un.Active,
+						Editable: un.Editable,
+					})
+				}
+			} else if uname, ok2 := user.GetUsername(); ok2 && uname != "" {
+				out = append(out, ChannelUsernameInfo{Username: uname, Active: true, Editable: true})
+			}
+			break
+		}
+	}
+	return out, nil
+}
+
+// ToggleAccountUsername activates or deactivates a personal username.
+func (t *TelegramCore) ToggleAccountUsername(username string, active bool) (bool, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return false, ErrAuth }
+	return t.api.AccountToggleUsername(t.ctx, &tg.AccountToggleUsernameRequest{
+		Username: username,
+		Active:   active,
+	})
+}
+
+// ReorderAccountUsernames reorders personal usernames.
+func (t *TelegramCore) ReorderAccountUsernames(order []string) (bool, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return false, ErrAuth }
+	return t.api.AccountReorderUsernames(t.ctx, order)
+}
+
 // AccountClearRecentEmojiStatuses clears recently used emoji statuses.
 func (t *TelegramCore) AccountClearRecentEmojiStatuses() (bool, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
@@ -23724,6 +23767,43 @@ func (t *TelegramCore) SendTyping(chatID string) error {
 // CreatePoll creates and sends a poll with the given options to a chat.
 func (t *TelegramCore) CreatePoll(chatID string, question string, options []string) (*Message, error) {
 	return t.SendPoll(chatID, question, options)
+}
+
+func (t *TelegramCore) CreatePollEx(chatID string, question string, answers []string, multipleChoice, anonymous, quiz bool, correctOption int, solution string) (*Message, error) {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil { return nil, err }
+	defer unlock()
+	var pollAnswers []tg.PollAnswerClass
+	for i, a := range answers {
+		pollAnswers = append(pollAnswers, &tg.PollAnswer{Text: tg.TextWithEntities{Text: a}, Option: []byte{byte(i)}})
+	}
+	poll := tg.Poll{
+		ID:       time.Now().UnixNano(),
+		Question: tg.TextWithEntities{Text: question},
+		Answers:  pollAnswers,
+	}
+	if !anonymous {
+		poll.SetPublicVoters(true)
+	}
+	if multipleChoice {
+		poll.SetMultipleChoice(true)
+	}
+	if quiz {
+		poll.SetQuiz(true)
+	}
+	media := &tg.InputMediaPoll{Poll: poll}
+	if quiz && correctOption >= 0 && correctOption < len(answers) {
+		media.SetCorrectAnswers([]int{correctOption})
+	}
+	if quiz && solution != "" {
+		media.SetSolution(solution)
+	}
+	result, err := t.api.MessagesSendMedia(t.ctx, &tg.MessagesSendMediaRequest{
+		Peer: inputPeer, RandomID: time.Now().UnixNano(), Message: "",
+		Media: media,
+	})
+	if err != nil { return nil, err }
+	return t.extractMessageFromUpdates(result, chatID), nil
 }
 
 // VotePoll submits a vote for specific options on a poll.

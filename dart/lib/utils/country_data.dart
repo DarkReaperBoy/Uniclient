@@ -8,6 +8,89 @@ class CountryInfo {
       );
 }
 
+CountryInfo? countryByDialCode(String code) {
+  final clean = code.replaceAll(RegExp(r'\D'), '');
+  if (clean.isEmpty) return null;
+  for (var len = clean.length; len >= 1; len--) {
+    final prefix = clean.substring(0, len);
+    final match = countries.where((c) => c.dialCode == prefix).firstOrNull;
+    if (match != null) return match;
+  }
+  return null;
+}
+
+CountryInfo? countryFromPhone(String phone) {
+  final digits = phone.replaceAll(RegExp(r'\D'), '');
+  if (digits.isEmpty) return null;
+  return countryByDialCode(digits);
+}
+
+const _phoneGroups = <String, List<int>>{
+  '1': [3, 3, 4],
+  '7': [3, 3, 2, 2],
+  '44': [4, 3, 3],
+  '49': [3, 3, 4],
+  '33': [1, 2, 2, 2, 2],
+  '39': [3, 3, 4],
+  '86': [3, 4, 4],
+  '81': [2, 4, 4],
+  '82': [2, 4, 4],
+  '91': [5, 5],
+  '55': [2, 5, 4],
+  '34': [3, 3, 3],
+  '61': [3, 3, 3],
+  '90': [3, 3, 2, 2],
+  '62': [3, 4, 4],
+  '966': [2, 3, 4],
+  '971': [2, 3, 4],
+  '98': [3, 3, 4],
+  '380': [2, 3, 2, 2],
+  '48': [3, 3, 3],
+  '31': [1, 3, 2, 2],
+  '46': [2, 3, 2, 2],
+  '47': [3, 2, 3],
+  '358': [2, 3, 2, 2],
+  '45': [2, 2, 2, 2],
+  '32': [3, 2, 2, 2],
+  '41': [2, 3, 2, 2],
+  '43': [3, 3, 4],
+  '351': [3, 3, 3],
+  '30': [3, 3, 4],
+  '20': [3, 3, 4],
+  '27': [2, 3, 4],
+  '234': [3, 3, 4],
+  '254': [3, 3, 3],
+  '52': [2, 4, 4],
+  '57': [3, 3, 4],
+  '56': [1, 4, 4],
+  '54': [2, 4, 4],
+};
+
+String formatPhoneDigits(String digits, String dialCode) {
+  final groups = _phoneGroups[dialCode];
+  if (groups == null || digits.isEmpty) {
+    final buf = StringBuffer();
+    for (var i = 0; i < digits.length; i++) {
+      if (i > 0 && i % 4 == 0) buf.write(' ');
+      buf.write(digits[i]);
+    }
+    return buf.toString();
+  }
+  final buf = StringBuffer();
+  var pos = 0;
+  for (var g = 0; g < groups.length && pos < digits.length; g++) {
+    if (g > 0) buf.write(' ');
+    final end = (pos + groups[g]).clamp(0, digits.length);
+    buf.write(digits.substring(pos, end));
+    pos = end;
+  }
+  if (pos < digits.length) {
+    buf.write(' ');
+    buf.write(digits.substring(pos));
+  }
+  return buf.toString();
+}
+
 const countries = <CountryInfo>[
   CountryInfo('Afghanistan', 'AF', '93'),
   CountryInfo('Albania', 'AL', '355'),

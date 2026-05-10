@@ -2436,12 +2436,53 @@ class EngineService {
     await _callAsync('__engine', 'UpdateAccountUsername', Uint8List.fromList(payload));
   }
 
-  Future<String> createPoll(String accountId, String chatId, String question, List<String> options) async {
+  Future<List<Map<String, dynamic>>> getAccountUsernames(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    final respBytes = await _callAsync('__engine', 'GetAccountUsernames', Uint8List.fromList(payload));
+    final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    final usernames = data['usernames'] as List<dynamic>? ?? [];
+    return usernames.cast<Map<String, dynamic>>();
+  }
+
+  Future<bool> toggleAccountUsername(String accountId, String username, bool active) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'username': username,
+      'active': active,
+    }));
+    final respBytes = await _callAsync('__engine', 'ToggleAccountUsername', Uint8List.fromList(payload));
+    final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    return data['ok'] as bool? ?? false;
+  }
+
+  Future<bool> reorderAccountUsernames(String accountId, List<String> order) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'order': order,
+    }));
+    final respBytes = await _callAsync('__engine', 'ReorderAccountUsernames', Uint8List.fromList(payload));
+    final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    return data['ok'] as bool? ?? false;
+  }
+
+  Future<String> createPoll(
+    String accountId, String chatId, String question, List<String> options, {
+    bool multipleChoice = false,
+    bool anonymous = true,
+    bool quiz = false,
+    int correctOption = -1,
+    String solution = '',
+  }) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
       'chat_id': chatId,
       'question': question,
       'options': options,
+      'multiple_choice': multipleChoice,
+      'anonymous': anonymous,
+      'quiz': quiz,
+      'correct_option': correctOption,
+      'solution': solution,
     }));
     final respBytes = await _callAsync('__engine', 'CreatePoll', Uint8List.fromList(payload));
     if (respBytes.isEmpty) return '';

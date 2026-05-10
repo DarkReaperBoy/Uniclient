@@ -5239,7 +5239,9 @@ class _ChatViewState extends State<ChatView>
                     showCreatePollBox(context).then((result) {
                       if (result == null) return;
                       final engine = context.read<EngineService>();
-                      engine.createPoll(chat.accountId, chat.chatId, result.question, result.options);
+                      engine.createPoll(chat.accountId, chat.chatId, result.question, result.options,
+                        multipleChoice: result.multipleChoice, anonymous: result.anonymous,
+                        quiz: result.quiz, correctOption: result.correctOptionIndex, solution: result.solution);
                     });
                   case 'web_view' || 'simple_web_view':
                     if (btn.url.isNotEmpty) {
@@ -6249,10 +6251,9 @@ class _ChatTopBar extends StatelessWidget {
             if (result == null) return;
             final engine = btnCtx.read<EngineService>();
             engine.createPoll(
-              chat.accountId,
-              chat.chatId,
-              result.question,
-              result.options,
+              chat.accountId, chat.chatId, result.question, result.options,
+              multipleChoice: result.multipleChoice, anonymous: result.anonymous,
+              quiz: result.quiz, correctOption: result.correctOptionIndex, solution: result.solution,
             );
           });
         case 'create_todo':
@@ -6260,10 +6261,9 @@ class _ChatTopBar extends StatelessWidget {
             if (result == null) return;
             final engine = btnCtx.read<EngineService>();
             engine.createPoll(
-              chat.accountId,
-              chat.chatId,
-              result.question,
-              result.options,
+              chat.accountId, chat.chatId, result.question, result.options,
+              multipleChoice: result.multipleChoice, anonymous: result.anonymous,
+              quiz: result.quiz, correctOption: result.correctOptionIndex, solution: result.solution,
             );
           });
       }
@@ -14363,7 +14363,9 @@ class _ComposeAreaState extends State<_ComposeArea>
     final chatId = chatState.activeChat?.chatId;
     if (chatId == null) return;
     try {
-      await engine.createPoll(accountId, chatId, result.question, result.options);
+      await engine.createPoll(accountId, chatId, result.question, result.options,
+        multipleChoice: result.multipleChoice, anonymous: result.anonymous,
+        quiz: result.quiz, correctOption: result.correctOptionIndex, solution: result.solution);
     } catch (e) {
       if (mounted) {
         showTelegramToast(context, 'Failed to create poll: $e');

@@ -5,7 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
+import '../models/engine_models.dart';
 import '../state/app_state.dart';
+import '../state/chat_state.dart';
 import '../utils/country_data.dart';
 import '../theme/telegram_palette.dart';
 import 'confirm_box.dart';
@@ -116,7 +118,9 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
   bool _isValid = false;
   bool _checking = false;
   bool _saving = false;
-  static final _usernameRegex = RegExp(r'^[a-zA-Z][a-zA-Z0-9_]{4,31}$');
+  List<Map<String, dynamic>> _additionalUsernames = [];
+  bool _loadingUsernames = false;
+  static final _usernameRegex = RegExp(r'^[a-zA-Z][a-zA-Z0-9_]{3,31}$');
 
   @override
   void initState() {
@@ -126,6 +130,25 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focusNode.requestFocus();
     });
+    _loadUsernames();
+  }
+
+  Future<void> _loadUsernames() async {
+    setState(() => _loadingUsernames = true);
+    try {
+      final usernames = await widget.engine.getAccountUsernames(widget.accountId);
+      if (mounted) {
+        setState(() {
+          _additionalUsernames = usernames.where((u) {
+            final name = u['username'] as String? ?? '';
+            return name != widget.currentUsername;
+          }).toList();
+          _loadingUsernames = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingUsernames = false);
+    }
   }
 
   @override
@@ -136,9 +159,15 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
     super.dispose();
   }
 
+  String _cleanUsername(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.startsWith('@')) return trimmed.substring(1);
+    return trimmed;
+  }
+
   void _onChanged(String value) {
     _debounce?.cancel();
-    final username = value.trim();
+    final username = _cleanUsername(value);
 
     if (username.isEmpty) {
       setState(() {
@@ -191,7 +220,7 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
       _checking = true;
     });
 
-    _debounce = Timer(const Duration(milliseconds: 400), () {
+    _debounce = Timer(const Duration(milliseconds: 200), () {
       _checkApi(username);
     });
   }
@@ -202,7 +231,7 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
       final available =
           await engine.checkAccountUsername(widget.accountId, username);
       if (!mounted) return;
-      if (_ctrl.text.trim() != username) return;
+      if (_cleanUsername(_ctrl.text) != username) return;
       setState(() {
         _checking = false;
         if (available) {
@@ -215,7 +244,7 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
       });
     } catch (e) {
       if (!mounted) return;
-      if (_ctrl.text.trim() != username) return;
+      if (_cleanUsername(_ctrl.text) != username) return;
       final msg = e.toString();
       setState(() {
         _checking = false;
@@ -232,7 +261,7 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
   }
 
   Future<void> _save() async {
-    final username = _ctrl.text.trim();
+    final username = _cleanUsername(_ctrl.text);
     if (!_isValid && username.isNotEmpty) return;
 
     setState(() => _saving = true);
@@ -250,6 +279,54 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
     }
   }
 
+  Future<void> _toggleUsername(String username, bool active) async {
+    try {
+      await widget.engine.toggleAccountUsername(widget.accountId, username, active);
+      await _loadUsernames();
+    } catch (e) {
+      if (mounted) showTelegramToast(context, 'Failed: $e');
+    }
+  }
+
+  Widget _usernameRow(Map<String, dynamic> u, Color textColor, Color subColor, TelegramPalette p) {
+    final name = u['username'] as String? ?? '';
+    final active = u['active'] as bool? ?? false;
+    final editable = u['editable'] as bool? ?? false;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          Icon(
+            Icons.drag_handle,
+            size: 18,
+            color: editable ? subColor : subColor.withValues(alpha: 0.3),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '@$name',
+              style: TextStyle(
+                fontSize: 14,
+                color: active ? textColor : subColor,
+              ),
+            ),
+          ),
+          if (editable)
+            SizedBox(
+              width: 40,
+              height: 28,
+              child: Switch(
+                value: active,
+                onChanged: (v) => _toggleUsername(name, v),
+                activeColor: p.windowBgActive,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
@@ -260,7 +337,7 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
 
     return TelegramBox(
       title: 'Username',
-      onConfirm: (_isValid || _ctrl.text.trim().isEmpty) && !_saving
+      onConfirm: (_isValid || _cleanUsername(_ctrl.text).isEmpty) && !_saving
           ? _save
           : null,
       content: Padding(
@@ -310,6 +387,16 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
               'You can use a–z, 0–9 and underscores. Minimum length is 5 characters.',
               style: TextStyle(fontSize: 13, color: subColor),
             ),
+            if (_additionalUsernames.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text(
+                'Additional usernames',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: p.windowActiveTextFg),
+              ),
+              const SizedBox(height: 8),
+              for (final u in _additionalUsernames)
+                _usernameRow(u, textFg, subColor, p),
+            ],
           ],
         ),
       ),
@@ -321,7 +408,7 @@ class _UsernameBoxContentState extends State<_UsernameBoxContent> {
         TelegramBoxButton(
           text: _saving ? 'Saving...' : 'Save',
           onPressed:
-              (_isValid || _ctrl.text.trim().isEmpty) && !_saving ? _save : null,
+              (_isValid || _cleanUsername(_ctrl.text).isEmpty) && !_saving ? _save : null,
         ),
       ],
     );
@@ -377,14 +464,20 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
   late final FocusNode _firstNameFocus;
   late final FocusNode _lastNameFocus;
   late final FocusNode _phoneFocus;
-  CountryInfo _selectedCountry = countries.firstWhere((c) => c.iso == 'US');
+  late final _PhoneNumberFormatter _phoneFormatter;
+  late CountryInfo _selectedCountry;
   bool _saving = false;
   String? _error;
   bool _retry = false;
+  bool _invertNameOrder = false;
 
   @override
   void initState() {
     super.initState();
+    final account = widget.appState.activeAccount;
+    final userPhone = account?.phone ?? '';
+    final fromPhone = countryFromPhone(userPhone);
+    _selectedCountry = fromPhone ?? countries.firstWhere((c) => c.iso == 'US');
     _firstNameCtrl.text = widget.initialFirstName;
     _lastNameCtrl.text = widget.initialLastName;
     _phoneCtrl.text = widget.initialPhone;
@@ -392,8 +485,11 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
     _lastNameFocus = FocusNode();
     _phoneFocus = FocusNode();
     _codeCtrl.text = _selectedCountry.dialCode;
+    _phoneFormatter = _PhoneNumberFormatter(dialCode: _selectedCountry.dialCode);
+    final locale = WidgetsBinding.instance.platformDispatcher.locale;
+    _invertNameOrder = const {'ja', 'ko', 'zh', 'hu', 'vi'}.contains(locale.languageCode);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _firstNameFocus.requestFocus();
+      (_invertNameOrder ? _lastNameFocus : _firstNameFocus).requestFocus();
     });
   }
 
@@ -411,7 +507,12 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
 
   bool _isValidPhone(String phone) {
     final digits = phone.replaceAll(RegExp(r'\D'), '');
-    if (digits == '333' || RegExp(r'^42\d\d$').hasMatch(digits)) return true;
+    if (digits == '333') return true;
+    if (digits.startsWith('42') &&
+        (digits.length == 2 || digits.length == 5 ||
+         digits.length == 6 || digits == '4242')) {
+      return true;
+    }
     return digits.length >= 8;
   }
 
@@ -420,6 +521,7 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
     if (code.isEmpty) return;
     final match = countries.where((c) => c.dialCode == code).firstOrNull;
     if (match != null && match != _selectedCountry) {
+      _phoneFormatter.dialCode = code;
       setState(() => _selectedCountry = match);
     }
   }
@@ -430,6 +532,7 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
       builder: (ctx) => _CountryPickerContent(
         selected: _selectedCountry,
         onSelect: (country) {
+          _phoneFormatter.dialCode = country.dialCode;
           setState(() {
             _selectedCountry = country;
             _codeCtrl.text = country.dialCode;
@@ -483,7 +586,21 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
 
     try {
       await widget.engine.addContact(account.id, phone, firstName, lastName);
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) {
+        final chatState = context.read<ChatState>();
+        chatState.loadChats();
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (!mounted) return;
+        final displayName = '$firstName $lastName'.trim();
+        final chats = chatState.chats;
+        final match = chats.where((c) =>
+            c.type == ChatType.dm && c.title.toLowerCase() == displayName.toLowerCase()
+        ).firstOrNull;
+        if (match != null) {
+          chatState.openChat(match);
+        }
+        if (mounted) Navigator.of(context).pop(true);
+      }
     } catch (e) {
       if (mounted) {
         final msg = e.toString();
@@ -526,17 +643,17 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             BoxInputField(
-              controller: _firstNameCtrl,
-              focusNode: _firstNameFocus,
-              label: 'First name',
+              controller: _invertNameOrder ? _lastNameCtrl : _firstNameCtrl,
+              focusNode: _invertNameOrder ? _lastNameFocus : _firstNameFocus,
+              label: _invertNameOrder ? 'Last name' : 'First name',
               enabled: !_saving,
-              onSubmitted: (_) => _lastNameFocus.requestFocus(),
+              onSubmitted: (_) => (_invertNameOrder ? _firstNameFocus : _lastNameFocus).requestFocus(),
             ),
             const SizedBox(height: 9),
             BoxInputField(
-              controller: _lastNameCtrl,
-              focusNode: _lastNameFocus,
-              label: 'Last name',
+              controller: _invertNameOrder ? _firstNameCtrl : _lastNameCtrl,
+              focusNode: _invertNameOrder ? _firstNameFocus : _lastNameFocus,
+              label: _invertNameOrder ? 'First name' : 'Last name',
               enabled: !_saving,
               onSubmitted: (_) => _phoneFocus.requestFocus(),
             ),
@@ -602,7 +719,7 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
                     focusNode: _phoneFocus,
                     style: TextStyle(fontSize: 15, color: textColor),
                     keyboardType: TextInputType.phone,
-                    inputFormatters: [_PhoneNumberFormatter()],
+                    inputFormatters: [_phoneFormatter],
                     enabled: !_saving,
                     decoration: InputDecoration(
                       hintText: 'Phone number',
@@ -649,6 +766,9 @@ class _AddContactBoxContentState extends State<_AddContactBoxContent> {
 }
 
 class _PhoneNumberFormatter extends TextInputFormatter {
+  String dialCode;
+  _PhoneNumberFormatter({this.dialCode = ''});
+
   @override
   TextEditingValue formatEditUpdate(
       TextEditingValue oldValue, TextEditingValue newValue) {
@@ -657,12 +777,7 @@ class _PhoneNumberFormatter extends TextInputFormatter {
       return const TextEditingValue(
           text: '', selection: TextSelection.collapsed(offset: 0));
     }
-    final buf = StringBuffer();
-    for (var i = 0; i < digits.length; i++) {
-      if (i > 0 && i % 3 == 0) buf.write(' ');
-      buf.write(digits[i]);
-    }
-    final formatted = buf.toString();
+    final formatted = formatPhoneDigits(digits, dialCode);
     final digitsBeforeCursor = newValue.text
         .substring(
             0, newValue.selection.end.clamp(0, newValue.text.length))
@@ -705,13 +820,25 @@ class _CountryPickerContentState extends State<_CountryPickerContent> {
     super.dispose();
   }
 
-  List<CountryInfo> get _filtered {
-    if (_query.isEmpty) return countries.toList();
-    final q = _query.toLowerCase();
-    return countries
-        .where(
-            (c) => c.name.toLowerCase().contains(q) || c.dialCode.contains(q))
-        .toList();
+  List<CountryInfo> _buildList() {
+    List<CountryInfo> list;
+    if (_query.isEmpty) {
+      list = countries.toList();
+    } else {
+      final q = _query.toLowerCase();
+      list = countries.where((c) {
+        if (c.dialCode.contains(q)) return true;
+        final words = c.name.toLowerCase().split(RegExp(r'[\s\-]+'));
+        return words.any((w) => w.startsWith(q));
+      }).toList();
+    }
+    final selIso = widget.selected.iso;
+    final idx = list.indexWhere((c) => c.iso == selIso);
+    if (idx > 0) {
+      final sel = list.removeAt(idx);
+      list.insert(0, sel);
+    }
+    return list;
   }
 
   @override
@@ -719,7 +846,7 @@ class _CountryPickerContentState extends State<_CountryPickerContent> {
     final p = context.palette;
     final textColor = p.boxTextFg;
     final subColor = p.boxTitleAdditionalFg;
-    final filtered = _filtered;
+    final filtered = _buildList();
 
     return TelegramBox(
       title: 'Country',
@@ -750,7 +877,7 @@ class _CountryPickerContentState extends State<_CountryPickerContent> {
             child: ListView.builder(
               shrinkWrap: true,
               itemCount: filtered.length,
-              itemExtent: 40,
+              itemExtent: 36,
               itemBuilder: (ctx, i) {
                 final c = filtered[i];
                 final isSelected = c.iso == widget.selected.iso;
@@ -851,10 +978,14 @@ class _EditInviteLinkContent extends StatefulWidget {
 
 class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
   late final TextEditingController _labelCtrl;
-  int _expireOption = 2592000;
+  int _expireOption = 0;
   int _usageLimitOption = 0;
+  int _customExpireDate = 0;
+  int _customUsageLimit = 0;
   bool _requestApproval = false;
   bool _saving = false;
+
+  static const _kMaxLabelLength = 32;
 
   bool get _isEdit => widget.existingLink != null;
 
@@ -864,6 +995,7 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
     86400: '1 day',
     604800: '7 days',
     2592000: '30 days',
+    -1: 'Custom',
   };
 
   static const _usageOptions = <int, String>{
@@ -871,6 +1003,7 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
     1: '1 use',
     10: '10 uses',
     100: '100 uses',
+    -1: 'Custom',
   };
 
   @override
@@ -880,16 +1013,24 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
     _requestApproval = widget.existingRequestApproval;
     if (_isEdit) {
       if (widget.existingExpire > 0) {
-        _expireOption = _expireOptions.keys.firstWhere(
+        final match = _expireOptions.keys.where(
           (k) => k > 0 && (widget.existingExpire - k).abs() < k * 0.1,
-          orElse: () => 2592000,
-        );
+        ).firstOrNull;
+        if (match != null) {
+          _expireOption = match;
+        } else {
+          _expireOption = -1;
+          _customExpireDate = widget.existingExpire;
+        }
       } else {
         _expireOption = 0;
       }
-      _usageLimitOption = _usageOptions.containsKey(widget.existingUsageLimit)
-          ? widget.existingUsageLimit
-          : 0;
+      if (_usageOptions.containsKey(widget.existingUsageLimit)) {
+        _usageLimitOption = widget.existingUsageLimit;
+      } else if (widget.existingUsageLimit > 0) {
+        _usageLimitOption = -1;
+        _customUsageLimit = widget.existingUsageLimit;
+      }
     }
   }
 
@@ -899,13 +1040,88 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
     super.dispose();
   }
 
+  Future<void> _showCustomExpiry() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _customExpireDate > 0
+          ? DateTime.fromMillisecondsSinceEpoch(_customExpireDate * 1000)
+          : now.add(const Duration(days: 1)),
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+    );
+    if (picked != null && mounted) {
+      final time = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.now(),
+      );
+      if (mounted) {
+        final dt = time != null
+            ? DateTime(picked.year, picked.month, picked.day, time.hour, time.minute)
+            : DateTime(picked.year, picked.month, picked.day, 23, 59);
+        setState(() {
+          _customExpireDate = dt.millisecondsSinceEpoch ~/ 1000;
+          _expireOption = -1;
+        });
+      }
+    }
+  }
+
+  Future<void> _showCustomUsageLimit() async {
+    final ctrl = TextEditingController(
+      text: _customUsageLimit > 0 ? '$_customUsageLimit' : '',
+    );
+    final result = await showTelegramBox<int>(
+      context: context,
+      builder: (ctx) => TelegramBox(
+        title: 'Usage Limit',
+        onConfirm: () {
+          final val = int.tryParse(ctrl.text.trim()) ?? 0;
+          if (val > 0) Navigator.of(ctx).pop(val);
+        },
+        content: Padding(
+          padding: EdgeInsets.fromLTRB(kBoxPadding.left, 0, kBoxPadding.right, kBoxPadding.bottom),
+          child: BoxInputField(
+            controller: ctrl,
+            label: 'Enter limit (max 200000)',
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          ),
+        ),
+        buttons: [
+          TelegramBoxButton(text: 'Cancel', onPressed: () => Navigator.of(ctx).pop()),
+          TelegramBoxButton(text: 'Save', onPressed: () {
+            final val = int.tryParse(ctrl.text.trim()) ?? 0;
+            if (val > 0 && val <= 200000) Navigator.of(ctx).pop(val);
+          }),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (result != null && result > 0 && mounted) {
+      setState(() {
+        _customUsageLimit = result;
+        _usageLimitOption = -1;
+      });
+    }
+  }
+
   Future<void> _save() async {
     setState(() => _saving = true);
     final engine = widget.engine;
     final label = _labelCtrl.text.trim();
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    final expireDate = _expireOption > 0 ? now + _expireOption : 0;
-    final usageLimit = _requestApproval ? 0 : _usageLimitOption;
+    int expireDate;
+    if (_expireOption == -1 && _customExpireDate > 0) {
+      expireDate = _customExpireDate;
+    } else if (_expireOption > 0) {
+      expireDate = now + _expireOption;
+    } else {
+      expireDate = 0;
+    }
+    final usageLimit = _requestApproval
+        ? 0
+        : (_usageLimitOption == -1 ? _customUsageLimit : _usageLimitOption);
 
     try {
       if (_isEdit) {
@@ -969,6 +1185,7 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
               controller: _labelCtrl,
               label: 'Label (optional)',
               enabled: !_saving,
+              inputFormatters: [LengthLimitingTextInputFormatter(_kMaxLabelLength)],
             ),
             const SizedBox(height: 20),
             Text('Expire After',
@@ -981,11 +1198,23 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
               spacing: 8,
               children: _expireOptions.entries.map((entry) {
                 final selected = _expireOption == entry.key;
+                String label = entry.value;
+                if (entry.key == -1 && _customExpireDate > 0 && selected) {
+                  final dt = DateTime.fromMillisecondsSinceEpoch(_customExpireDate * 1000);
+                  label = '${dt.day}/${dt.month}/${dt.year} ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
+                }
                 return ChoiceChip(
-                  label: Text(entry.value),
+                  label: Text(label),
                   selected: selected,
-                  onSelected:
-                      _saving ? null : (v) => setState(() => _expireOption = entry.key),
+                  onSelected: _saving
+                      ? null
+                      : (v) {
+                          if (entry.key == -1) {
+                            _showCustomExpiry();
+                          } else {
+                            setState(() => _expireOption = entry.key);
+                          }
+                        },
                   labelStyle: TextStyle(
                     fontSize: 13,
                     color: selected ? Colors.white : textColor,
@@ -1007,12 +1236,22 @@ class _EditInviteLinkContentState extends State<_EditInviteLinkContent> {
               spacing: 8,
               children: _usageOptions.entries.map((entry) {
                 final selected = _usageLimitOption == entry.key;
+                String label = entry.value;
+                if (entry.key == -1 && _customUsageLimit > 0 && selected) {
+                  label = '$_customUsageLimit uses';
+                }
                 return ChoiceChip(
-                  label: Text(entry.value),
+                  label: Text(label),
                   selected: selected,
                   onSelected: _saving || _requestApproval
                       ? null
-                      : (v) => setState(() => _usageLimitOption = entry.key),
+                      : (v) {
+                          if (entry.key == -1) {
+                            _showCustomUsageLimit();
+                          } else {
+                            setState(() => _usageLimitOption = entry.key);
+                          }
+                        },
                   labelStyle: TextStyle(
                     fontSize: 13,
                     color: selected ? Colors.white : textColor,
@@ -1095,6 +1334,8 @@ class CreatePollResult {
   final bool multipleChoice;
   final bool anonymous;
   final bool quiz;
+  final int correctOptionIndex;
+  final String solution;
 
   const CreatePollResult({
     required this.question,
@@ -1102,6 +1343,8 @@ class CreatePollResult {
     this.multipleChoice = false,
     this.anonymous = true,
     this.quiz = false,
+    this.correctOptionIndex = -1,
+    this.solution = '',
   });
 }
 
@@ -1120,7 +1363,13 @@ class _CreatePollContent extends StatefulWidget {
 }
 
 class _CreatePollContentState extends State<_CreatePollContent> {
+  static const _kQuestionLimit = 255;
+  static const _kOptionLimit = 100;
+  static const _kSolutionLimit = 200;
+  static const _kMaxOptions = 32;
+
   final _questionCtrl = TextEditingController();
+  final _solutionCtrl = TextEditingController();
   final List<TextEditingController> _optionCtrls = [
     TextEditingController(),
     TextEditingController(),
@@ -1128,10 +1377,12 @@ class _CreatePollContentState extends State<_CreatePollContent> {
   bool _multipleChoice = false;
   bool _anonymous = true;
   bool _quiz = false;
+  int _correctOption = -1;
 
   @override
   void dispose() {
     _questionCtrl.dispose();
+    _solutionCtrl.dispose();
     for (final c in _optionCtrls) {
       c.dispose();
     }
@@ -1139,7 +1390,7 @@ class _CreatePollContentState extends State<_CreatePollContent> {
   }
 
   void _addOption() {
-    if (_optionCtrls.length >= 10) return;
+    if (_optionCtrls.length >= _kMaxOptions) return;
     setState(() => _optionCtrls.add(TextEditingController()));
   }
 
@@ -1148,15 +1399,22 @@ class _CreatePollContentState extends State<_CreatePollContent> {
     setState(() {
       _optionCtrls[index].dispose();
       _optionCtrls.removeAt(index);
+      if (_correctOption == index) {
+        _correctOption = -1;
+      } else if (_correctOption > index) {
+        _correctOption--;
+      }
     });
   }
 
   bool get _canSubmit {
     final q = _questionCtrl.text.trim();
-    if (q.isEmpty) return false;
+    if (q.isEmpty || q.length > _kQuestionLimit) return false;
     final opts =
         _optionCtrls.map((c) => c.text.trim()).where((s) => s.isNotEmpty);
-    return opts.length >= 2;
+    if (opts.length < 2) return false;
+    if (_quiz && (_correctOption < 0 || _correctOption >= _optionCtrls.length)) return false;
+    return true;
   }
 
   void _submit() {
@@ -1170,6 +1428,8 @@ class _CreatePollContentState extends State<_CreatePollContent> {
       multipleChoice: _multipleChoice,
       anonymous: _anonymous,
       quiz: _quiz,
+      correctOptionIndex: _quiz ? _correctOption : -1,
+      solution: _quiz ? _solutionCtrl.text.trim() : '',
     ));
   }
 
@@ -1196,7 +1456,21 @@ class _CreatePollContentState extends State<_CreatePollContent> {
               controller: _questionCtrl,
               label: 'Ask a question',
               onChanged: (_) => setState(() {}),
+              inputFormatters: [LengthLimitingTextInputFormatter(_kQuestionLimit)],
             ),
+            if (_questionCtrl.text.length > 80)
+              Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  '${_questionCtrl.text.length}/$_kQuestionLimit',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _questionCtrl.text.length > _kQuestionLimit
+                        ? p.boxTextFgError
+                        : subColor,
+                  ),
+                ),
+              ),
             const SizedBox(height: 20),
             Text('Answer Options',
                 style: TextStyle(
@@ -1209,11 +1483,26 @@ class _CreatePollContentState extends State<_CreatePollContent> {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
                   children: [
+                    if (_quiz)
+                      SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: Radio<int>(
+                          value: i,
+                          groupValue: _correctOption,
+                          onChanged: (v) => setState(() => _correctOption = v ?? -1),
+                          activeColor: p.windowBgActive,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
+                    if (_quiz) const SizedBox(width: 4),
                     Expanded(
                       child: BoxInputField(
                         controller: _optionCtrls[i],
                         label: 'Option ${i + 1}',
                         onChanged: (_) => setState(() {}),
+                        inputFormatters: [LengthLimitingTextInputFormatter(_kOptionLimit)],
                       ),
                     ),
                     if (_optionCtrls.length > 2)
@@ -1229,7 +1518,7 @@ class _CreatePollContentState extends State<_CreatePollContent> {
                   ],
                 ),
               ),
-            if (_optionCtrls.length < 10)
+            if (_optionCtrls.length < _kMaxOptions)
               TextButton.icon(
                 onPressed: _addOption,
                 icon: Icon(Icons.add, size: 18, color: accentColor),
@@ -1256,8 +1545,44 @@ class _CreatePollContentState extends State<_CreatePollContent> {
             const SizedBox(height: 8),
             _checkRow('Quiz Mode', _quiz, (v) => setState(() {
               _quiz = v ?? false;
-              if (_quiz) _multipleChoice = false;
+              if (_quiz) {
+                _multipleChoice = false;
+              } else {
+                _correctOption = -1;
+                _solutionCtrl.clear();
+              }
             }), checkClr, textColor),
+            if (_quiz) ...[
+              const SizedBox(height: 4),
+              Padding(
+                padding: const EdgeInsets.only(left: 28),
+                child: Text(
+                  'Select the correct answer by tapping the radio button next to an option.',
+                  style: TextStyle(fontSize: 12, color: subColor),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text('Explanation (optional)',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: accentColor)),
+              const SizedBox(height: 8),
+              BoxInputField(
+                controller: _solutionCtrl,
+                label: 'Add a comment',
+                onChanged: (_) => setState(() {}),
+                inputFormatters: [LengthLimitingTextInputFormatter(_kSolutionLimit)],
+              ),
+              if (_solutionCtrl.text.length > 60)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    '${_solutionCtrl.text.length}/$_kSolutionLimit',
+                    style: TextStyle(fontSize: 12, color: subColor),
+                  ),
+                ),
+            ],
           ],
         ),
       ),

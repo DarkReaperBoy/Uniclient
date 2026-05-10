@@ -1503,6 +1503,48 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(map[string]interface{}{"icons": icons})
 
+	case "GetAccountUsernames":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		usernames, err := e.GetAccountUsernames(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]interface{}{"usernames": usernames})
+
+	case "ToggleAccountUsername":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Username  string `json:"username"`
+			Active    bool   `json:"active"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		ok, err := e.ToggleAccountUsername(params.AccountID, params.Username, params.Active)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]bool{"ok": ok})
+
+	case "ReorderAccountUsernames":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Order     []string `json:"order"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		ok, err := e.ReorderAccountUsernames(params.AccountID, params.Order)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]bool{"ok": ok})
+
 	case "GetChannelUsernames":
 		var params struct {
 			AccountID string `json:"account_id"`
@@ -1577,15 +1619,30 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	case "CreatePoll":
 		var params struct {
-			AccountID string   `json:"account_id"`
-			ChatID    string   `json:"chat_id"`
-			Question  string   `json:"question"`
-			Options   []string `json:"options"`
+			AccountID      string   `json:"account_id"`
+			ChatID         string   `json:"chat_id"`
+			Question       string   `json:"question"`
+			Options        []string `json:"options"`
+			MultipleChoice bool     `json:"multiple_choice"`
+			Anonymous      *bool    `json:"anonymous"`
+			Quiz           bool     `json:"quiz"`
+			CorrectOption  int      `json:"correct_option"`
+			Solution       string   `json:"solution"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		msgID, err := e.CreatePoll(params.AccountID, params.ChatID, params.Question, params.Options)
+		anon := true
+		if params.Anonymous != nil {
+			anon = *params.Anonymous
+		}
+		msgID, err := e.CreatePollEx(params.AccountID, params.ChatID, params.Question, params.Options, engine.PollOptions{
+			MultipleChoice: params.MultipleChoice,
+			Anonymous:      anon,
+			Quiz:           params.Quiz,
+			CorrectOption:  params.CorrectOption,
+			Solution:       params.Solution,
+		})
 		if err != nil {
 			return nil, err
 		}
