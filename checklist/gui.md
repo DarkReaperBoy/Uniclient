@@ -636,22 +636,6 @@ The Dart emoji_data.dart implements a hardcoded static emoji search database, wh
 # photo_crop_editor — Audit Findings
 
 
-## popup_menu — Telegram popup/context menu widget
-
-- [ ] [CRITICAL] No submenu support — `TelegramMenuItem` has no submenu field; no submenu display, hover-to-open, or Left/Right arrow navigation; entire submenu system is absent — `popup_menu.dart:48` ← `lib_ui/ui/widgets/popup_menu.cpp:103`
-
-- [ ] [MAJOR] Corner radius is 8px but AyuGram uses 6px — `popup_menu.dart:8` ← `lib_ui/ui/widgets/widgets.style:1008`
-
-- [ ] [MAJOR] Animation height starts at 30% (`0.3 + 0.7 * curve`) but AyuGram `startHeight: 0.45` means 45%; menu appears to expand from a smaller initial size than spec — `popup_menu.dart:250` ← `lib_ui/ui/widgets/widgets.style:947`
-
-- [ ] [MAJOR] Scroll padding hardcoded to 8px for all menus; when items have icons AyuGram switches to `popupMenuWithIcons` which sets `scrollPadding: margins(0px, 5px, 0px, 5px)` — `popup_menu.dart:14` ← `lib_ui/ui/widgets/widgets.style:1716`
-
-- [ ] [MAJOR] Menu content is a plain `Column` with no scroll area; tall menus exceeding screen height will overflow/clip instead of scrolling; AyuGram wraps menu in a `ScrollArea` — `popup_menu.dart:475` ← `lib_ui/ui/widgets/popup_menu.cpp:207`
-
-- [ ] [MAJOR] No keyboard shortcut text rendered in menu items; AyuGram `Action::paint()` draws shortcut string at right edge; `TelegramMenuItem` has no shortcut field at all — `popup_menu.dart:515` ← `lib_ui/ui/widgets/menu/menu_action.cpp:142`
-
-- [ ] [MAJOR] Disabled item uses `maxLines: 2` (text can wrap to two lines) while enabled items use `maxLines: 1`; AyuGram calls `drawLeftElided` uniformly for all states — `popup_menu.dart:745` ← `lib_ui/ui/widgets/menu/menu_action.cpp:108`
-
 # privacy_settings_screen — Audit Findings
 
 ## CRITICAL
