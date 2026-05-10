@@ -66,6 +66,7 @@ Future<EditForumTopicResult?> showEditForumTopicBox(
   bool isGeneral = false,
   bool isBot = false,
   bool isEditing = false,
+  bool isCreating = false,
   bool isPremium = false,
   List<String>? serverEmojiIcons,
 }) {
@@ -79,6 +80,7 @@ Future<EditForumTopicResult?> showEditForumTopicBox(
       isGeneral: isGeneral,
       isBot: isBot,
       isEditing: isEditing,
+      isCreating: isCreating,
       isPremium: isPremium,
       serverEmojiIcons: serverEmojiIcons,
     ),
@@ -104,6 +106,7 @@ class _EditForumTopicDialog extends StatefulWidget {
   final bool isGeneral;
   final bool isBot;
   final bool isEditing;
+  final bool isCreating;
   final bool isPremium;
   final List<String>? serverEmojiIcons;
 
@@ -114,6 +117,7 @@ class _EditForumTopicDialog extends StatefulWidget {
     this.isGeneral = false,
     this.isBot = false,
     this.isEditing = false,
+    this.isCreating = false,
     this.isPremium = false,
     this.serverEmojiIcons,
   });
@@ -171,7 +175,7 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
 
   void _cycleColor() {
     if (_iconEmojiId != 0) return;
-    if (widget.isEditing) return;
+    if (widget.isEditing && !widget.isCreating) return;
 
     setState(() {
       if (_remainingColors.isEmpty) {
@@ -290,7 +294,7 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
       dialogTitle = widget.isBot ? 'New Thread' : 'New Topic';
     }
 
-    final bool canCycleColor = _iconEmojiId == 0 && !widget.isEditing;
+    final bool canCycleColor = _iconEmojiId == 0 && (!widget.isEditing || widget.isCreating);
 
     return Dialog(
       backgroundColor: boxBg,
@@ -441,8 +445,8 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
 
   Widget _buildDividerText(bool isDark) {
     final text = widget.isBot
-        ? 'Choose a title for the thread'
-        : 'Choose a title and an icon for the topic';
+        ? 'Choose a thread name and icon'
+        : 'Choose a topic name and icon';
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(22, 10, 22, 6),
@@ -464,22 +468,52 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
     );
   }
 
-  void _selectEmoji(BuildContext cellContext, String emoji) {
+  void _selectEmoji(BuildContext cellContext, String emoji, {int documentId = 0}) {
     final codePoint = emoji.runes.first;
-    if (!_defaultTopicEmojiCodepoints.contains(codePoint) && !widget.isPremium) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('This icon requires Telegram Premium'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+    final isFree = _defaultTopicEmojiCodepoints.contains(codePoint);
+    if (!isFree && !widget.isPremium) {
+      _showPremiumRequiredDialog(emoji);
       return;
     }
     _startFlyAnimation(cellContext, emoji);
     setState(() {
-      _iconEmojiId = codePoint;
+      _iconEmojiId = documentId != 0 ? documentId : codePoint;
       _selectedEmojiStr = emoji;
     });
+  }
+
+  void _showPremiumRequiredDialog(String emoji) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        return AlertDialog(
+          backgroundColor: isDark ? const Color(0xFF1B2836) : Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 64)),
+              const SizedBox(height: 16),
+              Text(
+                'This icon is available with\nTelegram Premium',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isDark ? Colors.white : Colors.black,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Close', style: TextStyle(color: Color(0xFF40a7e3))),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Widget _buildIconSelectorPanel(bool isDark) {
@@ -515,11 +549,46 @@ class _EditForumTopicDialogState extends State<_EditForumTopicDialog>
             spacing: 2,
             runSpacing: 2,
             children: [
+              _buildDefaultResetCell(isDark),
               for (final emoji in _emojiIcons)
                 _buildEmojiGridCell(emoji, isDark),
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDefaultResetCell(bool isDark) {
+    final isSelected = _iconEmojiId == 0 && _selectedEmojiStr == null;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _iconEmojiId = 0;
+          _selectedEmojiStr = null;
+        });
+      },
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Container(
+          width: _gridCellSize,
+          height: _gridCellSize,
+          decoration: isSelected
+              ? BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  color: isDark
+                      ? const Color(0xFF2b5278)
+                      : const Color(0xFFE3F2FD),
+                )
+              : null,
+          child: Center(
+            child: Icon(
+              Icons.close,
+              size: _gridIconSize * 0.7,
+              color: isDark ? const Color(0xFF7f91a4) : const Color(0xFF999999),
+            ),
+          ),
+        ),
       ),
     );
   }

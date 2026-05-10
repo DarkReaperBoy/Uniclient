@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderProxyBox;
@@ -37,6 +38,8 @@ import 'media_viewer.dart';
 import 'sticker_pack_viewer.dart';
 import 'payment_panel.dart';
 import 'web_app_panel.dart';
+
+Uint8List _gzipDecode(Uint8List data) => Uint8List.fromList(gzip.decode(data));
 
 /// Spec §5: bubble shape with decorative tail on the last message in a group.
 /// The tail is a curved triangular protrusion at the bottom sender-side corner:
@@ -2205,11 +2208,17 @@ class _ReactionPreviewOverlayState extends State<_ReactionPreviewOverlay>
     if (!mounted) return;
     final file = CustomEmojiCache.instance.getFile(widget.documentId);
     if (file != null && file.isTgs && _decompressedLottie == null) {
-      try {
-        _decompressedLottie = Uint8List.fromList(gzip.decode(file.fileData));
-      } catch (_) {}
+      _decompressLottieAsync(file.fileData);
     }
     setState(() {});
+  }
+
+  Future<void> _decompressLottieAsync(Uint8List data) async {
+    try {
+      final result = await compute(_gzipDecode, data);
+      if (!mounted) return;
+      setState(() => _decompressedLottie = result);
+    } catch (_) {}
   }
 
   void _requestFile() {
@@ -5846,7 +5855,7 @@ class _LargeCustomEmojiTileState extends State<_LargeCustomEmojiTile>
     final cache = CustomEmojiCache.instance;
     final file = cache.getFile(widget.documentId);
     if (file != null && file.isTgs && _decompressedLottie == null) {
-      _decompressLottie(file.fileData);
+      _decompressLottieAsync(file.fileData);
     }
     setState(() {});
   }
@@ -5868,9 +5877,11 @@ class _LargeCustomEmojiTileState extends State<_LargeCustomEmojiTile>
     }
   }
 
-  void _decompressLottie(Uint8List tgsData) {
+  Future<void> _decompressLottieAsync(Uint8List data) async {
     try {
-      _decompressedLottie = Uint8List.fromList(gzip.decode(tgsData));
+      final result = await compute(_gzipDecode, data);
+      if (!mounted) return;
+      setState(() => _decompressedLottie = result);
     } catch (_) {}
   }
 
@@ -5917,6 +5928,13 @@ class _LargeCustomEmojiTileState extends State<_LargeCustomEmojiTile>
             onLoaded: _onLottieLoaded,
             errorBuilder: (_, __, ___) => _buildThumbOrFallback(cache),
           ),
+        );
+      }
+      if (file.isWebm) {
+        return _WebmEmojiPlayer(
+          fileData: file.fileData,
+          size: widget.size,
+          fallback: _buildThumbOrFallback(cache),
         );
       }
       if (file.isWebp) {
@@ -6117,7 +6135,7 @@ class _CustomEmojiInlineState extends State<_CustomEmojiInline>
     final cache = CustomEmojiCache.instance;
     final file = cache.getFile(widget.documentId);
     if (file != null && file.isTgs && _decompressedLottie == null) {
-      _decompressLottie(file.fileData);
+      _decompressLottieAsync(file.fileData);
     }
     _updatePhase();
     setState(() {});
@@ -6156,9 +6174,11 @@ class _CustomEmojiInlineState extends State<_CustomEmojiInline>
     }
   }
 
-  void _decompressLottie(Uint8List tgsData) {
+  Future<void> _decompressLottieAsync(Uint8List data) async {
     try {
-      _decompressedLottie = Uint8List.fromList(gzip.decode(tgsData));
+      final result = await compute(_gzipDecode, data);
+      if (!mounted) return;
+      setState(() => _decompressedLottie = result);
     } catch (_) {}
   }
 
@@ -6259,6 +6279,13 @@ class _CustomEmojiInlineState extends State<_CustomEmojiInline>
         ),
       );
     }
+    if (file.isWebm) {
+      return _WebmEmojiPlayer(
+        fileData: file.fileData,
+        size: _adjustedSize,
+        fallback: _buildPreviewOrBlank(cache),
+      );
+    }
     if (file.isWebp) {
       return SizedBox(
         width: _adjustedSize,
@@ -6277,18 +6304,20 @@ class _CustomEmojiInlineState extends State<_CustomEmojiInline>
   }
 
   Widget _buildStaticFrame(CustomEmojiFileData file, CustomEmojiCache cache) {
-    if (file.isWebp) {
+    if (file.isWebm || file.isWebp) {
       return SizedBox(
         width: _adjustedSize,
         height: _adjustedSize,
-        child: Image.memory(
-          file.fileData,
-          width: _adjustedSize,
-          height: _adjustedSize,
-          fit: BoxFit.contain,
-          gaplessPlayback: true,
-          errorBuilder: (_, __, ___) => _buildPreviewOrBlank(cache),
-        ),
+        child: file.isWebp
+            ? Image.memory(
+                file.fileData,
+                width: _adjustedSize,
+                height: _adjustedSize,
+                fit: BoxFit.contain,
+                gaplessPlayback: true,
+                errorBuilder: (_, __, ___) => _buildPreviewOrBlank(cache),
+              )
+            : _buildPreviewOrBlank(cache),
       );
     }
     return _buildPreviewOrBlank(cache);
@@ -6335,6 +6364,74 @@ class _CustomEmojiInlineState extends State<_CustomEmojiInline>
       );
     }
     return const SizedBox(width: _adjustedSize, height: _adjustedSize);
+  }
+}
+
+class _WebmEmojiPlayer extends StatefulWidget {
+  final Uint8List fileData;
+  final double size;
+  final Widget fallback;
+  const _WebmEmojiPlayer({required this.fileData, required this.size, required this.fallback});
+  @override
+  State<_WebmEmojiPlayer> createState() => _WebmEmojiPlayerState();
+}
+
+class _WebmEmojiPlayerState extends State<_WebmEmojiPlayer> {
+  Player? _player;
+  VideoController? _videoController;
+  File? _tempFile;
+
+  @override
+  void initState() {
+    super.initState();
+    _initPlayer();
+  }
+
+  Future<void> _initPlayer() async {
+    try {
+      final dir = Directory.systemTemp;
+      final file = File('${dir.path}/emoji_${widget.fileData.hashCode}.webm');
+      await file.writeAsBytes(widget.fileData, flush: true);
+      _tempFile = file;
+      final player = Player();
+      final controller = VideoController(player);
+      await player.open(Media(file.path), play: true);
+      await player.setPlaylistMode(PlaylistMode.loop);
+      if (!mounted) {
+        await player.dispose();
+        return;
+      }
+      setState(() {
+        _player = player;
+        _videoController = controller;
+      });
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _player?.dispose();
+    _tempFile?.delete().catchError((_) {});
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_videoController == null) return widget.fallback;
+    return SizedBox(
+      width: widget.size,
+      height: widget.size,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(2),
+        child: Video(
+          controller: _videoController!,
+          width: widget.size,
+          height: widget.size,
+          fit: BoxFit.contain,
+          controls: NoVideoControls,
+        ),
+      ),
+    );
   }
 }
 

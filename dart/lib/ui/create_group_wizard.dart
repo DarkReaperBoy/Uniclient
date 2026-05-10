@@ -8,6 +8,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
@@ -325,13 +326,41 @@ class _WizardDialogState extends State<_WizardDialog>
       if (value == 'photo') {
         _pickPhoto();
       } else if (value == 'camera') {
-        _pickPhoto();
+        _captureFromCamera();
       } else if (value == 'clipboard') {
         _pasteFromClipboard();
       } else if (value == 'emoji') {
         _pickEmojiAvatar();
       }
     });
+  }
+
+  Future<void> _captureFromCamera() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+      );
+      if (result == null || result.files.isEmpty) return;
+      final path = result.files.first.path;
+      if (path == null || !mounted) return;
+      await PhotoCropEditor.open(
+        context,
+        imageFile: File(path),
+        shape: PhotoCropShape.ellipse,
+        purpose: PhotoEditorPurpose.setPhoto,
+        onDone: (croppedFile) async {
+          final bytes = await croppedFile.readAsBytes();
+          if (!mounted) return;
+          setState(() {
+            _photoBytes = bytes;
+            _photoPath = croppedFile.path;
+          });
+        },
+      );
+    } catch (e) {
+      if (mounted) showTelegramToast(context, 'Camera not available');
+    }
   }
 
   Future<void> _pasteFromClipboard() async {
@@ -462,7 +491,12 @@ class _WizardDialogState extends State<_WizardDialog>
       final msg = e.toString();
       setState(() {
         _usernameChecking = false;
-        if (msg.contains('USERNAME_INVALID') || msg.contains('UsernameInvalid')) {
+        if (msg.contains('CHANNEL_PUBLIC_GROUP_NA')) {
+          _usernameStatus = 'This group can\'t have a public link';
+          _isPublic = false;
+        } else if (msg.contains('USERNAME_PURCHASE_AVAILABLE')) {
+          _usernameStatus = 'This username is available for purchase on Fragment';
+        } else if (msg.contains('USERNAME_INVALID') || msg.contains('UsernameInvalid')) {
           _usernameStatus = 'Sorry, this link is invalid';
         } else if (msg.contains('USERNAME_OCCUPIED') || msg.contains('UsernameOccupied')) {
           _usernameStatus = 'Sorry, this link is already taken';
@@ -559,6 +593,14 @@ class _WizardDialogState extends State<_WizardDialog>
         );
         if (!mounted) return;
         _createdChatId = chatInfo.chatId;
+        if (_photoPath != null && _photoPath!.isNotEmpty) {
+          try {
+            await _engine.editChannelPhoto(_accountId, _createdChatId, _photoPath!);
+          } catch (e) {
+            debugPrint('Failed to upload channel photo: $e');
+          }
+        }
+        if (!mounted) return;
         _loadInviteLink();
         setState(() {
           _creating = false;
@@ -593,11 +635,21 @@ class _WizardDialogState extends State<_WizardDialog>
       if (!mounted) return;
       final chatId = result['chat_id'] as String? ?? '';
       if (chatId.isNotEmpty) {
+        if (_photoPath != null && _photoPath!.isNotEmpty) {
+          try {
+            await _engine.editChannelPhoto(_accountId, chatId, _photoPath!);
+          } catch (e) {
+            debugPrint('Failed to upload group photo: $e');
+          }
+        }
         if (_ttlSeconds > 0) {
           try {
             _engine.setHistoryTTL(_accountId, chatId, _ttlSeconds);
-          } catch (_) {}
+          } catch (e) {
+            debugPrint('Failed to set history TTL: $e');
+          }
         }
+        if (!mounted) return;
         _navigateToChat(chatId);
       }
       if (!mounted) return;
@@ -1136,7 +1188,7 @@ class _WizardDialogState extends State<_WizardDialog>
           onSearchChanged: () => setState(() {}),
         ),
         // §21.3: "Invite via Link" button above contact list.
-        if (_inviteLink.isNotEmpty || widget.type == _WizardType.channel || widget.type == _WizardType.group)
+        if (_inviteLink.isNotEmpty || _loadingInviteLink)
           InkWell(
             onTap: () {
               if (_inviteLink.isNotEmpty) {
@@ -1973,8 +2025,15 @@ class _CrossPainter extends CustomPainter {
 class _PublicLinksLimitBox extends StatefulWidget {
   final EngineService engine;
   final String accountId;
+  final int freeLimit;
+  final int premiumLimit;
 
-  const _PublicLinksLimitBox({required this.engine, required this.accountId});
+  const _PublicLinksLimitBox({
+    required this.engine,
+    required this.accountId,
+    this.freeLimit = 10,
+    this.premiumLimit = 20,
+  });
 
   @override
   State<_PublicLinksLimitBox> createState() => _PublicLinksLimitBoxState();
@@ -1986,8 +2045,8 @@ class _PublicLinksLimitBoxState extends State<_PublicLinksLimitBox> {
   String? _revokingChatId;
   bool _revoked = false;
 
-  static const int _freeLimit = 10;
-  static const int _premiumLimit = 20;
+  int get _freeLimit => widget.freeLimit;
+  int get _premiumLimit => widget.premiumLimit;
 
   @override
   void initState() {
@@ -2315,7 +2374,22 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
   bool _isForum = false;
   int _slowmodeSeconds = 0;
 
+  bool _origJoinToSend = false;
+  bool _origNoForwards = false;
+  bool _origJoinRequest = false;
+  int _origSlowmodeSeconds = 0;
+  String _origUsername = '';
+
   static const List<int> _slowmodeValues = [0, 5, 10, 30, 60, 300, 900, 3600];
+
+  bool get _hasPendingChanges {
+    final newUsername = _isPublic ? _usernameController.text.trim() : '';
+    return newUsername != _origUsername ||
+        _joinToSend != _origJoinToSend ||
+        _noForwards != _origNoForwards ||
+        _joinRequest != _origJoinRequest ||
+        _slowmodeSeconds != _origSlowmodeSeconds;
+  }
 
   @override
   void initState() {
@@ -2342,6 +2416,7 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
       final flags = results[1] as Map<String, dynamic>;
       setState(() {
         _currentUsername = username;
+        _origUsername = username;
         _isPublic = username.isNotEmpty;
         if (username.isNotEmpty) {
           _usernameController.text = username;
@@ -2352,6 +2427,10 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
         _joinRequest = flags['join_request'] as bool? ?? false;
         _isForum = flags['is_forum'] as bool? ?? false;
         _slowmodeSeconds = flags['slowmode_seconds'] as int? ?? 0;
+        _origJoinToSend = _joinToSend;
+        _origNoForwards = _noForwards;
+        _origJoinRequest = _joinRequest;
+        _origSlowmodeSeconds = _slowmodeSeconds;
         _loading = false;
       });
       if (!_isPublic) _loadInviteLink();
@@ -2423,9 +2502,16 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
         setState(() {
           _usernameChecking = false;
           _usernameValid = false;
-          _usernameStatus = msg.contains('CHANNELS_ADMIN_PUBLIC_TOO_MUCH')
-              ? 'Too many public channels'
-              : 'Check failed: $msg';
+          if (msg.contains('CHANNEL_PUBLIC_GROUP_NA')) {
+            _usernameStatus = 'This group can\'t have a public link';
+            _isPublic = false;
+          } else if (msg.contains('USERNAME_PURCHASE_AVAILABLE')) {
+            _usernameStatus = 'This username is available for purchase on Fragment';
+          } else if (msg.contains('CHANNELS_ADMIN_PUBLIC_TOO_MUCH')) {
+            _usernameStatus = 'Too many public channels';
+          } else {
+            _usernameStatus = 'Check failed: $msg';
+          }
         });
       }
     });
@@ -2444,14 +2530,32 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
       return;
     }
 
-    if (newUsername == _currentUsername) {
+    if (!_hasPendingChanges) {
       Navigator.pop(context, false);
       return;
     }
 
     setState(() { _saving = true; _error = null; });
     try {
-      await engine.updateChannelUsername(widget.accountId, widget.chatId, newUsername);
+      if (newUsername != _currentUsername) {
+        await engine.updateChannelUsername(widget.accountId, widget.chatId, newUsername);
+      }
+      if (!mounted) return;
+      if (_joinToSend != _origJoinToSend) {
+        await engine.toggleJoinToSend(widget.accountId, widget.chatId, _joinToSend);
+      }
+      if (!mounted) return;
+      if (_joinRequest != _origJoinRequest) {
+        await engine.toggleJoinRequest(widget.accountId, widget.chatId, _joinRequest);
+      }
+      if (!mounted) return;
+      if (_noForwards != _origNoForwards) {
+        await engine.toggleNoForwards(widget.accountId, widget.chatId, _noForwards);
+      }
+      if (!mounted) return;
+      if (_slowmodeSeconds != _origSlowmodeSeconds) {
+        await engine.setSlowMode(widget.accountId, widget.chatId, _slowmodeSeconds);
+      }
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (e) {
@@ -2494,32 +2598,7 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
     return idx >= 0 ? idx : 0;
   }
 
-  Future<void> _toggleFlag(String flag, bool value) async {
-    final engine = context.read<EngineService>();
-    try {
-      switch (flag) {
-        case 'join_to_send':
-          await engine.toggleJoinToSend(widget.accountId, widget.chatId, value);
-        case 'no_forwards':
-          await engine.toggleNoForwards(widget.accountId, widget.chatId, value);
-        case 'join_request':
-          await engine.toggleJoinRequest(widget.accountId, widget.chatId, value);
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = 'Failed: $e');
-    }
-  }
-
-  Future<void> _setSlowmode(int seconds) async {
-    final engine = context.read<EngineService>();
-    try {
-      await engine.setSlowMode(widget.accountId, widget.chatId, seconds);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = 'Failed: $e');
-    }
-  }
+  // Flag changes and slowmode are now batched in _save() — no live application.
 
   List<Widget> _buildPermissionToggles(bool isDark, Color textColor, Color subtextColor, Color accentColor) {
     final separatorColor = isDark ? const Color(0xFF0F1820) : const Color(0xFFE0E0E0);
@@ -2539,8 +2618,6 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
             _joinToSend = v;
             if (!v) _joinRequest = false;
           });
-          _toggleFlag('join_to_send', v);
-          if (!v && _joinRequest) _toggleFlag('join_request', false);
         },
       ),
       Container(height: 1, color: separatorColor),
@@ -2556,7 +2633,6 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
             subtextColor: subtextColor,
             onChanged: (v) {
               setState(() => _joinRequest = v);
-              _toggleFlag('join_request', v);
             },
           ),
         ),
@@ -2599,9 +2675,6 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
                 onChanged: (v) {
                   setState(() => _slowmodeSeconds = _slowmodeValues[v.round()]);
                 },
-                onChangeEnd: (v) {
-                  _setSlowmode(_slowmodeValues[v.round()]);
-                },
               ),
             ),
             Padding(
@@ -2628,7 +2701,6 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
         subtextColor: subtextColor,
         onChanged: (v) {
           setState(() => _noForwards = v);
-          _toggleFlag('no_forwards', v);
         },
       ),
     ];
@@ -2867,8 +2939,7 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
                                     label: 'Share',
                                     color: accentColor,
                                     onTap: () {
-                                      Clipboard.setData(ClipboardData(text: _inviteLink));
-                                      showTelegramToast(context, 'Link copied to clipboard');
+                                      Share.share(_inviteLink);
                                     },
                                   ),
                                 ],

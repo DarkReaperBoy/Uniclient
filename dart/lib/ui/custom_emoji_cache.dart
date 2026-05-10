@@ -30,6 +30,9 @@ class EmojiSizeConstants {
   static const int kMaxPerRequest = 100;
 
   static double frameSize(EmojiSizeTag tag) => frameSizes[tag] ?? 20.0;
+
+  static double scaledFrameSize(EmojiSizeTag tag, double devicePixelRatio) =>
+      (frameSizes[tag] ?? 20.0) * devicePixelRatio;
 }
 
 class _InstanceKey {
@@ -213,19 +216,31 @@ class CustomEmojiCache {
         _failed.contains(documentId)) return;
 
     if (!kIsWeb && _diskCacheDir != null) {
-      final thumbFile = File('$_diskCacheDir/$documentId.thumb');
-      final pathFile = File('$_diskCacheDir/$documentId.path');
-      if (thumbFile.existsSync()) {
-        _thumbs[documentId] = thumbFile.readAsBytesSync();
-        if (pathFile.existsSync()) {
-          _paths[documentId] = pathFile.readAsBytesSync();
-        }
-        _notifyListeners();
-        return;
-      }
+      _pending.add(documentId);
+      _loadThumbFromDisk(documentId, accountId, engine);
+      return;
     }
 
     _pending.add(documentId);
+    _batchQueue.add(_PendingRequest(documentId, accountId, engine));
+    _batchTimer?.cancel();
+    _batchTimer = Timer(const Duration(milliseconds: 16), _flushBatch);
+  }
+
+  Future<void> _loadThumbFromDisk(int documentId, String accountId, EngineService engine) async {
+    try {
+      final thumbFile = File('$_diskCacheDir/$documentId.thumb');
+      if (await thumbFile.exists()) {
+        _thumbs[documentId] = await thumbFile.readAsBytes();
+        final pathFile = File('$_diskCacheDir/$documentId.path');
+        if (await pathFile.exists()) {
+          _paths[documentId] = await pathFile.readAsBytes();
+        }
+        _pending.remove(documentId);
+        _notifyListeners();
+        return;
+      }
+    } catch (_) {}
     _batchQueue.add(_PendingRequest(documentId, accountId, engine));
     _batchTimer?.cancel();
     _batchTimer = Timer(const Duration(milliseconds: 16), _flushBatch);
@@ -258,7 +273,13 @@ class CustomEmojiCache {
     for (final entry in byAccount.entries) {
       final ids = entry.value.map((r) => r.documentId).toList();
       final engine = entry.value.first.engine;
-      _fetchThumbBatch(entry.key, ids, engine);
+      for (var i = 0; i < ids.length; i += EmojiSizeConstants.kMaxPerRequest) {
+        _fetchThumbBatch(
+          entry.key,
+          ids.sublist(i, math.min(i + EmojiSizeConstants.kMaxPerRequest, ids.length)),
+          engine,
+        );
+      }
     }
   }
 
