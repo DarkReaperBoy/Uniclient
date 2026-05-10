@@ -9,7 +9,9 @@ import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/telegram_palette.dart';
 import 'chat_list_row.dart' show ForwardDragData;
+import 'folders_settings_screen.dart' show showEditFolderBox, FoldersSettingsScreen;
 import 'popup_menu.dart';
+import 'settings_style.dart';
 import 'telegram_tooltip.dart';
 
 /// Spec §1/§2: Vertical folder sidebar, 72px wide.
@@ -49,16 +51,27 @@ class FilterColumn extends StatefulWidget {
   @override
   State<FilterColumn> createState() => _FilterColumnState();
 
-  /// Pick an icon based on folder name keywords.
+  static IconData folderIconForInfo(FolderInfo folder) {
+    if (folder.bots && !folder.contacts && !folder.nonContacts && !folder.groups && !folder.channels) {
+      return Icons.smart_toy_outlined;
+    }
+    if (folder.channels && !folder.contacts && !folder.nonContacts && !folder.groups && !folder.bots) {
+      return Icons.campaign_outlined;
+    }
+    if (folder.groups && !folder.contacts && !folder.nonContacts && !folder.channels && !folder.bots) {
+      return Icons.group_outlined;
+    }
+    if ((folder.contacts || folder.nonContacts) && !folder.groups && !folder.channels && !folder.bots) {
+      return Icons.person_outline;
+    }
+    if (folder.excludeRead) {
+      return Icons.mark_email_unread_outlined;
+    }
+    return Icons.folder_outlined;
+  }
+
   static IconData folderIcon(String name) {
-    final lower = name.toLowerCase();
-    if (lower.contains('unread')) return Icons.mark_email_unread;
-    if (lower.contains('personal')) return Icons.person;
-    if (lower.contains('group')) return Icons.group;
-    if (lower.contains('channel')) return Icons.campaign;
-    if (lower.contains('bot')) return Icons.smart_toy;
-    if (lower.contains('work')) return Icons.work;
-    return Icons.folder;
+    return Icons.folder_outlined;
   }
 }
 
@@ -91,7 +104,7 @@ class _FilterColumnState extends State<FilterColumn> {
       _autoSwitchTimer?.cancel();
       _autoSwitchPendingIdx = idx;
       if (idx >= 0) {
-        _autoSwitchTimer = Timer(const Duration(milliseconds: 2000), () {
+        _autoSwitchTimer = Timer(const Duration(milliseconds: 1000), () {
           if (!mounted) return;
           final folderId = FilterColumn.folderIdAt(idx);
           if (folderId != null) {
@@ -260,6 +273,55 @@ class _FilterColumnState extends State<FilterColumn> {
     return 0;
   }
 
+  void _onFolderTap(FolderInfo folder, String? activeFolderId) {
+    final chatState = context.read<ChatState>();
+    final appState = context.read<AppState>();
+    final account = appState.activeAccount;
+    final isPremium = account?.isPremium ?? false;
+    final folders = chatState.folders;
+    final folderIndex = folders.indexOf(folder);
+    if (!isPremium && folderIndex >= 10) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Subscribe to Telegram Premium to use more folders.'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+    chatState.setActiveFolder(
+      activeFolderId == folder.id ? null : folder.id,
+    );
+    _scrollToActiveTab(folderIndex);
+  }
+
+  void _scrollToActiveTab(int index) {
+    if (!_scrollController.hasClients || index < 0) return;
+    final box = _tabKeys[index].currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final scrollBox = context.findRenderObject() as RenderBox?;
+    if (scrollBox == null) return;
+    final tabTop = box.localToGlobal(Offset.zero).dy -
+        scrollBox.localToGlobal(Offset.zero).dy +
+        _scrollController.offset;
+    final tabBottom = tabTop + box.size.height;
+    final viewStart = _scrollController.offset;
+    final viewEnd = viewStart + _scrollController.position.viewportDimension;
+    if (tabTop < viewStart) {
+      _scrollController.animateTo(
+        tabTop,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOutSine,
+      );
+    } else if (tabBottom > viewEnd) {
+      _scrollController.animateTo(
+        _scrollController.offset + (tabBottom - viewEnd),
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOutSine,
+      );
+    }
+  }
+
   void _showFolderContextMenu(
       BuildContext context, FolderInfo folder, Offset globalPosition) {
     final chatState = context.read<ChatState>();
@@ -277,8 +339,14 @@ class _FilterColumnState extends State<FilterColumn> {
           ),
         const TelegramMenuItem(
           value: 'edit',
-          icon: Icon(Icons.settings),
+          icon: Icon(Icons.edit),
           label: 'Edit Folder',
+        ),
+        const TelegramMenuItem(
+          value: 'remove_folder',
+          icon: Icon(Icons.delete_outline),
+          label: 'Remove Folder',
+          isAttention: true,
         ),
       ],
     ).then((value) {
@@ -292,9 +360,59 @@ class _FilterColumnState extends State<FilterColumn> {
             }
           }
         case 'edit':
-          break;
+          showEditFolderBox(context, folder);
+        case 'remove_folder':
+          _confirmRemoveFolder(folder);
       }
     });
+  }
+
+  void _confirmRemoveFolder(FolderInfo folder) {
+    showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove Folder'),
+        content: Text('Are you sure you want to remove "${folder.name}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              'Remove',
+              style: TextStyle(color: Theme.of(ctx).colorScheme.error),
+            ),
+          ),
+        ],
+      ),
+    ).then((confirmed) {
+      if (confirmed == true && mounted) {
+        final chatState = context.read<ChatState>();
+        final appState = context.read<AppState>();
+        final account = appState.activeAccount;
+        if (account != null) {
+          chatState.deleteFolder(account.id, folder.id);
+        }
+      }
+    });
+  }
+
+  void _openFoldersSettings() {
+    final appState = context.read<AppState>();
+    final chatState = context.read<ChatState>();
+    Navigator.of(context).push(
+      settingsPageRoute(
+        ChangeNotifierProvider.value(
+          value: appState,
+          child: ChangeNotifierProvider.value(
+            value: chatState,
+            child: const FoldersSettingsScreen(),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -305,6 +423,12 @@ class _FilterColumnState extends State<FilterColumn> {
     final folders = chatState.folders;
     final activeFolderId = chatState.activeFolderId;
     final allUnread = chatState.unreadCountForAccount(appState.activeAccountId);
+    int otherAccountsUnread = 0;
+    for (final acc in appState.accounts) {
+      if (acc.id != appState.activeAccountId) {
+        otherAccountsUnread += chatState.unreadCountForAccount(acc.id);
+      }
+    }
 
     _syncTabKeys(folders.length);
 
@@ -324,7 +448,7 @@ class _FilterColumnState extends State<FilterColumn> {
             icon: Icons.menu,
             label: 'Menu',
             isActive: false,
-            unreadCount: 0,
+            unreadCount: appState.hideNotificationCounters ? 0 : otherAccountsUnread,
             minHeight: 54,
             iconCentered: true,
             onTap: widget.onOpenDrawer ?? () {},
@@ -401,18 +525,14 @@ class _FilterColumnState extends State<FilterColumn> {
                               : (details) => _showFolderContextMenu(
                                     context, folder, details.globalPosition),
                           child: _SideBarButton(
-                            icon: FilterColumn.folderIcon(folder.name),
+                            icon: FilterColumn.folderIconForInfo(folder),
                             label: folder.name,
                             isActive: activeFolderId == folder.id,
                             unreadCount: unread,
                             unreadAllMuted: allMuted,
                             onTap: _dragActive
                                 ? () {}
-                                : () => chatState.setActiveFolder(
-                                      activeFolderId == folder.id
-                                          ? null
-                                          : folder.id,
-                                    ),
+                                : () => _onFolderTap(folder, activeFolderId),
                           ),
                         ),
                       ),
@@ -429,7 +549,7 @@ class _FilterColumnState extends State<FilterColumn> {
             label: 'Edit',
             isActive: false,
             unreadCount: 0,
-            onTap: widget.onOpenDrawer ?? () {},
+            onTap: () => _openFoldersSettings(),
           ),
         ],
       ),
@@ -506,7 +626,15 @@ class _SideBarButton extends StatelessWidget {
     return SizedBox(
       height: minHeight,
       child: Center(
-        child: Icon(icon, size: _iconSize, color: iconColor),
+        child: unreadCount > 0
+            ? Badge(
+                label: Text(
+                  unreadCount > 99 ? '99+' : '$unreadCount',
+                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600),
+                ),
+                child: Icon(icon, size: _iconSize, color: iconColor),
+              )
+            : Icon(icon, size: _iconSize, color: iconColor),
       ),
     );
   }
@@ -576,8 +704,8 @@ class _SideBarButton extends StatelessWidget {
           text,
           style: TextStyle(
             color: palette.sideBarBadgeFg,
-            fontSize: 10,
-            fontWeight: FontWeight.bold,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
             height: 1,
           ),
         ),

@@ -6,7 +6,6 @@ import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
-import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import 'custom_emoji_cache.dart' show CustomEmojiCache, EmojiSizeConstants, EmojiSizeTag;
 
@@ -30,14 +29,12 @@ class EmojiStatusWidget extends StatefulWidget {
 
 class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
     with TickerProviderStateMixin {
-  static const int _maxLoops = 2;
-
   AnimationController? _lottieController;
-  int _loopCount = 0;
   Uint8List? _decompressedLottie;
 
   int? _documentId;
   bool _isCollectible = false;
+  bool _isUserpic = false;
   Color? _collectibleCenterColor;
   Color? _collectibleEdgeColor;
 
@@ -60,7 +57,6 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
       _lottieController?.dispose();
       _lottieController = null;
       _decompressedLottie = null;
-      _loopCount = 0;
       _parseEmojiStatusId();
       if (oldDocId != null) {
         CustomEmojiCache.instance.release(oldDocId, EmojiSizeTag.setIcon);
@@ -87,11 +83,13 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
     if (id.isEmpty) {
       _documentId = null;
       _isCollectible = false;
+      _isUserpic = false;
       return;
     }
 
     if (id.startsWith('collectible:')) {
       _isCollectible = true;
+      _isUserpic = false;
       final parts = id.substring(12).split(':');
       _documentId = int.tryParse(parts[0]);
       if (parts.length >= 3) {
@@ -99,9 +97,11 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
         _collectibleEdgeColor = _parseHexColor(parts[2]);
       }
     } else if (id.startsWith('userpic:')) {
+      _isUserpic = true;
       _documentId = null;
       _isCollectible = false;
     } else {
+      _isUserpic = false;
       _documentId = int.tryParse(id);
       _isCollectible = false;
     }
@@ -158,13 +158,9 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
       vsync: this,
       duration: composition.duration,
     );
-    _loopCount = 0;
     _lottieController!.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
-        _loopCount++;
-        if (_loopCount < _maxLoops) {
-          _lottieController!.forward(from: 0);
-        }
+        _lottieController!.forward(from: 0);
       }
     });
     _lottieController!.forward();
@@ -172,7 +168,15 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
 
   @override
   Widget build(BuildContext context) {
-    if (widget.emojiStatusId.isEmpty || _documentId == null) {
+    if (widget.emojiStatusId.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    if (_isUserpic) {
+      return _buildUserpicStatus();
+    }
+
+    if (_documentId == null) {
       return const SizedBox.shrink();
     }
 
@@ -224,6 +228,39 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
     }
 
     return SizedBox(width: s, height: s, child: content);
+  }
+
+  Widget _buildUserpicStatus() {
+    final s = widget.size;
+    final appState = context.read<AppState>();
+    final account = appState.activeAccount;
+    if (account != null && account.avatarPath.isNotEmpty) {
+      final file = File(account.avatarPath);
+      if (file.existsSync()) {
+        return ClipOval(
+          child: Image.file(
+            file,
+            width: s,
+            height: s,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _userpicFallback(s),
+          ),
+        );
+      }
+    }
+    return _userpicFallback(s);
+  }
+
+  Widget _userpicFallback(double s) {
+    return Container(
+      width: s,
+      height: s,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: widget.fallbackColor ?? const Color(0xFF6C3BEB),
+      ),
+      child: Icon(Icons.person, size: s * 0.7, color: Colors.white),
+    );
   }
 
   Widget _buildThumbOrFallback(CustomEmojiCache cache) {

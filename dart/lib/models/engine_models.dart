@@ -1712,6 +1712,7 @@ class AppConfig {
   final bool notifyDms;
   final bool notifyGroups;
   final bool notifyMentionsOnly;
+  final String gifSearchUsername;
 
   const AppConfig({
     this.theme = 'dark',
@@ -1725,6 +1726,7 @@ class AppConfig {
     this.notifyDms = true,
     this.notifyGroups = true,
     this.notifyMentionsOnly = false,
+    this.gifSearchUsername = 'gif',
   });
 
   factory AppConfig.defaults() => const AppConfig();
@@ -1741,6 +1743,7 @@ class AppConfig {
     notifyDms: j['notify_dms'] as bool? ?? true,
     notifyGroups: j['notify_groups'] as bool? ?? true,
     notifyMentionsOnly: j['notify_mentions_only'] as bool? ?? false,
+    gifSearchUsername: j['gif_search_username'] as String? ?? 'gif',
   );
 }
 

@@ -2428,7 +2428,9 @@ class _GifTabState extends State<_GifTab> {
     if (_activeCategoryIndex < 0 || (_activeCategoryIndex < _kGifCategoryEmojis.length && query != _kGifCategoryEmojis[_activeCategoryIndex])) {
       _activeCategoryIndex = -1;
     }
-    setState(() => _searching = true);
+    if (_gifBotId != null) {
+      setState(() => _searching = true);
+    }
     _searchDebounce = Timer(_kSearchDebounce, () => _performSearch(query));
   }
 
@@ -2456,7 +2458,8 @@ class _GifTabState extends State<_GifTab> {
     final engine = context.read<EngineService>();
     final activeAccount = appState.activeAccount;
     if (activeAccount == null) return;
-    final resolved = await engine.resolveUsername(activeAccount.id, 'gif');
+    final username = appState.config.gifSearchUsername;
+    final resolved = await engine.resolveUsername(activeAccount.id, username);
     if (resolved != null && mounted) {
       _gifBotId = resolved;
     }
@@ -2471,6 +2474,9 @@ class _GifTabState extends State<_GifTab> {
     if (_gifBotId == null) {
       await _resolveGifBot();
       if (_gifBotId == null || !mounted) return;
+    }
+    if (mounted && !_searching) {
+      setState(() => _searching = true);
     }
     final results = await engine.getInlineBotResults(
       activeAccount.id, _gifBotId!, query,
