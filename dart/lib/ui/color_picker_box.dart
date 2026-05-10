@@ -15,6 +15,7 @@ const double _kFieldHeight = 26;
 const double _kSliderTotalWidth = _kSliderSkip + _kSliderWidth + _kSliderSkip;
 const double _kArrowHalf = 4;
 const double _kEditWidth = 390;
+const double _kMinFieldWidth = 60;
 
 Future<Color?> showColorPickerBox({
   required BuildContext context,
@@ -321,7 +322,16 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final p = context.palette;
     final accentFg = p.windowActiveTextFg;
-    final totalWidth = _kEditWidth + kBoxPadding.left + kBoxPadding.right;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final maxWidth = _kEditWidth + kBoxPadding.left + kBoxPadding.right;
+    final totalWidth = maxWidth > screenWidth ? screenWidth - 16 : maxWidth;
+    final innerWidth =
+        totalWidth - kBoxPadding.left - kBoxPadding.right;
+    final pickerSize = (innerWidth -
+            _kSliderTotalWidth -
+            2 * _kEditSkip -
+            _kMinFieldWidth)
+        .clamp(150.0, _kPickerSize);
 
     return Focus(
       focusNode: _dialogFocus,
@@ -350,11 +360,12 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         SizedBox(
-                          height: _kPickerSize,
+                          height: pickerSize,
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               _GradientSquare(
+                                pickerSize: pickerSize,
                                 hue: _hue,
                                 saturation: _saturation,
                                 brightness: _brightness,
@@ -368,6 +379,7 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
                               ),
                               SizedBox(width: _kEditSkip),
                               _VerticalHueSlider(
+                                pickerSize: pickerSize,
                                 value: _hue / 360,
                                 arrowColor: accentFg,
                                 onChanged: (v) {
@@ -383,6 +395,7 @@ class _ColorPickerBoxState extends State<_ColorPickerBox> {
                         if (widget.showOpacity) ...[
                           const SizedBox(height: 2),
                           _HorizontalOpacitySlider(
+                            pickerSize: pickerSize,
                             hue: _hue,
                             saturation: _saturation,
                             brightness: _brightness,
@@ -659,12 +672,14 @@ class _MaxValueFormatter extends TextInputFormatter {
 // ─── 2D HSB gradient square ─────────────────────────────────────────────────
 
 class _GradientSquare extends StatelessWidget {
+  final double pickerSize;
   final double hue;
   final double saturation;
   final double brightness;
   final void Function(double saturation, double brightness) onChanged;
 
   const _GradientSquare({
+    required this.pickerSize,
     required this.hue,
     required this.saturation,
     required this.brightness,
@@ -672,8 +687,8 @@ class _GradientSquare extends StatelessWidget {
   });
 
   void _handle(Offset local) {
-    final s = (local.dx / _kPickerSize).clamp(0.0, 1.0);
-    final b = 1.0 - (local.dy / _kPickerSize).clamp(0.0, 1.0);
+    final s = (local.dx / pickerSize).clamp(0.0, 1.0);
+    final b = 1.0 - (local.dy / pickerSize).clamp(0.0, 1.0);
     onChanged(s, b);
   }
 
@@ -684,13 +699,13 @@ class _GradientSquare extends StatelessWidget {
       onPointerDown: (e) => _handle(e.localPosition),
       onPointerMove: (e) => _handle(e.localPosition),
       child: SizedBox(
-        width: _kPickerSize,
-        height: _kPickerSize,
+        width: pickerSize,
+        height: pickerSize,
         child: CustomPaint(
           painter: _HSBGradientPainter(hue: hue),
           foregroundPainter: _CrosshairPainter(
-            x: saturation * _kPickerSize,
-            y: (1 - brightness) * _kPickerSize,
+            x: saturation * pickerSize,
+            y: (1 - brightness) * pickerSize,
             hue: hue,
             saturation: saturation,
             brightness: brightness,
@@ -777,17 +792,19 @@ class _CrosshairPainter extends CustomPainter {
 // ─── Vertical hue slider ────────────────────────────────────────────────────
 
 class _VerticalHueSlider extends StatelessWidget {
+  final double pickerSize;
   final double value;
   final Color arrowColor;
   final ValueChanged<double> onChanged;
   const _VerticalHueSlider({
+    required this.pickerSize,
     required this.value,
     required this.arrowColor,
     required this.onChanged,
   });
 
   void _handle(Offset local) {
-    onChanged((local.dy / _kPickerSize).clamp(0.0, 1.0));
+    onChanged((local.dy / pickerSize).clamp(0.0, 1.0));
   }
 
   @override
@@ -798,7 +815,7 @@ class _VerticalHueSlider extends StatelessWidget {
       onPointerMove: (e) => _handle(e.localPosition),
       child: SizedBox(
         width: _kSliderTotalWidth,
-        height: _kPickerSize,
+        height: pickerSize,
         child: CustomPaint(
           painter: _HueSliderPainter(value: value, arrowColor: arrowColor),
         ),
@@ -853,11 +870,13 @@ class _HueSliderPainter extends CustomPainter {
 // ─── Horizontal opacity slider ──────────────────────────────────────────────
 
 class _HorizontalOpacitySlider extends StatelessWidget {
+  final double pickerSize;
   final double hue, saturation, brightness;
   final double value;
   final Color arrowColor;
   final ValueChanged<double> onChanged;
   const _HorizontalOpacitySlider({
+    required this.pickerSize,
     required this.hue,
     required this.saturation,
     required this.brightness,
@@ -867,7 +886,7 @@ class _HorizontalOpacitySlider extends StatelessWidget {
   });
 
   void _handle(Offset local) {
-    onChanged((local.dx / _kPickerSize).clamp(0.0, 1.0));
+    onChanged((local.dx / pickerSize).clamp(0.0, 1.0));
   }
 
   @override
@@ -879,7 +898,7 @@ class _HorizontalOpacitySlider extends StatelessWidget {
       onPointerDown: (e) => _handle(e.localPosition),
       onPointerMove: (e) => _handle(e.localPosition),
       child: SizedBox(
-        width: _kPickerSize,
+        width: pickerSize,
         height: _kSliderTotalWidth,
         child: CustomPaint(
           painter: _HorizontalOpacityPainter(
