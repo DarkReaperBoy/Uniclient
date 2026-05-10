@@ -1551,7 +1551,7 @@ class _CountrySelectBoxState extends State<_CountrySelectBox> {
   void initState() {
     super.initState();
     _scrollCtrl = ScrollController();
-    final idx = countries.indexWhere((c) => c.iso == widget.selected.iso);
+    final idx = _filtered.indexWhere((c) => c.iso == widget.selected.iso);
     if (idx >= 0) _selectedIndex = idx;
     HardwareKeyboard.instance.addHandler(_hardwareKeyHandler);
   }
@@ -1621,19 +1621,30 @@ class _CountrySelectBoxState extends State<_CountrySelectBox> {
   }
 
   List<CountryInfo> get _filtered {
-    if (_query.isEmpty) return countries.toList();
-    final queryWords = _query.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
-    return countries.where((c) {
-      final nameLower = c.name.toLowerCase();
-      final nameWords = nameLower.split(RegExp(r'[\s\-]+'));
-      for (final qw in queryWords) {
-        final matchesWord = nameWords.any((w) => w.startsWith(qw));
-        final matchesCode = c.dialCode.startsWith(qw);
-        final matchesIso = c.iso.toLowerCase().startsWith(qw);
-        if (!matchesWord && !matchesCode && !matchesIso) return false;
-      }
-      return true;
-    }).toList();
+    List<CountryInfo> list;
+    if (_query.isEmpty) {
+      list = countries.toList();
+    } else {
+      final queryWords = _query.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+      list = countries.where((c) {
+        final nameLower = c.name.toLowerCase();
+        final nameWords = nameLower.split(RegExp(r'[\s\-]+'));
+        for (final qw in queryWords) {
+          final matchesWord = nameWords.any((w) => w.startsWith(qw));
+          final matchesCode = c.dialCode.startsWith(qw);
+          final matchesIso = c.iso.toLowerCase().startsWith(qw);
+          if (!matchesWord && !matchesCode && !matchesIso) return false;
+        }
+        return true;
+      }).toList();
+    }
+    final selIso = widget.selected.iso;
+    final idx = list.indexWhere((c) => c.iso == selIso);
+    if (idx > 0) {
+      final sel = list.removeAt(idx);
+      list.insert(0, sel);
+    }
+    return list;
   }
 
   @override
