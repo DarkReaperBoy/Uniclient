@@ -575,25 +575,25 @@ The edit_mark_box is **functionally broken** — missing Cancel button, no input
 
 ## Edit Invite Link Box
 
-- [ ] [CRITICAL] Custom expiry date picker missing — AyuGram includes a `0` (Custom) option in the expiry radio list that opens a `ChooseDateTimeBox`; Dart only offers five hardcoded presets with no way to set an arbitrary date — `input_dialogs.dart:861-874` ← `AyuGram/ui/boxes/edit_invite_link.cpp:242-321`
+- [x] [CRITICAL] Custom expiry date picker missing — AyuGram includes a `0` (Custom) option in the expiry radio list that opens a `ChooseDateTimeBox`; Dart only offers five hardcoded presets with no way to set an arbitrary date — `input_dialogs.dart:861-874` ← `AyuGram/ui/boxes/edit_invite_link.cpp:242-321`
 
-- [ ] [CRITICAL] Custom usage limit input missing — AyuGram includes a `0` (Custom) option in the usage list that opens a `NumberInput` dialog; Dart only offers `Unlimited/1/10/100` — `input_dialogs.dart:869-874` ← `AyuGram/ui/boxes/edit_invite_link.cpp:323-369`
+- [x] [CRITICAL] Custom usage limit input missing — AyuGram includes a `0` (Custom) option in the usage list that opens a `NumberInput` dialog; Dart only offers `Unlimited/1/10/100` — `input_dialogs.dart:869-874` ← `AyuGram/ui/boxes/edit_invite_link.cpp:323-369`
 
-- [ ] [MAJOR] Default expiry is 30 days instead of Never — Dart initialises `_expireOption = 2592000` (30 days); AyuGram defaults to `kMaxLimit` (never expires) — `input_dialogs.dart:854` ← `AyuGram/ui/boxes/edit_invite_link.cpp:91` (`const auto expire = data.expireDate ? data.expireDate : kMaxLimit`)
+- [x] [MAJOR] Default expiry is 30 days instead of Never — Dart initialises `_expireOption = 2592000` (30 days); AyuGram defaults to `kMaxLimit` (never expires) — `input_dialogs.dart:854` ← `AyuGram/ui/boxes/edit_invite_link.cpp:91` (`const auto expire = data.expireDate ? data.expireDate : kMaxLimit`)
 
-- [ ] [MAJOR] No label max-length enforcement — AyuGram calls `labelField->setMaxLength(kMaxLabelLength)` (32 chars); Dart has no character limit on the label input — `input_dialogs.dart:968-972` ← `AyuGram/ui/boxes/edit_invite_link.cpp:29,171` (`constexpr auto kMaxLabelLength = 32`)
+- [x] [MAJOR] No label max-length enforcement — AyuGram calls `labelField->setMaxLength(kMaxLabelLength)` (32 chars); Dart has no character limit on the label input — `input_dialogs.dart:968-972` ← `AyuGram/ui/boxes/edit_invite_link.cpp:29,171` (`constexpr auto kMaxLabelLength = 32`)
 
 ## Create Poll Box
 
-- [ ] [CRITICAL] Max options cap is 10 instead of 32 — Dart returns early at 10 options (`if (_optionCtrls.length >= 10) return`); AyuGram sets `kMaxOptionsCount = PollData::kMaxOptions = 32` — `input_dialogs.dart:1142` ← `AyuGram/boxes/create_poll_box.cpp:104` and `AyuGram/data/data_poll.h:121`
+- [x] [CRITICAL] Max options cap is 10 instead of 32 — Dart returns early at 10 options (`if (_optionCtrls.length >= 10) return`); AyuGram sets `kMaxOptionsCount = PollData::kMaxOptions = 32` — `input_dialogs.dart:1142` ← `AyuGram/boxes/create_poll_box.cpp:104` and `AyuGram/data/data_poll.h:121`
 
-- [ ] [CRITICAL] Quiz mode missing correct answer selection — Dart's `CreatePollResult` has only `quiz: bool` with no `correctOptionIndex`; AyuGram renders a radio button per option (`enableChooseCorrect`) when quiz mode is toggled so users pick which answer is correct — required by the Telegram API — `input_dialogs.dart:1092-1106,1257-1260` ← `AyuGram/boxes/create_poll_box.cpp:2601-2608`
+- [x] [CRITICAL] Quiz mode missing correct answer selection — Dart's `CreatePollResult` has only `quiz: bool` with no `correctOptionIndex`; AyuGram renders a radio button per option (`enableChooseCorrect`) when quiz mode is toggled so users pick which answer is correct — required by the Telegram API — `input_dialogs.dart:1092-1106,1257-1260` ← `AyuGram/boxes/create_poll_box.cpp:2601-2608`
 
-- [ ] [CRITICAL] Quiz solution/explanation field missing — AyuGram shows a dedicated `setupSolution` text field (up to `kSolutionLimit = 200` chars) when quiz mode is enabled; Dart has no such field, making quiz polls uncreatable with explanations — `input_dialogs.dart:1122-1301` ← `AyuGram/boxes/create_poll_box.cpp:1370-1433,2740-2846`
+- [x] [CRITICAL] Quiz solution/explanation field missing — AyuGram shows a dedicated `setupSolution` text field (up to `kSolutionLimit = 200` chars) when quiz mode is enabled; Dart has no such field, making quiz polls uncreatable with explanations — `input_dialogs.dart:1122-1301` ← `AyuGram/boxes/create_poll_box.cpp:1370-1433,2740-2846`
 
-- [ ] [CRITICAL] No question character limit — AyuGram enforces `kQuestionLimit = 255` chars and shows a warning at 80; Dart applies no limit to the question field — `input_dialogs.dart:1195-1198` ← `AyuGram/boxes/create_poll_box.cpp:103,1247` (`question->setMaxLength(kQuestionLimit + kErrorLimit)`)
+- [x] [CRITICAL] No question character limit — AyuGram enforces `kQuestionLimit = 255` chars and shows a warning at 80; Dart applies no limit to the question field — `input_dialogs.dart:1195-1198` ← `AyuGram/boxes/create_poll_box.cpp:103,1247` (`question->setMaxLength(kQuestionLimit + kErrorLimit)`)
 
-- [ ] [CRITICAL] No option character limit — AyuGram enforces `kOptionLimit = 100` chars per option and warns at 30; Dart applies no limit — `input_dialogs.dart:1213-1216` ← `AyuGram/boxes/create_poll_box.cpp:105,372` (`_field->setMaxLength(kOptionLimit + kErrorLimit)`)
+- [x] [CRITICAL] No option character limit — AyuGram enforces `kOptionLimit = 100` chars per option and warns at 30; Dart applies no limit — `input_dialogs.dart:1213-1216` ← `AyuGram/boxes/create_poll_box.cpp:105,372` (`_field->setMaxLength(kOptionLimit + kErrorLimit)`)
 
 # instant_view — Critical wiring and missing block gaps
 
