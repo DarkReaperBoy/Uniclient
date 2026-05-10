@@ -627,19 +627,6 @@ The Dart emoji_data.dart implements a hardcoded static emoji search database, wh
 
 **Comparison Complete**: Feature is functionally wired and working, but architectural differences (static vs. server-sourced, no recent tracking, no variants) may cause divergence as Telegram's emoji support evolves.
 
-# notifications_settings_screen — Backend wiring completely absent; stubs; state not loaded
-
-## Critical — Backend disconnected
-
-
-## Major — Wrong initial state / performance
-
-- [ ] [MAJOR] `_privateExceptionCount`, `_groupExceptionCount`, `_channelExceptionCount` all start at 0 so the sub-row status text always reads "Click here to change" until the user opens and closes each sub-page; should be loaded from `session.data.notifySettings().exceptions(type).size()` on screen init — `notifications_settings_screen.dart:59-61` ← `AyuGram/settings/sections/settings_notifications.cpp:204-214`
-
-- [ ] [MAJOR] `_MonitorPainter.shouldRepaint` unconditionally returns `true`, causing a full canvas repaint on every parent rebuild; should compare selectedCorner/hoverCorner/barOpacities/isDark/accent — `notifications_settings_screen.dart:1130` ← `AyuGram/settings/sections/settings_notifications.cpp:340-413`
-
-- [ ] [MAJOR] Ringtones (custom tones list, selected tone ID) are purely in-memory local state with no backend synchronization; AyuGram loads ringtones from `session->api().ringtones()` (which fetches from Telegram servers via `account.getSavedRingtones`) — `notifications_settings_screen.dart:1734-1765` ← `AyuGram/settings/sections/settings_notifications.cpp:13` (api/api_ringtones.h included)
-
 # payment_panel — Audit findings
 
 - [ ] [CRITICAL] All section buttons (payment method, shipping address/method, name, email, phone) have empty `onTap: () {}` — tapping them does nothing in form mode. AyuGram routes each to a specific delegate method: `panelEditPaymentMethod()`, `panelEditShippingInformation()`, `panelChooseShippingOption()`, `panelEditName()`, `panelEditEmail()`, `panelEditPhone()`. The entire "edit" flow for every data field is dead. — `payment_panel.dart:768` ← `AyuGram/payments/ui/payments_form_summary.cpp:499-558`
