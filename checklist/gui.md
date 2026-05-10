@@ -481,7 +481,6 @@ All these controls exist in AppState but are not exposed in the UI.
 
 ---
 
-- [ ] [MAJOR] Color picker dialog overflows mobile viewport (400px): dialog `totalWidth = _kEditWidth + kBoxPadding.left + kBoxPadding.right = 390+48 = 438px` but mobile screen is only 400px wide, clipping the right 38px and making the field column (79px) barely visible. AyuGram is desktop-only and doesn't have this constraint, but our app must work at 400px. Fix: constrain `_kEditWidth` to `min(390, viewport_width - 48)` or use `ConstrainedBox` with `maxWidth: min(438, screenWidth)` — `color_picker_box.dart:17,324`
 
 # engine_service — Bridge/Service Layer Audit
 
