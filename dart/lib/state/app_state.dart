@@ -195,6 +195,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// Spec §24.6: Submit mode for compose field. Values: "enter", "ctrl_enter".
   String _sendBy = 'enter';
 
+  bool? _rememberedSendAsDocuments;
+
   /// Spec §7.3: When true, empty-field send button shows Round (camera) instead of Record (mic).
   bool _recordVideoMessages = false;
 
@@ -2040,6 +2042,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  bool? get rememberedSendAsDocuments => _rememberedSendAsDocuments;
+  set rememberedSendAsDocuments(bool? value) {
+    if (_rememberedSendAsDocuments != value) {
+      _rememberedSendAsDocuments = value;
+      _saveWindowPrefs();
+      notifyListeners();
+    }
+  }
+
   // §15: Notification settings getters/setters
   bool get notifDesktopNotify => _notifDesktopNotify;
   set notifDesktopNotify(bool v) { if (_notifDesktopNotify != v) { _notifDesktopNotify = v; _saveWindowPrefs(); notifyListeners(); } }
@@ -2759,6 +2770,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _mainMenuAccountsShown = data['mainMenuAccountsShown'] as bool? ?? false;
       _systemDarkMode = data['systemDarkMode'] as bool? ?? false;
       _sendBy = data['sendBy'] as String? ?? 'enter';
+      _rememberedSendAsDocuments = data['rememberedSendAsDocuments'] as bool?;
       _recordVideoMessages = data['recordVideoMessages'] as bool? ?? false;
       _powerSavingFlags = data['powerSavingFlags'] as int? ?? 0;
       _autoPowerSaving = data['autoPowerSaving'] as bool? ?? false;
@@ -3009,6 +3021,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'mainMenuAccountsShown': _mainMenuAccountsShown,
         'systemDarkMode': _systemDarkMode,
         'sendBy': _sendBy,
+        if (_rememberedSendAsDocuments != null) 'rememberedSendAsDocuments': _rememberedSendAsDocuments,
         'recordVideoMessages': _recordVideoMessages,
         'powerSavingFlags': _powerSavingFlags,
         'autoPowerSaving': _autoPowerSaving,

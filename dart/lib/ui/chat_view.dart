@@ -3951,6 +3951,7 @@ class _ChatViewState extends State<ChatView>
 
   Future<void> _uploadFiles(ChatState chatState, List<String> paths, {bool? overrideSendAsDocuments}) async {
     final chat = chatState.activeChat;
+    final appState = context.read<AppState>();
     final result = await showSendFilesBox(
       context,
       filePaths: paths,
@@ -3958,11 +3959,24 @@ class _ChatViewState extends State<ChatView>
       isSelfChat: chat != null && chat.title == 'Saved Messages' && chat.type == ChatType.dm,
       starsPerMessage: chat?.starsToSend ?? 0,
       isSlowMode: (chat?.slowmodeSeconds ?? 0) > 0,
-      overrideSendAsDocuments: overrideSendAsDocuments,
+      overrideSendAsDocuments: overrideSendAsDocuments ?? appState.rememberedSendAsDocuments,
     );
     if (result == null || result.paths.isEmpty) return;
-    for (final path in result.paths) {
-      chatState.uploadFile(path, caption: result.caption);
+    if (result.remember) {
+      appState.rememberedSendAsDocuments = result.sendAsDocuments;
+    }
+    final scheduleDate = result.scheduledDate != null
+        ? result.scheduledDate!.millisecondsSinceEpoch ~/ 1000
+        : 0;
+    for (var i = 0; i < result.paths.length; i++) {
+      final caption = result.perFileCaptions[i] ??
+          (i == 0 ? result.caption : '');
+      chatState.uploadFile(
+        result.paths[i],
+        caption: caption,
+        silent: result.silent,
+        scheduleDate: scheduleDate,
+      );
     }
   }
 

@@ -804,6 +804,8 @@ final List<_EmojiCategoryData> _emojiCategories = [
 
 List<String> _recentEmojis = [];
 
+List<String> getRecentEmojisList() => List.unmodifiable(_recentEmojis);
+
 class _EmojiTab extends StatefulWidget {
   final ValueChanged<String>? onEmojiSelected;
   final void Function(int documentId, String altText)? onCustomEmojiSelected;

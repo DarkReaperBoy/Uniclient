@@ -6567,6 +6567,8 @@ class EngineUploadFileRequest extends $pb.GeneratedMessage {
     $core.String? chatId,
     $core.String? filePath,
     $core.String? caption,
+    $core.bool? silent,
+    $core.int? scheduleDate,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -6581,6 +6583,12 @@ class EngineUploadFileRequest extends $pb.GeneratedMessage {
     if (caption != null) {
       $result.caption = caption;
     }
+    if (silent != null) {
+      $result.silent = silent;
+    }
+    if (scheduleDate != null) {
+      $result.scheduleDate = scheduleDate;
+    }
     return $result;
   }
   EngineUploadFileRequest._() : super();
@@ -6592,6 +6600,8 @@ class EngineUploadFileRequest extends $pb.GeneratedMessage {
     ..aOS(2, _omitFieldNames ? '' : 'chatId')
     ..aOS(3, _omitFieldNames ? '' : 'filePath')
     ..aOS(4, _omitFieldNames ? '' : 'caption')
+    ..aOB(5, _omitFieldNames ? '' : 'silent')
+    ..a<$core.int>(6, _omitFieldNames ? '' : 'scheduleDate', $pb.PbFieldType.O3)
     ..hasRequiredFields = false
   ;
 
@@ -6651,6 +6661,24 @@ class EngineUploadFileRequest extends $pb.GeneratedMessage {
   $core.bool hasCaption() => $_has(3);
   @$pb.TagNumber(4)
   void clearCaption() => clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.bool get silent => $_getBF(4);
+  @$pb.TagNumber(5)
+  set silent($core.bool v) { $_setBool(4, v); }
+  @$pb.TagNumber(5)
+  $core.bool hasSilent() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearSilent() => clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.int get scheduleDate => $_getIZ(5);
+  @$pb.TagNumber(6)
+  set scheduleDate($core.int v) { $_setSignedInt32(5, v); }
+  @$pb.TagNumber(6)
+  $core.bool hasScheduleDate() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearScheduleDate() => clearField(6);
 }
 
 class EngineUploadFileResponse extends $pb.GeneratedMessage {

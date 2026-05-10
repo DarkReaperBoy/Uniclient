@@ -8,12 +8,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-import '../models/engine_models.dart' show ChatType;
+import '../models/engine_models.dart' show ChatType, ScheduledMessages;
 import '../state/app_state.dart';
 import '../theme/telegram_palette.dart';
+import 'emoji_panel.dart' show getRecentEmojisList;
 import 'popup_menu.dart';
 import 'choose_datetime_box.dart';
 import 'photo_crop_editor.dart';
+import 'telegram_toast.dart' show showTelegramToast;
 
 const int _kCaptionMaxLength = 4096;
 const int _kCaptionWarnThreshold = 3900;
@@ -416,7 +418,44 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       return KeyEventResult.handled;
     }
 
+    if (ctrl && !shift && event.logicalKey == LogicalKeyboardKey.keyB) {
+      _wrapSelection('**', '**');
+      return KeyEventResult.handled;
+    }
+    if (ctrl && !shift && event.logicalKey == LogicalKeyboardKey.keyI) {
+      _wrapSelection('__', '__');
+      return KeyEventResult.handled;
+    }
+    if (ctrl && !shift && event.logicalKey == LogicalKeyboardKey.keyU) {
+      _wrapSelection('\u{0332}', '');
+      return KeyEventResult.handled;
+    }
+    if (ctrl && shift && event.logicalKey == LogicalKeyboardKey.keyM) {
+      _wrapSelection('`', '`');
+      return KeyEventResult.handled;
+    }
+    if (ctrl && shift && event.logicalKey == LogicalKeyboardKey.keyK) {
+      _wrapSelection('~~', '~~');
+      return KeyEventResult.handled;
+    }
+
     return KeyEventResult.ignored;
+  }
+
+  void _wrapSelection(String prefix, String suffix) {
+    final sel = _captionController.selection;
+    if (!sel.isValid) return;
+    final text = _captionController.text;
+    final selected = text.substring(sel.start, sel.end);
+    final newText = text.replaceRange(sel.start, sel.end, '$prefix$selected$suffix');
+    if (newText.length > _kCaptionMaxLength) return;
+    _captionController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection(
+        baseOffset: sel.start + prefix.length,
+        extentOffset: sel.start + prefix.length + selected.length,
+      ),
+    );
   }
 
   KeyEventResult _onDialogKey(FocusNode node, KeyEvent event) {
@@ -785,6 +824,45 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     }
   }
 
+  Future<void> _replaceFile(int idx, _PreparedFile replacement) async {
+    if (idx < 0 || idx >= _files.length) return;
+    try {
+      final result = await FilePicker.platform.pickFiles();
+      if (result == null || result.files.isEmpty || result.files.first.path == null) return;
+      final newPath = result.files.first.path!;
+      final f = File(newPath);
+      if (!f.existsSync()) return;
+      final name = f.uri.pathSegments.last;
+      final newFile = _PreparedFile(
+        path: newPath,
+        name: name,
+        size: f.lengthSync(),
+        type: _detectType(name),
+      );
+      setState(() => _files[idx] = newFile);
+      _loadImageDimensions();
+    } catch (_) {}
+  }
+
+  void _renameFile(int idx, String newName) {
+    if (idx < 0 || idx >= _files.length || newName.isEmpty) return;
+    setState(() {
+      final f = _files[idx];
+      _files[idx] = _PreparedFile(
+        path: f.path,
+        name: newName,
+        size: f.size,
+        type: f.type,
+        spoiler: f.spoiler,
+        hasThumb: f.hasThumb,
+      )
+        ..imageWidth = f.imageWidth
+        ..imageHeight = f.imageHeight
+        ..audioTitle = f.audioTitle
+        ..audioPerformer = f.audioPerformer;
+    });
+  }
+
   static _FileType _detectType(String name) {
     final ext = name.split('.').last.toLowerCase();
     if (ext == 'gif') return _FileType.file;
@@ -815,8 +893,12 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
   }
 
   Future<void> _addMoreFiles() async {
+    if (widget.isSlowMode && _files.isNotEmpty) {
+      showTelegramToast(context, 'Only one file can be sent in slow mode');
+      return;
+    }
     try {
-      final result = await FilePicker.platform.pickFiles(allowMultiple: true);
+      final result = await FilePicker.platform.pickFiles(allowMultiple: !widget.isSlowMode);
       if (result == null || result.files.isEmpty) return;
       final newFiles = result.files
           .where((f) => f.path != null)
@@ -831,13 +913,23 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
           type: _detectType(name),
         );
       }).toList();
-      setState(() => _files.addAll(newFiles));
+      if (widget.isSlowMode) {
+        setState(() => _files
+          ..clear()
+          ..add(newFiles.first));
+      } else {
+        setState(() => _files.addAll(newFiles));
+      }
       _loadImageDimensions();
     } catch (_) {}
   }
 
   void _addDroppedFiles(List<String> paths) {
     if (paths.isEmpty) return;
+    if (widget.isSlowMode && _files.isNotEmpty) {
+      showTelegramToast(context, 'Only one file can be sent in slow mode');
+      return;
+    }
     final newFiles = paths.where((p) {
       final f = File(p);
       return f.existsSync() && !FileSystemEntity.isDirectorySync(p);
@@ -853,7 +945,13 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
       );
     }).toList();
     if (newFiles.isEmpty) return;
-    setState(() => _files.addAll(newFiles));
+    if (widget.isSlowMode) {
+      setState(() => _files
+        ..clear()
+        ..add(newFiles.first));
+    } else {
+      setState(() => _files.addAll(newFiles));
+    }
     _loadImageDimensions();
   }
 
@@ -877,6 +975,26 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
 
   bool get _allSpoilered =>
       _files.where((f) => f.isMediaType).every((f) => f.spoiler);
+
+  String get _titleText {
+    if (_files.length == 1) {
+      final f = _files.first;
+      if (_sendAsDocuments) return 'Send file';
+      return switch (f.type) {
+        _FileType.photo => f.isGif ? 'Send GIF' : 'Send image',
+        _FileType.video => 'Send video',
+        _FileType.music => 'Send audio',
+        _FileType.file => 'Send file',
+      };
+    }
+    if (_sendAsDocuments) return 'Send ${_files.length} files';
+    final photos = _files.where((f) => f.type == _FileType.photo && !f.isGif).length;
+    final videos = _files.where((f) => f.type == _FileType.video).length;
+    if (photos == _files.length) return 'Send $photos images selected';
+    if (videos == _files.length) return 'Send $videos videos selected';
+    if (photos + videos == _files.length) return 'Send ${_files.length} media selected';
+    return 'Send ${_files.length} files selected';
+  }
 
   bool get _anySpoilered =>
       _files.any((f) => f.spoiler);
@@ -1007,7 +1125,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
         case 'schedule':
           _pickScheduleDate();
         case 'when_online':
-          _send();
+          _send(scheduledDate: DateTime.fromMillisecondsSinceEpoch(
+            ScheduledMessages.kScheduledUntilOnlineTimestamp * 1000,
+          ));
         case 'quality':
           setState(() => _sendLargePhotos = !_sendLargePhotos);
         case 'spoiler':
@@ -1026,7 +1146,9 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
     );
     if (result == null || !mounted) return;
     if (result.sendWhenOnline) {
-      _send();
+      _send(scheduledDate: DateTime.fromMillisecondsSinceEpoch(
+        ScheduledMessages.kScheduledUntilOnlineTimestamp * 1000,
+      ));
     } else {
       _send(scheduledDate: result.dateTime);
     }
@@ -1093,7 +1215,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
         if (paths.isNotEmpty) {
           if (wasPhotoZone && _computeDragZoneMode() == _DragZoneMode.both) {
             if (_sendAsDocuments) setState(() => _sendAsDocuments = false);
-          } else if (!wasPhotoZone) {
+          } else if (!wasPhotoZone && _hasMediaFiles) {
             if (!_sendAsDocuments) setState(() => _sendAsDocuments = true);
           }
           _addDroppedFiles(paths);
@@ -1119,7 +1241,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                 children: [
                   Expanded(
                     child: Text(
-                      _files.length == 1 ? 'Send file' : 'Send ${_files.length} files',
+                      _titleText,
                       style: TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.w600,
@@ -1169,6 +1291,8 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog>
                           if (idx >= 0) _toggleSpoiler(idx);
                         },
                         onReorder: _reorderMediaFiles,
+                        onReplace: _replaceFile,
+                        onRename: _renameFile,
                         canSpoiler: _canSpoiler,
                         sendLargePhotos: _sendLargePhotos,
                       ),
@@ -1480,6 +1604,8 @@ class _MediaPreview extends StatelessWidget {
   final void Function(_PreparedFile) onRemove;
   final void Function(_PreparedFile) onToggleSpoiler;
   final void Function(int, int) onReorder;
+  final void Function(int index, _PreparedFile replacement)? onReplace;
+  final void Function(int index, String newName)? onRename;
   final bool canSpoiler;
   final bool sendLargePhotos;
 
@@ -1489,6 +1615,8 @@ class _MediaPreview extends StatelessWidget {
     required this.onRemove,
     required this.onToggleSpoiler,
     required this.onReorder,
+    this.onReplace,
+    this.onRename,
     required this.canSpoiler,
     required this.sendLargePhotos,
   });
@@ -1511,6 +1639,8 @@ class _MediaPreview extends StatelessWidget {
       onRemove: onRemove,
       onToggleSpoiler: onToggleSpoiler,
       onReorder: onReorder,
+      onReplace: onReplace,
+      onRename: onRename,
       canSpoiler: canSpoiler,
       sendLargePhotos: sendLargePhotos,
     );
@@ -1688,6 +1818,8 @@ class _AlbumPreview extends StatefulWidget {
   final void Function(_PreparedFile) onRemove;
   final void Function(_PreparedFile) onToggleSpoiler;
   final void Function(int fromIndex, int toIndex) onReorder;
+  final void Function(int index, _PreparedFile replacement)? onReplace;
+  final void Function(int index, String newName)? onRename;
   final bool canSpoiler;
   final bool sendLargePhotos;
 
@@ -1697,6 +1829,8 @@ class _AlbumPreview extends StatefulWidget {
     required this.onRemove,
     required this.onToggleSpoiler,
     required this.onReorder,
+    this.onReplace,
+    this.onRename,
     required this.canSpoiler,
     required this.sendLargePhotos,
   });
@@ -1788,28 +1922,127 @@ class _AlbumPreviewState extends State<_AlbumPreview>
   }
 
   void _showThumbMenu(BuildContext context, Offset position, _PreparedFile file) {
+    final allIdx = widget.allFiles.indexOf(file);
     showTelegramMenu<String>(
       context: context,
       position: position,
       items: [
-        TelegramMenuItem(
-          value: 'spoiler',
-          icon: Icon(file.spoiler ? Icons.check : Icons.blur_on),
-          label: 'Spoiler effect',
+        const TelegramMenuItem(
+          value: 'replace',
+          icon: Icon(Icons.swap_horiz),
+          label: 'Replace attachment',
         ),
+        if (file.type == _FileType.photo)
+          const TelegramMenuItem(
+            value: 'edit',
+            icon: Icon(Icons.edit_outlined),
+            label: 'Open in photo editor',
+          ),
+        if (!file.isMediaType)
+          const TelegramMenuItem(
+            value: 'rename',
+            icon: Icon(Icons.drive_file_rename_outline),
+            label: 'Rename file',
+          ),
+        if (widget.canSpoiler && file.isMediaType)
+          TelegramMenuItem(
+            value: 'spoiler',
+            icon: Icon(file.spoiler ? Icons.check : Icons.blur_on),
+            label: 'Spoiler effect',
+          ),
+        if (widget.allFiles.length > 1)
+          const TelegramMenuItem(
+            value: 'remove',
+            icon: Icon(Icons.delete_outline),
+            label: 'Remove',
+          ),
       ],
     ).then((value) {
-      if (value == 'spoiler') widget.onToggleSpoiler(file);
+      if (value == null) return;
+      switch (value) {
+        case 'spoiler':
+          widget.onToggleSpoiler(file);
+        case 'replace':
+          _replaceFile(allIdx);
+        case 'edit':
+          _openEditor(file);
+        case 'rename':
+          _renameFile(allIdx, file);
+        case 'remove':
+          widget.onRemove(file);
+      }
+    });
+  }
+
+  Future<void> _replaceFile(int idx) async {
+    if (idx < 0) return;
+    try {
+      final result = await FilePicker.platform.pickFiles();
+      if (result == null || result.files.isEmpty || result.files.first.path == null) return;
+      final newPath = result.files.first.path!;
+      final f = File(newPath);
+      if (!f.existsSync()) return;
+      final name = f.uri.pathSegments.last;
+      widget.onReplace?.call(idx, _PreparedFile(
+        path: newPath,
+        name: name,
+        size: f.lengthSync(),
+        type: _SendFilesBoxDialogState._detectType(name),
+      ));
+    } catch (_) {}
+  }
+
+  void _renameFile(int idx, _PreparedFile file) {
+    final ctrl = TextEditingController(text: file.name);
+    showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Rename file'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          onSubmitted: (v) => Navigator.of(ctx).pop(v),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(ctrl.text),
+            child: const Text('Rename'),
+          ),
+        ],
+      ),
+    ).then((newName) {
+      if (newName != null && newName.isNotEmpty && newName != file.name) {
+        widget.onRename?.call(idx, newName);
+      }
     });
   }
 
   void _openEditor(_PreparedFile file) {
     if (file.type != _FileType.photo) return;
+    final allIdx = widget.allFiles.indexOf(file);
+    if (allIdx < 0) return;
     PhotoCropEditor.open(
       context,
       imageFile: File(file.path),
       shape: PhotoCropShape.rect,
       purpose: PhotoEditorPurpose.edit,
+      onDone: (croppedFile) async {
+        if (!mounted) return;
+        final codec = await ui.instantiateImageCodec(await croppedFile.readAsBytes());
+        final frame = await codec.getNextFrame();
+        final replacement = _PreparedFile(
+          path: croppedFile.path,
+          name: file.name,
+          size: croppedFile.lengthSync(),
+          type: _FileType.photo,
+          spoiler: file.spoiler,
+        )
+          ..imageWidth = frame.image.width.toDouble()
+          ..imageHeight = frame.image.height.toDouble()
+          ..hasThumb = true;
+        widget.onReplace?.call(allIdx, replacement);
+      },
     );
   }
 
@@ -2872,7 +3105,7 @@ class _EmojiQuickPanel extends StatelessWidget {
     required this.onPick,
   });
 
-  static const _recentEmojis = [
+  static const _defaultEmojis = [
     '\u{1F600}', '\u{1F602}', '\u{1F60D}', '\u{1F622}', '\u{1F44D}',
     '\u{1F44F}', '\u{1F525}', '\u{2764}', '\u{1F389}', '\u{1F60E}',
     '\u{1F914}', '\u{1F631}', '\u{1F4AF}', '\u{1F60A}', '\u{1F642}',
@@ -2883,6 +3116,8 @@ class _EmojiQuickPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final recent = getRecentEmojisList();
+    final emojis = recent.isNotEmpty ? recent.take(30).toList() : _defaultEmojis;
     final bg = isDark ? const Color(0xFF1E2C38) : const Color(0xFFF5F5F5);
     return Container(
       height: 120,
@@ -2898,14 +3133,14 @@ class _EmojiQuickPanel extends StatelessWidget {
           mainAxisSpacing: 4,
           crossAxisSpacing: 4,
         ),
-        itemCount: _recentEmojis.length,
+        itemCount: emojis.length,
         itemBuilder: (ctx, i) {
           return GestureDetector(
-            onTap: () => onPick(_recentEmojis[i]),
+            onTap: () => onPick(emojis[i]),
             behavior: HitTestBehavior.opaque,
             child: Center(
               child: Text(
-                _recentEmojis[i],
+                emojis[i],
                 style: const TextStyle(fontSize: 22),
               ),
             ),
