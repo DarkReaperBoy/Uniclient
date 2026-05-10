@@ -569,10 +569,6 @@ The edit_mark_box is **functionally broken** — missing Cancel button, no input
 - Grouped messages won't be filtered correctly
 - Cache will leak memory over time
 
-# folders_settings_screen — Audit
-
-- [ ] [CRITICAL] `_TagsToggleState._onToggle` debounce timer is a stub with an empty body and comment "Debounced server request would go here" — folder tags toggle setting is never persisted to backend — `folders_settings_screen.dart:987-989` ← `AyuGramDesktop/Telegram/SourceFiles/settings/settings_folders.cpp` (filter update calls `session->api().request()` to persist filter changes immediately)
-
 # forum_topic_icon — Audit Findings
 
 - [ ] [CRITICAL] `_bubblePathD` coordinates don't match AyuGram SVG source — Dart uses slightly different control-point values throughout the entire path (e.g. first point `M42,4.42105263` vs AyuGram `M42,4.47368421`, `80.5789474` vs `80.5263158`, etc.), so the rendered bubble outline shape deviates from the spec — `forum_topic_icon.dart:123` ← `AyuGramDesktop/Telegram/Resources/art/topic_icons/blue.svg:18`
@@ -582,10 +578,6 @@ The edit_mark_box is **functionally broken** — missing Cancel button, no input
 - [ ] [MAJOR] Default fallback palette is blue instead of gray — when `colorId` is not one of the six known values, Dart falls back to `topicIconPalettes[0x6FB9F0]` (blue), whereas AyuGram's `ForumTopicDefaultIcon()` returns `"gray"` causing it to load `gray.svg` (neutral gray gradient); topics with unrecognised color IDs render with wrong gradient — `forum_topic_icon.dart:58` ← `AyuGramDesktop/Telegram/SourceFiles/data/data_forum_topic.cpp:71`
 
 # ghost_settings_page — Ghost Settings Page Audit
-
-- [ ] [CRITICAL] `sendWithoutSound` is stored and rendered as a `bool` toggle, but AyuGram defines it as `SendWithoutSoundOption` enum with three values (Never=0, InGhostMode=1, Always=2) rendered as a 3-option dropdown — `ghost_settings_page.dart:165-171` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ayu_settings.h:48-83` and `settings_ayu.cpp:504-544`
-
-- [ ] [CRITICAL] `suggestGhostModeBeforeViewingStory` toggle is entirely missing — AyuGram includes it in the ghost essentials section after the sendWithoutSound button; no AppState field or UI widget for it exists in Dart — `ghost_settings_page.dart` (absent) ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_ayu.cpp:547-564`
 
 - [ ] [CRITICAL] Account picker `onScopeChanged` callback silently drops the `userId` argument — selecting account A only calls `setUseGlobalGhostMode(false)` and ignores which account was chosen, so all ghost toggles always reflect the active/global account rather than the picker-selected account; AyuGram maintains a per-page `state->selectedUserId` that drives all lockable-toggle reads and writes — `ghost_settings_page.dart:60-69` ← `AyuGramDesktop/Telegram/SourceFiles/ayu/ui/settings/settings_ayu.cpp:283-346`
 
