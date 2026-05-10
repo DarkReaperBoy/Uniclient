@@ -546,28 +546,6 @@ The edit_mark_box is **functionally broken** — missing Cancel button, no input
 
 # ayu_filter — Regex filter engine audit
 
-## Critical Issues Found
-
-- [ ] [CRITICAL] **Media type mapping is incorrect** — `ayu_filter.dart:119-128` ← `AyuGramDesktop/.../filters_utils.cpp:534-638`
-  - Input type 4 (voice) maps to 15 (animated sticker in AyuGram), should map to 2 (TYPE_VOICE)
-  - Input type 5 (videonote) maps to 12 (contact in AyuGram), should map to 5 (TYPE_ROUND_VIDEO)
-  - Input type 7 (gif) maps to 11 (action photo in AyuGram), should map to 8 (TYPE_GIF)
-  - Missing many media types: service messages (10), contact (12), poll (17), location (4), stories (23-24), gifts (18,25,30), giveaways (26,28), paid media (29), emojis (19), etc.
-  - The full `typeOfMessage()` function in AyuGram returns 30 distinct codes; Dart only maps 8 input types to ~7 output codes
-  - Result: Media-based filtering will fail for ~70% of message types in AyuGram Desktop
-
-- [ ] [CRITICAL] **Shadow-ban check missing conditional** — `ayu_filter.dart:307-314` ← `AyuGramDesktop/.../filters_controller.cpp:95-136`
-  - Dart: Filters ALL messages from shadow-banned users regardless of context
-  - AyuGram: Only filters messages from shadow-banned users if `item->from() != item->history()->peer` (i.e., NOT in 1:1 conversations with the user)
-  - Dart code: `if (appState.isShadowBanned(senderId)) return true;` (no peer context check)
-  - AyuGram code: `if (isShadowBanned(item->from()) && item->from()->id != item->history()->peer->id) { shadowBanMatched = true; return true; }`
-  - Result: Messages from shadow-banned users in private chats will be incorrectly hidden (should only hide messages about them, not from them in 1:1s)
-
-- [ ] [CRITICAL] **Missing group/album message handling** — `ayu_filter.dart:130-178` ← `AyuGramDesktop/.../filters_utils.cpp:658-685`
-  - Dart: Extracts text only from single message (`msg.contentText` + inline entities)
-  - AyuGram: Extracts text from ALL items in a message group/album, concatenates with `\n`
-  - CachedMessage has no group reference, so cannot implement this without model change
-  - Result: When filtering grouped messages (photo albums with captions), only the first message is checked; other grouped items aren't matched
 
 ## Major Issues Found
 
