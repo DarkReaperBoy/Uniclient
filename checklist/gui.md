@@ -573,14 +573,6 @@ The edit_mark_box is **functionally broken** — missing Cancel button, no input
 
 # input_dialogs — Input Dialogs Audit
 
-## Username Box
-
-- [ ] [CRITICAL] Multiple usernames not supported — Dart only has a single username field; AyuGram uses `UsernamesList` widget alongside the editor, allowing up to 32 usernames per account with reordering — `input_dialogs.dart:80-329` ← `AyuGram/boxes/username_box.cpp:362-393`
-
-- [ ] [MAJOR] Debounce timer is 400 ms instead of 200 ms — `input_dialogs.dart:194` ← `AyuGram/boxes/peers/edit_peer_common.h:17` (`kUsernameCheckTimeout = crl::time(200)`)
-
-- [ ] [MAJOR] `@` prefix rejected by regex — AyuGram's `changed()` allows `@` only at index 0 and strips it in `getName()` before sending to API; Dart's `^[a-zA-Z][a-zA-Z0-9_]{4,31}$` rejects `@myusername` with "invalid" error — `input_dialogs.dart:119,179-186` ← `AyuGram/boxes/username_box.cpp:209-213` (`ch != '@' || i > 0`) and `310` (`replace('@', QString())`)
-
 ## Add Contact Box
 
 - [ ] [MAJOR] Default country hardcoded to `US` — AyuGram pre-fills country code from the session user's own phone via `Countries::ExtractPhoneCode(session->user()->phone())`; Dart always defaults to US regardless of user locale — `input_dialogs.dart:380` ← `AyuGram/boxes/add_contact_box.cpp:304`
