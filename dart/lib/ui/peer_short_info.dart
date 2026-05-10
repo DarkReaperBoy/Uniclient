@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
@@ -114,18 +117,25 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
   int _photoCount = 1;
   int _currentPhotoIndex = 0;
   final ScrollController _scrollController = ScrollController();
-  double _scrollOffset = 0;
+  final ValueNotifier<double> _scrollNotifier = ValueNotifier(0.0);
   final FocusNode _focusNode = FocusNode();
   bool _showRadialLoader = false;
   Player? _videoPlayer;
   VideoController? _videoController;
+  String _statusText = '';
+  int _liveMemberCount = 0;
+  StreamSubscription<UserStatusEvent>? _statusSub;
+  StreamSubscription<ChatInfo>? _chatUpdateSub;
+  String? _currentPhotoPath;
 
   @override
   void initState() {
     super.initState();
+    _liveMemberCount = widget.memberCount;
     _scrollController.addListener(_onScroll);
     _focusNode.requestFocus();
     _loadProfile();
+    _subscribeToEvents();
     Future.delayed(_kRadialFadeDelay, () {
       if (mounted && _loadingProfile) {
         setState(() => _showRadialLoader = true);
@@ -133,10 +143,77 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
     });
   }
 
+  void _subscribeToEvents() {
+    final engine = context.read<EngineService>();
+    if (_isDm) {
+      _statusSub = engine.onUserStatus.listen((event) {
+        if (event.userId == widget.peerId &&
+            event.accountId == widget.accountId &&
+            mounted) {
+          setState(() {
+            _statusText = _computeStatusFromEvent(event);
+          });
+        }
+      });
+    }
+    _chatUpdateSub = engine.onChatUpdated.listen((chat) {
+      if (chat.chatId == widget.peerId &&
+          chat.accountId == widget.accountId &&
+          mounted) {
+        if (chat.memberCount > 0 && chat.memberCount != _liveMemberCount) {
+          setState(() => _liveMemberCount = chat.memberCount);
+        }
+      }
+    });
+  }
+
+  String _computeStatusFromEvent(UserStatusEvent event) {
+    if (event.isOnline) return 'online';
+    switch (event.lastSeenKind) {
+      case 'online':
+        return 'online';
+      case 'recently':
+        return 'last seen recently';
+      case 'within_week':
+        return 'last seen within a week';
+      case 'within_month':
+        return 'last seen within a month';
+      case 'long_ago':
+        return 'last seen a long time ago';
+      case 'hidden':
+        return 'last seen recently';
+      case 'exact':
+        if (event.lastSeenMs > 0) {
+          final dt =
+              DateTime.fromMillisecondsSinceEpoch(event.lastSeenMs);
+          final now = DateTime.now();
+          final diff = now.difference(dt);
+          if (diff.inMinutes < 1) return 'last seen just now';
+          if (diff.inMinutes < 60) {
+            return 'last seen ${diff.inMinutes} min ago';
+          }
+          if (diff.inHours < 24) {
+            return 'last seen ${diff.inHours}h ago';
+          }
+          final months = [
+            'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+            'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+          ];
+          return 'last seen ${months[dt.month - 1]} ${dt.day}';
+        }
+        return 'last seen recently';
+      default:
+        return 'last seen recently';
+    }
+  }
+
   @override
   void dispose() {
+    _statusSub?.cancel();
+    _chatUpdateSub?.cancel();
     _disposeVideoPlayer();
     _scrollController.dispose();
+    _scrollNotifier.dispose();
     _focusNode.dispose();
     super.dispose();
   }
@@ -160,16 +237,7 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
   void _onScroll() {
     if (!_scrollController.hasClients) return;
     final offset = _scrollController.offset.clamp(0.0, double.infinity);
-    if (offset != _scrollOffset) {
-      setState(() => _scrollOffset = offset);
-    }
-  }
-
-  double get _labelOpacity {
-    final fadeEnd = _kCoverSize - _kShadowHeight;
-    if (_scrollOffset <= 0) return 1.0;
-    if (_scrollOffset >= fadeEnd) return 0.0;
-    return (1.0 - _scrollOffset / fadeEnd).clamp(0.0, 1.0);
+    _scrollNotifier.value = offset;
   }
 
   Future<void> _loadProfile() async {
@@ -183,8 +251,12 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
           _profile = profile;
           _loadingProfile = false;
           _showRadialLoader = false;
+          if (profile != null) {
+            _statusText = _computeInitialStatus(profile);
+          }
         });
         _initVideoIfAvailable();
+        _fetchPhotoCount();
       }
     } catch (_) {
       if (mounted) {
@@ -196,12 +268,47 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
     }
   }
 
+  String _computeInitialStatus(UserProfile profile) {
+    if (profile.isBot) return 'bot';
+    return 'last seen recently';
+  }
+
+  Future<void> _fetchPhotoCount() async {
+    if (!_isDm) return;
+    try {
+      final engine = context.read<EngineService>();
+      final count =
+          await engine.getUserPhotoCount(widget.accountId, widget.peerId);
+      if (mounted && count > 0) {
+        setState(() => _photoCount = count);
+      }
+    } catch (_) {}
+  }
+
   void _navigatePhoto(int delta) {
     if (_photoCount <= 1) return;
+    final newIndex = (_currentPhotoIndex + delta) % _photoCount;
+    final idx = newIndex < 0 ? newIndex + _photoCount : newIndex;
     setState(() {
-      _currentPhotoIndex = (_currentPhotoIndex + delta) % _photoCount;
-      if (_currentPhotoIndex < 0) _currentPhotoIndex += _photoCount;
+      _currentPhotoIndex = idx;
+      _currentPhotoPath = null;
     });
+    _fetchPhotoAtIndex(idx);
+  }
+
+  Future<void> _fetchPhotoAtIndex(int index) async {
+    if (index == 0) {
+      setState(() => _currentPhotoPath = null);
+      return;
+    }
+    try {
+      final engine = context.read<EngineService>();
+      final path = await engine.getUserPhotoAtIndex(
+          widget.accountId, widget.peerId, index);
+      if (mounted && _currentPhotoIndex == index && path != null) {
+        setState(() => _currentPhotoPath = path);
+      }
+    } catch (_) {}
   }
 
   void _showContextMenu(BuildContext context, Offset position) {
@@ -239,13 +346,12 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
   bool get _isSelf {
     try {
       final chatState = context.read<ChatState>();
-      final chat = chatState.activeChat;
-      if (chat != null &&
-          chat.title == 'Saved Messages' &&
-          widget.peerId == chat.chatId) {
-        return true;
-      }
-      return false;
+      final chat = chatState.chats
+          .where((c) =>
+              c.chatId == widget.peerId &&
+              c.accountId == widget.accountId)
+          .firstOrNull;
+      return chat?.isSelf ?? false;
     } catch (_) {
       return false;
     }
@@ -311,11 +417,17 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
     return Stack(
       clipBehavior: Clip.hardEdge,
       children: [
-        Positioned(
-          top: -_scrollOffset * _kParallaxFactor,
-          left: 0,
-          right: 0,
-          height: _kCoverSize,
+        ValueListenableBuilder<double>(
+          valueListenable: _scrollNotifier,
+          builder: (context, scrollOffset, child) {
+            return Positioned(
+              top: -scrollOffset * _kParallaxFactor,
+              left: 0,
+              right: 0,
+              height: _kCoverSize,
+              child: child!,
+            );
+          },
           child: _buildCoverBackground(isDark),
         ),
         RawScrollbar(
@@ -346,12 +458,14 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
   }
 
   Widget _buildCoverBackground(bool isDark) {
-    final hasAvatar = widget.avatarPath.isNotEmpty;
+    final photoPath = _currentPhotoPath ?? widget.avatarPath;
+    final hasAvatar = photoPath.isNotEmpty;
 
     Widget staticImage;
     if (hasAvatar) {
       staticImage = Image.file(
-        File(widget.avatarPath),
+        File(photoPath),
+        key: ValueKey(photoPath),
         fit: BoxFit.cover,
         width: _kCoverSize,
         height: _kCoverSize,
@@ -402,169 +516,185 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
 
     String statusText;
     if (_isDm) {
-      statusText = _profile?.isBot == true ? 'bot' : 'last seen recently';
+      statusText = _statusText.isNotEmpty
+          ? _statusText
+          : (_profile?.isBot == true ? 'bot' : 'last seen recently');
     } else if (_isChannel) {
-      statusText = widget.memberCount > 0
-          ? '${_formatCount(widget.memberCount)} subscribers'
+      statusText = _liveMemberCount > 0
+          ? '${_formatCount(_liveMemberCount)} subscribers'
           : 'channel';
     } else {
-      statusText = widget.memberCount > 0
-          ? '${_formatCount(widget.memberCount)} members'
+      statusText = _liveMemberCount > 0
+          ? '${_formatCount(_liveMemberCount)} members'
           : 'group';
     }
 
     final topBarAreaHeight = _kBarPadding * 2 + _kBarHeight;
-    final opacity = _labelOpacity;
 
     return SizedBox(
       width: _kCoverSize,
       height: _kCoverSize,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Positioned(
-            left: 0,
-            right: 0,
-            top: 0,
-            height: topBarAreaHeight + 10,
-            child: Opacity(
-              opacity: opacity,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.black.withValues(alpha: _kShadowMaxAlpha),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height: _kShadowHeight,
-            child: Opacity(
-              opacity: opacity,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withValues(alpha: _kShadowMaxAlpha),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          if (_photoCount > 1)
-            Positioned(
-              left: _kBarPadding,
-              right: _kBarPadding,
-              top: _kBarPadding,
-              height: _kBarHeight,
-              child: Opacity(
-                opacity: opacity,
-                child: CustomPaint(
-                  painter: _PhotoProgressBarsPainter(
-                    count: _photoCount,
-                    activeIndex: _currentPhotoIndex,
-                    barColor: Colors.white,
-                    gap: _kBarGap,
-                    inactiveOpacity: _kInactiveBarOpacity,
-                  ),
-                ),
-              ),
-            ),
-          Positioned(
-            left: _kNameX,
-            right: _kNameX,
-            bottom: _kNameY,
-            child: Opacity(
-              opacity: opacity,
-              child: Text(
-                displayName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  height: 1.27,
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            left: _kStatusX,
-            right: _kStatusX,
-            bottom: _kStatusY,
-            child: Opacity(
-              opacity: opacity,
-              child: Text(
-                statusText,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.7),
-                  fontSize: 13,
-                ),
-              ),
-            ),
-          ),
-          if (_photoCount > 1) ...[
-            Positioned(
-              left: 0,
-              top: 0,
-              bottom: 0,
-              width: _kCoverSize / 3,
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: GestureDetector(
-                  onTap: () => _navigatePhoto(-1),
-                  behavior: HitTestBehavior.opaque,
-                ),
-              ),
-            ),
-            Positioned(
-              left: _kCoverSize / 3,
-              top: 0,
-              bottom: 0,
-              right: 0,
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: GestureDetector(
-                  onTap: () => _navigatePhoto(1),
-                  behavior: HitTestBehavior.opaque,
-                ),
-              ),
-            ),
-          ],
-          if (_showRadialLoader)
-            Positioned.fill(
-              child: Center(
-                child: AnimatedOpacity(
-                  opacity: 1.0,
-                  duration: _kAnimDuration,
-                  child: SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white.withValues(alpha: 0.8),
+      child: ValueListenableBuilder<double>(
+        valueListenable: _scrollNotifier,
+        builder: (context, scrollOffset, _) {
+          final fadeEnd = _kCoverSize - _kShadowHeight;
+          double opacity;
+          if (scrollOffset <= 0) {
+            opacity = 1.0;
+          } else if (scrollOffset >= fadeEnd) {
+            opacity = 0.0;
+          } else {
+            opacity = (1.0 - scrollOffset / fadeEnd).clamp(0.0, 1.0);
+          }
+
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              Positioned(
+                left: 0,
+                right: 0,
+                top: 0,
+                height: topBarAreaHeight + 10,
+                child: Opacity(
+                  opacity: opacity,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withValues(alpha: _kShadowMaxAlpha),
+                          Colors.transparent,
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-        ],
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: _kShadowHeight,
+                child: Opacity(
+                  opacity: opacity,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: _kShadowMaxAlpha),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              if (_photoCount > 1)
+                Positioned(
+                  left: _kBarPadding,
+                  right: _kBarPadding,
+                  top: _kBarPadding,
+                  height: _kBarHeight,
+                  child: Opacity(
+                    opacity: opacity,
+                    child: CustomPaint(
+                      painter: _PhotoProgressBarsPainter(
+                        count: _photoCount,
+                        activeIndex: _currentPhotoIndex,
+                        barColor: Colors.white,
+                        gap: _kBarGap,
+                        inactiveOpacity: _kInactiveBarOpacity,
+                      ),
+                    ),
+                  ),
+                ),
+              Positioned(
+                left: _kNameX,
+                right: _kNameX,
+                bottom: _kNameY,
+                child: Opacity(
+                  opacity: opacity,
+                  child: Text(
+                    displayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      height: 1.27,
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: _kStatusX,
+                right: _kStatusX,
+                bottom: _kStatusY,
+                child: Opacity(
+                  opacity: opacity,
+                  child: Text(
+                    statusText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ),
+              if (_photoCount > 1) ...[
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: _kCoverSize / 3,
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: () => _navigatePhoto(-1),
+                      behavior: HitTestBehavior.opaque,
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: _kCoverSize / 3,
+                  top: 0,
+                  bottom: 0,
+                  right: 0,
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: () => _navigatePhoto(1),
+                      behavior: HitTestBehavior.opaque,
+                    ),
+                  ),
+                ),
+              ],
+              if (_showRadialLoader)
+                Positioned.fill(
+                  child: Center(
+                    child: AnimatedOpacity(
+                      opacity: 1.0,
+                      duration: _kAnimDuration,
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white.withValues(alpha: 0.8),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -600,6 +730,18 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
           valueColor: valueColor,
           copyText: p.personalChannelName,
           copyLabel: 'Channel name copied',
+          onTap: () {
+            if (p.personalChannelId.isNotEmpty) {
+              Navigator.of(context).pop();
+              final chatState = context.read<ChatState>();
+              final chat = chatState.chats
+                  .where((c) =>
+                      c.chatId == p.personalChannelId &&
+                      c.accountId == widget.accountId)
+                  .firstOrNull;
+              if (chat != null) chatState.openChat(chat);
+            }
+          },
         ));
       }
 
@@ -621,10 +763,12 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
           labelColor: labelColor,
           valueColor: valueColor,
           multiLine: true,
+          parseEntities: true,
         ));
       }
 
       if (p.username.isNotEmpty) {
+        final usernameLink = 'https://t.me/${p.username}';
         rows.add(_infoRow(
           label: 'Username',
           value: '@${p.username}',
@@ -632,6 +776,8 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
           valueColor: valueColor,
           copyText: '@${p.username}',
           copyLabel: 'Copy Mention',
+          onTap: () => launchUrl(Uri.parse(usernameLink),
+              mode: LaunchMode.externalApplication),
         ));
       }
 
@@ -654,17 +800,21 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
           labelColor: labelColor,
           valueColor: valueColor,
           multiLine: true,
+          parseEntities: true,
         ));
       }
     } else {
       if (p.username.isNotEmpty) {
+        final link = 'https://t.me/${p.username}';
         rows.add(_infoRow(
           label: 'Link',
           value: 't.me/${p.username}',
           labelColor: labelColor,
           valueColor: valueColor,
-          copyText: 'https://t.me/${p.username}',
+          copyText: link,
           copyLabel: 'Link copied',
+          onTap: () => launchUrl(Uri.parse(link),
+              mode: LaunchMode.externalApplication),
         ));
       }
 
@@ -675,6 +825,7 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
           labelColor: labelColor,
           valueColor: valueColor,
           multiLine: true,
+          parseEntities: true,
         ));
       }
     }
@@ -701,10 +852,72 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
     bool multiLine = false,
     String? copyText,
     String? copyLabel,
+    VoidCallback? onTap,
+    bool parseEntities = false,
   }) {
     final displayValue =
         multiLine ? value : value.replaceAll(' ', ' ');
-    return Padding(
+
+    Widget valueWidget;
+    if (parseEntities) {
+      valueWidget = SelectableText.rich(
+        _parseTextWithEntities(displayValue, valueColor, labelColor),
+        maxLines: multiLine ? null : 1,
+        contextMenuBuilder: copyText != null
+            ? (ctx, editableTextState) {
+                return AdaptiveTextSelectionToolbar(
+                  anchors: editableTextState.contextMenuAnchors,
+                  children: [
+                    TextSelectionToolbarTextButton(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 16),
+                      onPressed: () {
+                        Clipboard.setData(
+                            ClipboardData(text: copyText));
+                        editableTextState.hideToolbar();
+                        showTelegramToast(
+                            context, 'Copied to clipboard');
+                      },
+                      child: Text(copyLabel ?? 'Copy'),
+                    ),
+                  ],
+                );
+              }
+            : null,
+      );
+    } else {
+      valueWidget = SelectableText(
+        displayValue,
+        maxLines: multiLine ? null : 1,
+        style: TextStyle(
+          color: onTap != null ? labelColor : valueColor,
+          fontSize: 14,
+        ),
+        contextMenuBuilder: copyText != null
+            ? (ctx, editableTextState) {
+                return AdaptiveTextSelectionToolbar(
+                  anchors: editableTextState.contextMenuAnchors,
+                  children: [
+                    TextSelectionToolbarTextButton(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 16),
+                      onPressed: () {
+                        Clipboard.setData(
+                            ClipboardData(text: copyText));
+                        editableTextState.hideToolbar();
+                        showTelegramToast(
+                            context, 'Copied to clipboard');
+                      },
+                      child: Text(copyLabel ?? 'Copy'),
+                    ),
+                  ],
+                );
+              }
+            : null,
+      );
+    }
+
+    Widget content = Padding(
       padding: const EdgeInsets.fromLTRB(
         _kInfoPaddingH,
         _kInfoPaddingTop,
@@ -722,38 +935,70 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
             ),
           ),
           const SizedBox(height: 2),
-          SelectableText(
-            displayValue,
-            maxLines: multiLine ? null : 1,
-            style: TextStyle(
-              color: valueColor,
-              fontSize: 14,
-            ),
-            contextMenuBuilder: copyText != null
-                ? (ctx, editableTextState) {
-                    return AdaptiveTextSelectionToolbar(
-                      anchors: editableTextState.contextMenuAnchors,
-                      children: [
-                        TextSelectionToolbarTextButton(
-                          padding:
-                              const EdgeInsets.symmetric(horizontal: 16),
-                          onPressed: () {
-                            Clipboard.setData(
-                                ClipboardData(text: copyText));
-                            editableTextState.hideToolbar();
-                            showTelegramToast(
-                                context, 'Copied to clipboard');
-                          },
-                          child: Text(copyLabel ?? 'Copy'),
-                        ),
-                      ],
-                    );
-                  }
-                : null,
-          ),
+          valueWidget,
         ],
       ),
     );
+
+    if (onTap != null) {
+      content = GestureDetector(
+        onTap: onTap,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: content,
+        ),
+      );
+    }
+
+    return content;
+  }
+
+  TextSpan _parseTextWithEntities(
+      String text, Color defaultColor, Color linkColor) {
+    final urlRegex = RegExp(
+        r'(https?://[^\s<>\)\]]+)|(@\w+)|(#\w+)',
+        caseSensitive: false);
+    final matches = urlRegex.allMatches(text).toList();
+    if (matches.isEmpty) {
+      return TextSpan(
+        text: text,
+        style: TextStyle(color: defaultColor, fontSize: 14),
+      );
+    }
+    final spans = <InlineSpan>[];
+    int lastEnd = 0;
+    for (final m in matches) {
+      if (m.start > lastEnd) {
+        spans.add(TextSpan(
+          text: text.substring(lastEnd, m.start),
+          style: TextStyle(color: defaultColor, fontSize: 14),
+        ));
+      }
+      final matchText = m.group(0)!;
+      spans.add(TextSpan(
+        text: matchText,
+        style: TextStyle(color: linkColor, fontSize: 14),
+        recognizer: TapGestureRecognizer()
+          ..onTap = () {
+            String url = matchText;
+            if (matchText.startsWith('@')) {
+              url = 'https://t.me/${matchText.substring(1)}';
+            } else if (matchText.startsWith('#')) {
+              return;
+            }
+            launchUrl(Uri.parse(url),
+                mode: LaunchMode.externalApplication);
+          },
+      ));
+      lastEnd = m.end;
+    }
+    if (lastEnd < text.length) {
+      spans.add(TextSpan(
+        text: text.substring(lastEnd),
+        style: TextStyle(color: defaultColor, fontSize: 14),
+      ));
+    }
+    return TextSpan(children: spans);
   }
 
   String _formatPhone(String phone) {

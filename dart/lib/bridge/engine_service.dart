@@ -3086,6 +3086,39 @@ class EngineService {
     }
   }
 
+  Future<int> getUserPhotoCount(String accountId, String userId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'user_id': userId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetUserPhotoCount', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return 1;
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return (data['count'] as num?)?.toInt() ?? 1;
+    } catch (e) {
+      Debug.error('ENGINE', 'getUserPhotoCount failed', e);
+      return 1;
+    }
+  }
+
+  Future<String?> getUserPhotoAtIndex(String accountId, String userId, int index) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'user_id': userId,
+      'index': index,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetUserPhotoAtIndex', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return data['path'] as String?;
+    } catch (e) {
+      Debug.error('ENGINE', 'getUserPhotoAtIndex failed', e);
+      return null;
+    }
+  }
+
   Future<List<Map<String, dynamic>>> getCommonChats(String accountId, String userId, {int limit = 100}) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

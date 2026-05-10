@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../bridge/engine_service.dart';
 import '../theme/telegram_palette.dart';
@@ -120,6 +121,7 @@ class _PaymentPanelState extends State<PaymentPanel>
   String? _savedName;
   String? _savedEmail;
   String? _savedPhone;
+  List<Map<String, dynamic>> _shippingPrices = [];
 
   int _receiptDate = 0;
   int _tipAmount = 0;
@@ -202,8 +204,31 @@ class _PaymentPanelState extends State<PaymentPanel>
           }
         }
 
+        final savedCreds = data['saved_credentials'] as Map<String, dynamic>?;
+        if (savedCreds != null) {
+          _paymentMethod = savedCreds['title'] as String?;
+        }
+
         if (_isReceipt) {
-          _shippingMethod = (data['shipping_option'] as String?) ?? null;
+          _shippingMethod = data['shipping_option'] as String?;
+          _paymentMethod = data['credentials_title'] as String?;
+        }
+
+        final shippingOptions = data['shipping_options'] as List<dynamic>?;
+        if (shippingOptions != null && shippingOptions.isNotEmpty) {
+          final selectedId = data['selected_shipping_id'] as String?;
+          if (selectedId != null) {
+            for (final opt in shippingOptions) {
+              if (opt is Map<String, dynamic> && opt['id'] == selectedId) {
+                _shippingMethod = opt['title'] as String?;
+                _shippingPrices = (opt['prices'] as List<dynamic>?)
+                        ?.map((p) => p as Map<String, dynamic>)
+                        .toList() ??
+                    [];
+                break;
+              }
+            }
+          }
         }
 
         _state = _PanelState.form;
@@ -263,6 +288,22 @@ class _PaymentPanelState extends State<PaymentPanel>
             const Text(
               'By completing this payment, you agree to the Terms of Service of the payment provider.',
             ),
+            if (_termsUrl.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: () => launchUrl(Uri.parse(_termsUrl),
+                    mode: LaunchMode.externalApplication),
+                child: Text(
+                  _termsUrl,
+                  style: const TextStyle(
+                    color: Colors.blue,
+                    decoration: TextDecoration.underline,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             Row(
               children: [
@@ -289,17 +330,35 @@ class _PaymentPanelState extends State<PaymentPanel>
     );
   }
 
+  static int _currencyExponent(String code) {
+    switch (code.toUpperCase()) {
+      case 'JPY': case 'KRW': case 'CLP': case 'ISK':
+      case 'PYG': case 'UGX': case 'VND': case 'VUV':
+      case 'XAF': case 'XOF': case 'XPF': case 'RWF':
+      case 'GNF': case 'KMF': case 'DJF': case 'MGA':
+        return 0;
+      case 'BHD': case 'IQD': case 'JOD': case 'KWD':
+      case 'LYD': case 'OMR': case 'TND':
+        return 3;
+      default:
+        return 2;
+    }
+  }
+
   String _formatAmount(int amount, String currency) {
     final isNeg = amount < 0;
     final abs = amount.abs();
-    final major = abs ~/ 100;
-    final minor = abs % 100;
+    final exp = _currencyExponent(currency);
+    int divisor = 1;
+    for (int i = 0; i < exp; i++) divisor *= 10;
+    final major = abs ~/ divisor;
+    final minor = abs % divisor;
     final sym = _currencySymbol(currency);
     String s;
-    if (minor == 0) {
+    if (exp == 0 || minor == 0) {
       s = '$sym$major';
     } else {
-      s = '$sym$major.${minor.toString().padLeft(2, '0')}';
+      s = '$sym$major.${minor.toString().padLeft(exp, '0')}';
     }
     return isNeg ? '-$s' : s;
   }
@@ -434,9 +493,9 @@ class _PaymentPanelState extends State<PaymentPanel>
   Widget _buildLoading(Color subFg) {
     return Center(
       child: AnimatedBuilder(
-        animation: _spinnerAnim,
+        animation: Listenable.merge([_spinnerAnim, _progressFade]),
         builder: (_, __) => Opacity(
-          opacity: _kProgressOpacity,
+          opacity: _progressFade.value.clamp(0.0, 1.0),
           child: SizedBox(
             width: _kProgressSize,
             height: _kProgressSize,
@@ -490,6 +549,16 @@ class _PaymentPanelState extends State<PaymentPanel>
         _buildCoverSection(fg, subFg),
         Divider(height: 1, color: divider),
         const SizedBox(height: _kPricesTopSkip),
+        if (_isReceipt && _receiptDate > 0) ...[
+          Padding(
+            padding: _kPricePadding,
+            child: _priceRow(
+                'Date', _formatReceiptDate(_receiptDate), fg, subFg, true),
+          ),
+          const SizedBox(height: _kPricesBottomSkip),
+          Divider(height: 1, color: divider),
+          const SizedBox(height: _kPricesTopSkip),
+        ],
         _buildPricesSection(fg, subFg, currency),
         if (_suggestedTips.isNotEmpty && !_isReceipt) ...[
           const SizedBox(height: 4),
@@ -498,24 +567,17 @@ class _PaymentPanelState extends State<PaymentPanel>
         if (_isReceipt && _tipAmount > 0) ...[
           Padding(
             padding: _kPricePadding,
-            child: _priceRow('Tips', _formatAmount(_tipAmount, currency), fg,
-                subFg, false),
+            child: GestureDetector(
+              onTap: () => _panelChooseTips(currency, accent, fg, isDark),
+              child: _priceRow('Tips', _formatAmount(_tipAmount, currency), fg,
+                  accent, false),
+            ),
           ),
         ],
         const SizedBox(height: _kPricesBottomSkip),
         Divider(height: 1, color: divider),
         const SizedBox(height: _kSectionsTopSkip),
         _buildSectionButtons(fg, subFg, divider),
-        if (_isReceipt && _receiptDate > 0) ...[
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 28),
-            child: Text(
-              'Date: ${_formatReceiptDate(_receiptDate)}',
-              style: TextStyle(fontSize: 13, color: subFg),
-            ),
-          ),
-        ],
         if (_formData['native_provider'] != null) ...[
           const SizedBox(height: 12),
           Padding(
@@ -646,6 +708,9 @@ class _PaymentPanelState extends State<PaymentPanel>
     for (final p in _prices) {
       sum += (p['amount'] as num?)?.toInt() ?? 0;
     }
+    for (final p in _shippingPrices) {
+      sum += (p['amount'] as num?)?.toInt() ?? 0;
+    }
     return sum;
   }
 
@@ -765,7 +830,7 @@ class _PaymentPanelState extends State<PaymentPanel>
       children: [
         for (final section in sections)
           InkWell(
-            onTap: _isReceipt ? null : () {},
+            onTap: _isReceipt ? null : () => _onSectionTap(section.label),
             child: Padding(
               padding: _kSectionButtonPadding,
               child: Row(
@@ -801,6 +866,135 @@ class _PaymentPanelState extends State<PaymentPanel>
             ),
           ),
       ],
+    );
+  }
+
+  void _onSectionTap(String sectionLabel) {
+    switch (sectionLabel) {
+      case 'Payment Method':
+        _editPaymentMethod();
+      case 'Shipping Address':
+        _editField('Shipping Address', _shippingAddress ?? '', (v) {
+          setState(() => _shippingAddress = v);
+        });
+      case 'Shipping Method':
+        break;
+      case 'Name':
+        _editField('Name', _savedName ?? '', (v) {
+          setState(() => _savedName = v);
+        });
+      case 'Email':
+        _editField('Email', _savedEmail ?? '', (v) {
+          setState(() => _savedEmail = v);
+        });
+      case 'Phone':
+        _editField('Phone', _savedPhone ?? '', (v) {
+          setState(() => _savedPhone = v);
+        });
+    }
+  }
+
+  void _editPaymentMethod() {
+    final url = _formData['url'] as String?;
+    if (url != null && url.isNotEmpty) {
+      launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    } else {
+      final nativeParams = _formData['native_params'] as Map<String, dynamic>?;
+      final providerUrl = nativeParams?['url'] as String?;
+      if (providerUrl != null && providerUrl.isNotEmpty) {
+        launchUrl(Uri.parse(providerUrl), mode: LaunchMode.externalApplication);
+      }
+    }
+  }
+
+  void _editField(String label, String currentValue, ValueChanged<String> onSave) {
+    final controller = TextEditingController(text: currentValue);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Edit $label'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: InputDecoration(
+            hintText: 'Enter $label',
+            border: const OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              onSave(controller.text);
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _panelChooseTips(
+      String currency, Color accent, Color fg, bool isDark) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Custom Tip'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: 'Enter tip amount',
+                prefixText: _currencySymbol(currency),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            if (_suggestedTips.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                children: _suggestedTips.map((tip) {
+                  return ActionChip(
+                    label: Text(_formatAmount(tip, currency)),
+                    onPressed: () {
+                      setState(() => _selectedTip = tip);
+                      Navigator.of(ctx).pop();
+                    },
+                  );
+                }).toList(),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              final val = int.tryParse(controller.text);
+              if (val != null && val >= 0 && val <= _maxTip) {
+                final exp = _currencyExponent(currency);
+                int multiplier = 1;
+                for (int i = 0; i < exp; i++) multiplier *= 10;
+                setState(() => _selectedTip = val * multiplier);
+              }
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('Set'),
+          ),
+        ],
+      ),
     );
   }
 
