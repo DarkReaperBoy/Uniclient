@@ -270,7 +270,41 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
 
   String _computeInitialStatus(UserProfile profile) {
     if (profile.isBot) return 'bot';
-    return 'last seen recently';
+    if (profile.isOnline) return 'online';
+    switch (profile.lastSeenKind) {
+      case 'online':
+        return 'online';
+      case 'recently':
+      case 'hidden':
+        return 'last seen recently';
+      case 'within_week':
+        return 'last seen within a week';
+      case 'within_month':
+        return 'last seen within a month';
+      case 'long_ago':
+        return 'last seen a long time ago';
+      case 'exact':
+        if (profile.lastSeen > 0) {
+          final dt = DateTime.fromMillisecondsSinceEpoch(profile.lastSeen);
+          final now = DateTime.now();
+          final diff = now.difference(dt);
+          if (diff.inMinutes < 1) return 'last seen just now';
+          if (diff.inMinutes < 60) {
+            return 'last seen ${diff.inMinutes} min ago';
+          }
+          if (diff.inHours < 24) {
+            return 'last seen ${diff.inHours}h ago';
+          }
+          final months = [
+            'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+            'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+          ];
+          return 'last seen ${months[dt.month - 1]} ${dt.day}';
+        }
+        return 'last seen recently';
+      default:
+        return 'last seen recently';
+    }
   }
 
   Future<void> _fetchPhotoCount() async {
@@ -509,6 +543,17 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
     return staticImage;
   }
 
+  String _computeAdditionalStatus() {
+    if (!_isDm || _profile == null) return '';
+    if (_currentPhotoIndex == 0 && _profile!.hasPersonalPhoto) {
+      return 'Set by you';
+    }
+    if (_photoCount > 1 && _currentPhotoIndex == _photoCount - 1) {
+      return 'Public photo';
+    }
+    return '';
+  }
+
   Widget _buildCoverOverlay(ThemeData theme, bool isDark) {
     final displayName = _profile?.displayName.isNotEmpty == true
         ? _profile!.displayName
@@ -528,6 +573,8 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
           ? '${_formatCount(_liveMemberCount)} members'
           : 'group';
     }
+
+    final additionalStatus = _computeAdditionalStatus();
 
     final topBarAreaHeight = _kBarPadding * 2 + _kBarHeight;
 
@@ -630,6 +677,24 @@ class _PeerShortInfoBoxState extends State<_PeerShortInfoBox> {
                   ),
                 ),
               ),
+              if (additionalStatus.isNotEmpty)
+                Positioned(
+                  left: _kStatusX,
+                  right: _kStatusX,
+                  bottom: _kStatusY + 16,
+                  child: Opacity(
+                    opacity: opacity,
+                    child: Text(
+                      additionalStatus,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.5),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ),
               Positioned(
                 left: _kStatusX,
                 right: _kStatusX,

@@ -134,6 +134,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV31,
 	migrateV32,
 	migrateV33,
+	migrateV34,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -721,6 +722,20 @@ func migrateV32(tx *sql.Tx) error {
 func migrateV33(tx *sql.Tx) error {
 	if !columnExists(tx, "chats", "is_admin") {
 		if _, err := tx.Exec(`ALTER TABLE chats ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0`); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func migrateV34(tx *sql.Tx) error {
+	if !columnExists(tx, "users", "last_seen_kind") {
+		if _, err := tx.Exec(`ALTER TABLE users ADD COLUMN last_seen_kind TEXT`); err != nil {
+			return err
+		}
+	}
+	if !columnExists(tx, "users", "has_personal_photo") {
+		if _, err := tx.Exec(`ALTER TABLE users ADD COLUMN has_personal_photo INTEGER NOT NULL DEFAULT 0`); err != nil {
 			return err
 		}
 	}

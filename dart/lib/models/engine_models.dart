@@ -1620,9 +1620,13 @@ class UserProfile {
   final String phone;
   final String bio;
   final bool isBot;
+  final bool isOnline;
   final bool isContact;
   final bool isBlocked;
   final String botMenuText;
+  final int lastSeen;
+  final String lastSeenKind;
+  final bool hasPersonalPhoto;
   final int birthdayDay;
   final int birthdayMonth;
   final int birthdayYear;
@@ -1642,9 +1646,13 @@ class UserProfile {
     this.phone = '',
     this.bio = '',
     this.isBot = false,
+    this.isOnline = false,
     this.isContact = false,
     this.isBlocked = false,
     this.botMenuText = '',
+    this.lastSeen = 0,
+    this.lastSeenKind = '',
+    this.hasPersonalPhoto = false,
     this.birthdayDay = 0,
     this.birthdayMonth = 0,
     this.birthdayYear = 0,
@@ -1667,9 +1675,13 @@ class UserProfile {
     phone: j['phone'] as String? ?? '',
     bio: j['bio'] as String? ?? '',
     isBot: j['is_bot'] as bool? ?? false,
+    isOnline: j['is_online'] as bool? ?? false,
     isContact: j['is_contact'] as bool? ?? false,
     isBlocked: j['is_blocked'] as bool? ?? false,
     botMenuText: j['bot_menu_text'] as String? ?? '',
+    lastSeen: j['last_seen'] as int? ?? 0,
+    lastSeenKind: j['last_seen_kind'] as String? ?? '',
+    hasPersonalPhoto: j['has_personal_photo'] as bool? ?? false,
     birthdayDay: j['birthday_day'] as int? ?? 0,
     birthdayMonth: j['birthday_month'] as int? ?? 0,
     birthdayYear: j['birthday_year'] as int? ?? 0,

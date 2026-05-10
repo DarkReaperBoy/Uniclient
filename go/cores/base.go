@@ -162,6 +162,7 @@ type User struct {
 	PersonalChannelName    string `json:"personal_channel_name,omitempty"`
 	VoiceMessagesForbidden bool   `json:"voice_messages_forbidden,omitempty"`
 	ContactRequirePremium  bool   `json:"contact_require_premium,omitempty"`
+	HasPersonalPhoto       bool   `json:"has_personal_photo,omitempty"`
 	BannedRights           map[string]bool `json:"banned_rights,omitempty"`
 }
 

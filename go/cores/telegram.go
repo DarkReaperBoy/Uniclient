@@ -15533,6 +15533,7 @@ func (t *TelegramCore) GetFullUser(userID string) (*User, error) {
 			}
 			cu.VoiceMessagesForbidden = result.FullUser.VoiceMessagesForbidden
 			cu.ContactRequirePremium = result.FullUser.ContactRequirePremium
+			_, cu.HasPersonalPhoto = result.FullUser.GetPersonalPhoto()
 			return cu, nil
 		}
 	}
