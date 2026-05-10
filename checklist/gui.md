@@ -587,13 +587,6 @@ The edit_mark_box is **functionally broken** — missing Cancel button, no input
 
 # language_box — Language box audit
 
-- [ ] [CRITICAL] Selecting a language does not call any engine method to switch the app language. `_selectLanguage` only calls `appState.addRecentLanguage()` and pops the dialog. AyuGram calls `Lang::CurrentCloudManager().switchToLanguage(language)` which downloads and applies the language pack from Telegram's servers. — `language_box.dart:86-90` ← `AyuGram/boxes/language_box.cpp:1379-1392`
-
-- [ ] [CRITICAL] Translation toggle settings (Show Translate Button, Translate Entire Chats) are never persisted. All callbacks go to `AppState` only; no engine calls are made from this file (only 1 engine call exists: `getLanguages`). AyuGram calls `Core::App().settings().setTranslateButtonEnabled()` + `saveSettingsDelayed()` and `setTranslateChatEnabled()` + `saveSettingsDelayed()`. — `language_box.dart:168,177` ← `AyuGram/boxes/language_box.cpp:1433-1470`
-
-- [ ] [CRITICAL] Skip-translation language selection not persisted via engine. `appState.setSkipTranslationLanguages()` is in-memory only. AyuGram calls `Core::App().settings().setSkipTranslationLanguages()` + `Core::App().saveSettingsDelayed()`. — `language_box.dart:704` ← `AyuGram/boxes/translate_box.cpp:141-145`
-
-- [ ] [CRITICAL] Language removal/restore is not persisted to local storage. `appState.addRemovedLanguage()` and `appState.restoreRemovedLanguage()` are in-memory only. AyuGram calls `Local::removeRecentLanguage(row->data.id)` on delete and `Local::saveRecentLanguages(...)` on restore. — `language_box.dart:605-608` ← `AyuGram/boxes/language_box.cpp:520-534`
 
 # emoji_data — Static emoji database vs. server-sourced
 
