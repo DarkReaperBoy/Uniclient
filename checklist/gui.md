@@ -640,15 +640,6 @@ The Dart emoji_data.dart implements a hardcoded static emoji search database, wh
 
 ## CRITICAL
 
-- [ ] [CRITICAL] File extensions "Save" button closes dialog without persisting data — `privacy_settings_screen.dart:1129-1131` ← `AyuGramDesktop/Telegram/SourceFiles/settings/sections/settings_privacy_security.cpp:385-399`
-  - Dart: `onPressed: () { Navigator.of(ctx).pop(); }` — no engine call whatsoever
-  - AyuGram reads the extensions text, splits, creates a `flat_set<QString>`, calls `settings->setNoWarningExtensions()`, then saves to disk via `Account::saveSettings()`
-  - The entire "No-Warning Extensions" feature is a UI shell with zero backend effect
-
-- [ ] [CRITICAL] Login Email row has empty `onTap: () {}` stub — `privacy_settings_screen.dart:691` ← `AyuGramDesktop/Telegram/SourceFiles/settings/cloud_password/settings_cloud_password_login_email.cpp:50-119`
-  - Row is visible when `_loginEmailPattern.isNotEmpty` (line 683), but tap does nothing
-  - AyuGram has a full `LoginEmail` step that opens an email input field, calls `Api::RequestLoginEmailCode`, then navigates to `LoginEmailConfirm` for code verification
-  - Tapping the displayed email pattern in Dart: no navigation, no action
 
 ## MAJOR
 
