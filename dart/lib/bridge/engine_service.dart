@@ -4165,6 +4165,30 @@ class EngineService {
     }
   }
 
+  Future<void> saveLanguagePrefs(String accountId, Map<String, dynamic> prefs) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'prefs': prefs,
+    }));
+    try {
+      await _callAsync('__engine', 'SaveLanguagePrefs', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'saveLanguagePrefs failed', e);
+    }
+  }
+
+  Future<Map<String, dynamic>> loadLanguagePrefs(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final respBytes = await _callAsync('__engine', 'LoadLanguagePrefs', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return {};
+      return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    } catch (e) {
+      Debug.error('ENGINE', 'loadLanguagePrefs failed', e);
+      return {};
+    }
+  }
+
   // ─�� Privacy Settings ──
 
   Future<Map<String, dynamic>?> getPrivacySetting(String accountId, String key) async {

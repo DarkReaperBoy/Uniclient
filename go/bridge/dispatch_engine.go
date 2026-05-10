@@ -3666,6 +3666,32 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(langs)
 
+	case "SaveLanguagePrefs":
+		var params struct {
+			AccountID string          `json:"account_id"`
+			Prefs     json.RawMessage `json:"prefs"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		if err := e.SaveLanguagePrefs(params.AccountID, params.Prefs); err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]bool{"ok": true})
+
+	case "LoadLanguagePrefs":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		data, err := e.LoadLanguagePrefs(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return data, nil
+
 	case "GetPrivacySetting":
 		var params struct {
 			AccountID string `json:"account_id"`

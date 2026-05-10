@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -1731,6 +1732,32 @@ func (e *Engine) GetLanguages(accountID string) ([]LanguageInfo, error) {
 		return result, nil
 	}
 	return nil, fmt.Errorf("not supported")
+}
+
+func (e *Engine) SaveLanguagePrefs(accountID string, data json.RawMessage) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account %q not found", accountID)
+	}
+	dir := filepath.Join(e.configDir, "accounts", acc.ID)
+	os.MkdirAll(dir, 0o755)
+	return os.WriteFile(filepath.Join(dir, "language_prefs.json"), data, 0o644)
+}
+
+func (e *Engine) LoadLanguagePrefs(accountID string) (json.RawMessage, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account %q not found", accountID)
+	}
+	path := filepath.Join(e.configDir, "accounts", acc.ID, "language_prefs.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return json.RawMessage("{}"), nil
+		}
+		return nil, err
+	}
+	return json.RawMessage(data), nil
 }
 
 type connectedBotsGetter interface {

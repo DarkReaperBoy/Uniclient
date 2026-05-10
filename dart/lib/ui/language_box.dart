@@ -175,9 +175,25 @@ class _LanguageBoxState extends State<LanguageBox> {
   }
 
   void _selectLanguage(String langCode) {
-    context.read<AppState>().addRecentLanguage(langCode);
+    final appState = context.read<AppState>();
+    appState.addRecentLanguage(langCode);
+    _persistLanguagePrefs(appState);
     setState(() => _selectedCode = langCode);
     Navigator.of(context).pop(langCode);
+  }
+
+  void _persistLanguagePrefs(AppState appState) {
+    final engine = context.read<EngineService>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+    engine.saveLanguagePrefs(accountId, {
+      'selectedLanguage': appState.selectedLanguageCode,
+      'showTranslateButton': appState.showTranslateButton,
+      'translateEntireChats': appState.translateEntireChats,
+      'skipTranslationLanguages': appState.skipTranslationLanguages,
+      'recentLanguageCodes': appState.recentLanguageCodes,
+      'removedLanguageCodes': appState.removedLanguageCodes,
+    });
   }
 
   String _skipLangsLabel(AppState appState) {
@@ -256,7 +272,10 @@ class _LanguageBoxState extends State<LanguageBox> {
                 isDark: isDark,
                 textColor: textColor,
                 hoverColor: hoverColor,
-                onChanged: (v) => appState.setShowTranslateButton(v),
+                onChanged: (v) {
+                  appState.setShowTranslateButton(v);
+                  _persistLanguagePrefs(appState);
+                },
               ),
               _ToggleRow(
                 label: 'Translate Entire Chats',
@@ -265,7 +284,10 @@ class _LanguageBoxState extends State<LanguageBox> {
                 textColor: textColor,
                 hoverColor: hoverColor,
                 locked: true,
-                onChanged: (v) => appState.setTranslateEntireChats(v),
+                onChanged: (v) {
+                  appState.setTranslateEntireChats(v);
+                  _persistLanguagePrefs(appState);
+                },
               ),
               AnimatedSize(
                 duration: const Duration(milliseconds: 200),
@@ -673,6 +695,20 @@ class _LangMenuToggle extends StatelessWidget {
     );
   }
 
+  void _persistLanguagePrefs(BuildContext context, AppState appState) {
+    final engine = context.read<EngineService>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+    engine.saveLanguagePrefs(accountId, {
+      'selectedLanguage': appState.selectedLanguageCode,
+      'showTranslateButton': appState.showTranslateButton,
+      'translateEntireChats': appState.translateEntireChats,
+      'skipTranslationLanguages': appState.skipTranslationLanguages,
+      'recentLanguageCodes': appState.recentLanguageCodes,
+      'removedLanguageCodes': appState.removedLanguageCodes,
+    });
+  }
+
   void _showLangContextMenu(BuildContext context) async {
     final box = context.findRenderObject() as RenderBox;
     final pos = box.localToGlobal(Offset(box.size.width, box.size.height / 2));
@@ -722,8 +758,10 @@ class _LangMenuToggle extends StatelessWidget {
         }
       case 'delete':
         appState.addRemovedLanguage(lang.langCode);
+        _persistLanguagePrefs(context, appState);
       case 'restore':
         appState.restoreRemovedLanguage(lang.langCode);
+        _persistLanguagePrefs(context, appState);
     }
   }
 }
@@ -820,7 +858,20 @@ class _SkipLanguagesEditorState extends State<_SkipLanguagesEditor> {
         _selected.add(langCode);
       }
     });
-    context.read<AppState>().setSkipTranslationLanguages(_selected.toList());
+    final appState = context.read<AppState>();
+    appState.setSkipTranslationLanguages(_selected.toList());
+    final engine = context.read<EngineService>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isNotEmpty) {
+      engine.saveLanguagePrefs(accountId, {
+        'selectedLanguage': appState.selectedLanguageCode,
+        'showTranslateButton': appState.showTranslateButton,
+        'translateEntireChats': appState.translateEntireChats,
+        'skipTranslationLanguages': appState.skipTranslationLanguages,
+        'recentLanguageCodes': appState.recentLanguageCodes,
+        'removedLanguageCodes': appState.removedLanguageCodes,
+      });
+    }
   }
 
   @override
