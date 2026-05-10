@@ -4105,6 +4105,20 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.ReorderDialogFilters(params.AccountID, params.FilterIDs)
 
+	case "ToggleDialogFilterTags":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Enabled   bool   `json:"enabled"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		ok, err := e.ToggleDialogFilterTags(params.AccountID, params.Enabled)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]bool{"ok": ok})
+
 	// ── Forum Topics with Offset ──
 
 	case "GetForumTopicsWithOffset":

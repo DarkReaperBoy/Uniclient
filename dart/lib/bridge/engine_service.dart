@@ -780,6 +780,21 @@ class EngineService {
     await _callAsync('__engine', 'DeleteFolder', req.writeToBuffer());
   }
 
+  Future<bool> toggleDialogFilterTags(String accountId, bool enabled) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'enabled': enabled,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'ToggleDialogFilterTags', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return false;
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return data['ok'] as bool? ?? false;
+    } catch (e) {
+      return false;
+    }
+  }
+
   // ── Folder Invite Links ──
 
   Future<List<ChatlistInviteLink>> getFolderInviteLinks(String accountId, int folderId) async {

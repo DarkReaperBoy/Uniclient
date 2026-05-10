@@ -985,7 +985,11 @@ class _TagsToggleState extends State<_TagsToggle> {
     widget.onChanged(v);
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 500), () {
-      // Debounced server request would go here.
+      final engine = context.read<EngineService>();
+      final accountId = context.read<AppState>().activeAccount?.id ?? '';
+      if (accountId.isNotEmpty) {
+        engine.toggleDialogFilterTags(accountId, v);
+      }
     });
   }
 

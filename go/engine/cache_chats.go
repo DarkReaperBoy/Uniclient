@@ -751,6 +751,22 @@ func (e *Engine) ReorderDialogFilters(accountID string, filterIDs []int) error {
 	return r.ReorderDialogFilters(filterIDs)
 }
 
+// ToggleDialogFilterTags enables or disables folder tags display (premium).
+func (e *Engine) ToggleDialogFilterTags(accountID string, enabled bool) (bool, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return false, fmt.Errorf("account not found: %s", accountID)
+	}
+	type toggler interface {
+		MessagesToggleDialogFilterTags(enabled bool) (bool, error)
+	}
+	t, ok := acc.Core.(toggler)
+	if !ok {
+		return false, fmt.Errorf("platform does not support dialog filter tags")
+	}
+	return t.MessagesToggleDialogFilterTags(enabled)
+}
+
 // PinChat sets the pinned state for a chat.
 func (e *Engine) PinChat(accountID, chatID string, pinned bool) error {
 	_, err := e.db.Exec(
