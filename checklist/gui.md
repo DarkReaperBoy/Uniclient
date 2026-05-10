@@ -481,25 +481,7 @@ All these controls exist in AppState but are not exposed in the UI.
 
 ---
 
-- [ ] [CRITICAL] Opacity slider orientation is wrong: AyuGram places it **horizontally below the picker** (`color_editor.cpp:864-874` `Slider::Direction::Horizontal`; `resizeEvent` line 1036-1043 positions it at `rect::bottom(_picker) + st::colorEditSkip`). Dart makes it a `_VerticalOpacitySlider` placed to the right of the hue slider — `color_picker_box.dart:297-311` ← `AyuGram/ui/widgets/color_editor.cpp:868`
-
-- [ ] [CRITICAL] Field layout is completely inverted: AyuGram stacks H/S/B then R/G/B **vertically** to the **right** of the picker+hue slider (see `resizeEvent` lines 1050-1082, fields positioned at `fieldLeft` = right of hue slider). Dart puts all fields in **horizontal rows below** the picker — `color_picker_box.dart:248-252` ← `AyuGram/ui/widgets/color_editor.cpp:1063-1082`
-
-- [ ] [MAJOR] Slider position indicator uses wrong visual: AyuGram renders **arrow icons** (`colorSliderArrowLeft`/`colorSliderArrowRight`) pointing from both sides of the slider track at the current value position. Dart draws two concentric circles (dark outer + white inner) — `color_picker_box.dart:757-771` ← `AyuGram/ui/widgets/color_editor.cpp:406-415` + `boxes/boxes.style:515-518`
-
-- [ ] [MAJOR] Hex result field limited to 6 chars — breaks RGBA entry: AyuGram's `ResultField::correctValue` allows up to 8 characters and `updateFromResultField` accepts 6 (RGB) or 8 (RGBA). Dart uses `LengthLimitingTextInputFormatter(6)` blocking 8-char hex — `color_picker_box.dart:427` ← `AyuGram/ui/widgets/color_editor.cpp:812,1200`
-
-- [ ] [MAJOR] Picker crosshair radius is 8px but AyuGram uses 6px (`colorPickerMarkRadius`): `_kCrosshairRadius = 8` in Dart vs `st::colorPickerMarkRadius = 6` used in `drawEllipse` — `color_picker_box.dart:13` ← `AyuGram/boxes/boxes.style:512` + `color_editor.cpp:135`
-
-- [ ] [MAJOR] Picker crosshair ignores color lightness: AyuGram computes luminance (`0.2989*R + 0.587*G + 0.114*B`) and draws the marker **black** when lightness > 0.6, **white** otherwise. Dart always draws white — `color_picker_box.dart:700-703` ← `AyuGram/ui/widgets/color_editor.cpp:121-127`
-
-- [ ] [MAJOR] Mouse wheel does not increment/decrement numeric fields: AyuGram's `Field::wheelEvent` changes the field value by scroll delta (step=5), enabling precise color editing with scroll. Not implemented in Dart `_NumericField` — `color_picker_box.dart:524-591` ← `AyuGram/ui/widgets/color_editor.cpp:720-739`
-
-- [ ] [MAJOR] Up/Down arrow keys do not increment/decrement field values: AyuGram's `Field::keyPressEvent` handles `Qt::Key_Up`/`Qt::Key_Down` to call `changeValue(±1)`. Dart's TextField has no such key handler — `color_picker_box.dart:563-585` ← `AyuGram/ui/widgets/color_editor.cpp:752-760`
-
-- [ ] [MAJOR] Enter key in numeric fields submits the dialog instead of advancing focus: AyuGram's `fieldSubmitted()` cycles focus H→S→B→R→G→B→hex, only submitting when focus is on the hex result field. Dart's `onSubmitted: _submit` submits immediately from any field — `color_picker_box.dart:341,350,358,373,382,391,430` ← `AyuGram/ui/widgets/color_editor.cpp:960-979`
-
-- [ ] [MAJOR] Current color swatch is not interactive: AyuGram's `mousePressEvent` detects a click on `_currentRect` and calls `updateFromColor(_current)` to reset to the original color. Dart's `_SwatchBox` is a static `Container` with no tap handler — `color_picker_box.dart:320-328` ← `AyuGram/ui/widgets/color_editor.cpp:1119-1123`
+- [ ] [MAJOR] Color picker dialog overflows mobile viewport (400px): dialog `totalWidth = _kEditWidth + kBoxPadding.left + kBoxPadding.right = 390+48 = 438px` but mobile screen is only 400px wide, clipping the right 38px and making the field column (79px) barely visible. AyuGram is desktop-only and doesn't have this constraint, but our app must work at 400px. Fix: constrain `_kEditWidth` to `min(390, viewport_width - 48)` or use `ConstrainedBox` with `maxWidth: min(438, screenWidth)` — `color_picker_box.dart:17,324`
 
 # engine_service — Bridge/Service Layer Audit
 
