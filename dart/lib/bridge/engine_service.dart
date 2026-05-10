@@ -5010,12 +5010,26 @@ class EngineService {
     }
   }
 
-  Future<void> updateDefaultNotifySettings(String accountId, {required String peerType, required bool enabled}) async {
-    final payload = utf8.encode(json.encode({'account_id': accountId, 'peer_type': peerType, 'enabled': enabled}));
+  Future<void> updateDefaultNotifySettings(String accountId, {required String peerType, required bool enabled, bool? soundEnabled}) async {
+    final data = <String, dynamic>{'account_id': accountId, 'peer_type': peerType, 'enabled': enabled};
+    if (soundEnabled != null) data['sound_enabled'] = soundEnabled;
+    final payload = utf8.encode(json.encode(data));
     try {
       await _callAsync('__engine', 'UpdateDefaultNotifySettings', Uint8List.fromList(payload));
     } catch (e) {
       Debug.error('ENGINE', 'updateDefaultNotifySettings failed', e);
+    }
+  }
+
+  Future<Map<String, dynamic>> getDefaultNotifySettings(String accountId, {required String peerType}) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId, 'peer_type': peerType}));
+    try {
+      final resp = await _callAsync('__engine', 'GetDefaultNotifySettings', Uint8List.fromList(payload));
+      if (resp.isEmpty) return {};
+      return json.decode(utf8.decode(resp)) as Map<String, dynamic>;
+    } catch (e) {
+      Debug.error('ENGINE', 'getDefaultNotifySettings failed', e);
+      return {};
     }
   }
 

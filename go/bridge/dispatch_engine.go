@@ -4434,14 +4434,34 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	case "UpdateDefaultNotifySettings":
 		var params struct {
-			AccountID string `json:"account_id"`
-			PeerType  string `json:"peer_type"`
-			Enabled   bool   `json:"enabled"`
+			AccountID    string `json:"account_id"`
+			PeerType     string `json:"peer_type"`
+			Enabled      bool   `json:"enabled"`
+			SoundEnabled *bool  `json:"sound_enabled,omitempty"`
 		}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, err
 		}
-		return nil, e.UpdateDefaultNotifySettings(params.AccountID, params.PeerType, params.Enabled)
+		var silent *bool
+		if params.SoundEnabled != nil {
+			s := !*params.SoundEnabled
+			silent = &s
+		}
+		return nil, e.UpdateDefaultNotifySettings(params.AccountID, params.PeerType, params.Enabled, silent)
+
+	case "GetDefaultNotifySettings":
+		var params struct {
+			AccountID string `json:"account_id"`
+			PeerType  string `json:"peer_type"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		settings, err := e.GetDefaultNotifySettings(params.AccountID, params.PeerType)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(settings)
 
 	case "GetReactionsNotifySettings":
 		var params struct {

@@ -12,7 +12,11 @@ type callsDisabledToggler interface {
 }
 
 type defaultNotifySettingsUpdater interface {
-	UpdateDefaultNotifySettings(peerType string, enabled bool) error
+	UpdateDefaultNotifySettings(peerType string, enabled bool, silent *bool) error
+}
+
+type defaultNotifySettingsGetter interface {
+	GetDefaultNotifySettings(peerType string) (map[string]interface{}, error)
 }
 
 type reactionsNotifyGetter interface {
@@ -60,7 +64,7 @@ func (e *Engine) SetCallsDisabledHere(accountID string, disabled bool) error {
 	return t.ToggleCallsDisabledHere(disabled)
 }
 
-func (e *Engine) UpdateDefaultNotifySettings(accountID, peerType string, enabled bool) error {
+func (e *Engine) UpdateDefaultNotifySettings(accountID, peerType string, enabled bool, silent *bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return fmt.Errorf("account not found: %s", accountID)
@@ -69,7 +73,22 @@ func (e *Engine) UpdateDefaultNotifySettings(accountID, peerType string, enabled
 	if !ok {
 		return fmt.Errorf("core does not support default notify settings")
 	}
-	return u.UpdateDefaultNotifySettings(peerType, enabled)
+	return u.UpdateDefaultNotifySettings(peerType, enabled, silent)
+}
+
+func (e *Engine) GetDefaultNotifySettings(accountID, peerType string) (map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	g, ok := acc.Core.(defaultNotifySettingsGetter)
+	if !ok {
+		return map[string]interface{}{
+			"enabled":       true,
+			"sound_enabled": true,
+		}, nil
+	}
+	return g.GetDefaultNotifySettings(peerType)
 }
 
 func (e *Engine) GetReactionsNotifySettings(accountID string) (map[string]interface{}, error) {
@@ -120,7 +139,7 @@ func (e *Engine) GetSavedRingtones(accountID string) ([]map[string]interface{}, 
 
 func (e *Engine) GetMutedChatsByType(accountID string) (map[string]int, error) {
 	rows, err := e.db.Query(
-		"SELECT chat_type, COUNT(*) FROM chats WHERE account_id = ? AND is_muted = 1 GROUP BY chat_type",
+		"SELECT type, COUNT(*) FROM chats WHERE account_id = ? AND is_muted = 1 AND type IN (1, 2, 3) GROUP BY type",
 		accountID)
 	if err != nil {
 		return nil, err
@@ -129,12 +148,19 @@ func (e *Engine) GetMutedChatsByType(accountID string) (map[string]int, error) {
 
 	result := map[string]int{"private": 0, "group": 0, "channel": 0}
 	for rows.Next() {
-		var chatType string
+		var typeVal int
 		var count int
-		if err := rows.Scan(&chatType, &count); err != nil {
+		if err := rows.Scan(&typeVal, &count); err != nil {
 			continue
 		}
-		result[chatType] = count
+		switch typeVal {
+		case ChatTypeDMVal:
+			result["private"] = count
+		case ChatTypeGroupVal:
+			result["group"] = count
+		case ChatTypeChanVal:
+			result["channel"] = count
+		}
 	}
 	return result, nil
 }

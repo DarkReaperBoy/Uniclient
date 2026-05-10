@@ -1422,6 +1422,30 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
   void initState() {
     super.initState();
     _loadExceptions();
+    _loadDefaultSettings();
+  }
+
+  void _loadDefaultSettings() async {
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+    final peerType = switch (widget.type) {
+      _NotifType.privateChats => 'private',
+      _NotifType.groups => 'group',
+      _NotifType.channels => 'channel',
+      _ => '',
+    };
+    if (peerType.isEmpty) return;
+    try {
+      final engine = context.read<EngineService>();
+      final settings = await engine.getDefaultNotifySettings(accountId, peerType: peerType);
+      if (mounted && settings.isNotEmpty) {
+        setState(() {
+          _enabled = settings['enabled'] as bool? ?? true;
+          _soundEnabled = settings['sound_enabled'] as bool? ?? true;
+        });
+      }
+    } catch (_) {}
   }
 
   void _loadExceptions() {
@@ -1464,6 +1488,21 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
     };
     if (peerType.isNotEmpty) {
       engine.updateDefaultNotifySettings(accountId, peerType: peerType, enabled: enabled);
+    }
+  }
+
+  void _persistSoundState(bool soundEnabled) {
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+    final accountId = appState.activeAccountId;
+    final peerType = switch (widget.type) {
+      _NotifType.privateChats => 'private',
+      _NotifType.groups => 'group',
+      _NotifType.channels => 'channel',
+      _ => '',
+    };
+    if (peerType.isNotEmpty) {
+      engine.updateDefaultNotifySettings(accountId, peerType: peerType, enabled: _enabled, soundEnabled: soundEnabled);
     }
   }
 
@@ -1546,7 +1585,10 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
                         iconColor: iconColor,
                         label: 'Sound',
                         value: _soundEnabled,
-                        onChanged: (v) => setState(() => _soundEnabled = v),
+                        onChanged: (v) {
+                          setState(() => _soundEnabled = v);
+                          _persistSoundState(v);
+                        },
                         textColor: textColor,
                         accentColor: accentColor,
                         hoverBg: hoverBg,
@@ -2019,7 +2061,9 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
       if (value == 'select_tone') {
         _showRingtonesBox(context);
       } else if (value == 'toggle_sound') {
-        setState(() => _soundEnabled = !_soundEnabled);
+        final newSound = !_soundEnabled;
+        setState(() => _soundEnabled = newSound);
+        _persistSoundState(newSound);
       } else if (value.startsWith('recent_')) {
         final seconds = int.tryParse(value.substring(7));
         if (seconds != null) {

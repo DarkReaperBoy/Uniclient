@@ -24013,7 +24013,7 @@ func (t *TelegramCore) ToggleCallsDisabledHere(disabled bool) error {
 }
 
 // UpdateDefaultNotifySettings updates the default notification settings for a peer type.
-func (t *TelegramCore) UpdateDefaultNotifySettings(peerType string, enabled bool) error {
+func (t *TelegramCore) UpdateDefaultNotifySettings(peerType string, enabled bool, silent *bool) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed || t.api == nil {
@@ -24038,12 +24038,49 @@ func (t *TelegramCore) UpdateDefaultNotifySettings(peerType string, enabled bool
 	} else {
 		settings.SetMuteUntil(0)
 	}
+	if silent != nil {
+		settings.SetSilent(*silent)
+	}
 
 	_, err := t.api.AccountUpdateNotifySettings(t.ctx, &tg.AccountUpdateNotifySettingsRequest{
 		Peer:     peer,
 		Settings: settings,
 	})
 	return err
+}
+
+// GetDefaultNotifySettings returns default notification settings for a peer type.
+func (t *TelegramCore) GetDefaultNotifySettings(peerType string) (map[string]interface{}, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+
+	var peer tg.InputNotifyPeerClass
+	switch peerType {
+	case "private":
+		peer = &tg.InputNotifyUsers{}
+	case "group":
+		peer = &tg.InputNotifyChats{}
+	case "channel":
+		peer = &tg.InputNotifyBroadcasts{}
+	default:
+		return nil, fmt.Errorf("unknown peer type: %s", peerType)
+	}
+
+	s, err := t.api.AccountGetNotifySettings(t.ctx, peer)
+	if err != nil {
+		return nil, err
+	}
+
+	enabled := s.MuteUntil == 0
+	soundEnabled := !s.Silent
+
+	return map[string]interface{}{
+		"enabled":       enabled,
+		"sound_enabled": soundEnabled,
+	}, nil
 }
 
 // GetReactionsNotifySettings returns reactions notification settings as a simple map.
