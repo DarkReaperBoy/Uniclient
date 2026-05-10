@@ -493,8 +493,6 @@ backend-wiring correctness and performance. AyuGram reference used for protocol 
 
 ## contacts_screen — stubs, broken backend wiring, missing DM creation, dropped comment
 
-- [ ] [CRITICAL] `_openStory` stub — tapping a contact's story ring calls `_openChat(contact)` instead of a story viewer; no story viewer engine method exists in the bridge — `contacts_screen.dart:540` ← `AyuGram/boxes/peer_list_controllers.cpp:778`
-
 # create_group_wizard — Audit Findings
 
 - [ ] [CRITICAL] Photo upload for group/channel is never sent to the engine after creation. `_photoBytes`/`_photoPath` are set by `_pickPhoto()` and displayed in the wizard UI, but neither `_submitGroup()` (line 585) nor `_submitInfo()` (line 536, channel creation at line 555) call any engine method to upload the photo to the new chat. `EditChannelPhoto` exists in Go (telegram.go:17175) and has a dispatch (dispatch_gen.go:19567), but there is no matching method in engine_service.dart and the wizard never calls it. The userpic is silently dropped on group/channel creation. — `create_group_wizard.dart:585-620` / `create_group_wizard.dart:550-583` ← `telegram.go:17175`
