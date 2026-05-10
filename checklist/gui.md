@@ -573,18 +573,6 @@ The edit_mark_box is **functionally broken** — missing Cancel button, no input
 
 # input_dialogs — Input Dialogs Audit
 
-## Add Contact Box
-
-- [ ] [MAJOR] Default country hardcoded to `US` — AyuGram pre-fills country code from the session user's own phone via `Countries::ExtractPhoneCode(session->user()->phone())`; Dart always defaults to US regardless of user locale — `input_dialogs.dart:380` ← `AyuGram/boxes/add_contact_box.cpp:304`
-
-- [ ] [MAJOR] First/last name order not locale-aware — AyuGram checks `langFirstNameGoesSecond()` and inverts tab order + field positions for locales (e.g. Japanese/Korean) where last name comes first; Dart always shows first name first — `input_dialogs.dart:528-534` ← `AyuGram/boxes/add_contact_box.cpp:307,314-315,398-408`
-
-- [ ] [MAJOR] No navigation to peer after adding contact — AyuGram calls `window->showPeerHistory(user)` when a new contact is found and then hides the layer; Dart just pops the dialog — `input_dialogs.dart:486` ← `AyuGram/boxes/add_contact_box.cpp:486-499`
-
-- [ ] [MAJOR] Phone number grouping is wrong — AyuGram uses `Countries::Groups(s)` for country-specific grouping (e.g. US: `XXX XXX XXXX`, not uniform triplets); Dart's `_PhoneNumberFormatter` inserts a space every 3rd digit unconditionally — `input_dialogs.dart:651-683` ← `AyuGram/boxes/add_contact_box.cpp:300-306` (`[](const QString &s) { return Countries::Groups(s); }`)
-
-- [ ] [MAJOR] Special test phone validation differs — AyuGram accepts `42`-prefix numbers at lengths 2, 5, 6, and exactly `4242`; Dart only accepts `^42\d\d$` (length 4 only), missing length-2, 5, 6 cases — `input_dialogs.dart:412-415` ← `AyuGram/boxes/add_contact_box.cpp:54-63`
-
 ## Country Picker
 
 - [ ] [MAJOR] Row height 40 px vs spec 36 px — `input_dialogs.dart:753` (`itemExtent: 40`) ← AyuGram style skeleton (`countryRowHeight: 36px`) and `AyuGram/ui/boxes/country_select_box.cpp:235` (`_rowHeight(st::countryRowHeight)`)
