@@ -573,10 +573,6 @@ The edit_mark_box is **functionally broken** — missing Cancel button, no input
 
 # input_dialogs — Input Dialogs Audit
 
-## Country Picker
-
-- [ ] [MAJOR] Selected country not moved to top of list — AyuGram places the currently selected country first (`LastValidISO` logic in `init()`), so it's immediately visible when the picker opens; Dart keeps alphabetical order — `input_dialogs.dart:709-714` ← `AyuGram/ui/boxes/country_select_box.cpp:277-285`
-
 ## Edit Invite Link Box
 
 - [ ] [CRITICAL] Custom expiry date picker missing — AyuGram includes a `0` (Custom) option in the expiry radio list that opens a `ChooseDateTimeBox`; Dart only offers five hardcoded presets with no way to set an arbitrary date — `input_dialogs.dart:861-874` ← `AyuGram/ui/boxes/edit_invite_link.cpp:242-321`
