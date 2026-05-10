@@ -1922,6 +1922,19 @@ class EngineService {
 
   // ── Stories ──
 
+  Future<void> reactToStory(String accountId, String userId, int storyId, String emoji) async {
+    final payload = utf8.encode(json.encode({
+      'user_id': userId,
+      'story_id': storyId,
+      'emoji': emoji,
+    }));
+    await _callAsync(accountId, 'ReactToStory', Uint8List.fromList(payload));
+  }
+
+  Future<void> activateStealthMode(String accountId) async {
+    await _callAsync(accountId, 'ActivateStealthMode', Uint8List(0));
+  }
+
   Future<List<StoryItem>> fetchPeerStories(String accountId, String peerId) async {
     final req = epb.EngineFetchPeerStoriesRequest()
       ..accountId = accountId

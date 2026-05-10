@@ -599,31 +599,35 @@ The Dart emoji_data.dart implements a hardcoded static emoji search database, wh
 
 ## Major Issues
 
-- [ ] [MAJOR] **No emoji variant support (skin tones, modifiers)** — `emoji_data.dart:650-680` ← `emoji_keywords.cpp:674-680 (ApplyVariants)`
+- [x] [MAJOR] **No emoji variant support (skin tones, modifiers)** — `emoji_data.dart:650-680` ← `emoji_keywords.cpp:674-680 (ApplyVariants)`
   - AyuGram applies user emoji variant preferences via `settings.lookupEmojiVariant(emoji)` (line 677), handling skin tone and modifier emoji variants
   - Dart version returns raw emoji strings with no variant application
   - **Impact**: Users' emoji tone preferences won't be respected; variant emoji won't display in their chosen style
+  - **Fixed**: EmojiKeywords.setVariant()/applyVariant() + applied in search() results
 
-- [ ] [MAJOR] **Duplicate emoji entry** — `emoji_data.dart:545` ← (no AyuGram equivalent, native data quality issue)
+- [x] [MAJOR] **Duplicate emoji entry** — `emoji_data.dart:545` ← (no AyuGram equivalent, native data quality issue)
   - Line 539: `EmojiEntry('🧲', ['magnet', 'attract'])`
   - Line 545: `EmojiEntry('🧲', ['magnet'])` ← duplicate
   - **Impact**: Duplicate 🧲 in results; second entry is redundant and less informative (missing 'attract' keyword)
-  - **Fix**: Remove line 545 entirely
+  - **Fixed**: Duplicate removed in commit 87c7b42
 
-- [ ] [MAJOR] **Missing legacy suggestion fallback** — `emoji_data.dart:650-680` ← `emoji_keywords.cpp:638-640 (AppendLegacySuggestions)`
+- [x] [MAJOR] **Missing legacy suggestion fallback** — `emoji_data.dart:650-680` ← `emoji_keywords.cpp:638-640 (AppendLegacySuggestions)`
   - AyuGram appends legacy emoji suggestions when query is not exact (line 639): `AppendLegacySuggestions(result, query)`
   - Dart version only returns matches from the hardcoded list; no fallback mechanism
   - **Impact**: If new emoji aren't in the Dart list, no suggestions; less future-proof
+  - **Fixed**: EmojiKeywords.search() always appends _searchLegacyData() after server data
 
-- [ ] [MAJOR] **Missing exact-match parameter** — `emoji_data.dart:650` signature ← `emoji_keywords.h:43-45`
+- [x] [MAJOR] **Missing exact-match parameter** — `emoji_data.dart:650` signature ← `emoji_keywords.h:43-45`
   - AyuGram's `query()` accepts `bool exact` parameter (line 43) to control whether to append legacy suggestions
   - Dart version doesn't expose this; search always returns all match types
   - **Impact**: UI can't request exact-match-only searches if needed (low risk, but interface incompleteness)
+  - **Fixed**: EmojiKeywords.search() and searchEmoji() both accept `bool exact` parameter
 
-- [ ] [MAJOR] **No emoji validation at load time** — `emoji_data.dart:1-642` ← (implied by emoji_keywords.cpp:78-82 FindExact)
+- [x] [MAJOR] **No emoji validation at load time** — `emoji_data.dart:1-642` ← (implied by emoji_keywords.cpp:78-82 FindExact)
   - AyuGram validates all emoji strings with `FindExact()` (line 78-82) during cache load; rejects invalid emoji
   - Dart hardcoded list is never validated; if an emoji string is malformed, it will silently fail in the UI
   - **Impact**: Low risk (emoji literals in source are safe), but data consistency is not enforced
+  - **Fixed**: EmojiKeywords.init() validates with isValidEmoji() filter
 
 ## Wiring & Functional Status
 

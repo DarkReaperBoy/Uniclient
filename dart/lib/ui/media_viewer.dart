@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -17,6 +18,7 @@ import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/telegram_palette.dart';
+import 'shell.dart';
 import 'telegram_toast.dart';
 import 'telegram_tooltip.dart';
 
@@ -326,8 +328,8 @@ class _MediaViewerState extends State<MediaViewer>
   bool _isPlaying = false;
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
-  double _volume = 0.8;
-  double _lastVolume = 0.8;
+  double _volume = 0.9;
+  double _lastVolume = 0.9;
   double _playbackSpeed = 1.0;
   bool _isSeeking = false;
   bool _autoPausedForCall = false;
@@ -400,16 +402,12 @@ class _MediaViewerState extends State<MediaViewer>
     _bufferSpinCtrl = AnimationController(
       duration: const Duration(milliseconds: 1200),
       vsync: this,
-    )..addListener(() {
-        if (mounted) setState(() {});
-      });
+    );
     _saveToastAnim = AnimationController(
       duration: _kSaveToastFadeIn,
       reverseDuration: _kSaveToastFadeOut,
       vsync: this,
-    )..addListener(() {
-        if (mounted) setState(() {});
-      });
+    );
     _downloadsLinkRecognizer = TapGestureRecognizer()
       ..onTap = () => Process.run('xdg-open', [_saveToastPath]);
     _loadViewerPrefs();
@@ -1813,7 +1811,10 @@ class _MediaViewerState extends State<MediaViewer>
           alignment: Alignment.center,
           children: [
             videoWidget,
-            _RadialSpinner(animation: _bufferSpinCtrl),
+            AnimatedBuilder(
+              animation: _bufferSpinCtrl,
+              builder: (context, _) => _RadialSpinner(animation: _bufferSpinCtrl),
+            ),
           ],
         );
       }
@@ -2500,7 +2501,12 @@ class _MediaViewerState extends State<MediaViewer>
   }
 
   void _onSenderTap(CachedMessage msg) {
+    final chatState = context.read<ChatState>();
     Navigator.of(context).pop();
+    if (msg.senderId.isNotEmpty) {
+      chatState.openChatById(msg.senderId);
+      UniClientShell.toggleInfoRequest?.call();
+    }
   }
 
   void _onDateTap(CachedMessage msg) {
@@ -2549,48 +2555,53 @@ class _MediaViewerState extends State<MediaViewer>
   }
 
   Widget _buildSaveToast() {
-    if (_saveToastAnim.value == 0.0) return const SizedBox.shrink();
-    return Positioned.fill(
-      child: IgnorePointer(
-        ignoring: _saveToastAnim.status == AnimationStatus.reverse,
-        child: Center(
-          child: Opacity(
-            opacity: _saveToastAnim.value,
-            child: Container(
-              decoration: BoxDecoration(
-                color: _kMediaviewSaveMsgBg,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              padding: _kSaveToastPadding,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.only(right: 16),
-                    child: Icon(Icons.check_circle, color: _kMediaviewSaveMsgFg, size: 24),
+    return AnimatedBuilder(
+      animation: _saveToastAnim,
+      builder: (context, child) {
+        if (_saveToastAnim.value == 0.0) return const SizedBox.shrink();
+        return Positioned.fill(
+          child: IgnorePointer(
+            ignoring: _saveToastAnim.status == AnimationStatus.reverse,
+            child: Center(
+              child: Opacity(
+                opacity: _saveToastAnim.value,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: _kMediaviewSaveMsgBg,
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  Text.rich(
-                    TextSpan(
-                      children: [
-                        const TextSpan(text: 'Media saved to '),
+                  padding: _kSaveToastPadding,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.only(right: 16),
+                        child: Icon(Icons.check_circle, color: _kMediaviewSaveMsgFg, size: 24),
+                      ),
+                      Text.rich(
                         TextSpan(
-                          text: 'Downloads',
-                          style: const TextStyle(decoration: TextDecoration.underline),
-                          recognizer: _downloadsLinkRecognizer,
+                          children: [
+                            const TextSpan(text: 'Media saved to '),
+                            TextSpan(
+                              text: 'Downloads',
+                              style: const TextStyle(decoration: TextDecoration.underline),
+                              recognizer: _downloadsLinkRecognizer,
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    style: const TextStyle(
-                      color: _kMediaviewSaveMsgFg,
-                      fontSize: 16,
-                    ),
+                        style: const TextStyle(
+                          color: _kMediaviewSaveMsgFg,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -2673,16 +2684,61 @@ class _MediaViewerState extends State<MediaViewer>
     if (msg.mediaLocalPath.isEmpty) return;
     final file = File(msg.mediaLocalPath);
     if (!await file.exists()) return;
-    await Clipboard.setData(ClipboardData(text: msg.mediaLocalPath));
+    final ext = msg.mediaLocalPath.split('.').last.toLowerCase();
+    final mimeType = ext == 'png' ? 'image/png' : 'image/jpeg';
+    final bytes = await file.readAsBytes();
+    bool ok = false;
+    // Try wl-copy (Wayland) first
+    try {
+      final proc = await Process.start('wl-copy', ['--type', mimeType]);
+      proc.stdin.add(bytes);
+      await proc.stdin.close();
+      ok = (await proc.exitCode) == 0;
+    } catch (_) {}
+    // Fall back to xclip (X11)
+    if (!ok) {
+      try {
+        final result = await Process.run('xclip',
+            ['-selection', 'clipboard', '-t', mimeType, '-i', msg.mediaLocalPath]);
+        ok = result.exitCode == 0;
+      } catch (_) {}
+    }
     if (!mounted) return;
-    showTelegramToast(context, 'Image path copied to clipboard');
+    showTelegramToast(context, ok ? 'Image copied to clipboard' : 'Failed to copy image');
   }
 
   void _copyVideoFrame(CachedMessage msg) async {
     if (msg.mediaLocalPath.isEmpty || _player == null) return;
-    await Clipboard.setData(ClipboardData(text: msg.mediaLocalPath));
-    if (!mounted) return;
-    showTelegramToast(context, 'Video path copied to clipboard');
+    try {
+      final screenshot = await _player!.screenshot();
+      if (screenshot == null || screenshot.isEmpty) {
+        if (mounted) showTelegramToast(context, 'Failed to capture frame');
+        return;
+      }
+      bool ok = false;
+      // Try wl-copy (Wayland) first
+      try {
+        final proc = await Process.start('wl-copy', ['--type', 'image/png']);
+        proc.stdin.add(screenshot);
+        await proc.stdin.close();
+        ok = (await proc.exitCode) == 0;
+      } catch (_) {}
+      // Fall back to xclip
+      if (!ok) {
+        try {
+          final tmpFile = File('/tmp/uniclient_frame.png');
+          await tmpFile.writeAsBytes(screenshot);
+          final result = await Process.run('xclip',
+              ['-selection', 'clipboard', '-t', 'image/png', '-i', tmpFile.path]);
+          ok = result.exitCode == 0;
+          tmpFile.deleteSync();
+        } catch (_) {}
+      }
+      if (!mounted) return;
+      showTelegramToast(context, ok ? 'Frame copied to clipboard' : 'Failed to copy frame');
+    } catch (e) {
+      if (mounted) showTelegramToast(context, 'Failed to capture frame');
+    }
   }
 
   void _showInFolder(CachedMessage msg) {
@@ -2701,26 +2757,65 @@ class _MediaViewerState extends State<MediaViewer>
 
   void _showAllMedia(CachedMessage msg) {
     Navigator.of(context).pop();
+    UniClientShell.toggleInfoRequest?.call();
   }
 
   void _cancelDownload(CachedMessage msg) {
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isNotEmpty) {
+      engine.cancelDownload(accountId, msg.chatId, msg.msgId);
+    }
     showTelegramToast(context, 'Download cancelled');
   }
 
-  void _showAttachedStickers(CachedMessage msg) {
-    showTelegramToast(context, 'Attached stickers');
+
+  void _setAsUserpic(CachedMessage msg) async {
+    if (msg.mediaLocalPath.isEmpty) return;
+    final file = File(msg.mediaLocalPath);
+    if (!await file.exists()) return;
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+    try {
+      await engine.uploadProfilePhoto(accountId, msg.mediaLocalPath);
+      if (mounted) showTelegramToast(context, 'Profile photo updated');
+    } catch (e) {
+      if (mounted) showTelegramToast(context, 'Failed to set profile photo');
+    }
   }
 
-  void _setAsUserpic(CachedMessage msg) {
-    showTelegramToast(context, 'Set as profile photo');
-  }
-
-  void _reportUserpic(CachedMessage msg) {
-    showTelegramToast(context, 'Report sent');
+  void _reportUserpic(CachedMessage msg) async {
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Report Photo'),
+        content: const Text('Are you sure you want to report this photo?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Report')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      final msgId = int.tryParse(msg.msgId) ?? 0;
+      await engine.reportMessage(accountId, msg.chatId, [msgId]);
+      if (mounted) showTelegramToast(context, 'Report sent');
+    } catch (e) {
+      if (mounted) showTelegramToast(context, 'Failed to send report');
+    }
   }
 
   void _viewStatistics(CachedMessage msg) {
-    showTelegramToast(context, 'Statistics');
+    Navigator.of(context).pop();
+    UniClientShell.toggleInfoRequest?.call();
   }
 
   bool get _isSelfMedia {
@@ -2751,8 +2846,6 @@ class _MediaViewerState extends State<MediaViewer>
         _darkMenuItem('forward', Icons.forward, 'Forward'),
       if (_isVideo && _player != null && _duration > Duration.zero)
         _darkMenuItem('share_at_time', Icons.access_time, 'Share at Time'),
-      if ((_isPhoto || _isDocument) && msg.stickerSetShortName.isNotEmpty)
-        _darkMenuItem('attached_stickers', Icons.emoji_emotions_outlined, 'Attached Stickers'),
       if (_isSelfMedia && _isPhoto && msg.mediaLocalPath.isNotEmpty)
         _darkMenuItem('set_as_userpic', Icons.account_circle_outlined, 'Set as Profile Photo'),
       if (!_isSelfMedia && _isPhoto && msg.mediaLocalPath.isNotEmpty)
@@ -2787,8 +2880,6 @@ class _MediaViewerState extends State<MediaViewer>
         _forwardMedia(msg);
       case 'share_at_time':
         _shareAtTime(msg);
-      case 'attached_stickers':
-        _showAttachedStickers(msg);
       case 'set_as_userpic':
         _setAsUserpic(msg);
       case 'report_userpic':
@@ -2864,10 +2955,11 @@ class _MediaViewerState extends State<MediaViewer>
     });
   }
 
+  // OCR not available in engine — button hidden via _ocrAvailable = false
   bool _ocrAvailable = false;
 
   void _showOcrResult() {
-    showTelegramToast(context, 'Text recognition');
+    // Requires OCR engine method (not yet in bridge)
   }
 
   Widget _buildToolbar(CachedMessage msg) {
@@ -2909,9 +3001,14 @@ class _MediaViewerState extends State<MediaViewer>
     );
   }
 
-  void _openDrawEditor(CachedMessage msg) {
+  void _openDrawEditor(CachedMessage msg) async {
     if (msg.mediaLocalPath.isEmpty) return;
-    Process.run('xdg-open', [msg.mediaLocalPath]);
+    final file = File(msg.mediaLocalPath);
+    if (!await file.exists()) return;
+    final result = await Process.run('xdg-open', [msg.mediaLocalPath]);
+    if (result.exitCode != 0 && mounted) {
+      showTelegramToast(context, 'No image editor found');
+    }
   }
 }
 
@@ -3773,9 +3870,7 @@ class _PipWidgetState extends State<PipOverlayWidget>
     _bufferSpinCtrl = AnimationController(
       duration: const Duration(milliseconds: 1200),
       vsync: this,
-    )..addListener(() {
-        if (mounted) setState(() {});
-      });
+    );
     _snapAnim = AnimationController(
       duration: _kPipSnapDuration,
       vsync: this,
@@ -4029,7 +4124,10 @@ class _PipWidgetState extends State<PipOverlayWidget>
                 ),
                 if (_isBuffering)
                   Center(
-                    child: _RadialSpinner(animation: _bufferSpinCtrl),
+                    child: AnimatedBuilder(
+                      animation: _bufferSpinCtrl,
+                      builder: (context, _) => _RadialSpinner(animation: _bufferSpinCtrl),
+                    ),
                   ),
                 AnimatedOpacity(
                     opacity: _hovering ? 1.0 : 0.0,
@@ -5128,6 +5226,7 @@ class _StoryReplyCompose extends StatefulWidget {
   final VoidCallback onLike;
   final void Function(String emoji) onReaction;
   final void Function(String text)? onSend;
+  final void Function(List<String> paths)? onAttach;
 
   const _StoryReplyCompose({
     super.key,
@@ -5136,6 +5235,7 @@ class _StoryReplyCompose extends StatefulWidget {
     required this.onLike,
     required this.onReaction,
     this.onSend,
+    this.onAttach,
   });
 
   @override
@@ -5176,6 +5276,24 @@ class _StoryReplyComposeState extends State<_StoryReplyCompose> {
     _controller.clear();
   }
 
+  void _handleAttach() async {
+    final result = await FilePicker.platform.pickFiles(allowMultiple: true);
+    if (result == null || result.files.isEmpty) return;
+    final paths = result.files.where((f) => f.path != null).map((f) => f.path!).toList();
+    if (paths.isNotEmpty) widget.onAttach?.call(paths);
+  }
+
+  void _handleEmoji() {
+    final text = _controller.text;
+    final sel = _controller.selection;
+    final insert = '😊';
+    final newText = text.replaceRange(sel.start, sel.end, insert);
+    _controller.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: sel.start + insert.length),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -5192,7 +5310,7 @@ class _StoryReplyComposeState extends State<_StoryReplyCompose> {
             icon: Icons.attach_file,
             hovered: _attachHovered,
             onHover: (h) => setState(() => _attachHovered = h),
-            onTap: () {},
+            onTap: _handleAttach,
           ),
           const SizedBox(width: _kStoryComposeFieldLeft - 1),
           Expanded(
@@ -5237,7 +5355,7 @@ class _StoryReplyComposeState extends State<_StoryReplyCompose> {
               icon: Icons.emoji_emotions_outlined,
               hovered: _emojiHovered,
               onHover: (h) => setState(() => _emojiHovered = h),
-              onTap: () {},
+              onTap: _handleEmoji,
             ),
             _StoryReactionsPanel(
               isLiked: widget.isLiked,
@@ -5504,6 +5622,7 @@ class _StoriesViewerState extends State<StoriesViewer>
 
   void _handleAreaReaction(String emoji) {
     setState(() => _liked = true);
+    _sendStoryReaction(emoji);
   }
 
   void _handleAreaUrl(String url) {
@@ -5515,8 +5634,28 @@ class _StoriesViewerState extends State<StoriesViewer>
     Process.run('xdg-open', [u]);
   }
 
+  void _sendStoryReaction(String emoji) {
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isNotEmpty && widget.peerId.isNotEmpty) {
+      engine.reactToStory(accountId, widget.peerId, _current.id, emoji);
+    }
+  }
+
+  void _activateStealthMode() {
+    final engine = context.read<EngineService>();
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isNotEmpty) {
+      engine.activateStealthMode(accountId);
+    }
+  }
+
   void _handleAreaChannelPost(int channelId, int msgId) {
-    // TODO: navigate to channel message when deep-link navigation is available
+    final chatState = context.read<ChatState>();
+    Navigator.of(context).pop();
+    chatState.openChatById(channelId.toString());
   }
 
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
@@ -6007,7 +6146,7 @@ class _StoriesViewerState extends State<StoriesViewer>
             if (!widget.isOwnStory)
               _buildStoryControlButton(
                 icon: Icons.visibility_off_outlined,
-                onTap: () => showStoryStealthModeDialog(context),
+                onTap: () => showStoryStealthModeDialog(context, onActivate: _activateStealthMode),
                 hovered: _stealthHovered,
                 onHover: (v) => setState(() => _stealthHovered = v),
               ),
@@ -6210,9 +6349,13 @@ class _StoriesViewerState extends State<StoriesViewer>
             }
           },
           isLiked: _liked,
-          onLike: () => setState(() => _liked = !_liked),
+          onLike: () {
+            setState(() => _liked = !_liked);
+            _sendStoryReaction(_liked ? '❤' : '');
+          },
           onReaction: (emoji) {
             setState(() => _liked = true);
+            _sendStoryReaction(emoji);
           },
           onSend: (text) {
             final engine = context.read<EngineService>();
@@ -6220,6 +6363,16 @@ class _StoriesViewerState extends State<StoriesViewer>
             final accountId = appState.activeAccountId;
             if (accountId.isNotEmpty && widget.peerId.isNotEmpty) {
               engine.sendMessage(accountId, widget.peerId, text);
+            }
+          },
+          onAttach: (paths) {
+            final engine = context.read<EngineService>();
+            final appState = context.read<AppState>();
+            final accountId = appState.activeAccountId;
+            if (accountId.isNotEmpty && widget.peerId.isNotEmpty) {
+              for (final path in paths) {
+                engine.uploadFile(accountId, widget.peerId, path);
+              }
             }
           },
         ),
@@ -6261,9 +6414,13 @@ class _StoriesViewerState extends State<StoriesViewer>
           const SizedBox(width: 8),
           _StoryReactionsPanel(
             isLiked: _liked,
-            onLike: () => setState(() => _liked = !_liked),
+            onLike: () {
+              setState(() => _liked = !_liked);
+              _sendStoryReaction(_liked ? '❤' : '');
+            },
             onReaction: (emoji) {
               setState(() => _liked = true);
+              _sendStoryReaction(emoji);
             },
           ),
         ],
