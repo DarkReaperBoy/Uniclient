@@ -629,63 +629,15 @@ The Dart emoji_data.dart implements a hardcoded static emoji search database, wh
 
 # payment_panel — Audit findings
 
-- [ ] [CRITICAL] All section buttons (payment method, shipping address/method, name, email, phone) have empty `onTap: () {}` — tapping them does nothing in form mode. AyuGram routes each to a specific delegate method: `panelEditPaymentMethod()`, `panelEditShippingInformation()`, `panelChooseShippingOption()`, `panelEditName()`, `panelEditEmail()`, `panelEditPhone()`. The entire "edit" flow for every data field is dead. — `payment_panel.dart:768` ← `AyuGram/payments/ui/payments_form_summary.cpp:499-558`
-
-- [ ] [CRITICAL] `_paymentMethod` is never populated from form data — always `null`, always displays "Not selected". `_fetchForm` reads `prices`, `suggested_tips`, `saved_info`, etc. but never reads the saved payment method title from the response. AyuGram reads `_method.savedMethods[_method.savedMethodIndex].title`. — `payment_panel.dart:117,722-723` ← `AyuGram/payments/ui/payments_form_summary.cpp:501-504`
-
-- [ ] [CRITICAL] Currency decimal places hardcoded to 2 (`abs ~/ 100`, `abs % 100`). Wrong for JPY (exp=0: 1000 JPY should display ¥1000, not ¥10.00) and BHD (exp=3). AyuGram's `FillAmountAndCurrency` calls `LookupCurrencyRule` to get per-currency exponent, e.g. JPY has `exp=0`, BHD has `exp=3`. — `payment_panel.dart:295-296` ← `AyuGram/ui/text/format_values.cpp:228,262,187`
-
-- [ ] [CRITICAL] `_computeTotal()` omits selected shipping option prices — sums only `_prices`. AyuGram's `computeTotalAmount()` adds the sum of the selected shipping option's own prices on top of invoice prices plus tips. A shipping cost is silently dropped from the displayed total and from the PAY button label. — `payment_panel.dart:644-650` ← `AyuGram/payments/ui/payments_form_summary.cpp:149-167`
-
-- [ ] [CRITICAL] Receipt date rendered at the bottom of the panel after section buttons. AyuGram renders the receipt date as the first row in the prices section (before line items), styled as a full/bold row. The Dart pushes it to an afterthought position below sections, mismatching the TDesktop layout. — `payment_panel.dart:509-518` ← `AyuGram/payments/ui/payments_form_summary.cpp:321-328`
-
-- [ ] [MAJOR] Tips amount row is a static text widget — not a clickable link. AyuGram makes the tips value a link whose click handler calls `panelChooseTips()` so the user can edit the tip amount. Dart has no equivalent interaction. — `payment_panel.dart:494-497` ← `AyuGram/payments/ui/payments_form_summary.cpp:362-365`
-
-- [ ] [MAJOR] Terms URL dialog never opens `_termsUrl` in a browser — shows only a generic hardcoded string "By completing this payment, you agree to the Terms of Service of the payment provider." The actual URL fetched from the API at line 186 is stored but never surfaced to the user. — `payment_panel.dart:255-290,186` ← `AyuGram/payments/ui/payments_panel_data.h:58` (`termsUrl` field)
-
-- [ ] [MAJOR] `_progressFade` AnimationController is initialised and animated on data load (line 211) but never drives any widget opacity in the build method — the loading overlay never fades out. The loading widget uses a hardcoded `Opacity(opacity: 0.3)` with no connection to `_progressFade`. — `payment_panel.dart:127,134-138,211,438-439` ← `AyuGram/payments/ui/payments_panel.cpp:110-150` (shownAnimation drives opacity)
 
 # peer_short_info — Peer Short Info Box Audit
 
-- [ ] [CRITICAL] `_photoCount` is permanently 1 — no engine call to load the user's photo list, so photo navigation (progress bars, swipe zones) is completely dead. `_photoCount` is set to `1` at init and never updated; the `if (_photoCount > 1)` guards at lines 467 and 522 never fire, so progress bars and left/right tap zones are never rendered for any user — `peer_short_info.dart:114` ← `prepare_short_info_box.cpp:533` (`UserPhotosReversedViewer`, `kOverviewLimit=48`, count set from `userSlice->size()` at line 305)
-
-- [ ] [CRITICAL] `_navigatePhoto` changes `_currentPhotoIndex` but never loads a different photo — the cover always displays the original `widget.avatarPath` regardless of index; there is no engine call to fetch photo at index N. Navigation would only move the progress-bar painter state (if bars were visible) but never change the displayed image — `peer_short_info.dart:199` ← `prepare_short_info_box.cpp:427` (moveRequests updates `state->current.index` → `push(true)` → `ProcessCurrent` → `ProcessFullPhoto` emits new photo)
-
 - [ ] [CRITICAL] Status text for DM users is hardcoded to `'last seen recently'` — this is placeholder data, not from the engine. AyuGram computes live status via `Data::OnlineText(user, now)` with a timer that re-fires on `OnlineChangeTimeout` — `peer_short_info.dart:405` ← `prepare_short_info_box.cpp:253` (`Data::OnlineText(user, now)` + base::Timer)
-
-- [ ] [CRITICAL] Personal channel name displayed as plain text with no tap handler — AyuGram's `channelValue()` returns `tr::link(fields.channelName, fields.channelLink)`, a clickable link that navigates to the channel. The Dart row has only a copy-to-clipboard action; tapping the channel name does nothing — `peer_short_info.dart:596` ← `peer_short_info_box.cpp:881` (`tr::link(fields.channelName, fields.channelLink)`)
-
-- [ ] [CRITICAL] Username displayed as plain unclickable text — AyuGram returns `tr::link(fields.username, fields.usernameLink)`, a tappable link that opens the profile URL. Dart shows `@username` as a `SelectableText` with copy-only; the `usernameLink` field from the engine is never used — `peer_short_info.dart:627` ← `peer_short_info_box.cpp:902` (`tr::link(fields.username, fields.usernameLink)`)
-
-- [ ] [MAJOR] Bio/About text loses entity formatting — AyuGram stores and renders the about field as `TextWithEntities` (`Info::Profile::AboutWithEntities`), preserving inline hyperlinks and text formatting. `UserProfile.bio` is a plain `String` and rendered in a plain `SelectableText`; any links or bold/italic spans in user bios are silently stripped — `peer_short_info.dart:617` ← `prepare_short_info_box.cpp:236` (`AboutWithEntities(peer, peer->about())`) and `peer_short_info_box.cpp:806`
-
-- [ ] [MAJOR] Notes field loses entity formatting — same issue as bio: `UserProfile.notes` is a plain `String`. AyuGram's `note` is `TextWithEntities` — `peer_short_info.dart:650` ← `peer_short_info_box.cpp:931` (`noteValue()` returning `TextWithEntities`)
-
-- [ ] [MAJOR] `_isSelf` detected via hardcoded English string `'Saved Messages'` — will silently fail for users running a non-English locale, causing the "Send Message" action button to appear on the user's own saved messages chat — `peer_short_info.dart:244` ← `prepare_short_info_box.cpp:461` (`peer->isSelf()`)
 
 - [ ] [MAJOR] `additionalStatus` label absent — AyuGram shows a secondary status line on the cover ("Set by you" when viewing a personal photo, "Public photo" for the fallback) via `_additionalStatus` label positioned above the primary status. No equivalent exists in Dart — `peer_short_info.dart` (absent) ← `peer_short_info_box.cpp:427` (`applyAdditionalStatus`, `_additionalStatus.create`)
 
-- [ ] [MAJOR] Group/channel live member count never updates — member count is a static constructor parameter (`widget.memberCount`); AyuGram subscribes to `PeerUpdate::Flag::Members` and recomputes `tr::lng_chat_status_members` reactively. If member count changes during the box's lifetime, Dart shows the stale value — `peer_short_info.dart:407` ← `prepare_short_info_box.cpp:265` (`peerFlagsValue(peer, UpdateFlag::Members)`)
-
-- [ ] [MAJOR] `_onScroll` calls `setState` on every scroll pixel, rebuilding the entire widget tree. AyuGram calls `_cover.setScrollTop()` which calls `_widget->update()` on only the cover widget. At minimum, parallax and opacity math should be separated from full rebuilds using an `AnimatedBuilder` or custom `RenderObject` — `peer_short_info.dart:163` ← `peer_short_info_box.cpp:687` (`_cover.setScrollTop(_scroll->scrollTop())`)
-
 # photo_crop_editor — Audit Findings
 
-- [ ] [CRITICAL] `_done()` passes the original `widget.imageFile` unchanged to `onDone` — the crop rect, rotation, and flip state are tracked visually but never applied to produce a modified output image. The `onDone` parameter is named `croppedFile` but receives the unmodified source. AyuGram calls `ImageModified(fileImage->original(), mods)` before firing the done callback. — `photo_crop_editor.dart:352-354` ← `AyuGram/editor/photo_editor_layer_widget.cpp:113-118`
-
-- [ ] [CRITICAL] `_ImageCropAreaState._cropRect`, `_rotationDegrees`, and `_flipped` are private with no accessor; `_PhotoCropEditorState._done()` has no path to read them, so the save output is architecturally impossible to fix without refactoring. No `saveCropRect()`-equivalent on the Dart crop widget. — `photo_crop_editor.dart:609,348` ← `AyuGram/editor/editor_crop.cpp:586-591`
-
-- [ ] [CRITICAL] Paint mode is a complete stub: `_paintUndo()` and `_paintRedo()` contain an explicit comment "Will be connected when paint strokes are implemented." and do nothing. No brush tools (Pen/Arrow/Marker/Blur/Eraser), no ColorPicker, no brush size control, no stickers panel, no text tool — only the mode toggle exists. — `photo_crop_editor.dart:327-332` ← `AyuGram/editor/photo_editor.cpp:351-408`
-
-- [ ] [CRITICAL] `_PaintTopBar` always renders undo and redo with `_IconState.inactive` and `onPressed: () {}` — empty no-op callbacks regardless of paint history state. AyuGram dynamically enables/disables them via `UndoController.canPerformChanges()` and sets `WA_TransparentForMouseEvents` when no history is available. — `photo_crop_editor.dart:1399-1410` ← `AyuGram/editor/photo_editor_controls.cpp:427-441`
-
-- [ ] [CRITICAL] Missing corners level button for `PhotoCropShape.roundedRect` — AyuGram shows a `cornersButton` with a 4-level popup menu (Large/Medium/Small/None) when `cropType == CropType::RoundedRect`. Dart has no such button and hardcodes `_kForumRadiusMultiplier = 0.3` (Large only), making corner radius permanently fixed. — `photo_crop_editor.dart:49` ← `AyuGram/editor/photo_editor_controls.cpp:280-284,526-587`
-
-- [ ] [MAJOR] "Done" button in paint mode calls `_done()` which saves and pops the navigator — but AyuGram's paint-mode Done saves the strokes and returns to transform mode; only transform-mode Done exits the editor. This causes premature dismissal of the editor when the user confirms paint work. — `photo_crop_editor.dart:1159-1165` ← `AyuGram/editor/photo_editor.cpp:317-332`
-
-- [ ] [MAJOR] `_CropAspect` enum is missing the `3:4` portrait ratio. AyuGram offers: Original, Square, 3:2, 16:9, **3:4**, 9:16, Free. Dart has: original, square, ratio3x2, ratio16x9, ratio9x16, free — the `3:4` (0.75) entry is absent. — `photo_crop_editor.dart:76-96` ← `AyuGram/editor/photo_editor_controls.cpp:516`
-
-- [ ] [MAJOR] Paint mode bottom bar is missing the stickers button and text tool button. AyuGram's paint-mode `_paintBottomButtons` contains: cancel, paint-mode-active, stickersButton, textButton, done. Dart only has: cancel, brush icon (active), done — photo annotation with stickers and text is entirely absent. — `photo_crop_editor.dart:1149-1166` ← `AyuGram/editor/photo_editor_controls.cpp:308-320`
 
 ## popup_menu — Telegram popup/context menu widget
 
