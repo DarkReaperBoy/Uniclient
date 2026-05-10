@@ -549,29 +549,6 @@ The edit_mark_box is **functionally broken** — missing Cancel button, no input
 
 ## Major Issues Found
 
-- [ ] [MAJOR] **Entity extraction format mismatch** — `ayu_filter.dart:135-157` ← `AyuGramDesktop/.../filters_utils.cpp:640-656`
-  - Dart: Parses `contentRich` as JSON and looks for fields: `{'type': 'url'|'text_url', 'url': '...', 'offset': ..., 'length': ...}`
-  - AyuGram: Uses `original.entities` API objects directly, checks `entity.type() == EntityType::Url` or `EntityType::CustomUrl`, then `entity.data()` or substring by offset/length
-  - Both approaches functionally equivalent IF the Go backend correctly serializes entities into JSON format
-  - Risk: If Go serialization doesn't match expected JSON schema, URL extraction fails silently (try/catch at line 156 swallows all errors)
-
-- [ ] [MAJOR] **Missing service message type detection** — `ayu_filter.dart:0-0` ← `AyuGramDesktop/.../filters_utils.cpp:534-638`
-  - Dart: No check for `msg.isService` flag; doesn't detect service messages (joins, leaves, title changes, etc.)
-  - AyuGram: `if (item->isService()) { ... return 10 or other service types }`
-  - Result: Service messages are treated as text (type 0) instead of their actual type; cannot filter by "is service message"
-
-- [ ] [MAJOR] **Unbounded message cache growth** — `ayu_filter.dart:180-346`
-  - Cache map `_messageCache` only grows, never shrinks: `_messageCache[cacheKey] = result`
-  - No eviction, no size limits, no TTL
-  - AyuGram also has unbounded cache but with `filteredMessages.clear()` on `rebuildCache()` (line 97)
-  - Dart calls `invalidateMessage()` for individual items but nothing triggers full clear
-  - Risk: In long sessions with many messages, memory usage grows monotonically until app restart
-
-- [ ] [MAJOR] **Inconsistent button formatting** — `ayu_filter.dart:161` ← `AyuGramDesktop/.../filters_utils.cpp:675`
-  - Dart: `buf.write('\n<button>${btn.text} ${btn.data}</button>');`
-  - AyuGram: `text.append("<button>").append(button.text).append(" ").append(qs(button.data)).append("</button>");`
-  - Functionally equivalent but order differs: Dart includes `\n` inside write call, AyuGram with separate append
-  - Minor impact on string matching
 
 ## Warnings (Not showstoppers, but notable differences)
 
