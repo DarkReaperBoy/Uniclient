@@ -493,43 +493,9 @@ backend-wiring correctness and performance. AyuGram reference used for protocol 
 
 ## contacts_screen — stubs, broken backend wiring, missing DM creation, dropped comment
 
-# create_group_wizard — Audit Findings
-
-
-- [ ] [CRITICAL] Camera option in the userpic menu falls back to `_pickPhoto()` (file picker), not a camera capture. Line 327-328: `} else if (value == 'camera') { _pickPhoto(); }` — camera is listed as a distinct option in the menu but does exactly the same thing as "Upload Photo", giving users no actual camera access. — `create_group_wizard.dart:327-328`
-
-
-- [ ] [CRITICAL] Multiple usernames list (`UsernamesList`) is not implemented. AyuGram's `edit_peer_type_box.cpp:467` adds a `UsernamesList` widget that shows all secondary usernames for a channel and allows reordering/disabling them. The Dart `_EditPeerTypeBox` only handles one username field with no awareness of secondary usernames. The `usernamesOrder()` data is collected and passed to the save callback in AyuGram (edit_peer_type_box.cpp:775–778) but there is no equivalent in the Dart box. — `create_group_wizard.dart:2260-2935` ← `edit_peer_type_box.cpp:462-472`
 
 
 
-
-
-- [ ] [MAJOR] `_PublicLinksLimitBox` uses hardcoded constants `_freeLimit = 10` and `_premiumLimit = 20` (lines 1989–1990). AyuGram fetches these dynamically from the server via `Data::PremiumLimits(session).channelsPublicDefault()` and `channelsPublicPremium()` (premium_limits_box.cpp:641–642), which reads from `appConfigLimit("channels_public_limit_default", 10)` / `appConfigLimit("channels_public_limit_premium", 20)`. The Telegram server can push different limits via app config; hardcoding means the display will be wrong for users who receive non-standard limits. — `create_group_wizard.dart:1989-1990` ← `premium_limits_box.cpp:641-642`
-
-
-
-
-
-# custom_emoji_cache — Audit Findings
-
-
-
-
-
-- [ ] [MAJOR] Frame size constants are hardcoded pixel values with no DPI scaling — `dart/lib/ui/custom_emoji_cache.dart:20-25` (`normal: 20.0, large: 27.0, isolated: 43.0, setIcon: 24.0`) are device-independent points, but AyuGram computes actual frame sizes by calling `Ui::Text::AdjustCustomEmojiSize(emoji / factor) * factor` where factor is `style::DevicePixelRatio()` ← `AyuGram/data/stickers/data_custom_emoji.cpp:1011-1015` — on 2× displays the Dart sizes are half the correct rendered resolution
-
-- [ ] [MAJOR] `EmojiSizeTag.large` and `EmojiSizeTag.setIcon` are never passed to `acquire`/`release` anywhere in the codebase — every call site uses only `EmojiSizeTag.normal` or `EmojiSizeTag.isolated` (`dart/lib/ui/message_bubble.dart:2189,5822,6091`, `dart/lib/ui/emoji_status_widget.dart:49`, `dart/lib/ui/chat_view.dart:11777`) — so the per-size refcount system (`dart/lib/ui/custom_emoji_cache.dart:64`) is only half-wired; emoji displayed at large/setIcon sizes are never ref-counted and cannot be properly evicted ← `AyuGram/data/stickers/data_custom_emoji.h:150-155` (four separate instance maps, one per `SizeTag`, all actively managed)
-
-- [ ] [MAJOR] `kPerRow = 16`, `kMaxFrames = 180`, and `kPreloadFrames = 3` are defined in `EmojiSizeConstants` (`dart/lib/ui/custom_emoji_cache.dart:27-29`) but never referenced anywhere in the codebase — they hint at a planned frame-preloading/row-layout pipeline that was never implemented; without it the cache has no cross-size approximate-preview fallback, so emoji always start blank until the full file loads ← `AyuGram/data/stickers/data_custom_emoji.cpp:523-548` (`prepareNonExactPreview` scales an existing instance from any other size tag as an immediate approximate preview, avoiding blank frames entirely)
-
-# edit_forum_topic_box — Audit Findings
-
-- [ ] [CRITICAL] `_iconEmojiId` stores Unicode codepoints (emoji.runes.first) instead of Telegram DocumentIds — callers pass this directly to `engine.createForumTopic` / `engine.editForumTopic`, sending wrong values to `MTPmessages_EditForumTopic` which expects a 64-bit DocumentId — `edit_forum_topic_box.dart:468-480` ← `edit_forum_topic_box.cpp:350-375` (stores `document->id` as `DocumentId`)
-
-- [ ] [CRITICAL] Emoji icon selector uses a hardcoded static list of Unicode emoji characters (`_defaultTopicEmojiIcons`) instead of fetching real Telegram forum topic icons from the server via `inputStickerSetEmojiDefaultTopicIcons` — AyuGram uses `EmojiListWidget` with `Mode::TopicIcon`, calls `icons->requestDefaultIfUnknown()` and `icons->list()` to get actual SVG-based DocumentId icons; the Dart grid shows system emoji (💬 📢) which are visually wrong — `edit_forum_topic_box.dart:29-54` ← `edit_forum_topic_box.cpp:283-305`
-
-- [ ] [CRITICAL] Premium icon check shows a SnackBar stub instead of the proper StickerToast premium preview — AyuGram uses `HistoryView::StickerToast` with `Section::TopicIcon` which shows the actual sticker with a "Get Premium" CTA; the Dart shows a 2-second SnackBar with no actionable path — `edit_forum_topic_box.dart:470-476` ← `edit_forum_topic_box.cpp:335-344`
 
 
 
