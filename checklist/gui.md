@@ -575,13 +575,11 @@ The edit_mark_box is **functionally broken** — missing Cancel button, no input
 
 ## Edit Invite Link Box
 
-- [x] [CRITICAL] Custom expiry date picker missing — AyuGram includes a `0` (Custom) option in the expiry radio list that opens a `ChooseDateTimeBox`; Dart only offers five hardcoded presets with no way to set an arbitrary date — `input_dialogs.dart:861-874` ← `AyuGram/ui/boxes/edit_invite_link.cpp:242-321`
+- [ ] [CRITICAL] Custom expiry date picker missing — The actual dialog is `_CreateEditLinkFormState` in `admin_tools.dart` (not input_dialogs.dart); its `_expireOptions` map at line 4840 has no Custom entry and no `_showCustomExpiry()` method — `admin_tools.dart:4840-4846` ← `AyuGram/ui/boxes/edit_invite_link.cpp:242-321`
 
-- [x] [CRITICAL] Custom usage limit input missing — AyuGram includes a `0` (Custom) option in the usage list that opens a `NumberInput` dialog; Dart only offers `Unlimited/1/10/100` — `input_dialogs.dart:869-874` ← `AyuGram/ui/boxes/edit_invite_link.cpp:323-369`
+- [ ] [CRITICAL] Custom usage limit input missing — `_CreateEditLinkFormState._usageOptions` at `admin_tools.dart:4848` has no Custom entry and no custom number input — `admin_tools.dart:4848-4853` ← `AyuGram/ui/boxes/edit_invite_link.cpp:323-369`
 
-- [x] [MAJOR] Default expiry is 30 days instead of Never — Dart initialises `_expireOption = 2592000` (30 days); AyuGram defaults to `kMaxLimit` (never expires) — `input_dialogs.dart:854` ← `AyuGram/ui/boxes/edit_invite_link.cpp:91` (`const auto expire = data.expireDate ? data.expireDate : kMaxLimit`)
-
-- [x] [MAJOR] No label max-length enforcement — AyuGram calls `labelField->setMaxLength(kMaxLabelLength)` (32 chars); Dart has no character limit on the label input — `input_dialogs.dart:968-972` ← `AyuGram/ui/boxes/edit_invite_link.cpp:29,171` (`constexpr auto kMaxLabelLength = 32`)
+- [ ] [MAJOR] Default expiry is 30 days instead of Never — `_CreateEditLinkFormState` initialises `_expireOption = 2592000` (30 days) at `admin_tools.dart:4833`; AyuGram defaults to `kMaxLimit` (never expires) — `admin_tools.dart:4833` ← `AyuGram/ui/boxes/edit_invite_link.cpp:91`
 
 ## Create Poll Box
 
