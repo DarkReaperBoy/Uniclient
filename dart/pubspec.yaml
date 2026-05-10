@@ -33,6 +33,7 @@ dependencies:
   flutter_svg: ^2.0.10+1
   url_launcher: ^6.3.1
   record: ^6.2.0
+  local_auth: ^2.3.0
 
 dev_dependencies:
   flutter_test:

@@ -4,6 +4,7 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   desktop_drop
+  local_auth_windows
   media_kit_video
   record_windows
   share_plus

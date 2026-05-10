@@ -1985,7 +1985,9 @@ class _UniClientAppState extends State<UniClientApp>
                   settings: _notifSystem.settings,
                   isPasscodeLocked: context.watch<AppState>().passcodeLocked,
                   onReplySend: (accountId, chatId, text) {
-                    // TODO: wire to engine sendMessage
+                    if (accountId.isNotEmpty && chatId.isNotEmpty && text.isNotEmpty) {
+                      context.read<EngineService>().sendMessage(accountId, chatId, text);
+                    }
                   },
                 ),
               ),
@@ -2020,7 +2022,7 @@ class _ThemeRevertOverlay extends StatefulWidget {
 
 class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
   static const _totalMs = 15999;
-  static const _boxWidth = 320.0;
+  static const _boxWidth = 364.0;
   static const _boxRadius = 12.0;
 
   final _escapeFocus = FocusNode();
@@ -2083,10 +2085,7 @@ class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
     final testing = context.watch<AppState>().isTestingTheme;
     if (!testing && !_visible) return const SizedBox.shrink();
 
-    return Positioned(
-      bottom: 20,
-      left: 0,
-      right: 0,
+    return Positioned.fill(
       child: IgnorePointer(
         ignoring: !_visible,
         child: AnimatedOpacity(
@@ -2120,7 +2119,7 @@ class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
       color: Colors.transparent,
       child: Container(
         width: _boxWidth,
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+        height: 150,
         decoration: BoxDecoration(
           color: p.boxBg,
           borderRadius: BorderRadius.circular(_boxRadius),
@@ -2132,47 +2131,55 @@ class _ThemeRevertOverlayState extends State<_ThemeRevertOverlay> {
             ),
           ],
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: Stack(
           children: [
-            Text(
-              'Keep this theme?',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: p.boxTitleFg,
+            Positioned(
+              left: 22,
+              top: 17,
+              right: 22,
+              child: Text(
+                'Keep this theme?',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: p.boxTitleFg,
+                ),
               ),
             ),
-            const SizedBox(height: 6),
-            Text(
-              'Theme will revert in $seconds second${seconds == 1 ? '' : 's'}',
-              style: TextStyle(fontSize: 13, color: p.boxTitleAdditionalFg),
+            Positioned(
+              left: 22,
+              top: 60,
+              right: 22,
+              child: Text(
+                'Theme will revert in $seconds second${seconds == 1 ? '' : 's'}',
+                style: TextStyle(fontSize: 13, color: p.boxTitleAdditionalFg),
+              ),
             ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: TextButton(
+            Positioned(
+              right: 12,
+              bottom: 12,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextButton(
                     onPressed: _revert,
                     style: TextButton.styleFrom(
                       foregroundColor: p.boxTitleAdditionalFg,
-                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
                     ),
                     child: const Text('Revert'),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextButton(
+                  const SizedBox(width: 8),
+                  TextButton(
                     onPressed: _keep,
                     style: TextButton.styleFrom(
                       foregroundColor: accentColor,
-                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
                     ),
                     child: const Text('Keep Changes'),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
@@ -2206,14 +2213,15 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
   String _error = '';
   bool _visible = false;
   bool _showLogoutConfirm = false;
-  late final SystemUnlockStatus _unlockStatus;
+  SystemUnlockStatus _unlockStatus = const SystemUnlockStatus();
   bool _systemUnlockEnabled = false;
   DateTime _lastSystemUnlockAttempt = DateTime(2000);
+  bool _systemUnlockSuggested = false;
 
   @override
   void initState() {
     super.initState();
-    _unlockStatus = getSystemUnlockStatus();
+    _initUnlockStatus();
     WidgetsBinding.instance.addObserver(this);
     _focusPasscode = () => _focusNode.requestFocus();
     _anim = AnimationController(vsync: this, duration: _duration);
@@ -2228,6 +2236,11 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
       }
       _loadSystemUnlockPref();
     });
+  }
+
+  Future<void> _initUnlockStatus() async {
+    final status = await getSystemUnlockStatus();
+    if (mounted) setState(() => _unlockStatus = status);
   }
 
   Future<void> _loadSystemUnlockPref() async {
@@ -2254,6 +2267,9 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
     if (state == AppLifecycleState.resumed && _visible) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _focusNode.requestFocus();
+        if (_showSystemUnlockButton && !_systemUnlockSuggested) {
+          _triggerSystemUnlock();
+        }
       });
     }
   }
@@ -2299,7 +2315,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
       return;
     }
     if (!appState.passcodeCanTry()) {
-      _showError('Please try again later');
+      _showError('Too many attempts. Please try again later.');
       return;
     }
     if (appState.checkPasscode(entered)) {
@@ -2324,10 +2340,21 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
     _errorAnim.reverse();
   }
 
-  void _triggerSystemUnlock() {
+  Future<void> _triggerSystemUnlock() async {
     final now = DateTime.now();
     if (now.difference(_lastSystemUnlockAttempt) < _systemUnlockCooldown) return;
     _lastSystemUnlockAttempt = now;
+    _systemUnlockSuggested = true;
+    final result = await attemptSystemUnlock();
+    if (!mounted) return;
+    switch (result) {
+      case SystemUnlockResult.success:
+        context.read<AppState>().unlockPasscode();
+      case SystemUnlockResult.floodError:
+        _showError('Too many attempts. Please try again later.');
+      case SystemUnlockResult.cancelled:
+        break;
+    }
   }
 
   void _confirmLogout() {
@@ -2433,7 +2460,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
                   Positioned(
                     left: 0,
                     right: 0,
-                    top: inputY + 70,
+                    top: inputY + 40,
                     child: Text(
                       _error,
                       textAlign: TextAlign.center,
@@ -2442,7 +2469,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
                   ),
                 Positioned(
                   left: (constraints.maxWidth - 225) / 2,
-                  top: inputY + 70 + (_error.isNotEmpty ? 25 : 0),
+                  top: inputY + 40 + (_error.isNotEmpty ? 25 : 0),
                   child: SizedBox(
                     width: 225,
                     height: 42,
@@ -2464,7 +2491,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
                 if (_showSystemUnlockButton)
                   Positioned(
                     left: (constraints.maxWidth - 48) / 2,
-                    top: inputY + 70 + (_error.isNotEmpty ? 25 : 0) + 42 + 12,
+                    top: inputY + 40 + (_error.isNotEmpty ? 25 : 0) + 42 + 12,
                     child: IconButton(
                       iconSize: 28,
                       style: IconButton.styleFrom(
@@ -2472,9 +2499,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
                         shape: const CircleBorder(),
                       ),
                       icon: Icon(
-                        _unlockStatus.unlockType == UnlockType.biometrics
-                            ? Icons.fingerprint
-                            : Icons.lock_open_outlined,
+                        getSystemUnlockIcon(_unlockStatus.unlockType),
                         color: accentColor,
                       ),
                       tooltip: getSystemUnlockLabel(_unlockStatus.unlockType),
@@ -2484,7 +2509,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
                 Positioned(
                   left: 0,
                   right: 0,
-                  top: inputY + 70 + (_error.isNotEmpty ? 25 : 0) + 42 + 16 + (_showSystemUnlockButton ? 52 : 0),
+                  top: inputY + 40 + (_error.isNotEmpty ? 25 : 0) + 42 + 16 + (_showSystemUnlockButton ? 52 : 0),
                   child: GestureDetector(
                     onTap: _confirmLogout,
                     child: Text(

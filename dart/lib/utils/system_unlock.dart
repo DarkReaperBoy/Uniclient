@@ -1,7 +1,11 @@
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart' show Icons, IconData;
+import 'package:local_auth/local_auth.dart';
 
 enum UnlockType { none, defaultUnlock, biometrics, companion }
+
+enum SystemUnlockResult { success, cancelled, floodError }
 
 class SystemUnlockStatus {
   final bool available;
@@ -22,16 +26,40 @@ class SystemUnlockStatus {
   }
 }
 
-SystemUnlockStatus getSystemUnlockStatus() {
+Future<SystemUnlockStatus> getSystemUnlockStatus() async {
   if (kIsWeb) return const SystemUnlockStatus();
-  if (Platform.isLinux) return const SystemUnlockStatus();
-  if (Platform.isWindows) {
-    return const SystemUnlockStatus(available: false);
+  final auth = LocalAuthentication();
+  try {
+    final canAuth = await auth.canCheckBiometrics || await auth.isDeviceSupported();
+    if (!canAuth) return const SystemUnlockStatus();
+    final biometrics = await auth.getAvailableBiometrics();
+    final hasBiometrics = biometrics.contains(BiometricType.fingerprint) ||
+        biometrics.contains(BiometricType.face) ||
+        biometrics.contains(BiometricType.iris);
+    return SystemUnlockStatus(
+      available: true,
+      withBiometrics: hasBiometrics,
+    );
+  } catch (_) {
+    return const SystemUnlockStatus();
   }
-  if (Platform.isMacOS) {
-    return const SystemUnlockStatus(available: false);
+}
+
+Future<SystemUnlockResult> attemptSystemUnlock() async {
+  if (kIsWeb) return SystemUnlockResult.cancelled;
+  final auth = LocalAuthentication();
+  try {
+    final didAuth = await auth.authenticate(
+      localizedReason: 'Confirm your identity to unlock the app',
+      options: const AuthenticationOptions(
+        biometricOnly: false,
+        stickyAuth: true,
+      ),
+    );
+    return didAuth ? SystemUnlockResult.success : SystemUnlockResult.cancelled;
+  } catch (_) {
+    return SystemUnlockResult.floodError;
   }
-  return const SystemUnlockStatus();
 }
 
 String getSystemUnlockLabel(UnlockType type) {
@@ -48,18 +76,16 @@ String getSystemUnlockLabel(UnlockType type) {
   }
 }
 
-IconDataForUnlock getSystemUnlockIcon(UnlockType type) {
-  if (!kIsWeb && Platform.isWindows) return IconDataForUnlock.windowsHello;
+IconData getSystemUnlockIcon(UnlockType type) {
+  if (!kIsWeb && Platform.isWindows) return Icons.security;
   switch (type) {
     case UnlockType.biometrics:
-      return IconDataForUnlock.touchId;
+      return Icons.fingerprint;
     case UnlockType.companion:
-      return IconDataForUnlock.watch;
+      return Icons.watch;
     case UnlockType.defaultUnlock:
-      return IconDataForUnlock.password;
+      return Icons.lock_open_outlined;
     case UnlockType.none:
-      return IconDataForUnlock.password;
+      return Icons.lock_open_outlined;
   }
 }
-
-enum IconDataForUnlock { windowsHello, touchId, watch, password }

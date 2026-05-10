@@ -2411,8 +2411,16 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (_passcodeBadTries < 3) return true;
     final last = _passcodeLastTry;
     if (last == null) return true;
-    final elapsed = DateTime.now().difference(last).inSeconds;
-    return elapsed >= _passcodeBadTries * 5;
+    final elapsed = DateTime.now().difference(last).inMilliseconds;
+    final waitMs = switch (_passcodeBadTries) {
+      3 => 5000,
+      4 => 10000,
+      5 => 15000,
+      6 => 20000,
+      7 => 25000,
+      _ => 30000,
+    };
+    return elapsed >= waitMs;
   }
 
   bool checkPasscode(String entered) {

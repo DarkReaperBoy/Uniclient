@@ -5582,13 +5582,18 @@ class _LocalPasscodeManage extends StatefulWidget {
 class _LocalPasscodeManageState extends State<_LocalPasscodeManage> {
   int _autoLockSeconds = 0;
   bool _systemUnlockEnabled = false;
-  late final SystemUnlockStatus _unlockStatus;
+  SystemUnlockStatus _unlockStatus = const SystemUnlockStatus();
 
   @override
   void initState() {
     super.initState();
-    _unlockStatus = getSystemUnlockStatus();
+    _initUnlockStatus();
     _loadSettings();
+  }
+
+  Future<void> _initUnlockStatus() async {
+    final status = await getSystemUnlockStatus();
+    if (mounted) setState(() => _unlockStatus = status);
   }
 
   Future<void> _loadSettings() async {
