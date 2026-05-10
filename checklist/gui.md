@@ -631,9 +631,6 @@ The Dart emoji_data.dart implements a hardcoded static emoji search database, wh
 
 ## Critical — Backend disconnected
 
-- [ ] [CRITICAL] Type sub-page `_enabled`, `_soundEnabled`, `_volume`, `_selectedToneId` are hardcoded defaults (`true, true, 100, -1`), never loaded from `session.data.notifySettings().defaultSettings(type)` — so the sub-page always shows "on / sound on / 100%" regardless of real account state — `notifications_settings_screen.dart:1357-1361` ← `AyuGram/settings/sections/settings_notifications_type.cpp:392-397`
-
-- [ ] [CRITICAL] Changes to `_soundEnabled` in the type sub-page only call `setState()`, never call `settings.defaultUpdate(type, MuteValue)` to persist to the Telegram server (`_enabled` is now wired but `_soundEnabled` at line ~1549 still only does setState) — `notifications_settings_screen.dart:1420, 1443` ← `AyuGram/settings/sections/settings_notifications.cpp:227-233`
 
 ## Major — Wrong initial state / performance
 
