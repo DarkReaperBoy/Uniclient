@@ -117,19 +117,18 @@ class _CompiledPattern {
 }
 
 const _mediaTypeNames = <int, int>{
-  1: 1,   // image → PHOTO
-  2: 3,   // video → VIDEO
-  3: 14,  // audio → AUDIO
-  4: 15,  // voice → VOICE
-  5: 12,  // videonote → ROUND_VIDEO
-  6: 13,  // sticker → STICKER
-  7: 11,  // gif → GIF
-  8: 9,   // file → DOCUMENT
+  1: 1,   // image → TYPE_PHOTO
+  2: 3,   // video → TYPE_VIDEO
+  3: 14,  // audio → TYPE_MUSIC
+  4: 2,   // voice → TYPE_VOICE
+  5: 5,   // videonote → TYPE_ROUND_VIDEO
+  6: 13,  // sticker → TYPE_STICKER
+  7: 8,   // gif → TYPE_GIF
+  8: 9,   // file → TYPE_FILE
 };
 
-String extractMatchBlob(CachedMessage msg) {
+String _extractSingleText(CachedMessage msg) {
   final buf = StringBuffer();
-
   buf.write(msg.contentText);
 
   if (msg.contentRich.isNotEmpty) {
@@ -156,28 +155,58 @@ String extractMatchBlob(CachedMessage msg) {
     } catch (_) {}
   }
 
+  return buf.toString();
+}
+
+String extractMatchBlob(CachedMessage msg, {List<CachedMessage>? groupMessages}) {
+  final buf = StringBuffer();
+
+  if (groupMessages != null && groupMessages.length > 1) {
+    for (final gMsg in groupMessages) {
+      final text = _extractSingleText(gMsg).trim();
+      if (text.isNotEmpty) {
+        buf.write(text);
+        buf.write('\n');
+      }
+    }
+  } else {
+    buf.write(_extractSingleText(msg));
+  }
+
   for (final row in msg.inlineKeyboard) {
     for (final btn in row) {
-      buf.write('\n<button>${btn.text} ${btn.data}</button>');
+      buf.write('<button>');
+      buf.write(btn.text);
+      buf.write(' ');
+      buf.write(btn.data);
+      buf.write('</button>\n');
     }
   }
   if (msg.replyKeyboard != null) {
     for (final row in msg.replyKeyboard!.rows) {
       for (final btn in row) {
-        buf.write('\n<button>${btn.text}</button>');
+        buf.write('<button>');
+        buf.write(btn.text);
+        buf.write('</button>\n');
       }
     }
   }
 
-  final typeId = _mediaTypeNames[msg.mediaType] ?? 0;
-  if (typeId > 0) {
-    buf.write('\n<type>$typeId</type>');
+  if (msg.isService) {
+    buf.write('\n<type>10</type>');
+  } else {
+    final typeId = _mediaTypeNames[msg.mediaType] ?? 0;
+    if (typeId > 0) {
+      buf.write('\n<type>$typeId</type>');
+    }
   }
 
   return buf.toString();
 }
 
 class AyuFilterEngine extends ChangeNotifier {
+  static const _maxCacheSize = 10000;
+
   List<_CompiledPattern> _sharedPatterns = [];
   final Map<String, List<_CompiledPattern>> _dialogPatterns = {};
   final Map<String, Set<String>> _exclusionsByDialog = {};
@@ -304,13 +333,15 @@ class AyuFilterEngine extends ChangeNotifier {
     _messageCache.remove('$chatId:$msgId');
   }
 
-  bool isFiltered(CachedMessage msg, AppState appState, {ChatType? chatType}) {
+  bool isFiltered(CachedMessage msg, AppState appState, {ChatType? chatType, List<CachedMessage>? groupMessages}) {
     if (!appState.filtersEnabled) return false;
     if (msg.isOutgoing) return false;
 
     final senderId = _parseSenderId(msg.senderId);
     if (senderId != null) {
-      if (appState.isShadowBanned(senderId)) return true;
+      if (msg.senderId != msg.chatId && appState.isShadowBanned(senderId)) {
+        return true;
+      }
     }
 
     if (!_isEnabledForChat(chatType, appState)) return false;
@@ -319,14 +350,14 @@ class AyuFilterEngine extends ChangeNotifier {
     final cached = _messageCache[cacheKey];
     if (cached != null) return cached;
 
-    final blob = extractMatchBlob(msg);
+    final blob = extractMatchBlob(msg, groupMessages: groupMessages);
     final dialogId = msg.chatId;
 
     final dialogPats = _dialogPatterns[dialogId];
     if (dialogPats != null) {
       for (final p in dialogPats) {
         if (p.matches(blob)) {
-          _messageCache[cacheKey] = true;
+          _cacheResult(cacheKey, true);
           return true;
         }
       }
@@ -336,13 +367,20 @@ class AyuFilterEngine extends ChangeNotifier {
     for (final p in _sharedPatterns) {
       if (excl != null && excl.contains(p.filter.id)) continue;
       if (p.matches(blob)) {
-        _messageCache[cacheKey] = true;
+        _cacheResult(cacheKey, true);
         return true;
       }
     }
 
-    _messageCache[cacheKey] = false;
+    _cacheResult(cacheKey, false);
     return false;
+  }
+
+  void _cacheResult(String key, bool value) {
+    if (_messageCache.length >= _maxCacheSize) {
+      _messageCache.clear();
+    }
+    _messageCache[key] = value;
   }
 
   bool _isEnabledForChat(ChatType? chatType, AppState appState) {

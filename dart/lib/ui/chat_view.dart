@@ -2863,9 +2863,22 @@ class _ChatViewState extends State<ChatView>
 
     if (!hasHidden && !hasEngine && !hasTagFilter) return messages;
 
+    Map<String, List<CachedMessage>>? groupIndex;
+    if (hasEngine) {
+      groupIndex = {};
+      for (final m in messages) {
+        if (m.groupedId.isNotEmpty) {
+          (groupIndex[m.groupedId] ??= []).add(m);
+        }
+      }
+    }
+
     return messages.where((m) {
       if (hasHidden && _hiddenMsgIds.contains(m.msgId)) return false;
-      if (hasEngine && engine.isFiltered(m, appState, chatType: chatType)) return false;
+      if (hasEngine) {
+        final group = m.groupedId.isNotEmpty ? groupIndex![m.groupedId] : null;
+        if (engine.isFiltered(m, appState, chatType: chatType, groupMessages: group)) return false;
+      }
       if (hasTagFilter) {
         final hasMatch = m.reactions.any((r) {
           final key = r.isCustomEmoji ? 'custom:${r.documentId}' : 'emoji:${r.emoji}';
