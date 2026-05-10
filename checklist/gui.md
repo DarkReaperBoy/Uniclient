@@ -649,10 +649,6 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 
 ---
 
-## passcode — lockout delay schedule wrong
-
-- [ ] [CRITICAL] Passcode lockout uses `elapsed >= badTries * 5` (seconds), which gives 15s/20s/25s/30s/35s for tries 3–7. AyuGram uses a per-step table: 3→5s, 4→10s, 5→15s, 6→20s, 7→25s, else→30s. Every threshold is wrong — at 3 bad tries the Dart lock waits 15s but AyuGram only waits 5s. — `main.dart:2242` (app_state.dart) ← `AyuGram/SourceFiles/settings.h:116`
-
 ## passcode — system unlock button does nothing
 
 - [ ] [CRITICAL] `_triggerSystemUnlock()` updates only a cooldown timestamp and returns — it never calls any biometric/system-auth API. The button is rendered and shown to users but is a dead stub. AyuGram calls `SuggestSystemUnlock()` which invokes the platform auth dialog and handles `SystemUnlockResult::Success/FloodError`. — `main.dart:2294` ← `AyuGram/SourceFiles/window/window_lock_widgets.cpp:201`
