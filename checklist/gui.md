@@ -575,10 +575,6 @@ The edit_mark_box is **functionally broken** — missing Cancel button, no input
 
 ## Country Picker
 
-- [ ] [MAJOR] Row height 40 px vs spec 36 px — `input_dialogs.dart:753` (`itemExtent: 40`) ← AyuGram style skeleton (`countryRowHeight: 36px`) and `AyuGram/ui/boxes/country_select_box.cpp:235` (`_rowHeight(st::countryRowHeight)`)
-
-- [ ] [MAJOR] Filtering uses `contains` instead of word-start match — AyuGram's `updateFilter` only matches entries where a name component *starts with* the search word (`name.startsWith(word)`); Dart uses `.contains(q)` which returns false positives — `input_dialogs.dart:712-713` ← `AyuGram/ui/boxes/country_select_box.cpp:488-493`
-
 - [ ] [MAJOR] Selected country not moved to top of list — AyuGram places the currently selected country first (`LastValidISO` logic in `init()`), so it's immediately visible when the picker opens; Dart keeps alphabetical order — `input_dialogs.dart:709-714` ← `AyuGram/ui/boxes/country_select_box.cpp:277-285`
 
 ## Edit Invite Link Box
