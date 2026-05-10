@@ -13,8 +13,25 @@ import 'edit_mark_box.dart';
 import 'settings_style.dart';
 import 'telegram_toast.dart';
 
-class GhostSettingsPage extends StatelessWidget {
+class GhostSettingsPage extends StatefulWidget {
   const GhostSettingsPage({super.key});
+
+  @override
+  State<GhostSettingsPage> createState() => _GhostSettingsPageState();
+}
+
+class _GhostSettingsPageState extends State<GhostSettingsPage> {
+  String? _selectedUserId;
+
+  @override
+  void initState() {
+    super.initState();
+    final appState = context.read<AppState>();
+    final activeCount = appState.accounts.length;
+    if (activeCount <= 1 && !appState.useGlobalGhostMode) {
+      appState.setUseGlobalGhostMode(true);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -60,10 +77,12 @@ class GhostSettingsPage extends StatelessWidget {
             onScopeChanged: (bool global, String? userId) {
               if (global) {
                 appState.setUseGlobalGhostMode(true);
+                setState(() => _selectedUserId = null);
                 showTelegramToast(context,
                     'Switched to same settings for all accounts.');
               } else {
                 appState.setUseGlobalGhostMode(false);
+                setState(() => _selectedUserId = userId);
                 showTelegramToast(context,
                     'Switched to individual settings for each account.');
               }
@@ -83,6 +102,10 @@ class GhostSettingsPage extends StatelessWidget {
             },
             isDark: isDark,
             useMaterial: appState.materialSwitches,
+          ),
+          _DividerText(
+            text: 'Shift-click or long-press a toggle to lock it per-account.',
+            color: subtitleColor,
           ),
           AnimatedSize(
             duration: const Duration(milliseconds: 200),

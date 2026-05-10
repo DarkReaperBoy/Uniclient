@@ -178,25 +178,42 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                     // §3.3 / §54.8a: Menu Bots rows (§54.8: gated).
                     if (appState.showBotsInDrawer)
                     for (final bot in appState.menuBots)
-                      _MenuRow(
-                        icon: Icons.smart_toy,
-                        label: bot.name,
-                        iconPath: bot.iconPath,
-                        onTap: () async {
-                          Navigator.of(context).pop();
-                          final chatState = context.read<ChatState>();
-                          final url = await chatState.requestBotWebView(bot.id);
-                          if (context.mounted) {
-                            WebAppPanel.open(
-                              context,
-                              data: WebAppPanelData(
-                                botName: bot.name,
-                                botUsername: '',
-                                url: url,
-                              ),
-                            );
-                          }
+                      GestureDetector(
+                        onSecondaryTapUp: (details) {
+                          showTelegramMenu<String>(
+                            context: context,
+                            position: details.globalPosition,
+                            items: const [
+                              TelegramMenuItem(value: 'remove', icon: Icon(Icons.delete_outline), label: 'Remove from Menu'),
+                            ],
+                          ).then((value) {
+                            if (value == 'remove') {
+                              final engine = context.read<EngineService>();
+                              final accountId = appState.activeAccount?.id ?? '';
+                              engine.removeBotFromMenu(accountId, bot.id);
+                            }
+                          });
                         },
+                        child: _MenuRow(
+                          icon: Icons.smart_toy,
+                          label: bot.name,
+                          iconPath: bot.iconPath,
+                          onTap: () async {
+                            Navigator.of(context).pop();
+                            final chatState = context.read<ChatState>();
+                            final url = await chatState.requestBotWebView(bot.id);
+                            if (context.mounted) {
+                              WebAppPanel.open(
+                                context,
+                                data: WebAppPanelData(
+                                  botName: bot.name,
+                                  botUsername: '',
+                                  url: url,
+                                ),
+                              );
+                            }
+                          },
+                        ),
                       ),
                     // §3.3: PlainShadow divider below My Profile/Bots block
                     // with 6px mainMenuSkip padding top and bottom.
@@ -209,23 +226,33 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                     ),
                     // §3.3: New Group row (§54.8: gated).
                     if (appState.showNewGroupInDrawer)
-                    _MenuRow(
-                      icon: Icons.group,
-                      label: 'New Group',
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        showCreateGroupWizard(context);
+                    GestureDetector(
+                      onSecondaryTapUp: (details) {
+                        _showMyGroupsPopup(context, details.globalPosition, isGroup: true);
                       },
+                      child: _MenuRow(
+                        icon: Icons.group,
+                        label: 'New Group',
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          showCreateGroupWizard(context);
+                        },
+                      ),
                     ),
                     // §3.3: New Channel row (§54.8: gated).
                     if (appState.showNewChannelInDrawer)
-                    _MenuRow(
-                      icon: Icons.campaign,
-                      label: 'New Channel',
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        showCreateChannelWizard(context);
+                    GestureDetector(
+                      onSecondaryTapUp: (details) {
+                        _showMyGroupsPopup(context, details.globalPosition, isGroup: false);
                       },
+                      child: _MenuRow(
+                        icon: Icons.campaign,
+                        label: 'New Channel',
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          showCreateChannelWizard(context);
+                        },
+                      ),
                     ),
                     // §3.3: Contacts row (§54.8: gated).
                     if (appState.showContactsInDrawer)
@@ -252,14 +279,18 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                     _MenuRow(
                       icon: Icons.bookmark,
                       label: 'Saved Messages',
-                      onTap: () {
+                      onTap: () async {
                         Navigator.of(context).pop();
                         final chatState = context.read<ChatState>();
+                        final engine = context.read<EngineService>();
+                        final accountId = context.read<AppState>().activeAccount?.id ?? '';
                         final saved = chatState.chats
                             .where((c) => isSavedMessages(c))
                             .firstOrNull;
                         if (saved != null) {
                           chatState.openChat(saved);
+                        } else {
+                          await engine.openSavedMessages(accountId);
                         }
                       },
                     ),
@@ -367,27 +398,56 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         }
                       },
                     ),
-                    // §51.5: LRead toggle — quick toggle for sendReadMessages (default hidden).
+                    // §51.5: LRead — one-shot "mark all chats read without receipts".
                     if (appState.showLReadToggleInDrawer)
                     _MenuRow(
                       icon: Icons.mark_email_read,
-                      label: 'Read Receipts',
-                      trailing: _InlineToggle(
-                        value: appState.sendReadMessages,
-                        onChanged: (v) => appState.setSendReadMessages(v),
-                      ),
-                      onTap: () => appState.setSendReadMessages(!appState.sendReadMessages),
+                      label: 'Mark All Read (Silent)',
+                      onTap: () async {
+                        final engine = context.read<EngineService>();
+                        final chatState = context.read<ChatState>();
+                        final accountId = appState.activeAccount?.id ?? '';
+                        final origVal = appState.sendReadMessages;
+                        appState.setSendReadMessages(false);
+                        try {
+                          await engine.markAllChatsRead(accountId);
+                        } finally {
+                          appState.setSendReadMessages(origVal);
+                        }
+                        if (context.mounted) {
+                          showTelegramToast(context, 'All chats marked as read.');
+                        }
+                      },
                     ),
-                    // §51.5: SRead toggle — quick toggle for sendReadStories (default shown).
+                    // §51.5: SRead — one-shot "mark all stories read without receipts".
                     if (appState.showSReadToggleInDrawer)
                     _MenuRow(
                       icon: Icons.auto_stories,
-                      label: 'Story Reads',
-                      trailing: _InlineToggle(
-                        value: appState.sendReadStories,
-                        onChanged: (v) => appState.setSendReadStories(v),
-                      ),
-                      onTap: () => appState.setSendReadStories(!appState.sendReadStories),
+                      label: 'Mark Stories Read (Silent)',
+                      onTap: () async {
+                        bool userConfirmed = false;
+                        await showConfirmBox(
+                          context,
+                          title: 'Mark All Stories Read',
+                          text: 'This will mark all stories as read without sending read receipts. Continue?',
+                          confirmText: 'Mark Read',
+                          onConfirm: () => userConfirmed = true,
+                        );
+                        if (!userConfirmed || !context.mounted) return;
+                        final engine = context.read<EngineService>();
+                        final accountId = appState.activeAccount?.id ?? '';
+                        final origVal = appState.sendReadMessages;
+                        appState.setSendReadMessages(true);
+                        try {
+                          await engine.markAllChatsRead(accountId);
+                          await Future<void>.delayed(const Duration(milliseconds: 200));
+                        } finally {
+                          appState.setSendReadMessages(origVal);
+                        }
+                        if (context.mounted) {
+                          showTelegramToast(context, 'All stories marked as read.');
+                        }
+                      },
                     ),
                     // §50.2–50.3: Streamer Mode toggle (gated, default hidden).
                     if (appState.showStreamerToggleInDrawer)
@@ -461,6 +521,28 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
       if (value == 'system_theme') {
         appState.setSystemDarkMode(!appState.systemDarkModeEnabled);
       }
+    });
+  }
+
+  void _showMyGroupsPopup(BuildContext context, Offset position, {required bool isGroup}) {
+    final chatState = context.read<ChatState>();
+    final targetType = isGroup ? ChatType.group : ChatType.channel;
+    final chats = chatState.chats.where((c) => c.type == targetType).take(20).toList();
+    if (chats.isEmpty) return;
+    final items = chats.map((c) => TelegramMenuItem<String>(
+      value: c.chatId,
+      icon: Icon(isGroup ? Icons.group : Icons.campaign),
+      label: c.title,
+    )).toList();
+    showTelegramMenu<String>(
+      context: context,
+      position: position,
+      items: items,
+    ).then((chatId) {
+      if (chatId == null) return;
+      final chat = chats.firstWhere((c) => c.chatId == chatId);
+      Navigator.of(context).pop();
+      chatState.openChat(chat);
     });
   }
 
@@ -595,65 +677,66 @@ class _ProfileCover extends StatelessWidget {
           // Font: semiboldFont 13px, color: windowBoldFg.
           // Optional premium/verified badge follows with semiboldFont spacew gap.
           Positioned(
-            left: 26,
+            left: 0,
+            right: 0,
             top: 84,
-            right: 50,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Flexible(
-                  child: Text(
-                    account?.displayName.isNotEmpty == true
-                        ? account!.displayName
-                        : _platformLabel(account?.platform ?? ''),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: context.palette.windowFgActive,
+            bottom: 0,
+            child: GestureDetector(
+              onTap: accountCount >= 2 ? onToggle : null,
+              behavior: HitTestBehavior.translucent,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 26, right: 50),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            account?.displayName.isNotEmpty == true
+                                ? account!.displayName
+                                : _platformLabel(account?.platform ?? ''),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: context.palette.windowFgActive,
+                            ),
+                          ),
+                        ),
+                        if ((account?.isVerified == true || account?.isPremium == true) &&
+                            !context.read<AppState>().hidePremiumStatuses) ...[
+                          const SizedBox(width: 4),
+                          Icon(
+                            account?.isPremium == true
+                                ? Icons.workspace_premium
+                                : Icons.verified,
+                            size: 16,
+                            color: context.palette.windowFgActive,
+                          ),
+                        ],
+                        const SizedBox(width: 4),
+                        Image.asset(
+                          'assets/icon/icon_256.png',
+                          width: 16,
+                          height: 16,
+                          filterQuality: FilterQuality.medium,
+                        ),
+                      ],
                     ),
-                  ),
+                    const SizedBox(height: 3),
+                    _buildStatusLine(context, account),
+                  ],
                 ),
-                if ((account?.isVerified == true || account?.isPremium == true) &&
-                    !context.read<AppState>().hidePremiumStatuses) ...[
-                  const SizedBox(width: 4),
-                  Icon(
-                    account?.isPremium == true
-                        ? Icons.workspace_premium
-                        : Icons.verified,
-                    size: 16,
-                    color: context.palette.windowFgActive,
-                  ),
-                ],
-                // AyuGram/Extera badge equivalent: UniClient app icon badge.
-                // Spec §3.1: offset by infoVerifiedCheckPosition.x() (~4px)
-                // from the verified badge (or name if no badge).
-                const SizedBox(width: 4),
-                Image.asset(
-                  'assets/icon/icon_256.png',
-                  width: 16,
-                  height: 16,
-                  filterQuality: FilterQuality.medium,
-                ),
-              ],
+              ),
             ),
           ),
-          // Status line at left 26, top 103 (spec §3.1).
-          // Phone: plain text, windowSubTextFg (white 70%).
-          // "Set Emoji Status": link-styled (full white + underline), tappable.
-          Positioned(
-            left: 26,
-            top: 103,
-            right: 50,
-            child: _buildStatusLine(context, account),
-          ),
-          // Account-list toggle chevron at (30,30) from top-right.
-          // Spec §3: 6×6px chevron, 3px strokes. Only shown when 2+ accounts.
           if (accountCount >= 2)
             Positioned(
-              right: 18,
-              top: 18,
+              right: 30,
+              bottom: 30,
               child: GestureDetector(
                 onTap: onToggle,
                 behavior: HitTestBehavior.opaque,
@@ -907,8 +990,15 @@ class _AccountList extends StatelessWidget {
         // Auto-hides once account count reaches kPremiumMaxAccounts (spec §3.2).
         if (canAddAccount) GestureDetector(
           onSecondaryTapUp: (details) {
-            _showAddAccountContextMenu(
-                context, details.globalPosition, isDark);
+            final keys = HardwareKeyboard.instance.logicalKeysPressed;
+            final altHeld = keys.contains(LogicalKeyboardKey.altLeft) ||
+                keys.contains(LogicalKeyboardKey.altRight);
+            final shiftHeld = keys.contains(LogicalKeyboardKey.shiftLeft) ||
+                keys.contains(LogicalKeyboardKey.shiftRight);
+            if (altHeld && shiftHeld) {
+              _showAddAccountContextMenu(
+                  context, details.globalPosition, isDark);
+            }
           },
           child: InkWell(
             onTap: () {
@@ -1011,7 +1101,9 @@ class _AccountRow extends StatelessWidget {
     }
 
     items.add(const TelegramMenuItem(value: 'mark_read', icon: Icon(Icons.done_all), label: 'Mark as Read'));
-    items.add(const TelegramMenuItem(value: 'log_out', icon: Icon(Icons.logout), label: 'Log Out', isAttention: true));
+    if (!isActive) {
+      items.add(const TelegramMenuItem(value: 'log_out', icon: Icon(Icons.logout), label: 'Log Out', isAttention: true));
+    }
 
     showTelegramMenu<String>(
       context: context,
@@ -1562,7 +1654,13 @@ class _FooterSection extends StatelessWidget {
   }
 
   static void _openUrl(String url) {
-    Process.run('xdg-open', [url]);
+    if (Platform.isLinux) {
+      Process.run('xdg-open', [url]);
+    } else if (Platform.isMacOS) {
+      Process.run('open', [url]);
+    } else if (Platform.isWindows) {
+      Process.run('start', ['', url], runInShell: true);
+    }
   }
 
   static void _showAboutBox(BuildContext context) {

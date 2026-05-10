@@ -4788,6 +4788,37 @@ class EngineService {
     }));
     await _callAsync('__engine', 'DisablePeerConnectedBot', Uint8List.fromList(payload));
   }
+
+  Future<void> markAllChatsRead(String accountId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+    }));
+    await _callAsync('__engine', 'MarkAllChatsRead', Uint8List.fromList(payload));
+  }
+
+  Future<void> openSavedMessages(String accountId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+    }));
+    await _callAsync('__engine', 'OpenSavedMessages', Uint8List.fromList(payload));
+  }
+
+  Future<void> removeBotFromMenu(String accountId, String botId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'bot_id': botId,
+    }));
+    await _callAsync('__engine', 'RemoveBotFromMenu', Uint8List.fromList(payload));
+  }
+
+  Future<Map<String, dynamic>> getBoosts(String accountId, String chatId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+    }));
+    final resp = await _callAsync('__engine', 'GetBoosts', Uint8List.fromList(payload));
+    return json.decode(utf8.decode(resp)) as Map<String, dynamic>;
+  }
 }
 
 class EngineException implements Exception {

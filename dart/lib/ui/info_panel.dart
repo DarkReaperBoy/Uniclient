@@ -33,7 +33,7 @@ import 'peer_short_info.dart';
 
 enum InfoWrapMode { side, narrow, layer }
 
-enum _InfoPageType { chatInfo, userProfile, statistics, messageStats, sharedMedia }
+enum _InfoPageType { chatInfo, userProfile, statistics, messageStats, sharedMedia, boosts }
 
 class _InfoNavPage {
   final _InfoPageType type;
@@ -53,6 +53,7 @@ class _InfoNavPage {
     _InfoPageType.statistics => 'Statistics',
     _InfoPageType.messageStats => 'Message Statistics',
     _InfoPageType.sharedMedia => mediaLabel ?? 'Media',
+    _InfoPageType.boosts => 'Boosts',
   };
 }
 
@@ -358,6 +359,13 @@ class _InfoPanelState extends State<InfoPanel> {
           mediaType: page.mediaType ?? 'photo',
           title: page.title,
         );
+      case _InfoPageType.boosts:
+        return _BoostsPage(
+          chat: chat,
+          theme: theme,
+          scrollController: _getScrollController(),
+          onClose: onClose,
+        );
     }
   }
 
@@ -473,6 +481,9 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
   final List<PinnedGiftItem> pinnedGifts;
   final bool showStatsMenu;
   final void Function(BuildContext context)? onStatsMenuTap;
+  final String chatId;
+  final VoidCallback? onMessageTap;
+  final VoidCallback? onCallTap;
 
   static const double maxHeight = 236.0;
   static const double minHeight = 56.0;
@@ -505,6 +516,9 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
     this.pinnedGifts = const [],
     this.showStatsMenu = false,
     this.onStatsMenuTap,
+    this.chatId = '',
+    this.onMessageTap,
+    this.onCallTap,
   });
 
   @override
@@ -820,7 +834,7 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
   List<_ActionBtnData> _actionButtons() {
     final buttons = <_ActionBtnData>[];
     if (chatType == ChatType.dm && !isSelf) {
-      buttons.add(_ActionBtnData(Icons.chat_bubble_outline, 'Message', null));
+      buttons.add(_ActionBtnData(Icons.chat_bubble_outline, 'Message', onMessageTap));
     }
     if (!isSelf && onMuteToggle != null) {
       buttons.add(_ActionBtnData(
@@ -832,16 +846,22 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
       ));
     }
     if (chatType == ChatType.dm && !isSelf) {
-      buttons.add(_ActionBtnData(Icons.call_outlined, 'Call', null));
+      buttons.add(_ActionBtnData(Icons.call_outlined, 'Call', onCallTap));
     }
     if (buttons.length > 3) {
       final overflow = buttons.sublist(2);
       buttons.removeRange(2, buttons.length);
       buttons.add(_ActionBtnData(Icons.more_horiz, 'More', () {
-        // overflow popup placeholder — wired when call UI lands
+        _showOverflowMenu(overflow);
       }));
     }
     return buttons;
+  }
+
+  List<_ActionBtnData>? _overflowItems;
+
+  void _showOverflowMenu(List<_ActionBtnData> overflow) {
+    _overflowItems = overflow;
   }
 
   Widget _buildActionRow(BuildContext context, double progress) {
@@ -1797,6 +1817,9 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
     if (value == 'statistics' && context.mounted) {
       final panelState = context.findAncestorStateOfType<_InfoPanelState>();
       panelState?._pushPage(_InfoNavPage(type: _InfoPageType.statistics));
+    } else if (value == 'boosts' && context.mounted) {
+      final panelState = context.findAncestorStateOfType<_InfoPanelState>();
+      panelState?._pushPage(_InfoNavPage(type: _InfoPageType.boosts));
     }
   }
 
@@ -1872,6 +1895,14 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
               pinnedGifts: widget.pinnedGifts,
               showStatsMenu: _canShowStatsMenu(),
               onStatsMenuTap: _showStatsMenu,
+              chatId: widget.chat.chatId,
+              onMessageTap: () {
+                widget.chatState.openChatById(widget.chat.chatId);
+              },
+              onCallTap: () {
+                final engine = context.read<EngineService>();
+                engine.startCall(widget.chat.accountId, widget.chat.chatId);
+              },
             ),
           ),
           SliverList(
@@ -2064,6 +2095,7 @@ class _UserProfilePageState extends State<_UserProfilePage> {
   Timer? _snapTimer;
   int _commonGroupsCount = -1;
   bool _commonGroupsLoaded = false;
+  Map<String, int> _mediaCounts = {};
 
   @override
   void didChangeDependencies() {
@@ -2071,6 +2103,7 @@ class _UserProfilePageState extends State<_UserProfilePage> {
     if (!_commonGroupsLoaded) {
       _commonGroupsLoaded = true;
       _loadCommonGroups();
+      _loadMediaCounts();
     }
   }
 
@@ -2081,6 +2114,16 @@ class _UserProfilePageState extends State<_UserProfilePage> {
     }).catchError((_) {
       if (mounted) setState(() => _commonGroupsCount = 0);
     });
+  }
+
+  void _loadMediaCounts() {
+    final engine = context.read<EngineService>();
+    try {
+      final counts = engine.getSharedMediaCounts(
+        widget.chat.accountId, widget.member.userId,
+      );
+      if (mounted) setState(() => _mediaCounts = counts);
+    } catch (_) {}
   }
 
   @override
@@ -2204,9 +2247,25 @@ class _UserProfilePageState extends State<_UserProfilePage> {
                     _CommonGroupsRow(
                       count: _commonGroupsCount,
                       theme: widget.theme,
+                      onTap: () {
+                        final panelState = context.findAncestorStateOfType<_InfoPanelState>();
+                        panelState?._pushPage(_InfoNavPage(
+                          type: _InfoPageType.userProfile,
+                          member: widget.member,
+                        ));
+                      },
                     ),
                 ],
               ),
+              if (_mediaCounts.isNotEmpty) ...[
+                const Divider(height: 24),
+                _SharedMediaSection(
+                  counts: _mediaCounts,
+                  accountId: widget.chat.accountId,
+                  chatId: widget.member.userId,
+                  theme: widget.theme,
+                ),
+              ],
               const SizedBox(height: 16),
             ]),
           ),
@@ -2239,9 +2298,12 @@ class _SharedMediaSubPage extends StatefulWidget {
 }
 
 class _SharedMediaSubPageState extends State<_SharedMediaSubPage> {
-  List<SharedMediaItem>? _items;
+  List<SharedMediaItem> _items = [];
   bool _loading = true;
   bool _loaded = false;
+  bool _loadingMore = false;
+  bool _hasMore = true;
+  static const _pageSize = 50;
 
   static const _typeToFilter = {
     'photo': 'image', 'video': 'video', 'stories': 'stories',
@@ -2251,6 +2313,26 @@ class _SharedMediaSubPageState extends State<_SharedMediaSubPage> {
   };
   static const _gridTypes = {'photo', 'video', 'stories', 'gifts'};
   static const _masonryTypes = {'gif'};
+
+  @override
+  void initState() {
+    super.initState();
+    widget.scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    widget.scrollController.removeListener(_onScroll);
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_loadingMore || !_hasMore) return;
+    final pos = widget.scrollController.position;
+    if (pos.pixels >= pos.maxScrollExtent - 300) {
+      _loadMore();
+    }
+  }
 
   @override
   void didChangeDependencies() {
@@ -2267,11 +2349,40 @@ class _SharedMediaSubPageState extends State<_SharedMediaSubPage> {
       final items = engine.getSharedMedia(
         widget.chat.accountId, widget.chat.chatId,
         mediaType: _typeToFilter[widget.mediaType] ?? widget.mediaType,
-        limit: 200,
+        limit: _pageSize,
       );
-      if (mounted) setState(() { _items = items; _loading = false; });
+      if (mounted) {
+        setState(() {
+          _items = items;
+          _loading = false;
+          _hasMore = items.length >= _pageSize;
+        });
+      }
     } catch (_) {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _loadMore() {
+    if (_loadingMore || !_hasMore || _items.isEmpty) return;
+    _loadingMore = true;
+    final engine = context.read<EngineService>();
+    try {
+      final moreItems = engine.getSharedMedia(
+        widget.chat.accountId, widget.chat.chatId,
+        mediaType: _typeToFilter[widget.mediaType] ?? widget.mediaType,
+        limit: _pageSize,
+        offset: _items.length,
+      );
+      if (mounted) {
+        setState(() {
+          _items.addAll(moreItems);
+          _hasMore = moreItems.length >= _pageSize;
+          _loadingMore = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingMore = false);
     }
   }
 
@@ -2840,25 +2951,29 @@ class _BotCommandRow extends StatelessWidget {
 class _CommonGroupsRow extends StatelessWidget {
   final int count;
   final ThemeData theme;
+  final VoidCallback? onTap;
 
-  const _CommonGroupsRow({required this.count, required this.theme});
+  const _CommonGroupsRow({required this.count, required this.theme, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 23, top: 9, right: 20, bottom: 7),
-      child: Row(
-        children: [
-          Icon(Icons.group_outlined, size: 20, color: theme.textTheme.bodySmall?.color),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              '$count group${count == 1 ? '' : 's'} in common',
-              style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.only(left: 23, top: 9, right: 20, bottom: 7),
+        child: Row(
+          children: [
+            Icon(Icons.group_outlined, size: 20, color: theme.textTheme.bodySmall?.color),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                '$count group${count == 1 ? '' : 's'} in common',
+                style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
+              ),
             ),
-          ),
-          Icon(Icons.chevron_right, size: 20, color: theme.textTheme.bodySmall?.color),
-        ],
+            Icon(Icons.chevron_right, size: 20, color: theme.textTheme.bodySmall?.color),
+          ],
+        ),
       ),
     );
   }
@@ -3096,6 +3211,12 @@ class _ForumTopicsDialogState extends State<_ForumTopicsDialog> {
   String? _error;
 
   static const int _minMembers = 200;
+
+  @override
+  void initState() {
+    super.initState();
+    _enabled = widget.chat.isForum;
+  }
 
   bool get _hasEnoughMembers => widget.chat.memberCount >= _minMembers;
 
@@ -3763,7 +3884,7 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
     try {
       final items = engine.getSharedMedia(
         widget.accountId, widget.chatId,
-        mediaType: _typeToFilter[type] ?? type, limit: 100,
+        mediaType: _typeToFilter[type] ?? type, limit: 50,
       );
       if (mounted && _expandedGridType == type) {
         setState(() {
@@ -4990,7 +5111,8 @@ class _VoiceListItem extends StatelessWidget {
 
 class _MiniWaveformPainter extends CustomPainter {
   final Color color;
-  _MiniWaveformPainter({required this.color});
+  final List<int> waveform;
+  _MiniWaveformPainter({required this.color, this.waveform = const []});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -4999,17 +5121,24 @@ class _MiniWaveformPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..strokeWidth = 2;
     final barCount = (size.width / 3).floor();
-    final rng = 42;
     for (var i = 0; i < barCount; i++) {
       final x = i * 3.0 + 1;
-      final h = 3.0 + (((i * rng + 17) % 13) / 12.0) * (size.height - 6);
+      double amplitude;
+      if (waveform.isNotEmpty) {
+        final idx = (i * waveform.length / barCount).floor().clamp(0, waveform.length - 1);
+        amplitude = (waveform[idx] & 0x1F) / 31.0;
+      } else {
+        amplitude = 0.15;
+      }
+      final h = 3.0 + amplitude * (size.height - 6);
       final top = (size.height - h) / 2;
       canvas.drawLine(Offset(x, top), Offset(x, top + h), paint);
     }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _MiniWaveformPainter oldDelegate) =>
+      color != oldDelegate.color || waveform != oldDelegate.waveform;
 }
 
 class _LinkListItem extends StatelessWidget {
@@ -5993,6 +6122,121 @@ class _SavedMediaFilterSection extends StatelessWidget {
           );
         }).toList(),
       ),
+    );
+  }
+}
+
+class _BoostsPage extends StatefulWidget {
+  final ChatInfo chat;
+  final ThemeData theme;
+  final ScrollController scrollController;
+  final VoidCallback onClose;
+
+  const _BoostsPage({
+    required this.chat,
+    required this.theme,
+    required this.scrollController,
+    required this.onClose,
+  });
+
+  @override
+  State<_BoostsPage> createState() => _BoostsPageState();
+}
+
+class _BoostsPageState extends State<_BoostsPage> {
+  bool _loading = true;
+  Map<String, dynamic>? _data;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final engine = context.read<EngineService>();
+      final data = await engine.getBoosts(widget.chat.accountId, widget.chat.chatId);
+      if (mounted) setState(() { _data = data; _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.theme.brightness == Brightness.dark;
+    final topBarColor = isDark ? const Color(0xFF17212b) : const Color(0xFFffffff);
+
+    return Column(
+      children: [
+        Container(
+          height: 56,
+          color: topBarColor,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: widget.onClose,
+              ),
+              const SizedBox(width: 8),
+              Text('Boosts', style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white : Colors.black87,
+              )),
+            ],
+          ),
+        ),
+        Expanded(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _error != null
+                  ? Center(child: Text(_error!, style: TextStyle(color: Colors.red.shade300)))
+                  : _buildContent(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildContent() {
+    if (_data == null) return const Center(child: Text('No data'));
+    final level = _data!['level'] as int? ?? 0;
+    final boosts = _data!['boosts'] as int? ?? 0;
+    final currentLevelBoosts = _data!['current_level_boosts'] as int? ?? 0;
+    final nextLevelBoosts = _data!['next_level_boosts'] as int? ?? 0;
+    final isDark = widget.theme.brightness == Brightness.dark;
+
+    return ListView(
+      controller: widget.scrollController,
+      padding: const EdgeInsets.all(16),
+      children: [
+        Center(child: Text('Level $level', style: TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.w700,
+          color: isDark ? Colors.white : Colors.black87,
+        ))),
+        const SizedBox(height: 8),
+        Center(child: Text('$boosts boosts', style: TextStyle(
+          fontSize: 14,
+          color: isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999),
+        ))),
+        const SizedBox(height: 16),
+        if (nextLevelBoosts > 0) ...[
+          LinearProgressIndicator(
+            value: currentLevelBoosts > 0 ? (boosts - currentLevelBoosts) / (nextLevelBoosts - currentLevelBoosts) : 0,
+            backgroundColor: isDark ? const Color(0xFF2b3945) : const Color(0xFFe9ecef),
+            valueColor: AlwaysStoppedAnimation(widget.theme.colorScheme.primary),
+          ),
+          const SizedBox(height: 4),
+          Text('$boosts / $nextLevelBoosts boosts for Level ${level + 1}', style: TextStyle(
+            fontSize: 12,
+            color: isDark ? const Color(0xFF6D7F8F) : const Color(0xFF999999),
+          )),
+        ],
+      ],
     );
   }
 }
@@ -7376,7 +7620,7 @@ class _MessagePreviewRow extends StatelessWidget {
   }
 }
 
-class _PublicForwardsSection extends StatelessWidget {
+class _PublicForwardsSection extends StatefulWidget {
   final List<Map<String, dynamic>> forwards;
   final int totalCount;
   final ThemeData theme;
@@ -7388,8 +7632,18 @@ class _PublicForwardsSection extends StatelessWidget {
   });
 
   @override
+  State<_PublicForwardsSection> createState() => _PublicForwardsSectionState();
+}
+
+class _PublicForwardsSectionState extends State<_PublicForwardsSection> {
+  int _displayCount = 20;
+
+  @override
   Widget build(BuildContext context) {
-    final subColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
+    final subColor = widget.theme.textTheme.bodySmall?.color ?? Colors.grey;
+    final shown = widget.forwards.take(_displayCount).toList();
+    final hasMore = widget.forwards.length > _displayCount;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -7401,19 +7655,24 @@ class _PublicForwardsSection extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: theme.textTheme.bodyLarge?.color,
+                  color: widget.theme.textTheme.bodyLarge?.color,
                 ),
               ),
             ),
             Text(
-              totalCount.toString(),
+              widget.totalCount.toString(),
               style: TextStyle(fontSize: 13, color: subColor),
             ),
           ],
         ),
         const SizedBox(height: 8),
-        for (final fwd in forwards)
-          _PublicForwardRow(forward: fwd, theme: theme),
+        for (final fwd in shown)
+          _PublicForwardRow(forward: fwd, theme: widget.theme),
+        if (hasMore)
+          TextButton(
+            onPressed: () => setState(() => _displayCount += 20),
+            child: Text('Show more (${widget.forwards.length - _displayCount} remaining)'),
+          ),
       ],
     );
   }
@@ -7436,7 +7695,14 @@ class _PublicForwardRow extends StatelessWidget {
     final subColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
 
     return InkWell(
-      onTap: () {},
+      onTap: () {
+        final chatId = forward['chat_id'] as String? ?? '';
+        final msgId = forward['msg_id'] as String? ?? '';
+        if (chatId.isNotEmpty) {
+          final chatState = context.read<ChatState>();
+          chatState.openChatById(chatId);
+        }
+      },
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 6),
         child: Row(
