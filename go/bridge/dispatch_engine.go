@@ -388,14 +388,14 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		return nil, e.RestrictMemberWithRights(params.AccountID, params.ChatID, params.UserID, rights, params.UntilDate)
 
 	case "ReportSpam":
-		var req pb.EngineLeaveChatRequest
+		var req pb.EngineReportSpamRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
 		return nil, e.ReportSpam(req.AccountId, req.ChatId)
 
 	case "GetLinkedChatId":
-		var req pb.EngineLeaveChatRequest
+		var req pb.EngineGetLinkedChatIdRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
@@ -413,7 +413,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		return nil, e.AddContact(req.AccountId, req.Phone, req.FirstName, req.LastName)
 
 	case "DeleteContact":
-		var req pb.EngineBlockUserRequest
+		var req pb.EngineDeleteContactRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
@@ -427,11 +427,11 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		return nil, e.MarkChatRead(req.AccountId, req.ChatId, req.UpToMsgId)
 
 	case "ReadMessageContents":
-		var req pb.EngineMarkChatReadRequest
+		var req pb.EngineReadMessageContentsRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
-		return nil, e.ReadMessageContents(req.AccountId, req.UpToMsgId)
+		return nil, e.ReadMessageContents(req.AccountId, req.ChatId, req.MsgId)
 
 	case "SetUserNoForwardsFlags":
 		var req pb.EngineSetUserNoForwardsFlagsRequest
@@ -475,25 +475,25 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		return nil, e.EditForumTopic(req.AccountId, req.ChatId, int(req.TopicId), req.Title, req.IconEmojiId)
 
 	case "PinForumTopic":
-		var req pb.EngineEditForumTopicRequest
+		var req pb.EnginePinForumTopicRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
-		return nil, e.PinForumTopic(req.AccountId, req.ChatId, int(req.TopicId), req.ColorId != 0)
+		return nil, e.PinForumTopic(req.AccountId, req.ChatId, int(req.TopicId), req.Pinned)
 
 	case "ToggleForumTopicClosed":
-		var req pb.EngineEditForumTopicRequest
+		var req pb.EngineToggleForumTopicClosedRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
-		return nil, e.ToggleForumTopicClosed(req.AccountId, req.ChatId, int(req.TopicId), req.ColorId != 0)
+		return nil, e.ToggleForumTopicClosed(req.AccountId, req.ChatId, int(req.TopicId), req.Closed)
 
 	case "ToggleGeneralTopicHidden":
-		var req pb.EngineEditForumTopicRequest
+		var req pb.EngineToggleGeneralTopicHiddenRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
-		return nil, e.ToggleGeneralTopicHidden(req.AccountId, req.ChatId, req.ColorId != 0)
+		return nil, e.ToggleGeneralTopicHidden(req.AccountId, req.ChatId, req.Hidden)
 
 	case "DeleteForumTopicHistory":
 		var req pb.EngineEditForumTopicRequest
@@ -631,7 +631,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
-		return nil, e.EditMessage(req.AccountId, req.ChatId, req.MsgId, req.NewText)
+		return nil, e.EditMessage(req.AccountId, req.ChatId, req.MsgId, req.NewText, req.EntitiesJson)
 
 	case "DeleteMessage":
 		var req pb.EngineDeleteMessageRequest
@@ -648,7 +648,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		return nil, e.JoinChat(req.AccountId, req.ChannelName)
 
 	case "JoinChannel":
-		var req pb.EngineLeaveChatRequest
+		var req pb.EngineJoinChannelRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
@@ -662,35 +662,35 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		return nil, e.LeaveChat(req.AccountId, req.ChatId)
 
 	case "EditChatTitle":
-		var req pb.EngineSaveDraftRequest
+		var req pb.EngineEditChatTitleRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
-		return nil, e.EditChatTitle(req.AccountId, req.ChatId, req.Text)
+		return nil, e.EditChatTitle(req.AccountId, req.ChatId, req.Title)
 
 	case "EditChatDescription":
-		var req pb.EngineSaveDraftRequest
+		var req pb.EngineEditChatDescriptionRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
-		return nil, e.EditChatDescription(req.AccountId, req.ChatId, req.Text)
+		return nil, e.EditChatDescription(req.AccountId, req.ChatId, req.Description)
 
 	case "ToggleForum":
-		var req pb.EngineMuteChatRequest
+		var req pb.EngineToggleForumRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
-		return nil, e.ToggleForum(req.AccountId, req.ChatId, req.Muted)
+		return nil, e.ToggleForum(req.AccountId, req.ChatId, req.Enabled)
 
 	case "ClearHistory":
-		var req pb.EngineLeaveChatRequest
+		var req pb.EngineClearHistoryRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
 		return nil, e.ClearHistory(req.AccountId, req.ChatId)
 
 	case "DeleteChat":
-		var req pb.EngineLeaveChatRequest
+		var req pb.EngineDeleteChatRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
@@ -3952,18 +3952,18 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		return nil, e.ToggleSavedDialogPin(req.AccountId, req.ChatId, req.Pinned)
 
 	case "MarkSavedSublistRead":
-		var req pb.EngineMarkChatReadRequest
+		var req pb.EngineMarkSavedSublistReadRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
-		return nil, e.MarkSavedSublistRead(req.AccountId, req.ChatId)
+		return nil, e.MarkSavedSublistRead(req.AccountId, req.PeerId)
 
 	case "DeleteSavedSublistHistory":
-		var req pb.EngineMarkChatReadRequest
+		var req pb.EngineDeleteSavedSublistHistoryRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
-		return nil, e.DeleteSavedSublistHistory(req.AccountId, req.ChatId)
+		return nil, e.DeleteSavedSublistHistory(req.AccountId, req.PeerId)
 
 	// ── Reorder ──
 

@@ -53,8 +53,9 @@ type sendContactPayload struct {
 
 // editPayload is the serialized payload for an "edit" action.
 type editPayload struct {
-	MsgID   string `json:"msg_id"`
-	NewText string `json:"new_text"`
+	MsgID        string `json:"msg_id"`
+	NewText      string `json:"new_text"`
+	EntitiesJSON string `json:"entities_json,omitempty"`
 }
 
 // deletePayload is the serialized payload for a "delete" action.
@@ -333,11 +334,11 @@ func detectMimeType(path string) string {
 }
 
 // EditMessage queues a message edit.
-func (e *Engine) EditMessage(accountID, chatID, msgID, newText string) error {
+func (e *Engine) EditMessage(accountID, chatID, msgID, newText, entitiesJSON string) error {
 	localID := generateLocalID()
 	now := time.Now().UnixMilli()
 
-	payload, _ := json.Marshal(editPayload{MsgID: msgID, NewText: newText})
+	payload, _ := json.Marshal(editPayload{MsgID: msgID, NewText: newText, EntitiesJSON: entitiesJSON})
 
 	_, err := e.db.Exec(
 		`INSERT INTO pending (account_id, chat_id, local_id, action, payload, status, created_at)
@@ -645,9 +646,14 @@ func (e *Engine) executePending(acc *Account, chatID, localID, action string, pa
 	case ActionEdit:
 		var p editPayload
 		json.Unmarshal(payload, &p)
-		_, err := acc.Core.EditMessage(chatID, p.MsgID, p.NewText)
-		if err != nil {
-			return err
+		var editErr error
+		if editor, ok := acc.Core.(MessageEditorWithEntities); ok && p.EntitiesJSON != "" {
+			_, editErr = editor.EditMessageWithEntities(chatID, p.MsgID, p.NewText, p.EntitiesJSON)
+		} else {
+			_, editErr = acc.Core.EditMessage(chatID, p.MsgID, p.NewText)
+		}
+		if editErr != nil {
+			return editErr
 		}
 		// Update cache.
 		e.db.Exec(

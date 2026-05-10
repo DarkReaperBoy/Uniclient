@@ -2340,7 +2340,7 @@ class _ChatViewState extends State<ChatView>
 
   void _burnMedia(CachedMessage msg) {
     final engine = context.read<EngineService>();
-    engine.readMessageContents(msg.accountId, msg.msgId);
+    engine.readMessageContents(msg.accountId, msg.chatId, msg.msgId);
     showTelegramToast(context, 'Media burned');
   }
 

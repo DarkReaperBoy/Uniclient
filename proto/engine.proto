@@ -387,10 +387,11 @@ message EngineSendMessageResponse {
 }
 
 message EngineEditMessageRequest {
-  string account_id = 1;
-  string chat_id    = 2;
-  string msg_id     = 3;
-  string new_text   = 4;
+  string account_id    = 1;
+  string chat_id       = 2;
+  string msg_id        = 3;
+  string new_text      = 4;
+  string entities_json = 5;
 }
 
 message EngineDeleteMessageRequest {
@@ -407,6 +408,90 @@ message EngineJoinChatRequest {
 message EngineLeaveChatRequest {
   string account_id = 1;
   string chat_id    = 2;
+}
+
+message EngineReportSpamRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+}
+
+message EngineGetLinkedChatIdRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+}
+
+message EngineDeleteContactRequest {
+  string account_id = 1;
+  string user_id    = 2;
+}
+
+message EngineJoinChannelRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+}
+
+message EngineEditChatTitleRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+  string title      = 3;
+}
+
+message EngineEditChatDescriptionRequest {
+  string account_id  = 1;
+  string chat_id     = 2;
+  string description = 3;
+}
+
+message EngineToggleForumRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+  bool   enabled    = 3;
+}
+
+message EngineClearHistoryRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+}
+
+message EngineDeleteChatRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+}
+
+message EngineReadMessageContentsRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+  string msg_id     = 3;
+}
+
+message EnginePinForumTopicRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+  int64  topic_id   = 3;
+  bool   pinned     = 4;
+}
+
+message EngineToggleForumTopicClosedRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+  int64  topic_id   = 3;
+  bool   closed     = 4;
+}
+
+message EngineToggleGeneralTopicHiddenRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+  bool   hidden     = 3;
+}
+
+message EngineMarkSavedSublistReadRequest {
+  string account_id = 1;
+  string peer_id    = 2;
+}
+
+message EngineDeleteSavedSublistHistoryRequest {
+  string account_id = 1;
+  string peer_id    = 2;
 }
 
 message EngineForwardMessageRequest {
@@ -1431,15 +1516,6 @@ message EngineGetCustomEmojiSetInfoResponse {
   string short_name  = 4;
   int32  count       = 5;
   bool   found       = 6;
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// Read Message Contents (Burn TTL Media)
-// ═══════════════════════════════════════════════════════════════════════
-
-message EngineReadMessageContentsRequest {
-  string account_id    = 1;
-  repeated int64 msg_ids = 2;
 }
 
 message EngineSetUserNoForwardsFlagsRequest {

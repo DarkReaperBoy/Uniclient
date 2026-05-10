@@ -1,6 +1,6 @@
 //
 //  Generated code. Do not modify.
-//  source: engine.proto
+//  source: proto/engine.proto
 //
 // @dart = 2.12
 
@@ -335,6 +335,7 @@ const EngineChatInfo$json = {
     {'1': 'join_request', '3': 31, '4': 1, '5': 8, '10': 'joinRequest'},
     {'1': 'can_post', '3': 32, '4': 1, '5': 8, '10': 'canPost'},
     {'1': 'no_forwards', '3': 33, '4': 1, '5': 8, '10': 'noForwards'},
+    {'1': 'is_self', '3': 34, '4': 1, '5': 8, '10': 'isSelf'},
   ],
 };
 
@@ -360,7 +361,8 @@ final $typed_data.Uint8List engineChatInfoDescriptor = $convert.base64Decode(
     'wgASgFUhR3cml0ZVJlc3RyaWN0aW9uVHlwZRI0ChZ3cml0ZV9yZXN0cmljdGlvbl90ZXh0GB0g'
     'ASgJUhR3cml0ZVJlc3RyaWN0aW9uVGV4dBIdCgpub3Rfam9pbmVkGB4gASgIUglub3RKb2luZW'
     'QSIQoMam9pbl9yZXF1ZXN0GB8gASgIUgtqb2luUmVxdWVzdBIZCghjYW5fcG9zdBggIAEoCFIH'
-    'Y2FuUG9zdBIfCgtub19mb3J3YXJkcxghIAEoCFIKbm9Gb3J3YXJkcw==');
+    'Y2FuUG9zdBIfCgtub19mb3J3YXJkcxghIAEoCFIKbm9Gb3J3YXJkcxIXCgdpc19zZWxmGCIgAS'
+    'gIUgZpc1NlbGY=');
 
 @$core.Deprecated('Use engineGetChatListRequestDescriptor instead')
 const EngineGetChatListRequest$json = {
@@ -691,6 +693,7 @@ const EngineCachedMessage$json = {
     {'1': 'grouped_id', '3': 32, '4': 1, '5': 9, '10': 'groupedId'},
     {'1': 'media_remote_ref', '3': 33, '4': 1, '5': 9, '10': 'mediaRemoteRef'},
     {'1': 'media_extra', '3': 34, '4': 1, '5': 9, '10': 'mediaExtra'},
+    {'1': 'sender_no_forwards', '3': 35, '4': 1, '5': 8, '10': 'senderNoForwards'},
   ],
 };
 
@@ -717,7 +720,7 @@ final $typed_data.Uint8List engineCachedMessageDescriptor = $convert.base64Decod
     'bmRlcl9jb2xvcl9pZBgeIAEoBVINc2VuZGVyQ29sb3JJZBIdCgppc19zZXJ2aWNlGB8gASgIUg'
     'lpc1NlcnZpY2USHQoKZ3JvdXBlZF9pZBggIAEoCVIJZ3JvdXBlZElkEigKEG1lZGlhX3JlbW90'
     'ZV9yZWYYISABKAlSDm1lZGlhUmVtb3RlUmVmEh8KC21lZGlhX2V4dHJhGCIgASgJUgptZWRpYU'
-    'V4dHJh');
+    'V4dHJhEiwKEnNlbmRlcl9ub19mb3J3YXJkcxgjIAEoCFIQc2VuZGVyTm9Gb3J3YXJkcw==');
 
 @$core.Deprecated('Use engineGetMessagesRequestDescriptor instead')
 const EngineGetMessagesRequest$json = {
@@ -801,6 +804,7 @@ const EngineEditMessageRequest$json = {
     {'1': 'chat_id', '3': 2, '4': 1, '5': 9, '10': 'chatId'},
     {'1': 'msg_id', '3': 3, '4': 1, '5': 9, '10': 'msgId'},
     {'1': 'new_text', '3': 4, '4': 1, '5': 9, '10': 'newText'},
+    {'1': 'entities_json', '3': 5, '4': 1, '5': 9, '10': 'entitiesJson'},
   ],
 };
 
@@ -808,7 +812,8 @@ const EngineEditMessageRequest$json = {
 final $typed_data.Uint8List engineEditMessageRequestDescriptor = $convert.base64Decode(
     'ChhFbmdpbmVFZGl0TWVzc2FnZVJlcXVlc3QSHQoKYWNjb3VudF9pZBgBIAEoCVIJYWNjb3VudE'
     'lkEhcKB2NoYXRfaWQYAiABKAlSBmNoYXRJZBIVCgZtc2dfaWQYAyABKAlSBW1zZ0lkEhkKCG5l'
-    'd190ZXh0GAQgASgJUgduZXdUZXh0');
+    'd190ZXh0GAQgASgJUgduZXdUZXh0EiMKDWVudGl0aWVzX2pzb24YBSABKAlSDGVudGl0aWVzSn'
+    'Nvbg==');
 
 @$core.Deprecated('Use engineDeleteMessageRequestDescriptor instead')
 const EngineDeleteMessageRequest$json = {
@@ -852,6 +857,230 @@ const EngineLeaveChatRequest$json = {
 final $typed_data.Uint8List engineLeaveChatRequestDescriptor = $convert.base64Decode(
     'ChZFbmdpbmVMZWF2ZUNoYXRSZXF1ZXN0Eh0KCmFjY291bnRfaWQYASABKAlSCWFjY291bnRJZB'
     'IXCgdjaGF0X2lkGAIgASgJUgZjaGF0SWQ=');
+
+@$core.Deprecated('Use engineReportSpamRequestDescriptor instead')
+const EngineReportSpamRequest$json = {
+  '1': 'EngineReportSpamRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'chat_id', '3': 2, '4': 1, '5': 9, '10': 'chatId'},
+  ],
+};
+
+/// Descriptor for `EngineReportSpamRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineReportSpamRequestDescriptor = $convert.base64Decode(
+    'ChdFbmdpbmVSZXBvcnRTcGFtUmVxdWVzdBIdCgphY2NvdW50X2lkGAEgASgJUglhY2NvdW50SW'
+    'QSFwoHY2hhdF9pZBgCIAEoCVIGY2hhdElk');
+
+@$core.Deprecated('Use engineGetLinkedChatIdRequestDescriptor instead')
+const EngineGetLinkedChatIdRequest$json = {
+  '1': 'EngineGetLinkedChatIdRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'chat_id', '3': 2, '4': 1, '5': 9, '10': 'chatId'},
+  ],
+};
+
+/// Descriptor for `EngineGetLinkedChatIdRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineGetLinkedChatIdRequestDescriptor = $convert.base64Decode(
+    'ChxFbmdpbmVHZXRMaW5rZWRDaGF0SWRSZXF1ZXN0Eh0KCmFjY291bnRfaWQYASABKAlSCWFjY2'
+    '91bnRJZBIXCgdjaGF0X2lkGAIgASgJUgZjaGF0SWQ=');
+
+@$core.Deprecated('Use engineDeleteContactRequestDescriptor instead')
+const EngineDeleteContactRequest$json = {
+  '1': 'EngineDeleteContactRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'user_id', '3': 2, '4': 1, '5': 9, '10': 'userId'},
+  ],
+};
+
+/// Descriptor for `EngineDeleteContactRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineDeleteContactRequestDescriptor = $convert.base64Decode(
+    'ChpFbmdpbmVEZWxldGVDb250YWN0UmVxdWVzdBIdCgphY2NvdW50X2lkGAEgASgJUglhY2NvdW'
+    '50SWQSFwoHdXNlcl9pZBgCIAEoCVIGdXNlcklk');
+
+@$core.Deprecated('Use engineJoinChannelRequestDescriptor instead')
+const EngineJoinChannelRequest$json = {
+  '1': 'EngineJoinChannelRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'chat_id', '3': 2, '4': 1, '5': 9, '10': 'chatId'},
+  ],
+};
+
+/// Descriptor for `EngineJoinChannelRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineJoinChannelRequestDescriptor = $convert.base64Decode(
+    'ChhFbmdpbmVKb2luQ2hhbm5lbFJlcXVlc3QSHQoKYWNjb3VudF9pZBgBIAEoCVIJYWNjb3VudE'
+    'lkEhcKB2NoYXRfaWQYAiABKAlSBmNoYXRJZA==');
+
+@$core.Deprecated('Use engineEditChatTitleRequestDescriptor instead')
+const EngineEditChatTitleRequest$json = {
+  '1': 'EngineEditChatTitleRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'chat_id', '3': 2, '4': 1, '5': 9, '10': 'chatId'},
+    {'1': 'title', '3': 3, '4': 1, '5': 9, '10': 'title'},
+  ],
+};
+
+/// Descriptor for `EngineEditChatTitleRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineEditChatTitleRequestDescriptor = $convert.base64Decode(
+    'ChpFbmdpbmVFZGl0Q2hhdFRpdGxlUmVxdWVzdBIdCgphY2NvdW50X2lkGAEgASgJUglhY2NvdW'
+    '50SWQSFwoHY2hhdF9pZBgCIAEoCVIGY2hhdElkEhQKBXRpdGxlGAMgASgJUgV0aXRsZQ==');
+
+@$core.Deprecated('Use engineEditChatDescriptionRequestDescriptor instead')
+const EngineEditChatDescriptionRequest$json = {
+  '1': 'EngineEditChatDescriptionRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'chat_id', '3': 2, '4': 1, '5': 9, '10': 'chatId'},
+    {'1': 'description', '3': 3, '4': 1, '5': 9, '10': 'description'},
+  ],
+};
+
+/// Descriptor for `EngineEditChatDescriptionRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineEditChatDescriptionRequestDescriptor = $convert.base64Decode(
+    'CiBFbmdpbmVFZGl0Q2hhdERlc2NyaXB0aW9uUmVxdWVzdBIdCgphY2NvdW50X2lkGAEgASgJUg'
+    'lhY2NvdW50SWQSFwoHY2hhdF9pZBgCIAEoCVIGY2hhdElkEiAKC2Rlc2NyaXB0aW9uGAMgASgJ'
+    'UgtkZXNjcmlwdGlvbg==');
+
+@$core.Deprecated('Use engineToggleForumRequestDescriptor instead')
+const EngineToggleForumRequest$json = {
+  '1': 'EngineToggleForumRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'chat_id', '3': 2, '4': 1, '5': 9, '10': 'chatId'},
+    {'1': 'enabled', '3': 3, '4': 1, '5': 8, '10': 'enabled'},
+  ],
+};
+
+/// Descriptor for `EngineToggleForumRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineToggleForumRequestDescriptor = $convert.base64Decode(
+    'ChhFbmdpbmVUb2dnbGVGb3J1bVJlcXVlc3QSHQoKYWNjb3VudF9pZBgBIAEoCVIJYWNjb3VudE'
+    'lkEhcKB2NoYXRfaWQYAiABKAlSBmNoYXRJZBIYCgdlbmFibGVkGAMgASgIUgdlbmFibGVk');
+
+@$core.Deprecated('Use engineClearHistoryRequestDescriptor instead')
+const EngineClearHistoryRequest$json = {
+  '1': 'EngineClearHistoryRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'chat_id', '3': 2, '4': 1, '5': 9, '10': 'chatId'},
+  ],
+};
+
+/// Descriptor for `EngineClearHistoryRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineClearHistoryRequestDescriptor = $convert.base64Decode(
+    'ChlFbmdpbmVDbGVhckhpc3RvcnlSZXF1ZXN0Eh0KCmFjY291bnRfaWQYASABKAlSCWFjY291bn'
+    'RJZBIXCgdjaGF0X2lkGAIgASgJUgZjaGF0SWQ=');
+
+@$core.Deprecated('Use engineDeleteChatRequestDescriptor instead')
+const EngineDeleteChatRequest$json = {
+  '1': 'EngineDeleteChatRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'chat_id', '3': 2, '4': 1, '5': 9, '10': 'chatId'},
+  ],
+};
+
+/// Descriptor for `EngineDeleteChatRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineDeleteChatRequestDescriptor = $convert.base64Decode(
+    'ChdFbmdpbmVEZWxldGVDaGF0UmVxdWVzdBIdCgphY2NvdW50X2lkGAEgASgJUglhY2NvdW50SW'
+    'QSFwoHY2hhdF9pZBgCIAEoCVIGY2hhdElk');
+
+@$core.Deprecated('Use engineReadMessageContentsRequestDescriptor instead')
+const EngineReadMessageContentsRequest$json = {
+  '1': 'EngineReadMessageContentsRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'chat_id', '3': 2, '4': 1, '5': 9, '10': 'chatId'},
+    {'1': 'msg_id', '3': 3, '4': 1, '5': 9, '10': 'msgId'},
+  ],
+};
+
+/// Descriptor for `EngineReadMessageContentsRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineReadMessageContentsRequestDescriptor = $convert.base64Decode(
+    'CiBFbmdpbmVSZWFkTWVzc2FnZUNvbnRlbnRzUmVxdWVzdBIdCgphY2NvdW50X2lkGAEgASgJUg'
+    'lhY2NvdW50SWQSFwoHY2hhdF9pZBgCIAEoCVIGY2hhdElkEhUKBm1zZ19pZBgDIAEoCVIFbXNn'
+    'SWQ=');
+
+@$core.Deprecated('Use enginePinForumTopicRequestDescriptor instead')
+const EnginePinForumTopicRequest$json = {
+  '1': 'EnginePinForumTopicRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'chat_id', '3': 2, '4': 1, '5': 9, '10': 'chatId'},
+    {'1': 'topic_id', '3': 3, '4': 1, '5': 3, '10': 'topicId'},
+    {'1': 'pinned', '3': 4, '4': 1, '5': 8, '10': 'pinned'},
+  ],
+};
+
+/// Descriptor for `EnginePinForumTopicRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List enginePinForumTopicRequestDescriptor = $convert.base64Decode(
+    'ChpFbmdpbmVQaW5Gb3J1bVRvcGljUmVxdWVzdBIdCgphY2NvdW50X2lkGAEgASgJUglhY2NvdW'
+    '50SWQSFwoHY2hhdF9pZBgCIAEoCVIGY2hhdElkEhkKCHRvcGljX2lkGAMgASgDUgd0b3BpY0lk'
+    'EhYKBnBpbm5lZBgEIAEoCFIGcGlubmVk');
+
+@$core.Deprecated('Use engineToggleForumTopicClosedRequestDescriptor instead')
+const EngineToggleForumTopicClosedRequest$json = {
+  '1': 'EngineToggleForumTopicClosedRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'chat_id', '3': 2, '4': 1, '5': 9, '10': 'chatId'},
+    {'1': 'topic_id', '3': 3, '4': 1, '5': 3, '10': 'topicId'},
+    {'1': 'closed', '3': 4, '4': 1, '5': 8, '10': 'closed'},
+  ],
+};
+
+/// Descriptor for `EngineToggleForumTopicClosedRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineToggleForumTopicClosedRequestDescriptor = $convert.base64Decode(
+    'CiNFbmdpbmVUb2dnbGVGb3J1bVRvcGljQ2xvc2VkUmVxdWVzdBIdCgphY2NvdW50X2lkGAEgAS'
+    'gJUglhY2NvdW50SWQSFwoHY2hhdF9pZBgCIAEoCVIGY2hhdElkEhkKCHRvcGljX2lkGAMgASgD'
+    'Ugd0b3BpY0lkEhYKBmNsb3NlZBgEIAEoCFIGY2xvc2Vk');
+
+@$core.Deprecated('Use engineToggleGeneralTopicHiddenRequestDescriptor instead')
+const EngineToggleGeneralTopicHiddenRequest$json = {
+  '1': 'EngineToggleGeneralTopicHiddenRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'chat_id', '3': 2, '4': 1, '5': 9, '10': 'chatId'},
+    {'1': 'hidden', '3': 3, '4': 1, '5': 8, '10': 'hidden'},
+  ],
+};
+
+/// Descriptor for `EngineToggleGeneralTopicHiddenRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineToggleGeneralTopicHiddenRequestDescriptor = $convert.base64Decode(
+    'CiVFbmdpbmVUb2dnbGVHZW5lcmFsVG9waWNIaWRkZW5SZXF1ZXN0Eh0KCmFjY291bnRfaWQYAS'
+    'ABKAlSCWFjY291bnRJZBIXCgdjaGF0X2lkGAIgASgJUgZjaGF0SWQSFgoGaGlkZGVuGAMgASgI'
+    'UgZoaWRkZW4=');
+
+@$core.Deprecated('Use engineMarkSavedSublistReadRequestDescriptor instead')
+const EngineMarkSavedSublistReadRequest$json = {
+  '1': 'EngineMarkSavedSublistReadRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'peer_id', '3': 2, '4': 1, '5': 9, '10': 'peerId'},
+  ],
+};
+
+/// Descriptor for `EngineMarkSavedSublistReadRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineMarkSavedSublistReadRequestDescriptor = $convert.base64Decode(
+    'CiFFbmdpbmVNYXJrU2F2ZWRTdWJsaXN0UmVhZFJlcXVlc3QSHQoKYWNjb3VudF9pZBgBIAEoCV'
+    'IJYWNjb3VudElkEhcKB3BlZXJfaWQYAiABKAlSBnBlZXJJZA==');
+
+@$core.Deprecated('Use engineDeleteSavedSublistHistoryRequestDescriptor instead')
+const EngineDeleteSavedSublistHistoryRequest$json = {
+  '1': 'EngineDeleteSavedSublistHistoryRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'peer_id', '3': 2, '4': 1, '5': 9, '10': 'peerId'},
+  ],
+};
+
+/// Descriptor for `EngineDeleteSavedSublistHistoryRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineDeleteSavedSublistHistoryRequestDescriptor = $convert.base64Decode(
+    'CiZFbmdpbmVEZWxldGVTYXZlZFN1Ymxpc3RIaXN0b3J5UmVxdWVzdBIdCgphY2NvdW50X2lkGA'
+    'EgASgJUglhY2NvdW50SWQSFwoHcGVlcl9pZBgCIAEoCVIGcGVlcklk');
 
 @$core.Deprecated('Use engineForwardMessageRequestDescriptor instead')
 const EngineForwardMessageRequest$json = {
@@ -1452,7 +1681,9 @@ final $typed_data.Uint8List engineUpdateConfigRequestDescriptor = $convert.base6
     'NjaGVkdWxlZF9tZXNzYWdlcxgYIAEoCFIUdXNlU2NoZWR1bGVkTWVzc2FnZXMSOwoaaGFzX3Vz'
     'ZV9zY2hlZHVsZWRfbWVzc2FnZXMYGSABKAhSF2hhc1VzZVNjaGVkdWxlZE1lc3NhZ2VzEiwKEn'
     'NlbmRfd2l0aG91dF9zb3VuZBgaIAEoCFIQc2VuZFdpdGhvdXRTb3VuZBIzChZoYXNfc2VuZF93'
-    'aXRob3V0X3NvdW5kGBsgASgIUhNoYXNTZW5kV2l0aG91dFNvdW5k');
+    'aXRob3V0X3NvdW5kGBsgASgIUhNoYXNTZW5kV2l0aG91dFNvdW5kEjAKFHNlbmRfdXBsb2FkX3'
+    'Byb2dyZXNzGBwgASgIUhJzZW5kVXBsb2FkUHJvZ3Jlc3MSNwoYaGFzX3NlbmRfdXBsb2FkX3By'
+    'b2dyZXNzGB0gASgIUhVoYXNTZW5kVXBsb2FkUHJvZ3Jlc3M=');
 
 @$core.Deprecated('Use engineFolderInfoDescriptor instead')
 const EngineFolderInfo$json = {
@@ -2317,6 +2548,7 @@ const EngineTranslateTextRequest$json = {
     {'1': 'chat_id', '3': 2, '4': 1, '5': 9, '10': 'chatId'},
     {'1': 'msg_id', '3': 3, '4': 1, '5': 9, '10': 'msgId'},
     {'1': 'to_lang', '3': 4, '4': 1, '5': 9, '10': 'toLang'},
+    {'1': 'text', '3': 5, '4': 1, '5': 9, '10': 'text'},
   ],
 };
 
@@ -2324,7 +2556,7 @@ const EngineTranslateTextRequest$json = {
 final $typed_data.Uint8List engineTranslateTextRequestDescriptor = $convert.base64Decode(
     'ChpFbmdpbmVUcmFuc2xhdGVUZXh0UmVxdWVzdBIdCgphY2NvdW50X2lkGAEgASgJUglhY2NvdW'
     '50SWQSFwoHY2hhdF9pZBgCIAEoCVIGY2hhdElkEhUKBm1zZ19pZBgDIAEoCVIFbXNnSWQSFwoH'
-    'dG9fbGFuZxgEIAEoCVIGdG9MYW5n');
+    'dG9fbGFuZxgEIAEoCVIGdG9MYW5nEhIKBHRleHQYBSABKAlSBHRleHQ=');
 
 @$core.Deprecated('Use engineTranslateTextResponseDescriptor instead')
 const EngineTranslateTextResponse$json = {
@@ -3082,20 +3314,6 @@ final $typed_data.Uint8List engineGetCustomEmojiSetInfoResponseDescriptor = $con
     'aXRsZRIdCgpzaG9ydF9uYW1lGAQgASgJUglzaG9ydE5hbWUSFAoFY291bnQYBSABKAVSBWNvdW'
     '50EhQKBWZvdW5kGAYgASgIUgVmb3VuZA==');
 
-@$core.Deprecated('Use engineReadMessageContentsRequestDescriptor instead')
-const EngineReadMessageContentsRequest$json = {
-  '1': 'EngineReadMessageContentsRequest',
-  '2': [
-    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
-    {'1': 'msg_ids', '3': 2, '4': 3, '5': 3, '10': 'msgIds'},
-  ],
-};
-
-/// Descriptor for `EngineReadMessageContentsRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List engineReadMessageContentsRequestDescriptor = $convert.base64Decode(
-    'CiBFbmdpbmVSZWFkTWVzc2FnZUNvbnRlbnRzUmVxdWVzdBIdCgphY2NvdW50X2lkGAEgASgJUg'
-    'lhY2NvdW50SWQSFwoHbXNnX2lkcxgCIAMoA1IGbXNnSWRz');
-
 @$core.Deprecated('Use engineSetUserNoForwardsFlagsRequestDescriptor instead')
 const EngineSetUserNoForwardsFlagsRequest$json = {
   '1': 'EngineSetUserNoForwardsFlagsRequest',
@@ -3112,4 +3330,51 @@ final $typed_data.Uint8List engineSetUserNoForwardsFlagsRequestDescriptor = $con
     'CiNFbmdpbmVTZXRVc2VyTm9Gb3J3YXJkc0ZsYWdzUmVxdWVzdBIdCgphY2NvdW50X2lkGAEgAS'
     'gJUglhY2NvdW50SWQSFwoHdXNlcl9pZBgCIAEoCVIGdXNlcklkEh0KCm15X2VuYWJsZWQYAyAB'
     'KAhSCW15RW5hYmxlZBIhCgxwZWVyX2VuYWJsZWQYBCABKAhSC3BlZXJFbmFibGVk');
+
+@$core.Deprecated('Use engineReorderPinnedDialogsRequestDescriptor instead')
+const EngineReorderPinnedDialogsRequest$json = {
+  '1': 'EngineReorderPinnedDialogsRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'chat_ids', '3': 2, '4': 3, '5': 9, '10': 'chatIds'},
+  ],
+};
+
+/// Descriptor for `EngineReorderPinnedDialogsRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineReorderPinnedDialogsRequestDescriptor = $convert.base64Decode(
+    'CiFFbmdpbmVSZW9yZGVyUGlubmVkRGlhbG9nc1JlcXVlc3QSHQoKYWNjb3VudF9pZBgBIAEoCV'
+    'IJYWNjb3VudElkEhkKCGNoYXRfaWRzGAIgAygJUgdjaGF0SWRz');
+
+@$core.Deprecated('Use engineReorderDialogFiltersRequestDescriptor instead')
+const EngineReorderDialogFiltersRequest$json = {
+  '1': 'EngineReorderDialogFiltersRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'filter_ids', '3': 2, '4': 3, '5': 5, '10': 'filterIds'},
+  ],
+};
+
+/// Descriptor for `EngineReorderDialogFiltersRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineReorderDialogFiltersRequestDescriptor = $convert.base64Decode(
+    'CiFFbmdpbmVSZW9yZGVyRGlhbG9nRmlsdGVyc1JlcXVlc3QSHQoKYWNjb3VudF9pZBgBIAEoCV'
+    'IJYWNjb3VudElkEh0KCmZpbHRlcl9pZHMYAiADKAVSCWZpbHRlcklkcw==');
+
+@$core.Deprecated('Use engineGetForumTopicsWithOffsetRequestDescriptor instead')
+const EngineGetForumTopicsWithOffsetRequest$json = {
+  '1': 'EngineGetForumTopicsWithOffsetRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'chat_id', '3': 2, '4': 1, '5': 9, '10': 'chatId'},
+    {'1': 'offset_date', '3': 3, '4': 1, '5': 5, '10': 'offsetDate'},
+    {'1': 'offset_id', '3': 4, '4': 1, '5': 5, '10': 'offsetId'},
+    {'1': 'offset_topic', '3': 5, '4': 1, '5': 5, '10': 'offsetTopic'},
+  ],
+};
+
+/// Descriptor for `EngineGetForumTopicsWithOffsetRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineGetForumTopicsWithOffsetRequestDescriptor = $convert.base64Decode(
+    'CiVFbmdpbmVHZXRGb3J1bVRvcGljc1dpdGhPZmZzZXRSZXF1ZXN0Eh0KCmFjY291bnRfaWQYAS'
+    'ABKAlSCWFjY291bnRJZBIXCgdjaGF0X2lkGAIgASgJUgZjaGF0SWQSHwoLb2Zmc2V0X2RhdGUY'
+    'AyABKAVSCm9mZnNldERhdGUSGwoJb2Zmc2V0X2lkGAQgASgFUghvZmZzZXRJZBIhCgxvZmZzZX'
+    'RfdG9waWMYBSABKAVSC29mZnNldFRvcGlj');
 

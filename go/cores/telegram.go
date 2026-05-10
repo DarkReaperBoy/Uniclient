@@ -1473,6 +1473,75 @@ func (t *TelegramCore) EditMessage(chatID string, msgID string, text string) (*M
 	return t.extractMessageFromUpdates(result, chatID), nil
 }
 
+func (t *TelegramCore) EditMessageWithEntities(chatID string, msgID string, text string, entitiesJSON string) (*Message, error) {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+
+	id, err := tgMsgID(msgID)
+	if err != nil {
+		return nil, err
+	}
+
+	req := &tg.MessagesEditMessageRequest{
+		Peer:    inputPeer,
+		ID:      id,
+		Message: text,
+	}
+
+	if entitiesJSON != "" {
+		var entities []TextEntity
+		if err := json.Unmarshal([]byte(entitiesJSON), &entities); err == nil && len(entities) > 0 {
+			var tgEnts []tg.MessageEntityClass
+			for _, e := range entities {
+				var ent tg.MessageEntityClass
+				switch e.Type {
+				case "bold":
+					ent = &tg.MessageEntityBold{Offset: e.Offset, Length: e.Length}
+				case "italic":
+					ent = &tg.MessageEntityItalic{Offset: e.Offset, Length: e.Length}
+				case "underline":
+					ent = &tg.MessageEntityUnderline{Offset: e.Offset, Length: e.Length}
+				case "strike":
+					ent = &tg.MessageEntityStrike{Offset: e.Offset, Length: e.Length}
+				case "code":
+					if e.Language != "" {
+						ent = &tg.MessageEntityPre{Offset: e.Offset, Length: e.Length, Language: e.Language}
+					} else {
+						ent = &tg.MessageEntityCode{Offset: e.Offset, Length: e.Length}
+					}
+				case "pre":
+					ent = &tg.MessageEntityPre{Offset: e.Offset, Length: e.Length, Language: e.Language}
+				case "spoiler":
+					ent = &tg.MessageEntitySpoiler{Offset: e.Offset, Length: e.Length}
+				case "text_url":
+					ent = &tg.MessageEntityTextURL{Offset: e.Offset, Length: e.Length, URL: e.URL}
+				case "blockquote":
+					ent = &tg.MessageEntityBlockquote{Offset: e.Offset, Length: e.Length}
+				case "custom_emoji":
+					ent = &tg.MessageEntityCustomEmoji{Offset: e.Offset, Length: e.Length, DocumentID: e.DocumentID}
+				default:
+					continue
+				}
+				tgEnts = append(tgEnts, ent)
+			}
+			if len(tgEnts) > 0 {
+				req.Entities = tgEnts
+				req.SetFlags()
+			}
+		}
+	}
+
+	result, err := t.api.MessagesEditMessage(t.ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("edit message: %w", err)
+	}
+
+	return t.extractMessageFromUpdates(result, chatID), nil
+}
+
 // DeleteMessage removes one or more messages from a chat.
 func (t *TelegramCore) DeleteMessage(chatID string, msgID string) error {
 	t.mu.RLock()

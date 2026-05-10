@@ -265,16 +265,16 @@ class EngineService {
   }
 
   void markSavedSublistRead(String accountId, String peerId) {
-    final req = epb.EngineMarkChatReadRequest()
+    final req = epb.EngineMarkSavedSublistReadRequest()
       ..accountId = accountId
-      ..chatId = peerId;
+      ..peerId = peerId;
     _callRaw('__engine', 'MarkSavedSublistRead', req.writeToBuffer());
   }
 
   void deleteSavedSublistHistory(String accountId, String peerId) {
-    final req = epb.EngineMarkChatReadRequest()
+    final req = epb.EngineDeleteSavedSublistHistoryRequest()
       ..accountId = accountId
-      ..chatId = peerId;
+      ..peerId = peerId;
     _callRaw('__engine', 'DeleteSavedSublistHistory', req.writeToBuffer());
   }
 
@@ -432,14 +432,14 @@ class EngineService {
   }
 
   Future<void> reportSpam(String accountId, String chatId) async {
-    final req = epb.EngineLeaveChatRequest()
+    final req = epb.EngineReportSpamRequest()
       ..accountId = accountId
       ..chatId = chatId;
     await _callAsync('__engine', 'ReportSpam', req.writeToBuffer());
   }
 
   Future<String> getLinkedChatId(String accountId, String chatId) async {
-    final req = epb.EngineLeaveChatRequest()
+    final req = epb.EngineGetLinkedChatIdRequest()
       ..accountId = accountId
       ..chatId = chatId;
     final respBytes = await _callAsync('__engine', 'GetLinkedChatId', req.writeToBuffer());
@@ -457,7 +457,7 @@ class EngineService {
   }
 
   Future<void> deleteContact(String accountId, String userId) async {
-    final req = epb.EngineBlockUserRequest()
+    final req = epb.EngineDeleteContactRequest()
       ..accountId = accountId
       ..userId = userId;
     await _callAsync('__engine', 'DeleteContact', req.writeToBuffer());
@@ -520,10 +520,11 @@ class EngineService {
     return list.map((e) => ChatInfo.fromJson(e as Map<String, dynamic>)).toList();
   }
 
-  void readMessageContents(String accountId, String msgId) {
-    final req = epb.EngineMarkChatReadRequest()
+  void readMessageContents(String accountId, String chatId, String msgId) {
+    final req = epb.EngineReadMessageContentsRequest()
       ..accountId = accountId
-      ..upToMsgId = msgId;
+      ..chatId = chatId
+      ..msgId = msgId;
     _callRaw('__engine', 'ReadMessageContents', req.writeToBuffer());
   }
 
@@ -607,29 +608,28 @@ class EngineService {
   }
 
   Future<void> pinForumTopic(String accountId, String chatId, int topicId, bool pinned) async {
-    final req = epb.EngineEditForumTopicRequest()
+    final req = epb.EnginePinForumTopicRequest()
       ..accountId = accountId
       ..chatId = chatId
       ..topicId = Int64(topicId)
-      ..colorId = pinned ? 1 : 0;
+      ..pinned = pinned;
     await _callAsync('__engine', 'PinForumTopic', req.writeToBuffer());
   }
 
   Future<void> toggleForumTopicClosed(String accountId, String chatId, int topicId, bool closed) async {
-    final req = epb.EngineEditForumTopicRequest()
+    final req = epb.EngineToggleForumTopicClosedRequest()
       ..accountId = accountId
       ..chatId = chatId
       ..topicId = Int64(topicId)
-      ..colorId = closed ? 1 : 0;
+      ..closed = closed;
     await _callAsync('__engine', 'ToggleForumTopicClosed', req.writeToBuffer());
   }
 
   Future<void> toggleGeneralTopicHidden(String accountId, String chatId, bool hidden) async {
-    final req = epb.EngineEditForumTopicRequest()
+    final req = epb.EngineToggleGeneralTopicHiddenRequest()
       ..accountId = accountId
       ..chatId = chatId
-      ..topicId = Int64(1)
-      ..colorId = hidden ? 1 : 0;
+      ..hidden = hidden;
     await _callAsync('__engine', 'ToggleGeneralTopicHidden', req.writeToBuffer());
   }
 
@@ -2028,6 +2028,9 @@ class EngineService {
       ..chatId = chatId
       ..msgId = msgId
       ..newText = newText;
+    if (entities.isNotEmpty) {
+      req.entitiesJson = entities;
+    }
     await _callAsync('__engine', 'EditMessage', req.writeToBuffer());
   }
 
@@ -2047,7 +2050,7 @@ class EngineService {
   }
 
   Future<void> joinChannel(String accountId, String chatId) async {
-    final req = epb.EngineLeaveChatRequest()
+    final req = epb.EngineJoinChannelRequest()
       ..accountId = accountId
       ..chatId = chatId;
     await _callAsync('__engine', 'JoinChannel', req.writeToBuffer());
@@ -2061,38 +2064,38 @@ class EngineService {
   }
 
   Future<void> editChatTitle(String accountId, String chatId, String title) async {
-    final req = epb.EngineSaveDraftRequest()
+    final req = epb.EngineEditChatTitleRequest()
       ..accountId = accountId
       ..chatId = chatId
-      ..text = title;
+      ..title = title;
     await _callAsync('__engine', 'EditChatTitle', req.writeToBuffer());
   }
 
   Future<void> editChatDescription(String accountId, String chatId, String description) async {
-    final req = epb.EngineSaveDraftRequest()
+    final req = epb.EngineEditChatDescriptionRequest()
       ..accountId = accountId
       ..chatId = chatId
-      ..text = description;
+      ..description = description;
     await _callAsync('__engine', 'EditChatDescription', req.writeToBuffer());
   }
 
   Future<void> toggleForum(String accountId, String chatId, bool enabled) async {
-    final req = epb.EngineMuteChatRequest()
+    final req = epb.EngineToggleForumRequest()
       ..accountId = accountId
       ..chatId = chatId
-      ..muted = enabled;
+      ..enabled = enabled;
     await _callAsync('__engine', 'ToggleForum', req.writeToBuffer());
   }
 
   Future<void> clearHistory(String accountId, String chatId) async {
-    final req = epb.EngineLeaveChatRequest()
+    final req = epb.EngineClearHistoryRequest()
       ..accountId = accountId
       ..chatId = chatId;
     await _callAsync('__engine', 'ClearHistory', req.writeToBuffer());
   }
 
   Future<void> deleteChat(String accountId, String chatId) async {
-    final req = epb.EngineLeaveChatRequest()
+    final req = epb.EngineDeleteChatRequest()
       ..accountId = accountId
       ..chatId = chatId;
     await _callAsync('__engine', 'DeleteChat', req.writeToBuffer());
@@ -4039,6 +4042,10 @@ class EngineService {
     _downloadProgressController.close();
     _downloadCompleteController.close();
     _userStatusController.close();
+    _groupCallStateController.close();
+    _exportProgressController.close();
+    _exportErrorController.close();
+    _exportCompleteController.close();
   }
 
   // ── Internal ──
@@ -4320,6 +4327,18 @@ class EngineService {
 
   static CachedMessage _cachedMsgFromProto(epb.EngineCachedMessage p) {
     final contentRaw = p.contentRaw.isEmpty ? '' : _safeStr(utf8.decode(p.contentRaw, allowMalformed: true));
+    Map<String, dynamic>? decoded;
+    Map<String, dynamic>? extra;
+    if (contentRaw.isNotEmpty) {
+      try {
+        final d = jsonDecode(contentRaw);
+        if (d is Map<String, dynamic>) {
+          decoded = d;
+          final e = d['extra'];
+          if (e is Map<String, dynamic>) extra = e;
+        }
+      } catch (_) {}
+    }
     return CachedMessage(
       accountId: p.accountId,
       chatId: p.chatId,
@@ -4355,179 +4374,160 @@ class EngineService {
       mediaDownloadState: p.mediaDownloadState,
       mediaRemoteRef: p.mediaRemoteRef,
       mediaExtra: p.mediaExtra,
-      mediaWaveform: _waveformFromRaw(contentRaw),
-      reactions: _reactionsFromRaw(contentRaw),
-      topicId: _topicFieldFromRaw(contentRaw, 'topic_id') ?? '',
-      topicName: _topicFieldFromRaw(contentRaw, 'topic_name') ?? '',
-      topicColorId: _topicColorFromRaw(contentRaw),
-      viaBotName: _topicFieldFromRaw(contentRaw, 'via_bot_name') ?? '',
-      mediaSpoiler: _boolExtraFromRaw(contentRaw, 'media_spoiler'),
-      mediaUnread: _boolExtraFromRaw(contentRaw, 'media_unread'),
-      ttlSeconds: _intExtraFromRaw(contentRaw, 'ttl_seconds'),
-      unsupportedTTL: _boolExtraFromRaw(contentRaw, 'unsupported_ttl'),
+      mediaWaveform: _waveformFromParsed(extra),
+      reactions: _reactionsFromParsed(decoded),
+      topicId: _strFromExtra(extra, 'topic_id') ?? '',
+      topicName: _strFromExtra(extra, 'topic_name') ?? '',
+      topicColorId: _intFromExtra(extra, 'topic_color'),
+      viaBotName: _strFromExtra(extra, 'via_bot_name') ?? '',
+      mediaSpoiler: _boolFromExtra(extra, 'media_spoiler'),
+      mediaUnread: _boolFromExtra(extra, 'media_unread'),
+      ttlSeconds: _intFromExtra(extra, 'ttl_seconds'),
+      unsupportedTTL: _boolFromExtra(extra, 'unsupported_ttl'),
       senderNoForwards: p.senderNoForwards,
-      altQualities: _altQualitiesFromRaw(contentRaw),
-      views: _intFieldFromRaw(contentRaw, 'views'),
-      forwards: _intFieldFromRaw(contentRaw, 'forwards'),
-      stickerSetShortName: _topicFieldFromRaw(contentRaw, 'sticker_set_short_name') ?? '',
-      stickerSetId: _int64FieldFromRaw(contentRaw, 'sticker_set_id'),
-      stickerSetAccessHash: _int64FieldFromRaw(contentRaw, 'sticker_set_access_hash'),
-      stickerPremium: _boolExtraFromRaw(contentRaw, 'sticker_premium'),
-      audioTitle: _topicFieldFromRaw(contentRaw, 'audio_title') ?? '',
-      audioPerformer: _topicFieldFromRaw(contentRaw, 'audio_performer') ?? '',
-      pollQuestion: _topicFieldFromRaw(contentRaw, 'poll_question') ?? '',
-      pollOptions: _pollOptionsFromRaw(contentRaw),
-      pollQuiz: _boolExtraFromRaw(contentRaw, 'poll_quiz'),
-      pollMultiple: _boolExtraFromRaw(contentRaw, 'poll_multiple'),
-      pollClosed: _boolExtraFromRaw(contentRaw, 'poll_closed'),
-      pollPublic: _boolExtraFromRaw(contentRaw, 'poll_public'),
-      pollTotalVoters: _int64FieldFromRaw(contentRaw, 'poll_total_voters'),
-      pollCloseDate: _int64FieldFromRaw(contentRaw, 'poll_close_date'),
-      pollClosePeriod: _int64FieldFromRaw(contentRaw, 'poll_close_period'),
-      pollRecentVoters: _stringListExtraFromRaw(contentRaw, 'poll_recent_voters'),
-      geoLat: _doubleExtraFromRaw(contentRaw, 'geo_lat'),
-      geoLong: _doubleExtraFromRaw(contentRaw, 'geo_long'),
-      geoLive: _boolExtraFromRaw(contentRaw, 'geo_live'),
-      geoPeriod: _int64FieldFromRaw(contentRaw, 'geo_period'),
-      venueTitle: _topicFieldFromRaw(contentRaw, 'venue_title') ?? '',
-      venueAddress: _topicFieldFromRaw(contentRaw, 'venue_address') ?? '',
-      contactFirstName: _topicFieldFromRaw(contentRaw, 'contact_first_name') ?? '',
-      contactLastName: _topicFieldFromRaw(contentRaw, 'contact_last_name') ?? '',
-      contactPhone: _topicFieldFromRaw(contentRaw, 'contact_phone') ?? '',
-      contactUserId: _int64FieldFromRaw(contentRaw, 'contact_user_id'),
-      wpUrl: _topicFieldFromRaw(contentRaw, 'wp_url') ?? '',
-      wpSiteName: _topicFieldFromRaw(contentRaw, 'wp_site_name') ?? '',
-      wpTitle: _topicFieldFromRaw(contentRaw, 'wp_title') ?? '',
-      wpDescription: _topicFieldFromRaw(contentRaw, 'wp_description') ?? '',
-      wpType: _topicFieldFromRaw(contentRaw, 'wp_type') ?? '',
-      wpThumbB64: _topicFieldFromRaw(contentRaw, 'wp_thumb_b64') ?? '',
-      wpForceLargeMedia: _boolExtraFromRaw(contentRaw, 'wp_force_large_media'),
-      wpForceSmallMedia: _boolExtraFromRaw(contentRaw, 'wp_force_small_media'),
-      wpHasLargeMedia: _boolExtraFromRaw(contentRaw, 'wp_has_large_media'),
-      wpHasIv: _boolExtraFromRaw(contentRaw, 'wp_has_iv'),
-      wpPhotoW: _int64FieldFromRaw(contentRaw, 'wp_photo_w'),
-      wpPhotoH: _int64FieldFromRaw(contentRaw, 'wp_photo_h'),
-      wpDuration: _int64FieldFromRaw(contentRaw, 'wp_duration'),
-      gameTitle: _topicFieldFromRaw(contentRaw, 'game_title') ?? '',
-      gameDescription: _topicFieldFromRaw(contentRaw, 'game_description') ?? '',
-      gameShortName: _topicFieldFromRaw(contentRaw, 'game_short_name') ?? '',
-      gameThumbB64: _topicFieldFromRaw(contentRaw, 'game_thumb_b64') ?? '',
-      gamePhotoW: _int64FieldFromRaw(contentRaw, 'game_photo_w'),
-      gamePhotoH: _int64FieldFromRaw(contentRaw, 'game_photo_h'),
-      invoiceTitle: _topicFieldFromRaw(contentRaw, 'invoice_title') ?? '',
-      invoiceDescription: _topicFieldFromRaw(contentRaw, 'invoice_description') ?? '',
-      invoiceCurrency: _topicFieldFromRaw(contentRaw, 'invoice_currency') ?? '',
-      invoiceTotalAmount: _int64FieldFromRaw(contentRaw, 'invoice_total_amount'),
-      invoiceTest: _boolExtraFromRaw(contentRaw, 'invoice_test'),
-      invoiceReceiptMsgId: _int64FieldFromRaw(contentRaw, 'invoice_receipt_msg_id'),
-      invoicePhotoUrl: _topicFieldFromRaw(contentRaw, 'invoice_photo_url') ?? '',
-      invoiceShippingRequested: _boolExtraFromRaw(contentRaw, 'invoice_shipping_requested'),
-      noForwards: _boolExtraFromRaw(contentRaw, 'no_forwards'),
-      repliesCount: _int64FieldFromRaw(contentRaw, 'replies_count'),
-      repliesChannelId: _topicFieldFromRaw(contentRaw, 'replies_channel_id') ?? '',
-      repliesIsComments: _boolExtraFromRaw(contentRaw, 'replies_is_comments'),
-      replyKeyboard: _replyKeyboardFromRaw(contentRaw),
-      inlineKeyboard: _inlineKeyboardFromRaw(contentRaw),
-      keyboardHide: _boolExtraFromRaw(contentRaw, 'keyboard_hide'),
-      forceReply: _boolExtraFromRaw(contentRaw, 'force_reply'),
-      forceReplyPlaceholder: _topicFieldFromRaw(contentRaw, 'force_reply_placeholder') ?? '',
+      altQualities: _altQualitiesFromParsed(extra),
+      views: _intFromDecoded(decoded, 'views'),
+      forwards: _intFromDecoded(decoded, 'forwards'),
+      stickerSetShortName: _strFromExtra(extra, 'sticker_set_short_name') ?? '',
+      stickerSetId: _intFromExtra(extra, 'sticker_set_id'),
+      stickerSetAccessHash: _intFromExtra(extra, 'sticker_set_access_hash'),
+      stickerPremium: _boolFromExtra(extra, 'sticker_premium'),
+      audioTitle: _strFromExtra(extra, 'audio_title') ?? '',
+      audioPerformer: _strFromExtra(extra, 'audio_performer') ?? '',
+      pollQuestion: _strFromExtra(extra, 'poll_question') ?? '',
+      pollOptions: _pollOptionsFromParsed(extra),
+      pollQuiz: _boolFromExtra(extra, 'poll_quiz'),
+      pollMultiple: _boolFromExtra(extra, 'poll_multiple'),
+      pollClosed: _boolFromExtra(extra, 'poll_closed'),
+      pollPublic: _boolFromExtra(extra, 'poll_public'),
+      pollTotalVoters: _intFromExtra(extra, 'poll_total_voters'),
+      pollCloseDate: _intFromExtra(extra, 'poll_close_date'),
+      pollClosePeriod: _intFromExtra(extra, 'poll_close_period'),
+      pollRecentVoters: _strListFromExtra(extra, 'poll_recent_voters'),
+      geoLat: _doubleFromExtra(extra, 'geo_lat'),
+      geoLong: _doubleFromExtra(extra, 'geo_long'),
+      geoLive: _boolFromExtra(extra, 'geo_live'),
+      geoPeriod: _intFromExtra(extra, 'geo_period'),
+      venueTitle: _strFromExtra(extra, 'venue_title') ?? '',
+      venueAddress: _strFromExtra(extra, 'venue_address') ?? '',
+      contactFirstName: _strFromExtra(extra, 'contact_first_name') ?? '',
+      contactLastName: _strFromExtra(extra, 'contact_last_name') ?? '',
+      contactPhone: _strFromExtra(extra, 'contact_phone') ?? '',
+      contactUserId: _intFromExtra(extra, 'contact_user_id'),
+      wpUrl: _strFromExtra(extra, 'wp_url') ?? '',
+      wpSiteName: _strFromExtra(extra, 'wp_site_name') ?? '',
+      wpTitle: _strFromExtra(extra, 'wp_title') ?? '',
+      wpDescription: _strFromExtra(extra, 'wp_description') ?? '',
+      wpType: _strFromExtra(extra, 'wp_type') ?? '',
+      wpThumbB64: _strFromExtra(extra, 'wp_thumb_b64') ?? '',
+      wpForceLargeMedia: _boolFromExtra(extra, 'wp_force_large_media'),
+      wpForceSmallMedia: _boolFromExtra(extra, 'wp_force_small_media'),
+      wpHasLargeMedia: _boolFromExtra(extra, 'wp_has_large_media'),
+      wpHasIv: _boolFromExtra(extra, 'wp_has_iv'),
+      wpPhotoW: _intFromExtra(extra, 'wp_photo_w'),
+      wpPhotoH: _intFromExtra(extra, 'wp_photo_h'),
+      wpDuration: _intFromExtra(extra, 'wp_duration'),
+      gameTitle: _strFromExtra(extra, 'game_title') ?? '',
+      gameDescription: _strFromExtra(extra, 'game_description') ?? '',
+      gameShortName: _strFromExtra(extra, 'game_short_name') ?? '',
+      gameThumbB64: _strFromExtra(extra, 'game_thumb_b64') ?? '',
+      gamePhotoW: _intFromExtra(extra, 'game_photo_w'),
+      gamePhotoH: _intFromExtra(extra, 'game_photo_h'),
+      invoiceTitle: _strFromExtra(extra, 'invoice_title') ?? '',
+      invoiceDescription: _strFromExtra(extra, 'invoice_description') ?? '',
+      invoiceCurrency: _strFromExtra(extra, 'invoice_currency') ?? '',
+      invoiceTotalAmount: _intFromExtra(extra, 'invoice_total_amount'),
+      invoiceTest: _boolFromExtra(extra, 'invoice_test'),
+      invoiceReceiptMsgId: _intFromExtra(extra, 'invoice_receipt_msg_id'),
+      invoicePhotoUrl: _strFromExtra(extra, 'invoice_photo_url') ?? '',
+      invoiceShippingRequested: _boolFromExtra(extra, 'invoice_shipping_requested'),
+      noForwards: _boolFromExtra(extra, 'no_forwards'),
+      repliesCount: _intFromExtra(extra, 'replies_count'),
+      repliesChannelId: _strFromExtra(extra, 'replies_channel_id') ?? '',
+      repliesIsComments: _boolFromExtra(extra, 'replies_is_comments'),
+      replyKeyboard: _replyKeyboardFromParsed(extra),
+      inlineKeyboard: _inlineKeyboardFromParsed(extra),
+      keyboardHide: _boolFromExtra(extra, 'keyboard_hide'),
+      forceReply: _boolFromExtra(extra, 'force_reply'),
+      forceReplyPlaceholder: _strFromExtra(extra, 'force_reply_placeholder') ?? '',
     );
   }
 
-  static ReplyKeyboardData? _replyKeyboardFromRaw(String contentRaw) {
-    if (contentRaw.isEmpty || !contentRaw.contains('"reply_keyboard"')) return null;
-    try {
-      final decoded = jsonDecode(contentRaw);
-      if (decoded is! Map<String, dynamic>) return null;
-      final extra = decoded['extra'];
-      if (extra is! Map<String, dynamic>) return null;
-      final kb = extra['reply_keyboard'];
-      if (kb is! Map<String, dynamic>) return null;
-      return ReplyKeyboardData.fromJson(kb);
-    } catch (_) {
-      return null;
-    }
+  static String? _strFromExtra(Map<String, dynamic>? extra, String key) {
+    if (extra == null) return null;
+    final v = extra[key];
+    return v is String ? v : v?.toString();
   }
 
-  static List<List<InlineKeyboardButton>> _inlineKeyboardFromRaw(String contentRaw) {
-    if (contentRaw.isEmpty || !contentRaw.contains('"inline_keyboard"')) return const [];
-    try {
-      final decoded = jsonDecode(contentRaw);
-      if (decoded is! Map<String, dynamic>) return const [];
-      final extra = decoded['extra'];
-      if (extra is! Map<String, dynamic>) return const [];
-      final kb = extra['inline_keyboard'];
-      if (kb is! List) return const [];
-      return kb.map((row) {
-        final r = row as List<dynamic>;
-        return r.map((b) => InlineKeyboardButton.fromJson(b as Map<String, dynamic>)).toList();
-      }).toList();
-    } catch (_) {
-      return const [];
-    }
+  static int _intFromExtra(Map<String, dynamic>? extra, String key) {
+    if (extra == null) return 0;
+    final v = extra[key];
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    return 0;
   }
 
-  /// Parse reactions list from the raw JSON blob written by the Go engine
-  /// (`json.Marshal(*cores.Message)`). The engine doesn't expose reactions as
-  /// a first-class proto field, so we peek into `contentRaw` to recover them.
-  static List<MessageReaction> _reactionsFromRaw(String contentRaw) {
-    if (contentRaw.isEmpty || !contentRaw.contains('"reactions"')) return const [];
-    try {
-      final decoded = jsonDecode(contentRaw);
-      if (decoded is! Map<String, dynamic>) return const [];
-      final raw = decoded['reactions'];
-      if (raw is! List) return const [];
-      return raw
-          .whereType<Map<String, dynamic>>()
-          .map(MessageReaction.fromJson)
-          .where((r) => r.emoji.isNotEmpty)
-          .toList(growable: false);
-    } catch (_) {
-      return const [];
-    }
+  static int _intFromDecoded(Map<String, dynamic>? decoded, String key) {
+    if (decoded == null) return 0;
+    final v = decoded[key];
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    return 0;
   }
 
-  /// Extract a string field from the "extra" map inside contentRaw JSON.
-  static String? _topicFieldFromRaw(String contentRaw, String key) {
-    if (contentRaw.isEmpty || !contentRaw.contains('"extra"')) return null;
-    try {
-      final decoded = jsonDecode(contentRaw);
-      if (decoded is! Map<String, dynamic>) return null;
-      final extra = decoded['extra'];
-      if (extra is! Map<String, dynamic>) return null;
-      final v = extra[key];
-      return v is String ? v : v?.toString();
-    } catch (_) {
-      return null;
-    }
+  static bool _boolFromExtra(Map<String, dynamic>? extra, String key) {
+    if (extra == null) return false;
+    return extra[key] == true;
   }
 
-  /// Extract topic_color (int) from the "extra" map inside contentRaw JSON.
-  static int _topicColorFromRaw(String contentRaw) {
-    if (contentRaw.isEmpty || !contentRaw.contains('"topic_color"')) return 0;
-    try {
-      final decoded = jsonDecode(contentRaw);
-      if (decoded is! Map<String, dynamic>) return 0;
-      final extra = decoded['extra'];
-      if (extra is! Map<String, dynamic>) return 0;
-      final v = extra['topic_color'];
-      if (v is int) return v;
-      if (v is num) return v.toInt();
-      return 0;
-    } catch (_) {
-      return 0;
-    }
+  static double _doubleFromExtra(Map<String, dynamic>? extra, String key) {
+    if (extra == null) return 0.0;
+    final v = extra[key];
+    if (v is double) return v;
+    if (v is num) return v.toDouble();
+    return 0.0;
   }
 
-  static List<int> _waveformFromRaw(String contentRaw) {
-    if (contentRaw.isEmpty || !contentRaw.contains('"waveform"')) return const [];
+  static List<String> _strListFromExtra(Map<String, dynamic>? extra, String key) {
+    if (extra == null) return const [];
+    final raw = extra[key];
+    if (raw is! List) return const [];
+    return raw.map((e) => e.toString()).toList(growable: false);
+  }
+
+  static ReplyKeyboardData? _replyKeyboardFromParsed(Map<String, dynamic>? extra) {
+    if (extra == null) return null;
+    final kb = extra['reply_keyboard'];
+    if (kb is! Map<String, dynamic>) return null;
+    return ReplyKeyboardData.fromJson(kb);
+  }
+
+  static List<List<InlineKeyboardButton>> _inlineKeyboardFromParsed(Map<String, dynamic>? extra) {
+    if (extra == null) return const [];
+    final kb = extra['inline_keyboard'];
+    if (kb is! List) return const [];
+    return kb.map((row) {
+      final r = row as List<dynamic>;
+      return r.map((b) => InlineKeyboardButton.fromJson(b as Map<String, dynamic>)).toList();
+    }).toList();
+  }
+
+  static List<MessageReaction> _reactionsFromParsed(Map<String, dynamic>? decoded) {
+    if (decoded == null) return const [];
+    final raw = decoded['reactions'];
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map<String, dynamic>>()
+        .map(MessageReaction.fromJson)
+        .where((r) => r.emoji.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  static List<int> _waveformFromParsed(Map<String, dynamic>? extra) {
+    if (extra == null) return const [];
+    final wfB64 = extra['waveform'];
+    if (wfB64 is! String || wfB64.isEmpty) return const [];
     try {
-      final decoded = jsonDecode(contentRaw);
-      if (decoded is! Map<String, dynamic>) return const [];
-      final extra = decoded['extra'];
-      if (extra is! Map<String, dynamic>) return const [];
-      final wfB64 = extra['waveform'];
-      if (wfB64 is! String || wfB64.isEmpty) return const [];
       final bytes = base64Decode(wfB64);
       final samples = <int>[];
       for (int i = 0; i < 100; i++) {
@@ -4551,133 +4551,26 @@ class EngineService {
     }
   }
 
-  static bool _boolExtraFromRaw(String contentRaw, String key) {
-    if (contentRaw.isEmpty || !contentRaw.contains('"$key"')) return false;
-    try {
-      final decoded = jsonDecode(contentRaw);
-      if (decoded is! Map<String, dynamic>) return false;
-      final extra = decoded['extra'];
-      if (extra is! Map<String, dynamic>) return false;
-      return extra[key] == true;
-    } catch (_) {
-      return false;
-    }
+  static List<PollOption> _pollOptionsFromParsed(Map<String, dynamic>? extra) {
+    if (extra == null) return const [];
+    final raw = extra['poll_options'];
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map<String, dynamic>>()
+        .map(PollOption.fromJson)
+        .toList(growable: false);
   }
 
-  static int _intExtraFromRaw(String contentRaw, String key) {
-    if (contentRaw.isEmpty || !contentRaw.contains('"$key"')) return 0;
-    try {
-      final decoded = jsonDecode(contentRaw);
-      if (decoded is! Map<String, dynamic>) return 0;
-      final extra = decoded['extra'];
-      if (extra is! Map<String, dynamic>) return 0;
-      final v = extra[key];
-      if (v is int) return v;
-      if (v is double) return v.toInt();
-      return 0;
-    } catch (_) {
-      return 0;
-    }
-  }
-
-  /// Extract a top-level int field from contentRaw JSON (e.g. "views", "forwards").
-  static int _intFieldFromRaw(String contentRaw, String key) {
-    if (contentRaw.isEmpty || !contentRaw.contains('"$key"')) return 0;
-    try {
-      final decoded = jsonDecode(contentRaw);
-      if (decoded is! Map<String, dynamic>) return 0;
-      final v = decoded[key];
-      if (v is int) return v;
-      if (v is num) return v.toInt();
-      return 0;
-    } catch (_) {
-      return 0;
-    }
-  }
-
-  static int _int64FieldFromRaw(String contentRaw, String key) {
-    if (contentRaw.isEmpty || !contentRaw.contains('"$key"')) return 0;
-    try {
-      final decoded = jsonDecode(contentRaw);
-      if (decoded is! Map<String, dynamic>) return 0;
-      final extra = decoded['extra'];
-      if (extra is! Map<String, dynamic>) return 0;
-      final v = extra[key];
-      if (v is int) return v;
-      if (v is num) return v.toInt();
-      return 0;
-    } catch (_) {
-      return 0;
-    }
-  }
-
-  static double _doubleExtraFromRaw(String contentRaw, String key) {
-    if (contentRaw.isEmpty || !contentRaw.contains('"$key"')) return 0.0;
-    try {
-      final decoded = jsonDecode(contentRaw);
-      if (decoded is! Map<String, dynamic>) return 0.0;
-      final extra = decoded['extra'];
-      if (extra is! Map<String, dynamic>) return 0.0;
-      final v = extra[key];
-      if (v is double) return v;
-      if (v is num) return v.toDouble();
-      return 0.0;
-    } catch (_) {
-      return 0.0;
-    }
-  }
-
-  static List<String> _stringListExtraFromRaw(String contentRaw, String key) {
-    if (contentRaw.isEmpty || !contentRaw.contains('"$key"')) return const [];
-    try {
-      final decoded = jsonDecode(contentRaw);
-      if (decoded is! Map<String, dynamic>) return const [];
-      final extra = decoded['extra'];
-      if (extra is! Map<String, dynamic>) return const [];
-      final raw = extra[key];
-      if (raw is! List) return const [];
-      return raw.map((e) => e.toString()).toList(growable: false);
-    } catch (_) {
-      return const [];
-    }
-  }
-
-  static List<PollOption> _pollOptionsFromRaw(String contentRaw) {
-    if (contentRaw.isEmpty || !contentRaw.contains('"poll_options"')) return const [];
-    try {
-      final decoded = jsonDecode(contentRaw);
-      if (decoded is! Map<String, dynamic>) return const [];
-      final extra = decoded['extra'];
-      if (extra is! Map<String, dynamic>) return const [];
-      final raw = extra['poll_options'];
-      if (raw is! List) return const [];
-      return raw
-          .whereType<Map<String, dynamic>>()
-          .map(PollOption.fromJson)
-          .toList(growable: false);
-    } catch (_) {
-      return const [];
-    }
-  }
-
-  static List<VideoQuality> _altQualitiesFromRaw(String contentRaw) {
-    if (contentRaw.isEmpty || !contentRaw.contains('"alt_qualities"')) return const [];
-    try {
-      final decoded = jsonDecode(contentRaw);
-      if (decoded is! Map<String, dynamic>) return const [];
-      final extra = decoded['extra'];
-      if (extra is! Map<String, dynamic>) return const [];
-      final raw = extra['alt_qualities'];
-      if (raw is! List) return const [];
-      return raw.whereType<Map<String, dynamic>>().map((q) => VideoQuality(
-        height: (q['height'] as num?)?.toInt() ?? 0,
-        width: (q['width'] as num?)?.toInt() ?? 0,
-        size: (q['size'] as num?)?.toInt() ?? 0,
-        seq: (q['seq'] as num?)?.toInt() ?? 0,
-      )).where((q) => q.height > 0).toList(growable: false);
-    } catch (_) {
-      return const [];
-    }
+  static List<VideoQuality> _altQualitiesFromParsed(Map<String, dynamic>? extra) {
+    if (extra == null) return const [];
+    final raw = extra['alt_qualities'];
+    if (raw is! List) return const [];
+    return raw.whereType<Map<String, dynamic>>().map((q) => VideoQuality(
+      height: (q['height'] as num?)?.toInt() ?? 0,
+      width: (q['width'] as num?)?.toInt() ?? 0,
+      size: (q['size'] as num?)?.toInt() ?? 0,
+      seq: (q['seq'] as num?)?.toInt() ?? 0,
+    )).where((q) => q.height > 0).toList(growable: false);
   }
 
   static MemberInfo _memberInfoFromProto(epb.EngineMemberInfo p) => MemberInfo(

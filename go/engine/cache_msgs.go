@@ -1393,7 +1393,11 @@ type MessageContentsReader interface {
 	MessagesReadMessageContents(id []int) (interface{}, error)
 }
 
-func (e *Engine) ReadMessageContents(accountID, msgID string) error {
+type MessageEditorWithEntities interface {
+	EditMessageWithEntities(chatID string, msgID string, text string, entitiesJSON string) (*cores.Message, error)
+}
+
+func (e *Engine) ReadMessageContents(accountID, chatID, msgID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
 		return fmt.Errorf("account not found: %s", accountID)
