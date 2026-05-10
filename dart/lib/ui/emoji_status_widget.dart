@@ -8,7 +8,7 @@ import 'package:provider/provider.dart';
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
-import 'custom_emoji_cache.dart' show CustomEmojiCache, EmojiSizeTag;
+import 'custom_emoji_cache.dart' show CustomEmojiCache, EmojiSizeConstants, EmojiSizeTag;
 
 class EmojiStatusWidget extends StatefulWidget {
   final String emojiStatusId;
@@ -46,7 +46,7 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
     super.initState();
     _parseEmojiStatusId();
     if (_documentId != null) {
-      CustomEmojiCache.instance.acquire(_documentId!, EmojiSizeTag.normal);
+      CustomEmojiCache.instance.acquire(_documentId!, EmojiSizeTag.setIcon);
     }
     CustomEmojiCache.instance.addListener(_onCacheUpdate);
     _requestIfNeeded();
@@ -63,10 +63,10 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
       _loopCount = 0;
       _parseEmojiStatusId();
       if (oldDocId != null) {
-        CustomEmojiCache.instance.release(oldDocId, EmojiSizeTag.normal);
+        CustomEmojiCache.instance.release(oldDocId, EmojiSizeTag.setIcon);
       }
       if (_documentId != null) {
-        CustomEmojiCache.instance.acquire(_documentId!, EmojiSizeTag.normal);
+        CustomEmojiCache.instance.acquire(_documentId!, EmojiSizeTag.setIcon);
       }
       _requestIfNeeded();
     }
@@ -76,7 +76,7 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
   void dispose() {
     CustomEmojiCache.instance.removeListener(_onCacheUpdate);
     if (_documentId != null) {
-      CustomEmojiCache.instance.release(_documentId!, EmojiSizeTag.normal);
+      CustomEmojiCache.instance.release(_documentId!, EmojiSizeTag.setIcon);
     }
     _lottieController?.dispose();
     super.dispose();
@@ -183,6 +183,7 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
 
     Widget content;
 
+    final cs = EmojiSizeConstants.scaledFrameSize(EmojiSizeTag.setIcon, MediaQuery.devicePixelRatioOf(context)).round();
     if (file != null && !powerSaving) {
       if (file.isTgs && _decompressedLottie != null) {
         content = Lottie.memory(
@@ -199,6 +200,8 @@ class _EmojiStatusWidgetState extends State<EmojiStatusWidget>
           file.fileData,
           width: s,
           height: s,
+          cacheWidth: cs,
+          cacheHeight: cs,
           fit: BoxFit.contain,
           gaplessPlayback: true,
           errorBuilder: (_, __, ___) => _buildThumbOrFallback(cache),

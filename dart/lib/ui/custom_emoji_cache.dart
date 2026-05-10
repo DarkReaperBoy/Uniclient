@@ -147,9 +147,29 @@ class CustomEmojiCache {
     _fileFailed.remove(documentId);
   }
 
-  // §45.8: Cross-resolution preview — file data loaded at any SizeTag is
-  // available for rendering at any other size (Flutter scales natively).
   bool hasFileAtAnySize(int documentId) => _files.containsKey(documentId);
+
+  CustomEmojiFileData? prepareNonExactPreview(int documentId, EmojiSizeTag requestedTag) {
+    if (_files.containsKey(documentId)) return _files[documentId];
+    if (_diskIndex.contains(documentId) && !_filePending.contains(documentId)) {
+      _loadFromDisk(documentId);
+    }
+    return _files[documentId];
+  }
+
+  void preloadBatch(List<int> documentIds, String accountId, EngineService engine) {
+    final toRequest = <int>[];
+    for (var i = 0; i < documentIds.length && i < EmojiSizeConstants.kMaxFrames; i++) {
+      final id = documentIds[i];
+      if (!_thumbs.containsKey(id) && !_pending.contains(id) && !_failed.contains(id)) {
+        toRequest.add(id);
+      }
+    }
+    final preloadCount = math.min(toRequest.length, EmojiSizeConstants.kPreloadFrames * EmojiSizeConstants.kPerRow);
+    for (var i = 0; i < preloadCount; i++) {
+      request(toRequest[i], accountId, engine);
+    }
+  }
 
   Future<void> _writeToDisk(int documentId, CustomEmojiFileData data) async {
     if (kIsWeb || _diskCacheDir == null) return;

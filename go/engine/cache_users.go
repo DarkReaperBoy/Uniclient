@@ -1748,6 +1748,86 @@ type connectedBotDisabler interface {
 	DisablePeerConnectedBot(chatID string) error
 }
 
+type publicLinksLimitsGetter interface {
+	GetPublicLinksLimits() (int, int, error)
+}
+
+func (e *Engine) GetPublicLinksLimits(accountID string) (int, int, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return 10, 20, fmt.Errorf("account %q not connected", accountID)
+	}
+	g, ok := acc.Core.(publicLinksLimitsGetter)
+	if !ok {
+		return 10, 20, nil
+	}
+	return g.GetPublicLinksLimits()
+}
+
+type forumTopicIconsFetcher interface {
+	GetForumTopicDefaultIcons() ([]cores.ForumTopicIconInfo, error)
+}
+
+func (e *Engine) GetForumTopicDefaultIcons(accountID string) ([]cores.ForumTopicIconInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not connected", accountID)
+	}
+	f, ok := acc.Core.(forumTopicIconsFetcher)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support forum topic icons")
+	}
+	return f.GetForumTopicDefaultIcons()
+}
+
+type channelUsernamesGetter interface {
+	GetChannelUsernames(chatID string) ([]cores.ChannelUsernameInfo, error)
+}
+
+func (e *Engine) GetChannelUsernames(accountID, chatID string) ([]cores.ChannelUsernameInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not connected", accountID)
+	}
+	g, ok := acc.Core.(channelUsernamesGetter)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support channel usernames")
+	}
+	return g.GetChannelUsernames(chatID)
+}
+
+type channelUsernameToggler interface {
+	ToggleChannelUsername(chatID, username string, active bool) (bool, error)
+}
+
+func (e *Engine) ToggleChannelUsername(accountID, chatID, username string, active bool) (bool, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return false, fmt.Errorf("account %q not connected", accountID)
+	}
+	t, ok := acc.Core.(channelUsernameToggler)
+	if !ok {
+		return false, fmt.Errorf("platform does not support toggling usernames")
+	}
+	return t.ToggleChannelUsername(chatID, username, active)
+}
+
+type channelUsernamesReorderer interface {
+	ReorderChannelUsernames(chatID string, order []string) (bool, error)
+}
+
+func (e *Engine) ReorderChannelUsernames(accountID, chatID string, order []string) (bool, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return false, fmt.Errorf("account %q not connected", accountID)
+	}
+	r, ok := acc.Core.(channelUsernamesReorderer)
+	if !ok {
+		return false, fmt.Errorf("platform does not support reordering usernames")
+	}
+	return r.ReorderChannelUsernames(chatID, order)
+}
+
 func (e *Engine) DisablePeerConnectedBot(accountID, chatID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

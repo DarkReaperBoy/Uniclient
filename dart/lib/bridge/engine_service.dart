@@ -2320,6 +2320,58 @@ class EngineService {
     await _callAsync('__engine', 'UpdateChannelUsername', Uint8List.fromList(payload));
   }
 
+  Future<Map<String, int>> getPublicLinksLimits(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    final respBytes = await _callAsync('__engine', 'GetPublicLinksLimits', Uint8List.fromList(payload));
+    final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    return {
+      'free_limit': data['free_limit'] as int? ?? 10,
+      'premium_limit': data['premium_limit'] as int? ?? 20,
+    };
+  }
+
+  Future<List<Map<String, dynamic>>> getForumTopicDefaultIcons(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    final respBytes = await _callAsync('__engine', 'GetForumTopicDefaultIcons', Uint8List.fromList(payload));
+    final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    final icons = data['icons'] as List<dynamic>? ?? [];
+    return icons.cast<Map<String, dynamic>>();
+  }
+
+  Future<List<Map<String, dynamic>>> getChannelUsernames(String accountId, String chatId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+    }));
+    final respBytes = await _callAsync('__engine', 'GetChannelUsernames', Uint8List.fromList(payload));
+    final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    final usernames = data['usernames'] as List<dynamic>? ?? [];
+    return usernames.cast<Map<String, dynamic>>();
+  }
+
+  Future<bool> toggleChannelUsername(String accountId, String chatId, String username, bool active) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'username': username,
+      'active': active,
+    }));
+    final respBytes = await _callAsync('__engine', 'ToggleChannelUsername', Uint8List.fromList(payload));
+    final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    return data['ok'] as bool? ?? false;
+  }
+
+  Future<bool> reorderChannelUsernames(String accountId, String chatId, List<String> order) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'order': order,
+    }));
+    final respBytes = await _callAsync('__engine', 'ReorderChannelUsernames', Uint8List.fromList(payload));
+    final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+    return data['ok'] as bool? ?? false;
+  }
+
   Future<bool> checkAccountUsername(String accountId, String username) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

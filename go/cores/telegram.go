@@ -17655,6 +17655,122 @@ func (t *TelegramCore) GetConfcallSizeLimit() (int, error) {
 	return 200, nil
 }
 
+func (t *TelegramCore) GetPublicLinksLimits() (freeLimit, premiumLimit int, err error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return 10, 20, ErrAuth }
+	result, err := t.api.HelpGetAppConfig(t.ctx, 0)
+	if err != nil { return 10, 20, nil }
+	cfg, ok := result.(*tg.HelpAppConfig)
+	if !ok { return 10, 20, nil }
+	freeLimit, premiumLimit = 10, 20
+	if jv := cfg.Config; jv != nil {
+		if obj, ok2 := jv.(*tg.JSONObject); ok2 {
+			for _, kv := range obj.Value {
+				switch kv.Key {
+				case "channels_public_limit_default":
+					if n, ok3 := kv.Value.(*tg.JSONNumber); ok3 { freeLimit = int(n.Value) }
+				case "channels_public_limit_premium":
+					if n, ok3 := kv.Value.(*tg.JSONNumber); ok3 { premiumLimit = int(n.Value) }
+				}
+			}
+		}
+	}
+	return freeLimit, premiumLimit, nil
+}
+
+type ForumTopicIconInfo struct {
+	DocumentID int64  `json:"document_id"`
+	Emoji      string `json:"emoji"`
+}
+
+func (t *TelegramCore) GetForumTopicDefaultIcons() ([]ForumTopicIconInfo, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return nil, ErrAuth }
+	result, err := t.api.MessagesGetStickerSet(t.ctx, &tg.MessagesGetStickerSetRequest{
+		Stickerset: &tg.InputStickerSetEmojiDefaultTopicIcons{},
+	})
+	if err != nil { return nil, fmt.Errorf("get topic icons: %w", err) }
+	stickerSet, ok := result.(*tg.MessagesStickerSet)
+	if !ok { return nil, ErrNotFound }
+	emojiByDocID := make(map[int64]string)
+	for _, pack := range stickerSet.Packs {
+		for _, docID := range pack.Documents {
+			emojiByDocID[docID] = pack.Emoticon
+		}
+	}
+	var icons []ForumTopicIconInfo
+	for _, doc := range stickerSet.Documents {
+		if d, ok := doc.(*tg.Document); ok {
+			t.cacheFileInfo(d.ID, d.AccessHash, d.FileReference)
+			icons = append(icons, ForumTopicIconInfo{
+				DocumentID: d.ID,
+				Emoji:      emojiByDocID[d.ID],
+			})
+		}
+	}
+	return icons, nil
+}
+
+type ChannelUsernameInfo struct {
+	Username string `json:"username"`
+	Active   bool   `json:"active"`
+	Editable bool   `json:"editable"`
+}
+
+func (t *TelegramCore) GetChannelUsernames(chatID string) ([]ChannelUsernameInfo, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return nil, ErrAuth }
+	peer, err := t.resolvePeer(chatID); if err != nil { return nil, err }
+	ch, ok := peer.(*tg.PeerChannel); if !ok { return nil, fmt.Errorf("not a channel") }
+	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
+	result, err := t.api.ChannelsGetFullChannel(t.ctx, &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash})
+	if err != nil { return nil, err }
+	t.cacheEntities(result.Users, result.Chats)
+	var out []ChannelUsernameInfo
+	for _, c := range result.Chats {
+		if cc, ok := c.(*tg.Channel); ok && cc.ID == ch.ChannelID {
+			if unames, ok2 := cc.GetUsernames(); ok2 {
+				for _, u := range unames {
+					out = append(out, ChannelUsernameInfo{
+						Username: u.Username,
+						Active:   u.Active,
+						Editable: u.Editable,
+					})
+				}
+			} else if u, ok2 := cc.GetUsername(); ok2 && u != "" {
+				out = append(out, ChannelUsernameInfo{Username: u, Active: true, Editable: true})
+			}
+			break
+		}
+	}
+	return out, nil
+}
+
+func (t *TelegramCore) ToggleChannelUsername(chatID, username string, active bool) (bool, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return false, ErrAuth }
+	peer, err := t.resolvePeer(chatID); if err != nil { return false, err }
+	ch, ok := peer.(*tg.PeerChannel); if !ok { return false, fmt.Errorf("not a channel") }
+	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
+	return t.api.ChannelsToggleUsername(t.ctx, &tg.ChannelsToggleUsernameRequest{
+		Channel:  &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
+		Username: username,
+		Active:   active,
+	})
+}
+
+func (t *TelegramCore) ReorderChannelUsernames(chatID string, order []string) (bool, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return false, ErrAuth }
+	peer, err := t.resolvePeer(chatID); if err != nil { return false, err }
+	ch, ok := peer.(*tg.PeerChannel); if !ok { return false, fmt.Errorf("not a channel") }
+	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
+	return t.api.ChannelsReorderUsernames(t.ctx, &tg.ChannelsReorderUsernamesRequest{
+		Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
+		Order:   order,
+	})
+}
+
 func (t *TelegramCore) GetPaidMessagesConfig() (maxStars int64, commissionPermille int32, withdrawRate float64, err error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return 0, 0, 0, ErrAuth }

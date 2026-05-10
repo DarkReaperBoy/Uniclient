@@ -2189,7 +2189,7 @@ class _ReactionPreviewOverlayState extends State<_ReactionPreviewOverlay>
   @override
   void initState() {
     super.initState();
-    CustomEmojiCache.instance.acquire(widget.documentId, EmojiSizeTag.normal);
+    CustomEmojiCache.instance.acquire(widget.documentId, EmojiSizeTag.large);
     CustomEmojiCache.instance.addListener(_onCacheUpdate);
     _requestFile();
     _loadSetInfo();
@@ -2198,7 +2198,7 @@ class _ReactionPreviewOverlayState extends State<_ReactionPreviewOverlay>
   @override
   void dispose() {
     CustomEmojiCache.instance.removeListener(_onCacheUpdate);
-    CustomEmojiCache.instance.release(widget.documentId, EmojiSizeTag.normal);
+    CustomEmojiCache.instance.release(widget.documentId, EmojiSizeTag.large);
     _lottieController?.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -6093,6 +6093,9 @@ class _CustomEmojiInlineState extends State<_CustomEmojiInline>
   static const int _maxLoops = 2;
   static const double _previewOpacity = 0.125; // 12.5% per spec §45.7
 
+  int _scaledCacheSize(BuildContext context) =>
+      EmojiSizeConstants.scaledFrameSize(EmojiSizeTag.normal, MediaQuery.devicePixelRatioOf(context)).round();
+
   AnimationController? _lottieController;
   late AnimationController _fadeController;
   int _loopCount = 0;
@@ -6260,6 +6263,11 @@ class _CustomEmojiInlineState extends State<_CustomEmojiInline>
       return _wrapTap(_buildStaticFrame(file, cache));
     }
 
+    final approx = cache.prepareNonExactPreview(widget.documentId, EmojiSizeTag.normal);
+    if (approx != null) {
+      return _wrapTap(_buildCachedEmoji(approx, cache));
+    }
+
     return _wrapTap(_buildPreviewOrBlank(cache));
   }
 
@@ -6287,6 +6295,7 @@ class _CustomEmojiInlineState extends State<_CustomEmojiInline>
       );
     }
     if (file.isWebp) {
+      final cs = _scaledCacheSize(context);
       return SizedBox(
         width: _adjustedSize,
         height: _adjustedSize,
@@ -6294,6 +6303,8 @@ class _CustomEmojiInlineState extends State<_CustomEmojiInline>
           file.fileData,
           width: _adjustedSize,
           height: _adjustedSize,
+          cacheWidth: cs,
+          cacheHeight: cs,
           fit: BoxFit.contain,
           gaplessPlayback: true,
           errorBuilder: (_, __, ___) => _buildPreviewOrBlank(cache),
@@ -6305,6 +6316,7 @@ class _CustomEmojiInlineState extends State<_CustomEmojiInline>
 
   Widget _buildStaticFrame(CustomEmojiFileData file, CustomEmojiCache cache) {
     if (file.isWebm || file.isWebp) {
+      final cs = _scaledCacheSize(context);
       return SizedBox(
         width: _adjustedSize,
         height: _adjustedSize,
@@ -6313,6 +6325,8 @@ class _CustomEmojiInlineState extends State<_CustomEmojiInline>
                 file.fileData,
                 width: _adjustedSize,
                 height: _adjustedSize,
+                cacheWidth: cs,
+                cacheHeight: cs,
                 fit: BoxFit.contain,
                 gaplessPlayback: true,
                 errorBuilder: (_, __, ___) => _buildPreviewOrBlank(cache),

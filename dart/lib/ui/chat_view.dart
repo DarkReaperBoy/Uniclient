@@ -6095,6 +6095,7 @@ class _ChatTopBar extends StatelessWidget {
     if (parentChat == null) return;
     final result = await showEditForumTopicBox(ctx,
       isPremium: ctx.read<AppState>().activeAccount?.isPremium ?? false,
+      accountId: parentChat.accountId,
     );
     if (result == null) return;
     try {

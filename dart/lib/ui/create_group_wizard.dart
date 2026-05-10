@@ -280,8 +280,8 @@ class _WizardDialogState extends State<_WizardDialog>
     showMenu<String>(
       context: context,
       position: position,
-      items: const [
-        PopupMenuItem<String>(
+      items: [
+        const PopupMenuItem<String>(
           value: 'photo',
           child: Row(
             children: [
@@ -291,17 +291,18 @@ class _WizardDialogState extends State<_WizardDialog>
             ],
           ),
         ),
-        PopupMenuItem<String>(
-          value: 'camera',
-          child: Row(
-            children: [
-              Icon(Icons.camera_alt_outlined, size: 20),
-              SizedBox(width: 12),
-              Text('Camera'),
-            ],
+        if (!Platform.isLinux && !Platform.isWindows && !Platform.isMacOS)
+          PopupMenuItem<String>(
+            value: 'camera',
+            child: Row(
+              children: [
+                Icon(Icons.camera_alt_outlined, size: 20),
+                SizedBox(width: 12),
+                Text('Camera'),
+              ],
+            ),
           ),
-        ),
-        PopupMenuItem<String>(
+        const PopupMenuItem<String>(
           value: 'clipboard',
           child: Row(
             children: [
@@ -311,7 +312,7 @@ class _WizardDialogState extends State<_WizardDialog>
             ],
           ),
         ),
-        PopupMenuItem<String>(
+        const PopupMenuItem<String>(
           value: 'emoji',
           child: Row(
             children: [
@@ -511,12 +512,21 @@ class _WizardDialogState extends State<_WizardDialog>
     }
   }
 
-  void _showPublicLinksLimitBox() {
+  void _showPublicLinksLimitBox() async {
+    int freeLimit = 10, premiumLimit = 20;
+    try {
+      final limits = await _engine.getPublicLinksLimits(_accountId);
+      freeLimit = limits['free_limit'] ?? 10;
+      premiumLimit = limits['premium_limit'] ?? 20;
+    } catch (_) {}
+    if (!mounted) return;
     showDialog<bool>(
       context: context,
       builder: (ctx) => _PublicLinksLimitBox(
         engine: _engine,
         accountId: _accountId,
+        freeLimit: freeLimit,
+        premiumLimit: premiumLimit,
       ),
     ).then((revoked) {
       if (revoked == true && mounted) {
@@ -2380,7 +2390,19 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
   int _origSlowmodeSeconds = 0;
   String _origUsername = '';
 
+  List<_UsernameEntry> _secondaryUsernames = [];
+  List<_UsernameEntry> _origSecondaryUsernames = [];
+
   static const List<int> _slowmodeValues = [0, 5, 10, 30, 60, 300, 900, 3600];
+
+  bool _usernamesOrderChanged() {
+    if (_secondaryUsernames.length != _origSecondaryUsernames.length) return true;
+    for (var i = 0; i < _secondaryUsernames.length; i++) {
+      if (_secondaryUsernames[i].username != _origSecondaryUsernames[i].username) return true;
+      if (_secondaryUsernames[i].active != _origSecondaryUsernames[i].active) return true;
+    }
+    return false;
+  }
 
   bool get _hasPendingChanges {
     final newUsername = _isPublic ? _usernameController.text.trim() : '';
@@ -2388,7 +2410,8 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
         _joinToSend != _origJoinToSend ||
         _noForwards != _origNoForwards ||
         _joinRequest != _origJoinRequest ||
-        _slowmodeSeconds != _origSlowmodeSeconds;
+        _slowmodeSeconds != _origSlowmodeSeconds ||
+        _usernamesOrderChanged();
   }
 
   @override
@@ -2434,10 +2457,34 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
         _loading = false;
       });
       if (!_isPublic) _loadInviteLink();
+      _loadSecondaryUsernames();
     } catch (_) {
       if (!mounted) return;
       setState(() => _loading = false);
     }
+  }
+
+  Future<void> _loadSecondaryUsernames() async {
+    final engine = context.read<EngineService>();
+    try {
+      final usernames = await engine.getChannelUsernames(widget.accountId, widget.chatId);
+      if (!mounted) return;
+      final entries = <_UsernameEntry>[];
+      for (final u in usernames) {
+        final uname = u['username'] as String? ?? '';
+        if (uname != _currentUsername) {
+          entries.add(_UsernameEntry(
+            username: uname,
+            active: u['active'] as bool? ?? true,
+            editable: u['editable'] as bool? ?? false,
+          ));
+        }
+      }
+      setState(() {
+        _secondaryUsernames = entries;
+        _origSecondaryUsernames = entries.map((e) => e.copy()).toList();
+      });
+    } catch (_) {}
   }
 
   Future<void> _loadInviteLink() async {
@@ -2557,11 +2604,37 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
         await engine.setSlowMode(widget.accountId, widget.chatId, _slowmodeSeconds);
       }
       if (!mounted) return;
+      for (var i = 0; i < _secondaryUsernames.length; i++) {
+        if (i < _origSecondaryUsernames.length &&
+            _secondaryUsernames[i].active != _origSecondaryUsernames[i].active) {
+          await engine.toggleChannelUsername(
+            widget.accountId, widget.chatId,
+            _secondaryUsernames[i].username, _secondaryUsernames[i].active,
+          );
+          if (!mounted) return;
+        }
+      }
+      if (_secondaryUsernames.isNotEmpty && _usernamesOrderChanged()) {
+        final order = [
+          if (_isPublic && _usernameController.text.trim().isNotEmpty)
+            _usernameController.text.trim(),
+          ..._secondaryUsernames.map((e) => e.username),
+        ];
+        await engine.reorderChannelUsernames(widget.accountId, widget.chatId, order);
+        if (!mounted) return;
+      }
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
       final msg = e.toString();
       if (msg.contains('CHANNELS_ADMIN_PUBLIC_TOO_MUCH')) {
+        int freeLimit = 10, premiumLimit = 20;
+        try {
+          final limits = await engine.getPublicLinksLimits(widget.accountId);
+          freeLimit = limits['free_limit'] ?? 10;
+          premiumLimit = limits['premium_limit'] ?? 20;
+        } catch (_) {}
+        if (!mounted) return;
         final revoked = await showDialog<bool>(
           context: context,
           builder: (ctx) => Provider<EngineService>.value(
@@ -2569,6 +2642,8 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
             child: _PublicLinksLimitBox(
               engine: engine,
               accountId: widget.accountId,
+              freeLimit: freeLimit,
+              premiumLimit: premiumLimit,
             ),
           ),
         );
@@ -2879,6 +2954,61 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
                                 ),
                               ),
                             ],
+                            if (_secondaryUsernames.isNotEmpty) ...[
+                              const SizedBox(height: 16),
+                              Text(
+                                'Additional Usernames',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: accentColor,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              ReorderableListView.builder(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                buildDefaultDragHandles: false,
+                                itemCount: _secondaryUsernames.length,
+                                onReorder: (oldIdx, newIdx) {
+                                  setState(() {
+                                    if (newIdx > oldIdx) newIdx--;
+                                    final item = _secondaryUsernames.removeAt(oldIdx);
+                                    _secondaryUsernames.insert(newIdx, item);
+                                  });
+                                },
+                                itemBuilder: (ctx, i) {
+                                  final entry = _secondaryUsernames[i];
+                                  return Material(
+                                    key: ValueKey(entry.username),
+                                    color: Colors.transparent,
+                                    child: ListTile(
+                                      dense: true,
+                                      contentPadding: EdgeInsets.zero,
+                                      leading: ReorderableDragStartListener(
+                                        index: i,
+                                        child: Icon(Icons.drag_handle, size: 20, color: subtextColor),
+                                      ),
+                                      title: Text(
+                                        '@${entry.username}',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: entry.active ? textColor : subtextColor,
+                                          decoration: entry.active ? null : TextDecoration.lineThrough,
+                                        ),
+                                      ),
+                                      trailing: Switch(
+                                        value: entry.active,
+                                        activeColor: context.palette.windowBgActive,
+                                        onChanged: (v) {
+                                          setState(() => entry.active = v);
+                                        },
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
                           ] else ...[
                             if (_loadingInviteLink)
                               Padding(
@@ -3004,6 +3134,14 @@ class _EditPeerTypeBoxState extends State<_EditPeerTypeBox> {
       ),
     );
   }
+}
+
+class _UsernameEntry {
+  final String username;
+  bool active;
+  final bool editable;
+  _UsernameEntry({required this.username, required this.active, required this.editable});
+  _UsernameEntry copy() => _UsernameEntry(username: username, active: active, editable: editable);
 }
 
 class _LinkActionButton extends StatelessWidget {

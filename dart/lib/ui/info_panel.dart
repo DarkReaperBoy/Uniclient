@@ -1533,6 +1533,7 @@ class _TopicInfoMenuButton extends StatelessWidget {
           isGeneral: topic.isGeneral,
           isEditing: true,
           isPremium: context.read<AppState>().activeAccount?.isPremium ?? false,
+          accountId: chat.accountId,
         );
         if (result == null || !context.mounted) return;
         try {

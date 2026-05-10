@@ -1475,6 +1475,77 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, nil
 
+	case "GetPublicLinksLimits":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		free, premium, err := e.GetPublicLinksLimits(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]int{"free_limit": free, "premium_limit": premium})
+
+	case "GetForumTopicDefaultIcons":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		icons, err := e.GetForumTopicDefaultIcons(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]interface{}{"icons": icons})
+
+	case "GetChannelUsernames":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		usernames, err := e.GetChannelUsernames(params.AccountID, params.ChatID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]interface{}{"usernames": usernames})
+
+	case "ToggleChannelUsername":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Username  string `json:"username"`
+			Active    bool   `json:"active"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		ok, err := e.ToggleChannelUsername(params.AccountID, params.ChatID, params.Username, params.Active)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]bool{"ok": ok})
+
+	case "ReorderChannelUsernames":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			Order     []string `json:"order"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		ok, err := e.ReorderChannelUsernames(params.AccountID, params.ChatID, params.Order)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]bool{"ok": ok})
+
 	case "CheckAccountUsername":
 		var params struct {
 			AccountID string `json:"account_id"`
