@@ -1875,6 +1875,18 @@ class EngineService {
     return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> getMorePublicForwards(String accountId, String chatId, int msgId, String offset) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'msg_id': msgId,
+      'offset': offset,
+    }));
+    final respBytes = await _callAsync('__engine', 'GetMorePublicForwardsEngine', Uint8List.fromList(payload));
+    if (respBytes.isEmpty) return {};
+    return json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+  }
+
   // ── Stories ──
 
   Future<List<StoryItem>> fetchPeerStories(String accountId, String peerId) async {
@@ -4756,7 +4768,29 @@ class EngineService {
     width: p.width,
     height: p.height,
     duration: p.duration,
+    waveform: p.hasWaveform() ? _decode5BitWaveform(p.waveform) : const [],
   );
+
+  static List<int> _decode5BitWaveform(List<int> raw) {
+    if (raw.isEmpty) return const [];
+    final samples = <int>[];
+    for (int i = 0; i < 100; i++) {
+      final bitOffset = i * 5;
+      final byteIdx = bitOffset ~/ 8;
+      final bitIdx = bitOffset % 8;
+      if (byteIdx >= raw.length) break;
+      int val;
+      if (bitIdx + 5 <= 8) {
+        val = (raw[byteIdx] >> bitIdx) & 0x1F;
+      } else {
+        final lo = raw[byteIdx] >> bitIdx;
+        final hi = byteIdx + 1 < raw.length ? raw[byteIdx + 1] : 0;
+        val = (lo | (hi << (8 - bitIdx))) & 0x1F;
+      }
+      samples.add(val);
+    }
+    return samples;
+  }
 
   Future<List<ConnectedBotInfo>> getConnectedBots(String accountId) async {
     final payload = utf8.encode(json.encode({

@@ -384,8 +384,10 @@ class _ActionBtnData {
   final VoidCallback? onTap;
   final bool isMute;
   final bool isMuted;
+  final bool isOverflow;
+  final List<_ActionBtnData> overflowItems;
   const _ActionBtnData(this.icon, this.label, this.onTap,
-      {this.isMute = false, this.isMuted = false});
+      {this.isMute = false, this.isMuted = false, this.isOverflow = false, this.overflowItems = const []});
 }
 
 class _MuteLottieIcon extends StatefulWidget {
@@ -851,17 +853,25 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
     if (buttons.length > 3) {
       final overflow = buttons.sublist(2);
       buttons.removeRange(2, buttons.length);
-      buttons.add(_ActionBtnData(Icons.more_horiz, 'More', () {
-        _showOverflowMenu(overflow);
-      }));
+      buttons.add(_ActionBtnData(Icons.more_horiz, 'More', null, isOverflow: true, overflowItems: overflow));
     }
     return buttons;
   }
 
-  List<_ActionBtnData>? _overflowItems;
+  Offset _lastTapPosition = Offset.zero;
 
-  void _showOverflowMenu(List<_ActionBtnData> overflow) {
-    _overflowItems = overflow;
+  void _showOverflowMenu(BuildContext context, List<_ActionBtnData> overflow) {
+    showTelegramMenu<_ActionBtnData>(
+      context: context,
+      position: _lastTapPosition,
+      items: overflow.map((b) => TelegramMenuItem(
+        value: b,
+        icon: Icon(b.icon),
+        label: b.label,
+      )).toList(),
+    ).then((val) {
+      if (val != null) val.onTap?.call();
+    });
   }
 
   Widget _buildActionRow(BuildContext context, double progress) {
@@ -944,7 +954,10 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
             ? (details) => _showMuteMenu(context, details.globalPosition, data)
             : null,
         child: InkWell(
-          onTap: data.onTap,
+          onTapDown: (details) { _lastTapPosition = details.globalPosition; },
+          onTap: data.isOverflow
+              ? () => _showOverflowMenu(context, data.overflowItems)
+              : data.onTap,
           borderRadius: radius,
           child: SizedBox(
             height: _actionButtonSize,
@@ -5085,7 +5098,7 @@ class _VoiceListItem extends StatelessWidget {
                   height: 20,
                   child: CustomPaint(
                     size: const Size(double.infinity, 20),
-                    painter: _MiniWaveformPainter(color: waveColor),
+                    painter: _MiniWaveformPainter(color: waveColor, waveform: item.waveform),
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -7359,11 +7372,29 @@ class _MessageStatsPageState extends State<_MessageStatsPage> {
   List<StatsChartData> _charts = [];
   int _publicForwardsCount = 0;
   List<Map<String, dynamic>> _publicForwards = [];
+  String? _forwardsCursor;
+  bool _hasMoreForwards = false;
+  bool _loadingMoreForwards = false;
 
   @override
   void initState() {
     super.initState();
+    widget.scrollController.addListener(_onScroll);
     _loadStats();
+  }
+
+  @override
+  void dispose() {
+    widget.scrollController.removeListener(_onScroll);
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_loadingMoreForwards || !_hasMoreForwards) return;
+    final pos = widget.scrollController.position;
+    if (pos.pixels >= pos.maxScrollExtent - 300) {
+      _loadMoreForwards();
+    }
   }
 
   Future<void> _loadStats() async {
@@ -7390,14 +7421,42 @@ class _MessageStatsPageState extends State<_MessageStatsPage> {
       final pfList = (data['public_forwards'] as List<dynamic>?)
           ?.whereType<Map<String, dynamic>>()
           .toList() ?? [];
+      final nextOffset = data['next_offset'] as String?;
       setState(() {
         _charts = charts;
         _publicForwardsCount = pfCount;
         _publicForwards = pfList;
+        _forwardsCursor = nextOffset;
+        _hasMoreForwards = nextOffset != null && nextOffset.isNotEmpty;
         _loading = false;
       });
     } catch (e) {
       if (mounted) setState(() { _error = e.toString(); _loading = false; });
+    }
+  }
+
+  Future<void> _loadMoreForwards() async {
+    if (_loadingMoreForwards || !_hasMoreForwards || _forwardsCursor == null) return;
+    _loadingMoreForwards = true;
+    final msgId = widget.postData['msg_id'] as int? ?? 0;
+    try {
+      final engine = context.read<EngineService>();
+      final data = await engine.getMorePublicForwards(
+        widget.chat.accountId, widget.chat.chatId, msgId, _forwardsCursor!,
+      );
+      if (!mounted) return;
+      final moreList = (data['forwards'] as List<dynamic>?)
+          ?.whereType<Map<String, dynamic>>()
+          .toList() ?? [];
+      final nextOffset = data['next_offset'] as String?;
+      setState(() {
+        _publicForwards.addAll(moreList);
+        _forwardsCursor = nextOffset;
+        _hasMoreForwards = nextOffset != null && nextOffset.isNotEmpty && moreList.isNotEmpty;
+        _loadingMoreForwards = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loadingMoreForwards = false);
     }
   }
 
@@ -7519,6 +7578,12 @@ class _MessageStatsPageState extends State<_MessageStatsPage> {
                     totalCount: _publicForwardsCount,
                     theme: widget.theme,
                   ),
+                  if (_loadingMoreForwards)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Center(child: SizedBox(width: 20, height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2))),
+                    ),
                 ],
               ],
               const SizedBox(height: 20),

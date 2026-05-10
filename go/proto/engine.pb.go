@@ -5950,6 +5950,7 @@ type EngineSharedMediaItem struct {
 	Width         int32                  `protobuf:"varint,9,opt,name=width,proto3" json:"width,omitempty"`
 	Height        int32                  `protobuf:"varint,10,opt,name=height,proto3" json:"height,omitempty"`
 	Duration      int32                  `protobuf:"varint,11,opt,name=duration,proto3" json:"duration,omitempty"` // seconds
+	Waveform      []byte                 `protobuf:"bytes,12,opt,name=waveform,proto3" json:"waveform,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6059,6 +6060,13 @@ func (x *EngineSharedMediaItem) GetDuration() int32 {
 		return x.Duration
 	}
 	return 0
+}
+
+func (x *EngineSharedMediaItem) GetWaveform() []byte {
+	if x != nil {
+		return x.Waveform
+	}
+	return nil
 }
 
 type EngineGetSharedMediaResponse struct {

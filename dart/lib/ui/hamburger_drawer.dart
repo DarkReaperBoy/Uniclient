@@ -5,6 +5,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../bridge/engine_service.dart';
 import '../main.dart' show switchThemeWithCrossFade;
@@ -1654,13 +1655,7 @@ class _FooterSection extends StatelessWidget {
   }
 
   static void _openUrl(String url) {
-    if (Platform.isLinux) {
-      Process.run('xdg-open', [url]);
-    } else if (Platform.isMacOS) {
-      Process.run('open', [url]);
-    } else if (Platform.isWindows) {
-      Process.run('start', ['', url], runInShell: true);
-    }
+    launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
   }
 
   static void _showAboutBox(BuildContext context) {

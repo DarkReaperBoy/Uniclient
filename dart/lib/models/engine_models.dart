@@ -1249,6 +1249,7 @@ class SharedMediaItem {
   final int width;
   final int height;
   final int duration; // seconds
+  final List<int> waveform;
 
   const SharedMediaItem({
     required this.msgId,
@@ -1262,6 +1263,7 @@ class SharedMediaItem {
     this.width = 0,
     this.height = 0,
     this.duration = 0,
+    this.waveform = const [],
   });
 
   DateTime get dateTime => DateTime.fromMillisecondsSinceEpoch(timestamp);

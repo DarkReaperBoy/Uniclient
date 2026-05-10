@@ -1697,6 +1697,7 @@ type MegagroupStatsGetter interface {
 
 type MessageStatsGetter interface {
 	GetMessageStatsJSON(chatID string, msgID int) (map[string]interface{}, error)
+	GetMessagePublicForwardsJSON(chatID string, msgID int, offset string) (map[string]interface{}, error)
 }
 
 type StatsGraphLoader interface {
@@ -1746,6 +1747,21 @@ func (e *Engine) GetMessageStats(accountID, chatID string, msgID int) (map[strin
 		return nil, fmt.Errorf("platform does not support message stats")
 	}
 	return getter.GetMessageStatsJSON(chatID, msgID)
+}
+
+func (e *Engine) GetMorePublicForwards(accountID, chatID string, msgID int, offset string) (map[string]interface{}, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	getter, ok := acc.Core.(MessageStatsGetter)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support public forwards")
+	}
+	return getter.GetMessagePublicForwardsJSON(chatID, msgID, offset)
 }
 
 func (e *Engine) LoadStatsGraph(accountID, token string, x int64) (map[string]interface{}, error) {

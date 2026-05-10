@@ -7996,6 +7996,7 @@ class EngineSharedMediaItem extends $pb.GeneratedMessage {
     $core.int? width,
     $core.int? height,
     $core.int? duration,
+    $core.List<$core.int>? waveform,
   }) {
     final $result = create();
     if (msgId != null) {
@@ -8031,6 +8032,9 @@ class EngineSharedMediaItem extends $pb.GeneratedMessage {
     if (duration != null) {
       $result.duration = duration;
     }
+    if (waveform != null) {
+      $result.waveform = waveform;
+    }
     return $result;
   }
   EngineSharedMediaItem._() : super();
@@ -8049,6 +8053,7 @@ class EngineSharedMediaItem extends $pb.GeneratedMessage {
     ..a<$core.int>(9, _omitFieldNames ? '' : 'width', $pb.PbFieldType.O3)
     ..a<$core.int>(10, _omitFieldNames ? '' : 'height', $pb.PbFieldType.O3)
     ..a<$core.int>(11, _omitFieldNames ? '' : 'duration', $pb.PbFieldType.O3)
+    ..a<$core.List<$core.int>>(12, _omitFieldNames ? '' : 'waveform', $pb.PbFieldType.OY)
     ..hasRequiredFields = false
   ;
 
@@ -8171,6 +8176,15 @@ class EngineSharedMediaItem extends $pb.GeneratedMessage {
   $core.bool hasDuration() => $_has(10);
   @$pb.TagNumber(11)
   void clearDuration() => clearField(11);
+
+  @$pb.TagNumber(12)
+  $core.List<$core.int> get waveform => $_getN(11);
+  @$pb.TagNumber(12)
+  set waveform($core.List<$core.int> v) { $_setBytes(11, v); }
+  @$pb.TagNumber(12)
+  $core.bool hasWaveform() => $_has(11);
+  @$pb.TagNumber(12)
+  void clearWaveform() => clearField(12);
 }
 
 class EngineGetSharedMediaResponse extends $pb.GeneratedMessage {

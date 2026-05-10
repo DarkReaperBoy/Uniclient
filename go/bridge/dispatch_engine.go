@@ -985,6 +985,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 				Width:     int32(item.Width),
 				Height:    int32(item.Height),
 				Duration:  int32(item.Duration),
+				Waveform:  item.Waveform,
 			})
 		}
 		return proto.Marshal(resp)
@@ -4044,6 +4045,22 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			return nil, err
 		}
 		return json.Marshal(stats)
+
+	case "GetMorePublicForwardsEngine":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			MsgID     int    `json:"msg_id"`
+			Offset    string `json:"offset"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		result, err := e.GetMorePublicForwards(params.AccountID, params.ChatID, params.MsgID, params.Offset)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(result)
 
 	case "LoadStatsGraphEngine":
 		var params struct {

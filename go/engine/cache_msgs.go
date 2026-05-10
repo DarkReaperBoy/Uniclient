@@ -2,6 +2,7 @@ package engine
 
 import (
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -592,6 +593,7 @@ type SharedMediaItem struct {
 	Width     int    `json:"width"`
 	Height    int    `json:"height"`
 	Duration  int    `json:"duration"` // seconds
+	Waveform  []byte `json:"waveform,omitempty"`
 }
 
 // GetSharedMedia queries the media table for all media in a chat, optionally
@@ -627,7 +629,8 @@ func (e *Engine) GetSharedMedia(accountID, chatID, mediaType string, limit, offs
 	query := fmt.Sprintf(`
 		SELECT m.msg_id, COALESCE(msg.timestamp, 0), m.media_type,
 		       m.file_name, m.mime_type, m.file_size, m.thumb_b64,
-		       m.local_path, m.width, m.height, m.duration_ms
+		       m.local_path, m.width, m.height, m.duration_ms,
+		       msg.content_raw
 		FROM media m
 		LEFT JOIN messages msg ON msg.account_id = m.account_id
 		                       AND msg.chat_id = m.chat_id
@@ -649,11 +652,13 @@ func (e *Engine) GetSharedMedia(accountID, chatID, mediaType string, limit, offs
 		var fileName, mimeType, thumbB64, localPath sql.NullString
 		var fileSize, durationMs sql.NullInt64
 		var width, height sql.NullInt64
+		var contentRaw []byte
 
 		if err := rows.Scan(
 			&item.MsgID, &item.Timestamp, &item.MediaType,
 			&fileName, &mimeType, &fileSize, &thumbB64,
 			&localPath, &width, &height, &durationMs,
+			&contentRaw,
 		); err != nil {
 			return items, err
 		}
@@ -674,10 +679,31 @@ func (e *Engine) GetSharedMedia(accountID, chatID, mediaType string, limit, offs
 		if durationMs.Valid {
 			item.Duration = int(durationMs.Int64 / 1000)
 		}
+		if (item.MediaType == MediaVoice || item.MediaType == MediaAudio) && len(contentRaw) > 0 {
+			item.Waveform = extractWaveform(contentRaw)
+		}
 
 		items = append(items, item)
 	}
 	return items, rows.Err()
+}
+
+func extractWaveform(contentRaw []byte) []byte {
+	var msg struct {
+		Extra map[string]interface{} `json:"extra"`
+	}
+	if json.Unmarshal(contentRaw, &msg) != nil || msg.Extra == nil {
+		return nil
+	}
+	wfB64, ok := msg.Extra["waveform"].(string)
+	if !ok || wfB64 == "" {
+		return nil
+	}
+	data, err := base64.StdEncoding.DecodeString(wfB64)
+	if err != nil {
+		return nil
+	}
+	return data
 }
 
 type SharedMediaCountItem struct {
