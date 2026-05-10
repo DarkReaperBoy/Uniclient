@@ -30,7 +30,7 @@ class UniClientShell extends StatefulWidget {
   const UniClientShell({super.key});
 
   static VoidCallback? toggleInfoRequest;
-  static VoidCallback? showChatSwitchRequest;
+  static void Function({bool reverse})? showChatSwitchRequest;
   static VoidCallback? hideChatSwitchRequest;
 
   @override
@@ -177,9 +177,14 @@ class _UniClientShellState extends State<UniClientShell>
     });
   }
 
-  void _showChatSwitch() {
+  bool _chatSwitchReverse = false;
+
+  void _showChatSwitch({bool reverse = false}) {
     if (_chatSwitchActive) return;
-    setState(() => _chatSwitchActive = true);
+    setState(() {
+      _chatSwitchReverse = reverse;
+      _chatSwitchActive = true;
+    });
   }
 
   void _hideChatSwitch() {
@@ -376,7 +381,7 @@ class _UniClientShellState extends State<UniClientShell>
           Positioned.fill(
             child: ChatSwitchOverlay(
               chats: history,
-              initialIndex: 0,
+              initialIndex: _chatSwitchReverse ? history.length - 1 : 0,
               onChosen: (chat) {
                 setState(() => _chatSwitchActive = false);
                 chatState.openChat(chat);

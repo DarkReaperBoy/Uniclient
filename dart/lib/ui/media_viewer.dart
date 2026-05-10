@@ -175,6 +175,7 @@ class MediaViewer extends StatefulWidget {
   final Rect? sourceRect;
 
   static _MediaViewerState? _activeInstance;
+  static bool get isOpen => _activeInstance != null;
 
   static void toggleMode() => _activeInstance?._cycleMode();
   static void rotate() => _activeInstance?._rotate();

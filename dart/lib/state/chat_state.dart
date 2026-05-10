@@ -889,6 +889,30 @@ class ChatState extends ChangeNotifier {
     _chatOpenHistory.remove(chatId);
   }
 
+  int _chatHistoryIndex = 0;
+
+  bool navigateChatHistory(int direction) {
+    final history = collectChatOpenHistory();
+    if (history.length < 2) return false;
+    final newIdx = (_chatHistoryIndex + direction).clamp(0, history.length - 1);
+    if (newIdx == _chatHistoryIndex) return false;
+    _chatHistoryIndex = newIdx;
+    final chat = history[newIdx];
+    if (chat.chatId == _activeChat?.chatId) return false;
+    _activeChat = chat;
+    _messages = [];
+    _pinnedMessages = [];
+    _hasMoreMessages = true;
+    _isFirstLoad = true;
+    notifyListeners();
+    _loadMessages();
+    return true;
+  }
+
+  void reloadSupportTemplates() {
+    loadChats();
+  }
+
   void openChat(ChatInfo chat) {
     if (chat.isForum && _forumParentChat?.chatId != chat.chatId) {
       _checkAndOpenForum(chat);
@@ -903,6 +927,7 @@ class ChatState extends ChangeNotifier {
     if (_chatOpenHistory.length > _maxChatOpenHistory) {
       _chatOpenHistory.removeRange(_maxChatOpenHistory, _chatOpenHistory.length);
     }
+    _chatHistoryIndex = 0;
     SpoilerRevealManager.instance.hideAll();
     _activeChat = chat;
     _openedUnreadCount = chat.unreadCount;

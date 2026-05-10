@@ -156,6 +156,9 @@ class ChatView extends StatefulWidget {
   static VoidCallback? showLinkDialogRequest;
   static VoidCallback? showCodeLanguageDialogRequest;
   static VoidCallback? toggleEmojiPanelRequest;
+  static bool Function()? startRecordVoiceRequest;
+  static bool Function()? openFilePickerRequest;
+  static VoidCallback? clearFormattingRequest;
 
   /// Global hook used by Ctrl+Up / Ctrl+Down (spec §24.6 lines 2982-2983) to
   /// cycle the reply target. direction=+1 → older message (Ctrl+Up), -1 →
@@ -493,6 +496,9 @@ class _ChatViewState extends State<ChatView>
       }
     };
     ChatView.scrollPageRequest = _scrollPage;
+    ChatView.clearFormattingRequest = () {
+      _composeController.clearFormatting();
+    };
     ChatView.showSendFilesBoxRequest = (paths) {
       _uploadFiles(context.read<ChatState>(), paths);
     };
@@ -575,6 +581,7 @@ class _ChatViewState extends State<ChatView>
     if (ChatView.scrollPageRequest == _scrollPage) {
       ChatView.scrollPageRequest = null;
     }
+    ChatView.clearFormattingRequest = null;
     ChatView.showSendFilesBoxRequest = null;
     if (ChatView.testVideoTipToast == _showVideoProcessingTip) {
       ChatView.testVideoTipToast = null;
@@ -13421,6 +13428,16 @@ class _ComposeAreaState extends State<_ComposeArea>
       vsync: this,
       duration: const Duration(milliseconds: 150),
     );
+    ChatView.startRecordVoiceRequest = () {
+      if (!mounted) return false;
+      _startRecording(0, 0);
+      return true;
+    };
+    ChatView.openFilePickerRequest = () {
+      if (!mounted) return false;
+      _pickFiles();
+      return true;
+    };
   }
 
   @override
@@ -13471,6 +13488,8 @@ class _ComposeAreaState extends State<_ComposeArea>
     widget.controller.removeListener(_scheduleUpdateFades);
     _audioRecorder?.stop().catchError((_) {}).whenComplete(() => _audioRecorder?.dispose());
     _audioRecorder = null;
+    ChatView.startRecordVoiceRequest = null;
+    ChatView.openFilePickerRequest = null;
     _scrollController.dispose();
     _focusNode.dispose();
     super.dispose();

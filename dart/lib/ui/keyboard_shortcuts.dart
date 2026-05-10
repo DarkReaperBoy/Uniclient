@@ -12,6 +12,7 @@ import 'chat_list_panel.dart';
 import 'chat_list_row.dart';
 import 'chat_view.dart';
 import 'contacts_screen.dart';
+import 'media_viewer.dart';
 import 'shell.dart';
 import '../state/app_state.dart';
 import '../state/audio_service.dart';
@@ -96,6 +97,7 @@ enum ShortcutCommand {
   supportHistoryForward,
   chatSwitchOverlay,
   chatSwitchOverlayReverse,
+  recordRound,
 }
 
 const _autoRepeatCommands = {
@@ -191,6 +193,7 @@ const _commandScopes = <ShortcutCommand, ShortcutScope>{
   ShortcutCommand.openFilePicker: ShortcutScope.chatRequired,
   ShortcutCommand.pastePlainText: ShortcutScope.composeRequired,
   ShortcutCommand.mediaViewerVideoFullscreen: ShortcutScope.mediaViewer,
+  ShortcutCommand.recordRound: ShortcutScope.chatRequired,
 };
 
 const _commandNames = <ShortcutCommand, String>{
@@ -270,6 +273,7 @@ const _commandNames = <ShortcutCommand, String>{
   ShortcutCommand.supportHistoryForward: 'support_history_forward',
   ShortcutCommand.chatSwitchOverlay: 'chat_switch_overlay',
   ShortcutCommand.chatSwitchOverlayReverse: 'chat_switch_overlay_reverse',
+  ShortcutCommand.recordRound: 'record_round',
 };
 
 final _nameToCommand = {
@@ -321,6 +325,8 @@ final _keyNames = <LogicalKeyboardKey, String>{
   LogicalKeyboardKey.mediaStop: 'media_stop',
   LogicalKeyboardKey.mediaTrackPrevious: 'media_previous',
   LogicalKeyboardKey.mediaTrackNext: 'media_next',
+  LogicalKeyboardKey.browserSearch: 'search',
+  LogicalKeyboardKey.find: 'find',
 };
 
 final _nameToKey = {
@@ -540,6 +546,20 @@ class ShortcutSystem {
         if (entry is! Map) continue;
         final keys = entry['keys'];
         if (keys is! String || keys.isEmpty) continue;
+        final removed = entry['removed'];
+        if (removed == true) {
+          final cmdValue = entry['command'];
+          if (cmdValue is String) {
+            final cmd = _nameToCommand[cmdValue];
+            if (cmd != null) {
+              _bindings.removeWhere((b) =>
+                  b.command == cmd && bindingToKeyString(b) == keys.toLowerCase());
+            }
+          } else {
+            _bindings.removeWhere((b) => bindingToKeyString(b) == keys.toLowerCase());
+          }
+          continue;
+        }
         final cmdValue = entry['command'];
         if (cmdValue == null) {
           _bindings.removeWhere((b) => bindingToKeyString(b) == keys.toLowerCase());
@@ -959,8 +979,6 @@ class ShortcutSystem {
         control: true),
     const KeyBinding(LogicalKeyboardKey.keyU, ShortcutCommand.formatUnderline,
         control: true),
-    const KeyBinding(LogicalKeyboardKey.keyX, ShortcutCommand.formatStrike,
-        control: true, shift: true),
     const KeyBinding(LogicalKeyboardKey.keyM, ShortcutCommand.formatCode,
         control: true, shift: true),
     const KeyBinding(LogicalKeyboardKey.period, ShortcutCommand.formatBlockquote,
@@ -1046,14 +1064,7 @@ class _ShortcutListenerState extends State<ShortcutListener>
       if (ctx == null) return false;
       return ctx.findAncestorWidgetOfExactType<EditableText>() != null;
     };
-    sys.isMediaViewerOpenCallback = () {
-      try {
-        final nav = Navigator.of(context);
-        return nav.canPop();
-      } catch (_) {
-        return false;
-      }
-    };
+    sys.isMediaViewerOpenCallback = () => MediaViewer.isOpen;
 
     sys.registerHandler(ShortcutCommand.search, () {
       ChatListPanel.requestFocusSearch();
@@ -1075,7 +1086,7 @@ class _ShortcutListenerState extends State<ShortcutListener>
       return true;
     });
     sys.registerHandler(ShortcutCommand.chatSwitchOverlayReverse, () {
-      UniClientShell.showChatSwitchRequest?.call();
+      UniClientShell.showChatSwitchRequest?.call(reverse: true);
       return true;
     });
     sys.registerHandler(ShortcutCommand.chatFirst, () {
@@ -1103,7 +1114,7 @@ class _ShortcutListenerState extends State<ShortcutListener>
       return true;
     });
     sys.registerHandler(ShortcutCommand.recordVoice, () {
-      return false;
+      return ChatView.startRecordVoiceRequest?.call() ?? false;
     });
     sys.registerHandler(ShortcutCommand.showChatPreview, () {
       return ChatView.requestShowChatPreview();
@@ -1226,16 +1237,28 @@ class _ShortcutListenerState extends State<ShortcutListener>
     });
     sys.registerHandler(ShortcutCommand.mediaPrevious, () {
       final audio = context.read<AudioService>();
-      return audio.currentMsgId.isNotEmpty;
+      if (audio.currentMsgId.isEmpty) return false;
+      final pos = audio.position.inMilliseconds;
+      final dur = audio.duration.inMilliseconds;
+      if (dur <= 0) return false;
+      final target = ((pos - 5000).clamp(0, dur)) / dur;
+      audio.seek(target);
+      return true;
     });
     sys.registerHandler(ShortcutCommand.mediaNext, () {
       final audio = context.read<AudioService>();
-      return audio.currentMsgId.isNotEmpty;
+      if (audio.currentMsgId.isEmpty) return false;
+      final pos = audio.position.inMilliseconds;
+      final dur = audio.duration.inMilliseconds;
+      if (dur <= 0) return false;
+      final target = ((pos + 5000).clamp(0, dur)) / dur;
+      audio.seek(target);
+      return true;
     });
 
     sys.registerHandler(ShortcutCommand.supportReloadTemplates, () {
       final chatState = context.read<ChatState>();
-      chatState.loadChats();
+      chatState.reloadSupportTemplates();
       return true;
     });
     sys.registerHandler(ShortcutCommand.supportToggleMuted, () {
@@ -1252,12 +1275,78 @@ class _ShortcutListenerState extends State<ShortcutListener>
       return true;
     });
     sys.registerHandler(ShortcutCommand.supportHistoryBack, () {
-      ChatListPanel.requestNavigateChat(-1);
-      return true;
+      final chatState = context.read<ChatState>();
+      return chatState.navigateChatHistory(-1);
     });
     sys.registerHandler(ShortcutCommand.supportHistoryForward, () {
-      ChatListPanel.requestNavigateChat(1);
+      final chatState = context.read<ChatState>();
+      return chatState.navigateChatHistory(1);
+    });
+
+    sys.registerHandler(ShortcutCommand.formatBold, () {
+      ChatView.toggleFormatRequest?.call(FormatType.bold);
+      return ChatView.toggleFormatRequest != null;
+    });
+    sys.registerHandler(ShortcutCommand.formatItalic, () {
+      ChatView.toggleFormatRequest?.call(FormatType.italic);
+      return ChatView.toggleFormatRequest != null;
+    });
+    sys.registerHandler(ShortcutCommand.formatUnderline, () {
+      ChatView.toggleFormatRequest?.call(FormatType.underline);
+      return ChatView.toggleFormatRequest != null;
+    });
+    sys.registerHandler(ShortcutCommand.formatStrike, () {
+      ChatView.toggleFormatRequest?.call(FormatType.strike);
+      return ChatView.toggleFormatRequest != null;
+    });
+    sys.registerHandler(ShortcutCommand.formatCode, () {
+      ChatView.toggleFormatRequest?.call(FormatType.code);
+      return ChatView.toggleFormatRequest != null;
+    });
+    sys.registerHandler(ShortcutCommand.formatBlockquote, () {
+      ChatView.toggleFormatRequest?.call(FormatType.blockquote);
+      return ChatView.toggleFormatRequest != null;
+    });
+    sys.registerHandler(ShortcutCommand.formatSpoiler, () {
+      ChatView.toggleFormatRequest?.call(FormatType.spoiler);
+      return ChatView.toggleFormatRequest != null;
+    });
+    sys.registerHandler(ShortcutCommand.formatClear, () {
+      if (ChatView.clearFormattingRequest == null) return false;
+      ChatView.clearFormattingRequest!();
       return true;
+    });
+    sys.registerHandler(ShortcutCommand.formatLink, () {
+      ChatView.showLinkDialogRequest?.call();
+      return ChatView.showLinkDialogRequest != null;
+    });
+    sys.registerHandler(ShortcutCommand.formatDate, () {
+      ChatView.toggleFormatRequest?.call(FormatType.date);
+      return ChatView.toggleFormatRequest != null;
+    });
+
+    sys.registerHandler(ShortcutCommand.openFilePicker, () {
+      return ChatView.openFilePickerRequest?.call() ?? false;
+    });
+
+    sys.registerHandler(ShortcutCommand.pastePlainText, () {
+      final focus = FocusManager.instance.primaryFocus;
+      if (focus == null) return false;
+      final ctx = focus.context;
+      if (ctx == null) return false;
+      final editable = ctx.findAncestorStateOfType<EditableTextState>();
+      if (editable == null) return false;
+      Clipboard.getData(Clipboard.kTextPlain).then((data) {
+        if (data?.text == null || data!.text!.isEmpty) return;
+        final val = editable.currentTextEditingValue;
+        final newVal = val.replaced(val.selection, data.text!);
+        editable.userUpdateTextEditingValue(newVal, SelectionChangedCause.keyboard);
+      });
+      return true;
+    });
+
+    sys.registerHandler(ShortcutCommand.recordRound, () {
+      return ChatView.startRecordVoiceRequest?.call() ?? false;
     });
 
     _audioService = context.read<AudioService>();

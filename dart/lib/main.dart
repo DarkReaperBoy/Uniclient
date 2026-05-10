@@ -1260,7 +1260,7 @@ class _UniClientAppState extends State<UniClientApp>
       return;
     }
     if (lc == 'ctrl+shift+tab' || lc == 'control+shift+tab') {
-      UniClientShell.showChatSwitchRequest?.call();
+      UniClientShell.showChatSwitchRequest?.call(reverse: true);
       return;
     }
     if (lc == 'ctrl+0' || lc == 'control+0') {
