@@ -649,10 +649,6 @@ Ground truth: `/home/nako/Documents/AyuGramDesktop/Telegram/SourceFiles/`
 
 ---
 
-## passcode — system unlock button does nothing
-
-- [ ] [CRITICAL] `_triggerSystemUnlock()` updates only a cooldown timestamp and returns — it never calls any biometric/system-auth API. The button is rendered and shown to users but is a dead stub. AyuGram calls `SuggestSystemUnlock()` which invokes the platform auth dialog and handles `SystemUnlockResult::Success/FloodError`. — `main.dart:2294` ← `AyuGram/SourceFiles/window/window_lock_widgets.cpp:201`
-
 ## passcode — no auto-trigger of system unlock on window focus
 
 - [ ] [MAJOR] AyuGram automatically suggests system unlock every time the window regains focus (`windowActiveValue() | rpl::skip(1) | rpl::filter([=](bool active) { return active && !_systemUnlockSuggested; })`). The Dart `didChangeAppLifecycleState` handler only re-focuses the text field on resume — it never calls `_triggerSystemUnlock`. Even if the stub were fixed, the auto-prompt on focus would still be missing. — `main.dart:2220` ← `AyuGram/SourceFiles/window/window_lock_widgets.cpp:163`
