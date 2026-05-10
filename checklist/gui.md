@@ -548,35 +548,11 @@ The edit_mark_box is **functionally broken** — missing Cancel button, no input
 
 ## emoji_panel — placeholder/stub, persistence gaps, wrong height ratio, sticker context menu incomplete, sticker/GIF not sent as documents
 
-- [ ] [CRITICAL] `onTap: () {}` on the "Add"/"Unlock" button in `_CustomPackHeader` is a no-op placeholder — tapping "Add" on an uninstalled custom emoji pack does nothing; AyuGram calls `_localSetsManager->install(setId)` via the panel's add-button — `emoji_panel.dart:1083` ← `AyuGram/chat_helpers/stickers_list_widget.cpp:2318`
-
-- [ ] [CRITICAL] Sticker and GIF selection does NOT send a sticker/GIF document — both `onStickerSelected` and `onGifSelected` funnel into `onEmojiSelected` (a `ValueChanged<String>`), which in `chat_view.dart` inserts emoji/fileId as plain text into the compose field; AyuGram fires `_chosen.fire({.document = document})` and `_fileChosen.fire({.document = document})` — `emoji_panel.dart:496-497, 1773, 2280` ← `AyuGram/chat_helpers/stickers_list_widget.cpp:2168`, `AyuGram/chat_helpers/gifs_list_widget.cpp:541`
-
-- [ ] [CRITICAL] Recent emojis (`_recentEmojis`) and skin tone preferences (`_skinTonePrefs`) are module-level Dart variables — they are never persisted to disk or loaded from storage; after app restart both lists are empty; AyuGram persists these in the session database — `emoji_panel.dart:30, 760`
-
-- [ ] [CRITICAL] `_kHeightRatio = 0.55` but AyuGram `emojiPanHeightRatio: 0.75` — the panel height is 27% too short relative to the window height; this crushes vertical space for grids — `emoji_panel.dart:18` ← `AyuGram/chat_helpers/chat_helpers.style:497`
-
-- [ ] [MAJOR] Sticker context menu is missing the "Remove from Recent" option that AyuGram shows when the sticker is in the Recent section (`lng_recent_stickers_remove` → calls `Api::ToggleRecentSticker`); the Dart menu only has Fave/Unfave and View Set — `emoji_panel.dart:1564-1568` ← `AyuGram/chat_helpers/stickers_list_widget.cpp:2209-2215`
-
-- [ ] [MAJOR] "View Set" context menu item (`value == 'view_set'`) has no handler in `.then()` — the value is produced by the menu but no `else if (value == 'view_set')` branch exists, so tapping it silently does nothing; AyuGram opens a full sticker set box — `emoji_panel.dart:1566, 1570-1585` ← `AyuGram/chat_helpers/stickers_list_widget.cpp:2203-2206`
-
-- [ ] [MAJOR] Pack section headers in the sticker grid have no "remove set" (uninstall) button; AyuGram renders a 20×20 `stickerPanRemoveSet` icon button at the right of every pack header that calls `MTPmessages_UninstallStickerSet` — `emoji_panel.dart:1784-1797` ← `AyuGram/chat_helpers/stickers_list_widget.cpp:1358-1382, 3296-3383`
-
-- [ ] [MAJOR] `_kEmojiCellSize = 40.0` but AyuGram `stickersEmojiPickerItemSize: 30px` (the skin-tone picker item size) and `emojiSuggestionSize: 40px` — the skin-tone popup popup cells use `_kEmojiCellSize` (40px) while the correct picker strip item size is 30px, making the popup 33% wider than spec — `emoji_panel.dart:23, 992-996` ← `AyuGram/chat_helpers/chat_helpers.style:436`
-
-- [ ] [MAJOR] `_kCategoryBarHeight = 38.0` but AyuGram `footer: 36px` and `stickersEmojiPickerStripHeight: 40px`; the emoji category bar at bottom uses 38px while spec defines 36px for the footer bar — `emoji_panel.dart:25` ← `AyuGram/chat_helpers/chat_helpers.style:438, 749`
-
 - [ ] [MAJOR] GIF search resolves the bot username by hardcoding `'gif'` (`resolveUsername(accountId, 'gif')`); AyuGram reads `session().serverConfig().gifSearchUsername` from the server config, which varies by DC/deployment — the hardcoded string will fail for non-default server configs — `emoji_panel.dart:2264` ← `AyuGram/chat_helpers/gifs_list_widget.cpp:925`
 
 - [ ] [MAJOR] GIF search results displayed while query field is loading (before `_searchQuery` is set) show a spinner but `_searching` is set to `true` before `_gifBotId` is resolved, so typing immediately sends the first character to `resolveUsername` every time the search bot is not cached, racing against quick typing — `emoji_panel.dart:2235, 2263-2270`
 
-- [ ] [MAJOR] Featured sticker packs do not display the unread badge (small colored dot) for newly added packs that have not been viewed; AyuGram renders `stickersFeaturedUnreadSize: 5px` dot next to the "Add" button for unread featured packs — `emoji_panel.dart:1801-1915` ← `AyuGram/chat_helpers/chat_helpers.style:411-413`, `AyuGram/chat_helpers/stickers_list_widget.cpp:1291-1305`
-
-- [ ] [MAJOR] The `_TabBar` widget uses text labels ("Emoji", "Stickers", "GIFs") for tabs; AyuGram uses icon-based category strip (ComposeIcons) not text labels for the main selector — `emoji_panel.dart:417, 443-474` ← `AyuGram/chat_helpers/chat_helpers.style:738-782`
-
-# emoji_status_widget — Missing gzip import, hardcoded loop limit deviation
-
-- [ ] [CRITICAL] Missing `import 'dart:convert';` — `gzip.decode()` called at line 146 but gzip not imported; will silently fail at runtime when decompressing TGS (animated emoji status) files — `emoji_status_widget.dart:146` ← `text_custom_emoji.cpp` (AyuGram LimitedLoopsEmoji wrapping pattern shows proper gzip decompression needed for animation playback)
+# emoji_status_widget — hardcoded loop limit, userpic not rendered
 
 - [ ] [MAJOR] Hardcoded `_maxLoops = 2` limits emoji status animations to 2 loops — differs from AyuGram default which loops indefinitely (LimitedLoopsEmoji used only when explicitly configured); the Dart widget will stop animating after 2 complete loops while AyuGram emoji badges can loop continuously — `emoji_status_widget.dart:33,162-170` ← `info_profile_badge.cpp:140-143` (AyuGram only wraps with LimitedLoopsEmoji when `_customStatusLoopsLimit > 0`, default is 0 meaning no limit)
 
