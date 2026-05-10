@@ -493,25 +493,7 @@ backend-wiring correctness and performance. AyuGram reference used for protocol 
 
 ## contacts_screen — stubs, broken backend wiring, missing DM creation, dropped comment
 
-- [ ] [CRITICAL] `_openChat` silently does nothing if no DM exists for the contact — clicking any contact not yet in chat list opens nothing; AyuGram calls `showPeerHistory(peer)` which creates or navigates to the DM — `contacts_screen.dart:524` ← `AyuGram/boxes/peer_list_controllers.cpp:776`
-
-- [ ] [CRITICAL] "Suggest photo" button is an empty stub `onTap: () {}` — no engine method exists for `api.peerPhoto().suggest()` at the Go bridge or Core interface level — `contacts_screen.dart:2115` ← `AyuGram/boxes/peers/edit_contact_box.cpp:893`
-
-- [ ] [CRITICAL] "Set personal photo" button is an empty stub `onTap: () {}` — no engine method exists for `api.peerPhoto().upload()` for a contact user — `contacts_screen.dart:2123` ← `AyuGram/boxes/peers/edit_contact_box.cpp:896`
-
-- [ ] [CRITICAL] "Reset to default" button is an empty stub `onTap: () {}` — no engine method exists for `api.peerPhoto().clearPersonal()` — `contacts_screen.dart:2131` ← `AyuGram/boxes/peers/edit_contact_box.cpp:727`
-
-- [ ] [CRITICAL] Notes field in `_EditContactBox` is collected (`_notesCtrl`) but never passed to the backend — `engine.addContact()` takes only `(phone, firstName, lastName)` with no `note` parameter; AyuGram sends the note via `MTPcontacts_AddContact` with `Flag::f_note` — `contacts_screen.dart:1920` ← `AyuGram/boxes/peers/edit_contact_box.cpp:92`
-
-- [ ] [CRITICAL] `_ShareContactBox` comment field is shown in UI and collected via `_commentController` but never passed to `engine.sendContact()` — the comment is silently dropped; AyuGram's share box sends `comment = field->getTextWithAppliedMarkdown()` with the submission — `contacts_screen.dart:2401` ← `AyuGram/boxes/share_box.cpp:686`
-
 - [ ] [CRITICAL] `_openStory` stub — tapping a contact's story ring calls `_openChat(contact)` instead of a story viewer; no story viewer engine method exists in the bridge — `contacts_screen.dart:540` ← `AyuGram/boxes/peer_list_controllers.cpp:778`
-
-- [ ] [MAJOR] Global search only handles `@username` queries (line 120 `query.startsWith('@')`); plain-text name/phone queries never trigger a server-side `contacts.Search` API call; AyuGram's `PeerListGlobalSearchController` sends `MTPcontacts_Search` for any non-empty query — `contacts_screen.dart:120` ← `AyuGram/boxes/peer_list_controllers.cpp:308`
-
-- [ ] [MAJOR] `_isValidPhone` missing special-number cases: AyuGram allows `phone.startsWith("42") && length in {2, 5, 6}` but Dart only matches `^42\d\d$` (length 4); the "42", "42xxx", "42xxxx" forms are incorrectly rejected — `contacts_screen.dart:1110` ← `AyuGram/boxes/add_contact_box.cpp:54`
-
-- [ ] [MAJOR] Sort toggle icon semantics are inverted — AyuGram displays the icon for the *target* mode (alphabet icon when currently Online, online icon when currently Alphabet); Dart displays the icon for the *current* mode, which is the opposite convention — `contacts_screen.dart:594` ← `AyuGram/boxes/peer_list_controllers.cpp:177`
 
 # create_group_wizard — Audit Findings
 
