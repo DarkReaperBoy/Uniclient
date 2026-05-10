@@ -544,10 +544,6 @@ The edit_mark_box is **functionally broken** — missing Cancel button, no input
 3. Fix padding to match AyuGram spec (49, 2, 0, 14)
 4. Add TextField error state display when validation fails
 
-# filter_column — Audit findings
-
-- [ ] [CRITICAL] Filter icons are guessed from folder name keywords using generic Material icons (`Icons.folder`, `Icons.group`, etc.) instead of real Telegram filter icons — `filter_column.dart:53-62` ← `window/window_filters_menu.cpp:327-330` (`Ui::LookupFilterIcon(Ui::ComputeFilterIcon(filter))` with SVG icons)
-
 # ayu_filter — Regex filter engine audit
 
 ## Critical Issues Found
