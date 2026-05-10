@@ -23,6 +23,9 @@ class _LanguageBoxState extends State<LanguageBox> {
   late String _selectedCode;
   final _searchController = TextEditingController();
   final _searchFocus = FocusNode();
+  final _listFocus = FocusNode();
+  int _highlightIndex = -1;
+  final _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -35,6 +38,8 @@ class _LanguageBoxState extends State<LanguageBox> {
   void dispose() {
     _searchController.dispose();
     _searchFocus.dispose();
+    _listFocus.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -69,18 +74,104 @@ class _LanguageBoxState extends State<LanguageBox> {
 
   List<_LangEntry> _buildFilteredList(List<_LangEntry> all, String query) {
     if (query.isEmpty) return all;
-    final q = query.toLowerCase();
-    return all.where((l) =>
-        l.name.toLowerCase().contains(q) ||
-        l.nativeName.toLowerCase().contains(q) ||
-        l.langCode.toLowerCase().contains(q)).toList();
+    final needles = query.toLowerCase().split(RegExp(r'\s+'));
+    return all.where((l) {
+      final keywords = _prepareSearchWords(l);
+      return needles.every((needle) =>
+          keywords.any((kw) => kw.startsWith(needle)));
+    }).toList();
+  }
+
+  List<String> _prepareSearchWords(_LangEntry l) {
+    final words = <String>[];
+    for (final w in l.name.toLowerCase().split(RegExp(r'\s+'))) {
+      if (w.isNotEmpty) words.add(w);
+    }
+    for (final w in l.nativeName.toLowerCase().split(RegExp(r'\s+'))) {
+      if (w.isNotEmpty) words.add(w);
+    }
+    words.add(l.langCode.toLowerCase());
+    return words;
   }
 
   void _onSearchChanged(String value) {
     setState(() {
       _searchQuery = value;
       _filtered = _buildFilteredList(_allLanguages, value);
+      _highlightIndex = -1;
     });
+  }
+
+  List<_LangEntry> get _flatEntries {
+    final appState = context.read<AppState>();
+    final recentCodes = appState.recentLanguageCodes;
+    final entries = <_LangEntry>[];
+    final recentCodeSet = <String>{};
+    final currentEntry = _filtered.where((l) => l.langCode == _selectedCode).firstOrNull;
+    if (currentEntry != null) {
+      entries.add(currentEntry);
+      recentCodeSet.add(_selectedCode);
+    }
+    for (final code in recentCodes) {
+      if (recentCodeSet.contains(code)) continue;
+      final entry = _filtered.where((l) => l.langCode == code).firstOrNull;
+      if (entry != null) {
+        entries.add(entry);
+        recentCodeSet.add(code);
+      }
+    }
+    for (final l in _filtered) {
+      if (l.official && !recentCodeSet.contains(l.langCode)) entries.add(l);
+    }
+    return entries;
+  }
+
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+    final entries = _flatEntries;
+    if (entries.isEmpty) return KeyEventResult.ignored;
+
+    if (key == LogicalKeyboardKey.arrowDown) {
+      setState(() {
+        _highlightIndex = (_highlightIndex + 1).clamp(0, entries.length - 1);
+      });
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowUp) {
+      setState(() {
+        _highlightIndex = (_highlightIndex - 1).clamp(0, entries.length - 1);
+      });
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.pageDown) {
+      setState(() {
+        _highlightIndex = (_highlightIndex + 10).clamp(0, entries.length - 1);
+      });
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.pageUp) {
+      setState(() {
+        _highlightIndex = (_highlightIndex - 10).clamp(0, entries.length - 1);
+      });
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.home) {
+      setState(() => _highlightIndex = 0);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.end) {
+      setState(() => _highlightIndex = entries.length - 1);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.numpadEnter ||
+        key == LogicalKeyboardKey.space) {
+      if (_highlightIndex >= 0 && _highlightIndex < entries.length) {
+        _selectLanguage(entries[_highlightIndex].langCode);
+        return KeyEventResult.handled;
+      }
+    }
+    return KeyEventResult.ignored;
   }
 
   void _selectLanguage(String langCode) {
@@ -268,11 +359,15 @@ class _LanguageBoxState extends State<LanguageBox> {
               )
             else
               Flexible(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 492),
-                  child: _buildLanguageList(
-                    isDark, textColor, subTextColor, accentColor,
-                    hoverColor, dividerColor,
+                child: Focus(
+                  focusNode: _listFocus,
+                  onKeyEvent: _handleKeyEvent,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 492),
+                    child: _buildLanguageList(
+                      isDark, textColor, subTextColor, accentColor,
+                      hoverColor, dividerColor,
+                    ),
                   ),
                 ),
               ),
@@ -294,10 +389,19 @@ class _LanguageBoxState extends State<LanguageBox> {
     final recentCodes = appState.recentLanguageCodes;
 
     // §19.15: Recent = languages whose code is in recentLanguageCodes, ordered by recency.
-    // Current selected language is always first if it's in the filtered list.
+    // Current selected language pinned first (AyuGram stable_partition behavior).
     final recent = <_LangEntry>[];
     final recentCodeSet = <String>{};
+
+    // Pin current language at index 0 even if not in recentCodes
+    final currentEntry = _filtered.where((l) => l.langCode == _selectedCode).firstOrNull;
+    if (currentEntry != null) {
+      recent.add(currentEntry);
+      recentCodeSet.add(_selectedCode);
+    }
+
     for (final code in recentCodes) {
+      if (recentCodeSet.contains(code)) continue;
       final entry = _filtered.where((l) => l.langCode == code).firstOrNull;
       if (entry != null) {
         recent.add(entry);
@@ -346,13 +450,16 @@ class _LanguageBoxState extends State<LanguageBox> {
     Color dividerColor,
   ) {
     int offset = 0;
+    int flatIdx = 0;
 
     if (recent.isNotEmpty) {
       if (index == offset) return _sectionHeader('Recent', isDark);
       offset++;
       if (index < offset + recent.length) {
-        return _languageRow(recent[index - offset], isDark, textColor, subTextColor, accentColor, hoverColor);
+        final ri = index - offset;
+        return _languageRow(recent[ri], isDark, textColor, subTextColor, accentColor, hoverColor, highlighted: _highlightIndex == flatIdx + ri);
       }
+      flatIdx += recent.length;
       offset += recent.length;
 
       if (official.isNotEmpty) {
@@ -368,7 +475,8 @@ class _LanguageBoxState extends State<LanguageBox> {
       if (index == offset) return _sectionHeader('Official', isDark);
       offset++;
       if (index < offset + official.length) {
-        return _languageRow(official[index - offset], isDark, textColor, subTextColor, accentColor, hoverColor);
+        final oi = index - offset;
+        return _languageRow(official[oi], isDark, textColor, subTextColor, accentColor, hoverColor, highlighted: _highlightIndex == flatIdx + oi);
       }
     }
 
@@ -395,8 +503,9 @@ class _LanguageBoxState extends State<LanguageBox> {
     Color textColor,
     Color subTextColor,
     Color accentColor,
-    Color hoverColor,
-  ) {
+    Color hoverColor, {
+    bool highlighted = false,
+  }) {
     final selected = _selectedCode == lang.langCode;
     final appState = context.watch<AppState>();
     final isRemoved = appState.removedLanguageCodes.contains(lang.langCode);
@@ -408,6 +517,8 @@ class _LanguageBoxState extends State<LanguageBox> {
       child: InkWell(
         onTap: () => _selectLanguage(lang.langCode),
         hoverColor: hoverColor,
+        child: Container(
+        color: highlighted ? hoverColor : null,
         child: Padding(
           // §19.16: passportRowPadding = 22/8/25/8 (left/top/right/bottom)
           padding: const EdgeInsets.fromLTRB(22, 8, 25, 8),
@@ -433,8 +544,8 @@ class _LanguageBoxState extends State<LanguageBox> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    // §19.16.1: passportRowSkip ≈ 4px
-                    const SizedBox(height: 4),
+                    // §19.16.1: passportRowSkip = 2px (passport.style:110)
+                    const SizedBox(height: 2),
                     // §19.16: Description = English name, defaultTextStyle, windowSubTextFg
                     Text(
                       lang.name,
@@ -458,6 +569,7 @@ class _LanguageBoxState extends State<LanguageBox> {
                 ),
             ],
           ),
+        ),
         ),
       ),
     );
@@ -566,19 +678,24 @@ class _LangMenuToggle extends StatelessWidget {
     final pos = box.localToGlobal(Offset(box.size.width, box.size.height / 2));
     final appState = context.read<AppState>();
 
+    final canShare = !lang.langCode.startsWith('#');
+    final selected = appState.selectedLanguageCode == lang.langCode;
+    final canRemove = !selected;
+
     final items = <TelegramMenuItem<String>>[
-      TelegramMenuItem(
-        value: 'share',
-        icon: const Icon(Icons.share, size: 18),
-        label: 'Share',
-      ),
+      if (canShare)
+        TelegramMenuItem(
+          value: 'share',
+          icon: const Icon(Icons.share, size: 18),
+          label: 'Share',
+        ),
       if (isRemoved)
         TelegramMenuItem(
           value: 'restore',
           icon: const Icon(Icons.restore, size: 18),
           label: 'Restore',
         )
-      else
+      else if (canRemove)
         TelegramMenuItem(
           value: 'delete',
           icon: const Icon(Icons.delete_outline, size: 18),
@@ -586,6 +703,7 @@ class _LangMenuToggle extends StatelessWidget {
           isAttention: true,
         ),
     ];
+    if (items.isEmpty) return;
 
     final result = await showTelegramMenu<String>(
       context: context,
@@ -670,6 +788,7 @@ class _ToggleRow extends StatelessWidget {
 }
 
 // §19.14.2: Skip-languages editor (checkbox multi-select)
+// Uses curated Google Translate-supported language list, NOT Telegram UI language packs.
 class _SkipLanguagesEditor extends StatefulWidget {
   final List<_LangEntry> allLanguages;
 
@@ -716,16 +835,7 @@ class _SkipLanguagesEditorState extends State<_SkipLanguagesEditor> {
     final screenHeight = MediaQuery.of(context).size.height;
     final maxDialogHeight = screenHeight - 48;
 
-    final langs = widget.allLanguages.isNotEmpty
-        ? widget.allLanguages
-        : _selected.map((c) => _LangEntry(
-            langCode: c,
-            name: c.toUpperCase(),
-            nativeName: c.toUpperCase(),
-            official: true,
-            rtl: false,
-            beta: false,
-          )).toList();
+    final langs = _kTranslationLanguages;
 
     return Dialog(
       backgroundColor: bgColor,
@@ -848,3 +958,50 @@ class _LangEntry {
     required this.beta,
   });
 }
+
+// Curated list of Google Translate-supported languages (matches AyuGram's
+// TranslationLanguagesList, NOT the Telegram UI language pack list).
+final List<_LangEntry> _kTranslationLanguages = [
+  'af:Afrikaans:Afrikaans', 'sq:Albanian:Shqip', 'am:Amharic:አማርኛ',
+  'ar:Arabic:العربية', 'hy:Armenian:Հայերեն', 'az:Azerbaijani:Azərbaycan',
+  'eu:Basque:Euskara', 'be:Belarusian:Беларуская', 'bn:Bengali:বাংলা',
+  'bs:Bosnian:Bosanski', 'bg:Bulgarian:Български', 'ca:Catalan:Català',
+  'ceb:Cebuano:Cebuano', 'zh:Chinese:中文', 'co:Corsican:Corsu',
+  'hr:Croatian:Hrvatski', 'cs:Czech:Čeština', 'da:Danish:Dansk',
+  'nl:Dutch:Nederlands', 'en:English:English', 'eo:Esperanto:Esperanto',
+  'et:Estonian:Eesti', 'fi:Finnish:Suomi', 'fr:French:Français',
+  'fy:Frisian:Frysk', 'gl:Galician:Galego', 'ka:Georgian:ქართული',
+  'de:German:Deutsch', 'el:Greek:Ελληνικά', 'gu:Gujarati:ગુજરાતી',
+  'ht:Haitian Creole:Kreyòl Ayisyen', 'ha:Hausa:Hausa', 'haw:Hawaiian:ʻŌlelo Hawaiʻi',
+  'he:Hebrew:עברית', 'hi:Hindi:हिन्दी', 'hmn:Hmong:Hmong',
+  'hu:Hungarian:Magyar', 'is:Icelandic:Íslenska', 'ig:Igbo:Igbo',
+  'id:Indonesian:Indonesia', 'ga:Irish:Gaeilge', 'it:Italian:Italiano',
+  'ja:Japanese:日本語', 'jv:Javanese:Jawa', 'kn:Kannada:ಕನ್ನಡ',
+  'kk:Kazakh:Қазақ', 'km:Khmer:ខ្មែរ', 'rw:Kinyarwanda:Ikinyarwanda',
+  'ko:Korean:한국어', 'ku:Kurdish:Kurdî', 'ky:Kyrgyz:Кыргызча',
+  'lo:Lao:ລາວ', 'la:Latin:Latina', 'lv:Latvian:Latviešu',
+  'lt:Lithuanian:Lietuvių', 'lb:Luxembourgish:Lëtzebuergesch', 'mk:Macedonian:Македонски',
+  'mg:Malagasy:Malagasy', 'ms:Malay:Melayu', 'ml:Malayalam:മലയാളം',
+  'mt:Maltese:Malti', 'mi:Maori:Māori', 'mr:Marathi:मराठी',
+  'mn:Mongolian:Монгол', 'my:Myanmar:မြန်မာ', 'ne:Nepali:नेपाली',
+  'no:Norwegian:Norsk', 'ny:Nyanja:Chichewa', 'or:Odia:ଓଡ଼ିଆ',
+  'ps:Pashto:پښتو', 'fa:Persian:فارسی', 'pl:Polish:Polski',
+  'pt:Portuguese:Português', 'pa:Punjabi:ਪੰਜਾਬੀ', 'ro:Romanian:Română',
+  'ru:Russian:Русский', 'sm:Samoan:Gagana Sāmoa', 'gd:Scots Gaelic:Gàidhlig',
+  'sr:Serbian:Српски', 'st:Sesotho:Sesotho', 'sn:Shona:Shona',
+  'sd:Sindhi:سنڌي', 'si:Sinhala:සිංහල', 'sk:Slovak:Slovenčina',
+  'sl:Slovenian:Slovenščina', 'so:Somali:Soomaali', 'es:Spanish:Español',
+  'su:Sundanese:Basa Sunda', 'sw:Swahili:Kiswahili', 'sv:Swedish:Svenska',
+  'tl:Tagalog:Tagalog', 'tg:Tajik:Тоҷикӣ', 'ta:Tamil:தமிழ்',
+  'tt:Tatar:Татар', 'te:Telugu:తెలుగు', 'th:Thai:ไทย',
+  'tr:Turkish:Türkçe', 'tk:Turkmen:Türkmençe', 'uk:Ukrainian:Українська',
+  'ur:Urdu:اردو', 'ug:Uyghur:ئۇيغۇرچە', 'uz:Uzbek:Oʻzbek',
+  'vi:Vietnamese:Tiếng Việt', 'cy:Welsh:Cymraeg', 'xh:Xhosa:isiXhosa',
+  'yi:Yiddish:ייִדיש', 'yo:Yoruba:Yorùbá', 'zu:Zulu:isiZulu',
+].map((s) {
+  final parts = s.split(':');
+  return _LangEntry(
+    langCode: parts[0], name: parts[1], nativeName: parts[2],
+    official: true, rtl: false, beta: false,
+  );
+}).toList();
