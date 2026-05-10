@@ -641,12 +641,6 @@ The Dart emoji_data.dart implements a hardcoded static emoji search database, wh
 ## CRITICAL
 
 
-## MAJOR
-
-- [x] [MAJOR] Blocked users list loaded all-at-once with no pagination — `privacy_settings_screen.dart:6353-6362` ← `AyuGramDesktop/Telegram/SourceFiles/settings/settings_privacy_controllers.cpp:369-408`
-  - Dart: `await engine.getBlockedUsers(accountId)` fetches the full list in a single call; no offset, no cursor
-  - AyuGram: `BlockedBoxController::loadMoreRows()` uses `_offset` and `_allLoaded` fields, passes offset to `Api::BlockedPeers`, increments offset on each `applySlice()` call — properly handles >200 blocked users
-  - With large block lists this triggers full list decode in UI thread and unbounded memory growth
 
 # Audit Chunk 7 — main.dart
 
