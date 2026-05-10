@@ -1,8 +1,10 @@
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../models/engine_models.dart';
 import '../bridge/engine_service.dart';
@@ -23,6 +25,23 @@ import 'settings_style.dart';
 import 'telegram_toast.dart';
 import '../theme/telegram_palette.dart';
 
+const _kLanguageNames = <String, String>{
+  'af': 'Afrikaans', 'sq': 'Shqip', 'am': 'አማርኛ', 'ar': 'العربية',
+  'hy': 'Հայերեն', 'az': 'Azərbaycan', 'eu': 'Euskara', 'be': 'Беларуская',
+  'bn': 'বাংলা', 'bs': 'Bosanski', 'bg': 'Български', 'ca': 'Català',
+  'zh': '中文', 'hr': 'Hrvatski', 'cs': 'Čeština', 'da': 'Dansk',
+  'nl': 'Nederlands', 'en': 'English', 'et': 'Eesti', 'fi': 'Suomi',
+  'fr': 'Français', 'ka': 'ქართული', 'de': 'Deutsch', 'el': 'Ελληνικά',
+  'he': 'עברית', 'hi': 'हिन्दी', 'hu': 'Magyar', 'is': 'Íslenska',
+  'id': 'Indonesia', 'it': 'Italiano', 'ja': '日本語', 'ko': '한국어',
+  'lv': 'Latviešu', 'lt': 'Lietuvių', 'mk': 'Македонски', 'ms': 'Melayu',
+  'no': 'Norsk', 'fa': 'فارسی', 'pl': 'Polski', 'pt': 'Português',
+  'ro': 'Română', 'ru': 'Русский', 'sr': 'Српски', 'sk': 'Slovenčina',
+  'sl': 'Slovenščina', 'es': 'Español', 'sw': 'Kiswahili', 'sv': 'Svenska',
+  'th': 'ไทย', 'tr': 'Türkçe', 'uk': 'Українська', 'ur': 'اردو',
+  'uz': 'Oʻzbek', 'vi': 'Tiếng Việt',
+};
+
 /// Settings page (§14). Opened from hamburger drawer "Settings" row.
 /// Scrollable panel with profile header at top, then settings navigation rows.
 /// Matches AyuGram Desktop's Settings page layout.
@@ -35,6 +54,7 @@ class SettingsScreen extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
     final appState = context.watch<AppState>();
     final account = appState.activeAccount;
+    final chatState = context.watch<ChatState>();
 
     // Colors matching spec §14.
     final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
@@ -244,17 +264,18 @@ class SettingsScreen extends StatelessWidget {
               );
             },
           ),
-          _SettingsRow(
-            icon: Icons.folder,
-            iconBg: const Color(0xFF2196F3),
-            label: 'Folders',
-            isDark: isDark,
-            onTap: () {
-              Navigator.of(context).push(
-                settingsPageRoute(const FoldersSettingsScreen()),
-              );
-            },
-          ),
+          if (chatState.hasFolders || account?.platform == 'telegram')
+            _SettingsRow(
+              icon: Icons.folder,
+              iconBg: const Color(0xFF2196F3),
+              label: 'Folders',
+              isDark: isDark,
+              onTap: () {
+                Navigator.of(context).push(
+                  settingsPageRoute(const FoldersSettingsScreen()),
+                );
+              },
+            ),
           const SizedBox(height: 7),
           Container(height: 1, color: dividerColor),
           const SizedBox(height: 7),
@@ -304,7 +325,7 @@ class SettingsScreen extends StatelessWidget {
             label: 'Language',
             isDark: isDark,
             trailing: Text(
-              'English',
+              _kLanguageNames[appState.selectedLanguageCode] ?? appState.selectedLanguageCode.toUpperCase(),
               style: TextStyle(
                 fontSize: 14,
                 color: context.palette.windowBgActive,
@@ -330,57 +351,35 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: 7),
           Container(height: 1, color: dividerColor),
           const SizedBox(height: 7),
-          // §14.8.1: Premium section.
-          _PremiumRow(
-            icon: Icons.workspace_premium,
-            label: 'Telegram Premium',
-            isDark: isDark,
-            onTap: () => Process.run('xdg-open', ['https://t.me/premium']),
-          ),
-          _PremiumRow(
-            icon: Icons.star_border,
-            label: 'Telegram Stars',
-            isDark: isDark,
-            trailing: Text(
-              '0',
-              style: TextStyle(
-                fontSize: 14,
-                color: isDark
-                    ? const Color(0xFF6C7883)
-                    : const Color(0xFF999999),
-              ),
+          if (account?.platform == 'telegram') ...[
+            _PremiumRow(
+              icon: Icons.workspace_premium,
+              label: 'Telegram Premium',
+              isDark: isDark,
+              onTap: () => Process.run('xdg-open', ['https://t.me/premium']),
             ),
-            onTap: () => Process.run('xdg-open', ['https://t.me/stars']),
-          ),
-          _PremiumRow(
-            icon: Icons.currency_bitcoin,
-            label: 'TON Currency',
-            isDark: isDark,
-            trailing: Text(
-              '0',
-              style: TextStyle(
-                fontSize: 14,
-                color: isDark
-                    ? const Color(0xFF6C7883)
-                    : const Color(0xFF999999),
-              ),
+            _PremiumRow(
+              icon: Icons.star_border,
+              label: 'Telegram Stars',
+              isDark: isDark,
+              onTap: () => Process.run('xdg-open', ['https://t.me/stars']),
             ),
-            onTap: () => Process.run('xdg-open', ['https://t.me/tonhub']),
-          ),
-          _SettingsRow(
-            icon: Icons.diamond_outlined,
-            iconBg: const Color(0xFF3A3A5C),
-            label: 'Telegram Business',
-            isDark: isDark,
-            onTap: () => Process.run('xdg-open', ['https://t.me/business']),
-          ),
-          _PremiumRow(
-            icon: Icons.card_giftcard,
-            label: 'Send a Gift',
-            isDark: isDark,
-            showNewBadge: true,
-            onTap: () => Process.run('xdg-open', ['https://t.me/gifts']),
-          ),
+            _SettingsRow(
+              icon: Icons.diamond_outlined,
+              iconBg: const Color(0xFF3A3A5C),
+              label: 'Telegram Business',
+              isDark: isDark,
+              onTap: () => Process.run('xdg-open', ['https://t.me/business']),
+            ),
+            if (account?.isPremium != true)
+              _PremiumRow(
+                icon: Icons.card_giftcard,
+                label: 'Send a Gift',
+                isDark: isDark,
+                showNewBadge: true,
+                onTap: () => Process.run('xdg-open', ['https://t.me/gifts']),
+              ),
+          ],
           // §14.8: skip+divider+skip before Help section.
           const SizedBox(height: 7),
           Container(height: 1, color: dividerColor),
@@ -526,13 +525,12 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
     final hasQr = hasUsername;
 
     return SizedBox(
-      height: 112,
+      height: 96,
       child: Padding(
         padding: const EdgeInsets.only(left: 22, top: 8, right: 12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Avatar — 88px, with hover camera overlay.
             MouseRegion(
               onEnter: (_) => setState(() => _avatarHovered = true),
               onExit: (_) => setState(() => _avatarHovered = false),
@@ -540,12 +538,12 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
               child: GestureDetector(
                 onTap: () => _showAvatarMenu(context),
                 child: SizedBox(
-                  width: 88,
-                  height: 88,
+                  width: 72,
+                  height: 72,
                   child: Stack(
                     children: [
                       CircleAvatar(
-                        radius: 44,
+                        radius: 36,
                         backgroundColor: theme.colorScheme.primary,
                         backgroundImage:
                             account?.avatarPath.isNotEmpty == true
@@ -583,8 +581,7 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
                 ),
               ),
             ),
-            // Gap between avatar and text column (settingsNameLeft=112 - settingsPhotoLeft=22 - photoSize=88 = 2).
-            const SizedBox(width: 2),
+            const SizedBox(width: 18),
             // Text column: name, phone/ID, username.
             Expanded(
               child: Column(
@@ -619,8 +616,19 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
                       ],
                     ),
                   ),
-                  // Phone at settingsPhoneTop(37) - settingsNameTop(12) - lineHeight ≈ 5px gap.
-                  if (phone.isNotEmpty) ...[
+                  if (account != null && account.selfUserId.isNotEmpty) ...[
+                    const SizedBox(height: 5),
+                    GestureDetector(
+                      onSecondaryTapUp: (details) =>
+                          _showCopyMenu(context, details.globalPosition, account.selfUserId, 'Copy ID'),
+                      child: Text(
+                        'ID: ${account.selfUserId}',
+                        style: TextStyle(fontSize: 14, color: phoneColor),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ] else if (phone.isNotEmpty) ...[
                     const SizedBox(height: 5),
                     GestureDetector(
                       onSecondaryTapUp: (details) =>
@@ -654,11 +662,10 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
                 ],
               ),
             ),
-            // QR code button — right side, vertically centered in the 88px avatar area.
             if (hasQr)
               SizedBox(
                 width: 48,
-                height: 88,
+                height: 72,
                 child: Center(
                   child: IconButton(
                     icon: Icon(Icons.qr_code, size: 24, color: accentColor),
@@ -673,16 +680,16 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
     );
   }
 
-  void _showAvatarMenu(BuildContext context) {
+  void _showAvatarMenu(BuildContext context) async {
     final isDark = widget.isDark;
     final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
 
     final RenderBox box = context.findRenderObject() as RenderBox;
-    final offset = box.localToGlobal(const Offset(22, 96));
+    final offset = box.localToGlobal(const Offset(22, 80));
 
-    showMenu<String>(
+    final result = await showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(offset.dx, offset.dy, offset.dx + 200, offset.dy),
       color: bgColor,
@@ -721,6 +728,29 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
           ),
       ],
     );
+    if (result == null || !context.mounted) return;
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+    if (accountId.isEmpty) return;
+    switch (result) {
+      case 'upload':
+        final picked = await FilePicker.platform.pickFiles(
+          type: FileType.image,
+          allowMultiple: false,
+        );
+        if (picked != null && picked.files.isNotEmpty) {
+          final path = picked.files.first.path;
+          if (path != null) {
+            await engine.uploadProfilePhoto(accountId, path);
+            if (context.mounted) showTelegramToast(context, 'Photo uploaded');
+          }
+        }
+      case 'emoji':
+        if (context.mounted) _showEmojiStatusPanel(context);
+      case 'remove':
+        await engine.deleteProfilePhotos(accountId);
+        if (context.mounted) showTelegramToast(context, 'Photo removed');
+    }
   }
 
   void _showCopyMenu(BuildContext context, Offset position, String text, String label) {
@@ -792,12 +822,7 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
     final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
     final appState = context.read<AppState>();
     final engine = context.read<EngineService>();
-
-    const statusEmojis = [
-      '😊', '😎', '🤔', '😴', '🎮', '💻', '📚', '🎵',
-      '🏃', '✈️', '🎉', '❤️', '🔥', '⭐', '🌙', '☕',
-      '🍕', '🎬', '📱', '💤', '🏠', '💼', '🎯', '✨',
-    ];
+    final accountId = appState.activeAccountId;
 
     const durations = <int, String>{
       3600: '1 hour',
@@ -810,11 +835,45 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
     };
 
     int selectedDuration = 0;
+    List<String> emojiList = [];
+    bool loading = true;
+
+    Future<List<String>> loadEmojis() async {
+      try {
+        final sets = await engine.getInstalledEmojiSets(accountId);
+        final emojis = <String>{};
+        for (final s in sets) {
+          for (final sticker in s.stickers) {
+            if (sticker.emoji.isNotEmpty) emojis.add(sticker.emoji);
+          }
+        }
+        if (emojis.isNotEmpty) return emojis.take(64).toList();
+      } catch (_) {}
+      return const [
+        '😊', '😎', '🤔', '😴', '🎮', '💻', '📚', '🎵',
+        '🏃', '✈️', '🎉', '❤️', '🔥', '⭐', '🌙', '☕',
+        '🍕', '🎬', '📱', '💤', '🏠', '💼', '🎯', '✨',
+        '😂', '🥰', '😤', '🤩', '😇', '🤗', '🫡', '🫠',
+        '🎨', '🎪', '🎭', '🏆', '💎', '🦋', '🌈', '🌺',
+        '🍿', '🧩', '🎧', '📸', '🌍', '🚀', '⚡', '💫',
+      ];
+    }
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => Dialog(
+        builder: (ctx, setDialogState) {
+          if (loading) {
+            loadEmojis().then((emojis) {
+              if (ctx.mounted) {
+                setDialogState(() {
+                  emojiList = emojis;
+                  loading = false;
+                });
+              }
+            });
+          }
+          return Dialog(
           backgroundColor: bgColor,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           child: ConstrainedBox(
@@ -834,6 +893,12 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
                     ),
                   ),
                   const SizedBox(height: 12),
+                  if (loading)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 32),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else
                   Flexible(
                     child: GridView.builder(
                       shrinkWrap: true,
@@ -842,18 +907,18 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
                         mainAxisSpacing: 4,
                         crossAxisSpacing: 4,
                       ),
-                      itemCount: statusEmojis.length,
+                      itemCount: emojiList.length,
                       itemBuilder: (_, i) => InkWell(
                         onTap: () {
-                          engine.setEmojiStatus(appState.activeAccountId, statusEmojis[i], selectedDuration);
+                          engine.setEmojiStatus(accountId, emojiList[i], selectedDuration);
                           Navigator.of(ctx).pop();
-                          showTelegramToast(context, 'Status set to ${statusEmojis[i]}');
+                          showTelegramToast(context, 'Status set to ${emojiList[i]}');
                         },
                         hoverColor: hoverBg,
                         borderRadius: BorderRadius.circular(6),
                         child: Center(
                           child: Text(
-                            statusEmojis[i],
+                            emojiList[i],
                             style: const TextStyle(fontSize: 22),
                           ),
                         ),
@@ -880,7 +945,7 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
                     children: [
                       TextButton(
                         onPressed: () {
-                          engine.clearEmojiStatus(appState.activeAccountId);
+                          engine.clearEmojiStatus(accountId);
                           Navigator.of(ctx).pop();
                           showTelegramToast(context, 'Status cleared');
                         },
@@ -897,7 +962,8 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
               ),
             ),
           ),
-        ),
+          );
+        },
       ),
     );
   }
@@ -907,6 +973,7 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
     final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
     final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
     final accentColor = context.palette.windowBgActive;
+    final link = 'https://t.me/$username';
 
     showDialog(
       context: context,
@@ -924,13 +991,25 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Center(
-                child: Icon(Icons.qr_code_2, size: 160, color: accentColor),
+              padding: const EdgeInsets.all(8),
+              child: QrImageView(
+                data: link,
+                version: QrVersions.auto,
+                size: 184,
+                eyeStyle: QrEyeStyle(
+                  eyeShape: QrEyeShape.square,
+                  color: accentColor,
+                ),
+                dataModuleStyle: QrDataModuleStyle(
+                  dataModuleShape: QrDataModuleShape.square,
+                  color: accentColor,
+                ),
+                backgroundColor: Colors.white,
               ),
             ),
             const SizedBox(height: 16),
             SelectableText(
-              'https://t.me/$username',
+              link,
               style: TextStyle(fontSize: 14, color: accentColor),
             ),
           ],
@@ -938,7 +1017,7 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
         actions: [
           TextButton(
             onPressed: () {
-              Clipboard.setData(ClipboardData(text: 'https://t.me/$username'));
+              Clipboard.setData(ClipboardData(text: link));
               Navigator.of(ctx).pop();
               showTelegramToast(context, 'Link copied');
             },
@@ -1132,9 +1211,9 @@ class _InterfaceScaleSectionState extends State<_InterfaceScaleSection> {
   late double _committedScale;
   bool _isDragging = false;
 
-  static const double _kMin = 100;
-  static const double _kMax = 300;
+  static const double _kMin = 50;
   static const double _kStep = 5;
+  double _kMax = 300;
 
   double _snap(double v) => (v / _kStep).round() * _kStep;
 
@@ -1145,6 +1224,13 @@ class _InterfaceScaleSectionState extends State<_InterfaceScaleSection> {
     _committedScale = saved;
     _scalePercent = saved;
     _useDefault = (saved - 100.0).abs() < 0.01;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final dpr = MediaQuery.of(context).devicePixelRatio;
+    _kMax = _snap((300 / dpr).clamp(100, 400));
   }
 
   @override
@@ -1276,8 +1362,8 @@ class _InterfaceScaleSectionState extends State<_InterfaceScaleSection> {
           Padding(
             padding: const EdgeInsets.fromLTRB(60, 0, 22, 8),
             child: Container(
-              width: 180 * (_scalePercent / 100),
-              padding: const EdgeInsets.all(6),
+              width: 200,
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: isDark
                     ? const Color(0xFF2B3A4A)
@@ -1291,60 +1377,36 @@ class _InterfaceScaleSectionState extends State<_InterfaceScaleSection> {
                   ),
                 ],
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '${_scalePercent.round()}%',
-                    style: TextStyle(
-                      fontSize: 10 * (_scalePercent / 100),
-                      fontWeight: FontWeight.w600,
-                      color: accentColor,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  for (int i = 0; i < 3; i++)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 1.5),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 16 * (_scalePercent / 100),
-                            height: 16 * (_scalePercent / 100),
-                            decoration: BoxDecoration(
-                              color: [accentColor, Colors.orange, Colors.green][i],
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  height: 4 * (_scalePercent / 100),
-                                  width: double.infinity,
-                                  decoration: BoxDecoration(
-                                    color: textColor.withValues(alpha: 0.5),
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
-                                ),
-                                SizedBox(height: 2 * (_scalePercent / 100)),
-                                Container(
-                                  height: 3 * (_scalePercent / 100),
-                                  width: 60 * (_scalePercent / 100),
-                                  decoration: BoxDecoration(
-                                    color: textColor.withValues(alpha: 0.2),
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+              child: Transform.scale(
+                scale: _scalePercent / 100,
+                alignment: Alignment.topLeft,
+                child: SizedBox(
+                  width: 200 / (_scalePercent / 100),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Scale: ${_scalePercent.round()}%',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: accentColor,
+                        ),
                       ),
-                    ),
-                ],
+                      const SizedBox(height: 4),
+                      Text(
+                        'This is how text will look',
+                        style: TextStyle(fontSize: 13, color: textColor),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Smaller text example',
+                        style: TextStyle(fontSize: 11, color: textColor.withValues(alpha: 0.5)),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),

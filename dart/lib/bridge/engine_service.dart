@@ -3461,6 +3461,13 @@ class EngineService {
     await _callAsync('__engine', 'UploadProfilePhoto', Uint8List.fromList(payload));
   }
 
+  Future<void> deleteProfilePhotos(String accountId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+    }));
+    await _callAsync('__engine', 'DeleteProfilePhotos', Uint8List.fromList(payload));
+  }
+
   Future<void> uploadFallbackPhoto(String accountId, String filePath) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
