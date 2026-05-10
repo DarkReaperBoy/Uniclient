@@ -13,6 +13,7 @@ import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
+import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import 'popup_menu.dart';
 import 'settings_style.dart';
@@ -53,12 +54,32 @@ class _NotificationsSettingsScreenState
     });
   }
 
-  bool _allAccountsNotify = true;
-
-  // §15.4: Exception counts per notification type (updated when returning from sub-pages)
   int _privateExceptionCount = 0;
   int _groupExceptionCount = 0;
   int _channelExceptionCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadExceptionCounts();
+  }
+
+  void _loadExceptionCounts() async {
+    final appState = context.read<AppState>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+    try {
+      final engine = context.read<EngineService>();
+      final counts = await engine.getMutedChatsByType(accountId);
+      if (mounted) {
+        setState(() {
+          _privateExceptionCount = counts['private'] ?? 0;
+          _groupExceptionCount = counts['group'] ?? 0;
+          _channelExceptionCount = counts['channel'] ?? 0;
+        });
+      }
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -170,8 +191,8 @@ class _NotificationsSettingsScreenState
       ),
       _NotifToggleRow(
         label: 'All accounts',
-        value: _allAccountsNotify,
-        onChanged: (v) => setState(() => _allAccountsNotify = v),
+        value: appState.notifAllAccountsNotify,
+        onChanged: (v) => appState.setNotifAllAccountsNotify(v),
         textColor: textColor,
         accentColor: accentColor,
         hoverBg: hoverBg,
@@ -339,7 +360,12 @@ class _NotificationsSettingsScreenState
         icon: Icons.person,
         label: 'Private chats',
         value: appState.notifPrivateChats,
-        onToggle: (v) => appState.notifPrivateChats = v,
+        onToggle: (v) {
+          appState.notifPrivateChats = v;
+          final engine = context.read<EngineService>();
+          engine.updateDefaultNotifySettings(appState.activeAccountId, peerType: 'private', enabled: v);
+          engine.updateConfig(notifyDms: v);
+        },
         onTap: () => _openTypeSubPage(context, _NotifType.privateChats),
         textColor: textColor,
         subtextColor: subtextColor,
@@ -352,7 +378,12 @@ class _NotificationsSettingsScreenState
         icon: Icons.group,
         label: 'Groups',
         value: appState.notifGroups,
-        onToggle: (v) => appState.notifGroups = v,
+        onToggle: (v) {
+          appState.notifGroups = v;
+          final engine = context.read<EngineService>();
+          engine.updateDefaultNotifySettings(appState.activeAccountId, peerType: 'group', enabled: v);
+          engine.updateConfig(notifyGroups: v);
+        },
         onTap: () => _openTypeSubPage(context, _NotifType.groups),
         textColor: textColor,
         subtextColor: subtextColor,
@@ -365,7 +396,11 @@ class _NotificationsSettingsScreenState
         icon: Icons.campaign,
         label: 'Channels',
         value: appState.notifChannels,
-        onToggle: (v) => appState.notifChannels = v,
+        onToggle: (v) {
+          appState.notifChannels = v;
+          final engine = context.read<EngineService>();
+          engine.updateDefaultNotifySettings(appState.activeAccountId, peerType: 'channel', enabled: v);
+        },
         onTap: () => _openTypeSubPage(context, _NotifType.channels),
         textColor: textColor,
         subtextColor: subtextColor,
@@ -417,6 +452,9 @@ class _NotificationsSettingsScreenState
         value: context.read<AppState>().notifContactJoinedTelegram,
         onChanged: (v) {
           context.read<AppState>().setNotifContactJoinedTelegram(v);
+          final engine = context.read<EngineService>();
+          final accountId = context.read<AppState>().activeAccountId;
+          engine.setContactSignUpNotification(accountId, silent: !v);
         },
         textColor: textColor,
         accentColor: accentColor,
@@ -465,6 +503,9 @@ class _NotificationsSettingsScreenState
         value: context.read<AppState>().notifAcceptCallsOnDevice,
         onChanged: (v) {
           context.read<AppState>().setNotifAcceptCallsOnDevice(v);
+          final engine = context.read<EngineService>();
+          final accountId = context.read<AppState>().activeAccountId;
+          engine.setCallsDisabledHere(accountId, disabled: !v);
         },
         textColor: textColor,
         accentColor: accentColor,
@@ -1127,7 +1168,20 @@ class _MonitorPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _MonitorPainter old) => true;
+  bool shouldRepaint(covariant _MonitorPainter old) =>
+      selectedCorner != old.selectedCorner ||
+      hoverCorner != old.hoverCorner ||
+      isDark != old.isDark ||
+      accent != old.accent ||
+      !_listEquals(barOpacities, old.barOpacities);
+
+  static bool _listEquals(List<double> a, List<double> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
 }
 
 class _NotificationCountSlider extends StatelessWidget {
@@ -1365,6 +1419,55 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
   final List<int> _recentMuteDurations = [];
 
   @override
+  void initState() {
+    super.initState();
+    _loadExceptions();
+  }
+
+  void _loadExceptions() {
+    final chatState = context.read<ChatState>();
+    final appState = context.read<AppState>();
+    final activeId = appState.activeAccountId;
+    final allChats = chatState.chatsForAccount(activeId);
+
+    final typeFilter = switch (widget.type) {
+      _NotifType.privateChats => (ChatInfo c) => c.type == ChatType.dm,
+      _NotifType.groups => (ChatInfo c) => c.type == ChatType.group,
+      _NotifType.channels => (ChatInfo c) => c.type == ChatType.channel,
+      _ => (ChatInfo c) => false,
+    };
+
+    final mutedChats = allChats.where((c) => c.isMuted && typeFilter(c)).toList();
+    setState(() {
+      _exceptions.clear();
+      for (final chat in mutedChats) {
+        _exceptions.add(_NotifException(
+          chatId: chat.chatId,
+          accountId: chat.accountId,
+          name: chat.title,
+          avatarPath: chat.avatarPath,
+          isMuted: true,
+        ));
+      }
+    });
+  }
+
+  void _persistEnabledState(bool enabled) {
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+    final accountId = appState.activeAccountId;
+    final peerType = switch (widget.type) {
+      _NotifType.privateChats => 'private',
+      _NotifType.groups => 'group',
+      _NotifType.channels => 'channel',
+      _ => '',
+    };
+    if (peerType.isNotEmpty) {
+      engine.updateDefaultNotifySettings(accountId, peerType: peerType, enabled: enabled);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -1417,7 +1520,10 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
             iconColor: iconColor,
             label: 'Enable notifications',
             value: _enabled,
-            onChanged: (v) => setState(() => _enabled = v),
+            onChanged: (v) {
+              setState(() => _enabled = v);
+              _persistEnabledState(v);
+            },
             textColor: textColor,
             accentColor: accentColor,
             hoverBg: hoverBg,
@@ -1506,9 +1612,14 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
               hoverBg: hoverBg,
               accentColor: accentColor,
               isDark: isDark,
-              onRemove: () => setState(() =>
-                  _exceptions.removeWhere((e) => e.chatId == exc.chatId)),
+              onRemove: () {
+                setState(() =>
+                    _exceptions.removeWhere((e) => e.chatId == exc.chatId));
+                final engine = context.read<EngineService>();
+                engine.muteChat(exc.accountId, exc.chatId, false);
+              },
               onToggleMute: () {
+                final newMuted = !exc.isMuted;
                 setState(() {
                   final idx = _exceptions.indexOf(exc);
                   if (idx >= 0) {
@@ -1517,10 +1628,12 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
                       accountId: exc.accountId,
                       name: exc.name,
                       avatarPath: exc.avatarPath,
-                      isMuted: !exc.isMuted,
+                      isMuted: newMuted,
                     );
                   }
                 });
+                final engine = context.read<EngineService>();
+                engine.muteChat(exc.accountId, exc.chatId, newMuted);
               },
               onTap: (pos) {
                 _showExceptionContextMenu(context, pos, exc);
@@ -1686,6 +1799,8 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
             isMuted: true,
           ));
         });
+        final engine = context.read<EngineService>();
+        engine.muteChat(chat.accountId, chat.chatId, true);
       }
     });
   }
@@ -1726,6 +1841,10 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
       },
     ).then((confirmed) {
       if (confirmed == true) {
+        final engine = context.read<EngineService>();
+        for (final exc in _exceptions) {
+          engine.muteChat(exc.accountId, exc.chatId, false);
+        }
         setState(() => _exceptions.clear());
       }
     });
@@ -1814,8 +1933,9 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
     ).then((value) {
       if (value == null) return;
       if (value == 'view_profile') {
-        // Profile viewing would navigate to the chat/user profile
+        Navigator.of(context).pushNamed('/chat_info', arguments: exc.chatId);
       } else if (value == 'unmute' || value == 'mute') {
+        final newMuted = !exc.isMuted;
         setState(() {
           final idx =
               _exceptions.indexWhere((e) => e.chatId == exc.chatId);
@@ -1825,13 +1945,17 @@ class _NotificationTypeSubPageState extends State<_NotificationTypeSubPage> {
               accountId: exc.accountId,
               name: exc.name,
               avatarPath: exc.avatarPath,
-              isMuted: !exc.isMuted,
+              isMuted: newMuted,
             );
           }
         });
+        final engine = context.read<EngineService>();
+        engine.muteChat(exc.accountId, exc.chatId, newMuted);
       } else if (value == 'remove') {
         setState(() =>
             _exceptions.removeWhere((e) => e.chatId == exc.chatId));
+        final engine = context.read<EngineService>();
+        engine.muteChat(exc.accountId, exc.chatId, false);
       }
     });
   }
@@ -2497,7 +2621,10 @@ class _SplitToggleRow extends StatelessWidget {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(ctx).pop(),
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  onTap?.call();
+                },
                 child: Text('View exceptions',
                     style: TextStyle(color: accentColor)),
               ),
@@ -2623,6 +2750,47 @@ class _ReactionsSubPageState extends State<_ReactionsSubPage> {
   bool _pollVotesEnabled = true;
   _ReactionsFrom _pollVotesFrom = _ReactionsFrom.everyone;
   bool _showSenderName = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  void _loadSettings() async {
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+    final accountId = appState.activeAccountId;
+    if (accountId.isEmpty) return;
+    final settings = await engine.getReactionsNotifySettings(accountId);
+    if (settings.isNotEmpty && mounted) {
+      setState(() {
+        _reactionsEnabled = settings['reactions_enabled'] as bool? ?? true;
+        _reactionsFrom = (settings['reactions_from'] as String?) == 'contacts'
+            ? _ReactionsFrom.contacts
+            : _ReactionsFrom.everyone;
+        _pollVotesEnabled = settings['poll_votes_enabled'] as bool? ?? true;
+        _pollVotesFrom = (settings['poll_votes_from'] as String?) == 'contacts'
+            ? _ReactionsFrom.contacts
+            : _ReactionsFrom.everyone;
+        _showSenderName = settings['show_sender_name'] as bool? ?? true;
+      });
+    }
+  }
+
+  void _persistSettings() {
+    final appState = context.read<AppState>();
+    final engine = context.read<EngineService>();
+    final accountId = appState.activeAccountId;
+    engine.setReactionsNotifySettings(
+      accountId,
+      reactionsEnabled: _reactionsEnabled,
+      reactionsFrom: _reactionsFrom == _ReactionsFrom.contacts ? 'contacts' : 'everyone',
+      pollVotesEnabled: _pollVotesEnabled,
+      pollVotesFrom: _pollVotesFrom == _ReactionsFrom.contacts ? 'contacts' : 'everyone',
+      showSenderName: _showSenderName,
+    );
+  }
 
   void _showFromDialog(
     BuildContext context, {
@@ -2757,14 +2925,19 @@ class _ReactionsSubPageState extends State<_ReactionsSubPage> {
             icon: Icons.mark_unread_chat_alt,
             label: 'Reactions to my messages',
             value: _reactionsEnabled,
-            onToggle: (v) => setState(() => _reactionsEnabled = v),
+            onToggle: (v) {
+              setState(() => _reactionsEnabled = v);
+              _persistSettings();
+            },
             onTap: _reactionsEnabled
                 ? () => _showFromDialog(
                       context,
                       title: 'Notify about reactions from',
                       current: _reactionsFrom,
-                      onChanged: (v) =>
-                          setState(() => _reactionsFrom = v),
+                      onChanged: (v) {
+                        setState(() => _reactionsFrom = v);
+                        _persistSettings();
+                      },
                     )
                 : null,
             statusOverride: _reactionsEnabled
@@ -2782,14 +2955,19 @@ class _ReactionsSubPageState extends State<_ReactionsSubPage> {
             icon: Icons.poll,
             label: 'Votes in my polls',
             value: _pollVotesEnabled,
-            onToggle: (v) => setState(() => _pollVotesEnabled = v),
+            onToggle: (v) {
+              setState(() => _pollVotesEnabled = v);
+              _persistSettings();
+            },
             onTap: _pollVotesEnabled
                 ? () => _showFromDialog(
                       context,
                       title: 'Notify about votes from',
                       current: _pollVotesFrom,
-                      onChanged: (v) =>
-                          setState(() => _pollVotesFrom = v),
+                      onChanged: (v) {
+                        setState(() => _pollVotesFrom = v);
+                        _persistSettings();
+                      },
                     )
                 : null,
             statusOverride: _pollVotesEnabled
@@ -2822,7 +3000,10 @@ class _ReactionsSubPageState extends State<_ReactionsSubPage> {
             iconColor: iconColor,
             label: 'Show sender\'s name',
             value: _showSenderName,
-            onChanged: (v) => setState(() => _showSenderName = v),
+            onChanged: (v) {
+              setState(() => _showSenderName = v);
+              _persistSettings();
+            },
             textColor: textColor,
             accentColor: accentColor,
             hoverBg: hoverBg,
@@ -3328,6 +3509,31 @@ class _RingtonesBoxDialogState extends State<_RingtonesBoxDialog> {
     if (_tones.isNotEmpty) {
       _nextId = _tones.fold<int>(0, (m, t) => t.id > m ? t.id : m) + 1;
     }
+    _loadServerRingtones();
+  }
+
+  void _loadServerRingtones() async {
+    try {
+      final appState = context.read<AppState>();
+      final engine = context.read<EngineService>();
+      final accountId = appState.activeAccountId;
+      if (accountId.isEmpty) return;
+      final serverTones = await engine.getSavedRingtones(accountId);
+      if (serverTones.isNotEmpty && mounted) {
+        setState(() {
+          for (final tone in serverTones) {
+            final id = (tone['id'] as num?)?.toInt() ?? 0;
+            final name = tone['name'] as String? ?? 'Ringtone';
+            if (!_tones.any((t) => t.id == id)) {
+              _tones.add(_CustomTone(id: id, name: name));
+            }
+          }
+          if (_tones.isNotEmpty) {
+            _nextId = _tones.fold<int>(0, (m, t) => t.id > m ? t.id : m) + 1;
+          }
+        });
+      }
+    } catch (_) {}
   }
 
   Color get _bgColor =>

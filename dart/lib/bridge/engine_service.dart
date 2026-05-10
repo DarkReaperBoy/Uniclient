@@ -4976,6 +4976,110 @@ class EngineService {
     final resp = await _callAsync('__engine', 'GetBoosts', Uint8List.fromList(payload));
     return json.decode(utf8.decode(resp)) as Map<String, dynamic>;
   }
+
+  // ── Notification Settings ──
+
+  Future<bool> getContactSignUpNotification(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final resp = await _callAsync('__engine', 'GetContactSignUpNotification', Uint8List.fromList(payload));
+      if (resp.isEmpty) return true;
+      final decoded = json.decode(utf8.decode(resp));
+      return decoded['enabled'] as bool? ?? true;
+    } catch (e) {
+      Debug.error('ENGINE', 'getContactSignUpNotification failed', e);
+      return true;
+    }
+  }
+
+  Future<void> setContactSignUpNotification(String accountId, {required bool silent}) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId, 'silent': silent}));
+    try {
+      await _callAsync('__engine', 'SetContactSignUpNotification', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'setContactSignUpNotification failed', e);
+    }
+  }
+
+  Future<void> setCallsDisabledHere(String accountId, {required bool disabled}) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId, 'disabled': disabled}));
+    try {
+      await _callAsync('__engine', 'SetCallsDisabledHere', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'setCallsDisabledHere failed', e);
+    }
+  }
+
+  Future<void> updateDefaultNotifySettings(String accountId, {required String peerType, required bool enabled}) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId, 'peer_type': peerType, 'enabled': enabled}));
+    try {
+      await _callAsync('__engine', 'UpdateDefaultNotifySettings', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'updateDefaultNotifySettings failed', e);
+    }
+  }
+
+  Future<Map<String, dynamic>> getReactionsNotifySettings(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final resp = await _callAsync('__engine', 'GetReactionsNotifySettings', Uint8List.fromList(payload));
+      if (resp.isEmpty) return {};
+      return json.decode(utf8.decode(resp)) as Map<String, dynamic>;
+    } catch (e) {
+      Debug.error('ENGINE', 'getReactionsNotifySettings failed', e);
+      return {};
+    }
+  }
+
+  Future<void> setReactionsNotifySettings(String accountId, {
+    required bool reactionsEnabled,
+    required String reactionsFrom,
+    required bool pollVotesEnabled,
+    required String pollVotesFrom,
+    required bool showSenderName,
+  }) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'reactions_enabled': reactionsEnabled,
+      'reactions_from': reactionsFrom,
+      'poll_votes_enabled': pollVotesEnabled,
+      'poll_votes_from': pollVotesFrom,
+      'show_sender_name': showSenderName,
+    }));
+    try {
+      await _callAsync('__engine', 'SetReactionsNotifySettings', Uint8List.fromList(payload));
+    } catch (e) {
+      Debug.error('ENGINE', 'setReactionsNotifySettings failed', e);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getSavedRingtones(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final resp = await _callAsync('__engine', 'GetSavedRingtones', Uint8List.fromList(payload));
+      if (resp.isEmpty) return [];
+      final decoded = json.decode(utf8.decode(resp));
+      if (decoded is List) return decoded.cast<Map<String, dynamic>>();
+      return [];
+    } catch (e) {
+      Debug.error('ENGINE', 'getSavedRingtones failed', e);
+      return [];
+    }
+  }
+
+  Future<Map<String, int>> getMutedChatsByType(String accountId) async {
+    final payload = utf8.encode(json.encode({'account_id': accountId}));
+    try {
+      final resp = await _callAsync('__engine', 'GetMutedChatsByType', Uint8List.fromList(payload));
+      if (resp.isEmpty) return {};
+      final decoded = json.decode(utf8.decode(resp));
+      if (decoded is Map) return decoded.cast<String, int>();
+      return {};
+    } catch (e) {
+      Debug.error('ENGINE', 'getMutedChatsByType failed', e);
+      return {};
+    }
+  }
 }
 
 class EngineException implements Exception {

@@ -233,6 +233,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   String _callInputDevice = 'Default';
   String _callCameraDevice = 'Default';
   bool _callUseSameDevices = true;
+  bool _notifAllAccountsNotify = true;
   bool _notifIncludeMutedChats = true;
   bool _notifIncludeMutedInFolders = true;
   bool _notifCountUnreadMessages = true;
@@ -494,6 +495,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   String get callInputDevice => _callInputDevice;
   String get callCameraDevice => _callCameraDevice;
   bool get callUseSameDevices => _callUseSameDevices;
+  bool get notifAllAccountsNotify => _notifAllAccountsNotify;
   bool get notifIncludeMutedChats => _notifIncludeMutedChats;
   bool get notifIncludeMutedInFolders => _notifIncludeMutedInFolders;
   bool get notifCountUnreadMessages => _notifCountUnreadMessages;
@@ -724,6 +726,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void setNotifAcceptCallsOnDevice(bool v) {
     if (_notifAcceptCallsOnDevice == v) return;
     _notifAcceptCallsOnDevice = v;
+    notifyListeners();
+    _saveWindowPrefs();
+  }
+
+  void setNotifAllAccountsNotify(bool v) {
+    if (_notifAllAccountsNotify == v) return;
+    _notifAllAccountsNotify = v;
     notifyListeners();
     _saveWindowPrefs();
   }
@@ -2825,6 +2834,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _callInputDevice = data['callInputDevice'] as String? ?? 'Default';
       _callCameraDevice = data['callCameraDevice'] as String? ?? 'Default';
       _callUseSameDevices = data['callUseSameDevices'] as bool? ?? true;
+      _notifAllAccountsNotify = data['notifAllAccountsNotify'] as bool? ?? true;
       _notifIncludeMutedChats = data['notifIncludeMutedChats'] as bool? ?? true;
       _notifIncludeMutedInFolders = data['notifIncludeMutedInFolders'] as bool? ?? true;
       _notifCountUnreadMessages = data['notifCountUnreadMessages'] as bool? ?? true;
@@ -3054,6 +3064,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'callInputDevice': _callInputDevice,
         'callCameraDevice': _callCameraDevice,
         'callUseSameDevices': _callUseSameDevices,
+        'notifAllAccountsNotify': _notifAllAccountsNotify,
         'notifIncludeMutedChats': _notifIncludeMutedChats,
         'notifIncludeMutedInFolders': _notifIncludeMutedInFolders,
         'notifCountUnreadMessages': _notifCountUnreadMessages,

@@ -4399,6 +4399,103 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(chats)
 
+	case "GetContactSignUpNotification":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		enabled, err := e.GetContactSignUpNotification(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]bool{"enabled": enabled})
+
+	case "SetContactSignUpNotification":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Silent    bool   `json:"silent"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SetContactSignUpNotification(params.AccountID, params.Silent)
+
+	case "SetCallsDisabledHere":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Disabled  bool   `json:"disabled"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SetCallsDisabledHere(params.AccountID, params.Disabled)
+
+	case "UpdateDefaultNotifySettings":
+		var params struct {
+			AccountID string `json:"account_id"`
+			PeerType  string `json:"peer_type"`
+			Enabled   bool   `json:"enabled"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.UpdateDefaultNotifySettings(params.AccountID, params.PeerType, params.Enabled)
+
+	case "GetReactionsNotifySettings":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		settings, err := e.GetReactionsNotifySettings(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(settings)
+
+	case "SetReactionsNotifySettings":
+		var params struct {
+			AccountID        string `json:"account_id"`
+			ReactionsEnabled bool   `json:"reactions_enabled"`
+			ReactionsFrom    string `json:"reactions_from"`
+			PollVotesEnabled bool   `json:"poll_votes_enabled"`
+			PollVotesFrom    string `json:"poll_votes_from"`
+			ShowSenderName   bool   `json:"show_sender_name"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		return nil, e.SetReactionsNotifySettings(params.AccountID, params.ReactionsEnabled, params.ReactionsFrom, params.PollVotesEnabled, params.PollVotesFrom, params.ShowSenderName)
+
+	case "GetSavedRingtones":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		tones, err := e.GetSavedRingtones(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(tones)
+
+	case "GetMutedChatsByType":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		counts, err := e.GetMutedChatsByType(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(counts)
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}

@@ -23997,6 +23997,162 @@ func (t *TelegramCore) MuteChatFor(chatID string, durationSeconds int32) error {
 	return err
 }
 
+// ToggleCallsDisabledHere toggles whether calls are disabled on this device/session.
+func (t *TelegramCore) ToggleCallsDisabledHere(disabled bool) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+	req := &tg.AccountChangeAuthorizationSettingsRequest{
+		Hash: 0,
+	}
+	req.SetCallRequestsDisabled(disabled)
+	_, err := t.api.AccountChangeAuthorizationSettings(t.ctx, req)
+	return err
+}
+
+// UpdateDefaultNotifySettings updates the default notification settings for a peer type.
+func (t *TelegramCore) UpdateDefaultNotifySettings(peerType string, enabled bool) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+
+	var peer tg.InputNotifyPeerClass
+	switch peerType {
+	case "private":
+		peer = &tg.InputNotifyUsers{}
+	case "group":
+		peer = &tg.InputNotifyChats{}
+	case "channel":
+		peer = &tg.InputNotifyBroadcasts{}
+	default:
+		return fmt.Errorf("unknown peer type: %s", peerType)
+	}
+
+	settings := tg.InputPeerNotifySettings{}
+	if !enabled {
+		settings.SetMuteUntil(2147483647)
+	} else {
+		settings.SetMuteUntil(0)
+	}
+
+	_, err := t.api.AccountUpdateNotifySettings(t.ctx, &tg.AccountUpdateNotifySettingsRequest{
+		Peer:     peer,
+		Settings: settings,
+	})
+	return err
+}
+
+// GetReactionsNotifySettings returns reactions notification settings as a simple map.
+func (t *TelegramCore) GetReactionsNotifySettings() (map[string]interface{}, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	settings, err := t.api.AccountGetReactionsNotifySettings(t.ctx)
+	if err != nil {
+		return nil, err
+	}
+	fromStr := func(f tg.ReactionNotificationsFromClass) string {
+		if f == nil {
+			return ""
+		}
+		switch f.(type) {
+		case *tg.ReactionNotificationsFromContacts:
+			return "contacts"
+		default:
+			return "everyone"
+		}
+	}
+	result := map[string]interface{}{
+		"reactions_enabled":  settings.MessagesNotifyFrom != nil,
+		"reactions_from":     "everyone",
+		"poll_votes_enabled": settings.PollVotesNotifyFrom != nil,
+		"poll_votes_from":    "everyone",
+		"show_sender_name":   settings.ShowPreviews,
+	}
+	if settings.MessagesNotifyFrom != nil {
+		result["reactions_from"] = fromStr(settings.MessagesNotifyFrom)
+	}
+	if settings.PollVotesNotifyFrom != nil {
+		result["poll_votes_from"] = fromStr(settings.PollVotesNotifyFrom)
+	}
+	return result, nil
+}
+
+// SetReactionsNotifySettings updates reaction notification settings on the server.
+func (t *TelegramCore) SetReactionsNotifySettings(reactionsEnabled bool, reactionsFrom string, pollVotesEnabled bool, pollVotesFrom string, showSenderName bool) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+
+	fromClass := func(s string) tg.ReactionNotificationsFromClass {
+		if s == "contacts" {
+			return &tg.ReactionNotificationsFromContacts{}
+		}
+		return &tg.ReactionNotificationsFromAll{}
+	}
+
+	settings := tg.ReactionsNotifySettings{
+		ShowPreviews: showSenderName,
+	}
+	if reactionsEnabled {
+		settings.SetMessagesNotifyFrom(fromClass(reactionsFrom))
+	}
+	if pollVotesEnabled {
+		settings.SetPollVotesNotifyFrom(fromClass(pollVotesFrom))
+	}
+
+	_, err := t.api.AccountSetReactionsNotifySettings(t.ctx, settings)
+	return err
+}
+
+// GetSavedRingtones returns a simplified list of saved ringtones.
+func (t *TelegramCore) GetSavedRingtones() ([]map[string]interface{}, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	result, err := t.api.AccountGetSavedRingtones(t.ctx, 0)
+	if err != nil {
+		return nil, err
+	}
+	saved, ok := result.(*tg.AccountSavedRingtones)
+	if !ok {
+		return []map[string]interface{}{}, nil
+	}
+	var tones []map[string]interface{}
+	for _, doc := range saved.Ringtones {
+		d, ok := doc.(*tg.Document)
+		if !ok {
+			continue
+		}
+		name := fmt.Sprintf("Ringtone %d", d.ID)
+		for _, attr := range d.Attributes {
+			if a, ok := attr.(*tg.DocumentAttributeFilename); ok {
+				name = a.FileName
+				break
+			}
+			if a, ok := attr.(*tg.DocumentAttributeAudio); ok && a.Title != "" {
+				name = a.Title
+				break
+			}
+		}
+		tones = append(tones, map[string]interface{}{
+			"id":   d.ID,
+			"name": name,
+		})
+	}
+	return tones, nil
+}
+
 // MarkUnread marks a dialog as unread.
 func (t *TelegramCore) MarkUnread(chatID string, unread bool) error {
 	return t.MarkDialogUnread(chatID, unread)
