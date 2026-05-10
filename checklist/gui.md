@@ -490,34 +490,6 @@ All these controls exist in AppState but are not exposed in the UI.
 backend-wiring correctness and performance. AyuGram reference used for protocol behavior
 (`api/api_editing.cpp`, `apiwrap.cpp`, `data/data_forum_topic.cpp`).
 
----
-
-
-# confirm_box — 8 issues
-
-- [ ] [CRITICAL] `_confirmLabel` uses literal `'Delete (...)'` placeholder instead of live count — `confirm_box.dart:511` ← `AyuGram/boxes/delete_messages_box.cpp:228-233`
-  AyuGram does a live message search (`search->searchMessages({ .from = _moderateFrom })`) and shows the result as `"Delete (N)"` where N is the real count. The Dart version hardcodes the string suffix as `' (...)'` with no connection to any engine query.
-
-- [ ] [CRITICAL] `requestPermissionOrFail` never requests permission for `canRequest` status — `confirm_box.dart:887-890` ← `AyuGram/boxes/confirm_box.cpp` (no equivalent desktop flow)
-  For `PermissionStatus.canRequest`, the code immediately calls `getPermissionStatus` a second time (same system check, same result), declares failure, and shows the settings dialog — it never triggers any OS permission prompt. The `canRequest` branch is functionally identical to `denied`.
-
-- [ ] [MAJOR] Report reason `Fake Account` shown for all report targets; should be Channel/Group/Bot only — `confirm_box.dart:1201` ← `AyuGram/ui/boxes/report_box_graphics.cpp:89-93`
-  AyuGram gates `Reason::Fake` on `source == Channel || source == Group || source == Bot`. Dart's static `_reasons` list always includes it regardless of `ReportTarget`.
-
-- [ ] [MAJOR] Report reasons `IllegalDrugs` and `PersonalDetails` shown for all targets; should be Message/Story only — `confirm_box.dart:1206-1207` ← `AyuGram/ui/boxes/report_box_graphics.cpp:110-119`
-  AyuGram only adds these two reasons when `source == Message || source == Story`. Dart's flat `_reasons` list exposes them for every target including Channel, Group, ProfilePhoto, etc.
-
-- [ ] [MAJOR] `_revoke` checkbox always initialised `false`, ignoring saved user preference — `confirm_box.dart:452` ← `AyuGram/boxes/delete_messages_box.cpp:247-252`
-  AyuGram reads `revokeByDefault = !settings.rememberedDeleteMessageOnlyForYou()` and uses it as the initial checked state. The Dart `_DeleteContentState` hardcodes `bool _revoke = false`, so users who previously chose "also delete for them" always see the box unchecked.
-
-- [ ] [MAJOR] `_revokeRemember` shown whenever `_revoke == true` instead of when it deviates from default — `confirm_box.dart:582-589` ← `AyuGram/boxes/delete_messages_box.cpp:262-267`
-  AyuGram shows the "Remember this choice" checkbox only when `checked != revokeByDefault`, i.e. only when the user is changing from their preference. Dart shows it unconditionally on `_revoke == true`, surfacing it even when the current state matches the saved default.
-
-- [ ] [MAJOR] Screen share source list enumerates monitors only (`xrandr`), no application windows — `confirm_box.dart:977` ← AyuGram DesktopCapture / NativeDesktopCaptureSource (tgcalls platform)
-  AyuGram's chooser shows both screens and capturable windows. The Dart `_loadSources` calls only `xrandr --listmonitors`; there is no window enumeration path, so users can only share an entire monitor.
-
-- [ ] [MAJOR] "Enable auto-delete" link button absent from delete-messages dialog — `confirm_box.dart:540-605` (no equivalent) ← `AyuGram/boxes/delete_messages_box.cpp:300-315`
-  AyuGram appends an `autoDeleteSettings` link button ("Enable auto-delete" / "Edit auto-delete settings") when the peer supports TTL (`TTLValidator::can()`). The Dart `_DeleteContent` renders no such control.
 
 ## contacts_screen — stubs, broken backend wiring, missing DM creation, dropped comment
 
