@@ -2202,6 +2202,8 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
   static const _curveIn = Curves.easeOutCirc;
   static const _curveOut = Curves.easeInCirc;
   static const _systemUnlockCooldown = Duration(milliseconds: 1000);
+  static const _passcodeSubmitSkip = 40.0;
+  static const _inputFieldHeight = 55.0;
 
   static VoidCallback? _focusPasscode;
 
@@ -2280,6 +2282,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
     final locked = context.watch<AppState>().passcodeLocked;
     if (locked && !_visible) {
       _visible = true;
+      _systemUnlockSuggested = false;
       _controller.clear();
       _error = '';
       _anim.forward(from: 0.0);
@@ -2315,7 +2318,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
       return;
     }
     if (!appState.passcodeCanTry()) {
-      _showError('Too many attempts. Please try again later.');
+      _showError('Please try again later');
       return;
     }
     if (appState.checkPasscode(entered)) {
@@ -2351,7 +2354,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
       case SystemUnlockResult.success:
         context.read<AppState>().unlockPasscode();
       case SystemUnlockResult.floodError:
-        _showError('Too many attempts. Please try again later.');
+        _showError('Please try again later');
       case SystemUnlockResult.cancelled:
         break;
     }
@@ -2460,16 +2463,21 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
                   Positioned(
                     left: 0,
                     right: 0,
-                    top: inputY + 40,
-                    child: Text(
-                      _error,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 13, color: errorColor),
+                    top: inputY + _inputFieldHeight,
+                    child: SizedBox(
+                      height: _passcodeSubmitSkip,
+                      child: Center(
+                        child: Text(
+                          _error,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 13, color: errorColor),
+                        ),
+                      ),
                     ),
                   ),
                 Positioned(
                   left: (constraints.maxWidth - 225) / 2,
-                  top: inputY + 40 + (_error.isNotEmpty ? 25 : 0),
+                  top: inputY + _inputFieldHeight + _passcodeSubmitSkip,
                   child: SizedBox(
                     width: 225,
                     height: 42,
@@ -2491,7 +2499,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
                 if (_showSystemUnlockButton)
                   Positioned(
                     left: (constraints.maxWidth - 48) / 2,
-                    top: inputY + 40 + (_error.isNotEmpty ? 25 : 0) + 42 + 12,
+                    top: inputY + _inputFieldHeight + _passcodeSubmitSkip + 42 + 12,
                     child: IconButton(
                       iconSize: 28,
                       style: IconButton.styleFrom(
@@ -2509,7 +2517,7 @@ class _PasscodeLockScreenState extends State<_PasscodeLockScreen>
                 Positioned(
                   left: 0,
                   right: 0,
-                  top: inputY + 40 + (_error.isNotEmpty ? 25 : 0) + 42 + 16 + (_showSystemUnlockButton ? 52 : 0),
+                  top: inputY + _inputFieldHeight + _passcodeSubmitSkip + 42 + 16 + (_showSystemUnlockButton ? 52 : 0),
                   child: GestureDetector(
                     onTap: _confirmLogout,
                     child: Text(

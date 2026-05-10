@@ -84,8 +84,8 @@ IconData getSystemUnlockIcon(UnlockType type) {
     case UnlockType.companion:
       return Icons.watch;
     case UnlockType.defaultUnlock:
-      return Icons.lock_open_outlined;
+      return Icons.admin_panel_settings;
     case UnlockType.none:
-      return Icons.lock_open_outlined;
+      return Icons.admin_panel_settings;
   }
 }
