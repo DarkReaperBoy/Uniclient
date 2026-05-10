@@ -42,6 +42,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
   int _birthdayMonth = 0;
   int _birthdayYear = 0;
   bool _birthdayLoaded = false;
+  String _birthdayPrivacy = 'contacts';
 
   @override
   void initState() {
@@ -102,6 +103,13 @@ class _MyProfilePageState extends State<MyProfilePage> {
         _birthdayYear = result.year;
         _birthdayLoaded = true;
       });
+    });
+    engine.getPrivacySetting(account.id, 'birthday').then((result) {
+      if (!mounted || result == null) return;
+      final rule = result['rule'] as String? ?? 'contacts';
+      if (rule != _birthdayPrivacy) {
+        setState(() => _birthdayPrivacy = rule);
+      }
     });
   }
 
@@ -289,26 +297,41 @@ class _MyProfilePageState extends State<MyProfilePage> {
             padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
             child: Text.rich(
               TextSpan(
-                text: 'Your birthday is visible to ',
+                text: _birthdayPrivacy == 'nobody'
+                    ? 'Your birthday is not visible to anyone. '
+                    : _birthdayPrivacy == 'everyone'
+                        ? 'Your birthday is visible to everyone. '
+                        : 'Your birthday is visible to ',
                 style: TextStyle(fontSize: 13, color: subtextColor),
                 children: [
-                  WidgetSpan(
-                    alignment: PlaceholderAlignment.baseline,
-                    baseline: TextBaseline.alphabetic,
-                    child: GestureDetector(
-                      onTap: () {},
-                      child: Text(
-                        'your contacts',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: isDark
-                              ? const Color(0xFF6AB3F3)
-                              : const Color(0xFF168ACD),
+                  if (_birthdayPrivacy != 'nobody' && _birthdayPrivacy != 'everyone')
+                    WidgetSpan(
+                      alignment: PlaceholderAlignment.baseline,
+                      baseline: TextBaseline.alphabetic,
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.of(context).push(
+                            settingsPageRoute(
+                              ChangeNotifierProvider.value(
+                                value: appState,
+                                child: const PrivacySettingsScreen(),
+                              ),
+                            ),
+                          );
+                        },
+                        child: Text(
+                          _birthdayPrivacy == 'close_friends' ? 'your close friends' : 'your contacts',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: isDark
+                                ? const Color(0xFF6AB3F3)
+                                : const Color(0xFF168ACD),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const TextSpan(text: '. '),
+                  if (_birthdayPrivacy != 'nobody' && _birthdayPrivacy != 'everyone')
+                    const TextSpan(text: '. '),
                   WidgetSpan(
                     alignment: PlaceholderAlignment.baseline,
                     baseline: TextBaseline.alphabetic,
@@ -343,6 +366,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
             channelName: _personalChannelName,
             isDark: isDark,
             loaded: _colorChannelLoaded,
+            onChannelChanged: (name) => setState(() => _personalChannelName = name),
           ),
           _rowDivider(isDark),
           _YourColorRow(
@@ -543,6 +567,11 @@ class _BioInput extends StatelessWidget {
                   ),
                   inputFormatters: [
                     LengthLimitingTextInputFormatter(maxLen * 2),
+                    TextInputFormatter.withFunction((oldValue, newValue) {
+                      final stripped = newValue.text.replaceAll('\n', ' ');
+                      if (stripped == newValue.text) return newValue;
+                      return newValue.copyWith(text: stripped);
+                    }),
                   ],
                   onChanged: onChanged,
                   onSubmitted: (_) => onSubmitted(),
@@ -652,15 +681,16 @@ class _ProfilePhotoArea extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-          // §14.5.1: Online status — windowSubTextFg, -1px spacing.
           if (account != null)
             Transform.translate(
               offset: const Offset(0, -1),
               child: Text(
-                'online',
+                account!.connState == ConnState.connected ? 'online' : 'connecting...',
                 style: TextStyle(
                   fontSize: 13,
-                  color: subtextColor,
+                  color: account!.connState == ConnState.connected
+                      ? context.palette.windowBgActive
+                      : subtextColor,
                 ),
               ),
             ),
@@ -889,11 +919,13 @@ class _PersonalChannelRow extends StatelessWidget {
   final String channelName;
   final bool isDark;
   final bool loaded;
+  final ValueChanged<String>? onChannelChanged;
 
   const _PersonalChannelRow({
     required this.channelName,
     required this.isDark,
     required this.loaded,
+    this.onChannelChanged,
   });
 
   @override
@@ -912,7 +944,7 @@ class _PersonalChannelRow extends StatelessWidget {
     final displayValue = hasChannel ? channelName : 'Add';
 
     return InkWell(
-      onTap: () => _showPersonalChannelEditor(context, hasChannel, channelName),
+      onTap: () => _showPersonalChannelEditor(context, hasChannel, channelName, onChannelChanged),
       hoverColor: hoverBg,
       splashColor: hoverBg.withValues(alpha: 0.5),
       child: Padding(
@@ -959,7 +991,7 @@ class _PersonalChannelRow extends StatelessWidget {
     );
   }
 
-  void _showPersonalChannelEditor(BuildContext context, bool hasChannel, String currentName) {
+  void _showPersonalChannelEditor(BuildContext context, bool hasChannel, String currentName, ValueChanged<String>? onChannelChanged) {
     final isDarkTheme = isDark;
     final bgColor = isDarkTheme ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
     final textColor = isDarkTheme ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
@@ -1021,6 +1053,7 @@ class _PersonalChannelRow extends StatelessWidget {
                           final engine = context.read<EngineService>();
                           final appState = context.read<AppState>();
                           engine.clearPersonalChannel(appState.activeAccountId);
+                          onChannelChanged?.call('');
                           Navigator.of(ctx).pop();
                           showTelegramToast(context, 'Personal channel removed');
                         },
@@ -1039,6 +1072,7 @@ class _PersonalChannelRow extends StatelessWidget {
                         final engine = context.read<EngineService>();
                         final appState = context.read<AppState>();
                         engine.setPersonalChannel(appState.activeAccountId, username);
+                        onChannelChanged?.call(username);
                         Navigator.of(ctx).pop();
                         showTelegramToast(context, 'Personal channel set to @$username');
                       },

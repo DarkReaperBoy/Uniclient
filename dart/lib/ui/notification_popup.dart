@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -299,16 +300,13 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
     if (text.isEmpty) return;
     widget.onReplySend
         ?.call(popup.item.data.accountId, popup.item.data.chatId, text);
-    _startFastHide(popup);
+    for (final p in List.of(_popups)) {
+      _startSlowHide(p);
+    }
   }
 
   void _onReplyCancel(_PopupState popup) {
-    setState(() {
-      popup.replyOpen = false;
-      popup.replyController.clear();
-      _recalcPositions();
-    });
-    _startHideCountdown(popup);
+    _startFastHide(popup);
   }
 
   void _hideAll() {
@@ -326,9 +324,6 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
         corner == NotificationCorner.bottomRight;
 
     double shift = _notifyDeltaY;
-    if (_showHideAll && (_popups.length >= 2 || widget.manager.hasQueue)) {
-      shift += _hideAllHeight + _notifyDeltaY;
-    }
 
     final ordered = isBottom ? _popups.reversed.toList() : _popups.toList();
     for (final p in ordered) {
@@ -428,35 +423,22 @@ class _NotificationPopupOverlayState extends State<NotificationPopupOverlay>
     }
 
     if (_showHideAll && (_popups.length >= 2 || widget.manager.hasQueue)) {
+      final lastShift = _popups.fold<double>(
+          _notifyDeltaY, (sum, p) => sum + p.totalHeight + _notifyDeltaY);
       final hideAllY = isBottom
-          ? size.height - _notifyDeltaY - _hideAllHeight
-          : _notifyDeltaY +
-              _popups.fold<double>(
-                  0, (sum, p) => sum + p.totalHeight + _notifyDeltaY);
+          ? size.height - lastShift - _hideAllHeight
+          : lastShift;
 
       children.add(
         Positioned(
           left: xPos,
           top: hideAllY,
-          child: GestureDetector(
+          child: _HideAllButton(
+            width: width,
+            bgColor: bgColor,
+            borderColor: borderColor,
+            accentColor: accentColor,
             onTap: _hideAll,
-            child: Container(
-              width: width,
-              height: _hideAllHeight,
-              decoration: BoxDecoration(
-                color: bgColor,
-                border: Border.all(color: borderColor, width: _borderWidth),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                'Hide All',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: accentColor,
-                ),
-              ),
-            ),
           ),
         ),
       );
@@ -675,6 +657,21 @@ class _Avatar extends StatelessWidget {
     if (forceHiddenPlaceholder) {
       return const _HiddenUserpicPlaceholder();
     }
+    if (avatarPath.isNotEmpty) {
+      return ClipOval(
+        child: Image.file(
+          File(avatarPath),
+          width: _photoSize,
+          height: _photoSize,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _initialsFallback(),
+        ),
+      );
+    }
+    return _initialsFallback();
+  }
+
+  Widget _initialsFallback() {
     return Container(
       width: _photoSize,
       height: _photoSize,
@@ -730,6 +727,60 @@ class _HiddenUserpicPlaceholder extends StatelessWidget {
               fontSize: 28,
               fontWeight: FontWeight.w700,
               color: Colors.white,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HideAllButton extends StatefulWidget {
+  final double width;
+  final Color bgColor;
+  final Color borderColor;
+  final Color accentColor;
+  final VoidCallback onTap;
+
+  const _HideAllButton({
+    required this.width,
+    required this.bgColor,
+    required this.borderColor,
+    required this.accentColor,
+    required this.onTap,
+  });
+
+  @override
+  State<_HideAllButton> createState() => _HideAllButtonState();
+}
+
+class _HideAllButtonState extends State<_HideAllButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgOver = isDark ? const Color(0xFF3A4958) : const Color(0xFFE8E8E8);
+    final fgOver = isDark ? const Color(0xFFFFFFFF) : const Color(0xFF000000);
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          width: widget.width,
+          height: _hideAllHeight,
+          decoration: BoxDecoration(
+            color: _hovered ? bgOver : widget.bgColor,
+            border: Border.all(color: widget.borderColor, width: _borderWidth),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            'Hide All',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: _hovered ? fgOver : widget.accentColor,
             ),
           ),
         ),

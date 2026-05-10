@@ -4804,16 +4804,12 @@ class _LocationIndicatorState extends State<_LocationIndicator> {
                       width: mapW,
                       height: mapH,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => CustomPaint(
-                        size: Size(mapW, mapH),
-                        painter: _MapGridPainter(isDark: isDark),
+                      errorBuilder: (_, __, ___) => _MapPlaceholder(
+                        isDark: isDark, width: mapW, height: mapH,
                       ),
                     )
                   else
-                    CustomPaint(
-                      size: Size(mapW, mapH),
-                      painter: _MapGridPainter(isDark: isDark),
-                    ),
+                    _MapPlaceholder(isDark: isDark, width: mapW, height: mapH),
                   Container(
                     width: 44,
                     height: 44,
@@ -5006,50 +5002,26 @@ class _LiveLocationRingPainter extends CustomPainter {
       oldDelegate.progress != progress || oldDelegate.ringColor != ringColor;
 }
 
-class _MapGridPainter extends CustomPainter {
+class _MapPlaceholder extends StatelessWidget {
   final bool isDark;
-  const _MapGridPainter({required this.isDark});
+  final double width;
+  final double height;
+  const _MapPlaceholder({required this.isDark, required this.width, required this.height});
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = isDark
-          ? const Color(0xFF2A3A4A)
-          : const Color(0xFFD5DBE1)
-      ..strokeWidth = 0.5;
-
-    for (double x = 0; x < size.width; x += 40) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    for (double y = 0; y < size.height; y += 40) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-
-    final roadPaint = Paint()
-      ..color = isDark
-          ? const Color(0xFF354A5F)
-          : const Color(0xFFC8CED4)
-      ..strokeWidth = 2.0;
-
-    canvas.drawLine(
-      Offset(size.width * 0.3, 0),
-      Offset(size.width * 0.35, size.height),
-      roadPaint,
-    );
-    canvas.drawLine(
-      Offset(0, size.height * 0.4),
-      Offset(size.width, size.height * 0.45),
-      roadPaint,
-    );
-    canvas.drawLine(
-      Offset(size.width * 0.7, 0),
-      Offset(size.width * 0.65, size.height),
-      roadPaint,
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      height: height,
+      child: Center(
+        child: Icon(
+          Icons.map_outlined,
+          size: 48,
+          color: isDark ? const Color(0xFF3A4A5A) : const Color(0xFFB0BEC5),
+        ),
+      ),
     );
   }
-
-  @override
-  bool shouldRepaint(_MapGridPainter oldDelegate) => isDark != oldDelegate.isDark;
 }
 
 /// Contact card: circular userpic + name + phone + action buttons.
@@ -9564,7 +9536,11 @@ class _InlineButtonState extends State<_InlineButton>
           chatState.sendMessage(phone);
         }
       case 'request_location':
-        showTelegramToast(context, 'Location sharing requires GPS access');
+        if (!Platform.isAndroid && !Platform.isIOS) {
+          showTelegramToast(context, 'Location sharing is not supported on this platform');
+        } else {
+          showTelegramToast(context, 'Location sharing requires GPS access');
+        }
       case 'request_poll':
         showCreatePollBox(context).then((result) {
           if (result == null) return;
@@ -9576,11 +9552,110 @@ class _InlineButtonState extends State<_InlineButton>
               anonymous: result.anonymous, multipleChoice: result.multipleChoice, quiz: result.quiz);
         });
       case 'request_peer':
-        showTelegramToast(context, 'Peer selection requested');
+        _showPeerSelectionDialog(context);
       default:
         final chatState = context.read<ChatState>();
         chatState.sendMessage(btn.text);
     }
+  }
+
+  void _showPeerSelectionDialog(BuildContext context) {
+    final chatState = context.read<ChatState>();
+    final appState = context.read<AppState>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final hoverBg = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+    final accentColor = context.palette.windowBgActive;
+
+    final activeId = appState.activeAccountId;
+    final allChats = chatState.chatsForAccount(activeId);
+    var searchQuery = '';
+
+    showDialog<ChatInfo>(
+      context: context,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (stateCtx, setDialogState) {
+            final filtered = searchQuery.isEmpty
+                ? allChats
+                : allChats
+                    .where((c) => c.title.toLowerCase().contains(searchQuery.toLowerCase()))
+                    .toList();
+            return Dialog(
+              backgroundColor: bgColor,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 340, maxHeight: 460),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                      child: Text('Choose a chat', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: textColor)),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: TextField(
+                        style: TextStyle(color: textColor, fontSize: 14),
+                        decoration: InputDecoration(
+                          hintText: 'Search...',
+                          hintStyle: TextStyle(color: subtextColor),
+                          prefixIcon: Icon(Icons.search, color: subtextColor),
+                          border: InputBorder.none,
+                        ),
+                        onChanged: (q) => setDialogState(() => searchQuery = q),
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Flexible(
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: filtered.length,
+                        itemBuilder: (_, i) {
+                          final chat = filtered[i];
+                          return InkWell(
+                            onTap: () => Navigator.of(dialogCtx).pop(chat),
+                            hoverColor: hoverBg,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                              child: Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 18,
+                                    backgroundColor: accentColor,
+                                    child: Text(
+                                      chat.title.isNotEmpty ? chat.title[0].toUpperCase() : '?',
+                                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      chat.title,
+                                      style: TextStyle(fontSize: 14, color: textColor),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    ).then((selected) {
+      if (selected == null) return;
+      chatState.sendMessage(selected.chatId);
+    });
   }
 
   @override

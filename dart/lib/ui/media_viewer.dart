@@ -18,6 +18,8 @@ import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/telegram_palette.dart';
+import 'emoji_panel.dart';
+import 'photo_crop_editor.dart';
 import 'shell.dart';
 import 'telegram_toast.dart';
 import 'telegram_tooltip.dart';
@@ -374,7 +376,7 @@ class _MediaViewerState extends State<MediaViewer>
       reverseDuration: const Duration(milliseconds: 600),
       value: 1.0,
       vsync: this,
-    )..addListener(() {
+    )..addStatusListener((_) {
         if (mounted) setState(() {});
       });
     _zoomAnimCtrl = AnimationController(
@@ -2176,11 +2178,16 @@ class _MediaViewerState extends State<MediaViewer>
         : 0.0;
     final remaining = _duration - _position;
 
-    return Opacity(
-      opacity: _controlsOpacity,
-      child: IgnorePointer(
-        ignoring: _controlsAnim.isDismissed,
-        child: Center(
+    return AnimatedBuilder(
+      animation: _controlsAnim,
+      builder: (context, child) => Opacity(
+        opacity: _controlsAnim.value,
+        child: IgnorePointer(
+          ignoring: _controlsAnim.isDismissed,
+          child: child,
+        ),
+      ),
+      child: Center(
           child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
             constraints: const BoxConstraints(maxWidth: 480),
@@ -2352,7 +2359,6 @@ class _MediaViewerState extends State<MediaViewer>
               ],
             ),
           ),
-        ),
       ),
     );
   }
@@ -2814,8 +2820,49 @@ class _MediaViewerState extends State<MediaViewer>
   }
 
   void _viewStatistics(CachedMessage msg) {
-    Navigator.of(context).pop();
-    UniClientShell.toggleInfoRequest?.call();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final subtextColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: bgColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Statistics', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: textColor)),
+              const SizedBox(height: 16),
+              _statRow(Icons.visibility_outlined, 'Views', msg.views > 0 ? '${msg.views}' : '—', textColor, subtextColor),
+              const SizedBox(height: 12),
+              _statRow(Icons.share_outlined, 'Shares', msg.forwards > 0 ? '${msg.forwards}' : '—', textColor, subtextColor),
+              const SizedBox(height: 12),
+              _statRow(Icons.favorite_border, 'Reactions', msg.reactions.isNotEmpty ? '${msg.reactions.fold<int>(0, (sum, r) => sum + r.count)}' : '—', textColor, subtextColor),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  static Widget _statRow(IconData icon, String label, String value, Color textColor, Color subtextColor) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: subtextColor),
+        const SizedBox(width: 12),
+        Text(label, style: TextStyle(fontSize: 14, color: textColor)),
+        const Spacer(),
+        Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor)),
+      ],
+    );
   }
 
   bool get _isSelfMedia {
@@ -2955,12 +3002,7 @@ class _MediaViewerState extends State<MediaViewer>
     });
   }
 
-  // OCR not available in engine — button hidden via _ocrAvailable = false
-  bool _ocrAvailable = false;
 
-  void _showOcrResult() {
-    // Requires OCR engine method (not yet in bridge)
-  }
 
   Widget _buildToolbar(CachedMessage msg) {
     final hasContent = msg.mediaLocalPath.isNotEmpty;
@@ -2972,12 +3014,6 @@ class _MediaViewerState extends State<MediaViewer>
             icon: Icons.edit,
             onTap: () => _openDrawEditor(msg),
             tooltip: 'Draw',
-          ),
-        if (_isPhoto && hasContent && _ocrAvailable)
-          _ViewerButton(
-            icon: Icons.text_fields,
-            onTap: _showOcrResult,
-            tooltip: 'Recognize Text',
           ),
         if (hasContent)
           _ViewerButton(
@@ -3005,10 +3041,20 @@ class _MediaViewerState extends State<MediaViewer>
     if (msg.mediaLocalPath.isEmpty) return;
     final file = File(msg.mediaLocalPath);
     if (!await file.exists()) return;
-    final result = await Process.run('xdg-open', [msg.mediaLocalPath]);
-    if (result.exitCode != 0 && mounted) {
-      showTelegramToast(context, 'No image editor found');
-    }
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PhotoCropEditor(
+          imageFile: file,
+          purpose: PhotoEditorPurpose.edit,
+          onDone: (editedFile) async {
+            if (mounted) {
+              showTelegramToast(context, 'Photo saved');
+            }
+          },
+        ),
+      ),
+    );
   }
 }
 
@@ -5249,6 +5295,7 @@ class _StoryReplyComposeState extends State<_StoryReplyCompose> {
   bool _attachHovered = false;
   bool _emojiHovered = false;
   bool _sendHovered = false;
+  bool _showEmojiPicker = false;
 
   @override
   void initState() {
@@ -5284,87 +5331,112 @@ class _StoryReplyComposeState extends State<_StoryReplyCompose> {
   }
 
   void _handleEmoji() {
+    setState(() => _showEmojiPicker = !_showEmojiPicker);
+  }
+
+  void _insertEmoji(String emoji) {
     final text = _controller.text;
     final sel = _controller.selection;
-    final insert = '😊';
-    final newText = text.replaceRange(sel.start, sel.end, insert);
+    final start = sel.isValid ? sel.start : text.length;
+    final end = sel.isValid ? sel.end : text.length;
+    final newText = text.replaceRange(start, end, emoji);
     _controller.value = TextEditingValue(
       text: newText,
-      selection: TextSelection.collapsed(offset: sel.start + insert.length),
+      selection: TextSelection.collapsed(offset: start + emoji.length),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(minWidth: _kStoryComposeMinWidth),
-      padding: _kStoryComposePadding,
-      decoration: BoxDecoration(
-        color: _kStoryComposeBg,
-        borderRadius: BorderRadius.circular(_kStoryComposeRadius),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          _buildButton(
-            icon: Icons.attach_file,
-            hovered: _attachHovered,
-            onHover: (h) => setState(() => _attachHovered = h),
-            onTap: _handleAttach,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (_showEmojiPicker)
+          Container(
+            constraints: const BoxConstraints(maxHeight: 250, maxWidth: 360),
+            margin: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xE6222222),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: EmojiTabbedPanel(
+              visible: true,
+              onHide: () => setState(() => _showEmojiPicker = false),
+              onEmojiSelected: _insertEmoji,
+            ),
           ),
-          const SizedBox(width: _kStoryComposeFieldLeft - 1),
-          Expanded(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                minHeight: _kStoryComposeFieldMinH,
-                maxHeight: _kStoryComposeFieldMaxH,
+        Container(
+          constraints: const BoxConstraints(minWidth: _kStoryComposeMinWidth),
+          padding: _kStoryComposePadding,
+          decoration: BoxDecoration(
+            color: _kStoryComposeBg,
+            borderRadius: BorderRadius.circular(_kStoryComposeRadius),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              _buildButton(
+                icon: Icons.attach_file,
+                hovered: _attachHovered,
+                onHover: (h) => setState(() => _attachHovered = h),
+                onTap: _handleAttach,
               ),
-              child: TextField(
-                controller: _controller,
-                focusNode: _focusNode,
-                maxLines: null,
-                style: const TextStyle(
-                  color: _kStoryComposeWhiteText,
-                  fontSize: 14,
-                ),
-                decoration: const InputDecoration(
-                  hintText: 'Reply to story...',
-                  hintStyle: TextStyle(
-                    color: _kStoryComposeGrayText,
-                    fontSize: 14,
+              const SizedBox(width: _kStoryComposeFieldLeft - 1),
+              Expanded(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    minHeight: _kStoryComposeFieldMinH,
+                    maxHeight: _kStoryComposeFieldMaxH,
                   ),
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 2),
-                  isDense: true,
+                  child: TextField(
+                    controller: _controller,
+                    focusNode: _focusNode,
+                    maxLines: null,
+                    style: const TextStyle(
+                      color: _kStoryComposeWhiteText,
+                      fontSize: 14,
+                    ),
+                    decoration: const InputDecoration(
+                      hintText: 'Reply to story...',
+                      hintStyle: TextStyle(
+                        color: _kStoryComposeGrayText,
+                        fontSize: 14,
+                      ),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+                      isDense: true,
+                    ),
+                    cursorColor: _kStoryComposeBlue,
+                    onSubmitted: (_) => _handleSend(),
+                  ),
                 ),
-                cursorColor: _kStoryComposeBlue,
-                onSubmitted: (_) => _handleSend(),
               ),
-            ),
+              if (_hasText)
+                _buildButton(
+                  icon: Icons.send,
+                  hovered: _sendHovered,
+                  onHover: (h) => setState(() => _sendHovered = h),
+                  onTap: _handleSend,
+                  color: _kStoryComposeBlue,
+                )
+              else ...[
+                _buildButton(
+                  icon: Icons.emoji_emotions_outlined,
+                  hovered: _emojiHovered,
+                  onHover: (h) => setState(() => _emojiHovered = h),
+                  onTap: _handleEmoji,
+                ),
+                _StoryReactionsPanel(
+                  isLiked: widget.isLiked,
+                  onLike: widget.onLike,
+                  onReaction: widget.onReaction,
+                ),
+              ],
+            ],
           ),
-          if (_hasText)
-            _buildButton(
-              icon: Icons.send,
-              hovered: _sendHovered,
-              onHover: (h) => setState(() => _sendHovered = h),
-              onTap: _handleSend,
-              color: _kStoryComposeBlue,
-            )
-          else ...[
-            _buildButton(
-              icon: Icons.emoji_emotions_outlined,
-              hovered: _emojiHovered,
-              onHover: (h) => setState(() => _emojiHovered = h),
-              onTap: _handleEmoji,
-            ),
-            _StoryReactionsPanel(
-              isLiked: widget.isLiked,
-              onLike: widget.onLike,
-              onReaction: widget.onReaction,
-            ),
-          ],
-        ],
-      ),
+        ),
+      ],
     );
   }
 
