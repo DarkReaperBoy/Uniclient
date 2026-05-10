@@ -631,31 +631,9 @@ The Dart emoji_data.dart implements a hardcoded static emoji search database, wh
 
 ## Critical — Backend disconnected
 
-- [ ] [CRITICAL] "Contact joined Telegram" toggle only saves to local JSON prefs, never calls `saveContactSignupSilent` server API — `notifications_settings_screen.dart:418-420` ← `AyuGram/settings/sections/settings_notifications.cpp:1298-1303`
-
-- [ ] [CRITICAL] "Accept calls on this device" toggle only saves to local JSON prefs; never calls `authorizations.toggleCallsDisabledHere()` and never reads live server state from `authorizations.callsDisabledHereValue()` — `notifications_settings_screen.dart:466-468` ← `AyuGram/settings/sections/settings_notifications.cpp:1340-1354`
-
-- [ ] [CRITICAL] Notification type global toggles (private chats / groups / channels) only set `appState.notifPrivateChats/Groups/Channels` (local JSON), never call `settings.defaultUpdate(type, MuteValue{unmute,forever})` (Telegram `account.updateNotifySettings` API) — `notifications_settings_screen.dart:342, 355, 368` ← `AyuGram/settings/sections/settings_notifications.cpp:227-233`
-
-- [ ] [CRITICAL] Type sub-page `_exceptions` list starts empty and is never loaded from the backend; AyuGram's `ExceptionsController.prepare()` loads from `session().data().notifySettings().exceptions(type)` and subscribes to live `exceptionsUpdates` — `notifications_settings_screen.dart:1364` ← `AyuGram/settings/sections/settings_notifications_type.cpp:213-219`
-
 - [ ] [CRITICAL] Type sub-page `_enabled`, `_soundEnabled`, `_volume`, `_selectedToneId` are hardcoded defaults (`true, true, 100, -1`), never loaded from `session.data.notifySettings().defaultSettings(type)` — so the sub-page always shows "on / sound on / 100%" regardless of real account state — `notifications_settings_screen.dart:1357-1361` ← `AyuGram/settings/sections/settings_notifications_type.cpp:392-397`
 
-- [ ] [CRITICAL] Changes to `_enabled` and `_soundEnabled` in the type sub-page only call `setState()`, never call `settings.defaultUpdate(type, MuteValue)` to persist to the Telegram server — `notifications_settings_screen.dart:1420, 1443` ← `AyuGram/settings/sections/settings_notifications.cpp:227-233`
-
-- [ ] [CRITICAL] Adding an exception via `_showPeerPicker` only appends to the local `_exceptions` list; never calls the Telegram mute API (`MuteMenu::FillMuteMenu`) to actually mute the peer on the server — `notifications_settings_screen.dart:1681-1688` ← `AyuGram/settings/sections/settings_notifications_type.cpp:174-177`
-
-- [ ] [CRITICAL] Removing an exception only removes from the local list; never calls `session().data().notifySettings().resetToDefault(peer)` to remove the server-side peer exception — `notifications_settings_screen.dart:1509-1510` ← `AyuGram/settings/sections/settings_notifications_type.cpp:257-258`
-
-- [ ] [CRITICAL] Exception mute toggle (context menu mute/unmute) only flips local `isMuted` field; never calls the mute API — `notifications_settings_screen.dart:1818-1831` ← `AyuGram/settings/sections/settings_notifications_type.cpp:292-321`
-
-- [ ] [CRITICAL] Reactions sub-page `_reactionsEnabled`, `_reactionsFrom`, `_pollVotesEnabled`, `_pollVotesFrom` are hardcoded defaults, never loaded from `session.api().reactionsNotifySettings()` (which calls `rs.reload()` on open), and changes are never saved via `reactionsNotifySettings.setAllFrom(from)` — `notifications_settings_screen.dart:2621-2625` ← `AyuGram/settings/sections/settings_notifications.cpp:280-322`
-
-- [ ] [CRITICAL] "view_profile" in exception context menu is a stub — comment reads `// Profile viewing would navigate to the chat/user profile` with no navigation code; AyuGram calls `window->showPeerInfo(peer)` — `notifications_settings_screen.dart:1816-1817` ← `AyuGram/settings/sections/settings_notifications_type.cpp:305-309`
-
-- [ ] [CRITICAL] "View exceptions" button in the toggle confirmation dialog only pops the dialog (`Navigator.of(ctx).pop()`), never navigates to the type sub-page; AyuGram's equivalent opens the NotificationsType section via `showOther(NotificationsType::Id(type))` — `notifications_settings_screen.dart:2499-2502` ← `AyuGram/settings/sections/settings_notifications.cpp:263-269`
-
-- [ ] [CRITICAL] `_allAccountsNotify` is uninitialized widget-local state (always `true` on open), never read from AppState or a persisted setting; the toggle resets every time the screen is opened — `notifications_settings_screen.dart:56, 173-174` ← `AyuGram/settings/sections/settings_notifications.cpp:943-970`
+- [ ] [CRITICAL] Changes to `_soundEnabled` in the type sub-page only call `setState()`, never call `settings.defaultUpdate(type, MuteValue)` to persist to the Telegram server (`_enabled` is now wired but `_soundEnabled` at line ~1549 still only does setState) — `notifications_settings_screen.dart:1420, 1443` ← `AyuGram/settings/sections/settings_notifications.cpp:227-233`
 
 ## Major — Wrong initial state / performance
 
