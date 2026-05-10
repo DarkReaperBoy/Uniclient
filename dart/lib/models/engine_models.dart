@@ -2924,3 +2924,29 @@ class CallHistoryEntry {
     isVideo: j['is_video'] as bool? ?? false,
   );
 }
+
+class EmojiKeywordEntry {
+  final String keyword;
+  final List<String> emoticons;
+  const EmojiKeywordEntry({required this.keyword, required this.emoticons});
+
+  factory EmojiKeywordEntry.fromJson(Map<String, dynamic> j) => EmojiKeywordEntry(
+    keyword: j['keyword'] as String? ?? '',
+    emoticons: (j['emoticons'] as List<dynamic>?)?.cast<String>() ?? const [],
+  );
+}
+
+class EmojiKeywordsResult {
+  final String langCode;
+  final int version;
+  final List<EmojiKeywordEntry> keywords;
+  const EmojiKeywordsResult({required this.langCode, required this.version, required this.keywords});
+
+  factory EmojiKeywordsResult.fromJson(Map<String, dynamic> j) => EmojiKeywordsResult(
+    langCode: j['lang_code'] as String? ?? '',
+    version: j['version'] as int? ?? 0,
+    keywords: (j['keywords'] as List<dynamic>?)
+        ?.map((e) => EmojiKeywordEntry.fromJson(e as Map<String, dynamic>))
+        .toList() ?? const [],
+  );
+}

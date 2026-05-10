@@ -1116,6 +1116,22 @@ class EngineService {
     }
   }
 
+  Future<EmojiKeywordsResult?> getEmojiKeywords(String accountId, String langCode) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'lang_code': langCode,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetEmojiKeywords', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return EmojiKeywordsResult.fromJson(data);
+    } catch (e) {
+      Debug.error('ENGINE', 'getEmojiKeywords failed', e);
+      return null;
+    }
+  }
+
   Future<void> sendSticker(String accountId, String chatId, String stickerId) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

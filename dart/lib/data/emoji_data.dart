@@ -542,7 +542,6 @@ const List<EmojiEntry> kEmojiSuggestions = [
   EmojiEntry('🔦', ['flashlight', 'torch']),
   EmojiEntry('🕯️', ['candle', 'light']),
   EmojiEntry('💎', ['gem', 'diamond', 'jewel']),
-  EmojiEntry('🧲', ['magnet']),
   EmojiEntry('💰', ['money_bag', 'money', 'dollar', 'rich']),
   EmojiEntry('💵', ['dollar', 'money', 'bill', 'cash']),
   EmojiEntry('💳', ['credit_card', 'card', 'payment']),
@@ -647,34 +646,246 @@ class EmojiEntry {
   const EmojiEntry(this.emoji, this.keywords);
 }
 
-List<EmojiEntry> searchEmoji(String query, {int limit = 30}) {
-  if (query.isEmpty) return const [];
-  final q = query.toLowerCase();
-  final exact = <EmojiEntry>[];
-  final prefix = <EmojiEntry>[];
-  final contains = <EmojiEntry>[];
-  for (final e in kEmojiSuggestions) {
-    bool isExact = false;
-    bool isPrefix = false;
-    bool isContains = false;
-    for (final kw in e.keywords) {
-      if (kw == q) {
-        isExact = true;
-        break;
-      } else if (kw.startsWith(q)) {
-        isPrefix = true;
-      } else if (kw.contains(q)) {
-        isContains = true;
-      }
-    }
-    if (isExact) {
-      exact.add(e);
-    } else if (isPrefix) {
-      prefix.add(e);
-    } else if (isContains) {
-      contains.add(e);
+/// Validates that an emoji string contains at least one valid Unicode emoji codepoint.
+bool isValidEmoji(String emoji) {
+  if (emoji.isEmpty) return false;
+  final runes = emoji.runes.toList();
+  if (runes.isEmpty) return false;
+  final first = runes.first;
+  // Basic emoji ranges: emoticons, symbols, dingbats, transport, misc symbols,
+  // supplemental symbols, enclosed alphanumerics, regional indicators, skin tones
+  return first >= 0x1F600 || // Emoticons and above
+      (first >= 0x2600 && first <= 0x27BF) || // Misc symbols & dingbats
+      (first >= 0x2300 && first <= 0x23FF) || // Misc technical
+      (first >= 0x2190 && first <= 0x21FF) || // Arrows
+      (first >= 0x200D) || // ZWJ and other format chars
+      (first >= 0xFE00 && first <= 0xFE0F) || // Variation selectors
+      first == 0x23 || first == 0x2A || // # and * (keycap base)
+      (first >= 0x30 && first <= 0x39); // 0-9 (keycap base)
+}
+
+/// Manages emoji keyword data from server language packs with local fallback.
+///
+/// Supports server-sourced keywords (via engine), recent emoji prioritization,
+/// emoji variant preferences (skin tones), and validation.
+class EmojiKeywords {
+  EmojiKeywords._();
+  static final instance = EmojiKeywords._();
+
+  // Server-sourced keyword data: keyword → list of emoji strings
+  Map<String, List<String>> _serverKeywords = {};
+  int _serverVersion = 0;
+  String _serverLangCode = '';
+  bool _serverDataLoaded = false;
+
+  // Recent emoji tracking (most recent first, capped at 50)
+  final List<String> _recentEmojis = [];
+  static const _maxRecent = 50;
+
+  // Emoji variant preferences: base emoji → user-preferred variant
+  final Map<String, String> _variantPrefs = {};
+
+  // Validated legacy entries (built once from kEmojiSuggestions on init)
+  List<EmojiEntry>? _validatedLegacy;
+
+  /// Initialize and validate the legacy emoji list.
+  void init() {
+    _validatedLegacy ??= kEmojiSuggestions
+        .where((e) => isValidEmoji(e.emoji))
+        .toList();
+  }
+
+  List<EmojiEntry> get _legacy => _validatedLegacy ?? kEmojiSuggestions;
+
+  /// Load server-sourced keywords. Called when engine provides data.
+  void loadServerKeywords({
+    required Map<String, List<String>> keywords,
+    required int version,
+    required String langCode,
+  }) {
+    _serverKeywords = keywords;
+    _serverVersion = version;
+    _serverLangCode = langCode;
+    _serverDataLoaded = true;
+  }
+
+  bool get hasServerData => _serverDataLoaded;
+  int get serverVersion => _serverVersion;
+  String get serverLangCode => _serverLangCode;
+
+  /// Record an emoji as recently used. Moves to front if already present.
+  void recordRecent(String emoji) {
+    _recentEmojis.remove(emoji);
+    _recentEmojis.insert(0, emoji);
+    if (_recentEmojis.length > _maxRecent) {
+      _recentEmojis.removeLast();
     }
   }
-  final result = [...exact, ...prefix, ...contains];
-  return result.length > limit ? result.sublist(0, limit) : result;
+
+  List<String> get recentEmojis => List.unmodifiable(_recentEmojis);
+
+  /// Set user's preferred variant for a base emoji.
+  void setVariant(String baseEmoji, String variant) {
+    _variantPrefs[baseEmoji] = variant;
+  }
+
+  /// Look up user's preferred variant, or return the emoji unchanged.
+  String applyVariant(String emoji) => _variantPrefs[emoji] ?? emoji;
+
+  /// Load recent emojis and variant prefs from JSON map (for persistence).
+  void loadState(Map<String, dynamic> data) {
+    final recent = data['recent'] as List<dynamic>?;
+    if (recent != null) {
+      _recentEmojis.clear();
+      _recentEmojis.addAll(recent.cast<String>().take(_maxRecent));
+    }
+    final variants = data['variants'] as Map<String, dynamic>?;
+    if (variants != null) {
+      _variantPrefs.clear();
+      variants.forEach((k, v) => _variantPrefs[k] = v as String);
+    }
+  }
+
+  /// Serialize state for persistence.
+  Map<String, dynamic> saveState() => {
+    'recent': _recentEmojis,
+    'variants': _variantPrefs,
+  };
+
+  /// Search emoji keywords. Uses server data if available, falls back to legacy.
+  ///
+  /// When [exact] is true, only exact keyword matches are returned (no prefix/contains).
+  /// Results are prioritized: recent emojis first, then exact > prefix > contains.
+  /// User variant preferences are applied to all results.
+  List<EmojiEntry> search(String query, {int limit = 30, bool exact = false}) {
+    if (query.isEmpty) return const [];
+    final q = query.toLowerCase();
+
+    final exactMatches = <EmojiEntry>[];
+    final prefixMatches = <EmojiEntry>[];
+    final containsMatches = <EmojiEntry>[];
+    final seen = <String>{};
+
+    // Primary: server-sourced keywords
+    if (_serverDataLoaded && _serverKeywords.isNotEmpty) {
+      _searchServerData(q, exact, seen, exactMatches, prefixMatches, containsMatches);
+    }
+
+    // Fallback: legacy suggestions (always appended, deduplicating)
+    _searchLegacyData(q, exact, seen, exactMatches, prefixMatches, containsMatches);
+
+    List<EmojiEntry> result;
+    if (exact) {
+      result = exactMatches;
+    } else {
+      result = [...exactMatches, ...prefixMatches, ...containsMatches];
+    }
+
+    // Prioritize recently used emojis
+    result = _prioritizeRecent(result);
+
+    // Apply user variant preferences
+    result = result.map((e) {
+      final variant = applyVariant(e.emoji);
+      return variant == e.emoji ? e : EmojiEntry(variant, e.keywords);
+    }).toList();
+
+    return result.length > limit ? result.sublist(0, limit) : result;
+  }
+
+  void _searchServerData(
+    String q,
+    bool exact,
+    Set<String> seen,
+    List<EmojiEntry> exactMatches,
+    List<EmojiEntry> prefixMatches,
+    List<EmojiEntry> containsMatches,
+  ) {
+    for (final entry in _serverKeywords.entries) {
+      final keyword = entry.key.toLowerCase();
+      final emojis = entry.value;
+      if (keyword == q) {
+        for (final emoji in emojis) {
+          if (seen.add(emoji)) {
+            exactMatches.add(EmojiEntry(emoji, [keyword]));
+          }
+        }
+      } else if (!exact) {
+        if (keyword.startsWith(q)) {
+          for (final emoji in emojis) {
+            if (seen.add(emoji)) {
+              prefixMatches.add(EmojiEntry(emoji, [keyword]));
+            }
+          }
+        } else if (keyword.contains(q)) {
+          for (final emoji in emojis) {
+            if (seen.add(emoji)) {
+              containsMatches.add(EmojiEntry(emoji, [keyword]));
+            }
+          }
+        }
+      }
+    }
+  }
+
+  void _searchLegacyData(
+    String q,
+    bool exact,
+    Set<String> seen,
+    List<EmojiEntry> exactMatches,
+    List<EmojiEntry> prefixMatches,
+    List<EmojiEntry> containsMatches,
+  ) {
+    for (final e in _legacy) {
+      if (seen.contains(e.emoji)) continue;
+      bool isExact = false;
+      bool isPrefix = false;
+      bool isContains = false;
+      for (final kw in e.keywords) {
+        if (kw == q) {
+          isExact = true;
+          break;
+        } else if (!exact) {
+          if (kw.startsWith(q)) {
+            isPrefix = true;
+          } else if (kw.contains(q)) {
+            isContains = true;
+          }
+        }
+      }
+      if (isExact) {
+        seen.add(e.emoji);
+        exactMatches.add(e);
+      } else if (isPrefix) {
+        seen.add(e.emoji);
+        prefixMatches.add(e);
+      } else if (isContains) {
+        seen.add(e.emoji);
+        containsMatches.add(e);
+      }
+    }
+  }
+
+  List<EmojiEntry> _prioritizeRecent(List<EmojiEntry> list) {
+    if (_recentEmojis.isEmpty || list.isEmpty) return list;
+    final result = List<EmojiEntry>.from(list);
+    var lastRecent = 0;
+    for (final recent in _recentEmojis) {
+      final idx = result.indexWhere((e) => e.emoji == recent, lastRecent);
+      if (idx > lastRecent) {
+        final item = result.removeAt(idx);
+        result.insert(lastRecent, item);
+        lastRecent++;
+      } else if (idx == lastRecent) {
+        lastRecent++;
+      }
+    }
+    return result;
+  }
+}
+
+/// Top-level search function for backward compatibility.
+/// Uses EmojiKeywords singleton with recent prioritization and variant support.
+List<EmojiEntry> searchEmoji(String query, {int limit = 30, bool exact = false}) {
+  return EmojiKeywords.instance.search(query, limit: limit, exact: exact);
 }

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"strconv"
@@ -1777,4 +1778,64 @@ func (e *Engine) LoadStatsGraph(accountID, token string, x int64) (map[string]in
 		return nil, fmt.Errorf("platform does not support stats graph loading")
 	}
 	return loader.LoadStatsGraph(token, x)
+}
+
+type EmojiKeywordEntry struct {
+	Keyword   string   `json:"keyword"`
+	Emoticons []string `json:"emoticons"`
+}
+
+type EmojiKeywordsResult struct {
+	LangCode string              `json:"lang_code"`
+	Version  int                 `json:"version"`
+	Keywords []EmojiKeywordEntry `json:"keywords"`
+}
+
+func (e *Engine) GetEmojiKeywords(accountID, langCode string) (*EmojiKeywordsResult, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	type emojiKeywordsFetcher interface {
+		MessagesGetEmojiKeywords(langcode string) (interface{}, error)
+	}
+	fetcher, ok := acc.Core.(emojiKeywordsFetcher)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support emoji keywords")
+	}
+	raw, err := fetcher.MessagesGetEmojiKeywords(langCode)
+	if err != nil {
+		return nil, err
+	}
+	b, err := json.Marshal(raw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize emoji keywords: %w", err)
+	}
+	var diff struct {
+		LangCode string `json:"LangCode"`
+		Version  int    `json:"Version"`
+		Keywords []struct {
+			Keyword   string   `json:"Keyword"`
+			Emoticons []string `json:"Emoticons"`
+		} `json:"Keywords"`
+	}
+	if err := json.Unmarshal(b, &diff); err != nil {
+		return nil, fmt.Errorf("failed to parse emoji keywords: %w", err)
+	}
+	result := &EmojiKeywordsResult{
+		LangCode: diff.LangCode,
+		Version:  diff.Version,
+	}
+	for _, kw := range diff.Keywords {
+		if kw.Keyword != "" && len(kw.Emoticons) > 0 {
+			result.Keywords = append(result.Keywords, EmojiKeywordEntry{
+				Keyword:   kw.Keyword,
+				Emoticons: kw.Emoticons,
+			})
+		}
+	}
+	return result, nil
 }

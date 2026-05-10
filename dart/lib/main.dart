@@ -43,6 +43,7 @@ import 'utils/web_notifier.dart';
 import 'notifications/notification_system.dart';
 import 'ui/notification_popup.dart';
 import 'ui/custom_emoji_cache.dart';
+import 'data/emoji_data.dart';
 import 'package:media_kit/media_kit.dart';
 
 /// §51.7: `-ghost` CLI flag — forces Ghost Mode on at startup.
@@ -274,6 +275,18 @@ class _UniClientAppState extends State<UniClientApp>
     }
 
     await CustomEmojiCache.instance.initDiskCache(cacheDir);
+
+    // Initialize emoji keywords with validation and load persisted state.
+    EmojiKeywords.instance.init();
+    if (!kIsWeb && configDir.isNotEmpty) {
+      try {
+        final emojiFile = File('$configDir/emoji_state.json');
+        if (emojiFile.existsSync()) {
+          final data = jsonDecode(emojiFile.readAsStringSync()) as Map<String, dynamic>;
+          EmojiKeywords.instance.loadState(data);
+        }
+      } catch (_) {}
+    }
 
     await appState.initialize(
       configDir: configDir,
@@ -1826,6 +1839,13 @@ class _UniClientAppState extends State<UniClientApp>
       _appStateRef!.removeListener(_ghostSyncListener!);
     }
     if (_chatStateRef != null) _chatStateRef!.onNotification = null;
+    // Persist emoji keywords state (recent emojis, variant prefs).
+    if (!kIsWeb && _appStateRef != null && _appStateRef!.configDir.isNotEmpty) {
+      try {
+        final emojiFile = File('${_appStateRef!.configDir}/emoji_state.json');
+        emojiFile.writeAsStringSync(jsonEncode(EmojiKeywords.instance.saveState()));
+      } catch (_) {}
+    }
     _themeFadeCtrl?.dispose();
     _themeCrossFadeImage?.dispose();
     _instance = null;

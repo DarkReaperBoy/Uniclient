@@ -375,6 +375,7 @@ class _ChatViewState extends State<ChatView>
   bool _inlineBotLoading = false;
 
   bool _emojiPanelVisible = false;
+  bool _emojiKeywordsFetched = false;
   bool _commentsShown = true;
 
   String _botMenuText = '';
@@ -3431,6 +3432,7 @@ class _ChatViewState extends State<ChatView>
         _acSelectedIndex = 0;
       });
     } else if (query.type == AutocompleteType.emoji) {
+      _fetchEmojiKeywordsIfNeeded(chat.accountId);
       final results = searchEmoji(query.query, limit: 30);
       setState(() {
         _acQuery = query;
@@ -3518,6 +3520,28 @@ class _ChatViewState extends State<ChatView>
 
   String? _stickerSuggestEmoji;
 
+  void _fetchEmojiKeywordsIfNeeded(String accountId) {
+    if (_emojiKeywordsFetched || EmojiKeywords.instance.hasServerData) {
+      _emojiKeywordsFetched = true;
+      return;
+    }
+    _emojiKeywordsFetched = true;
+    final engine = context.read<EngineService>();
+    engine.getEmojiKeywords(accountId, 'en').then((result) {
+      if (result != null && result.keywords.isNotEmpty) {
+        final kwMap = <String, List<String>>{};
+        for (final entry in result.keywords) {
+          kwMap[entry.keyword] = entry.emoticons;
+        }
+        EmojiKeywords.instance.loadServerKeywords(
+          keywords: kwMap,
+          version: result.version,
+          langCode: result.langCode,
+        );
+      }
+    }).catchError((_) {});
+  }
+
   void _loadStickerSuggestions(String accountId, String emoji) {
     _stickerSuggestEmoji = emoji;
     final engine = context.read<EngineService>();
@@ -3555,7 +3579,9 @@ class _ChatViewState extends State<ChatView>
   void _acPick() {
     if (_acQuery == null) return;
     if (_acQuery!.type == AutocompleteType.emoji && _acSelectedIndex < _acFilteredEmojis.length) {
-      _insertAutocomplete(_acFilteredEmojis[_acSelectedIndex].emoji);
+      final emoji = _acFilteredEmojis[_acSelectedIndex].emoji;
+      EmojiKeywords.instance.recordRecent(emoji);
+      _insertAutocomplete(emoji);
       return;
     }
     if (_acQuery!.type == AutocompleteType.mention && _acSelectedIndex < _acFilteredMembers.length) {
@@ -3574,7 +3600,9 @@ class _ChatViewState extends State<ChatView>
 
   void _acPickIndex(int index) {
     if (_acQuery?.type == AutocompleteType.emoji && index < _acFilteredEmojis.length) {
-      _insertAutocomplete(_acFilteredEmojis[index].emoji);
+      final emoji = _acFilteredEmojis[index].emoji;
+      EmojiKeywords.instance.recordRecent(emoji);
+      _insertAutocomplete(emoji);
       return;
     }
     if (_acQuery?.type == AutocompleteType.mention && index < _acFilteredMembers.length) {
