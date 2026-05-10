@@ -544,39 +544,9 @@ The edit_mark_box is **functionally broken** — missing Cancel button, no input
 3. Fix padding to match AyuGram spec (49, 2, 0, 14)
 4. Add TextField error state display when validation fails
 
-# emoji_panel — Audit Findings
-
-## emoji_panel — placeholder/stub, persistence gaps, wrong height ratio, sticker context menu incomplete, sticker/GIF not sent as documents
-
-- [ ] [MAJOR] GIF search resolves the bot username by hardcoding `'gif'` (`resolveUsername(accountId, 'gif')`); AyuGram reads `session().serverConfig().gifSearchUsername` from the server config, which varies by DC/deployment — the hardcoded string will fail for non-default server configs — `emoji_panel.dart:2264` ← `AyuGram/chat_helpers/gifs_list_widget.cpp:925`
-
-- [ ] [MAJOR] GIF search results displayed while query field is loading (before `_searchQuery` is set) show a spinner but `_searching` is set to `true` before `_gifBotId` is resolved, so typing immediately sends the first character to `resolveUsername` every time the search bot is not cached, racing against quick typing — `emoji_panel.dart:2235, 2263-2270`
-
-# emoji_status_widget — hardcoded loop limit, userpic not rendered
-
-- [ ] [MAJOR] Hardcoded `_maxLoops = 2` limits emoji status animations to 2 loops — differs from AyuGram default which loops indefinitely (LimitedLoopsEmoji used only when explicitly configured); the Dart widget will stop animating after 2 complete loops while AyuGram emoji badges can loop continuously — `emoji_status_widget.dart:33,162-170` ← `info_profile_badge.cpp:140-143` (AyuGram only wraps with LimitedLoopsEmoji when `_customStatusLoopsLimit > 0`, default is 0 meaning no limit)
-
-- [ ] [MAJOR] "userpic:" emoji status silently ignored with no special handling — code parses and discards the userpic prefix at line 101-103 without extracting or using any data from it; may need separate rendering path like AyuGram's userpic emoji builder — `emoji_status_widget.dart:101-103` ← `info/userpic/info_userpic_emoji_builder.cpp` (AyuGram has dedicated userpic emoji builder modules for proper rendering)
-
 # filter_column — Audit findings
 
-- [ ] [CRITICAL] `case 'edit': break;` — "Edit Folder" context menu action is a stub that does nothing — `filter_column.dart:294-295` ← `window/window_filters_menu.cpp:447` (`EditExistingFilter(_session, id)`)
-
-- [ ] [CRITICAL] Edit button at bottom opens the app drawer (`widget.onOpenDrawer`) instead of the Folders settings page — `filter_column.dart:432` ← `window/window_filters_menu.cpp:417-429` (`openFiltersSettings()` → `showSettings(Settings::FoldersId())`)
-
 - [ ] [CRITICAL] Filter icons are guessed from folder name keywords using generic Material icons (`Icons.folder`, `Icons.group`, etc.) instead of real Telegram filter icons — `filter_column.dart:53-62` ← `window/window_filters_menu.cpp:327-330` (`Ui::LookupFilterIcon(Ui::ComputeFilterIcon(filter))` with SVG icons)
-
-- [ ] [CRITICAL] Hamburger button never shows the other-accounts unread badge — always passes `unreadCount: 0`; AyuGram wires `OtherAccountsUnreadState` to switch the icon to `windowFiltersMainMenuUnread` / `windowFiltersMainMenuUnreadMuted` when other accounts have unreads — `filter_column.dart:323-331` ← `window/window_filters_menu.cpp:162-178`
-
-- [ ] [CRITICAL] No locked/premium folder handling — tapping a folder beyond the free limit should show a `FiltersLimitBox` upgrade prompt; Dart unconditionally calls `setActiveFolder` on all folders — `filter_column.dart:409-415` ← `window/window_filters_menu.cpp:371-376` (`raw->locked()` check + `FiltersLimitBox`)
-
-- [ ] [MAJOR] Badge font is `fontSize: 10` but AyuGram specifies `badgeStyle.font: font(12px semibold)` — `filter_column.dart:579` ← `window/window.style:262-264`
-
-- [ ] [MAJOR] Context menu is missing the "Remove Folder" (destructive) action — AyuGram shows Edit + Mark as Read + Remove; Dart only shows mark_read + edit (stub) — `filter_column.dart:271-283` ← `window/window_filters_menu.cpp:458-465`
-
-- [ ] [MAJOR] Drag-over auto-switch timer is 2000 ms; AyuGram uses `ChoosePeerByDragTimeout = 1000 ms` — `filter_column.dart:94` ← `config.h` (`ChoosePeerByDragTimeout = 1000`) + `window/window_filters_menu.cpp:401`
-
-- [ ] [MAJOR] No animated scroll-to-button when the active folder changes — AyuGram uses a `_scrollToAnimation` with `st::slideDuration`/`sineInOut` easing to scroll the sidebar list so the newly-active tab is visible; Dart has no equivalent — `filter_column.dart:65-436` ← `window/window_filters_menu.cpp:180-204`
 
 # ayu_filter — Regex filter engine audit
 
