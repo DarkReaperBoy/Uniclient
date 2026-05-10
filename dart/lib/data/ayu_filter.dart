@@ -130,7 +130,7 @@ const _mediaTypeNames = <int, int>{
   11: 12, // contact → TYPE_CONTACT
 };
 
-String _extractSingleText(CachedMessage msg) {
+String _extractSingleText(CachedMessage msg, {Set<String>? extractedUrls}) {
   final buf = StringBuffer();
   buf.write(msg.contentText);
 
@@ -143,14 +143,17 @@ String _extractSingleText(CachedMessage msg) {
         if (type == 'url' || type == 'text_url') {
           final url = m['url'] as String? ?? '';
           if (url.isNotEmpty) {
+            extractedUrls?.add(url);
             buf.write('\n');
             buf.write(url);
           } else {
             final offset = m['offset'] as int? ?? 0;
             final length = m['length'] as int? ?? 0;
             if (offset >= 0 && offset + length <= msg.contentText.length) {
+              final extracted = msg.contentText.substring(offset, offset + length);
+              extractedUrls?.add(extracted);
               buf.write('\n');
-              buf.write(msg.contentText.substring(offset, offset + length));
+              buf.write(extracted);
             }
           }
         }
@@ -170,21 +173,23 @@ int _serviceMessageType(CachedMessage msg) {
 
 String extractMatchBlob(CachedMessage msg, {List<CachedMessage>? groupMessages}) {
   final buf = StringBuffer();
+  final entityUrls = <String>{};
 
   if (groupMessages != null && groupMessages.length > 1) {
     for (final gMsg in groupMessages) {
-      final text = _extractSingleText(gMsg).trim();
+      final text = _extractSingleText(gMsg, extractedUrls: entityUrls).trim();
       if (text.isNotEmpty) {
         buf.write(text);
         buf.write('\n');
       }
     }
   } else {
-    buf.write(_extractSingleText(msg));
+    buf.write(_extractSingleText(msg, extractedUrls: entityUrls));
   }
 
   for (final row in msg.inlineKeyboard) {
     for (final btn in row) {
+      if (btn.data.isNotEmpty && entityUrls.contains(btn.data)) continue;
       buf.write('<button>');
       buf.write(btn.text);
       buf.write(' ');

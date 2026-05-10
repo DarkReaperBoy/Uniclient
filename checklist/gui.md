@@ -552,17 +552,16 @@ The edit_mark_box is **functionally broken** — missing Cancel button, no input
 
 ## Warnings (Not showstoppers, but notable differences)
 
-- [ ] **No inline keyboard handling in entity extraction** — `ayu_filter.dart:135-157`
-  - Dart extracts URLs from `contentRich` entities separately from inline keyboards (lines 159-162)
-  - AyuGram extracts URLs from text entities, then separately processes reply markup buttons
-  - Dart's approach may duplicate URLs if they appear both as text entities and in inline buttons (no deduplication)
+- [x] **No inline keyboard handling in entity extraction** — `ayu_filter.dart:135-157`
+  - Fixed: added URL deduplication — entity URLs tracked in a Set, inline keyboard buttons with matching data are skipped
+  - AyuGram also duplicates in this case; Dart now deduplicates (strictly better)
 
-- [ ] **Reversed pattern logic matches both implementations** — `ayu_filter.dart:112-116` ← `AyuGramDesktop/.../filters_controller.cpp:49-65`
+- [x] **Reversed pattern logic matches both implementations** — `ayu_filter.dart:112-116` ← `AyuGramDesktop/.../filters_controller.cpp:49-65`
   - Both correctly handle inverted patterns: `return filter.reversed ? !found : found`
   - AyuGram: `if ((!reversed && match) || (reversed && !match)) return true;` (equivalent)
   - ✓ No issue, just confirming correctness
 
-- [ ] **Regex compilation flags match** — `ayu_filter.dart:105` ← `AyuGramDesktop/.../filters_cache_controller.cpp:55-56`
+- [x] **Regex compilation flags match** — `ayu_filter.dart:105` ← `AyuGramDesktop/.../filters_cache_controller.cpp:55-56`
   - Both: `multiLine: true` + optional `caseSensitive` flag
   - Dart uses Dart's `RegExp`, AyuGram uses ICU regex (unicode/regex.h)
   - May have subtle differences in regex behavior (lookahead, backrefs, etc.) but basic patterns work the same
